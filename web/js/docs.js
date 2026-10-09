@@ -14,9 +14,11 @@ const Docs = (() => {
       document.body.appendChild(f);
     });
   }
-  function imprimir(frame) {
-    const w = frame.contentWindow;
-    w.addEventListener('afterprint', () => frame.remove());
+  // `nome` vira o título da página durante a impressão (sugestão de nome do arquivo PDF).
+  function imprimir(frame, nome) {
+    const w = frame.contentWindow, tituloAntes = document.title;
+    document.title = nome; frame.contentDocument.title = nome;
+    w.addEventListener('afterprint', () => { document.title = tituloAntes; frame.remove(); });
     w.focus();
     w.print();
   }
@@ -42,7 +44,7 @@ const Docs = (() => {
       set('hora' + (i + 1), v.hora); set('placa' + (i + 1), v.placa); set('tipo' + (i + 1), v.tipo);
     });
     set('total', veiculos.length);
-    imprimir(f);
+    imprimir(f, 'Ficha de Campo ' + turno.numeroTF);
     return veiculos.length > CONFIG.linhasFicha ? veiculos.length - CONFIG.linhasFicha : 0;
   }
 
@@ -88,7 +90,7 @@ previstas na legislação federal e estadual referente ao trânsito agropecuári
 dispersão de pragas quarentenárias, com destaque para a <strong>Mosca-da-Carambola (Bactrocera carambolae)</strong>, bem como sobre
 a obrigatoriedade da apresentação da documentação fitossanitária quando exigida.</p>
 <p>Nada mais havendo a registrar, lavrou-se o presente Termo de Fiscalização para fins de comprovação da atividade desenvolvida.</p>`;
-    imprimir(f);
+    imprimir(f, 'Termo ' + turno.numeroTF);
   }
 
   return { ficha, termo, ordenar, esc };

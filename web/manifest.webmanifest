@@ -1,0 +1,14 @@
+{
+  "name": "GDV – Controle de Veículos",
+  "short_name": "GDV",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#eef3fa",
+  "theme_color": "#0B3A82",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "img/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "img/icon-512.png", "sizes": "512x512", "type": "image/png" }
+  ]
+}

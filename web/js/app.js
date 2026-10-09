@@ -161,7 +161,7 @@ async function resumo() {
     <p class="dica">Início do turno: ${esc(t.inicio)}. Ao encerrar, o horário final é registrado e o Termo de Fiscalização fica disponível.<br>Na janela de impressão, escolha “Salvar como PDF”.</p>`);
   $('#encerrar').onclick = async () => {
     const fim = agoraHM();
-    if (!confirm(`Encerrar o turno agora (${fim})? Não será possível registrar novos veículos nele.`)) return;
+    if (!confirm(`Encerrar o turno agora (${fim})? Esta ação é definitiva: não será possível registrar novos veículos nem reabrir o turno.`)) return;
     const b = $('#encerrar'); b.disabled = true; b.textContent = '📍 Obtendo localização…';
     const gps = await pegarLocal();
     if (!gps) toast('Turno encerrado sem coordenadas (GPS indisponível ou permissão negada).', true);
@@ -181,14 +181,7 @@ async function fechado() {
     <button class="botao" data-doc="termo" data-id="${t.id}">📄 Termo de Fiscalização (PDF)</button>
     <button class="botao" data-doc="ficha" data-id="${t.id}">📝 Ficha de Campo (PDF)</button>
     <button class="botao" data-go="home">➕ Iniciar novo turno</button>
-    <button class="botao sec" id="reabrir">↩ Reabrir este turno (encerrei sem querer)</button>
     <p class="dica">Os documentos deste turno também ficam no Histórico.</p>`);
-  $('#reabrir').onclick = async () => {
-    if (!confirm('Reabrir o turno? O horário de encerramento será apagado.')) return;
-    await Store.salvar('turnos', { ...t, encerrado: 0, fim: '', latFim: '', lngFim: '', precFim: '' });
-    await Store.setMeta('turnoAtual', t.id);
-    Sync.sincronizar(); go('home');
-  };
 }
 const contar = v => v.reduce((o, x) => (o[x.tipo] = (o[x.tipo] || 0) + 1, o), {});
 

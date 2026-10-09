@@ -9,7 +9,8 @@
 
 const TABELAS = {
   Turnos: ['id', 'numeroTF', 'data', 'letra', 'inicio', 'fim', 'fiscal', 'local', 'unidade', 'posto',
-           'encerrado', 'criadoEm', 'atualizadoEm', 'srv_ts'],
+           'encerrado', 'criadoEm', 'atualizadoEm', 'srv_ts',
+           'latIni', 'lngIni', 'precIni', 'latFim', 'lngFim', 'precFim'],   // colunas novas ficam sempre no fim
   Veiculos: ['id', 'turnoId', 'hora', 'placa', 'tipo', 'pessoas', 'obs',
              'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts']
 };
@@ -84,8 +85,25 @@ function aba_(nome) {
     sh.setFrozenRows(1);
     // Texto puro: impede o Sheets de converter datas/placas ou interpretar fórmulas.
     sh.getRange(1, 1, sh.getMaxRows(), cols.length).setNumberFormat('@');
+  } else {
+    garantirColunas_(sh, nome);
   }
   return sh;
+}
+
+/** Planilhas criadas por versões anteriores ganham as colunas novas (no fim), sem mexer nos dados. */
+function garantirColunas_(sh, nome) {
+  const cols = TABELAS[nome];
+  if (sh.getMaxColumns() < cols.length) sh.insertColumnsAfter(sh.getMaxColumns(), cols.length - sh.getMaxColumns());
+  const atual = sh.getRange(1, 1, 1, cols.length).getValues()[0];
+  cols.forEach(function (c, i) {
+    if (atual[i] === c) return;
+    if (atual[i] !== '' && atual[i] !== undefined && atual[i] !== null) {
+      throw new Error('Cabeçalho da aba ' + nome + ' diferente do esperado na coluna ' + (i + 1) + '.');
+    }
+    sh.getRange(1, i + 1).setValue(c).setFontWeight('bold').setBackground('#dbe6f7');
+    sh.getRange(1, i + 1, sh.getMaxRows(), 1).setNumberFormat('@');
+  });
 }
 
 function lerTudo_(nome) {

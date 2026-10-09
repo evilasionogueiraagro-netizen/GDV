@@ -22,6 +22,21 @@ async function veiculosDe(turnoId) {
   return Docs.ordenar((await Store.todos('veiculos')).filter(v => v.turnoId === turnoId && !v.excluido));
 }
 
+/* ---------- localização (GPS funciona sem internet) ---------- */
+function pegarLocal() {
+  return new Promise(ok => {
+    if (!navigator.geolocation) return ok(null);
+    navigator.geolocation.getCurrentPosition(
+      p => ok({ lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6), prec: Math.round(p.coords.accuracy) }),
+      () => ok(null), { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+  });
+}
+const camposLocal = (g, sufixo) => g ? { ['lat' + sufixo]: g.lat, ['lng' + sufixo]: g.lng, ['prec' + sufixo]: g.prec } : {};
+const temLocal = (t, s) => t['lat' + s] !== undefined && t['lat' + s] !== '' && !isNaN(parseFloat(t['lat' + s]));
+const localHTML = (t, s) => temLocal(t, s)
+  ? `<a href="https://www.google.com/maps?q=${parseFloat(t['lat' + s])},${parseFloat(t['lng' + s])}" target="_blank" rel="noopener">${parseFloat(t['lat' + s]).toFixed(5)}, ${parseFloat(t['lng' + s]).toFixed(5)}</a> <small>(±${esc(t['prec' + s])} m)</small>`
+  : '<small>não registrada</small>';
+
 /* ---------- navegação ---------- */
 function go(view, arg) {
   VIEW = view; EDIT = arg || null;
@@ -41,7 +56,8 @@ async function home() {
       <p><b>${esc(t.numeroTF)}</b></p>
       <p><b>Fiscal:</b> ${esc(t.fiscal)}</p><p><b>Local:</b> ${esc(t.local)}</p>
       <p><b>Data:</b> ${dBR(t.data)} &nbsp; <b>Posto:</b> ${esc(t.posto || '')}</p>
-      <p><b>Início do turno:</b> ${esc(t.inicio)}</p></div>
+      <p><b>Início do turno:</b> ${esc(t.inicio)}</p>
+      <p><b>📍 Local de início:</b> ${localHTML(t, 'Ini')}</p></div>
     <div class="card contador"><h1>${v.length}</h1><p>Veículos registrados</p></div>
     <button class="botao" data-go="registrar">➕ Registrar veículo</button>
     <button class="botao" data-go="lista">📋 Lista de veículos</button>
@@ -59,10 +75,13 @@ function novoTurno() {
   $('#fTurno').onsubmit = async e => {
     e.preventDefault();
     const data = hojeISO(), inicio = agoraHM(), letra = letraDoTurno(inicio);   // horário = instante do clique
+    const btn = $('#fTurno button'); btn.disabled = true; btn.textContent = '📍 Obtendo localização…';
+    const gps = await pegarLocal();
+    if (!gps) toast('Turno iniciado sem coordenadas (GPS indisponível ou permissão negada).', true);
     const t = await Store.salvar('turnos', {
       numeroTF: `TF-${pad(parseInt($('#nTF').value, 10), 3)}-${letra}-${data.slice(0, 4)}`,
       data, letra, posto: $('#nPosto').value,
-      inicio, fim: '',
+      inicio, fim: '', ...camposLocal(gps, 'Ini'),
       fiscal: $('#nFiscal').value.trim(), local: $('#nLocal').value.trim(),
       unidade: $('#nUnidade').value.trim(), encerrado: 0
     });
@@ -143,7 +162,10 @@ async function resumo() {
   $('#encerrar').onclick = async () => {
     const fim = agoraHM();
     if (!confirm(`Encerrar o turno agora (${fim})? Não será possível registrar novos veículos nele.`)) return;
-    const f = await Store.salvar('turnos', { ...t, encerrado: 1, fim });
+    const b = $('#encerrar'); b.disabled = true; b.textContent = '📍 Obtendo localização…';
+    const gps = await pegarLocal();
+    if (!gps) toast('Turno encerrado sem coordenadas (GPS indisponível ou permissão negada).', true);
+    const f = await Store.salvar('turnos', { ...t, encerrado: 1, fim, ...camposLocal(gps, 'Fim') });
     await Store.setMeta('turnoAtual', '');
     Sync.sincronizar(); go('fechado', f.id);
   };
@@ -154,7 +176,8 @@ async function fechado() {
   const v = await veiculosDe(t.id);
   view(`<div class="card"><h3>Turno encerrado</h3><p><b>${esc(t.numeroTF)}</b></p>
     <p>${dBR(t.data)} · das <b>${esc(t.inicio)}</b> às <b>${esc(t.fim)}</b></p>
-    <p>${v.length} veículos · ${v.reduce((s, x) => s + (Number(x.pessoas) || 0), 0)} pessoas</p></div>
+    <p>${v.length} veículos · ${v.reduce((s, x) => s + (Number(x.pessoas) || 0), 0)} pessoas</p>
+    <p>📍 Início: ${localHTML(t, 'Ini')}</p><p>📍 Encerramento: ${localHTML(t, 'Fim')}</p></div>
     <button class="botao" data-doc="termo" data-id="${t.id}">📄 Termo de Fiscalização (PDF)</button>
     <button class="botao" data-doc="ficha" data-id="${t.id}">📝 Ficha de Campo (PDF)</button>
     <button class="botao" data-go="home">➕ Iniciar novo turno</button>
@@ -162,7 +185,7 @@ async function fechado() {
     <p class="dica">Os documentos deste turno também ficam no Histórico.</p>`);
   $('#reabrir').onclick = async () => {
     if (!confirm('Reabrir o turno? O horário de encerramento será apagado.')) return;
-    await Store.salvar('turnos', { ...t, encerrado: 0, fim: '' });
+    await Store.salvar('turnos', { ...t, encerrado: 0, fim: '', latFim: '', lngFim: '', precFim: '' });
     await Store.setMeta('turnoAtual', t.id);
     Sync.sincronizar(); go('home');
   };
@@ -199,9 +222,9 @@ async function historico() {
     $('#csv').onclick = () => {
       const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
       const tf = Object.fromEntries(turnos.map(t => [t.id, t]));
-      const linhas = [['TF', 'Data', 'Hora', 'Placa', 'Tipo', 'Pessoas', 'Fiscal', 'Local', 'Obs']].concat(
+      const linhas = [['TF', 'Data', 'Hora', 'Placa', 'Tipo', 'Pessoas', 'Fiscal', 'Local', 'Obs', 'Lat início', 'Lng início', 'Lat fim', 'Lng fim']].concat(
         veic.sort((a, b) => dataDe[a.turnoId].localeCompare(dataDe[b.turnoId]) || a.hora.localeCompare(b.hora)).map(v => {
-          const t = tf[v.turnoId]; return [t.numeroTF, dBR(t.data), v.hora, v.placa, v.tipo, v.pessoas, t.fiscal, t.local, v.obs];
+          const t = tf[v.turnoId]; return [t.numeroTF, dBR(t.data), v.hora, v.placa, v.tipo, v.pessoas, t.fiscal, t.local, v.obs, t.latIni, t.lngIni, t.latFim, t.lngFim];
         }));
       const a = document.createElement('a');
       a.href = URL.createObjectURL(new Blob(['﻿' + linhas.map(l => l.map(q).join(';')).join('\n')], { type: 'text/csv;charset=utf-8' }));

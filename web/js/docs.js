@@ -56,8 +56,8 @@ const Docs = (() => {
     set('ano', partes[3] || ano);
     set('unidade', turno.unidade || CONFIG.unidadePadrao);
     const pessoas = veiculos.reduce((s, v) => s + (Number(v.pessoas) || 0), 0);
-    const ini = turno.inicio || CONFIG.turnos[turno.letra].inicio || '__:__';
-    const fim = turno.fim || CONFIG.turnos[turno.letra].fim || '__:__';
+    const ini = turno.inicio || '__:__';
+    const fim = turno.fim || '__:__';
     d.getElementById('descricaoTexto').innerHTML = `
 <p>Aos <strong>${Number(dia)}</strong> dias do mês de <strong>${MESES[Number(mes) - 1]}</strong> de <strong>${esc(ano)}</strong>,
 das <strong>${esc(ini)}</strong> horas às <strong>${esc(fim)}</strong> horas,

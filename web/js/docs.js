@@ -46,20 +46,14 @@ const Docs = (() => {
     return veiculos.length > CONFIG.linhasFicha ? veiculos.length - CONFIG.linhasFicha : 0;
   }
 
-  // Coordenadas do campo "Coordenadas Geográficas" do Termo (graus decimais).
-  const coord = (t, s) => { const la = parseFloat(t['lat' + s]), ln = parseFloat(t['lng' + s]); return isNaN(la) || isNaN(ln) ? null : { la, ln }; };
-  const fmt = c => `${c.la.toFixed(5)}, ${c.ln.toFixed(5)}`;
-  function distanciaM(a, b) {                              // haversine
-    const r = x => x * Math.PI / 180, R = 6371000;
-    const h = Math.sin(r(b.la - a.la) / 2) ** 2 + Math.cos(r(a.la)) * Math.cos(r(b.la)) * Math.sin(r(b.ln - a.ln) / 2) ** 2;
-    return 2 * R * Math.asin(Math.sqrt(h));
-  }
+  // Campo "Coordenadas Geográficas" do Termo: usa a coordenada FINAL (encerramento) em graus decimais;
+  // se ela não foi capturada, usa a do início.
   function textoCoordenadas(t) {
-    const i = coord(t, 'Ini'), f = coord(t, 'Fim');
-    if (!i && !f) return { texto: '', duplo: false };
-    if (!i || !f) return { texto: fmt(i || f), duplo: false };
-    // posto fixo: um único ponto; barreira móvel que se deslocou (>100 m): início e fim
-    return distanciaM(i, f) > 100 ? { texto: `Ini: ${fmt(i)} | Fim: ${fmt(f)}`, duplo: true } : { texto: fmt(i), duplo: false };
+    for (const suf of ['Fim', 'Ini']) {
+      const la = parseFloat(t['lat' + suf]), ln = parseFloat(t['lng' + suf]);
+      if (!isNaN(la) && !isNaN(ln)) return `${la.toFixed(5)}, ${ln.toFixed(5)}`;
+    }
+    return '';
   }
 
   async function termo(turnoId) {
@@ -71,11 +65,10 @@ const Docs = (() => {
     set('numeroTF', partes[1] + '-' + partes[2]);
     set('ano', partes[3] || ano);
     set('unidade', turno.unidade || CONFIG.unidadePadrao);
-    const cd = textoCoordenadas(turno), caixa = d.querySelector('.coordenadas');
-    if (cd.texto && caixa) {
+    const coords = textoCoordenadas(turno), caixa = d.querySelector('.coordenadas');
+    if (coords && caixa) {
       const v = d.createElement('span');
-      v.className = 'valor'; v.textContent = cd.texto; v.style.whiteSpace = 'nowrap';
-      if (cd.duplo) v.style.fontSize = '2.5mm';
+      v.className = 'valor'; v.textContent = coords; v.style.whiteSpace = 'nowrap';
       caixa.appendChild(v);
     }
     const pessoas = veiculos.reduce((s, v) => s + (Number(v.pessoas) || 0), 0);

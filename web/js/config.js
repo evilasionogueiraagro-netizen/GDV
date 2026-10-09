@@ -3,10 +3,11 @@ const CONFIG = {
   unidadePadrao: 'MANAUS',          // unidade que aparece no Termo; pode ser alterada a cada turno
   localPadrao: '',                  // sugestão de local (ex.: 'Barreira Porto CEASA'); vazio = digitar a cada turno
   postos: ['Fixa', 'Móvel'],
+  // Os horários do turno são capturados do relógio do aparelho (ao iniciar e ao encerrar).
+  // A letra do TF / quadradinho da Ficha é deduzida da hora de início: das 04:00 às 11:59 = A; demais = B.
   turnos: {
-    A: { rotulo: '04h às 12h', inicio: '04:00', fim: '12:00' },
-    B: { rotulo: '12h às 20h', inicio: '12:00', fim: '20:00' },
-    X: { rotulo: 'Outro horário', inicio: '', fim: '' }   // barreiras móveis / horários especiais
+    A: { rotulo: '04h às 12h' },
+    B: { rotulo: '12h às 20h' }
   },
   // código → { nome, ícone, pessoas (estimativa padrão por veículo; pode ser alterada em cada registro) }
   tipos: {
@@ -19,3 +20,5 @@ const CONFIG = {
   },
   linhasFicha: 50
 };
+
+const letraDoTurno = hora => { const h = parseInt(hora, 10); return h >= 4 && h < 12 ? 'A' : 'B'; };

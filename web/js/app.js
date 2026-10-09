@@ -26,7 +26,7 @@ async function veiculosDe(turnoId) {
 function go(view, arg) {
   VIEW = view; EDIT = arg || null;
   document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === view || (view === 'editar' && b.dataset.v === 'lista')));
-  ({ home, registrar, editar: registrar, lista, resumo, historico, config }[view])();
+  ({ home, registrar, editar: registrar, lista, resumo, fechado, historico, config }[view])();
   window.scrollTo(0, 0);
 }
 const view = html => { $('#view').innerHTML = html; };
@@ -41,33 +41,28 @@ async function home() {
       <p><b>${esc(t.numeroTF)}</b></p>
       <p><b>Fiscal:</b> ${esc(t.fiscal)}</p><p><b>Local:</b> ${esc(t.local)}</p>
       <p><b>Data:</b> ${dBR(t.data)} &nbsp; <b>Posto:</b> ${esc(t.posto || '')}</p>
-      <p><b>Turno:</b> ${t.letra === 'X' ? esc(t.inicio) + (t.fim ? ' às ' + esc(t.fim) : '') : CONFIG.turnos[t.letra].rotulo}</p></div>
+      <p><b>Início do turno:</b> ${esc(t.inicio)}</p></div>
     <div class="card contador"><h1>${v.length}</h1><p>Veículos registrados</p></div>
     <button class="botao" data-go="registrar">➕ Registrar veículo</button>
     <button class="botao" data-go="lista">📋 Lista de veículos</button>
     <button class="botao" data-go="resumo">📊 Resumo e documentos</button>`);
 }
 function novoTurno() {
-  const h = new Date().getHours(), manha = h >= 4 && h < 12;
   const ls = k => esc(localStorage.getItem('gdv.' + k) || '');
   view(`<form class="card" id="fTurno"><h3>Iniciar turno</h3>
     <label>Nº do Termo de Fiscalização<input id="nTF" type="number" min="1" inputmode="numeric" required placeholder="ex.: 12"></label>
-    <div class="duas"><label>Tipo de posto<select id="nPosto">${CONFIG.postos.map(p => `<option ${localStorage.getItem('gdv.posto') === p ? 'selected' : ''}>${p}</option>`).join('')}</select></label>
-    <label>Turno<select id="nLetra">${Object.entries(CONFIG.turnos).map(([k, t]) => `<option value="${k}" ${k === (manha ? 'A' : 'B') ? 'selected' : ''}>${t.rotulo}</option>`).join('')}</select></label></div>
-    <div class="duas" id="nHoras" hidden><label>Início<input id="nIni" type="time"></label><label>Fim previsto<input id="nFim" type="time"></label></div>
+    <label>Tipo de posto<select id="nPosto">${CONFIG.postos.map(p => `<option ${localStorage.getItem('gdv.posto') === p ? 'selected' : ''}>${p}</option>`).join('')}</select></label>
     <label>Local / Posto<input id="nLocal" required value="${localStorage.getItem('gdv.local') ? ls('local') : esc(CONFIG.localPadrao)}" placeholder="ex.: Barreira Porto CEASA ou BR-174 km 120"></label>
     <label>Unidade (Termo)<input id="nUnidade" required value="${localStorage.getItem('gdv.unidade') ? ls('unidade') : esc(CONFIG.unidadePadrao)}"></label>
     <label>Fiscal(is)<input id="nFiscal" required value="${ls('fiscal')}"></label>
     <button class="botao">Iniciar turno</button></form>`);
-  $('#nLetra').onchange = () => { $('#nHoras').hidden = $('#nLetra').value !== 'X'; };
   $('#fTurno').onsubmit = async e => {
     e.preventDefault();
-    const letra = $('#nLetra').value, data = hojeISO();
+    const data = hojeISO(), inicio = agoraHM(), letra = letraDoTurno(inicio);   // horário = instante do clique
     const t = await Store.salvar('turnos', {
       numeroTF: `TF-${pad(parseInt($('#nTF').value, 10), 3)}-${letra}-${data.slice(0, 4)}`,
       data, letra, posto: $('#nPosto').value,
-      inicio: letra === 'X' ? $('#nIni').value : CONFIG.turnos[letra].inicio,
-      fim: letra === 'X' ? $('#nFim').value : '',
+      inicio, fim: '',
       fiscal: $('#nFiscal').value.trim(), local: $('#nLocal').value.trim(),
       unidade: $('#nUnidade').value.trim(), encerrado: 0
     });
@@ -142,14 +137,33 @@ async function resumo() {
   view(`<div class="card"><h3>${esc(t.numeroTF)} — total por tipo</h3>
     ${Object.entries(CONFIG.tipos).map(([c, x]) => `<div class="resumo-item"><span>${x.icone} ${x.nome}</span><strong>${por[c] || 0}</strong></div>`).join('')}
     <div class="total">TOTAL DE VEÍCULOS<br>${v.length}<small>${v.reduce((s, x) => s + (Number(x.pessoas) || 0), 0)} pessoas fiscalizadas</small></div></div>
-    <button class="botao" data-doc="termo" data-id="${t.id}">📄 Termo de Fiscalização (PDF)</button>
     <button class="botao" data-doc="ficha" data-id="${t.id}">📝 Ficha de Campo (PDF)</button>
     <button class="botao vermelho" id="encerrar">⏹ Encerrar turno</button>
-    <p class="dica">Na janela de impressão, escolha “Salvar como PDF”.</p>`);
+    <p class="dica">Início do turno: ${esc(t.inicio)}. Ao encerrar, o horário final é registrado e o Termo de Fiscalização fica disponível.<br>Na janela de impressão, escolha “Salvar como PDF”.</p>`);
   $('#encerrar').onclick = async () => {
-    if (!confirm('Encerrar o turno? Depois disso não será possível registrar novos veículos nele (os documentos continuam disponíveis no Histórico).')) return;
-    await Store.salvar('turnos', { ...t, encerrado: 1, fim: t.fim || agoraHM() });
+    const fim = agoraHM();
+    if (!confirm(`Encerrar o turno agora (${fim})? Não será possível registrar novos veículos nele.`)) return;
+    const f = await Store.salvar('turnos', { ...t, encerrado: 1, fim });
     await Store.setMeta('turnoAtual', '');
+    Sync.sincronizar(); go('fechado', f.id);
+  };
+}
+async function fechado() {
+  const t = await Store.obter('turnos', EDIT);
+  if (!t) return go('home');
+  const v = await veiculosDe(t.id);
+  view(`<div class="card"><h3>Turno encerrado</h3><p><b>${esc(t.numeroTF)}</b></p>
+    <p>${dBR(t.data)} · das <b>${esc(t.inicio)}</b> às <b>${esc(t.fim)}</b></p>
+    <p>${v.length} veículos · ${v.reduce((s, x) => s + (Number(x.pessoas) || 0), 0)} pessoas</p></div>
+    <button class="botao" data-doc="termo" data-id="${t.id}">📄 Termo de Fiscalização (PDF)</button>
+    <button class="botao" data-doc="ficha" data-id="${t.id}">📝 Ficha de Campo (PDF)</button>
+    <button class="botao" data-go="home">➕ Iniciar novo turno</button>
+    <button class="botao sec" id="reabrir">↩ Reabrir este turno (encerrei sem querer)</button>
+    <p class="dica">Os documentos deste turno também ficam no Histórico.</p>`);
+  $('#reabrir').onclick = async () => {
+    if (!confirm('Reabrir o turno? O horário de encerramento será apagado.')) return;
+    await Store.salvar('turnos', { ...t, encerrado: 0, fim: '' });
+    await Store.setMeta('turnoAtual', t.id);
     Sync.sincronizar(); go('home');
   };
 }
@@ -179,8 +193,8 @@ async function historico() {
       <div class="card"><h3>Veículos por tipo</h3>${barras(Object.entries(CONFIG.tipos).map(([c, x]) => [x.icone + ' ' + x.nome, porTipo[c] || 0]))}</div>
       <div class="card"><h3>Veículos por dia</h3>${barras(Object.entries(porDia).sort().map(([k, n]) => [dBR(k).slice(0, 5), n]))}</div>
       <div class="card"><h3>Turnos</h3>${turnos.length ? turnos.map(t => `
-        <div class="turno-linha"><div><b>${esc(t.numeroTF)}</b><br><small>${dBR(t.data)} · ${esc(t.fiscal)} · ${porTurno[t.id] || 0} veíc.${t.encerrado ? '' : ' · em andamento'}</small></div>
-        <div><button class="mini" data-doc="termo" data-id="${t.id}">Termo</button><button class="mini" data-doc="ficha" data-id="${t.id}">Ficha</button></div></div>`).join('') : '<div class="vazio">Sem turnos no período.</div>'}</div>
+        <div class="turno-linha"><div><b>${esc(t.numeroTF)}</b><br><small>${dBR(t.data)} · ${esc(t.inicio)}${t.fim ? '–' + esc(t.fim) : ''} · ${esc(t.fiscal)} · ${porTurno[t.id] || 0} veíc.${t.encerrado ? '' : ' · em andamento'}</small></div>
+        <div>${t.encerrado ? `<button class="mini" data-doc="termo" data-id="${t.id}">Termo</button>` : ''}<button class="mini" data-doc="ficha" data-id="${t.id}">Ficha</button></div></div>`).join('') : '<div class="vazio">Sem turnos no período.</div>'}</div>
       <button class="botao" id="csv">⬇ Baixar CSV dos veículos</button>`;
     $('#csv').onclick = () => {
       const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';

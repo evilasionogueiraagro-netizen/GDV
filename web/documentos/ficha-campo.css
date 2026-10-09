@@ -1,0 +1,547 @@
+/*=========================================================
+    RESET
+=========================================================*/
+
+*{
+    margin:0;
+    padding:0;
+    box-sizing:border-box;
+}
+
+html{
+    background:#d9d9d9;
+}
+
+body{
+
+    background:#d9d9d9;
+
+    display:flex;
+
+    justify-content:center;
+
+    font-family:Arial, Helvetica, sans-serif;
+
+    padding:20px;
+
+}
+
+/*=========================================================
+    PÁGINA
+=========================================================*/
+
+#pagina{
+
+    position:relative;
+
+    width:210mm;
+
+    height:297mm;
+
+    background:#fff;
+
+    overflow:hidden;
+
+}
+
+/*=========================================================
+    BRASÃO
+=========================================================*/
+
+#logo{
+
+    position:absolute;
+
+    top:2mm;
+
+    left:50%;
+
+    transform:translateX(-50%);
+
+    width:16mm;
+
+}
+
+/*=========================================================
+    CABEÇALHO
+=========================================================*/
+
+#orgao{
+
+    position:absolute;
+
+    top:22mm;
+
+    width:210mm;
+
+    text-align:center;
+
+    font-size:4mm;
+
+    font-weight:bold;
+
+}
+
+#titulo{
+
+    position:absolute;
+
+    top:29mm;
+
+    width:210mm;
+
+    text-align:center;
+
+    font-size:5mm;
+
+    font-weight:bold;
+
+}
+
+/*=========================================================
+    IDENTIFICAÇÃO
+=========================================================*/
+
+#identificacao{
+
+    position:absolute;
+
+    left:10mm;
+
+    top:40mm;
+
+    width:190mm;
+
+    border:.30mm solid #000;
+
+}
+
+.linha{
+
+    display:flex;
+
+    height:9mm;
+
+}
+
+.linha > div{
+
+    display:flex;
+
+    align-items:center;
+
+    padding:0 2mm;
+
+    border-right:.25mm solid #000;
+
+    border-bottom:.25mm solid #000;
+
+    font-size:3.2mm;
+
+}
+
+.linha > div:last-child{
+
+    border-right:none;
+
+}
+
+.linha:last-child div{
+
+    border-bottom:none;
+
+}
+
+/*=========================================================
+    LARGURAS
+=========================================================*/
+
+.local{
+
+    width:130mm;
+
+}
+
+.data{
+
+    width:60mm;
+
+}
+
+.turno{
+
+    width:95mm;
+
+}
+
+.fiscal{
+
+    width:95mm;
+
+}
+
+.check{
+
+    margin-left:4mm;
+
+    margin-right:1mm;
+
+    font-size:4mm;
+
+}
+/*=========================================================
+    LEGENDA
+=========================================================*/
+
+#legenda{
+
+    position:absolute;
+
+    top:62mm;
+
+    left:10mm;
+
+    width:190mm;
+
+    display:flex;
+
+    justify-content:space-between;
+
+    align-items:center;
+
+    font-size:3.1mm;
+
+}
+
+#legenda strong{
+
+    font-weight:bold;
+
+}
+
+/*=========================================================
+    TABELA
+=========================================================*/
+
+#tabelaVeiculos{
+
+    position:absolute;
+
+    top:70mm;
+
+    left:10mm;
+
+    width:190mm;
+
+    border-collapse:collapse;
+
+    table-layout:fixed;
+
+    border:.30mm solid #000;
+
+}
+
+/*=========================================================
+    CABEÇALHO DA TABELA
+=========================================================*/
+
+#tabelaVeiculos thead th{
+
+    border:.25mm solid #000;
+
+    text-align:center;
+
+    font-size:3mm;
+
+    font-weight:bold;
+
+    height:8mm;
+
+    vertical-align:middle;
+
+}
+
+/*=========================================================
+    CORPO DA TABELA
+=========================================================*/
+
+#tabelaVeiculos tbody td{
+
+    border:.25mm solid #000;
+
+    height:7mm;
+
+    font-size:3mm;
+
+    vertical-align:middle;
+
+    padding:0 1mm;
+
+}
+
+/*=========================================================
+    ALINHAMENTO
+=========================================================*/
+
+#tabelaVeiculos td{
+
+    text-align:center;
+
+}
+
+#tabelaVeiculos td:nth-child(3),
+#tabelaVeiculos td:nth-child(7){
+
+    text-align:left;
+
+    padding-left:2mm;
+
+}
+
+#tabelaVeiculos td:nth-child(4),
+#tabelaVeiculos td:nth-child(8){
+
+    text-align:center;
+
+}
+
+/*=========================================================
+    LARGURA DAS COLUNAS
+=========================================================*/
+
+.numero{
+
+    width:9mm;
+
+}
+
+.hora{
+
+    width:18mm;
+
+}
+
+.placa{
+
+    width:40mm;
+
+}
+
+.tipo{
+
+    width:28mm;
+
+}
+
+/*=========================================================
+    LINHA CENTRAL
+=========================================================*/
+
+#tabelaVeiculos th:nth-child(4),
+#tabelaVeiculos td:nth-child(4){
+
+    border-right:.7mm solid #000;
+
+}
+/*=========================================================
+    RODAPÉ
+=========================================================*/
+
+#rodape{
+
+    position:absolute;
+
+    left:10mm;
+
+    bottom:12mm;
+
+    width:190mm;
+
+}
+
+#totalVeiculos{
+
+    display:flex;
+
+    align-items:center;
+
+    margin-bottom:12mm;
+
+}
+
+#caixaVazia{
+
+    width:18mm;
+
+    height:8mm;
+
+    border:.30mm solid #000;
+
+    margin-right:3mm;
+
+}
+
+#total{
+
+    font-size:3.6mm;
+
+    font-weight:bold;
+
+}
+
+/*=========================================================
+    ASSINATURAS
+=========================================================*/
+
+#assinaturas{
+
+    display:flex;
+
+    justify-content:space-between;
+
+    gap:18mm;
+
+}
+
+.assinatura{
+
+    flex:1;
+
+    text-align:center;
+
+}
+
+.linhaAss{
+
+    width:100%;
+
+    border-top:.30mm solid #000;
+
+    margin-bottom:2mm;
+
+}
+
+.txtAss{
+
+    font-size:3mm;
+
+}
+
+/*=========================================================
+    IMPRESSÃO
+=========================================================*/
+
+@page{
+
+    size:A4 portrait;
+
+    margin:0;
+
+}
+
+@media print{
+
+    html,
+    body{
+
+        width:210mm;
+
+        height:297mm;
+
+        background:#fff;
+
+        margin:0;
+
+        padding:0;
+
+    }
+
+    #pagina{
+
+        width:210mm;
+
+        height:297mm;
+
+        margin:0;
+
+        box-shadow:none;
+
+    }
+
+}
+/*=========================================================
+    ACABAMENTOS
+=========================================================*/
+
+/* Centraliza verticalmente todas as células */
+
+#tabelaVeiculos td,
+#tabelaVeiculos th{
+
+    vertical-align:middle;
+
+}
+
+/* Evita quebra de texto */
+
+#tabelaVeiculos{
+
+    white-space:nowrap;
+
+}
+
+/* Placas alinhadas à esquerda */
+
+#tabelaVeiculos td:nth-child(3),
+#tabelaVeiculos td:nth-child(7){
+
+    text-align:left;
+
+    padding-left:2mm;
+
+}
+
+/* Hora centralizada */
+
+#tabelaVeiculos td:nth-child(2),
+#tabelaVeiculos td:nth-child(6){
+
+    text-align:center;
+
+}
+
+/* Tipo centralizado */
+
+#tabelaVeiculos td:nth-child(4),
+#tabelaVeiculos td:nth-child(8){
+
+    text-align:center;
+
+}
+
+/* Numeração em negrito */
+
+#tabelaVeiculos td:nth-child(1),
+#tabelaVeiculos td:nth-child(5){
+
+    font-weight:bold;
+
+}
+
+/* Linha do cabeçalho mais destacada */
+
+#tabelaVeiculos thead th{
+
+    background:#f5f5f5;
+
+}
+
+/* Impressão mais nítida */
+
+*{
+
+    -webkit-print-color-adjust:exact;
+
+    print-color-adjust:exact;
+
+}

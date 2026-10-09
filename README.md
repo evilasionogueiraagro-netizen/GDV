@@ -1,31 +1,50 @@
-# GDV – Gestão de Dados da Fazenda
+# GDV – Controle de Veículos (Barreiras Fitossanitárias)
 
-Plataforma web em **Google Apps Script** com:
+App para registrar os veículos abordados em barreiras **fixas ou móveis**, por turno, e gerar o
+**Termo de Fiscalização** e a **Ficha de Campo** (modelos HTML de `web/documentos/`).
 
-- **Entrada de dados**: Animais, Pesagens e Financeiro (formulários gerados a partir de `SCHEMA` em `Code.gs`)
-- **Banco de dados**: Google Sheets (uma aba por tabela, criadas automaticamente)
-- **Dashboard**: KPIs (animais, peso médio, GMD, receitas/despesas/saldo) e gráficos, com filtro de período
-- **Relatórios**: Animais, GMD e Financeiro, com download em CSV e impressão/PDF
+## Como funciona
 
-## Como publicar
-
-### Opção A – Manual (mais simples)
-1. Crie uma planilha no Google Sheets (ex.: "GDV – Banco de dados").
-2. Menu **Extensões → Apps Script**.
-3. Copie o conteúdo de `src/Code.gs` para `Code.gs`, crie um arquivo HTML chamado `Index` com `src/Index.html`, e em **Configurações do projeto** marque "Mostrar arquivo de manifesto" e cole `src/appsscript.json`.
-4. **Implantar → Nova implantação → App da Web**: executar como *Eu*, acesso *Qualquer pessoa com conta Google* (ou restrinja ao seu domínio).
-5. Autorize e abra a URL gerada.
-
-### Opção B – Com clasp
-```bash
-npm i -g @google/clasp && clasp login
-cd src && clasp create --type sheets --title "GDV"
-clasp push && clasp deploy
+```
+ Celular do fiscal (PWA, funciona SEM internet)          Google
+ ┌─────────────────────────────────────────┐   quando há    ┌──────────────────────┐
+ │ web/  → banco local (IndexedDB)          │   internet     │ apps-script/Code.gs  │
+ │        registra, lista, resumo, PDFs     │ ─────────────► │ grava na planilha    │
+ │        histórico e dashboard             │ ◄───────────── │ (Turnos / Veiculos)  │
+ └─────────────────────────────────────────┘   sincroniza   └──────────────────────┘
 ```
 
-## Controle de acesso
-Opcional: em **Configurações do projeto → Propriedades do script**, crie `ALLOWED_EMAILS` com e-mails separados por vírgula.
-Observação: o Google só informa o e-mail do visitante em contas do mesmo domínio Workspace; em contas Gmail pessoais a lista bloqueará o acesso. Nesse caso, mantenha a lista vazia e controle o acesso por quem recebe o link.
+- **Offline primeiro:** tudo é salvo no aparelho. Ao voltar a conexão (ou a cada 60 s online) o app envia o que está pendente e baixa o que mudou. O selo no topo mostra 🟢 Online / 🔴 Offline e quantos registros aguardam envio.
+- **Um fiscal por turno** lança os dados; vários aparelhos/barreiras podem usar a mesma planilha (cada registro tem ID único; em conflito vale a edição mais recente).
+- **Excluir** apenas marca como excluído (some das telas e relatórios, permanece na planilha para auditoria).
+- **Histórico/Dashboard e CSV** funcionam offline, a partir dos dados já sincronizados no aparelho.
+- A quantidade de **pessoas** é uma estimativa por tipo de veículo (padrões em `web/js/config.js`), editável em cada registro.
 
-## Personalizar
-Edite `SCHEMA` em `src/Code.gs` para adicionar campos ou tabelas (ex.: Vacinas, Lavoura); a interface se adapta sozinha. Para uma nova aba aparecer, o campo/tabela novo deve estar no `SCHEMA`; planilhas já criadas precisam ter a coluna adicionada manualmente na posição correspondente.
+## Publicação (uma vez)
+
+### 1. Banco de dados e API (Google)
+1. Crie uma planilha no Google Sheets (ex.: “GDV – Banco de dados”).
+2. **Extensões → Apps Script**. Cole `apps-script/Code.gs`; em *Configurações do projeto* ative “Mostrar arquivo de manifesto” e cole `apps-script/appsscript.json`.
+3. **Configurações do projeto → Propriedades do script → Adicionar**: `ACCESS_KEY` = uma senha longa (a mesma será digitada nos aparelhos).
+4. **Implantar → Nova implantação → App da Web**: executar como *Eu*, acesso *Qualquer pessoa*. Copie a URL que termina em `/exec`.
+   > O acesso é “qualquer pessoa” para o app funcionar sem login Google no campo; a proteção é a `ACCESS_KEY`. Ao alterar o `Code.gs`, faça uma nova implantação (Gerenciar implantações → editar → nova versão).
+
+### 2. O app (GitHub Pages)
+1. No GitHub: **Settings → Pages → Source: GitHub Actions**.
+2. Faça merge na `main`; o workflow `.github/workflows/pages.yml` publica a pasta `web/`.
+3. Em cada celular: abra o endereço do Pages, **Config**, informe a URL `/exec` e a chave, e “Salvar e testar”. Depois use *Adicionar à tela inicial* para instalar. Abra uma vez com internet para o app ser guardado no aparelho.
+
+Para testar localmente: `cd web && python3 -m http.server 8080`.
+
+## Estrutura
+
+| Pasta | Conteúdo |
+|---|---|
+| `web/` | App (HTML/JS/CSS puro, sem build). `js/config.js` guarda unidade, tipos de veículo, turnos e pessoas estimadas |
+| `web/documentos/` | Modelos HTML do Termo e da Ficha (impressos via “Salvar como PDF”) |
+| `apps-script/` | API de sincronização que grava na planilha |
+
+## Limites conhecidos
+- A **Ficha de Campo** tem 50 linhas; acima disso o app avisa e os excedentes ficam fora da ficha (o Termo conta todos).
+- Em caso de relógios de aparelho muito errados, a regra “edição mais recente vence” pode escolher a edição errada; mantenha data/hora automáticas ativadas.
+- Ao alterar arquivos de `web/`, aumente `VERSAO` em `web/sw.js` para os aparelhos receberem a atualização.

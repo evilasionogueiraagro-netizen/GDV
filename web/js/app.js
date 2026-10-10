@@ -55,12 +55,24 @@ const NAVS = {
   pce: [['modulos', '🏠', 'Módulos'], ['pce', '🌱', 'Levantamentos'], ['pcelev', '➕', 'Novo levantamento'], ['pcetermos', '🧪', 'Termos de colheita'], ['pcetermo', '📝', 'Novo termo']]
 };
 const VIEWS_VEICULOS = ['home', 'registrar', 'editar', 'lista', 'resumo', 'fechado', 'historico'];
+/** Módulo (permissão) de cada tela: veiculos, tf ou pce; '' = livre (módulos, status). */
+const moduloDaView = v => VIEWS_VEICULOS.includes(v) ? 'veiculos' : /^tf/.test(v) ? 'tf' : /^pce/.test(v) ? 'pce' : '';
+const SEM_AUT = 'Sem autorização — fale com a gerência';
+/** A gerência tirou o módulo (painel → Servidores): a tela não abre e volta para a tela de módulos. Os dados do aparelho ficam guardados. */
+function semPermissaoPara(view) {
+  const m = moduloDaView(view);
+  if (m && !Sync.pode(m)) return m;
+  if (MODULO === 'veiculos' && m === 'tf' && view !== 'tf' && !Sync.pode('veiculos')) return 'veiculos';   // TF embutido no Controle de veículos
+  return '';
+}
 function renderNav(view) {
   const ativo = ({ editar: 'lista', fechado: 'home', tfpronto: MODULO === 'tf' ? 'tf' : 'lista', tfnovo: MODULO === 'tf' ? 'tfnovo' : 'lista',
     pcepronto: 'pcetermos', pceservidor: 'pce' })[view] || view;
   $('#nav').innerHTML = NAVS[MODULO].map(([v, i, t]) => `<button data-v="${v}" class="${v === ativo ? 'on' : ''}">${i}<span>${t}</span></button>`).join('');
 }
 function go(view, arg) {
+  const bloq = semPermissaoPara(view);
+  if (bloq) { toast(`${SEM_AUT}: ${Sync.MODULOS[bloq]}.`, true); view = 'modulos'; arg = null; }
   if (VIEW === 'tfnovo' && view !== 'tfnovo' && typeof TFUI !== 'undefined') TFUI.saiu();   // saiu do formulário de TF sem gerar
   VIEW = view; EDIT = arg || null;
   if (view === 'modulos' || view === 'config') MODULO = 'hub';
@@ -80,11 +92,17 @@ async function modulos() {
   const t = await turnoAtual(), v = t ? await veiculosDe(t.id) : [];
   const tfs = await Store.todos('tfs'), pend = tfs.filter(x => x.pendente).length, nome = Sync.nome().split(' ')[0];
   const stPce = await PCEUI.status();
+  // módulo sem autorização: cartão cinza, não abre (os registros já feitos continuam guardados no aparelho)
+  const cartao = (mod, v, ic, titulo, linhas) => Sync.pode(mod)
+    ? `<button class="modulo" data-v="${v}"><span class="ic">${ic}</span><span><b>${titulo}</b>${linhas}</span></button>`
+    : `<button class="modulo bloqueado" data-bloq="${mod}" aria-disabled="true"><span class="ic">${ic}</span><span><b>${titulo}</b><small class="sem-aut">🔒 ${SEM_AUT}</small>${linhas}</span></button>`;
+  const aviso = (Sync.estado() || {}).aviso || Sync.avisoSemPermissao(await Sync.bloqueadosComPendentes());
   view(`<div class="card"><h3>Olá${nome ? ', ' + esc(nome) : ''}!</h3><p class="dica" style="text-align:left">Escolha o que deseja fazer.</p></div>
-    <button class="modulo" data-v="home"><span class="ic">🚛</span><span><b>Controle de veículos</b><small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)` : 'Registro dos veículos abordados, por turno'}</small></span></button>
-    <button class="modulo" data-v="tf"><span class="ic">📄</span><span><b>Termo de Fiscalização de Barreira</b><small>${tfs.length} TF(s) neste aparelho${pend ? ` · ⏳ ${pend} aguardando envio` : ''}</small></span></button>
-    <button class="modulo" data-v="pce"><span class="ic">🌱</span><span><b>PCE</b><small>Levantamento fitossanitário e Termo de Colheita de Amostras</small><small class="pce-status">${esc(stPce)}</small></span></button>
-    <p class="dica">Dentro do controle de veículos também dá para lavrar o TF de um veículo (botão “Lavrar TF”).</p>`);
+    ${aviso ? `<div class="card aviso" id="avisoPerm">⚠️ ${esc(aviso)}</div>` : ''}
+    ${cartao('veiculos', 'home', '🚛', 'Controle de veículos', `<small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)${Sync.pode('veiculos') ? '' : ' (guardado neste aparelho)'}` : 'Registro dos veículos abordados, por turno'}</small>`)}
+    ${cartao('tf', 'tf', '📄', 'Termo de Fiscalização de Barreira', `<small>${tfs.length} TF(s) neste aparelho${pend ? ` · ⏳ ${pend} aguardando envio` : ''}</small>`)}
+    ${cartao('pce', 'pce', '🌱', 'PCE', `<small>Levantamento fitossanitário e Termo de Colheita de Amostras</small><small class="pce-status">${esc(stPce)}</small>`)}
+    ${Sync.pode('veiculos') && Sync.pode('tf') ? '<p class="dica">Dentro do controle de veículos também dá para lavrar o TF de um veículo (botão “Lavrar TF”).</p>' : ''}`);
 }
 const view = html => { $('#view').innerHTML = bannerInstalar() + html; };
 
@@ -166,7 +184,7 @@ async function home() {
     <button class="botao" data-go="registrar">➕ Registrar veículo</button>
     <button class="botao" data-go="lista">📋 Lista de veículos</button>
     <button class="botao" data-go="resumo">📊 Resumo e documentos</button>
-    <button class="botao sec" data-go="tfnovo">📄 Lavrar TF neste turno</button>`);
+    ${Sync.pode('tf') ? '<button class="botao sec" data-go="tfnovo">📄 Lavrar TF neste turno</button>' : ''}`);
 }
 function novoTurno() {
   if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());   // turno só após a ativação
@@ -284,7 +302,7 @@ async function lista() {
         ${x.obs ? `<div class="info"><b>Obs:</b> ${esc(x.obs)}</div>` : ''}
         ${x.pendente ? '<div class="info pend">⏳ aguardando envio</div>' : ''}
         <div class="botoes"><button class="editar" data-edit="${esc(x.id)}">Editar</button>
-        <button class="tfbtn" data-tfveic="${esc(x.id)}">Lavrar TF</button>
+        ${Sync.pode('tf') ? `<button class="tfbtn" data-tfveic="${esc(x.id)}">Lavrar TF</button>` : ''}
         <button class="excluir" data-del="${esc(x.id)}">Excluir</button></div></div>`).join('')
       : '<div class="vazio">Nenhum veículo.</div>';
   };
@@ -409,10 +427,11 @@ document.addEventListener('submit', async e => {            // ativação por c�
 
 /* ---------- eventos globais ---------- */
 document.addEventListener('click', async e => {
-  const el = e.target.closest('[data-v],[data-go],[data-edit],[data-del],[data-doc],[data-instalar],[data-tfveic]');
+  const el = e.target.closest('[data-v],[data-go],[data-edit],[data-del],[data-doc],[data-instalar],[data-tfveic],[data-bloq]');
   if (!el) return;
   const d = el.dataset;
-  if (d.instalar) acaoInstalar(d.instalar);
+  if (d.bloq) toast(`${SEM_AUT}: ${Sync.MODULOS[d.bloq] || d.bloq}.`, true);
+  else if (d.instalar) acaoInstalar(d.instalar);
   else if (d.tfveic) go('tfnovo', { veiculoId: d.tfveic });
   else if (d.v) go(d.v);
   else if (d.go) go(d.go);
@@ -435,6 +454,13 @@ Sync.onEstado(e => {
   b.textContent = (e.tipo === 'sync' ? '🔄 Sincronizando…' : e.tipo === 'erro' ? '⚠️ Falha ao sincronizar' : (navigator.onLine ? '🟢 Online' : '🔴 Offline')) + (e.tipo === 'sync' ? '' : pend);
 });
 window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'resumo', 'historico', 'tf', 'pce', 'pcetermos'].includes(VIEW)) go(VIEW); });
+// permissões mudaram no sync: se a tela aberta é de um módulo que deixou de ser autorizado, volta para os módulos (nada é apagado);
+// na tela de módulos (ou em telas livres) só redesenha
+window.addEventListener('gdv-permissoes', () => {
+  if (semPermissaoPara(VIEW)) go(VIEW);                                   // go() avisa e leva para a tela de módulos
+  else if (VIEW === 'modulos') go('modulos');
+  else if (['home', 'lista'].includes(VIEW)) go(VIEW);                     // botões "Lavrar TF" aparecem/somem
+});
 window.addEventListener('online', () => Sync.atualizarContagem());
 
 $('#sync').onclick = () => Sync.sincronizar();
@@ -452,6 +478,7 @@ if ('serviceWorker' in navigator) {
   $('#btnAtualizar').onclick = () => location.reload();
 }
 (async () => {
+  await Sync.carregarPermissoes();                                          // última permissão conhecida (sem internet também)
   go('modulos');
   await Sync.atualizarContagem();
   Sync.iniciar();

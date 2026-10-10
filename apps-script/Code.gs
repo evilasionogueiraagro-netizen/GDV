@@ -9,7 +9,7 @@
  *   2. O fiscal digita o código de 6 dígitos no app (uma vez). O servidor devolve uma credencial
  *      própria daquele aparelho, vinculada ao nome. Revogue em "GDV → Revogar acesso" (ou na aba Servidores).
  *
- * Módulos por servidor (aba "Permissoes", editada no painel → Servidores): Controle de veículos, TF de Barreira e PCE.
+ * Módulos por servidor (aba "Permissoes", editada no painel → Servidores): Educação Sanitária/Fiscalização, TF de Barreira e PCE.
  *   Sem linha = tudo liberado. O sync não grava registros de módulo não liberado (devolve em "recusados"; o app os mantém
  *   pendentes) e as actions do TF/PCE respondem "Sem autorização para o módulo …".
  *
@@ -39,13 +39,15 @@ const TABELAS = {
   // Módulo PCE: Levantamento fitossanitário e Termo de Colheita de Amostras
   Levantamentos: ['id', 'data', 'hora', 'servidor', 'cargo', 'matricula', 'lotacao', 'doc', 'nome', 'telefone', 'email',
                   'propriedade', 'codigoPropriedade', 'situacaoFundiaria', 'municipio', 'lat', 'lon', 'precisao',
-                  'culturas', 'fotos', 'assinaturas', 'obs', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
+                  'culturas', 'fotos', 'assinaturas', 'obs', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
+                  'registroAntigo', 'documentos'],   // registroAntigo=1: digitado do papel (só para o app reabrir no formulário certo); documentos = PDFs (JSON de ids)
   Colheitas: ['id', 'unidade', 'ano', 'numero', 'numeroTxt', 'numeroSugerido', 'numeroOrigem', 'conflito', 'emitidoEm', 'levantamentoId',
               'data', 'hora', 'servidor', 'cargo', 'matricula', 'lotacao', 'municipio', 'doc', 'nome', 'endereco', 'lat', 'lon', 'precisao',
               'cultura', 'quantidade', 'analise', 'partes', 'descricao', 'fotos', 'testemunha1Nome', 'testemunha1Doc', 'testemunha2Nome',
-              'testemunha2Doc', 'assinaturas', 'local', 'cancelado', 'motivoCancel', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
+              'testemunha2Doc', 'assinaturas', 'local', 'cancelado', 'motivoCancel', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
+              'registroAntigo', 'documentos'],
   Propriedades: ['id', 'codigo', 'nome', 'doc', 'municipio', 'situacaoFundiaria', 'lat', 'lon', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
-  Arquivos: ['id', 'dono', 'donoId', 'tipo', 'papel', 'nome', 'mime', 'tamanho', 'driveId', 'url', 'usuario', 'criadoEm'],  // fotos/assinaturas no Drive
+  Arquivos: ['id', 'dono', 'donoId', 'tipo', 'papel', 'nome', 'mime', 'tamanho', 'driveId', 'url', 'usuario', 'criadoEm'],  // fotos/assinaturas/PDFs no Drive
   // TF de Barreira em preenchimento no aparelho (alerta "apreensão em andamento" no painel). id = usuario|rascunhoId. Sem CPF/nome do fiscalizado.
   Andamento: ['id', 'usuario', 'fiscal', 'turnoId', 'placa', 'procedimento', 'local', 'barreira', 'lat', 'lon', 'estado', 'inicioTs', 'atualizadoTs'],
   // Módulos que cada servidor pode usar para INSERIR dados (por nome; vale para todos os aparelhos dele). 1 = liberado, 0 = sem autorização.
@@ -56,7 +58,7 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criad
                           'expiraEm', 'ativo', 'ativadoEm',
                           'ano', 'numero', 'ultimo', 'de', 'ate', 'em', 'numeroSugerido', 'emitidoEm', 'amostras', 'inspecao', 'coleta', 'fiel', 'auto',
                           'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito', 'tamanho',
-                          'inicioTs', 'atualizadoTs'];   // lat/lon/precisao ficam como texto (como em Turnos)
+                          'inicioTs', 'atualizadoTs', 'registroAntigo'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000 };   // demais colunas: 500
 // culturas/fotos/assinaturas são JSON: cortar o texto invalidaria o JSON (e apagaria as referências no aparelho). Os limites acima
@@ -471,8 +473,9 @@ function pceConsultar_(req, usuario) {
   };
 }
 
-const ARQ_MIMES = { 'image/jpeg': 'jpg', 'image/png': 'png' };
-const ARQ_MAX_BYTES = 4 * 1024 * 1024;
+const ARQ_MIMES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'application/pdf': 'pdf' };
+const ARQ_MAX_BYTES = 4 * 1024 * 1024;                 // fotos e assinaturas (o app já reduz as fotos)
+const ARQ_MAX_BYTES_PDF = 10 * 1024 * 1024;            // PDF escaneado (registro digitado do papel): ≈ 13,4 MB em base64, bem abaixo do limite do POST
 const ARQ_RE_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Subpasta com esse nome dentro de "pai" (cria se não existir). */
@@ -493,7 +496,8 @@ function pastaArquivos_() {
 }
 
 /**
- * Recebe UMA foto/assinatura (base64 sem o prefixo "data:") e grava no Drive, em GDV - Arquivos/PCE/<ano>/<dono>.
+ * Recebe UMA foto/assinatura/PDF (base64 sem o prefixo "data:") e grava no Drive, em GDV - Arquivos/PCE/<ano>/<dono>.
+ * tipo "documento" = PDF escaneado (application/pdf, até 10 MB, conteúdo começando por "%PDF-"); foto/assinatura = JPEG/PNG até 4 MB.
  * Idempotente pelo id: reenvio do mesmo arquivo devolve o registro já gravado. Os arquivos NÃO são compartilhados.
  */
 function arquivoEnviar_(req, usuario) {
@@ -503,9 +507,13 @@ function arquivoEnviar_(req, usuario) {
   if (!ARQ_RE_UUID.test(id)) throw new Error('Identificador de arquivo inválido.');
   if (dono !== 'levantamentos' && dono !== 'colheitas') throw new Error('Arquivo sem registro de origem válido.');
   if (!donoId || donoId.length > 64) throw new Error('Arquivo sem registro de origem válido.');
-  if (tipo !== 'foto' && tipo !== 'assinatura') throw new Error('Tipo de arquivo inválido.');
+  if (tipo !== 'foto' && tipo !== 'assinatura' && tipo !== 'documento') throw new Error('Tipo de arquivo inválido.');
   if (['', 'servidor', 'produtor', 'testemunha1', 'testemunha2'].indexOf(papel) < 0) throw new Error('Papel da assinatura inválido.');
-  if (!ARQ_MIMES[mime]) throw new Error('Formato não aceito (somente JPEG ou PNG).');
+  if (!ARQ_MIMES[mime]) throw new Error('Formato não aceito (somente JPEG, PNG ou PDF).');
+  const pdf = mime === 'application/pdf';
+  if (pdf !== (tipo === 'documento')) throw new Error(pdf ? 'PDF só pode ser enviado como documento.' : 'Documento só pode ser PDF.');
+  if (pdf && papel) throw new Error('Papel inválido para documento.');
+  const max = pdf ? ARQ_MAX_BYTES_PDF : ARQ_MAX_BYTES, maxTxt = pdf ? '10 MB' : '4 MB';
 
   const existente = function () { return lerLeitura_('Arquivos').filter(function (r) { return r.id === id; })[0]; };
   const resposta = function (r) { return { ok: true, id: r.id, url: r.url, driveId: r.driveId, existente: true }; };
@@ -513,14 +521,15 @@ function arquivoEnviar_(req, usuario) {
   if (ja) return resposta(ja);
 
   const b64 = String(req.base64 || '').replace(/^data:[^,]*,/, '').replace(/\s/g, '');
-  if (!b64 || b64.length > Math.ceil(ARQ_MAX_BYTES / 3) * 4 + 4) throw new Error('Arquivo vazio ou maior que 4 MB.');
+  if (!b64 || b64.length > Math.ceil(max / 3) * 4 + 4) throw new Error('Arquivo vazio ou maior que ' + maxTxt + '.');
   let bytes;
   try { bytes = Utilities.base64Decode(b64); } catch (e) { throw new Error('Arquivo corrompido (base64 inválido).'); }
-  if (!bytes.length || bytes.length > ARQ_MAX_BYTES) throw new Error('Arquivo vazio ou maior que 4 MB.');
+  if (!bytes.length || bytes.length > max) throw new Error('Arquivo vazio ou maior que ' + maxTxt + '.');
   const b = function (i) { return bytes[i] & 0xff; };
   const jpeg = b(0) === 0xff && b(1) === 0xd8 && b(2) === 0xff;
   const png = b(0) === 0x89 && b(1) === 0x50 && b(2) === 0x4e && b(3) === 0x47;
-  if ((mime === 'image/jpeg' && !jpeg) || (mime === 'image/png' && !png)) throw new Error('O conteúdo do arquivo não corresponde ao formato informado.');
+  const ehPdf = bytes.length >= 5 && b(0) === 0x25 && b(1) === 0x50 && b(2) === 0x44 && b(3) === 0x46 && b(4) === 0x2d;   // "%PDF-"
+  if ((mime === 'image/jpeg' && !jpeg) || (mime === 'image/png' && !png) || (pdf && !ehPdf)) throw new Error('O conteúdo do arquivo não corresponde ao formato informado.');
 
   const ano = String(new Date().getFullYear());
   const lock = LockService.getScriptLock();
@@ -668,7 +677,7 @@ function painelGerarCodigo(token, nome, modulos) {
 /* ---------- Módulos autorizados por servidor (aba Permissoes) ---------- */
 
 const MODULOS = ['veiculos', 'tf', 'pce'];
-const NOME_MODULO = { veiculos: 'Controle de veículos', tf: 'TF de Barreira', pce: 'PCE' };
+const NOME_MODULO = { veiculos: 'Educação Sanitária/Fiscalização', tf: 'TF de Barreira', pce: 'PCE' };
 // actions do app que pertencem a um módulo (o servidor recusa se o módulo não estiver liberado para quem chama)
 const MODULO_DA_ACAO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf',
                          pceProximoNumero: 'pce', pceEmitir: 'pce', pceConsultar: 'pce', arquivoEnviar: 'pce' };
@@ -992,6 +1001,7 @@ function painelDados(token, filtro) {
                          codigoPropriedade: r.codigoPropriedade, situacaoFundiaria: r.situacaoFundiaria, municipio: r.municipio,
                          lat: numOuNulo_(r.lat), lon: numOuNulo_(r.lon), precisao: numOuNulo_(r.precisao),
                          culturas: cult, pragas: pragasDe_(cult), nFotos: contarFotos_(r.fotos), nAssinaturas: contarAssinaturas_(r.assinaturas),
+                         nDocumentos: contarFotos_(r.documentos),
                          criadoEm: r.criadoEm, srv_ts: r.srv_ts, usuario: r.usuario });
   });
   const todasColheitas = lerLeitura_('Colheitas').filter(function (r) { return r.id && r.excluido !== 1; });
@@ -1003,7 +1013,7 @@ function painelDados(token, filtro) {
              doc: mascararDoc_(r.doc), tipoDoc: tipoDoc_(r.doc), nome: r.nome,
              lat: numOuNulo_(r.lat), lon: numOuNulo_(r.lon), precisao: numOuNulo_(r.precisao),
              cultura: r.cultura, quantidade: r.quantidade, analise: r.analise, partes: r.partes, local: r.local,
-             cancelado: r.cancelado, motivoCancel: r.motivoCancel, nFotos: contarFotos_(r.fotos),
+             cancelado: r.cancelado, motivoCancel: r.motivoCancel, nFotos: contarFotos_(r.fotos), nDocumentos: contarFotos_(r.documentos),
              criadoEm: r.criadoEm, srv_ts: r.srv_ts, usuario: r.usuario };
   });
 

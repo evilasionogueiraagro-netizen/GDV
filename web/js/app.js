@@ -44,9 +44,12 @@ async function enderecoDe(g) {
 }
 const camposLocal = (g, sufixo) => g ? { ['lat' + sufixo]: g.lat, ['lng' + sufixo]: g.lng, ['prec' + sufixo]: g.prec } : {};
 
+/** A Ficha de Campo só existe nas BVAs marcadas com ficha: true (hoje só a CEASA); nas demais e no volante, só o Termo.
+ *  Turno antigo com local digitado à mão (antes da lista de BVAs): ficha só se o local for a CEASA. */
+const temFicha = t => { const b = CONFIG.bvas.find(x => x.nome === t.local); return b ? !!b.ficha : /ceasa/i.test(t.local || ''); };
 /* ---------- módulos e navegação ---------- */
-// Depois de instalar e ativar o aparelho, o fiscal escolhe um módulo: Controle de veículos ou TF.
-// Dentro do controle de veículos o TF também está embutido (botão "Lavrar TF"); o menu de baixo muda conforme o módulo.
+// Depois de instalar e ativar o aparelho, o fiscal escolhe um módulo: Educação Sanitária/Fiscalização (turnos e veículos), TF ou PCE.
+// Dentro da Educação Sanitária/Fiscalização o TF também está embutido (botão "Lavrar TF"); o menu de baixo muda conforme o módulo.
 let MODULO = 'hub';
 const NAVS = {
   hub: [['modulos', '🏠', 'Módulos'], ['config', '⚙️', 'Status']],
@@ -62,7 +65,7 @@ const SEM_AUT = 'Sem autorização — fale com a gerência';
 function semPermissaoPara(view) {
   const m = moduloDaView(view);
   if (m && !Sync.pode(m)) return m;
-  if (MODULO === 'veiculos' && m === 'tf' && view !== 'tf' && !Sync.pode('veiculos')) return 'veiculos';   // TF embutido no Controle de veículos
+  if (MODULO === 'veiculos' && m === 'tf' && view !== 'tf' && !Sync.pode('veiculos')) return 'veiculos';   // TF embutido na Educação Sanitária/Fiscalização
   return '';
 }
 function renderNav(view) {
@@ -99,10 +102,10 @@ async function modulos() {
   const aviso = (Sync.estado() || {}).aviso || Sync.avisoSemPermissao(await Sync.bloqueadosComPendentes());
   view(`<div class="card"><h3>Olá${nome ? ', ' + esc(nome) : ''}!</h3><p class="dica" style="text-align:left">Escolha o que deseja fazer.</p></div>
     ${aviso ? `<div class="card aviso" id="avisoPerm">⚠️ ${esc(aviso)}</div>` : ''}
-    ${cartao('veiculos', 'home', '🚛', 'Controle de veículos', `<small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)${Sync.pode('veiculos') ? '' : ' (guardado neste aparelho)'}` : 'Registro dos veículos abordados, por turno'}</small>`)}
+    ${cartao('veiculos', 'home', '🚛', 'Educação Sanitária/Fiscalização', `<small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)${Sync.pode('veiculos') ? '' : ' (guardado neste aparelho)'}` : 'Registro dos veículos abordados, por turno'}</small>`)}
     ${cartao('tf', 'tf', '📄', 'Termo de Fiscalização de Barreira', `<small>${tfs.length} TF(s) neste aparelho${pend ? ` · ⏳ ${pend} aguardando envio` : ''}</small>`)}
-    ${cartao('pce', 'pce', '🌱', 'PCE', `<small>Levantamento fitossanitário e Termo de Colheita de Amostras</small><small class="pce-status">${esc(stPce)}</small>`)}
-    ${Sync.pode('veiculos') && Sync.pode('tf') ? '<p class="dica">Dentro do controle de veículos também dá para lavrar o TF de um veículo (botão “Lavrar TF”).</p>' : ''}`);
+    ${cartao('pce', 'pce', '🌱', 'PCE', `<small>Programa de Controle e Erradicação — levantamento fitossanitário e Termo de Colheita de Amostras</small><small class="pce-status">${esc(stPce)}</small>`)}
+    ${Sync.pode('veiculos') && Sync.pode('tf') ? '<p class="dica">Dentro da Educação Sanitária/Fiscalização também dá para lavrar o TF de um veículo (botão “Lavrar TF”).</p>' : ''}`);
 }
 const view = html => { $('#view').innerHTML = bannerInstalar() + html; };
 
@@ -318,7 +321,7 @@ async function resumo() {
   view(`<div class="card"><h3>${esc(t.numeroTF)} — total por tipo</h3>
     ${Object.entries(CONFIG.tipos).map(([c, x]) => `<div class="resumo-item"><span>${x.icone} ${x.nome}</span><strong>${por[c] || 0}</strong></div>`).join('')}
     <div class="total">TOTAL DE VEÍCULOS<br>${v.length}<small>${v.reduce((s, x) => s + (Number(x.pessoas) || 0), 0)} pessoas fiscalizadas</small></div></div>
-    <button class="botao" data-doc="ficha" data-id="${t.id}">📝 Ficha de Campo (PDF)</button>
+    ${temFicha(t) ? `<button class="botao" data-doc="ficha" data-id="${t.id}">📝 Ficha de Campo (PDF)</button>` : ''}
     <button class="botao vermelho" id="encerrar">⏹ Encerrar turno</button>
     <p class="dica">Início do turno: ${esc(t.inicio)}. Ao encerrar, o horário final é registrado e o Termo de Fiscalização fica disponível.<br>Na janela de impressão, escolha “Salvar como PDF”.</p>`);
   $('#encerrar').onclick = async () => {
@@ -340,7 +343,7 @@ async function fechado() {
     <p>${dBR(t.data)} · das <b>${esc(t.inicio)}</b> às <b>${esc(t.fim)}</b></p>
     <p>${v.length} veículos · ${v.reduce((s, x) => s + (Number(x.pessoas) || 0), 0)} pessoas</p></div>
     <button class="botao" data-doc="termo" data-id="${t.id}">📄 Termo de Fiscalização (PDF)</button>
-    <button class="botao" data-doc="ficha" data-id="${t.id}">📝 Ficha de Campo (PDF)</button>
+    ${temFicha(t) ? `<button class="botao" data-doc="ficha" data-id="${t.id}">📝 Ficha de Campo (PDF)</button>` : ''}
     <button class="botao" data-go="home">➕ Iniciar novo turno</button>
     <p class="dica">Os documentos deste turno também ficam no Histórico.</p>`);
 }
@@ -371,7 +374,7 @@ async function historico() {
       <div class="card"><h3>Veículos por dia</h3>${barras(Object.entries(porDia).sort().map(([k, n]) => [dBR(k).slice(0, 5), n]))}</div>
       <div class="card"><h3>Turnos</h3>${turnos.length ? turnos.map(t => `
         <div class="turno-linha"><div><b>${esc(t.numeroTF)}</b><br><small>${dBR(t.data)} · ${esc(t.inicio)}${t.fim ? '–' + esc(t.fim) : ''} · ${esc(t.fiscal)} · ${porTurno[t.id] || 0} veíc.${t.encerrado ? '' : ' · em andamento'}</small></div>
-        <div>${t.encerrado ? `<button class="mini" data-doc="termo" data-id="${t.id}">Termo</button>` : ''}<button class="mini" data-doc="ficha" data-id="${t.id}">Ficha</button></div></div>`).join('') : '<div class="vazio">Sem turnos no período.</div>'}</div>
+        <div>${t.encerrado ? `<button class="mini" data-doc="termo" data-id="${t.id}">Termo</button>` : ''}${temFicha(t) ? `<button class="mini" data-doc="ficha" data-id="${t.id}">Ficha</button>` : ''}</div></div>`).join('') : '<div class="vazio">Sem turnos no período.</div>'}</div>
       <button class="botao vermelho" id="limpar">🗑 Limpar histórico deste aparelho</button>
       <p class="dica">Remove só os turnos já encerrados <b>deste celular</b>. Os dados continuam salvos na planilha.</p>`;
     $('#limpar').onclick = limparHistorico;

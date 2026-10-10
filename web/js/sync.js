@@ -34,7 +34,7 @@ const Sync = (() => {
   /* ---------- Módulos autorizados (definidos pela gerência no painel → Servidores) ----------
      O servidor devolve {veiculos, tf, pce} a cada sync; guardamos a última (meta "permissoes") para usar sem internet.
      Padrão: tudo liberado (aparelho que nunca sincronizou, ou versão antiga do servidor que não manda permissões). */
-  const MODULOS = { veiculos: 'Controle de veículos', tf: 'TF de Barreira', pce: 'PCE' };
+  const MODULOS = { veiculos: 'Educação Sanitária/Fiscalização', tf: 'TF de Barreira', pce: 'PCE' };
   // stores de cada módulo (pessoas servem ao TF e ao PCE: sobem se qualquer um dos dois estiver liberado)
   const MODULO_DO_STORE = { t: ['veiculos'], v: ['veiculos'], f: ['tf'], l: ['tf'], p: ['tf', 'pce'], g: ['pce'], c: ['pce'], r: ['pce'], a: ['pce'] };
   let PERM = { veiculos: 1, tf: 1, pce: 1 };
@@ -88,13 +88,14 @@ const Sync = (() => {
   const LIMITES = { t: 500, v: 1000, f: 100, p: 300, l: 300, g: 100, c: 100, r: 300 };                                                         // registros por rodada
   const lerJSON = (v, pad) => { try { return JSON.parse(v) || pad; } catch (e) { return pad; } };
 
-  /* Fotos e assinaturas (PCE): ficam no aparelho (store "arquivos") e sobem ao Drive depois do sync principal.
+  /* Fotos, assinaturas e PDFs (PCE): ficam no aparelho (store "arquivos") e sobem ao Drive depois do sync principal.
      Só contam/sobem as que estão ligadas a um levantamento ou termo salvo (não excluído): rascunhos não sobem. */
   function idsReferenciados(regs) {
     const s = new Set();
     regs.forEach(r => {
       if (!r || r.excluido) return;
       lerJSON(r.fotos, []).forEach(id => id && s.add(id));
+      lerJSON(r.documentos, []).forEach(id => id && s.add(id));                 // PDFs escaneados (registro digitado do papel)
       Object.values(lerJSON(r.assinaturas, {})).forEach(id => id && s.add(id));
     });
     return s;
@@ -145,11 +146,12 @@ const Sync = (() => {
     for (const id of fila.slice(0, (CONFIG.PCE && CONFIG.PCE.arquivosPorRodada) || 5)) {
       const a = await Store.obter('arquivos', id);
       if (!a || a.enviado || !a.dados) continue;
-      const ext = a.mime === 'image/png' ? 'png' : 'jpg';
+      const ext = a.mime === 'image/png' ? 'png' : a.mime === 'application/pdf' ? 'pdf' : 'jpg';
       const arquivo = { id: a.id, dono: a.dono, donoId: a.donoId, tipo: a.tipo, papel: a.papel || '', mime: a.mime,
         nome: `${a.donoId}_${a.tipo}_${a.papel || 'n'}_${a.id}.${ext}` };
       let r;
-      try { r = await chamar({ action: 'arquivoEnviar', arquivo, base64: String(a.dados).replace(/^data:[^,]*,/, '') }, 60000); }
+      // PDF (até 10 MB ≈ 13,4 MB em base64) tem mais tempo para subir
+      try { r = await chamar({ action: 'arquivoEnviar', arquivo, base64: String(a.dados).replace(/^data:[^,]*,/, '') }, a.tipo === 'documento' ? 180000 : 60000); }
       catch (e) {
         falhasArq[id] = (falhasArq[id] || 0) + 1; erro = erro || e;
         // credencial recusada ou sem resposta do servidor (rede/tempo esgotado): os outros falhariam também
@@ -159,7 +161,8 @@ const Sync = (() => {
       delete falhasArq[id];
       const atual = await Store.obter('arquivos', id);
       if (!atual) continue;                                                   // removido durante o envio
-      await Store.gravar('arquivos', { ...atual, enviado: 1, url: r.url || '', driveId: r.driveId || '' });
+      // PDF já no Drive sai do aparelho (não é impresso nos documentos e ocuparia muito espaço); fotos/assinaturas ficam para reimprimir
+      await Store.gravar('arquivos', { ...atual, enviado: 1, url: r.url || '', driveId: r.driveId || '', ...(atual.tipo === 'documento' ? { dados: '' } : {}) });
       enviados++;
     }
     if (erro) throw erro;                                                     // quem chamou mostra o erro (depois de tentar os demais)

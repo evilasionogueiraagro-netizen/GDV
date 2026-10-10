@@ -69,6 +69,8 @@ Dentro do mesmo app, na aba **📄 TF**: o fiscal preenche o TF digitalmente e i
 
 **Dados pessoais (LGPD):** cada fiscal só baixa para o celular os **próprios** TFs; cadastros e históricos de outras pessoas chegam **apenas por consulta**, uma a uma. As consultas ficam registradas na aba `Consultas` (quem, quando, CPF/CNPJ mascarado). Limite o compartilhamento da planilha a quem precisa e defina um prazo de guarda.
 
+**Impressão em uma folha por via:** os campos Constatação e Enquadramento Legal têm 40% menos altura que no rascunho e, se mesmo assim o conteúdo não couber numa folha A4 (muitos produtos, textos longos), o app ajusta sozinho, nesta ordem: tira a linha em branco extra dos produtos, compacta os espaçamentos, deixa os campos do tamanho do texto e só então reduz levemente a letra desses dois campos (mínimo 9 pt-equivalente, com zoom de até 78% em casos extremos). As duas vias saem iguais.
+
 **Textos padrão** de constatação e enquadramento legal, lista de produtos e unidades ficam em `web/js/config.js` (`CONFIG.TF`); o fiscal pode editar o texto no formulário. O modelo impresso é `web/documentos/tf.html`.
 
 **Para publicar:** atualize o `Code.gs` no Apps Script e crie uma **nova versão** da implantação (as abas novas são criadas automaticamente na primeira sincronização). Nos celulares, abra o app com internet para baixar a versão nova.

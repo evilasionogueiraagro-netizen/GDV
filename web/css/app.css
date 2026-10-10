@@ -44,3 +44,7 @@ nav button span { font-size:10px; } nav button.on { color:var(--azul2); font-wei
 .aviso { background:#fff4d6; border:1px solid #f0c040; color:#5a4300; font-size:14px; }
 #sync { cursor:pointer; text-decoration:underline dotted; }
 input[readonly] { background:#eef1f6; color:#445; }
+
+.instalar { background:#e7f0ff; border:1px solid #9bbcf0; }
+.instalar ol { margin:6px 0 10px; padding-left:20px; } .instalar li { margin:6px 0; }
+.instalar .duas .botao { margin:6px 0; font-size:14px; }

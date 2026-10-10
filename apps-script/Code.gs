@@ -9,7 +9,7 @@
  *   2. O fiscal digita o código de 6 dígitos no app (uma vez). O servidor devolve uma credencial
  *      própria daquele aparelho, vinculada ao nome. Revogue em "GDV → Revogar acesso" (ou na aba Servidores).
  *
- * Módulos por servidor (aba "Permissoes", editada no painel → Servidores): Educação Sanitária/Fiscalização, TF de Barreira e PCE.
+ * Módulos por servidor (aba "Permissoes", editada no painel → Servidores): Educação Sanitária/Fiscalização de Trânsito, TF de Barreira e PCE.
  *   Sem linha = tudo liberado. O sync não grava registros de módulo não liberado (devolve em "recusados"; o app os mantém
  *   pendentes) e as actions do TF/PCE respondem "Sem autorização para o módulo …".
  *
@@ -679,7 +679,7 @@ function painelGerarCodigo(token, nome, modulos) {
 /* ---------- Módulos autorizados por servidor (aba Permissoes) ---------- */
 
 const MODULOS = ['veiculos', 'tf', 'pce'];
-const NOME_MODULO = { veiculos: 'Educação Sanitária/Fiscalização', tf: 'TF de Barreira', pce: 'PCE' };
+const NOME_MODULO = { veiculos: 'Educação Sanitária/Fiscalização de Trânsito', tf: 'TF de Barreira', pce: 'PCE' };
 // actions do app que pertencem a um módulo (o servidor recusa se o módulo não estiver liberado para quem chama)
 const MODULO_DA_ACAO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf',
                          pceProximoNumero: 'pce', pceEmitir: 'pce', pceConsultar: 'pce', arquivoEnviar: 'pce' };

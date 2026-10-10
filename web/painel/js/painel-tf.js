@@ -238,7 +238,7 @@
     camadaTFs(m, d, p);
 
     /* Desempenho por barreira */
-    const sb = P.secao(c, 'Desempenho por barreira', 'Cruza os veículos abordados (Educação Sanitária/Fiscalização) com os TFs: taxa de TF e de retenção por veículo abordado.');
+    const sb = P.secao(c, 'Desempenho por barreira', 'Cruza os veículos abordados (Educação Sanitária/Fiscalização de Trânsito) com os TFs: taxa de TF e de retenção por veículo abordado.');
     const B = {};
     const bget = nome => { const k = norm(nome) || '—'; return B[k] = B[k] || { barreira: nome || 'Sem barreira', turnos: 0, minutos: 0, veiculos: 0, tfs: 0, liberacao: 0, apreensao: 0, rechaco: 0, autos: 0, reinc: 0 }; };
     d.turnos.forEach(t => { const b = bget(t.local); b.turnos++; b.minutos += t.duracaoContabilMin || 0; b.veiculos += t.nVeiculos; });

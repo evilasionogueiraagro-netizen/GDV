@@ -1,4 +1,5 @@
 // Banco local (IndexedDB). Tudo funciona sem internet; `pendente: 1` marca o que ainda não foi enviado.
+// Também é carregado pelo service worker (envio em segundo plano): não depende de window/document.
 const Store = (() => {
   let dbp;
   function db() {
@@ -102,8 +103,12 @@ const Store = (() => {
     rec.atualizadoEm = Math.max(agora, (Number(rec.atualizadoEm) || 0) + 1);
     rec.pendente = 1;
     await gravar(store, rec);
+    if (aoPendente) try { aoPendente(store, rec); } catch (e) { /* aviso de pendência é melhor esforço */ }
     return rec;
   }
+  /** Chamado a cada registro que fica pendente (a página agenda o envio em segundo plano). */
+  let aoPendente = null;
+  const quandoPendente = f => { aoPendente = f; };
 
-  return { todos, obter, gravar, gravarVarios, mesclar, apagar, chaves, meta, setMeta, salvar, novoId: uuid };
+  return { todos, obter, gravar, gravarVarios, mesclar, apagar, chaves, meta, setMeta, salvar, quandoPendente, novoId: uuid };
 })();

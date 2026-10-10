@@ -17,7 +17,7 @@ const TABELAS = {
            'latIni', 'lngIni', 'precIni', 'latFim', 'lngFim', 'precFim', 'usuario'],   // colunas novas ficam sempre no fim
   Veiculos: ['id', 'turnoId', 'hora', 'placa', 'tipo', 'pessoas', 'obs',
              'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
-  Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm']
+  Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm', 'perfil']   // perfil: vazio = fiscal, 'admin' = administrador
 };
 const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
                           'expiraEm', 'ativo', 'ativadoEm'];
@@ -26,7 +26,7 @@ const MAX_FALHAS_ATIVACAO = 10;                        // tentativas erradas ant
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 function doGet(e) {
-  if (e && e.parameter && e.parameter.p === 'painel') return painel_();
+  if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
   return json_({ ok: true, servico: 'GDV Controle de Veículos' });
 }
 
@@ -69,34 +69,30 @@ function sincronizar_(req, usuario) {
 /* ---------- Painel do administrador (somente leitura) ---------- */
 
 /**
- * O painel é servido por uma SEGUNDA implantação do mesmo projeto, aberta em
- *   <URL da implantação do painel>?p=painel
- * Configuração (README): executar como "Usuário que acessa o app da Web", acesso "Qualquer pessoa com
- * conta Google", e Propriedades do script → ADMIN_EMAILS = "admin1@gmail.com,admin2@gmail.com".
- * Camadas de proteção: (1) lista ADMIN_EMAILS; (2) o servidor lê a planilha com a permissão de quem acessa.
- * Na implantação pública dos aparelhos (acesso anônimo) o e-mail vem vazio, então o painel nunca abre.
+ * O painel abre na MESMA implantação dos aparelhos:  <URL /exec>?p=painel
+ * A página em si não contém dados. Os dados só são entregues a quem tem uma credencial de ADMINISTRADOR,
+ * obtida com um código de 6 dígitos (uso único) gerado no menu da planilha: GDV → Gerar código de administrador.
+ * Credenciais de fiscais não leem o painel, e códigos de administrador não ativam aparelhos de fiscais.
  */
-function ehAdmin_() {
-  const email = String(Session.getActiveUser().getEmail() || '').trim().toLowerCase();
-  const lista = String(PropertiesService.getScriptProperties().getProperty('ADMIN_EMAILS') || '')
-    .split(',').map(function (x) { return x.trim().toLowerCase(); }).filter(String);
-  return !!email && lista.indexOf(email) >= 0;
-}
-
-function exigirAdmin_() {
-  if (!ehAdmin_()) throw new Error('Acesso restrito ao administrador.');
-}
-
-function painel_() {
-  if (!ehAdmin_()) {
-    return HtmlService.createHtmlOutput('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
-      '<body style="font:16px system-ui;padding:24px;max-width:520px;margin:auto"><h2>Acesso restrito</h2>' +
-      '<p>Este painel é exclusivo do administrador. Entre com a conta Google autorizada e abra o endereço do painel novamente.</p></body>')
-      .setTitle('GDV – Acesso restrito');
-  }
+function painelHtml_() {
   return HtmlService.createHtmlOutputFromFile('Painel')
     .setTitle('GDV – Painel do administrador')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+/** Valida a credencial do painel e devolve o nome do administrador. */
+function adminDoToken_(token) {
+  token = String(token || '');
+  if (token) {
+    const t = lerLeitura_('Fiscais');
+    for (let i = 0; i < t.length; i++) if (t[i].token === token && t[i].ativo === 1 && t[i].perfil === 'admin') return t[i].nome;
+  }
+  throw new Error('Sessão do painel inválida ou revogada. Entre com um código de administrador.');
+}
+
+/** Chamada pela página do painel: troca o código de administrador por uma credencial. */
+function painelAtivar(codigo) {
+  return ativar_({ codigo: codigo, perfil: 'admin' });
 }
 
 function lerLeitura_(nome) {                       // leitura pura: não cria abas nem colunas
@@ -107,8 +103,8 @@ function lerLeitura_(nome) {                       // leitura pura: não cria ab
 }
 
 /** Dados brutos do período (o painel calcula tudo no navegador). filtro: {de:'aaaa-mm-dd', ate:'aaaa-mm-dd'} */
-function painelDados(filtro) {
-  exigirAdmin_();
+function painelDados(token, filtro) {
+  adminDoToken_(token);
   filtro = filtro || {};
   const re = /^\d{4}-\d{2}-\d{2}$/;
   const de = re.test(filtro.de) ? filtro.de : '0000-00-00', ate = re.test(filtro.ate) ? filtro.ate : '9999-99-99';
@@ -159,7 +155,8 @@ function ativar_(req) {
     if (cod.length === 6) {
       t.valores.forEach(function (l, i) {
         const f = paraObjeto_(t.cols, l);
-        if (achada < 0 && f.ativo === 1 && !f.token && f.codigo.padStart(6, '0') === cod && f.expiraEm > agora) achada = i;
+        if (achada < 0 && f.ativo === 1 && !f.token && f.codigo.padStart(6, '0') === cod && f.expiraEm > agora &&
+            (f.perfil === 'admin') === (req.perfil === 'admin')) achada = i;
       });
     }
     if (achada < 0) {
@@ -178,9 +175,10 @@ function ativar_(req) {
 }
 
 /** Cria uma autorização (linha em "Fiscais") e devolve o código de 6 dígitos. */
-function gerarCodigo_(nome) {
+function gerarCodigo_(nome, perfil) {
   nome = String(nome || '').trim().replace(/\s+/g, ' ');
-  if (nome.split(' ').length < 2) throw new Error('Informe o nome completo (nome e sobrenome).');
+  if (perfil !== 'admin' && nome.split(' ').length < 2) throw new Error('Informe o nome completo (nome e sobrenome).');
+  if (!nome) throw new Error('Informe o nome.');
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
@@ -196,8 +194,8 @@ function gerarCodigo_(nome) {
     } while (emUso[codigo]);
     const expiraEm = agora + VALIDADE_CODIGO_MS;
     t.sh.getRange(t.sh.getLastRow() + 1, 1, 1, t.cols.length)
-      .setValues([[nome, codigo, expiraEm, 1, '', 0]]);
-    return { codigo: codigo, expiraEm: expiraEm, nome: nome };
+      .setValues([[nome, codigo, expiraEm, 1, '', 0, perfil === 'admin' ? 'admin' : '']]);
+    return { codigo: codigo, expiraEm: expiraEm, nome: nome, perfil: perfil === 'admin' ? 'admin' : 'fiscal' };
   } finally {
     lock.releaseLock();
   }
@@ -229,7 +227,8 @@ function revogar_(nome) {
 function onOpen() {
   SpreadsheetApp.getUi().createMenu('GDV')
     .addItem('Gerar código de ativação', 'menuGerarCodigo')
-    .addItem('Revogar acesso de um fiscal', 'menuRevogar')
+    .addItem('Gerar código de administrador (painel)', 'menuGerarCodigoAdmin')
+    .addItem('Revogar acesso de um fiscal ou administrador', 'menuRevogar')
     .addToUi();
 }
 
@@ -241,6 +240,17 @@ function menuGerarCodigo() {
     const g = gerarCodigo_(r.getResponseText());
     const venc = Utilities.formatDate(new Date(g.expiraEm), 'America/Manaus', 'dd/MM/yyyy HH:mm');
     ui.alert('Código para ' + g.nome, g.codigo.slice(0, 3) + ' ' + g.codigo.slice(3) + '\n\nEnvie ao fiscal. Uso único, válido até ' + venc + '.', ui.ButtonSet.OK);
+  } catch (e) { ui.alert('Não foi possível gerar', String(e.message || e), ui.ButtonSet.OK); }
+}
+
+function menuGerarCodigoAdmin() {
+  const ui = SpreadsheetApp.getUi();
+  const r = ui.prompt('Código de administrador (painel)', 'Nome do administrador:', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  try {
+    const g = gerarCodigo_(r.getResponseText(), 'admin');
+    const venc = Utilities.formatDate(new Date(g.expiraEm), 'America/Manaus', 'dd/MM/yyyy HH:mm');
+    ui.alert('Código de administrador para ' + g.nome, g.codigo.slice(0, 3) + ' ' + g.codigo.slice(3) + '\n\nAbra o painel (URL do app + ?p=painel) e digite o código. Uso único, válido até ' + venc + '.', ui.ButtonSet.OK);
   } catch (e) { ui.alert('Não foi possível gerar', String(e.message || e), ui.ButtonSet.OK); }
 }
 

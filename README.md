@@ -60,14 +60,13 @@ Painel web só para o administrador, lendo a própria planilha. Fica no mesmo pr
 - Veículos por tipo, **mapa** das barreiras (ponto final do turno), tabelas por local e por fiscal, placas recorrentes, alertas (turno que ficou aberto, sem veículos, duração incomum, sem coordenadas) e lista de turnos, com CSV de turnos e de veículos.
 - *Horas de barreira* = soma da duração (fim − início, atravessando a meia-noite quando preciso) dos turnos **encerrados**. Cada gráfico tem a versão em tabela (botão *Tabela*).
 
-**Como publicar**
-1. No projeto do Apps Script: crie um arquivo **HTML** chamado `Painel` e cole `apps-script/Painel.html`; atualize o `Code.gs` com a versão do repositório.
-2. **Configurações do projeto → Propriedades do script**: `ADMIN_EMAILS` = e-mails dos administradores, separados por vírgula (ex.: `voce@gmail.com,colega@gmail.com`). Vazio = ninguém acessa.
-3. **Implantar → Nova implantação** (não altere a implantação dos aparelhos): tipo *App da Web*; **Executar como: Usuário que acessa o app da Web**; **Quem pode acessar: Qualquer pessoa com Conta Google**. Copie a URL.
-4. **Compartilhe a planilha** com cada administrador (permissão *Leitor*). Na primeira abertura o Google pede autorização (*Avançado → Acessar*).
-5. Abra `URL_DA_IMPLANTAÇÃO_DO_PAINEL?p=painel` e salve nos favoritos.
+**Como publicar** (usa a **mesma implantação** dos aparelhos; não há segunda implantação)
+1. No projeto do Apps Script: atualize o `Code.gs` e crie um arquivo **HTML** chamado `Painel` (sem `.html`) com o conteúdo de `apps-script/Painel.html`.
+2. **Implantar → Gerenciar implantações → lápis → Nova versão → Implantar** (a URL `/exec` não muda).
+3. Recarregue a planilha e use o menu **GDV → Gerar código de administrador (painel)** (informe o nome). O código de 6 dígitos é de uso único e vale 7 dias.
+4. Abra a URL do app seguida de `?p=painel` (`https://script.google.com/macros/s/…/exec?p=painel`), digite o código e salve nos favoritos. A sessão fica guardada no navegador; **Sair** encerra.
 
-**Proteção:** só abre quem estiver em `ADMIN_EMAILS` *e* tiver acesso à planilha; a leitura é feita com a permissão de quem acessa. Na implantação dos aparelhos (acesso anônimo) o painel nunca abre. Ao alterar o `Code.gs` ou o `Painel.html`, crie uma nova versão em **cada** implantação.
+**Proteção:** a página do painel não contém dados; eles só são entregues a quem tem uma credencial de **administrador**, obtida com o código acima. Credenciais de fiscais não leem o painel, e códigos de administrador não ativam aparelhos de fiscais. Cada código é de uso único, e após 10 tentativas erradas a ativação fica bloqueada por 15 minutos. Para tirar um acesso: **GDV → Revogar acesso de um fiscal ou administrador** (a credencial deixa de valer na hora). A aba `Fiscais` lista todos os acessos (coluna `perfil` = `admin` para administradores). Ao alterar o `Code.gs` ou o `Painel.html`, crie uma nova versão da implantação.
 
 ## Estrutura
 

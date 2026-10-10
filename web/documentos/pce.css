@@ -1,0 +1,49 @@
+/* Estilo comum dos documentos do PCE (Ficha de Levantamento e Termo de Colheita).
+   Mesmo padrão visual do tf.html: cabeçalho com brasão, quadros em tabela com borda preta, rodapé ADAF/SEPROR. */
+body{ font-family:Arial, sans-serif; margin:0; padding:0; background:#fff; color:#000; }
+.a4{ width:196mm; margin:0 auto; box-sizing:border-box; position:relative; background:#fff; }
+
+table{ width:100%; border-collapse:collapse; font-size:12px; }
+td, th{ border:1px solid #000; padding:3px 4px; vertical-align:top; text-align:left; }
+th{ font-weight:bold; background:#eef1f6; }
+tr{ break-inside:avoid; page-break-inside:avoid; }
+.centro{ text-align:center; }
+.negrito{ font-weight:700; font-size:14px; }
+.cabecalho{ font-size:15px; font-weight:bold; }
+.quadro td.titulo{ font-weight:700; font-size:13px; background:#eef1f6; }
+.rot{ font-size:10.5px; color:#333; display:block; }
+.val{ font-size:13px; white-space:pre-line; overflow-wrap:anywhere; }
+.val:empty{ display:inline-block; min-height:16px; }
+.vazio{ color:#777; font-style:italic; }
+
+.logo-container{ width:100%; text-align:center; margin-bottom:2px; }
+.logo-amazonas{ height:75px; }
+.identificacao-orgao{ width:100%; text-align:center; margin:0 0 4px 0; line-height:1.15; }
+.identificacao-orgao .governo{ font-size:12px; font-weight:bold; }
+.identificacao-orgao .agencia{ font-size:11px; margin-top:1px; }
+
+.via{ position:absolute; top:1mm; right:2mm; font-size:10px; color:#555; }
+.a4 + .a4{ page-break-before:always; break-before:page; }
+.cancelado-faixa{ border:2px solid #b00020; color:#b00020; font-weight:bold; text-align:center; font-size:14px; padding:3px; margin-bottom:3px; }
+
+/* fotos: grade de miniaturas */
+.fotos{ display:flex; flex-wrap:wrap; gap:2mm; padding:1mm 0; }
+.foto{ margin:0; width:calc(25% - 1.5mm); break-inside:avoid; page-break-inside:avoid; text-align:center; }
+.foto img{ width:100%; height:40mm; object-fit:cover; border:1px solid #999; display:block; box-sizing:border-box; }
+.foto .sem-foto{ height:40mm; border:1px dashed #999; display:flex; align-items:center; justify-content:center; font-size:10.5px; color:#555; padding:2mm; box-sizing:border-box; }
+.foto figcaption{ font-size:9.5px; color:#333; margin-top:1px; }
+.fotos-extra{ font-size:11px; color:#333; margin-top:1mm; }
+
+/* assinaturas: imagem (se colhida na tela) sobre a linha de assinatura */
+.assinaturas{ display:flex; flex-wrap:wrap; justify-content:space-between; row-gap:3mm; padding-top:2mm; }
+.assinatura{ width:46%; text-align:center; font-size:11.5px; break-inside:avoid; page-break-inside:avoid; }
+.assinatura .area{ height:18mm; display:flex; align-items:flex-end; justify-content:center; }
+.assinatura .area img{ max-height:18mm; max-width:100%; }
+.assinatura .linha{ border-top:1px solid #000; margin:0 4mm; padding-top:1px; }
+.assinatura .nome{ font-weight:bold; font-size:11px; min-height:13px; }
+
+.rodape{ width:100%; margin-top:3mm; display:flex; justify-content:space-between; align-items:flex-end; color:#002060; font-weight:600; break-inside:avoid; page-break-inside:avoid; }
+.rodape-esquerda{ width:35%; font-size:12px; }
+.rodape-centro{ width:30%; text-align:center; font-size:12px; }
+.rodape-direita{ width:35%; text-align:right; font-size:12px; }
+.rodape img{ max-height:55px; }

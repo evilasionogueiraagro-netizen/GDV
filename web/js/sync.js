@@ -6,9 +6,29 @@ const Sync = (() => {
 
   const cfg = () => ({
     url: localStorage.getItem('gdv.url') || CONFIG.sync.url || '',
-    key: localStorage.getItem('gdv.key') || CONFIG.sync.key || ''
+    key: localStorage.getItem('gdv.key') || ''
   });
   const ativado = () => { const c = cfg(); return !!(c.url && c.key); };
+  const nome = () => localStorage.getItem('gdv.nome') || '';
+
+  /** Troca o código de 6 dígitos por uma credencial própria do aparelho, vinculada ao nome do fiscal. */
+  async function ativar(codigo, urlManual) {
+    const url = (urlManual || cfg().url || '').trim();
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url)) throw new Error('Endereço do servidor inválido.');
+    const cod = String(codigo || '').replace(/\D/g, '');
+    if (cod.length !== 6) throw new Error('O código tem 6 dígitos.');
+    let j;
+    try {
+      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action: 'ativar', codigo: cod }), redirect: 'follow' });
+      j = await r.json();
+    } catch (e) { throw new Error('Sem internet ou servidor indisponível. A ativação precisa de conexão.'); }
+    if (!j.ok) throw new Error(j.erro || 'Falha na ativação.');
+    localStorage.setItem('gdv.url', url); localStorage.setItem('gdv.key', j.token);
+    localStorage.setItem('gdv.nome', j.nome); localStorage.removeItem('gdv.revogado');
+    return j.nome;
+  }
+  function desativar() { ['gdv.key', 'gdv.nome', 'gdv.revogado'].forEach(k => localStorage.removeItem(k)); }
   function emitir(e) { estado = e; listeners.forEach(f => f(e)); }
 
   async function chamar(corpo) {
@@ -70,11 +90,15 @@ const Sync = (() => {
         if (p.t.length <= t.length && p.v.length <= v.length) break;
       }
       await Store.setMeta('ultimaSync', Date.now());
+      localStorage.removeItem('gdv.revogado');
       emitir({ tipo: 'ok', msg: 'Sincronizado', pend: 0 });
       window.dispatchEvent(new Event('gdv-dados'));
     } catch (e) {
       const p = await pendentes();
       emitir({ tipo: 'erro', msg: e.message, pend: p.t.length + p.v.length });
+      if (/revogado|inv[aá]lido/i.test(e.message) && !localStorage.getItem('gdv.revogado')) {   // pede novo código (uma vez)
+        localStorage.setItem('gdv.revogado', '1'); window.dispatchEvent(new Event('gdv-dados'));
+      }
     } finally {
       rodando = false;
     }
@@ -95,5 +119,5 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { iniciar, sincronizar, testar, atualizarContagem, ativado, onEstado: f => listeners.push(f), estado: () => estado, cfg };
+  return { iniciar, sincronizar, testar, atualizarContagem, ativado, nome, ativar, desativar, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

@@ -47,8 +47,15 @@ function go(view, arg) {
 const view = html => { $('#view').innerHTML = html; };
 
 /* ---------- Início / novo turno ---------- */
-const avisoAtivacao = () => Sync.ativado() ? '' :
-  '<div class="card aviso">⚠️ Este aparelho ainda não está ativado para sincronizar com a planilha. Abra o <b>link de ativação</b> enviado pelo administrador. Enquanto isso, os registros ficam salvos só neste aparelho.</div>';
+const avisoAtivacao = () => {
+  const revog = localStorage.getItem('gdv.revogado');
+  if (Sync.ativado() && !revog) return '';
+  return `<form class="card aviso" id="fAtivar"><h3>${revog ? '⛔ Acesso revogado' : '🔑 Ativar este aparelho'}</h3>
+    <p>${revog ? 'Peça um novo código de ativação ao administrador.' : 'Digite o código de 6 dígitos enviado pelo administrador. Só esta etapa exige internet. Sem ativar, os registros ficam salvos apenas neste aparelho.'}</p>
+    ${CONFIG.sync.url ? '' : '<label>Endereço do servidor<input id="aUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" required></label>'}
+    <label>Código de ativação<input id="aCod" inputmode="numeric" maxlength="7" autocomplete="off" placeholder="000 000" required></label>
+    <button class="botao">Ativar</button></form>`;
+};
 async function home() {
   const t = await turnoAtual();
   if (!t) return novoTurno();
@@ -72,7 +79,7 @@ function novoTurno() {
     <label>Tipo de posto<select id="nPosto">${CONFIG.postos.map(p => `<option ${localStorage.getItem('gdv.posto') === p ? 'selected' : ''}>${p}</option>`).join('')}</select></label>
     <label>Local / Posto<input id="nLocal" required value="${localStorage.getItem('gdv.local') ? ls('local') : esc(CONFIG.localPadrao)}" placeholder="ex.: Barreira Porto CEASA ou BR-174 km 120"></label>
     <label>Unidade (Termo)<input id="nUnidade" required value="${localStorage.getItem('gdv.unidade') ? ls('unidade') : esc(CONFIG.unidadePadrao)}"></label>
-    <label>Fiscal 1 — nome completo *<input id="nFiscal1" autocomplete="off" value="${ls('fiscal1')}" placeholder="Nome e sobrenome"></label>
+    <label>Fiscal 1 — nome completo *${Sync.nome() ? ' <small>(vinculado a este aparelho)</small>' : ''}<input id="nFiscal1" autocomplete="off" ${Sync.nome() ? 'readonly' : ''} value="${Sync.nome() ? esc(Sync.nome()) : ls('fiscal1')}" placeholder="Nome e sobrenome"></label>
     <label>Fiscal 2 — nome completo (opcional)<input id="nFiscal2" autocomplete="off" value="${ls('fiscal2')}" placeholder="Nome e sobrenome"></label>
     <button class="botao">Iniciar turno</button></form>`);
   $('#fTurno').onsubmit = async e => {
@@ -249,26 +256,28 @@ function barras(pares) {
 async function config() {
   const ult = await Store.meta('ultimaSync');
   view(`${avisoAtivacao()}<div class="card"><h3>Sincronização</h3>
-    <p>Aparelho: ${Sync.ativado() ? '✅ ativado' : '⚠️ não ativado'}</p><p id="cEst"></p>
+    <p>Aparelho: ${Sync.ativado() ? '✅ ativado' : '⚠️ não ativado'}</p>
+    ${Sync.nome() ? `<p>Fiscal vinculado: <b>${esc(Sync.nome())}</b></p>` : ''}<p id="cEst"></p>
     <p>Última sincronização: ${ult ? new Date(ult).toLocaleString('pt-BR') : 'nunca'}</p>
-    <p class="dica">A sincronização é automática (a cada minuto, quando há internet). Para forçar agora, toque no selo no topo da tela.</p></div>`);
+    <p class="dica">A sincronização é automática (a cada minuto, quando há internet). Para forçar agora, toque no selo no topo da tela.</p>
+    ${Sync.ativado() ? '<button class="botao sec" id="desativar">Desativar este aparelho / trocar de fiscal</button>' : ''}</div>`);
   const e = Sync.estado();
   $('#cEst').textContent = (navigator.onLine ? 'Online' : 'Offline') + ' · pendentes de envio: ' + (e.pend || 0) + (e.tipo === 'erro' ? ' · erro: ' + e.msg : '');
+  if ($('#desativar')) $('#desativar').onclick = () => {
+    if (!confirm('Desativar este aparelho? Registros ainda não enviados ficam guardados aqui e só serão enviados após uma nova ativação.')) return;
+    Sync.desativar(); toast('Aparelho desativado.'); config();
+  };
 }
 
-/* ---------- ativação por link: https://…/#ativar=<código> ---------- */
-function ativarPorLink() {
-  const m = location.hash.match(/^#ativar=([\w-]+)/);
-  if (!m) return;
-  history.replaceState(null, '', location.pathname + location.search);     // tira o código da barra de endereço
+document.addEventListener('submit', async e => {            // ativação por código (formulário aparece quando o aparelho não está ativado)
+  if (e.target.id !== 'fAtivar') return;
+  e.preventDefault();
+  const btn = e.target.querySelector('button'); btn.disabled = true; btn.textContent = 'Ativando…';
   try {
-    const j = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')))));
-    if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(j.u) || !j.k) throw new Error('inválido');
-    if (!confirm(`Ativar este aparelho para sincronizar com a planilha da unidade?\n\nServidor: …${j.u.slice(-14)}`)) return;
-    localStorage.setItem('gdv.url', j.u); localStorage.setItem('gdv.key', j.k);
-    toast('Aparelho ativado. Sincronizando…');
-  } catch (e) { toast('Link de ativação inválido.', true); }
-}
+    const nome = await Sync.ativar($('#aCod').value, $('#aUrl') ? $('#aUrl').value : '');
+    toast(`Aparelho ativado para ${nome}.`); Sync.sincronizar(); go(VIEW === 'editar' ? 'home' : VIEW);
+  } catch (err) { toast(err.message, true); btn.disabled = false; btn.textContent = 'Ativar'; }
+});
 
 /* ---------- eventos globais ---------- */
 document.addEventListener('click', async e => {
@@ -302,7 +311,6 @@ window.addEventListener('online', () => Sync.atualizarContagem());
 $('#sync').onclick = () => Sync.sincronizar();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 (async () => {
-  ativarPorLink();
   go('home');
   await Sync.atualizarContagem();
   Sync.iniciar();

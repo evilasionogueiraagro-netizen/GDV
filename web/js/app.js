@@ -51,7 +51,7 @@ const avisoAtivacao = () => {
   const revog = localStorage.getItem('gdv.revogado');
   if (Sync.ativado() && !revog) return '';
   return `<form class="card aviso" id="fAtivar"><h3>${revog ? '⛔ Acesso revogado' : '🔑 Ativar este aparelho'}</h3>
-    <p>${revog ? 'Peça um novo código de ativação ao administrador.' : 'Digite o código de 6 dígitos enviado pelo administrador. Só esta etapa exige internet. Sem ativar, os registros ficam salvos apenas neste aparelho.'}</p>
+    <p>${revog ? 'Peça um novo código de ativação ao administrador.' : 'Digite o código de 6 dígitos enviado pelo administrador. Só esta etapa exige internet.'}</p>
     ${CONFIG.sync.url ? '' : '<label>Endereço do servidor<input id="aUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" required></label>'}
     <label>Código de ativação<input id="aCod" inputmode="numeric" maxlength="7" autocomplete="off" placeholder="000 000" required></label>
     <button class="botao">Ativar</button></form>`;
@@ -73,6 +73,7 @@ async function home() {
     <button class="botao" data-go="resumo">📊 Resumo e documentos</button>`);
 }
 function novoTurno() {
+  if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());   // turno só após a ativação
   const ls = k => esc(localStorage.getItem('gdv.' + k) || '');
   view(`${avisoAtivacao()}<form class="card" id="fTurno"><h3>Iniciar turno</h3>
     <label>Nº do Termo de Fiscalização<input id="nTF" type="number" min="1" inputmode="numeric" required placeholder="ex.: 12"></label>

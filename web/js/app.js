@@ -31,6 +31,17 @@ function pegarLocal() {
       () => ok(null), { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
   });
 }
+/** Endereço aproximado da coordenada (OpenStreetMap/Nominatim). Sem internet ou em erro: ''. */
+async function enderecoDe(g) {
+  const ctrl = new AbortController(), t = setTimeout(() => ctrl.abort(), 8000);
+  try {
+    const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&zoom=17&accept-language=pt-BR&lat=${g.lat}&lon=${g.lng}`, { signal: ctrl.signal });
+    const a = (await r.json()).address || {};
+    const via = a.road || a.pedestrian || a.path || '', bairro = a.suburb || a.neighbourhood || a.village || a.hamlet || '';
+    const cidade = a.city || a.town || a.municipality || a.county || '';
+    return [via, bairro, cidade && cidade + (a['ISO3166-2-lvl4'] ? '/' + a['ISO3166-2-lvl4'].split('-')[1] : '')].filter(Boolean).join(' – ');
+  } catch (e) { return ''; } finally { clearTimeout(t); }
+}
 const camposLocal = (g, sufixo) => g ? { ['lat' + sufixo]: g.lat, ['lng' + sufixo]: g.lng, ['prec' + sufixo]: g.prec } : {};
 
 /* ---------- módulos e navegação ---------- */
@@ -150,35 +161,54 @@ async function home() {
       <p><b>Fiscal:</b> ${esc(t.fiscal)}</p><p><b>Local:</b> ${esc(t.local)}</p>
       <p><b>Data:</b> ${dBR(t.data)} &nbsp; <b>Posto:</b> ${esc(t.posto || '')}</p>
       <p><b>Início do turno:</b> ${esc(t.inicio)}</p>
-      <label class="chk"><input type="checkbox" id="semPlacaTurno" ${Number(t.semPlaca) ? 'checked' : ''}> Placa opcional neste turno</label></div>
+      <p><small>${Number(t.semPlaca) ? 'Placa do veículo opcional neste turno.' : 'Placa do veículo obrigatória neste turno.'}</small></p></div>
     <div class="card contador"><h1>${v.length}</h1><p>Veículos registrados</p></div>
     <button class="botao" data-go="registrar">➕ Registrar veículo</button>
     <button class="botao" data-go="lista">📋 Lista de veículos</button>
     <button class="botao" data-go="resumo">📊 Resumo e documentos</button>
     <button class="botao sec" data-go="tfnovo">📄 Lavrar TF neste turno</button>`);
-  $('#semPlacaTurno').onchange = async e => {                 // dá para ligar/desligar com o turno já aberto
-    const atual = await Store.obter('turnos', t.id);
-    await Store.salvar('turnos', { ...atual, semPlaca: e.target.checked ? 1 : 0 });
-    localStorage.setItem('gdv.semPlaca', e.target.checked ? '1' : '0');
-    toast(e.target.checked ? 'Placa opcional neste turno.' : 'Placa obrigatória neste turno.'); Sync.sincronizar();
-  };
 }
 function novoTurno() {
   if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());   // turno só após a ativação
   const ls = k => esc(localStorage.getItem('gdv.' + k) || '');
   view(`${avisoAtivacao()}<form class="card" id="fTurno"><h3>Iniciar turno</h3>
     <label>Nº do Termo de Fiscalização<input id="nTF" type="number" min="1" inputmode="numeric" required placeholder="ex.: 12"></label>
-    <label>Tipo de posto<select id="nPosto">${CONFIG.postos.map(p => `<option ${localStorage.getItem('gdv.posto') === p ? 'selected' : ''}>${p}</option>`).join('')}</select></label>
-    <label>Local / Posto<input id="nLocal" required value="${localStorage.getItem('gdv.local') ? ls('local') : esc(CONFIG.localPadrao)}" placeholder="ex.: Barreira Porto CEASA ou BR-174 km 120"></label>
+    <label>Tipo de posto<select id="nPosto">${CONFIG.postos.map(p => `<option value="${p}" ${localStorage.getItem('gdv.posto') === p ? 'selected' : ''}>${p === 'Móvel' ? 'Volante (móvel)' : p}</option>`).join('')}</select></label>
+    <div id="nLocalBox"></div>
     <label>Unidade (Termo)<input id="nUnidade" required value="${localStorage.getItem('gdv.unidade') ? ls('unidade') : esc(CONFIG.unidadePadrao)}"></label>
     <label>Fiscal 1 — nome completo *${Sync.nome() ? ' <small>(vinculado a este aparelho)</small>' : ''}<input id="nFiscal1" autocomplete="off" ${Sync.nome() ? 'readonly' : ''} value="${Sync.nome() ? esc(Sync.nome()) : ls('fiscal1')}" placeholder="Nome e sobrenome"></label>
     <label>Fiscal 2 — nome completo (opcional)<input id="nFiscal2" autocomplete="off" value="${ls('fiscal2')}" placeholder="Nome e sobrenome"></label>
-    <label class="chk"><input type="checkbox" id="nSemPlaca"> Placa opcional neste turno <small>(ex.: Barreira do Jundiá — conta veículo, tipo e pessoas sem exigir a placa)</small></label>
-    <button class="botao">Iniciar turno</button></form>`);
-  // marcada por padrão no Jundiá ou se o aparelho usou placa opcional no último turno
-  const semPlacaPadrao = () => /jundi/i.test($('#nLocal').value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')) || localStorage.getItem('gdv.semPlaca') === '1';
-  $('#nSemPlaca').checked = semPlacaPadrao();
-  $('#nLocal').addEventListener('change', () => { $('#nSemPlaca').checked = semPlacaPadrao(); });
+    <button class="botao" type="submit">Iniciar turno</button></form>`);
+  // Fixa: lista das BVAs (CONFIG.bvas). Volante: endereço da coordenada, editável. A placa só é obrigatória onde a BVA exige.
+  let gpsVolante = null;
+  const bvaDe = nome => CONFIG.bvas.find(b => b.nome === nome);
+  const placaObrigatoria = () => $('#nPosto').value === 'Fixa' && !!(bvaDe($('#nLocal').value) || {}).placa;
+  const avisoPlaca = () => { $('#nPlacaInfo').textContent = placaObrigatoria() ? 'Placa do veículo obrigatória nesta barreira.' : 'Placa do veículo opcional neste local.'; };
+  async function preencherEndereco() {
+    const st = $('#nLocalSt'); st.textContent = '📍 Obtendo localização…';
+    gpsVolante = await pegarLocal();
+    const volante = () => $('#nPosto') && $('#nPosto').value === 'Móvel' && $('#nLocal');   // o formulário pode ter sido fechado
+    if (!volante()) return;
+    if (!gpsVolante) { st.textContent = 'GPS indisponível: digite o local.'; return; }
+    const end = await enderecoDe(gpsVolante);
+    if (!volante()) return;
+    const campo = $('#nLocal');
+    if (!campo.dataset.editado) campo.value = end || `Volante – ${gpsVolante.lat.toFixed(5)}, ${gpsVolante.lng.toFixed(5)}`;
+    st.textContent = end ? 'Endereço obtido pela localização (pode editar).' : 'Sem endereço (sem internet?): ajuste o local se quiser.';
+  }
+  function montarLocal() {
+    const fixa = $('#nPosto').value === 'Fixa', ult = localStorage.getItem('gdv.local') || '';
+    $('#nLocalBox').innerHTML = fixa
+      ? `<label>Local / Posto (BVA)<select id="nLocal" required>${CONFIG.bvas.map(b => `<option ${b.nome === ult ? 'selected' : ''}>${esc(b.nome)}</option>`).join('')}</select></label>
+         <p class="dica" id="nPlacaInfo"></p>`
+      : `<label>Local / Posto (volante)<input id="nLocal" required autocomplete="off" placeholder="endereço do posto volante"></label>
+         <div class="linha-acoes"><small id="nLocalSt"></small><button type="button" class="botao sec mini" id="nLocalGps">📍 Atualizar pela localização</button></div>
+         <p class="dica" id="nPlacaInfo"></p>`;
+    $('#nLocal').addEventListener(fixa ? 'change' : 'input', () => { if (!fixa) $('#nLocal').dataset.editado = '1'; avisoPlaca(); });
+    if (!fixa) { $('#nLocalGps').onclick = () => { delete $('#nLocal').dataset.editado; preencherEndereco(); }; preencherEndereco(); }
+    avisoPlaca();
+  }
+  $('#nPosto').onchange = montarLocal; montarLocal();
   $('#fTurno').onsubmit = async e => {
     e.preventDefault();
     const nomes = ['#nFiscal1', '#nFiscal2'].map(id => $(id).value.trim().replace(/\s+/g, ' ')).filter(Boolean);
@@ -186,17 +216,16 @@ function novoTurno() {
     const curto = nomes.find(n => n.split(' ').length < 2);
     if (curto) { toast(`Informe o nome completo (nome e sobrenome): "${curto}"`, true); return; }
     const data = hojeISO(), inicio = agoraHM(), letra = letraDoTurno(inicio);   // horário = instante do clique
-    const btn = $('#fTurno button'); btn.disabled = true; btn.textContent = '📍 Obtendo localização…';
-    const gps = await pegarLocal();
+    const btn = $('#fTurno button[type=submit]'); btn.disabled = true; btn.textContent = '📍 Obtendo localização…';
+    const gps = (await pegarLocal()) || gpsVolante;
     if (!gps) toast('Turno iniciado sem coordenadas (GPS indisponível ou permissão negada).', true);
     const t = await Store.salvar('turnos', {
       numeroTF: `TF-${pad(parseInt($('#nTF').value, 10), 3)}-${letra}-${data.slice(0, 4)}`,
       data, letra, posto: $('#nPosto').value,
       inicio, fim: '', ...camposLocal(gps, 'Ini'),
       fiscal: nomes.join(' e '), local: $('#nLocal').value.trim(),
-      unidade: $('#nUnidade').value.trim(), semPlaca: $('#nSemPlaca').checked ? 1 : 0, encerrado: 0
+      unidade: $('#nUnidade').value.trim(), semPlaca: placaObrigatoria() ? 0 : 1, encerrado: 0
     });
-    localStorage.setItem('gdv.semPlaca', t.semPlaca ? '1' : '0');
     ['local', 'unidade', 'posto'].forEach(k => localStorage.setItem('gdv.' + k, t[k]));
     localStorage.setItem('gdv.fiscal1', $('#nFiscal1').value.trim()); localStorage.setItem('gdv.fiscal2', $('#nFiscal2').value.trim());
     await Store.setMeta('turnoAtual', t.id);
@@ -395,8 +424,7 @@ document.addEventListener('click', async e => {
     Sync.sincronizar(); toast('Excluído.'); lista();
   } else if (d.doc) {
     try {
-      const fora = await Docs[d.doc](d.id);
-      if (fora) toast(`A ficha comporta ${CONFIG.linhasFicha} veículos; ${fora} ficaram de fora (o Termo conta todos).`, true);
+      await Docs[d.doc](d.id);
     } catch (err) { toast('Erro ao gerar documento: ' + err.message, true); }
   }
 });

@@ -4,9 +4,10 @@
  * e devolve o que mudou desde a última sincronização.
  *
  * Acesso dos aparelhos (por fiscal):
- *   1. No menu "GDV" da planilha: "Gerar código de ativação" → informe o NOME COMPLETO do fiscal.
+ *   1. No menu "GDV" da planilha: "Gerar código de ativação" → informe o NOME COMPLETO do fiscal
+ *      (ou no painel do administrador, aba "Servidores" → Gerar chave de ativação).
  *   2. O fiscal digita o código de 6 dígitos no app (uma vez). O servidor devolve uma credencial
- *      própria daquele aparelho, vinculada ao nome. Revogue em "GDV → Revogar acesso".
+ *      própria daquele aparelho, vinculada ao nome. Revogue em "GDV → Revogar acesso" (ou na aba Servidores).
  *
  * Opcional (compatibilidade): Propriedades do script → ACCESS_KEY = chave mestra (administrador).
  */
@@ -17,7 +18,8 @@ const TABELAS = {
            'latIni', 'lngIni', 'precIni', 'latFim', 'lngFim', 'precFim', 'usuario', 'semPlaca'],   // colunas novas ficam sempre no fim (semPlaca=1: placa opcional no turno)
   Veiculos: ['id', 'turnoId', 'hora', 'placa', 'tipo', 'pessoas', 'obs',
              'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
-  Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm', 'perfil'],   // perfil: vazio = fiscal, 'admin' = administrador
+  Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm', 'perfil',   // perfil: vazio = fiscal, 'admin' = administrador
+            'geradoPor'],                                                            // quem gerou o código: nome do administrador (painel) ou "planilha" (menu)
   // Termos de Fiscalização de Barreira (TF)
   TFs: ['id', 'barreira', 'ano', 'numero', 'numeroTxt', 'turnoId', 'veiculoId', 'data', 'hora', 'fiscal', 'local', 'placa', 'origem', 'destino',
         'doc', 'nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone', 'relacao', 'inspecao', 'coleta', 'amostras',
@@ -69,6 +71,9 @@ function doPost(e) {
     if (req.action === 'painelAtivar') return json_(painelAtivar(req.codigo));             // painel (GitHub Pages): só códigos de administrador
     if (req.action === 'painelDados') return json_(painelDados(req.key, { de: req.de, ate: req.ate, aoVivo: req.aoVivo, ids: req.ids }));
     if (req.action === 'painelSair') return json_(painelSair(req.key));
+    if (req.action === 'painelGerarCodigo') return json_(painelGerarCodigo(req.key, req.nome));
+    if (req.action === 'painelAcessos') return json_(painelAcessos(req.key));
+    if (req.action === 'painelRevogar') return json_(painelRevogar(req.key, req.nome));
     const usuario = autenticar_(req.key);
     if (req.action === 'ping') return json_({ ok: true, nome: usuario });
     if (req.action === 'sync') return json_(sincronizar_(req, usuario));
@@ -531,6 +536,9 @@ function arquivoEnviar_(req, usuario) {
  *                                       (atualização automática de 1 em 1 minuto, sem reler TFs, levantamentos e termos)
  *   As duas formas de painelDados trazem também tfsAndamento: TFs sendo preenchidos agora nos aparelhos (aba Andamento).
  *   painelSair   {key}               → revoga a credencial do administrador (botão Sair)
+ *   painelGerarCodigo {key, nome}    → gera um código de ativação de FISCAL (aba Servidores): {ok, nome, codigo, expiraEm}
+ *   painelAcessos {key}              → lista dos acessos (situação, datas, quem gerou; sem credenciais; código só enquanto aguarda ativação)
+ *   painelRevogar {key, nome}        → revoga os acessos de FISCAL com esse nome (administradores só pelo menu da planilha)
  * O código é gerado no menu da planilha: GDV → Gerar código de administrador. Credenciais de fiscais não leem o painel,
  * e códigos de administrador não ativam aparelhos de fiscais. A rota antiga "?p=painel" só mostra o novo endereço.
  */
@@ -595,6 +603,71 @@ function painelSair(token) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/* ---------- Aba "Servidores" do painel: chaves de ativação dos fiscais ---------- */
+
+const NOME_SERVIDOR_MAX = 80;
+const RE_NOME_SERVIDOR_ = /^[A-Za-zÀ-ÖØ-öø-ÿ][A-Za-zÀ-ÖØ-öø-ÿ'’.\- ]*$/;   // letras, espaço, apóstrofo, ponto e hífen (nada de fórmula)
+function nomeChave_(v) { return String(v || '').trim().replace(/\s+/g, ' ').toLowerCase(); }
+
+/** Nome completo do servidor digitado no painel: espaços normalizados, nome e sobrenome, só letras e pontuação de nome. */
+function nomeServidor_(v) {
+  const nome = String(v || '').trim().replace(/\s+/g, ' ');
+  if (!nome) throw new Error('Informe o nome completo do servidor.');
+  if (nome.length > NOME_SERVIDOR_MAX) throw new Error('Nome longo demais (máximo de ' + NOME_SERVIDOR_MAX + ' caracteres).');
+  if (!RE_NOME_SERVIDOR_.test(nome)) throw new Error('Use só letras no nome (sem números ou símbolos).');
+  if (nome.split(' ').filter(function (p) { return /[A-Za-zÀ-ÖØ-öø-ÿ]/.test(p); }).length < 2) throw new Error('Informe o nome completo (nome e sobrenome).');
+  return nome;
+}
+
+/** Painel → "Gerar chave de ativação": código de FISCAL (uso único, 7 dias). Códigos de administrador continuam só pelo menu da planilha. */
+function painelGerarCodigo(token, nome) {
+  const admin = adminDoToken_(token);
+  const g = gerarCodigo_(nomeServidor_(nome), 'fiscal', admin);
+  return { ok: true, nome: g.nome, codigo: g.codigo, expiraEm: g.expiraEm };
+}
+
+/**
+ * Situação de uma linha da aba Fiscais: revogado (ativo ≠ 1), ativo (aparelho/painel com credencial), aguardando (código válido
+ * ainda não usado) ou vencido (código não usado que passou da validade).
+ */
+function situacaoAcesso_(f, agora) {
+  if (f.ativo !== 1) return 'revogado';
+  if (f.token) return 'ativo';
+  if (f.codigo !== '' && f.expiraEm > agora) return 'aguardando';
+  return f.codigo !== '' ? 'vencido' : 'revogado';
+}
+
+/**
+ * Lista dos acessos para o painel. Nunca devolve credencial (token). O código só vai para fiscal aguardando ativação (para reenviar).
+ * Administradores entram só com nome e situação. "criadoEm" = validade − 7 dias (o código sempre nasce com 7 dias).
+ */
+function painelAcessos(token) {
+  adminDoToken_(token);
+  const agora = Date.now();
+  const lista = lerLeitura_('Fiscais').filter(function (f) { return f.nome; }).map(function (f) {
+    const situacao = situacaoAcesso_(f, agora);
+    if (f.perfil === 'admin') return { nome: f.nome, perfil: 'admin', situacao: situacao };
+    const o = { nome: f.nome, perfil: 'fiscal', situacao: situacao, criadoEm: f.expiraEm > VALIDADE_CODIGO_MS ? f.expiraEm - VALIDADE_CODIGO_MS : 0,
+                expiraEm: f.expiraEm > VALIDADE_CODIGO_MS ? f.expiraEm : 0, ativadoEm: f.ativadoEm > 1e12 ? f.ativadoEm : 0, geradoPor: f.geradoPor || '' };
+    if (situacao === 'aguardando') o.codigo = f.codigo.padStart(6, '0');
+    return o;
+  });
+  lista.sort(function (a, b) { return (b.criadoEm || 0) - (a.criadoEm || 0) || String(a.nome).localeCompare(String(b.nome)); });
+  return { ok: true, agora: agora, acessos: lista };
+}
+
+/** Painel → "Revogar": tira todos os acessos de FISCAL com esse nome (aparelhos e códigos). Administrador só pela planilha. */
+function painelRevogar(token, nome) {
+  adminDoToken_(token);
+  nome = String(nome || '').trim().replace(/\s+/g, ' ').slice(0, NOME_SERVIDOR_MAX + 20);
+  if (!nome) throw new Error('Informe o nome do servidor.');
+  const n = revogar_(nome, true);
+  if (!n && lerLeitura_('Fiscais').some(function (f) { return f.perfil === 'admin' && f.ativo === 1 && nomeChave_(f.nome) === nomeChave_(nome); })) {
+    throw new Error('Acesso de administrador não é retirado pelo painel. Use o menu GDV da planilha.');
+  }
+  return { ok: true, nome: nome, revogados: n };
 }
 
 /** Troca o código de administrador por uma credencial (limitador de tentativas próprio, mais restrito que o dos aparelhos). */
@@ -912,8 +985,8 @@ function ativar_(req) {
   }
 }
 
-/** Cria uma autorização (linha em "Fiscais") e devolve o código de 6 dígitos. */
-function gerarCodigo_(nome, perfil) {
+/** Cria uma autorização (linha em "Fiscais") e devolve o código de 6 dígitos. geradoPor: administrador do painel (padrão "planilha" = menu). */
+function gerarCodigo_(nome, perfil, geradoPor) {
   nome = String(nome || '').trim().replace(/\s+/g, ' ');
   if (perfil !== 'admin' && nome.split(' ').length < 2) throw new Error('Informe o nome completo (nome e sobrenome).');
   if (!nome) throw new Error('Informe o nome.');
@@ -931,24 +1004,26 @@ function gerarCodigo_(nome, perfil) {
       codigo = String(parseInt(Utilities.getUuid().replace(/-/g, '').slice(0, 8), 16) % 1000000).padStart(6, '0');
     } while (emUso[codigo]);
     const expiraEm = agora + VALIDADE_CODIGO_MS;
-    t.sh.getRange(t.sh.getLastRow() + 1, 1, 1, t.cols.length)
-      .setValues([[nome, codigo, expiraEm, 1, '', 0, perfil === 'admin' ? 'admin' : '']]);
+    const autor = String(geradoPor || 'planilha').replace(/^[=+\-@\s]+/, '').slice(0, 120) || 'planilha';   // texto, nunca fórmula
+    const linha = { nome: nome, codigo: codigo, expiraEm: expiraEm, ativo: 1, token: '', ativadoEm: 0, perfil: perfil === 'admin' ? 'admin' : '', geradoPor: autor };
+    t.sh.getRange(t.sh.getLastRow() + 1, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return linha[c]; })]);
     return { codigo: codigo, expiraEm: expiraEm, nome: nome, perfil: perfil === 'admin' ? 'admin' : 'fiscal' };
   } finally {
     lock.releaseLock();
   }
 }
 
-/** Revoga todos os aparelhos/códigos de um fiscal (pelo nome). Devolve quantos foram revogados. */
-function revogar_(nome) {
-  nome = String(nome || '').trim().toLowerCase();
+/** Revoga todos os aparelhos/códigos de um fiscal (pelo nome). Devolve quantos foram revogados. soFiscais: não toca em administradores (painel). */
+function revogar_(nome, soFiscais) {
+  nome = nomeChave_(nome);
+  if (!nome) return 0;
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
     const t = lerTudo_('Fiscais'); let n = 0;
     t.valores.forEach(function (l, i) {
       const f = paraObjeto_(t.cols, l);
-      if (f.nome.trim().toLowerCase() === nome && f.ativo === 1) {
+      if (nomeChave_(f.nome) === nome && f.ativo === 1 && !(soFiscais && f.perfil === 'admin')) {
         f.ativo = 0;
         t.sh.getRange(i + 2, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return f[c]; })]);
         n++;
@@ -1122,7 +1197,7 @@ function paraObjeto_(cols, linha) {
   cols.forEach(function (c, i) {
     let v = linha[i];
     if (v instanceof Date) v = Utilities.formatDate(v, 'America/Manaus', 'yyyy-MM-dd');
-    o[c] = CAMPOS_NUMERICOS.indexOf(c) >= 0 ? (Number(v) || 0) : String(v === null ? '' : v);
+    o[c] = CAMPOS_NUMERICOS.indexOf(c) >= 0 ? (Number(v) || 0) : String(v === null || v === undefined ? '' : v);
   });
   return o;
 }

@@ -34,17 +34,28 @@ const Docs = (() => {
   async function ficha(turnoId) {
     const { turno, veiculos } = await dadosDoTurno(turnoId);
     const f = await abrirModelo('ficha.html'), d = f.contentDocument;
-    const set = (id, t) => { const e = d.getElementById(id); if (e) e.textContent = t; };
-    set('local', turno.local);
-    set('data', dataBR(turno.data));
-    set('fiscal', turno.fiscal);
-    set('turnoHorario', `das ${turno.inicio || '__:__'} às ${turno.fim || '__:__'}`);   // horário real de início/encerramento
-    veiculos.slice(0, CONFIG.linhasFicha).forEach((v, i) => {
-      set('hora' + (i + 1), v.hora); set('placa' + (i + 1), v.placa); set('tipo' + (i + 1), v.tipo);
+    // Uma folha por 50 veículos: a 1ª folha é o modelo; as seguintes são cópias dele com a numeração continuando (51, 52…).
+    const modelo = d.getElementById('pagina'), porFolha = CONFIG.linhasFicha;
+    const folhas = Math.max(1, Math.ceil(veiculos.length / porFolha));
+    const paginas = [modelo];
+    for (let k = 1; k < folhas; k++) paginas.push(modelo.parentNode.appendChild(modelo.cloneNode(true)));
+    paginas.forEach((pg, k) => {
+      const set = (id, t) => { const e = pg.querySelector('#' + id); if (e) e.textContent = t; };
+      set('local', turno.local);
+      set('data', dataBR(turno.data));
+      set('fiscal', turno.fiscal);
+      set('turnoHorario', `das ${turno.inicio || '__:__'} às ${turno.fim || '__:__'}`);   // horário real de início/encerramento
+      set('total', veiculos.length);
+      for (let n = 1; n <= porFolha; n++) {
+        const v = veiculos[k * porFolha + n - 1], h = pg.querySelector('#hora' + n);
+        if (k && h && h.previousElementSibling) h.previousElementSibling.textContent = k * porFolha + n;   // nº da linha continua
+        if (v) { set('hora' + n, v.hora); set('placa' + n, v.placa); set('tipo' + n, v.tipo); }
+      }
+      if (folhas > 1) { const t = pg.querySelector('#titulo'); if (t) t.textContent += ` – FOLHA ${k + 1}/${folhas}`; }
+      if (k) pg.classList.add('folha-extra');
     });
-    set('total', veiculos.length);
     imprimir(f, 'Ficha de Campo ' + turno.numeroTF);
-    return veiculos.length > CONFIG.linhasFicha ? veiculos.length - CONFIG.linhasFicha : 0;
+    return 0;
   }
 
   // Campo "Coordenadas Geográficas" do Termo: usa a coordenada FINAL (encerramento) em graus decimais;

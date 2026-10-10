@@ -36,8 +36,8 @@ const camposLocal = (g, sufixo) => g ? { ['lat' + sufixo]: g.lat, ['lng' + sufix
 /* ---------- navegação ---------- */
 function go(view, arg) {
   VIEW = view; EDIT = arg || null;
-  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === view || (view === 'editar' && b.dataset.v === 'lista')));
-  ({ home, registrar, editar: registrar, lista, resumo, fechado, historico, config }[view])();
+  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === view || (view === 'editar' && b.dataset.v === 'lista') || (/^tf/.test(view) && b.dataset.v === 'tf')));
+  ({ home, registrar, editar: registrar, lista, resumo, fechado, historico, config, tf: () => TFUI.lista(), tfnovo: () => TFUI.novo(EDIT), tfpronto: () => TFUI.pronto(EDIT) }[view])();
   window.scrollTo(0, 0);
 }
 const view = html => { $('#view').innerHTML = bannerInstalar() + html; };
@@ -205,6 +205,7 @@ async function lista() {
         ${x.obs ? `<div class="info"><b>Obs:</b> ${esc(x.obs)}</div>` : ''}
         ${x.pendente ? '<div class="info pend">⏳ aguardando envio</div>' : ''}
         <div class="botoes"><button class="editar" data-edit="${esc(x.id)}">Editar</button>
+        <button class="tfbtn" data-tfveic="${esc(x.id)}">Lavrar TF</button>
         <button class="excluir" data-del="${esc(x.id)}">Excluir</button></div></div>`).join('')
       : '<div class="vazio">Nenhum veículo.</div>';
   };
@@ -329,10 +330,11 @@ document.addEventListener('submit', async e => {            // ativação por c�
 
 /* ---------- eventos globais ---------- */
 document.addEventListener('click', async e => {
-  const el = e.target.closest('[data-v],[data-go],[data-edit],[data-del],[data-doc],[data-instalar]');
+  const el = e.target.closest('[data-v],[data-go],[data-edit],[data-del],[data-doc],[data-instalar],[data-tfveic]');
   if (!el) return;
   const d = el.dataset;
   if (d.instalar) acaoInstalar(d.instalar);
+  else if (d.tfveic) go('tfnovo', { veiculoId: d.tfveic });
   else if (d.v) go(d.v);
   else if (d.go) go(d.go);
   else if (d.edit) go('editar', d.edit);

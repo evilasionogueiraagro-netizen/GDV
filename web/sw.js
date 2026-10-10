@@ -3,8 +3,8 @@
 const VERSAO = 'gdv-v12';
 const ARQUIVOS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/config.js', 'js/store.js', 'js/sync.js', 'js/docs.js', 'js/app.js',
-  'documentos/ficha.html', 'documentos/termo.html', 'documentos/ficha-campo.css', 'documentos/termo.css',
+  'js/config.js', 'js/store.js', 'js/sync.js', 'js/docs.js', 'js/tf.js', 'js/app.js',
+  'documentos/ficha.html', 'documentos/termo.html', 'documentos/tf.html', 'documentos/ficha-campo.css', 'documentos/termo.css',
   'img/logo-adaf.png', 'img/brasao.png', 'img/sepror.png', 'img/icon-192.png', 'img/icon-512.png'
 ];
 

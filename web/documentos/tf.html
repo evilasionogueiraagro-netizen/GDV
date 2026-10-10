@@ -1,0 +1,477 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Termo de Fiscalização de Barreira</title>
+
+<style>
+
+body{
+    font-family: Arial, sans-serif;
+    margin:0;
+    padding:0;
+    background:white;
+}
+@page{
+    size:A4 portrait;
+    margin:0;
+}
+
+.a4 {
+    width: 196mm;
+    min-height: 280mm;
+    margin: 0 auto;
+    padding: 0;
+    box-sizing: border-box;
+    position: relative;
+    background: #ffffff;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+    font-size:12px;
+}
+
+td{
+    border:1px solid #000;
+    padding:3px 4px;
+    vertical-align:top;
+}
+
+.centro{
+    text-align:center;
+}
+
+.negrito{
+    font-weight:700;
+    font-size:14px;
+}
+span{
+    font-size:13px;
+}
+.cabecalho{
+    font-size:15px;
+    font-weight:bold;
+}
+
+.campo{
+    min-height:25px;
+}
+
+.constatacao,
+.enquadramento{
+    font-size:13px;
+    line-height:1.4;
+    height:110px;
+}
+.linha-origem-destino td{
+    padding-top:10px;
+    padding-bottom:10px;
+    height:13px;
+}
+
+.linha-produtos td{
+    padding-top:10px;
+    padding-bottom:10px;
+    height:38px;
+}
+.assinatura{
+    height:55px;
+    vertical-align:bottom;
+    text-align:center;
+}
+.assinatura-area{
+    height:70px;
+    vertical-align:bottom;
+}
+
+.assinaturas{
+    display:flex;
+    justify-content:space-between;
+    align-items:flex-end;
+}
+
+.assinatura-fiscalizado{
+    width:45%;
+    text-align:center;
+    height:40px;
+}
+
+.assinatura-servidor{
+    width:45%;
+    text-align:center;
+    height:40px;
+}
+
+.testemunhas{
+    display:flex;
+    justify-content:space-between;
+    margin-top:5px;
+}
+
+.testemunhas div{
+    width:45%;
+}
+.rodape {
+    position: relative;
+    width: 100%;
+    margin-top: 3mm;
+
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+
+    box-sizing: border-box;
+
+    color: #002060;
+    font-weight: 600;
+}
+.rodape-esquerda{
+    width:35%;
+    font-size:12px;
+}
+
+.rodape-centro{
+    width:30%;
+    text-align:center;
+    font-size:12px;
+}
+
+.rodape-direita{
+    width:35%;
+    text-align:right;
+    font-size:12px;
+}
+
+.rodape img{
+    max-height:55px;
+}
+.logo-container{
+    width:100%;
+    text-align:center;
+    margin-bottom:2px;
+}
+
+.logo-amazonas{
+    height:75px;
+}
+.identificacao-orgao {
+    width: 100%;
+    text-align: center;
+    margin: 0 0 4px 0;
+    color: #000;
+    line-height: 1.15;
+}
+
+.identificacao-orgao .governo {
+    font-size: 12px;
+    font-weight: bold;
+    line-height: 1.15;
+}
+
+.identificacao-orgao .agencia {
+    font-size: 11px;
+    font-weight: normal;
+    line-height: 1.15;
+    margin-top: 1px;
+}
+.modal-acoes{
+    position:fixed;
+    bottom:20px;
+    left:50%;
+    transform:translateX(-50%);
+
+    display:flex;
+    gap:10px;
+
+    background:white;
+    padding:15px;
+    border-radius:12px;
+    box-shadow:0 0 15px rgba(0,0,0,.3);
+
+    z-index:9999;
+}
+
+.modal-acoes button{
+    padding:12px 20px;
+    border:none;
+    border-radius:8px;
+    background:#001F54;
+    color:white;
+    font-size:16px;
+}
+.rodape {
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+.rodape-esquerda,
+.rodape-centro,
+.rodape-direita {
+    break-inside: avoid;
+    page-break-inside: avoid;
+}
+
+
+.via{ position:absolute; top:1mm; right:2mm; font-size:10px; color:#555; font-family:Arial,sans-serif; }
+.a4 + .a4{ page-break-before:always; break-before:page; }
+.cancelado-faixa{ border:2px solid #b00020; color:#b00020; font-weight:bold; text-align:center; font-size:14px; padding:3px; margin-bottom:3px; }
+span{ white-space:pre-line; }
+</style>
+</head>
+<body>
+
+<div class="a4">
+    <div class="via"></div>
+
+    <div class="logo-container">
+        <img src="../img/brasao.png" class="logo-amazonas">
+    </div>
+    <div class="identificacao-orgao">
+    <div class="governo">GOVERNO DO ESTADO DO AMAZONAS</div>
+    <div class="agencia">
+        Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM
+    </div>
+</div>
+<table>
+
+
+
+<tr>
+    <td colspan="5" class="cabecalho">
+        TERMO DE FISCALIZAÇÃO DE BARREIRA AGROPECUÁRIA
+    </td>
+
+    <td colspan="2" class="centro negrito">
+        Nº <span id="tf_numero"></span>
+    </td>
+</tr>
+
+<tr>
+    <td colspan="5" class="negrito">
+        Identificação do Fiscalizado
+    </td>
+
+    <td colspan="2"></td>
+</tr>
+
+<tr style="height:35px;">
+    <td colspan="4">
+        Nome / Razão Social<br>
+        <span id="nome"></span>
+    </td>
+
+    <td colspan="2">
+        CPF/CNPJ<br>
+        <span id="cpf"></span>
+    </td>
+
+    <td>
+        RG<br>
+        <span id="rg"></span>
+    </td>
+</tr>
+
+<tr>
+    <td colspan="5">
+        Endereço<br>
+        <span id="endereco"></span>
+    </td>
+
+    <td colspan="2">
+        Relação com o produto<br>
+        <span id="relacao"></span>
+    </td>
+</tr>
+
+<tr>
+    <td colspan="3">
+        Município<br>
+        <span id="municipio"></span>
+    </td>
+
+    <td>
+        UF<br>
+        <span id="uf"></span>
+    </td>
+
+    <td colspan="3">
+        Telefone<br>
+        <span id="telefone"></span>
+    </td>
+</tr>
+
+<tr>
+    <td colspan="7" class="negrito">
+        Durante a fiscalização foi realizado:
+    </td>
+</tr>
+
+<tr>
+    <td colspan="7">
+        <span id="acao_realizada"></span>
+    </td>
+</tr>
+
+<tr>
+    <td colspan="7" class="negrito">
+        Após a fiscalização foi realizado:
+    </td>
+</tr>
+
+<tr>
+    <td colspan="7">
+        <span id="procedimentos"></span>
+    </td>
+</tr>
+
+<tr>
+    <td colspan="7" class="negrito">
+        Descrição da ação
+    </td>
+</tr>
+
+<tr>
+    <td colspan="2">
+        Local<br>
+        <span id="local"></span>
+    </td>
+
+    <td>
+        Data<br>
+        <span id="data"></span>
+    </td>
+
+    <td>
+        Horário<br>
+        <span id="hora"></span>
+    </td>
+
+    <td colspan="3">
+        Veículo Fiscalizado - Placa<br>
+        <span id="placa"></span>
+    </td>
+</tr>
+
+<tr class="linha-origem-destino">
+    <td colspan="3">
+        Origem<br>
+        <span id="origem"></span>
+    </td>
+
+    <td colspan="4">
+        Destino<br>
+        <span id="destino"></span>
+    </td>
+</tr>
+
+<tr>
+    <td colspan="7" class="negrito">
+        Documentação apresentada
+    </td>
+</tr>
+
+<tr>
+    <td colspan="7">
+        <span id="documentos"></span>
+    </td>
+</tr>
+
+<tr class="linha-produtos">
+    <td colspan="7">
+        <span id="produtos"></span>
+    </td>
+</tr>
+
+<tr>
+    <td colspan="7">
+        <span id="produtos2"></span>
+    </td>
+</tr>
+
+<tr>
+    <td colspan="7" class="negrito">
+        Constatação
+    </td>
+</tr>
+
+<tr>
+    <td colspan="7" class="constatacao">
+        <span id="constatacao"></span>
+    </td>
+</tr>
+
+<tr>
+    <td colspan="7" class="negrito">
+        Enquadramento Legal
+    </td>
+</tr>
+
+<tr>
+    <td colspan="7" class="enquadramento">
+        <span id="enquadramento"></span>
+    </td>
+</tr>
+
+<tr>
+    <td colspan="7" class="assinatura-area">
+
+        <div class="assinaturas">
+
+            <div class="assinatura-fiscalizado">
+                _______________________________<br>
+                Assinatura do Fiscalizado
+            </div>
+
+            <div class="assinatura-servidor">
+                _______________________________<br>
+                Assinatura e Carimbo do Servidor da ADAF
+            </div>
+
+        </div>
+
+    </td>
+</tr>
+
+<tr>
+    <td colspan="7">
+
+        <div class="testemunhas">
+
+            <div>
+                Testemunha<br><br>
+                CPF ou RG:
+            </div>
+
+            <div>
+                Testemunha<br><br>
+                CPF ou RG:
+            </div>
+
+        </div>
+
+    </td>
+</tr>
+
+</table>
+
+
+<div class="rodape">
+    <div class="rodape-esquerda">
+        Av. Carlos Drummond de Andrade, 1460 Japiim, Manaus - AM<br>
+        Conj. Atílio Andreazza, ULBRA, Bloco G, 1º andar<br>
+        Fone: (92) 99380-9174
+    </div>
+
+    <div class="rodape-centro">
+        <img src="../img/logo-adaf.png" alt="ADAF">
+    </div>
+
+    <div class="rodape-direita">
+        <img src="../img/sepror.png" alt="SEPROR">
+    </div>
+</div>
+</div>
+</body>
+</html>

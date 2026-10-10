@@ -545,3 +545,16 @@ body{
     print-color-adjust:exact;
 
 }
+
+/*=========================================================
+    MAIS DE 50 VEÍCULOS: folhas seguintes (cópias do modelo)
+=========================================================*/
+
+body{ flex-direction:column; align-items:center; gap:20px; }
+
+@media print{
+    html, body{ height:auto; }
+    body{ display:block; }
+    #pagina{ break-after:page; page-break-after:always; }
+    #pagina:last-child{ break-after:auto; page-break-after:auto; }
+}

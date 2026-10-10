@@ -3,18 +3,26 @@
  * API de sincronização: recebe registros do app (offline-first), grava na planilha
  * e devolve o que mudou desde a última sincronização.
  *
- * Configuração (uma vez): Configurações do projeto → Propriedades do script
- *   ACCESS_KEY = uma senha longa (a mesma digitada no app, em Configurações)
+ * Acesso dos aparelhos (por fiscal):
+ *   1. No menu "GDV" da planilha: "Gerar código de ativação" → informe o NOME COMPLETO do fiscal.
+ *   2. O fiscal digita o código de 6 dígitos no app (uma vez). O servidor devolve uma credencial
+ *      própria daquele aparelho, vinculada ao nome. Revogue em "GDV → Revogar acesso".
+ *
+ * Opcional (compatibilidade): Propriedades do script → ACCESS_KEY = chave mestra (administrador).
  */
 
 const TABELAS = {
   Turnos: ['id', 'numeroTF', 'data', 'letra', 'inicio', 'fim', 'fiscal', 'local', 'unidade', 'posto',
            'encerrado', 'criadoEm', 'atualizadoEm', 'srv_ts',
-           'latIni', 'lngIni', 'precIni', 'latFim', 'lngFim', 'precFim'],   // colunas novas ficam sempre no fim
+           'latIni', 'lngIni', 'precIni', 'latFim', 'lngFim', 'precFim', 'usuario'],   // colunas novas ficam sempre no fim
   Veiculos: ['id', 'turnoId', 'hora', 'placa', 'tipo', 'pessoas', 'obs',
-             'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts']
+             'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
+  Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm']
 };
-const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts'];
+const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
+                          'expiraEm', 'ativo', 'ativadoEm'];
+const VALIDADE_CODIGO_MS = 7 * 24 * 3600 * 1000;      // código de ativação vale 7 dias
+const MAX_FALHAS_ATIVACAO = 10;                        // tentativas erradas antes de bloquear por 15 min
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 function doGet() {
@@ -24,16 +32,17 @@ function doGet() {
 function doPost(e) {
   try {
     const req = JSON.parse(e.postData.contents);
-    checarChave_(req.key);
-    if (req.action === 'ping') return json_({ ok: true });
-    if (req.action === 'sync') return json_(sincronizar_(req));
+    if (req.action === 'ativar') return json_(ativar_(req));
+    const usuario = autenticar_(req.key);
+    if (req.action === 'ping') return json_({ ok: true, nome: usuario });
+    if (req.action === 'sync') return json_(sincronizar_(req, usuario));
     throw new Error('Ação inválida.');
   } catch (err) {
     return json_({ ok: false, erro: String(err.message || err) });
   }
 }
 
-function sincronizar_(req) {
+function sincronizar_(req, usuario) {
   const turnos = lista_(req.turnos);
   const veiculos = lista_(req.veiculos);
   const since = Number(req.since) || 0;
@@ -42,8 +51,8 @@ function sincronizar_(req) {
   lock.waitLock(30000);
   try {
     const agora = Date.now();
-    gravar_('Turnos', turnos, agora);
-    gravar_('Veiculos', veiculos, agora);
+    gravar_('Turnos', turnos, agora, usuario);
+    gravar_('Veiculos', veiculos, agora, usuario);
     return {
       ok: true,
       agora: agora,
@@ -57,10 +66,126 @@ function sincronizar_(req) {
 
 /* ---------- Segurança ---------- */
 
-function checarChave_(key) {
-  const certa = PropertiesService.getScriptProperties().getProperty('ACCESS_KEY');
-  if (!certa) throw new Error('Servidor sem ACCESS_KEY configurada.');
-  if (!key || String(key) !== certa) throw new Error('Chave de acesso inválida.');
+/** Valida a credencial e devolve o nome do usuário (fiscal ou "Administrador"). */
+function autenticar_(key) {
+  key = String(key || '');
+  if (!key) throw new Error('Aparelho não ativado.');
+  const mestra = PropertiesService.getScriptProperties().getProperty('ACCESS_KEY');
+  if (mestra && key === mestra) return 'Administrador';
+  const t = lerTudo_('Fiscais');
+  for (let i = 0; i < t.valores.length; i++) {
+    const f = paraObjeto_(t.cols, t.valores[i]);
+    if (f.token && f.token === key && f.ativo === 1) return f.nome;
+  }
+  throw new Error('Acesso revogado ou inválido. Ative o aparelho novamente com um novo código.');
+}
+
+/** O aparelho troca o código de 6 dígitos por uma credencial própria (uso único). */
+function ativar_(req) {
+  const cache = CacheService.getScriptCache();
+  const falhas = Number(cache.get('falhas_ativacao') || 0);
+  if (falhas >= MAX_FALHAS_ATIVACAO) throw new Error('Muitas tentativas incorretas. Aguarde 15 minutos e tente de novo.');
+  const cod = String(req.codigo || '').replace(/\D/g, '');
+
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const t = lerTudo_('Fiscais'), agora = Date.now();
+    let achada = -1;
+    if (cod.length === 6) {
+      t.valores.forEach(function (l, i) {
+        const f = paraObjeto_(t.cols, l);
+        if (achada < 0 && f.ativo === 1 && !f.token && f.codigo.padStart(6, '0') === cod && f.expiraEm > agora) achada = i;
+      });
+    }
+    if (achada < 0) {
+      cache.put('falhas_ativacao', String(falhas + 1), 900);
+      throw new Error('Código inválido, já usado ou expirado.');
+    }
+    const f = paraObjeto_(t.cols, t.valores[achada]);
+    f.token = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');
+    f.ativadoEm = agora;
+    f.codigo = '';                                            // código de uso único
+    t.sh.getRange(achada + 2, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return f[c]; })]);
+    return { ok: true, nome: f.nome, token: f.token };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Cria uma autorização (linha em "Fiscais") e devolve o código de 6 dígitos. */
+function gerarCodigo_(nome) {
+  nome = String(nome || '').trim().replace(/\s+/g, ' ');
+  if (nome.split(' ').length < 2) throw new Error('Informe o nome completo (nome e sobrenome).');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const t = lerTudo_('Fiscais'), agora = Date.now();
+    const emUso = {};
+    t.valores.forEach(function (l) {
+      const f = paraObjeto_(t.cols, l);
+      if (f.ativo === 1 && !f.token && f.codigo) emUso[f.codigo.padStart(6, '0')] = true;
+    });
+    let codigo;
+    do {
+      codigo = String(parseInt(Utilities.getUuid().replace(/-/g, '').slice(0, 8), 16) % 1000000).padStart(6, '0');
+    } while (emUso[codigo]);
+    const expiraEm = agora + VALIDADE_CODIGO_MS;
+    t.sh.getRange(t.sh.getLastRow() + 1, 1, 1, t.cols.length)
+      .setValues([[nome, codigo, expiraEm, 1, '', 0]]);
+    return { codigo: codigo, expiraEm: expiraEm, nome: nome };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Revoga todos os aparelhos/códigos de um fiscal (pelo nome). Devolve quantos foram revogados. */
+function revogar_(nome) {
+  nome = String(nome || '').trim().toLowerCase();
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const t = lerTudo_('Fiscais'); let n = 0;
+    t.valores.forEach(function (l, i) {
+      const f = paraObjeto_(t.cols, l);
+      if (f.nome.trim().toLowerCase() === nome && f.ativo === 1) {
+        f.ativo = 0;
+        t.sh.getRange(i + 2, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return f[c]; })]);
+        n++;
+      }
+    });
+    return n;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/* ---------- Menu da planilha (administrador) ---------- */
+
+function onOpen() {
+  SpreadsheetApp.getUi().createMenu('GDV')
+    .addItem('Gerar código de ativação', 'menuGerarCodigo')
+    .addItem('Revogar acesso de um fiscal', 'menuRevogar')
+    .addToUi();
+}
+
+function menuGerarCodigo() {
+  const ui = SpreadsheetApp.getUi();
+  const r = ui.prompt('Gerar código de ativação', 'Nome COMPLETO do fiscal (como deve aparecer nos documentos):', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  try {
+    const g = gerarCodigo_(r.getResponseText());
+    const venc = Utilities.formatDate(new Date(g.expiraEm), 'America/Manaus', 'dd/MM/yyyy HH:mm');
+    ui.alert('Código para ' + g.nome, g.codigo.slice(0, 3) + ' ' + g.codigo.slice(3) + '\n\nEnvie ao fiscal. Uso único, válido até ' + venc + '.', ui.ButtonSet.OK);
+  } catch (e) { ui.alert('Não foi possível gerar', String(e.message || e), ui.ButtonSet.OK); }
+}
+
+function menuRevogar() {
+  const ui = SpreadsheetApp.getUi();
+  const r = ui.prompt('Revogar acesso', 'Nome COMPLETO do fiscal (igual ao cadastrado na aba Fiscais):', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
+  const n = revogar_(r.getResponseText());
+  ui.alert(n ? 'Acesso revogado em ' + n + ' aparelho(s)/código(s).' : 'Nenhum acesso ativo encontrado com esse nome.');
 }
 
 /* ---------- Planilha ---------- */
@@ -122,7 +247,7 @@ function paraObjeto_(cols, linha) {
   return o;
 }
 
-function gravar_(nome, recebidos, ts) {
+function gravar_(nome, recebidos, ts, usuario) {
   if (!recebidos.length) return;
   const t = lerTudo_(nome), cols = t.cols, idx = {};
   t.valores.forEach(function (l, i) { idx[String(l[0])] = i; });
@@ -138,6 +263,7 @@ function gravar_(nome, recebidos, ts) {
   Object.keys(porId).forEach(function (id) {
     const o = porId[id];
     o.srv_ts = ts;
+    o.usuario = usuario;                       // quem sincronizou (definido pelo servidor, não pelo app)
     const linha = cols.map(function (c) { return o[c]; });
     if (idx[id] === undefined) {
       novas.push(linha);

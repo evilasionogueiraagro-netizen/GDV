@@ -60,7 +60,7 @@ const TFUI = (() => {
       constatacao: g('constatacao'), enquadramento: g('enquadramento') };
   }
   let tRasc = null;
-  const salvarRascunho = () => { clearTimeout(tRasc); tRasc = setTimeout(() => { if (S && $('#tfForm')) Store.setMeta('tfRascunho', { dados: coletar(), turnoId: S.turnoId, veiculoId: S.veiculoId, em: Date.now() }); }, 500); };
+  const salvarRascunho = () => { clearTimeout(tRasc); const f = $('#tfForm'); tRasc = setTimeout(() => { if (S && f && $('#tfForm') === f) Store.setMeta('tfRascunho', { dados: coletar(), turnoId: S.turnoId, veiculoId: S.veiculoId, em: Date.now() }); }, 500); };   // só grava se o formulário ainda for o mesmo que originou a digitação
 
   /* ---------- tela: formulário ---------- */
   const campo = (id, rot, v, extra = '') => `<label>${rot}<input id="tf-${id}" value="${esc(v)}" ${extra}></label>`;
@@ -126,7 +126,7 @@ const TFUI = (() => {
 
   async function novo(prefill) {
     if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());
-    prefill = prefill || {};
+    prefill = prefill || {}; clearTimeout(tRasc);
     const bars = await barreiras();
     if (!bars.length) { view('<div class="card aviso">⚠️ A lista de barreiras ainda não foi carregada. Conecte-se à internet e aguarde a sincronização.</div>'); Sync.sincronizar(); return; }
     let D = vazio(); S = { hist: { doc: null, placa: null }, tpl: { constatacao: '', enquadramento: '' }, turnoId: '', veiculoId: '' };
@@ -305,7 +305,7 @@ const TFUI = (() => {
       await Store.gravar('pessoas', { ...pessoa, pendente: est.pendente });
       if (placa) await Store.gravar('placas', { ...placa, pendente: est.pendente });
       await Sync.lembrarUltimos({ [chave(bar.id, a)]: n });
-      await Store.setMeta('tfRascunho', null); localStorage.setItem('gdv.barreira', bar.id);
+      clearTimeout(tRasc); await Store.setMeta('tfRascunho', null); localStorage.setItem('gdv.barreira', bar.id);
       S = null; Sync.sincronizar(); go('tfpronto', rec.id); return;
     }
     toast('Não foi possível definir o número do TF. Tente novamente.', true);
@@ -321,7 +321,7 @@ const TFUI = (() => {
       ${t.reincidente ? `<div class="tf-alerta">⚠️ Fiscalizado reincidente: ${t.tfsAnteriores} TF(s) anterior(es).</div>` : ''}</div>
       <button class="botao" data-tf="imprimir" data-id="${esc(t.id)}">🖨️ Imprimir / PDF (2 vias)</button>
       <button class="botao sec" data-tf="novo">➕ Novo TF</button>
-      <button class="botao sec" data-go="tf">📋 Ver lista de TFs</button>
+      ${MODULO === 'veiculos' ? '<button class="botao sec" data-go="lista">↩ Voltar à lista de veículos</button>' : '<button class="botao sec" data-go="tf">📋 Ver lista de TFs</button>'}
       <p class="dica">Na janela de impressão, escolha “Salvar como PDF” ou imprima direto. As 2 vias saem em páginas separadas.</p>`);
   }
   async function lista() {
@@ -356,7 +356,7 @@ const TFUI = (() => {
         Sync.sincronizar(); toast('TF cancelado.'); lista();
       } else if (a === 'addprod') { const c = coletar(); c.produtos.push({ p: '', q: '', u: T.unidades[0] }); $('#tf-produtos').innerHTML = c.produtos.map(linhaProd).join(''); salvarRascunho(); }
       else if (a === 'delprod') { const c = coletar(); c.produtos.splice(+el.dataset.i, 1); if (!c.produtos.length) c.produtos.push({ p: '', q: '', u: T.unidades[0] }); $('#tf-produtos').innerHTML = c.produtos.map(linhaProd).join(''); salvarRascunho(); }
-      else if (a === 'descartar') { if (confirm('Descartar este TF? Os dados preenchidos serão perdidos.')) { S = null; await Store.setMeta('tfRascunho', null); go('tf'); } }
+      else if (a === 'descartar') { if (confirm('Descartar este TF? Os dados preenchidos serão perdidos.')) { clearTimeout(tRasc); S = null; await Store.setMeta('tfRascunho', null); go(MODULO === 'veiculos' ? 'lista' : 'tf'); } }
       else if (a === 'usardoc') { $('#tf-doc').value = fmtDoc(el.dataset.doc); consultarDoc(); }
     } catch (err) { toast(err.message || String(err), true); }
   });

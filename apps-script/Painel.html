@@ -75,12 +75,20 @@
   .vazio { color:var(--ink2); padding:14px 0; }
   #tip { position:fixed; pointer-events:none; background:var(--surface); border:1px solid var(--borda); border-radius:8px; padding:6px 9px; font-size:12px; box-shadow:0 4px 14px rgba(0,0,0,.18); display:none; z-index:50; max-width:260px; }
   #tip strong { font-size:14px; display:block; }
+  .login { max-width:420px; margin:28px auto; } .login p { color:var(--ink2); }
+  .login input { width:100%; font-size:22px; letter-spacing:4px; text-align:center; margin:10px 0; }
+  .login button { width:100%; }
+  #sair[hidden] { display:none; }
   #erro { display:none; margin:16px; padding:12px; border-radius:8px; background:var(--wash); }
   .btn-dl { display:flex; gap:8px; flex-wrap:wrap; margin-top:10px; }
 </style>
 </head>
 <body>
-<header><h1>GDV · Painel do administrador</h1><small id="atualizado"></small></header>
+<header><h1>GDV · Painel do administrador</h1><span><small id="quem"></small> <small id="atualizado"></small> <button id="sair" type="button" hidden>Sair</button></span></header>
+<section id="login" class="card login" style="display:none"><h2>Entrar no painel</h2>
+  <p>Digite o código de administrador de 6 dígitos (gerado na planilha: menu <b>GDV → Gerar código de administrador</b>).</p>
+  <form id="formLogin"><input id="codigo" inputmode="numeric" maxlength="7" autocomplete="off" placeholder="000 000" required><button class="primario" type="submit">Entrar</button></form>
+  <div id="msgLogin" role="alert" style="margin-top:8px;color:var(--ruim)"></div></section>
 <section id="filtros" aria-label="Filtros">
   <div class="grupo" id="presets" role="group" aria-label="Período">
     <button data-p="7">7 dias</button><button data-p="30">30 dias</button><button data-p="90">90 dias</button>
@@ -121,6 +129,10 @@ function h(tag, props, ...filhos) {                      // DOM seguro: texto se
   return el;
 }
 
+const lsGet = k => { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+const lsDel = k => { try { localStorage.removeItem(k); } catch (e) {} };
+let TOKEN = lsGet('gdv.painelToken'), ADM = lsGet('gdv.painelNome');
 let RAW = { turnos: [], veiculos: [], geradoEm: 0 }, POR_TURNO = {}, F = {}, GRAF = {}, MAPA = null, CAMADA = null, TELA = { granul: 'auto', metrica: 'veiculos', paginas: 25 };
 
 /* ---------- cálculo ---------- */
@@ -162,15 +174,28 @@ function definirPeriodo(p) {
   $('#fDe').value = F.de; $('#fAte').value = F.ate;
 }
 function marcarPreset(p) { document.querySelectorAll('#presets button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.p === String(p)))); }
+function mostrarLogin(msg) {
+  $('#login').style.display = 'block'; $('#filtros').style.display = 'none'; $('#conteudo').style.display = 'none'; $('#sair').hidden = true; $('#quem').textContent = ''; $('#atualizado').textContent = '';
+  $('#msgLogin').textContent = msg || ''; mostrarErro('');
+}
+function mostrarPainel() {
+  $('#login').style.display = 'none'; $('#filtros').style.display = 'flex'; $('#conteudo').style.display = 'block'; $('#sair').hidden = false; $('#quem').textContent = ADM ? 'Administrador: ' + ADM + ' ·' : '';
+}
+function sair() { TOKEN = ''; ADM = ''; lsDel('gdv.painelToken'); lsDel('gdv.painelNome'); RAW = { turnos: [], veiculos: [], geradoEm: 0 }; mostrarLogin(''); }
 function carregar() {
+  if (!TOKEN) { mostrarLogin(''); return; }
   const de = $('#fDe').value, ate = $('#fAte').value;
   if (!de || !ate || de > ate) { mostrarErro('Período inválido.'); return; }
   F.de = de; F.ate = ate;
   const span = entreDias(de, ate) + 1, desde = somaDias(de, -span);       // também busca o período anterior (comparação)
   $('#conteudo').classList.add('carregando'); mostrarErro('');
   google.script.run.withSuccessHandler(r => { RAW = r; POR_TURNO = {}; r.veiculos.forEach(v => (POR_TURNO[v.t] = POR_TURNO[v.t] || []).push(v)); preencherFiltros(); desenhar(); $('#conteudo').classList.remove('carregando'); })
-    .withFailureHandler(e => { $('#conteudo').classList.remove('carregando'); mostrarErro(e && e.message ? e.message : String(e)); })
-    .painelDados({ de: desde, ate });
+    .withFailureHandler(e => {
+      $('#conteudo').classList.remove('carregando');
+      const msg = e && e.message ? e.message : String(e);
+      if (/sess[aã]o|inv[aá]lid|revogad/i.test(msg)) { TOKEN = ''; lsDel('gdv.painelToken'); mostrarLogin(msg.replace(/^Error:\s*/, '')); } else mostrarErro(msg);
+    })
+    .painelDados(TOKEN, { de: desde, ate });
 }
 function mostrarErro(m) { const e = $('#erro'); e.textContent = m; e.style.display = m ? 'block' : 'none'; }
 
@@ -425,7 +450,15 @@ document.querySelectorAll('#presets button').forEach(b => b.onclick = () => { de
 $('#fDe').onchange = $('#fAte').onchange = () => marcarPreset('');
 $('#btnAtualizar').onclick = carregar;
 matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (RAW.turnos.length) desenhar(); });
-definirPeriodo('30'); marcarPreset('30'); carregar();
+$('#sair').onclick = sair;
+$('#formLogin').onsubmit = ev => {
+  ev.preventDefault(); const btn = $('#formLogin button'); btn.disabled = true; btn.textContent = 'Entrando…'; $('#msgLogin').textContent = '';
+  google.script.run.withSuccessHandler(r => { TOKEN = r.token; ADM = r.nome; lsSet('gdv.painelToken', TOKEN); lsSet('gdv.painelNome', ADM); btn.disabled = false; btn.textContent = 'Entrar'; $('#codigo').value = ''; mostrarPainel(); carregar(); })
+    .withFailureHandler(e => { btn.disabled = false; btn.textContent = 'Entrar'; $('#msgLogin').textContent = (e && e.message ? e.message : String(e)).replace(/^Error:\s*/, ''); })
+    .painelAtivar($('#codigo').value);
+};
+definirPeriodo('30'); marcarPreset('30');
+if (TOKEN) { mostrarPainel(); carregar(); } else mostrarLogin('');
 </script>
 </body>
 </html>

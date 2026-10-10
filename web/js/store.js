@@ -3,12 +3,11 @@ const Store = (() => {
   let dbp;
   function db() {
     if (!dbp) dbp = new Promise((ok, no) => {
-      const rq = indexedDB.open('gdv', 1);
+      const rq = indexedDB.open('gdv', 2);                      // v2: tfs, pessoas, placas (os dados antigos são mantidos)
       rq.onupgradeneeded = () => {
         const d = rq.result;
-        d.createObjectStore('turnos', { keyPath: 'id' });
-        d.createObjectStore('veiculos', { keyPath: 'id' });
-        d.createObjectStore('meta', { keyPath: 'k' });
+        ['turnos', 'veiculos', 'tfs', 'pessoas', 'placas'].forEach(n => { if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: 'id' }); });
+        if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'k' });
       };
       rq.onsuccess = () => ok(rq.result);
       rq.onerror = () => no(rq.error);

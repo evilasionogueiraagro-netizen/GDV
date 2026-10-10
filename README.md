@@ -49,6 +49,28 @@ App para registrar os veículos abordados em barreiras **fixas ou móveis**, por
 
 Para testar localmente: `cd web && python3 -m http.server 8080`.
 
+## Termo de Fiscalização de Barreira (TF)
+
+Dentro do mesmo app, na aba **📄 TF**: o fiscal preenche o TF digitalmente e imprime em **2 vias** (páginas separadas, uma via por folha A4) para assinatura. Pode ser usado **isolado** (aba TF → *Novo TF*) ou **a partir do controle de veículos**: na lista de veículos, o botão **Lavrar TF** já traz a placa e o local do turno e liga o TF ao turno. No **Termo do turno**, o campo “Termos de Barreira Lavrados” sai preenchido com os números dos TFs lavrados naquele turno.
+
+**Numeração (uma sequência por barreira e por ano, na planilha)**
+- A numeração segue o formato `0012/2026 - BVA - CEASA` (o sufixo vem da aba `Barreiras`).
+- Para funcionar **sem internet**, cada aparelho mantém **3 números reservados** da sequência da planilha (aba `Sequencias`; o histórico de reservas fica em `Reservas`). Assim dois celulares nunca recebem o mesmo número, mesmo offline; os números saem em ordem de reserva, e não necessariamente na ordem em que os TFs são lavrados. Um número reservado e não usado (celular desligado, por exemplo) fica como falha na sequência: confira em `Reservas` × `TFs`.
+- Sem reserva e sem internet, o app propõe um número **provisório** e avisa. Se o número for repetido (ou digitado à mão e já usado), o TF mais antigo vale e o outro fica com `conflito = 1` na planilha e com o aviso **“Número duplicado”** na lista do fiscal.
+- Para começar a usar no meio do ano: menu **GDV → Definir último nº de TF usado (barreira)** (informe o código da barreira, o ano e o último número já usado; o próximo será +1).
+- **Barreiras:** aba `Barreiras` (`id`, `nome`, `sufixo`, `local`, `ativo`). Vem com `BVA-CEASA`; acrescente uma linha para cada barreira, fixa ou móvel.
+
+**Cadastro de pessoas e placas, e reincidência**
+- Ao gerar o TF, o fiscalizado é gravado em `Pessoas` (chave: CPF/CNPJ, só dígitos) e a placa em `Placas` (com o último fiscalizado). Ao digitar um CPF/CNPJ completo (ou a placa), o app **consulta o servidor**: preenche o cadastro e mostra o **histórico**; sem internet, consulta só o que o aparelho já conhece.
+- **Reincidente** = já existe TF anterior (não cancelado) desse CPF/CNPJ com **apreensão, rechaço ou auto de infração**. O alerta lista os TFs anteriores (de todas as barreiras) e a informação é gravada no TF (`reincidente`, `tfsAnteriores`); não sai impressa no documento.
+- **Cancelar TF** (motivo obrigatório na tela) mantém o número usado e o tira da contagem de reincidência.
+
+**Dados pessoais (LGPD):** cada fiscal só baixa para o celular os **próprios** TFs; cadastros e históricos de outras pessoas chegam **apenas por consulta**, uma a uma. As consultas ficam registradas na aba `Consultas` (quem, quando, CPF/CNPJ mascarado). Limite o compartilhamento da planilha a quem precisa e defina um prazo de guarda.
+
+**Textos padrão** de constatação e enquadramento legal, lista de produtos e unidades ficam em `web/js/config.js` (`CONFIG.TF`); o fiscal pode editar o texto no formulário. O modelo impresso é `web/documentos/tf.html`.
+
+**Para publicar:** atualize o `Code.gs` no Apps Script e crie uma **nova versão** da implantação (as abas novas são criadas automaticamente na primeira sincronização). Nos celulares, abra o app com internet para baixar a versão nova.
+
 ## Painel do administrador (fora do app)
 
 Painel web só para o administrador, lendo a própria planilha. Fica no mesmo projeto do Apps Script (arquivo `apps-script/Painel.html`), mas é aberto por uma **segunda implantação**, com acesso restrito.

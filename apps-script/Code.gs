@@ -17,10 +17,25 @@ const TABELAS = {
            'latIni', 'lngIni', 'precIni', 'latFim', 'lngFim', 'precFim', 'usuario'],   // colunas novas ficam sempre no fim
   Veiculos: ['id', 'turnoId', 'hora', 'placa', 'tipo', 'pessoas', 'obs',
              'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
-  Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm', 'perfil']   // perfil: vazio = fiscal, 'admin' = administrador
+  Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm', 'perfil'],   // perfil: vazio = fiscal, 'admin' = administrador
+  // Termos de Fiscalização de Barreira (TF)
+  TFs: ['id', 'barreira', 'ano', 'numero', 'numeroTxt', 'turnoId', 'veiculoId', 'data', 'hora', 'fiscal', 'local', 'placa', 'origem', 'destino',
+        'doc', 'nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone', 'relacao', 'inspecao', 'coleta', 'amostras',
+        'procedimento', 'fiel', 'auto', 'advertencia', 'documentos', 'produtos', 'constatacao', 'enquadramento',
+        'reincidente', 'tfsAnteriores', 'cancelado', 'motivoCancel', 'conflito', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
+  Pessoas: ['id', 'tipo', 'nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],   // id = CPF/CNPJ (só dígitos)
+  Placas: ['id', 'doc', 'nome', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],                                                    // id = placa
+  Barreiras: ['id', 'nome', 'sufixo', 'local', 'ativo'],                                                                            // cadastro feito direto na planilha
+  Sequencias: ['id', 'barreira', 'ano', 'ultimo', 'atualizadoEm'],                                                                   // id = barreira|ano
+  Reservas: ['em', 'usuario', 'barreira', 'ano', 'de', 'ate'],
+  Consultas: ['em', 'usuario', 'doc', 'placa', 'resultado']
 };
 const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
-                          'expiraEm', 'ativo', 'ativadoEm'];
+                          'expiraEm', 'ativo', 'ativadoEm',
+                          'ano', 'numero', 'ultimo', 'de', 'ate', 'em', 'amostras', 'inspecao', 'coleta', 'fiel', 'auto',
+                          'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito'];
+const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300 };   // demais colunas: 500
+const RESERVA_MAX = 5;                                 // números que um aparelho pode reservar por vez
 const VALIDADE_CODIGO_MS = 7 * 24 * 3600 * 1000;      // código de ativação vale 7 dias
 const MAX_FALHAS_ATIVACAO = 10;                        // tentativas erradas antes de bloquear por 15 min
 const MAX_LINHAS_POR_ENVIO = 2000;
@@ -37,6 +52,7 @@ function doPost(e) {
     const usuario = autenticar_(req.key);
     if (req.action === 'ping') return json_({ ok: true, nome: usuario });
     if (req.action === 'sync') return json_(sincronizar_(req, usuario));
+    if (req.action === 'tfConsultar') return json_(consultar_(req, usuario));
     throw new Error('Ação inválida.');
   } catch (err) {
     return json_({ ok: false, erro: String(err.message || err) });
@@ -46,6 +62,9 @@ function doPost(e) {
 function sincronizar_(req, usuario) {
   const turnos = lista_(req.turnos);
   const veiculos = lista_(req.veiculos);
+  const tfs = lista_(req.tfs);
+  const pessoas = lista_(req.pessoas);
+  const placas = lista_(req.placas);
   const since = Number(req.since) || 0;
 
   const lock = LockService.getScriptLock();
@@ -54,17 +73,125 @@ function sincronizar_(req, usuario) {
     const agora = Date.now();
     gravar_('Turnos', turnos, agora, usuario);
     gravar_('Veiculos', veiculos, agora, usuario);
+    gravar_('TFs', tfs, agora, usuario);
+    if (tfs.length) marcarConflitosTFs_(tfs, agora);
+    gravar_('Pessoas', pessoas, agora, usuario);
+    gravar_('Placas', placas, agora, usuario);
+    const reserva = req.reservar ? reservarNumeros_(req.reservar, usuario, agora) : null;
     return {
       ok: true,
       agora: agora,
       turnos: lerMudancas_('Turnos', since),
-      veiculos: lerMudancas_('Veiculos', since)
+      veiculos: lerMudancas_('Veiculos', since),
+      tfs: lerMudancas_('TFs', since, usuario),          // cada fiscal recebe só os próprios TFs
+      barreiras: listarBarreiras_(),
+      reserva: reserva
     };
   } finally {
     lock.releaseLock();
   }
 }
 
+/* ---------- Termos de Fiscalização (TF): numeração, conflitos e reincidência ---------- */
+
+function digitos_(v) { return String(v || '').replace(/\D/g, ''); }
+function placaNorm_(v) { return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+
+function listarBarreiras_() {
+  const sh = aba_('Barreiras');
+  if (sh.getLastRow() < 2) sh.getRange(2, 1, 1, 5).setValues([['BVA-CEASA', 'Barreira Porto da CEASA', 'BVA - CEASA', 'BR-319 PORTO DA CEASA', 1]]);
+  return lerLeitura_('Barreiras').filter(function (b) { return b.id && b.ativo === 1; })
+    .map(function (b) { return { id: b.id, nome: b.nome, sufixo: b.sufixo, local: b.local }; });
+}
+
+/** Reserva uma faixa de números da sequência única da barreira (sob o lock do sincronizar_). */
+function reservarNumeros_(pedido, usuario, agora) {
+  const barreira = String(pedido.barreira || '').slice(0, 64);
+  const ano = Number(pedido.ano) || new Date().getFullYear();
+  const qtd = Math.max(1, Math.min(RESERVA_MAX, Number(pedido.quantidade) || 1));
+  if (!barreira) throw new Error('Informe a barreira.');
+  if (!listarBarreiras_().some(function (b) { return b.id === barreira; })) throw new Error('Barreira desconhecida: ' + barreira);
+  const t = lerTudo_('Sequencias'), id = barreira + '|' + ano;
+  let idx = -1, ultimo = 0;
+  t.valores.forEach(function (l, i) { if (String(l[0]) === id) { idx = i; ultimo = Number(l[3]) || 0; } });
+  if (idx < 0) {                                       // 1ª vez: continua do maior número já gravado
+    lerLeitura_('TFs').forEach(function (r) { if (r.barreira === barreira && r.ano === ano && r.numero > ultimo) ultimo = r.numero; });
+  }
+  const novo = ultimo + qtd, numeros = [];
+  for (let n = ultimo + 1; n <= novo; n++) numeros.push(n);
+  const linha = [[id, barreira, ano, novo, agora]];
+  if (idx >= 0) t.sh.getRange(idx + 2, 1, 1, 5).setValues(linha); else t.sh.getRange(t.sh.getLastRow() + 1, 1, 1, 5).setValues(linha);
+  const r = aba_('Reservas');
+  r.getRange(r.getLastRow() + 1, 1, 1, 6).setValues([[agora, usuario, barreira, ano, ultimo + 1, novo]]);
+  return { barreira: barreira, ano: ano, numeros: numeros, ultimo: novo };
+}
+
+/** Número duplicado (mesma barreira/ano): o TF mais antigo vale; os demais ficam com conflito = 1. */
+function marcarConflitosTFs_(recebidos, agora) {
+  const ids = {};
+  recebidos.forEach(function (r) { if (r && r.id) ids[r.id] = true; });
+  const t = lerTudo_('TFs'), iC = t.cols.indexOf('conflito') + 1, iS = t.cols.indexOf('srv_ts') + 1, grupos = {};
+  t.valores.forEach(function (l, i) {
+    const o = paraObjeto_(t.cols, l);
+    (grupos[o.barreira + '|' + o.ano + '|' + o.numero] = grupos[o.barreira + '|' + o.ano + '|' + o.numero] || []).push({ i: i, o: o });
+  });
+  Object.keys(grupos).forEach(function (k) {
+    const g = grupos[k];
+    if (!g.some(function (x) { return ids[x.o.id]; })) return;
+    g.sort(function (a, b) { return a.o.criadoEm - b.o.criadoEm || String(a.o.id).localeCompare(String(b.o.id)); });
+    g.forEach(function (x, n) {
+      const quer = g.length > 1 && n > 0 ? 1 : 0;
+      if (x.o.conflito !== quer) { t.sh.getRange(x.i + 2, iC).setValue(quer); t.sh.getRange(x.i + 2, iS).setValue(agora); }
+    });
+  });
+}
+
+/** Define o último número usado de uma sequência (ex.: ao começar a usar o sistema no meio do ano). */
+function definirSequencia_(barreira, ano, ultimo) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    if (!listarBarreiras_().some(function (b) { return b.id === barreira; })) throw new Error('Barreira desconhecida: ' + barreira);
+    const t = lerTudo_('Sequencias'), id = barreira + '|' + ano;
+    let idx = -1;
+    t.valores.forEach(function (l, i) { if (String(l[0]) === id) idx = i; });
+    const linha = [[id, barreira, Number(ano), Number(ultimo), Date.now()]];
+    if (idx >= 0) t.sh.getRange(idx + 2, 1, 1, 5).setValues(linha); else t.sh.getRange(t.sh.getLastRow() + 1, 1, 1, 5).setValues(linha);
+    return Number(ultimo);
+  } finally { lock.releaseLock(); }
+}
+
+function resumoTFs_(rows) {
+  const r = { total: rows.length, liberacoes: 0, apreensoes: 0, rechacos: 0, autos: 0, advertencias: 0, ultimos: [] };
+  rows.forEach(function (x) {
+    if (x.procedimento === 'liberacao') r.liberacoes++; else if (x.procedimento === 'apreensao') r.apreensoes++; else if (x.procedimento === 'rechaco') r.rechacos++;
+    if (x.auto === 1) r.autos++; if (x.advertencia === 1) r.advertencias++;
+  });
+  r.ultimos = rows.slice().sort(function (a, b) { return String(b.data + b.hora).localeCompare(String(a.data + a.hora)); }).slice(0, 5)
+    .map(function (x) { return { numeroTxt: x.numeroTxt, data: x.data, procedimento: x.procedimento, placa: x.placa, produtos: x.produtos }; });
+  r.reincidente = r.apreensoes + r.rechacos + r.autos >= 1;      // houve medida anterior (apreensão, rechaço ou auto de infração)
+  return r;
+}
+
+/** Cadastro + histórico (reincidência) por CPF/CNPJ e por placa. */
+function consultar_(req, usuario) {
+  const doc = digitos_(req.doc), placa = placaNorm_(req.placa);
+  if (doc.length !== 11 && doc.length !== 14 && placa.length < 7) throw new Error('Informe um CPF/CNPJ completo ou uma placa.');
+  const pessoa = doc ? lerLeitura_('Pessoas').filter(function (p) { return p.id === doc; })[0] : null;
+  const pl = placa ? lerLeitura_('Placas').filter(function (p) { return p.id === placa; })[0] : null;
+  const tfs = lerLeitura_('TFs').filter(function (t) { return t.cancelado !== 1; });
+  const porDoc = doc ? resumoTFs_(tfs.filter(function (t) { return digitos_(t.doc) === doc; })) : null;
+  const porPlaca = placa ? resumoTFs_(tfs.filter(function (t) { return placaNorm_(t.placa) === placa; })) : null;
+  const mask = doc ? doc.slice(0, 3) + '***' + doc.slice(-2) : '';
+  const c = aba_('Consultas');
+  c.getRange(c.getLastRow() + 1, 1, 1, 5).setValues([[Date.now(), usuario, mask, placa, (pessoa || (porDoc && porDoc.total)) ? 'encontrado' : 'novo']]);
+  return {
+    ok: true,
+    pessoa: pessoa ? { id: pessoa.id, tipo: pessoa.tipo, nome: pessoa.nome, rg: pessoa.rg, endereco: pessoa.endereco, municipio: pessoa.municipio, uf: pessoa.uf, telefone: pessoa.telefone } : null,
+    placa: pl ? { id: pl.id, doc: pl.doc, nome: pl.nome } : null,
+    historicoDoc: porDoc, historicoPlaca: porPlaca
+  };
+}
 
 /* ---------- Painel do administrador (somente leitura) ---------- */
 
@@ -240,6 +367,7 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('GDV')
     .addItem('Gerar código de ativação', 'menuGerarCodigo')
     .addItem('Gerar código de administrador (painel)', 'menuGerarCodigoAdmin')
+    .addItem('Definir último nº de TF usado (barreira)', 'menuDefinirSequencia')
     .addItem('Revogar acesso de um fiscal ou administrador', 'menuRevogar')
     .addToUi();
 }
@@ -264,6 +392,18 @@ function menuGerarCodigoAdmin() {
     const venc = Utilities.formatDate(new Date(g.expiraEm), 'America/Manaus', 'dd/MM/yyyy HH:mm');
     ui.alert('Código de administrador para ' + g.nome, g.codigo.slice(0, 3) + ' ' + g.codigo.slice(3) + '\n\nAbra o painel (URL do app + ?p=painel) e digite o código. Uso único, válido até ' + venc + '.', ui.ButtonSet.OK);
   } catch (e) { ui.alert('Não foi possível gerar', String(e.message || e), ui.ButtonSet.OK); }
+}
+
+function menuDefinirSequencia() {
+  const ui = SpreadsheetApp.getUi();
+  const b = ui.prompt('Barreira', 'Código da barreira (coluna id da aba Barreiras), ex.: BVA-CEASA', ui.ButtonSet.OK_CANCEL);
+  if (b.getSelectedButton() !== ui.Button.OK) return;
+  const a = ui.prompt('Ano', 'Ano da numeração (ex.: ' + new Date().getFullYear() + ')', ui.ButtonSet.OK_CANCEL);
+  if (a.getSelectedButton() !== ui.Button.OK) return;
+  const u = ui.prompt('Último número usado', 'Último nº de TF JÁ usado nessa barreira/ano (o próximo será este + 1). Use 0 para começar do 0001.', ui.ButtonSet.OK_CANCEL);
+  if (u.getSelectedButton() !== ui.Button.OK) return;
+  try { const n = definirSequencia_(b.getResponseText().trim(), Number(a.getResponseText()), Number(u.getResponseText())); ui.alert('Pronto', 'O próximo TF será o nº ' + (n + 1) + '.', ui.ButtonSet.OK); }
+  catch (e) { ui.alert('Não foi possível definir', String(e.message || e), ui.ButtonSet.OK); }
 }
 
 function menuRevogar() {
@@ -365,10 +505,11 @@ function gravar_(nome, recebidos, ts, usuario) {
   }
 }
 
-function lerMudancas_(nome, since) {
+function lerMudancas_(nome, since, usuario) {
   const t = lerTudo_(nome), i = t.cols.indexOf('srv_ts');
   return t.valores.filter(function (l) { return Number(l[i]) > since; })
-                  .map(function (l) { return paraObjeto_(t.cols, l); });
+                  .map(function (l) { return paraObjeto_(t.cols, l); })
+                  .filter(function (o) { return !usuario || usuario === 'Administrador' || o.usuario === usuario; });
 }
 
 function limpar_(cols, r) {
@@ -377,7 +518,7 @@ function limpar_(cols, r) {
   cols.forEach(function (c) {
     let v = r[c];
     if (v === undefined || v === null) v = '';
-    o[c] = CAMPOS_NUMERICOS.indexOf(c) >= 0 ? (Number(v) || 0) : String(v).slice(0, 500);
+    o[c] = CAMPOS_NUMERICOS.indexOf(c) >= 0 ? (Number(v) || 0) : String(v).slice(0, LIMITES_TEXTO[c] || 500);
   });
   return o;
 }

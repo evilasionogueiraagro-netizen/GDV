@@ -44,12 +44,33 @@ const Sync = (() => {
     return j;
   }
 
-  const limpo = ({ pendente, ...r }) => r;
+  const limpo = ({ pendente, provisorio, ...r }) => r;
 
+  const NOMES = ['t', 'v', 'f', 'p', 'l'], STORES = { t: 'turnos', v: 'veiculos', f: 'tfs', p: 'pessoas', l: 'placas' };
   async function pendentes() {
-    const [t, v] = await Promise.all([Store.todos('turnos'), Store.todos('veiculos')]);
-    return { t: t.filter(x => x.pendente), v: v.filter(x => x.pendente) };
+    const lst = await Promise.all(NOMES.map(n => Store.todos(STORES[n])));
+    const o = {}; NOMES.forEach((n, i) => { o[n] = lst[i].filter(x => x.pendente); });
+    o.total = NOMES.reduce((s, n) => s + o[n].length, 0);
+    return o;
   }
+
+  /* Numeração de TF: reserva de números da sequência da barreira (planilha) para uso inclusive offline. */
+  async function aplicarReserva(res) {
+    if (!res) return;
+    const key = res.barreira + '|' + res.ano;
+    const todas = (await Store.meta('reservas')) || {}, uv = (await Store.meta('ultimoVisto')) || {};
+    todas[key] = [...new Set([...(todas[key] || []), ...res.numeros])].sort((a, b) => a - b);
+    uv[key] = Math.max(uv[key] || 0, res.ultimo);
+    await Store.setMeta('reservas', todas); await Store.setMeta('ultimoVisto', uv);
+  }
+  async function pedidoReserva() {
+    const b = localStorage.getItem('gdv.barreira'); if (!b) return undefined;
+    const ano = new Date().getFullYear(), tem = (((await Store.meta('reservas')) || {})[b + '|' + ano] || []).length;
+    const falta = CONFIG.TF.reserva - tem;
+    return falta > 0 ? { barreira: b, ano, quantidade: falta } : undefined;
+  }
+  /** Cadastro + histórico (reincidência) de um CPF/CNPJ e/ou placa, consultados no servidor. */
+  const consultar = (doc, placa) => chamar({ action: 'tfConsultar', doc, placa });
 
   async function aplicar(store, linhas) {
     const novos = [];
@@ -79,15 +100,18 @@ const Sync = (() => {
     try {
       for (let volta = 0; volta < 20; volta++) {
         const p = await pendentes();
-        const t = p.t.slice(0, 500), v = p.v.slice(0, 1000);
+        const env = { t: p.t.slice(0, 500), v: p.v.slice(0, 1000), f: p.f.slice(0, 100), p: p.p.slice(0, 300), l: p.l.slice(0, 300) };
         const since = (await Store.meta('lastSync')) || 0;
-        const r = await chamar({ action: 'sync', since, turnos: t.map(limpo), veiculos: v.map(limpo) });
-        await marcarEnviados('turnos', t);
-        await marcarEnviados('veiculos', v);
+        const r = await chamar({ action: 'sync', since, turnos: env.t.map(limpo), veiculos: env.v.map(limpo), tfs: env.f.map(limpo),
+          pessoas: env.p.map(limpo), placas: env.l.map(limpo), reservar: volta === 0 ? await pedidoReserva() : undefined });
+        for (const n of NOMES) await marcarEnviados(STORES[n], env[n]);
         await aplicar('turnos', r.turnos);
         await aplicar('veiculos', r.veiculos);
+        await aplicar('tfs', r.tfs || []);
+        if (r.barreiras) await Store.setMeta('barreiras', r.barreiras);
+        await aplicarReserva(r.reserva);
         await Store.setMeta('lastSync', r.agora);
-        if (p.t.length <= t.length && p.v.length <= v.length) break;
+        if (NOMES.every(n => p[n].length <= env[n].length)) break;
       }
       await Store.setMeta('ultimaSync', Date.now());
       localStorage.removeItem('gdv.revogado');
@@ -95,7 +119,7 @@ const Sync = (() => {
       window.dispatchEvent(new Event('gdv-dados'));
     } catch (e) {
       const p = await pendentes();
-      emitir({ tipo: 'erro', msg: e.message, pend: p.t.length + p.v.length });
+      emitir({ tipo: 'erro', msg: e.message, pend: p.total });
       if (/revogado|inv[aá]lido/i.test(e.message) && !localStorage.getItem('gdv.revogado')) {   // pede novo código (uma vez)
         localStorage.setItem('gdv.revogado', '1'); window.dispatchEvent(new Event('gdv-dados'));
       }
@@ -106,7 +130,7 @@ const Sync = (() => {
 
   async function atualizarContagem() {
     const p = await pendentes();
-    emitir({ tipo: navigator.onLine ? 'idle' : 'offline', pend: p.t.length + p.v.length, msg: '' });
+    emitir({ tipo: navigator.onLine ? 'idle' : 'offline', pend: p.total, msg: '' });
   }
 
   async function testar() { return chamar({ action: 'ping' }); }
@@ -119,5 +143,5 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { iniciar, sincronizar, testar, atualizarContagem, ativado, nome, ativar, desativar, onEstado: f => listeners.push(f), estado: () => estado, cfg };
+  return { iniciar, sincronizar, testar, atualizarContagem, ativado, nome, ativar, desativar, consultar, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

@@ -74,6 +74,9 @@ const Docs = (() => {
       caixa.appendChild(v);
     }
     const pessoas = veiculos.reduce((s, v) => s + (Number(v.pessoas) || 0), 0);
+    const lavrados = (await Store.todos('tfs')).filter(x => x.turnoId === turnoId && !x.cancelado).sort((a, b) => a.numero - b.numero).map(x => x.numeroTxt);
+    const linhasTF = lavrados.length ? `<strong>${esc(lavrados.join('; '))}</strong>`
+      : '____________________________________________________<br>____________________________________________________';
     const ini = turno.inicio || '__:__';
     const fim = turno.fim || '__:__';
     d.getElementById('descricaoTexto').innerHTML = `
@@ -83,7 +86,7 @@ foram executadas as atividades de <strong>Fiscalização / Educação Sanitária
 pelo(s) servidor(es) <strong>${esc(turno.fiscal)}</strong>, realizada no <strong>${esc(turno.local)}</strong>,
 onde procedeu(ram) à inspeção de veículos, cargas, bagagens, pessoas e demais materiais sujeitos ao controle da Defesa Agropecuária.</p>
 <p>Durante a ação foram abordados <strong>${veiculos.length}</strong> veículos, fiscalizadas <strong>${pessoas}</strong> pessoas.<br><br>
-Termos de Barreira Lavrados:<br>____________________________________________________<br>____________________________________________________</p>
+Termos de Barreira Lavrados:<br>${linhasTF}</p>
 <p>Na inspeção foram verificadas cargas contendo produtos, subprodutos e outros artigos regulamentados, observando-se as exigências
 previstas na legislação federal e estadual referente ao trânsito agropecuário e às medidas de defesa vegetal.</p>
 <p>Foram prestadas orientações aos usuários quanto às normas fitossanitárias vigentes, especialmente sobre os riscos de introdução e
@@ -93,5 +96,42 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     imprimir(f, 'Termo ' + turno.numeroTF);
   }
 
-  return { ficha, termo, ordenar, esc };
+  /* ---------- Termo de Fiscalização de Barreira (TF), impresso em 2 vias ---------- */
+  const json = (v, pad) => { try { return JSON.parse(v); } catch (e) { return pad; } };
+  const fmtDoc = v => { const d = String(v || '').replace(/\D/g, ''); return d.length === 11 ? d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : d.length === 14 ? d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5') : d; };
+  const PROC_TITULO = { liberacao: 'LIBERACAO', apreensao: 'APREENSAO', rechaco: 'RECHACO' };
+
+  async function tf(id) {
+    const t = await Store.obter('tfs', id);
+    if (!t) throw new Error('TF não encontrado.');
+    const f = await abrirModelo('tf.html'), d = f.contentDocument;
+    const set = (i, v) => { const e = d.getElementById(i); if (e) e.textContent = v == null ? '' : String(v); };
+    const marca = b => (b ? '☑' : '☐');
+    const grade = (id, linhas) => {                         // pequena tabela sem bordas (caixas de seleção)
+      const tb = d.createElement('table'); tb.style.cssText = 'width:100%;border:none;font-size:12px;';
+      linhas.forEach(l => { const tr = d.createElement('tr'); l.forEach(c => { const td = d.createElement('td'); td.style.cssText = `border:none;width:${c.w}%;`; td.textContent = c.t; tr.append(td); }); tb.append(tr); });
+      const alvo = d.getElementById(id); alvo.textContent = ''; alvo.append(tb);
+    };
+    const docs = json(t.documentos, {}), prods = json(t.produtos, []);
+    set('tf_numero', t.numeroTxt); set('nome', t.nome); set('cpf', fmtDoc(t.doc)); set('rg', t.rg); set('endereco', t.endereco);
+    set('relacao', t.relacao); set('municipio', t.municipio); set('uf', t.uf); set('telefone', t.telefone);
+    grade('acao_realizada', [[{ w: 50, t: `${marca(t.inspecao)} Inspeção` }, { w: 50, t: `${marca(t.coleta)} Coleta de amostra${t.coleta && t.amostras ? ' – Qtd.: ' + t.amostras : ''}` }]]);
+    grade('procedimentos', [
+      [{ w: 33, t: `${marca(t.procedimento === 'liberacao')} Liberação` }, { w: 33, t: `${marca(t.procedimento === 'apreensao')} Apreensão p/ destruição` }, { w: 34, t: `${marca(t.procedimento === 'rechaco')} Rechaço` }],
+      [{ w: 33, t: `${marca(t.fiel)} Fiel depositário` }, { w: 33, t: `${marca(t.auto)} Auto de Infração` }, { w: 34, t: `${marca(t.advertencia)} Advertência` }]]);
+    set('local', t.local); set('data', t.data ? dataBR(t.data) : ''); set('hora', t.hora); set('placa', t.placa); set('origem', t.origem); set('destino', t.destino);
+    const dc = (rot, k) => ({ w: 25, t: `${marca(docs[k])} ${rot} ${docs[k] || '____________'}` });
+    grade('documentos', [[dc('NF Nº', 'nf'), dc('SIF Nº', 'sif'), dc('PTV Nº', 'ptv'), dc('SIE Nº', 'sie')], [dc('SIM Nº', 'sim'), dc('GTA Nº', 'gta'), dc('LACRE', 'lacre'), dc('OUTROS', 'outros')]]);
+    set('produtos', prods.join('\n')); set('constatacao', t.constatacao); set('enquadramento', t.enquadramento);
+
+    const pg = d.querySelector('.a4'), vias = CONFIG.TF.vias;
+    if (t.cancelado) { const b = d.createElement('div'); b.className = 'cancelado-faixa'; b.textContent = 'TF CANCELADO' + (t.motivoCancel ? ' – ' + t.motivoCancel : ''); pg.insertBefore(b, pg.children[1] || null); }
+    const paginas = [pg];
+    vias.slice(1).forEach(() => { const c = pg.cloneNode(true); paginas[paginas.length - 1].after(c); paginas.push(c); });
+    paginas.forEach((p, i) => { p.querySelector('.via').textContent = vias[i] || ''; });
+    const nomeArq = `TF ${String(t.numeroTxt).replace(/\//g, '-')} ${prods.map(p => String(p).split(' - ')[0]).join('_') || 'SEM_PRODUTO'} ${PROC_TITULO[t.procedimento] || 'OUTRO'}`;
+    imprimir(f, nomeArq);
+  }
+
+  return { ficha, termo, tf, ordenar, esc };
 })();

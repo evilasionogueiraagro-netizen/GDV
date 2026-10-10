@@ -327,12 +327,16 @@ async function resumo() {
   $('#encerrar').onclick = async () => {
     const fim = agoraHM();
     if (!confirm(`Encerrar o turno agora (${fim})? Esta ação é definitiva: não será possível registrar novos veículos nem reabrir o turno.`)) return;
-    const b = $('#encerrar'); b.disabled = true; b.textContent = '📍 Obtendo localização…';
-    const gps = await pegarLocal();
-    if (!gps) toast('Turno encerrado sem coordenadas (GPS indisponível ou permissão negada).', true);
-    const f = await Store.salvar('turnos', { ...t, encerrado: 1, fim, ...camposLocal(gps, 'Fim') });
+    const b = $('#encerrar'); b.disabled = true; b.textContent = 'Encerrando…';
+    // Grava o encerramento NA HORA (antes do GPS): se o app for fechado ou o celular travar esperando a localização,
+    // o turno já está encerrado e nada se perde. A coordenada final é acrescentada depois, quando o GPS responder.
+    const f = await Store.salvar('turnos', { ...t, encerrado: 1, fim });
     await Store.setMeta('turnoAtual', '');
-    Sync.sincronizar(); go('fechado', f.id);
+    go('fechado', f.id);
+    const gps = await pegarLocal();
+    if (gps) { const atual = await Store.obter('turnos', f.id); if (atual) await Store.salvar('turnos', { ...atual, ...camposLocal(gps, 'Fim') }); }
+    else toast('Turno encerrado sem coordenadas (GPS indisponível ou permissão negada).', true);
+    Sync.sincronizar();
   };
 }
 async function fechado() {

@@ -5,7 +5,14 @@ const CONFIG = {
   sync: { url: 'https://script.google.com/macros/s/AKfycbx58-TObty08Aqc5Vft30r_G_zzLPq_agJReOqJcFgXRKkVXoqb4vFPowi3kDKo3q7p/exec' },
   unidadePadrao: 'MANAUS',          // unidade que aparece no Termo; pode ser alterada a cada turno
   localPadrao: '',                  // sugestão de local (ex.: 'Barreira Porto CEASA'); vazio = digitar a cada turno
-  postos: ['Fixa', 'Móvel'],
+  postos: ['Fixa', 'Móvel'],        // "Móvel" aparece como "Volante (móvel)" na tela
+  // BVAs fixas (lista do campo Local/Posto quando o posto é Fixa). placa: true = placa do veículo obrigatória.
+  // Posto volante (móvel): local preenchido pelo endereço da coordenada (editável) e placa opcional.
+  bvas: [
+    { nome: 'BVA - CEASA', placa: true },
+    { nome: 'BVA - JUNDIÁ', placa: false },
+    { nome: 'BVA - AEROPORTO', placa: false }
+  ],
   // Os horários do turno são capturados do relógio do aparelho (ao iniciar e ao encerrar).
   // A letra do TF / quadradinho da Ficha é deduzida da hora de início: das 04:00 às 11:59 = A; demais = B.
   turnos: {

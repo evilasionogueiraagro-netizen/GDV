@@ -276,11 +276,47 @@ body.tv .pn-tfaviso { display: none !important; }
   .pn-kpi-val { font-size: 22px; }
   .pn-tab-busca { width: 120px; }
 }
-/* Abas no celular: as quatro sempre visíveis (quebram em duas linhas), sem rolagem lateral escondida */
+/* Abas no celular: todas sempre visíveis (quebram em duas linhas), sem rolagem lateral escondida */
 @media (max-width: 560px) {
   .pn-abas { padding: 0 8px; flex-wrap: wrap; overflow-x: visible; gap: 0 2px; }
   .pn-aba { padding: 9px 8px; font-size: 13.5px; }
 }
+/* Aba Servidores (js/painel-acessos.js): gerar chave de ativação do app de campo e acessos */
+.pn-ac-grade { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 10px; align-items: start; }
+@media (min-width: 900px) { .pn-ac-grade { grid-template-columns: minmax(0, 380px) minmax(0, 1fr); } }
+.pn-ac-form label { display: block; font-size: 13px; color: var(--ink2); margin: 0 0 6px; font-weight: 600; }
+.pn-ac-form input { width: 100%; font-size: 16px; padding: 10px 12px; border: 1px solid var(--base); border-radius: 10px; background: var(--sf); }
+.pn-ac-form input:focus { outline: 2px solid var(--marca2); outline-offset: 1px; }
+.pn-ac-dica { margin: 6px 0 0; font-size: 12.5px; }
+.pn-ac-res { border-left: 4px solid var(--marca2); }
+.pn-ac-para { color: var(--ink2); font-size: 14px; overflow-wrap: anywhere; }
+.pn-ac-para b { color: var(--ink); }
+.pn-ac-codigo { font: 700 clamp(40px, 11vw, 60px)/1.1 ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .06em; color: var(--ink); margin: 6px 0 4px; user-select: all; white-space: nowrap; }
+.pn-ac-validade { font-size: 14px; color: var(--ink2); }
+.pn-ac-passos { margin: 12px 0 0; padding-left: 20px; font-size: 14px; line-height: 1.5; }
+.pn-ac-passos a { overflow-wrap: anywhere; }
+.pn-ac-acoes { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin-top: 14px; }
+.pn-ac-acoes .pn-btn { text-decoration: none; color: var(--ink); display: inline-flex; align-items: center; min-height: 40px; }
+.pn-ac-acoes .pn-btn-prim { color: #fff; }
+.pn-ac-whats { border-color: #1f9d55; color: #13753c !important; }
+:root:not([data-theme="light"]) .pn-ac-whats { color: #4cd187 !important; }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .pn-ac-whats { color: #13753c !important; } }
+:root[data-theme="light"] .pn-ac-whats { color: #13753c !important; }
+.pn-ac-aviso { font-size: 13px; flex-basis: 100%; }
+.pn-ac-aviso.ok { color: var(--bom-txt); } .pn-ac-aviso.erro { color: var(--critico); }
+.pn-ac-aviso:empty { display: none; }
+.pn-ac-filtros { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
+.pn-ac-filtros label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ink2); flex: 1 1 180px; max-width: 300px; min-width: 0; }
+.pn-ac-filtros input[type=search], .pn-ac-filtros select { border: 1px solid var(--base); border-radius: 8px; background: var(--sf); padding: 7px 8px; font-size: 14px; width: 100%; }
+.pn-ac-filtros .pn-ac-check { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; flex: 0 1 auto; padding-bottom: 8px; }
+.pn-ac-cod { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; white-space: nowrap; }
+.pn-ac-perfil { font-size: 11px; color: var(--ink2); border: 1px solid var(--base); border-radius: 999px; padding: 0 6px; white-space: nowrap; }
+.pn-ac-revogar { color: var(--critico); border-color: color-mix(in srgb, var(--critico) 45%, var(--base)); }
+/* celular: só Servidor, Situação, Código e Revogar (datas e "gerado por" ficam no computador e no CSV) */
+@media (max-width: 560px) { #pn-ac-tab th:nth-child(n+4):nth-child(-n+7), #pn-ac-tab td:nth-child(n+4):nth-child(-n+7) { display: none; }
+  #pn-ac-tab td, #pn-ac-tab th { padding-left: 4px; padding-right: 4px; font-size: 13px; } #pn-ac-tab .pn-selo { white-space: normal; align-items: baseline; }
+  #pn-ac-tab .pn-link { display: block; } #pn-ac-tab .pn-ac-revogar { padding: 4px 7px; } }
+@media (max-width: 560px) { .pn-ac-filtros label { flex: 1 1 100%; max-width: none; } .pn-ac-acoes .pn-btn { flex: 1 1 auto; justify-content: center; } }
 @media print { .pn-filtros, .pn-abas, .pn-topo button, .pn-mapa-ctl { display: none !important; } }
 
 /* Visão geral: mapa + alertas lado a lado no computador */

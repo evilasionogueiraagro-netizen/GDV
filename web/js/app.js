@@ -32,10 +32,6 @@ function pegarLocal() {
   });
 }
 const camposLocal = (g, sufixo) => g ? { ['lat' + sufixo]: g.lat, ['lng' + sufixo]: g.lng, ['prec' + sufixo]: g.prec } : {};
-const temLocal = (t, s) => t['lat' + s] !== undefined && t['lat' + s] !== '' && !isNaN(parseFloat(t['lat' + s]));
-const localHTML = (t, s) => temLocal(t, s)
-  ? `<a href="https://www.google.com/maps?q=${parseFloat(t['lat' + s])},${parseFloat(t['lng' + s])}" target="_blank" rel="noopener">${parseFloat(t['lat' + s]).toFixed(5)}, ${parseFloat(t['lng' + s]).toFixed(5)}</a> <small>(±${esc(t['prec' + s])} m)</small>`
-  : '<small>não registrada</small>';
 
 /* ---------- navegação ---------- */
 function go(view, arg) {
@@ -118,8 +114,7 @@ async function home() {
       <p><b>${esc(t.numeroTF)}</b></p>
       <p><b>Fiscal:</b> ${esc(t.fiscal)}</p><p><b>Local:</b> ${esc(t.local)}</p>
       <p><b>Data:</b> ${dBR(t.data)} &nbsp; <b>Posto:</b> ${esc(t.posto || '')}</p>
-      <p><b>Início do turno:</b> ${esc(t.inicio)}</p>
-      <p><b>📍 Local de início:</b> ${localHTML(t, 'Ini')}</p></div>
+      <p><b>Início do turno:</b> ${esc(t.inicio)}</p></div>
     <div class="card contador"><h1>${v.length}</h1><p>Veículos registrados</p></div>
     <button class="botao" data-go="registrar">➕ Registrar veículo</button>
     <button class="botao" data-go="lista">📋 Lista de veículos</button>
@@ -245,8 +240,7 @@ async function fechado() {
   const v = await veiculosDe(t.id);
   view(`<div class="card"><h3>Turno encerrado</h3><p><b>${esc(t.numeroTF)}</b></p>
     <p>${dBR(t.data)} · das <b>${esc(t.inicio)}</b> às <b>${esc(t.fim)}</b></p>
-    <p>${v.length} veículos · ${v.reduce((s, x) => s + (Number(x.pessoas) || 0), 0)} pessoas</p>
-    <p>📍 Início: ${localHTML(t, 'Ini')}</p><p>📍 Encerramento: ${localHTML(t, 'Fim')}</p></div>
+    <p>${v.length} veículos · ${v.reduce((s, x) => s + (Number(x.pessoas) || 0), 0)} pessoas</p></div>
     <button class="botao" data-doc="termo" data-id="${t.id}">📄 Termo de Fiscalização (PDF)</button>
     <button class="botao" data-doc="ficha" data-id="${t.id}">📝 Ficha de Campo (PDF)</button>
     <button class="botao" data-go="home">➕ Iniciar novo turno</button>

@@ -335,20 +335,22 @@ body.tv.tv-ocioso, body.tv.tv-ocioso * { cursor: none !important; }
 .tv-kpi.st-critico { box-shadow: inset 0.7vh 0 0 var(--critico); } .tv-kpi.st-serio { box-shadow: inset 0.7vh 0 0 var(--serio); }
 .tv-kpi.st-atencao { box-shadow: inset 0.7vh 0 0 var(--atencao); } .tv-kpi.st-bom { box-shadow: inset 0.7vh 0 0 var(--bom); }
 .tv-kpi[class*="st-"] { padding-left: calc(1.3vw + 0.7vh); }
-/* indicador largo com mini gráfico (veículos por hora, hoje) */
-.tv-kpi-largo { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr); grid-template-rows: auto auto 1fr; column-gap: 1.2vw; }
-.tv-kpi-largo > .tv-kpi-rot, .tv-kpi-largo > .tv-kpi-val, .tv-kpi-largo > .tv-kpi-det { grid-column: 1; }
-.tv-kpi-graf { grid-column: 2; grid-row: 1 / span 3; position: relative; display: flex; flex-direction: column; min-height: 0; min-width: 0; }
-.tv-kpi-graf > span { font-size: 1.8vh; color: var(--ink2); line-height: 1.2; }
-.tv-kpi-graf > .tv-graf { flex: 1; min-height: 0; }
-.tv-kpi-graf > .tv-vazio { padding: 0; }
 
 /* grades, cartões, legendas */
 .tv-grade { flex: 1; min-height: 0; display: grid; gap: 1.6vh 1.2vw; }
 .tv-grade-vivo { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }      /* Ao vivo: mapa ≈ 60% da largura, lista ≈ 40% */
-/* Ao vivo: KPIs um pouco mais baixos para o mapa ganhar altura (valores continuam ≥ 6vh) */
-.tv-palco[data-tela="aovivo"] .tv-kpi { padding: 1vh 1.2vw 1.1vh; }
-.tv-palco[data-tela="aovivo"] .tv-kpi-val { font-size: 6.4vh; margin-top: 0.1vh; }
+/* Ao vivo: o mapa vai do cabeçalho ao rodapé; os indicadores de hoje ficam compactos na coluna da direita, acima da lista
+   (Barreiras ativas e Veículos em destaque, valores ≥ 6vh; Pessoas, TFs e Apreensões menores na faixa de baixo) */
+.tv-vivo-dir { gap: 1.2vh; }
+.tv-kpis-vivo { gap: 1.2vh 0.9vw; }
+.tv-kpis-vivo .tv-kpi { padding: 0.9vh 1vw 1vh; }
+.tv-kpis-vivo .tv-kpi[class*="st-"] { padding-left: calc(1vw + 0.7vh); }
+.tv-kpis-vivo .tv-kpi-val { font-size: 6.4vh; margin-top: 0; }
+.tv-kpis-vivo .tv-kpi-det { margin-top: 0.1vh; }
+.tv-kpis-mini .tv-kpi { padding: 0.7vh 0.9vw 0.8vh; }
+.tv-kpis-mini .tv-kpi-rot { font-size: 2vh; }
+.tv-kpis-mini .tv-kpi-val { font-size: 4.4vh; }
+.tv-kpis-mini .tv-kpi-det { font-size: 1.7vh; -webkit-line-clamp: 1; min-height: 1.3em; }
 .tv-grade-2 { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
 .tv-grade-pce { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
 .tv-coluna { display: flex; flex-direction: column; gap: 1.6vh; min-height: 0; min-width: 0; }

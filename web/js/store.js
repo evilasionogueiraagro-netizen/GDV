@@ -54,5 +54,5 @@ const Store = (() => {
     return rec;
   }
 
-  return { todos, obter, gravar, gravarVarios, apagar, meta, setMeta, salvar };
+  return { todos, obter, gravar, gravarVarios, apagar, meta, setMeta, salvar, novoId: uuid };
 })();

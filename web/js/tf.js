@@ -24,26 +24,23 @@ const TFUI = (() => {
   const docOk = d => (d.length === 11 ? cpfOk(d) : d.length === 14 ? cnpjOk(d) : false);
   const fmtDoc = d => (d.length === 11 ? d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : d.length === 14 ? d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5') : d);
 
-  /* ---------- numeração: reserva na planilha (offline) ---------- */
+  /* ---------- numeração: uma sequência por barreira/ano, consultada na planilha na hora de gerar ---------- */
   const barreiras = async () => (await Store.meta('barreiras')) || [];
-  async function numeroProposto(b, a) {
-    const r = (((await Store.meta('reservas')) || {})[chave(b, a)] || []);
-    if (r.length) return { numero: r[0], origem: 'reserva' };
+  async function ultimoConhecido(b, a) {                                          // base para propor número SEM internet
     const uv = (((await Store.meta('ultimoVisto')) || {})[chave(b, a)] || 0);
     const locais = (await Store.todos('tfs')).filter(t => t.barreira === b && t.ano === a).reduce((m, t) => Math.max(m, t.numero), 0);
-    return { numero: Math.max(uv, locais) + 1, origem: 'provisorio' };          // sem reserva e sem internet: confere no envio
+    return Math.max(uv, locais);
   }
-  async function consumir(b, a, n) {
-    const k = chave(b, a), todas = (await Store.meta('reservas')) || {}, uv = (await Store.meta('ultimoVisto')) || {};
-    todas[k] = (todas[k] || []).filter(x => x !== n); uv[k] = Math.max(uv[k] || 0, n);
-    await Store.setMeta('reservas', todas); await Store.setMeta('ultimoVisto', uv);
-  }
-  async function garantirReserva(b, a) {                                          // com internet, busca números na planilha
-    if ((((await Store.meta('reservas')) || {})[chave(b, a)] || []).length || !navigator.onLine || !Sync.ativado()) return;
-    localStorage.setItem('gdv.barreira', b);
-    const tem = async () => (((await Store.meta('reservas')) || {})[chave(b, a)] || []).length > 0;
-    await Promise.race([Sync.sincronizar(), new Promise(r => setTimeout(r, 6000))]);
-    for (let i = 0; i < 15 && !(await tem()) && Sync.estado().tipo === 'sync'; i++) await new Promise(r => setTimeout(r, 400));   // sincronização já em andamento
+  async function sugerirNumero(b, a) {
+    if (navigator.onLine && Sync.ativado()) {
+      try {
+        const r = await Sync.proximoNumero(b, a);                                  // consulta rápida: último nº usado + 1
+        await Sync.lembrarUltimos({ [chave(b, a)]: r.ultimo });
+        return { numero: Math.max(r.proximo, (await ultimoConhecido(b, a)) + 1), origem: 'servidor', ultimo: r.ultimo, ultimoTF: r.ultimoTF };
+      } catch (e) { if (/revogado|inv[aá]lido|desconhecida/i.test(e.message)) throw e; }   // sem resposta: segue offline
+    }
+    const u = await ultimoConhecido(b, a);
+    return { numero: u + 1, origem: 'offline', ultimo: u, ultimoTF: null };
   }
 
   /* ---------- estado do formulário ---------- */
@@ -120,17 +117,11 @@ const TFUI = (() => {
     <button class="botao sec" type="button" data-tf="descartar">Descartar este TF</button></form>`;
   }
 
-  async function mostrarNumero() {
-    if (!$('#tf-barreira')) return;
-    const b = $('#tf-barreira').value, a = anoAtual(), bar = (await barreiras()).find(x => x.id === b);
-    if (!bar) return;
-    await garantirReserva(b, a);
-    if (!S || !$('#tf-numero')) return;                                              // o fiscal saiu da tela enquanto buscava o número
-    S.numero = await numeroProposto(b, a);
-    const txt = `${num4(S.numero.numero)}/${a} - ${bar.sufixo}`;
-    $('#tf-numero').innerHTML = `<small>Nº do TF</small><b>${esc(txt)}</b>` + (S.numero.origem === 'reserva'
-      ? '<small>Número reservado para este aparelho (sequência única da barreira).</small>'
-      : '<small class="aviso-txt">⚠️ Sem número reservado (sem internet): número provisório; será conferido ao enviar.</small>');
+  async function mostrarInfoNumero() {
+    const sel = $('#tf-barreira'), el = $('#tf-numero'); if (!sel || !el) return;
+    const b = sel.value, a = anoAtual(), bar = (await barreiras()).find(x => x.id === b); if (!bar) return;
+    const u = await ultimoConhecido(b, a);
+    el.innerHTML = `<small>Nº do TF</small><b>definido ao gerar</b><small>Ao gerar, o sistema consulta a planilha (último nº usado + 1) e mostra o número para você confirmar ou editar, antes do PDF.${u ? ' Último nº conhecido neste aparelho: ' + esc(num4(u) + '/' + a + ' - ' + bar.sufixo) + '.' : ''}</small>`;
   }
 
   async function novo(prefill) {
@@ -138,7 +129,7 @@ const TFUI = (() => {
     prefill = prefill || {};
     const bars = await barreiras();
     if (!bars.length) { view('<div class="card aviso">⚠️ A lista de barreiras ainda não foi carregada. Conecte-se à internet e aguarde a sincronização.</div>'); Sync.sincronizar(); return; }
-    let D = vazio(); S = { numero: null, hist: { doc: null, placa: null }, tpl: { constatacao: '', enquadramento: '' }, turnoId: '', veiculoId: '' };
+    let D = vazio(); S = { hist: { doc: null, placa: null }, tpl: { constatacao: '', enquadramento: '' }, turnoId: '', veiculoId: '' };
     const rasc = await Store.meta('tfRascunho');
     if (rasc && rasc.dados && confirm(`Há um TF não gerado, iniciado em ${new Date(rasc.em).toLocaleString('pt-BR')}.\n\nContinuar de onde parou? (Cancelar descarta o rascunho.)`)) {
       D = { ...D, ...rasc.dados }; S.turnoId = rasc.turnoId || ''; S.veiculoId = rasc.veiculoId || '';
@@ -156,7 +147,7 @@ const TFUI = (() => {
     if (!bars.some(b => b.id === D.barreira)) D.barreira = bars[0].id;
     view(formHTML(D, bars));
     $('#tf-uf').oninput = e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, ''); };
-    await mostrarNumero();
+    await mostrarInfoNumero();
     if (digitos(D.doc).length >= 11) consultarDoc();
     if (placaNorm(D.placa).length >= 7) consultarPlaca();
     ligarForm();
@@ -170,7 +161,7 @@ const TFUI = (() => {
       salvarRascunho();
     });
     f.addEventListener('change', async e => {
-      if (e.target.id === 'tf-barreira') { localStorage.setItem('gdv.barreira', e.target.value); await mostrarNumero(); }
+      if (e.target.id === 'tf-barreira') { localStorage.setItem('gdv.barreira', e.target.value); await mostrarInfoNumero(); }
       if (e.target.name === 'tf-proc') aplicarModelo(e.target.value);
       if (e.target.id === 'tf-doc') { e.target.value = fmtDoc(digitos(e.target.value)); }
       salvarRascunho();
@@ -242,15 +233,21 @@ const TFUI = (() => {
   }
 
   /* ---------- geração do TF ---------- */
-  function pedirNumero(num, sufixo, ano) {                                            // confirmação do número (editável, como no rascunho)
+  function pedirNumero(o) {                                                         // popup: número vindo da planilha, editável antes do PDF
     return new Promise(ok => {
       const m = document.createElement('div'); m.className = 'tf-modal';
-      m.innerHTML = `<div class="tf-modal-box"><h3>📄 Confirmar geração do TF</h3><p>Termo de Fiscalização nº</p>
-        <input id="tf-num-m" type="number" inputmode="numeric" min="1" value="${num}"><div id="tf-num-prev" class="tf-num"></div>
-        <p class="dica">Confira o número. Se necessário, altere antes de gerar (números repetidos são sinalizados na planilha).</p>
+      const ult = o.ultimoTF ? `Último número usado nesta barreira: <b>${esc(o.ultimoTF.numeroTxt)}</b> (${esc(o.ultimoTF.usuario)}, ${dBR(o.ultimoTF.data)} ${esc(o.ultimoTF.hora)}).`
+        : o.ultimo ? `Último número usado: <b>${esc(num4(o.ultimo))}/${o.ano}</b>.` : 'Nenhum TF anterior nesta barreira neste ano.';
+      m.innerHTML = `<div class="tf-modal-box"><h3>📄 Número do TF</h3>
+        ${o.aviso ? `<div class="tf-alerta">${esc(o.aviso)}</div>` : ''}
+        ${o.offline ? '<div class="tf-novo">⚠️ Sem conexão: número <b>provisório</b>, calculado a partir do último número que este aparelho conhece. Será conferido na planilha ao sincronizar.</div>' : '<div class="tf-ok">✓ Número obtido na planilha agora.</div>'}
+        <p class="dica">${ult}</p>
+        <input id="tf-num-m" type="number" inputmode="numeric" min="1" value="${o.numero}"><div id="tf-num-prev" class="tf-num"></div><div id="tf-num-edit" class="dica"></div>
+        <p class="dica">Confira o número. Se necessário, você pode alterá-lo antes de gerar o PDF.</p>
         <div class="duas"><button class="botao sec" id="tf-m-cancel" type="button">Cancelar</button><button class="botao" id="tf-m-ok" type="button">Confirmar e gerar</button></div></div>`;
       document.body.append(m); const i = m.querySelector('input');
-      const prev = () => { m.querySelector('#tf-num-prev').innerHTML = `<b>${esc(num4(+i.value || 0))}/${ano} - ${esc(sufixo)}</b>`; };
+      const prev = () => { const n = +i.value || 0; m.querySelector('#tf-num-prev').innerHTML = `<b>${esc(num4(n))}/${o.ano} - ${esc(o.sufixo)}</b>`;
+        m.querySelector('#tf-num-edit').textContent = n && n !== o.sugerido ? `✏️ Número alterado (o sistema sugeriu ${num4(o.sugerido)}). Isso fica registrado para auditoria.` : ''; };
       i.oninput = prev; prev(); i.focus(); i.select();
       m.querySelector('#tf-m-cancel').onclick = () => { m.remove(); ok(null); };
       m.querySelector('#tf-m-ok').onclick = () => { const n = parseInt(i.value, 10); if (!(n > 0)) { toast('Informe o número do TF.', true); return; } m.remove(); ok(n); };
@@ -259,31 +256,59 @@ const TFUI = (() => {
 
   async function gerar() {
     const D = coletar(), a = anoAtual(), bar = (await barreiras()).find(x => x.id === D.barreira), doc = digitos(D.doc);
-    if (!bar || !S || !S.numero) return toast('Escolha a barreira.', true);
+    if (!bar || !S) return toast('Escolha a barreira.', true);
     if (!D.nome.trim()) return toast('Informe o nome / razão social do fiscalizado.', true);
     if (doc.length !== 11 && doc.length !== 14) return toast('Informe o CPF (11 dígitos) ou CNPJ (14 dígitos) completo.', true);
     if (!D.local.trim()) return toast('Informe o local.', true);
     if (!docOk(doc) && !confirm(`O ${doc.length === 11 ? 'CPF' : 'CNPJ'} informado tem dígitos inválidos. Gerar o TF mesmo assim?`)) return;
     if (!D.procedimento && !confirm('Nenhum procedimento (liberação, apreensão ou rechaço) foi marcado. Gerar o TF mesmo assim?')) return;
-    const n = await pedirNumero(S.numero.numero, bar.sufixo, a); if (n == null) return;
-    const jaTem = (await Store.todos('tfs')).some(t => t.barreira === bar.id && t.ano === a && t.numero === n);
-    if (jaTem) return toast(`Este aparelho já gerou o TF nº ${num4(n)}/${a}. Use outro número.`, true);
-    const turno = S.turnoId ? await Store.obter('turnos', S.turnoId) : null;
+
+    const btn = document.querySelector('#tfForm button[type=submit]'), rot = btn.textContent;
+    btn.disabled = true; btn.textContent = '🔎 Consultando a planilha…';
+    let sug; try { sug = await sugerirNumero(bar.id, a); } catch (e) { btn.disabled = false; btn.textContent = rot; return toast(e.message, true); }
+    btn.disabled = false; btn.textContent = rot;
+
+    const turno = S.turnoId ? await Store.obter('turnos', S.turnoId) : null, hist = S.hist.doc, t0 = Date.now(), id = Store.novoId();
     const prods = D.produtos.filter(p => p.p && p.q).map(p => `${p.p} - ${p.q} ${p.u}`);
-    const hist = S.hist.doc;
-    const rec = await Store.salvar('tfs', {
-      barreira: bar.id, ano: a, numero: n, numeroTxt: `${num4(n)}/${a} - ${bar.sufixo}`, turnoId: S.turnoId || '', veiculoId: S.veiculoId || '',
-      data: D.data, hora: D.hora, fiscal: (turno && turno.fiscal) || Sync.nome(), local: D.local.trim(), placa: D.placa, origem: D.origem.trim(), destino: D.destino.trim(),
-      doc, nome: D.nome.trim().toUpperCase(), rg: D.rg.trim(), endereco: D.endereco.trim(), municipio: D.municipio.trim(), uf: D.uf.trim().toUpperCase(), telefone: D.telefone.trim(), relacao: D.relacao,
-      inspecao: D.inspecao ? 1 : 0, coleta: D.coleta ? 1 : 0, amostras: Number(D.amostras) || 0, procedimento: D.procedimento, fiel: D.fiel ? 1 : 0, auto: D.auto ? 1 : 0, advertencia: D.advertencia ? 1 : 0,
-      documentos: JSON.stringify(D.docs), produtos: JSON.stringify(prods), constatacao: D.constatacao, enquadramento: D.enquadramento,
-      reincidente: hist && hist.reincidente ? 1 : 0, tfsAnteriores: hist ? hist.total : 0, cancelado: 0, motivoCancel: '', conflito: 0,
-      provisorio: S.numero.origem === 'provisorio' && n === S.numero.numero ? 1 : 0
-    });
-    await Store.salvar('pessoas', { id: doc, tipo: doc.length === 14 ? 'PJ' : 'PF', nome: D.nome.trim().toUpperCase(), rg: D.rg.trim(), endereco: D.endereco.trim(), municipio: D.municipio.trim(), uf: D.uf.trim().toUpperCase(), telefone: D.telefone.trim() });
-    if (D.placa.length >= 7) await Store.salvar('placas', { id: D.placa, doc, nome: D.nome.trim().toUpperCase() });
-    await consumir(bar.id, a, n); await Store.setMeta('tfRascunho', null); localStorage.setItem('gdv.barreira', bar.id);
-    S = null; Sync.sincronizar(); go('tfpronto', rec.id);
+    const nome = D.nome.trim().toUpperCase();
+    const pessoa = { id: doc, tipo: doc.length === 14 ? 'PJ' : 'PF', nome, rg: D.rg.trim(), endereco: D.endereco.trim(), municipio: D.municipio.trim(), uf: D.uf.trim().toUpperCase(), telefone: D.telefone.trim(), criadoEm: t0, atualizadoEm: t0 };
+    const placa = D.placa.length >= 7 ? { id: D.placa, doc, nome, criadoEm: t0, atualizadoEm: t0 } : null;
+
+    let numero = sug.numero, aviso = '';
+    for (let tentativa = 0; tentativa < 6; tentativa++) {
+      const n = await pedirNumero({ numero, sugerido: sug.numero, sufixo: bar.sufixo, ano: a, ultimo: sug.ultimo, ultimoTF: sug.ultimoTF, offline: sug.origem !== 'servidor', aviso });
+      if (n == null) return;
+      if ((await Store.todos('tfs')).some(t => t.barreira === bar.id && t.ano === a && t.numero === n && t.id !== id)) { numero = n; aviso = `Este aparelho já gerou o TF nº ${num4(n)}/${a}. Escolha outro número.`; continue; }
+      const rec = {
+        id, criadoEm: t0, atualizadoEm: t0, barreira: bar.id, ano: a, numero: n, numeroTxt: `${num4(n)}/${a} - ${bar.sufixo}`, turnoId: S.turnoId || '', veiculoId: S.veiculoId || '',
+        data: D.data, hora: D.hora, fiscal: (turno && turno.fiscal) || Sync.nome(), local: D.local.trim(), placa: D.placa, origem: D.origem.trim(), destino: D.destino.trim(),
+        doc, nome, rg: pessoa.rg, endereco: pessoa.endereco, municipio: pessoa.municipio, uf: pessoa.uf, telefone: pessoa.telefone, relacao: D.relacao,
+        inspecao: D.inspecao ? 1 : 0, coleta: D.coleta ? 1 : 0, amostras: Number(D.amostras) || 0, procedimento: D.procedimento, fiel: D.fiel ? 1 : 0, auto: D.auto ? 1 : 0, advertencia: D.advertencia ? 1 : 0,
+        documentos: JSON.stringify(D.docs), produtos: JSON.stringify(prods), constatacao: D.constatacao, enquadramento: D.enquadramento,
+        reincidente: hist && hist.reincidente ? 1 : 0, tfsAnteriores: hist ? hist.total : 0, cancelado: 0, motivoCancel: '', conflito: 0,
+        numeroSugerido: sug.numero, numeroOrigem: sug.origem !== 'servidor' ? 'provisorio' : (n === sug.numero ? 'sistema' : 'editado')
+      };
+      let emitido = null;
+      if (sug.origem === 'servidor') {                                               // a planilha confirma que o número ainda está livre
+        try {
+          const r = await Sync.emitirTF(rec, pessoa, placa);
+          if (r.emitido === false) {                                                 // outro fiscal usou este número nesse intervalo: ainda dá tempo de trocar
+            sug = { ...sug, numero: r.proximo, ultimo: r.ultimo, ultimoTF: { ...r.ocupadoPor } }; numero = r.proximo;
+            aviso = `O nº ${num4(n)}/${a} acabou de ser usado por ${r.ocupadoPor.usuario} (${dBR(r.ocupadoPor.data)} ${r.ocupadoPor.hora}). Nova sugestão: ${num4(r.proximo)}.`;
+            continue;
+          }
+          emitido = r;
+        } catch (e) { if (/revogado|inv[aá]lido/i.test(e.message)) return toast(e.message, true); }   // sem resposta: guarda e envia ao sincronizar
+      }
+      const est = emitido ? { pendente: 0, emitidoEm: emitido.emitidoEm } : { pendente: 1, provisorio: sug.origem !== 'servidor' ? 1 : 0 };
+      await Store.gravar('tfs', { ...rec, ...est });
+      await Store.gravar('pessoas', { ...pessoa, pendente: est.pendente });
+      if (placa) await Store.gravar('placas', { ...placa, pendente: est.pendente });
+      await Sync.lembrarUltimos({ [chave(bar.id, a)]: n });
+      await Store.setMeta('tfRascunho', null); localStorage.setItem('gdv.barreira', bar.id);
+      S = null; Sync.sincronizar(); go('tfpronto', rec.id); return;
+    }
+    toast('Não foi possível definir o número do TF. Tente novamente.', true);
   }
 
   /* ---------- telas: pronto e lista ---------- */
@@ -291,6 +316,8 @@ const TFUI = (() => {
     const t = await Store.obter('tfs', id); if (!t) return go('tf');
     view(`<div class="card"><h3>✅ TF gerado</h3><div class="tf-num"><b>${esc(t.numeroTxt)}</b></div>
       <p>${esc(t.nome)} · ${esc(fmtDoc(t.doc))}</p><p>${dBR(t.data)} ${esc(t.hora)}${t.placa ? ' · ' + esc(t.placa) : ''}</p>
+      ${t.pendente ? '<div class="tf-novo">⏳ Número provisório / aguardando envio: será conferido na planilha ao sincronizar. Se houver repetição, a coordenação é avisada.</div>' : '<div class="tf-ok">✓ Número confirmado na planilha.</div>'}
+      ${t.numeroOrigem === 'editado' ? `<div class="tf-novo">✏️ Número alterado manualmente (o sistema sugeriu ${num4(t.numeroSugerido)}). Registrado para auditoria.</div>` : ''}
       ${t.reincidente ? `<div class="tf-alerta">⚠️ Fiscalizado reincidente: ${t.tfsAnteriores} TF(s) anterior(es).</div>` : ''}</div>
       <button class="botao" data-tf="imprimir" data-id="${esc(t.id)}">🖨️ Imprimir / PDF (2 vias)</button>
       <button class="botao sec" data-tf="novo">➕ Novo TF</button>
@@ -309,7 +336,7 @@ const TFUI = (() => {
         <div class="info">${esc(PROC[t.procedimento] || 'Sem procedimento')}${t.placa ? ' · ' + esc(t.placa) : ''}${t.reincidente ? ' · ⚠️ reincidente' : ''}</div>
         ${t.cancelado ? `<div class="info pend">⛔ CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
         ${t.conflito ? '<div class="info pend">⚠️ Número duplicado na planilha: confira com a coordenação.</div>' : ''}
-        ${t.pendente ? '<div class="info pend">⏳ aguardando envio</div>' : ''}
+        ${t.pendente ? `<div class="info pend">⏳ ${t.provisorio ? 'número provisório, será conferido ao sincronizar' : 'aguardando envio'}</div>` : ''}
         <div class="botoes"><button class="editar" data-tf="imprimir" data-id="${esc(t.id)}">Imprimir</button>
         ${t.cancelado ? '' : `<button class="excluir" data-tf="cancelar" data-id="${esc(t.id)}">Cancelar TF</button>`}</div></div>`).join('') : '<div class="vazio">Nenhum TF neste aparelho.</div>';
     };

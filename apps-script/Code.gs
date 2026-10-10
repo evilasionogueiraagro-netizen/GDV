@@ -39,12 +39,15 @@ const TABELAS = {
               'cultura', 'quantidade', 'analise', 'partes', 'descricao', 'fotos', 'testemunha1Nome', 'testemunha1Doc', 'testemunha2Nome',
               'testemunha2Doc', 'assinaturas', 'local', 'cancelado', 'motivoCancel', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
   Propriedades: ['id', 'codigo', 'nome', 'doc', 'municipio', 'situacaoFundiaria', 'lat', 'lon', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
-  Arquivos: ['id', 'dono', 'donoId', 'tipo', 'papel', 'nome', 'mime', 'tamanho', 'driveId', 'url', 'usuario', 'criadoEm']   // fotos/assinaturas no Drive
+  Arquivos: ['id', 'dono', 'donoId', 'tipo', 'papel', 'nome', 'mime', 'tamanho', 'driveId', 'url', 'usuario', 'criadoEm'],  // fotos/assinaturas no Drive
+  // TF de Barreira em preenchimento no aparelho (alerta "apreensão em andamento" no painel). id = usuario|rascunhoId. Sem CPF/nome do fiscalizado.
+  Andamento: ['id', 'usuario', 'fiscal', 'turnoId', 'placa', 'procedimento', 'local', 'barreira', 'lat', 'lon', 'estado', 'inicioTs', 'atualizadoTs']
 };
 const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
                           'expiraEm', 'ativo', 'ativadoEm',
                           'ano', 'numero', 'ultimo', 'de', 'ate', 'em', 'numeroSugerido', 'emitidoEm', 'amostras', 'inspecao', 'coleta', 'fiel', 'auto',
-                          'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito', 'tamanho'];   // lat/lon/precisao ficam como texto (como em Turnos)
+                          'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito', 'tamanho',
+                          'inicioTs', 'atualizadoTs'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000 };   // demais colunas: 500
 // culturas/fotos/assinaturas são JSON: cortar o texto invalidaria o JSON (e apagaria as referências no aparelho). Os limites acima
@@ -76,6 +79,7 @@ function doPost(e) {
     if (req.action === 'pceEmitir') return json_(pceEmitir_(req, usuario));
     if (req.action === 'pceConsultar') return json_(pceConsultar_(req, usuario));
     if (req.action === 'arquivoEnviar') return json_(arquivoEnviar_(req, usuario));
+    if (req.action === 'tfAndamento') return json_(tfAndamento_(req, usuario));
     throw new Error('Ação inválida.');
   } catch (err) {
     return json_({ ok: false, erro: String(err.message || err) });
@@ -301,6 +305,58 @@ function consultar_(req, usuario) {
   };
 }
 
+/* ---------- TF em preenchimento (sinal ao vivo para o painel) ---------- */
+
+const ANDAMENTO_VALIDADE_MS = 10 * 60 * 1000;   // sem batimento (o app manda a cada 2 min) há mais de 10 min = encerrado
+const PROCEDIMENTOS_TF = ['liberacao', 'apreensao', 'rechaco'];
+
+/**
+ * O app avisa que um TF está sendo preenchido (estado "preenchendo": ao abrir o formulário, ao mudar procedimento/placa e a cada 2 min)
+ * ou que deixou de estar ("fim": gerado, descartado ou o fiscal saiu do formulário). Upsert por usuario|rascunhoId (melhor esforço:
+ * sem internet o app não envia nada). Grava só o necessário para o alerta: placa, procedimento, local/barreira e coordenada.
+ */
+function tfAndamento_(req, usuario) {
+  const estado = String(req.estado || ''), rid = String(req.rascunhoId || '');
+  if (estado !== 'preenchendo' && estado !== 'fim') throw new Error('Estado inválido.');
+  if (!/^[\w-]{1,64}$/.test(rid)) throw new Error('Rascunho inválido.');
+  const id = (usuario + '|' + rid).slice(0, 160), txt = function (v, n) { return String(v === null || v === undefined ? '' : v).trim().slice(0, n || 120); };
+  const coord = function (v, lim) { const n = numOuNulo_(v); return n !== null && Math.abs(n) <= lim ? String(n) : ''; };
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const t = lerTudo_('Andamento'), agora = Date.now();
+    let idx = -1;
+    t.valores.forEach(function (l, i) { if (String(l[0]) === id) idx = i; });
+    const antes = idx >= 0 ? paraObjeto_(t.cols, t.valores[idx]) : null;
+    if (estado === 'fim' && !antes) return { ok: true };                         // nada em andamento para encerrar
+    let o;
+    if (estado === 'fim') o = Object.assign({}, antes, { estado: 'fim', atualizadoTs: agora });
+    else {
+      const lat = coord(req.lat, 90), lon = coord(req.lon, 180), temGps = lat !== '' && lon !== '';
+      const continua = antes && antes.estado === 'preenchendo' && agora - antes.atualizadoTs <= ANDAMENTO_VALIDADE_MS;
+      o = { id: id, usuario: usuario, fiscal: usuario, turnoId: txt(req.turnoId, 64), placa: placaNorm_(req.placa).slice(0, 8),
+            procedimento: PROCEDIMENTOS_TF.indexOf(req.procedimento) >= 0 ? req.procedimento : '', local: txt(req.local), barreira: txt(req.barreira),
+            lat: temGps ? lat : (antes ? antes.lat : ''), lon: temGps ? lon : (antes ? antes.lon : ''), estado: 'preenchendo',
+            inicioTs: continua ? antes.inicioTs : agora, atualizadoTs: agora };
+    }
+    const linha = [t.cols.map(function (c) { return o[c] === undefined || o[c] === null ? '' : o[c]; })];
+    if (idx >= 0) t.sh.getRange(idx + 2, 1, 1, t.cols.length).setValues(linha);
+    else t.sh.getRange(t.sh.getLastRow() + 1, 1, 1, t.cols.length).setValues(linha);
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** TFs em preenchimento agora (estado "preenchendo" com batimento nos últimos 10 min), para o painel. */
+function tfsAndamento_(agora) {
+  return lerLeitura_('Andamento').filter(function (a) { return a.id && a.estado === 'preenchendo' && agora - a.atualizadoTs <= ANDAMENTO_VALIDADE_MS; })
+    .map(function (a) {
+      return { id: a.id, usuario: a.usuario, fiscal: a.fiscal, turnoId: a.turnoId, placa: a.placa, procedimento: a.procedimento, local: a.local,
+               barreira: a.barreira, lat: numOuNulo_(a.lat), lon: numOuNulo_(a.lon), inicioTs: a.inicioTs, atualizadoTs: a.atualizadoTs };
+    });
+}
+
 /* ---------- PCE: Termo de Colheita de Amostras (numeração), consulta e arquivos ---------- */
 
 /** Unidade da numeração do Termo de Colheita: sem espaços sobrando e em MAIÚSCULAS (ex.: "MANAUS"). */
@@ -473,6 +529,7 @@ function arquivoEnviar_(req, usuario) {
  *   painelDados  {key, de, ate}      → dados do período, já sem dados pessoais desnecessários (documentos mascarados)
  *   painelDados  {key, aoVivo:true, ids:[...]} → só os turnos em andamento (e os de "ids", para saber se encerraram) com seus veículos
  *                                       (atualização automática de 1 em 1 minuto, sem reler TFs, levantamentos e termos)
+ *   As duas formas de painelDados trazem também tfsAndamento: TFs sendo preenchidos agora nos aparelhos (aba Andamento).
  *   painelSair   {key}               → revoga a credencial do administrador (botão Sair)
  * O código é gerado no menu da planilha: GDV → Gerar código de administrador. Credenciais de fiscais não leem o painel,
  * e códigos de administrador não ativam aparelhos de fiscais. A rota antiga "?p=painel" só mostra o novo endereço.
@@ -705,7 +762,8 @@ function painelDados(token, filtro) {
              ultimoVeiculoHora: a.hora, ultimoVeiculoTs: a.ts || null, ultimoSinal: Math.max(t.srv_ts, a.ts) || null };
   });
 
-  if (aoVivo) return { ok: true, agora: Date.now(), admin: admin, aoVivo: true, periodo: p, turnos: turnos, veiculos: veiculos };
+  const agoraMs = Date.now(), tfsAndamento = tfsAndamento_(agoraMs);                 // TF em preenchimento: vem sempre (normal e ao vivo)
+  if (aoVivo) return { ok: true, agora: agoraMs, admin: admin, aoVivo: true, periodo: p, turnos: turnos, veiculos: veiculos, tfsAndamento: tfsAndamento };
 
   // TF de Barreira
   const todosTFs = lerLeitura_('TFs').filter(function (r) { return r.id; });
@@ -774,6 +832,7 @@ function painelDados(token, filtro) {
     periodo: p,
     turnos: turnos,
     veiculos: veiculos,
+    tfsAndamento: tfsAndamento,
     tfs: tfs,
     levantamentos: levantamentos,
     colheitas: colheitas,

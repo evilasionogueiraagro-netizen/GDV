@@ -143,6 +143,17 @@ const Sync = (() => {
   const proximoNumero = (barreira, ano) => chamar({ action: 'tfProximoNumero', barreira, ano }, 9000);
   /** Emissão: a planilha só grava o TF se o número ainda estiver livre. */
   const emitirTF = (tf, pessoa, placa) => chamar({ action: 'tfEmitir', tf: limpo(tf), pessoa: limpo(pessoa), placa: placa ? limpo(placa) : undefined }, 20000);
+  /**
+   * Sinal "TF em preenchimento" para o painel (melhor esforço): sem internet ou sem ativação não envia nada; erro nunca aparece
+   * para o fiscal e não entra em fila. Tempo limite curto (8 s). Os envios saem um de cada vez, na ordem (um "fim" nunca chega
+   * antes de um "preenchendo" anterior ainda em trânsito).
+   */
+  let filaAndamento = Promise.resolve();
+  function tfAndamento(dados) {
+    if (!ativado() || localStorage.getItem('gdv.revogado') || !navigator.onLine) return filaAndamento;
+    filaAndamento = filaAndamento.then(() => chamar({ action: 'tfAndamento', ...dados }, 8000)).catch(() => {});
+    return filaAndamento;
+  }
   /** Cadastro + histórico (reincidência) de um CPF/CNPJ e/ou placa, consultados no servidor. */
   const consultar = (doc, placa) => chamar({ action: 'tfConsultar', doc, placa });
 
@@ -224,6 +235,6 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { iniciar, sincronizar, testar, atualizarContagem, ativado, nome, ativar, desativar, consultar, proximoNumero, emitirTF, lembrarUltimos,
+  return { iniciar, sincronizar, testar, atualizarContagem, ativado, nome, ativar, desativar, consultar, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     pceProximoNumero, pceEmitir, pceConsultar, lembrarUltimosPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

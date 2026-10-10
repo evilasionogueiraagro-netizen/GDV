@@ -161,6 +161,8 @@ a { color: var(--marca2); }
 .pn-selo { display: inline-flex; align-items: center; gap: 4px; font-size: 12px; font-weight: 600; white-space: nowrap; }
 .pn-selo::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: currentColor; flex: none; }
 .pn-selo.critico { color: var(--critico); } .pn-selo.serio { color: #c4572b; } .pn-selo.atencao { color: #a46d00; } .pn-selo.bom { color: var(--bom-txt); } .pn-selo.info { color: var(--ink2); }
+.pn-selo.tf { color: var(--critico); font-weight: 750; text-transform: uppercase; letter-spacing: .02em; }
+.pn-selo.tf::before { border-radius: 2px 4px 2px 2px; width: 10px; height: 12px; }     /* documento, como o marcador do mapa */
 .pn-selo.praga { color: #b8481c; } .pn-selo.sempraga { color: var(--s1); }       /* PCE: mesmas cores dos gráficos (não são status) */
 :root:not([data-theme="light"]) .pn-selo.praga { color: var(--s2); }
 @media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .pn-selo.praga { color: #b8481c; } }
@@ -208,6 +210,14 @@ a { color: var(--marca2); }
 .pn-pin.semsinal::after { content: "?"; position: absolute; inset: 0; color: #fff; font: 800 10px/12px system-ui; text-align: center; }
 @keyframes pn-pulso { 0% { transform: scale(.6); opacity: .9; } 100% { transform: scale(1.6); opacity: 0; } }
 @media (prefers-reduced-motion: reduce) { .pn-pin.ok::after { animation: none; opacity: .5; } }
+/* TF em preenchimento (apreensão em andamento): "documento" vermelho com "TF" escrito (forma própria, não só a cor) e pulso
+   vermelho mais forte e rápido que o verde */
+.pn-pin.tf { width: 26px; height: 26px; border-radius: 5px 9px 5px 5px; background: var(--critico); border-width: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,.45), 0 0 10px 2px rgba(208,59,59,.55); }
+.pn-pin.tf::before { content: "TF"; position: absolute; inset: 0; color: #fff; font: 800 10.5px/22px system-ui, sans-serif; text-align: center; letter-spacing: -.02em; }
+.pn-pin.tf::after { content: ""; position: absolute; inset: -12px; border-radius: 10px; border: 3px solid var(--critico); animation: pn-pulso-tf 1.1s ease-out infinite; }
+@keyframes pn-pulso-tf { 0% { transform: scale(.55); opacity: 1; } 100% { transform: scale(1.5); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .pn-pin.tf::after { animation: none; opacity: .7; } }
+.pn-lg-pino .pn-pin.tf { transform: scale(.7); } .pn-lg-pino .pn-pin.tf::after { animation: none; opacity: .6; inset: -6px; }
 .pn-losango { width: 13px; height: 13px; background: var(--s3); transform: rotate(45deg); border: 2px solid var(--sf); border-radius: 2px; box-shadow: 0 0 0 1px rgba(0,0,0,.25); }
 .leaflet-container { font: 13px/1.4 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; background: var(--sf2); }
 .pn-mapa-div.pn-sem-tiles { background: var(--mapa-fundo); }
@@ -227,6 +237,30 @@ a { color: var(--marca2); }
 .pn-vivo-item b { display: block; font-size: 14px; overflow-wrap: anywhere; }
 .pn-vivo-item small { color: var(--ink2); font-size: 12.5px; display: block; }
 .pn-vivo-num { display: flex; gap: 14px; margin-top: 6px; font-size: 13px; } .pn-vivo-num strong { font-size: 18px; font-weight: 650; margin-right: 3px; }
+.pn-vivo-item.tf { border: 2px solid var(--critico); box-shadow: 0 0 0 3px color-mix(in srgb, var(--critico) 18%, transparent); }
+.pn-vivo-item .pn-vivo-tf { color: var(--ink); font-weight: 600; margin: 2px 0; }
+.pn-vivo-item .pn-vivo-tf b { display: inline-block; font-size: 10.5px; background: var(--critico); color: #fff; border-radius: 3px; padding: 0 4px; margin-right: 4px; vertical-align: 1px; }
+
+/* Aviso de TF em preenchimento (painel normal): fixo no canto, vermelho, até o TF terminar ou ser dispensado */
+.pn-tfaviso { position: fixed; right: 16px; bottom: 16px; z-index: 1200; width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 32px); overflow-y: auto;
+  display: flex; flex-direction: column; gap: 8px; }
+.pn-tfaviso-item { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; gap: 10px; align-items: start; background: #b42318; color: #fff; border-radius: 12px;
+  padding: 12px 12px 12px 14px; box-shadow: 0 8px 24px rgba(0,0,0,.28), 0 0 0 2px #fff inset; }
+.pn-tfaviso-item.novo { animation: pn-tfaviso-entra .25s ease-out, pn-tfaviso-pulso 1.6s ease-in-out .25s 4; }
+.pn-tfaviso-ic { width: 30px; height: 36px; border-radius: 4px 9px 4px 4px; background: #fff; color: #b42318; font: 800 13px/36px system-ui, sans-serif; text-align: center; flex: none; }
+.pn-tfaviso-txt { min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.pn-tfaviso-txt b { font-size: 15px; text-transform: uppercase; letter-spacing: .03em; }
+.pn-tfaviso-onde { font-size: 14.5px; font-weight: 600; overflow-wrap: anywhere; }
+.pn-tfaviso-txt small { font-size: 13px; opacity: .95; overflow-wrap: anywhere; }
+.pn-tfaviso-x { background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.7); border-radius: 8px; padding: 5px 9px; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
+.pn-tfaviso-x:hover, .pn-tfaviso-x:focus-visible { background: rgba(255,255,255,.3); }
+@keyframes pn-tfaviso-entra { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes pn-tfaviso-pulso { 50% { box-shadow: 0 8px 24px rgba(0,0,0,.28), 0 0 0 2px #fff inset, 0 0 0 6px rgba(208,59,59,.45); } }
+@media (prefers-reduced-motion: reduce) { .pn-tfaviso-item.novo { animation: none; } }
+@media (max-width: 700px) { .pn-tfaviso { right: 8px; left: 8px; bottom: 8px; width: auto; } }
+body.tv .pn-tfaviso { display: none !important; }
+.pn-btn-notif { font-size: 12.5px; padding: 5px 10px; border-style: dashed; }
+@media (max-width: 700px) { .pn-btn-notif { padding: 5px 8px; font-size: 12px; } }
 
 /* Tooltip flutuante (matriz etc.) */
 .pn-tip { position: fixed; z-index: 1000; pointer-events: none; background: var(--sf); color: var(--ink); border: 1px solid var(--borda); border-radius: 8px; padding: 6px 9px; font-size: 12.5px; box-shadow: 0 4px 12px rgba(0,0,0,.18); max-width: 260px; }
@@ -311,7 +345,10 @@ body.tv.tv-ocioso, body.tv.tv-ocioso * { cursor: none !important; }
 
 /* grades, cartões, legendas */
 .tv-grade { flex: 1; min-height: 0; display: grid; gap: 1.6vh 1.2vw; }
-.tv-grade-vivo { grid-template-columns: minmax(0, 1.32fr) minmax(0, 1fr); }
+.tv-grade-vivo { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); }      /* Ao vivo: mapa ≈ 60% da largura, lista ≈ 40% */
+/* Ao vivo: KPIs um pouco mais baixos para o mapa ganhar altura (valores continuam ≥ 6vh) */
+.tv-palco[data-tela="aovivo"] .tv-kpi { padding: 1vh 1.2vw 1.1vh; }
+.tv-palco[data-tela="aovivo"] .tv-kpi-val { font-size: 6.4vh; margin-top: 0.1vh; }
 .tv-grade-2 { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr); }
 .tv-grade-pce { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
 .tv-coluna { display: flex; flex-direction: column; gap: 1.6vh; min-height: 0; min-width: 0; }
@@ -357,12 +394,31 @@ body.tv.tv-ocioso, body.tv.tv-ocioso * { cursor: none !important; }
 .tv-pin::before { display: block; } .tv-pin.semsinal::before { content: "?"; } .tv-pin.longa::before { content: "!"; transform: rotate(-45deg); }
 .tv-pin.ok::after { content: ""; position: absolute; inset: calc(var(--pin, 28px) * -.55); border-radius: 50%; border: calc(var(--pin, 28px) * .1) solid var(--bom); animation: pn-pulso 1.8s ease-out infinite; }
 @media (prefers-reduced-motion: reduce) { .tv-pin.ok::after { animation: none; opacity: .5; } }
+/* TF em preenchimento: "documento" vermelho com "TF" e pulso vermelho forte; rótulo e cartão com a situação escrita */
+.tv-pin.tf { background: var(--critico); border-radius: 12% 30% 12% 12%; font-size: calc(var(--pin, 28px) * .4); box-shadow: 0 0 0 1px rgba(0,0,0,.5), 0 0 calc(var(--pin, 28px) * .5) rgba(208,59,59,.7); }
+.tv-pin.tf::before { content: "TF"; letter-spacing: -.03em; }
+.tv-pin.tf::after { content: ""; position: absolute; inset: calc(var(--pin, 28px) * -.6); border-radius: 30%; border: calc(var(--pin, 28px) * .14) solid var(--critico); animation: pn-pulso-tf 1.1s ease-out infinite; }
+@media (prefers-reduced-motion: reduce) { .tv-pin.tf::after { animation: none; opacity: .7; } }
+.tv-rotulo.tf { border-left: 0.7vh solid var(--critico); } .tv-rotulo.tf b { font-weight: 750; }
+.tv-rotulo.tf em { background: var(--critico); color: #fff; padding: 0 0.6vh; border-radius: 0.4vh; }
+.tv-faixa-tf { background: #b42318; color: #fff; flex-direction: column; align-items: stretch; gap: 0.5vh; padding: 0.9vh 2.4vw; font-size: 2.8vh; animation: tv-tf-pulso 1.4s ease-in-out infinite; }
+.tv-tf-linha { display: flex; align-items: center; gap: 1.2vw; line-height: 1.25; }
+.tv-tf-linha b { font-weight: 800; text-transform: uppercase; letter-spacing: .03em; white-space: nowrap; }
+.tv-tf-det { font-weight: 600; min-width: 0; }
+.tv-tf-ic { width: 3.4vh; height: 4.2vh; border-radius: 0.5vh 1.2vh 0.5vh 0.5vh; background: #fff; color: #b42318; font: 800 1.8vh/4.2vh system-ui, sans-serif; text-align: center; flex: none; }
+.tv-tf-mais { font-size: 2.2vh; font-weight: 650; padding-left: calc(3.4vh + 1.2vw); }
+@keyframes tv-tf-pulso { 50% { background: #d93a2b; } }
+@media (prefers-reduced-motion: reduce) { .tv-faixa-tf { animation: none; } }
 
 /* barreiras em andamento (cartões; compactos quando não cabem) */
 .tv-lista { flex: 1; min-height: 0; overflow: hidden; display: flex; flex-direction: column; gap: 1.1vh; }
 .tv-vivo { border: 1px solid var(--borda); border-radius: 1.1vh; padding: 1.1vh 1.1vw; background: var(--sf2); flex: none; }
 .tv-vivo.longa { box-shadow: inset 0.6vh 0 0 var(--critico); padding-left: calc(1.1vw + 0.6vh); }
 .tv-vivo.semsinal { box-shadow: inset 0.6vh 0 0 #8a8a85; padding-left: calc(1.1vw + 0.6vh); }
+.tv-vivo.tf { border: 0.3vh solid var(--critico); box-shadow: inset 0.8vh 0 0 var(--critico); padding-left: calc(1.1vw + 0.8vh); }
+.tv-vivo-tf { font-size: 2.1vh; font-weight: 650; color: var(--ink); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.tv-selo.tf { text-transform: uppercase; color: var(--critico); } .tv-selo.tf i { background: var(--critico); border-radius: 0.3vh 0.7vh 0.3vh 0.3vh; }
+.tv-vivo-c.tf .tv-vivo-c-nome span { color: var(--ink); font-weight: 650; }
 .tv-vivo-l1 { display: flex; justify-content: space-between; gap: 1vw; align-items: center; font-size: 1.9vh; }
 .tv-selo { display: inline-flex; align-items: center; gap: 0.7vh; font-weight: 650; color: var(--ink); white-space: nowrap; }
 .tv-selo i, .tv-dot { width: 1.6vh; height: 1.6vh; border-radius: 50%; display: inline-block; flex: none; }

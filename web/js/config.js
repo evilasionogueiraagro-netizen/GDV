@@ -6,12 +6,13 @@ const CONFIG = {
   unidadePadrao: 'MANAUS',          // unidade que aparece no Termo; pode ser alterada a cada turno
   localPadrao: '',                  // sugestão de local (ex.: 'Barreira Porto CEASA'); vazio = digitar a cada turno
   postos: ['Fixa', 'Móvel'],        // "Móvel" aparece como "Volante (móvel)" na tela
-  // BVAs fixas (lista do campo Local/Posto quando o posto é Fixa). placa: true = placa do veículo obrigatória.
+  // BVAs fixas (lista do campo Local/Posto quando o posto é Fixa). placa: true = placa do veículo obrigatória;
+  // ficha: true = gera a Ficha de Campo (nas demais BVAs e no volante, só o Termo).
   // Posto volante (móvel): local preenchido pelo endereço da coordenada (editável) e placa opcional.
   bvas: [
-    { nome: 'BVA - CEASA', placa: true },
-    { nome: 'BVA - JUNDIÁ', placa: false },
-    { nome: 'BVA - AEROPORTO', placa: false }
+    { nome: 'BVA - CEASA', placa: true, ficha: true },
+    { nome: 'BVA - JUNDIÁ', placa: false, ficha: false },
+    { nome: 'BVA - AEROPORTO', placa: false, ficha: false }
   ],
   // Os horários do turno são capturados do relógio do aparelho (ao iniciar e ao encerrar).
   // A letra do TF / quadradinho da Ficha é deduzida da hora de início: das 04:00 às 11:59 = A; demais = B.
@@ -51,7 +52,7 @@ const CONFIG = {
     }
   },
 
-  // Módulo PCE: Levantamento fitossanitário e Termo de Colheita de Amostras (listas copiadas do rascunho do sistema PCE)
+  // Módulo PCE (Programa de Controle e Erradicação): Levantamento fitossanitário e Termo de Colheita de Amostras (listas copiadas do rascunho do sistema PCE)
   PCE: {
     vias: 2,                                       // Termo de Colheita: via da ADAF e via do produtor
     municipios: ['Alvarães', 'Amaturá', 'Anamã', 'Anori', 'Apuí', 'Atalaia do Norte', 'Autazes', 'Barcelos', 'Barreirinha', 'Benjamin Constant',
@@ -72,7 +73,8 @@ const CONFIG = {
       'Herança / Espólio', 'Área pública autorizada', 'Outro'],
     partes: ['folhas', 'frutos', 'raízes', 'caule', 'sementes', 'outros'],
     fotoLado: 1600, fotoQualidade: 0.7,            // redução das fotos antes de guardar/enviar (lado maior em px, JPEG)
-    arquivosPorRodada: 5                           // fotos/assinaturas enviadas ao Drive por sincronização (uma por requisição)
+    arquivosPorRodada: 5,                          // fotos/assinaturas/PDFs enviados ao Drive por sincronização (um por requisição)
+    maxDocumentos: 10                              // PDFs escaneados por registro antigo (até 10 MB cada)
   }
 };
 

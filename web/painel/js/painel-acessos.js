@@ -1,5 +1,7 @@
 /* Painel gerencial do GDV — aba "Servidores": gerar chave de ativação do app de campo para um fiscal/servidor, reenviar o código
-   (copiar / WhatsApp) e acompanhar ou revogar os acessos. Usa as actions painelGerarCodigo, painelAcessos e painelRevogar (Code.gs).
+   (copiar / WhatsApp), acompanhar ou revogar os acessos e escolher os módulos em que cada servidor pode inserir dados
+   (Controle de veículos, TF de Barreira, PCE; por nome, valem para todos os aparelhos dele).
+   Usa as actions painelGerarCodigo, painelAcessos, painelRevogar e painelPermissoes (Code.gs).
    Não depende do período nem dos filtros e não aparece no Modo TV. Usa a API do objeto global Painel (js/painel.js). */
 (() => {
   'use strict';
@@ -8,6 +10,10 @@
   const APP_URL = 'https://evilasionogueiraagro-netizen.github.io/GDV/';
   const RECARREGAR_MS = 60 * 1000;                    // ao voltar à aba, relê a lista se a última leitura tiver mais de 1 min
   const NOME_MAX = 80;
+  const MODULOS = [['veiculos', 'Veículos', 'Controle de veículos', 'Veíc.'], ['tf', 'TF', 'TF de Barreira', 'TF'], ['pce', 'PCE', 'PCE (levantamento e termo de colheita)', 'PCE']];
+  const TUDO = { veiculos: 1, tf: 1, pce: 1 };
+  const permDe = a => Object.assign({}, TUDO, (a && a.permissoes) || {});
+  const MSG_MIN = 'Marque pelo menos um módulo. Para tirar todo o acesso do servidor, use Revogar.';
   const SITUACOES = {
     aguardando: { rot: 'Aguardando ativação', cls: 'atencao', ordem: 0 },
     ativo: { rot: 'Ativo', cls: 'bom', ordem: 1 },
@@ -54,6 +60,11 @@
             <label for="pn-ac-nome">Nome completo do servidor</label>
             <input id="pn-ac-nome" name="nome" maxlength="${NOME_MAX}" placeholder="Ex.: Maria Souza da Silva" autocapitalize="words" spellcheck="false" required>
             <p class="pn-sub pn-ac-dica">Como deve aparecer nos documentos. O acesso fica vinculado a esse nome.</p>
+            <fieldset class="pn-ac-mods" id="pn-ac-mods">
+              <legend>Módulos em que pode inserir dados</legend>
+              ${MODULOS.map(([k, , rot]) => `<label class="pn-ac-mod"><input type="checkbox" id="pn-ac-mod-${k}" data-mod="${k}" checked> ${esc(rot)}</label>`).join('')}
+              <p class="pn-sub pn-ac-dica" id="pn-ac-mods-dica">Pode mudar depois na lista abaixo. Vale para todos os aparelhos do servidor.</p>
+            </fieldset>
             <button type="submit" class="pn-botao" id="pn-ac-gerar">Gerar chave</button>
             <p class="pn-erro" id="pn-ac-erro" role="alert" hidden></p>
           </form>
@@ -76,6 +87,8 @@
       </section>`;
     const q = s => r.querySelector(s);
     q('#pn-ac-form').addEventListener('submit', gerar);
+    q('#pn-ac-nome').addEventListener('input', sugerirModulos);
+    r.addEventListener('change', e => { const c = e.target.closest('input[data-perm]'); if (c) mudarPermissao(c); });
     q('#pn-ac-busca').addEventListener('input', e => { E.busca = e.target.value; desenharLista(); });
     q('#pn-ac-sit').addEventListener('change', e => { E.situacao = e.target.value; desenharLista(); });
     q('#pn-ac-admins').addEventListener('change', e => { E.admins = e.target.checked; desenharLista(); });
@@ -93,6 +106,16 @@
   }
   const q = s => E.raiz && E.raiz.querySelector(s);
 
+  /* ---------- módulos no formulário: servidor já cadastrado vem com os módulos atuais (gerar não muda sem querer) ---------- */
+  function sugerirModulos() {
+    const n = norm(q('#pn-ac-nome').value.trim().replace(/\s+/g, ' ')), dica = q('#pn-ac-mods-dica');
+    const a = n && (E.lista || []).find(x => x.perfil === 'fiscal' && norm(x.nome) === n);
+    const p = a ? permDe(a) : TUDO;
+    MODULOS.forEach(([k]) => { q('#pn-ac-mod-' + k).checked = !!p[k]; });
+    dica.textContent = a ? `Módulos atuais de ${a.nome} (já cadastrado). O que ficar marcado aqui passa a valer para todos os aparelhos dele.`
+      : 'Pode mudar depois na lista abaixo. Vale para todos os aparelhos do servidor.';
+  }
+
   /* ---------- gerar ---------- */
   async function gerar(ev) {
     ev.preventDefault();
@@ -103,11 +126,13 @@
     if (!nome) return falha('Informe o nome completo do servidor.');
     if (nome.split(' ').length < 2) return falha('Informe o nome completo (nome e sobrenome).');
     if (nome.length > NOME_MAX) return falha(`Nome longo demais (máximo de ${NOME_MAX} caracteres).`);
+    const modulos = {}; MODULOS.forEach(([k]) => { modulos[k] = q('#pn-ac-mod-' + k).checked ? 1 : 0; });
+    if (!modulos.veiculos && !modulos.tf && !modulos.pce) { err.textContent = MSG_MIN; err.hidden = false; return; }
     b.disabled = true; b.textContent = 'Gerando…';
     try {
-      const j = await P.chamar({ action: 'painelGerarCodigo', nome });
-      E.ultimo = { nome: j.nome, codigo: j.codigo, expiraEm: j.expiraEm }; E.aviso = '';
-      inp.value = ''; desenharResultado();
+      const j = await P.chamar({ action: 'painelGerarCodigo', nome, modulos });
+      E.ultimo = { nome: j.nome, codigo: j.codigo, expiraEm: j.expiraEm, permissoes: j.permissoes || modulos }; E.aviso = '';
+      inp.value = ''; sugerirModulos(); desenharResultado();
       carregar();
     } catch (e) { if (P.logado) falha(e.message); }
     finally { b.disabled = false; b.textContent = 'Gerar chave'; }
@@ -121,6 +146,7 @@
       <div class="pn-ac-para">${g.reenvio ? 'Código (ainda não usado) de' : 'Chave de ativação de'} <b>${esc(g.nome)}</b></div>
       <div class="pn-ac-codigo" id="pn-ac-codigo" aria-label="Código ${esc(String(g.codigo).split('').join(' '))}">${esc(codigoFmt(g.codigo))}</div>
       <div class="pn-ac-validade">Uso único · válida até <b>${esc(dataHora(g.expiraEm))}</b> (horário de Manaus)</div>
+      ${g.permissoes ? `<div class="pn-ac-validade" id="pn-ac-res-mods">Módulos: <b>${esc(MODULOS.filter(([k]) => g.permissoes[k]).map(m => m[2]).join(', '))}</b></div>` : ''}
       <ol class="pn-ac-passos">
         <li>No celular do servidor, abra <a href="${esc(APP_URL)}" target="_blank" rel="noopener">${esc(APP_URL.replace(/^https:\/\//, ''))}</a>.</li>
         <li>Instale o app (Android: <i>Instalar app</i>; iPhone, no Safari: Compartilhar → <i>Adicionar à Tela de Início</i>).</li>
@@ -170,6 +196,9 @@
       { chave: 'nome', rotulo: 'Servidor', html: (v, l) => `<b>${esc(v)}</b>${l.perfil === 'admin' ? ' <span class="pn-ac-perfil">administrador</span>' : ''}` },
       { chave: 'situacao', rotulo: 'Situação', ordem: l => l.ordemSit, csv: v => (SITUACOES[v] || {}).rot || v,
         html: v => { const s = SITUACOES[v] || { rot: v, cls: 'info' }; return `<span class="pn-selo ${s.cls}">${esc(s.rot)}</span>`; } },
+      { chave: 'permissoes', rotulo: 'Módulos', ordem: l => l.perfil === 'admin' ? '' : MODULOS.filter(([k]) => permDe(l)[k]).length,
+        csv: (v, l) => l.perfil === 'admin' ? 'todos (administrador)' : MODULOS.filter(([k]) => permDe(l)[k]).map(m => m[1]).join(', '),
+        html: (v, l) => l.perfil === 'admin' ? '<span class="pn-sub">—</span>' : modulosHTML(l) },
       { chave: 'codigo', rotulo: 'Código', csv: () => '', html: (v, l) => v ? `<span class="pn-ac-cod">${esc(codigoFmt(v))}</span> <button type="button" class="pn-link" data-acao="reenviar" data-codigo="${esc(v)}">Reenviar</button>` : '—' },
       { chave: 'criadoEm', rotulo: 'Gerado em', num: true, fmt: v => dataCurta(v), csv: v => v ? dataCurta(v) : '' },
       { chave: 'expiraEm', rotulo: 'Código válido até', num: true, fmt: (v, l) => l.situacao === 'aguardando' || l.situacao === 'vencido' ? dataCurta(v) : '—', csv: v => v ? dataCurta(v) : '' },
@@ -181,6 +210,37 @@
       titulo: E.aviso || undefined,
       subtitulo: `${E.lidoEm ? 'Lista lida às ' + P.horaManaus(E.lidoEm) : ''}${E.erro ? ' · falha ao atualizar: ' + E.erro : ''}`,
       vazio: E.lista.length ? 'Nenhum acesso com esses filtros.' : 'Nenhum acesso cadastrado ainda.' });
+  }
+
+  /* ---------- módulos por servidor (caixas na tabela; salvam na hora) ---------- */
+  function modulosHTML(l) {
+    const p = permDe(l);
+    return `<div class="pn-ac-perm" data-nome="${esc(l.nome)}" role="group" aria-label="Módulos de ${esc(l.nome)}">${MODULOS.map(([k, curto, longo, minimo]) =>
+      `<label title="${esc(longo)}"><input type="checkbox" data-perm="${k}" data-nome="${esc(l.nome)}" aria-label="${esc(longo)}" ${p[k] ? 'checked' : ''}> <span class="pn-ac-perm-r">${esc(curto)}</span><span class="pn-ac-perm-m" aria-hidden="true">${esc(minimo)}</span></label>`).join('')}<span class="pn-ac-perm-st" role="status"></span></div>`;
+  }
+  /** Todas as linhas do mesmo servidor (vários aparelhos/códigos) mostram as mesmas caixas. */
+  function caixasDe(nome) { return [...(E.raiz ? E.raiz.querySelectorAll('.pn-ac-perm') : [])].filter(g => norm(g.dataset.nome) === norm(nome)); }
+  function mostrarPerm(nome, p, st, cls, ocupado) {
+    caixasDe(nome).forEach(g => {
+      g.querySelectorAll('input[data-perm]').forEach(i => { i.checked = !!p[i.dataset.perm]; i.disabled = !!ocupado; });
+      const s = g.querySelector('.pn-ac-perm-st'); s.textContent = st || ''; s.className = 'pn-ac-perm-st' + (cls ? ' ' + cls : '');
+    });
+  }
+  async function mudarPermissao(c) {
+    const g = c.closest('.pn-ac-perm'), nome = c.dataset.nome; if (!g || !nome) return;
+    const a = (E.lista || []).find(x => x.perfil === 'fiscal' && norm(x.nome) === norm(nome)), antes = permDe(a);
+    const novo = {}; g.querySelectorAll('input[data-perm]').forEach(i => { novo[i.dataset.perm] = i.checked ? 1 : 0; });
+    if (!novo.veiculos && !novo.tf && !novo.pce) { mostrarPerm(nome, antes, MSG_MIN, 'erro'); return; }
+    mostrarPerm(nome, novo, 'Salvando…', '', true);
+    try {
+      const j = await P.chamar(Object.assign({ action: 'painelPermissoes', nome }, novo));
+      const p = Object.assign({}, TUDO, j.permissoes || novo);
+      (E.lista || []).forEach(x => { if (x.perfil === 'fiscal' && norm(x.nome) === norm(nome)) x.permissoes = p; });
+      mostrarPerm(nome, p, 'Salvo ✓', 'ok');
+      setTimeout(() => caixasDe(nome).forEach(x => { const s = x.querySelector('.pn-ac-perm-st'); if (s && s.classList.contains('ok')) { s.textContent = ''; s.className = 'pn-ac-perm-st'; } }), 4000);
+    } catch (e) {
+      if (P.logado) mostrarPerm(nome, antes, 'Não salvou: ' + e.message, 'erro');
+    }
   }
 
   /* ---------- revogar ---------- */

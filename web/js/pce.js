@@ -203,7 +203,7 @@ const PCEUI = (() => {
         if (r.pessoa) { const l = await Store.obter('pessoas', r.pessoa.id || doc); if (!l || !l.pendente) await Store.gravar('pessoas', { ...(l || {}), ...r.pessoa, id: r.pessoa.id || doc, criadoEm: t, atualizadoEm: t, pendente: 0 }); }
         for (const p of r.propriedades || []) { const l = await Store.obter('propriedades', p.id); if (p.id && (!l || !l.pendente)) await Store.gravar('propriedades', { ...p, pendente: 0 }); }
         return { pessoa: r.pessoa || null, propriedades: r.propriedades || [], levantamentos: qtd(r.levantamentos), colheitas: qtd(r.colheitas), parcial: false };
-      } catch (e) { if (/revogado|inv[aá]lido/i.test(e.message)) throw e; }          // sem resposta: segue offline
+      } catch (e) { if (e.semPermissao || /revogado|inv[aá]lido/i.test(e.message)) throw e; }          // sem resposta: segue offline
     }
     const doDoc = x => !x.excluido && digitos(x.doc) === doc;
     return { pessoa: (await Store.obter('pessoas', doc)) || null, propriedades: (await Store.todos('propriedades')).filter(doDoc), parcial: true,
@@ -446,7 +446,7 @@ const PCEUI = (() => {
           ${pend ? '<div class="info pend">⏳ aguardando envio</div>' : ''}
           <div class="botoes pce-acoes"><button class="editar" data-pce="abrirlev" data-id="${esc(x.id)}">Abrir</button>
           <button class="editar" data-pce="imprimirlev" data-id="${esc(x.id)}">Ficha (PDF)</button>
-          <button class="tfbtn" data-pce="termodelev" data-id="${esc(x.id)}">Termo de colheita</button>
+          ${Sync.pode('pce') ? `<button class="tfbtn" data-pce="termodelev" data-id="${esc(x.id)}">Termo de colheita</button>` : ''}
           <button class="excluir" data-pce="excluirlev" data-id="${esc(x.id)}">Excluir</button></div></div>`;
       }).join('') : '<div class="vazio">Nenhum levantamento neste aparelho.</div>';
     };
@@ -537,7 +537,7 @@ const PCEUI = (() => {
         await Sync.lembrarUltimosPce({ [chave(u, a)]: r.ultimo });
         return { numero: Math.max(r.proximo, (await ultimoConhecido(u, a)) + 1), origem: 'servidor', ultimo: r.ultimo,
           ultimoReg: r.ultimoTermo || r.ultimoColheita || r.ultimoTF || null };
-      } catch (e) { if (/revogado|inv[aá]lido|desconhecida/i.test(e.message)) throw e; }      // sem resposta: segue offline
+      } catch (e) { if (e.semPermissao || /revogado|inv[aá]lido|desconhecida/i.test(e.message)) throw e; }      // sem resposta: segue offline
     }
     const u0 = await ultimoConhecido(u, a);
     return { numero: u0 + 1, origem: 'offline', ultimo: u0, ultimoReg: null };
@@ -681,7 +681,7 @@ const PCEUI = (() => {
             continue;
           }
           emitido = r;
-        } catch (e) { if (/revogado|inv[aá]lido/i.test(e.message)) return toast(e.message, true); }   // sem resposta: guarda e envia ao sincronizar
+        } catch (e) { if (e.semPermissao || /revogado|inv[aá]lido/i.test(e.message)) return toast(e.message, true); }   // sem resposta: guarda e envia ao sincronizar
       }
       const est = emitido ? { pendente: 0, emitidoEm: emitido.emitidoEm } : { pendente: 1, provisorio: sug.origem !== 'servidor' ? 1 : 0 };
       await Store.gravarVarios('arquivos', novos);

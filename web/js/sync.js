@@ -213,6 +213,18 @@ const Sync = (() => {
     await Store.gravarVarios(store, ok);
   }
 
+  /** O aparelho guarda só os turnos/veículos do próprio fiscal. Versões antigas do servidor mandavam os de todos;
+   *  apaga do aparelho (nunca da planilha) os já enviados que são de outro fiscal. Pendentes e o turno atual ficam. */
+  async function limparDeOutros() {
+    const eu = nome(); if (!eu) return;
+    const atual = await Store.meta('turnoAtual');
+    const turnos = (await Store.todos('turnos')).filter(t => t.usuario && t.usuario !== eu && !t.pendente && t.id !== atual);
+    const fora = new Set(turnos.map(t => t.id));
+    const veic = (await Store.todos('veiculos')).filter(v => !v.pendente && fora.has(v.turnoId));   // só os veículos dos turnos removidos
+    await Store.apagar('turnos', [...fora]);
+    await Store.apagar('veiculos', veic.map(v => v.id));
+  }
+
   async function sincronizar() {
     const c = cfg();
     if (rodando || !c.url || !c.key) return;
@@ -249,6 +261,7 @@ const Sync = (() => {
         try { await enviarPendentesArquivos(await arquivosPendentes()); }    // falha numa foto não derruba o sync principal
         catch (e) { erroArq = e.message || String(e); }
       }
+      await limparDeOutros();
       await Store.setMeta('ultimaSync', Date.now());
       localStorage.removeItem('gdv.revogado');
       const resta = await pendentes(), semPerm = await bloqueadosComPendentes(resta);

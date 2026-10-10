@@ -14,6 +14,7 @@ App para registrar os veículos abordados em barreiras **fixas ou móveis**, por
  └─────────────────────────────────────────┘   sincroniza   └──────────────────────┘
 ```
 
+- **Fluxo do fiscal:** abre o link → recebe as instruções para **instalar** (iOS/Android) → abre o app instalado e informa o **código de ativação** → cai na tela de **Módulos**, com dois cartões: **Controle de veículos** (turno, registro, lista, resumo, histórico, Termo e Ficha) e **Termo de Fiscalização de Barreira** (TF isolado). Dentro do controle de veículos também é possível lavrar o TF (botão *Lavrar TF neste turno* na tela do turno e *Lavrar TF* em cada veículo da lista), sem sair do módulo. O item *Módulos* do menu volta sempre para essa tela.
 - **Offline primeiro:** tudo é salvo no aparelho. Ao voltar a conexão (ou a cada 60 s online) o app envia o que está pendente e baixa o que mudou. O selo no topo mostra 🟢 Online / 🔴 Offline e quantos registros aguardam envio.
 - **Um fiscal por turno** lança os dados; vários aparelhos/barreiras podem usar a mesma planilha (cada registro tem ID único; em conflito vale a edição mais recente).
 - **Horários do turno:** o início é o instante em que o fiscal toca em *Iniciar turno* e o fim, o instante de *Encerrar turno* (relógio do aparelho; mantenha data/hora automáticas). Ambos vão para o Termo. A letra do TF e o quadradinho da Ficha são deduzidos do início: 04:00–11:59 = A, demais = B. O Termo é liberado após encerrar. O encerramento é definitivo (não há como reabrir o turno).
@@ -51,7 +52,7 @@ Para testar localmente: `cd web && python3 -m http.server 8080`.
 
 ## Termo de Fiscalização de Barreira (TF)
 
-Dentro do mesmo app, na aba **📄 TF**: o fiscal preenche o TF digitalmente e imprime em **2 vias** (páginas separadas, uma via por folha A4) para assinatura. Pode ser usado **isolado** (aba TF → *Novo TF*) ou **a partir do controle de veículos**: na lista de veículos, o botão **Lavrar TF** já traz a placa e o local do turno e liga o TF ao turno. No **Termo do turno**, o campo “Termos de Barreira Lavrados” sai preenchido com os números dos TFs lavrados naquele turno.
+Dentro do mesmo app, no módulo **Termo de Fiscalização de Barreira** (menu *Módulos*): o fiscal preenche o TF digitalmente e imprime em **2 vias** (páginas separadas, uma via por folha A4) para assinatura. Pode ser usado **isolado** (módulo TF → *Novo TF*) ou **embutido no controle de veículos**: o botão **Lavrar TF neste turno** (tela do turno) e o botão **Lavrar TF** de cada veículo da lista abrem o mesmo formulário com o local do turno (e a placa, no caso do veículo), ligam o TF ao turno e, ao terminar, voltam para o controle de veículos. No **Termo do turno**, o campo “Termos de Barreira Lavrados” sai preenchido com os números dos TFs lavrados naquele turno.
 
 **Numeração (uma sequência única por barreira e por ano, na planilha)**
 - Formato `0012/2026 - BVA - CEASA` (o sufixo vem da aba `Barreiras`). **Não há faixas reservadas por celular**: o número é o *último usado na planilha + 1*.

@@ -33,12 +33,39 @@ function pegarLocal() {
 }
 const camposLocal = (g, sufixo) => g ? { ['lat' + sufixo]: g.lat, ['lng' + sufixo]: g.lng, ['prec' + sufixo]: g.prec } : {};
 
-/* ---------- navegação ---------- */
+/* ---------- módulos e navegação ---------- */
+// Depois de instalar e ativar o aparelho, o fiscal escolhe um módulo: Controle de veículos ou TF.
+// Dentro do controle de veículos o TF também está embutido (botão "Lavrar TF"); o menu de baixo muda conforme o módulo.
+let MODULO = 'hub';
+const NAVS = {
+  hub: [['modulos', '🏠', 'Módulos'], ['config', '⚙️', 'Status']],
+  veiculos: [['modulos', '🏠', 'Módulos'], ['home', '🚛', 'Turno'], ['registrar', '➕', 'Registrar'], ['lista', '📋', 'Lista'], ['resumo', '📊', 'Resumo'], ['historico', '📈', 'Histórico']],
+  tf: [['modulos', '🏠', 'Módulos'], ['tf', '📄', 'Meus TFs'], ['tfnovo', '➕', 'Novo TF']]
+};
+const VIEWS_VEICULOS = ['home', 'registrar', 'editar', 'lista', 'resumo', 'fechado', 'historico'];
+function renderNav(view) {
+  const ativo = ({ editar: 'lista', fechado: 'home', tfpronto: MODULO === 'tf' ? 'tf' : 'lista', tfnovo: MODULO === 'tf' ? 'tfnovo' : 'lista' })[view] || view;
+  $('#nav').innerHTML = NAVS[MODULO].map(([v, i, t]) => `<button data-v="${v}" class="${v === ativo ? 'on' : ''}">${i}<span>${t}</span></button>`).join('');
+}
 function go(view, arg) {
   VIEW = view; EDIT = arg || null;
-  document.querySelectorAll('#nav button').forEach(b => b.classList.toggle('on', b.dataset.v === view || (view === 'editar' && b.dataset.v === 'lista') || (/^tf/.test(view) && b.dataset.v === 'tf')));
-  ({ home, registrar, editar: registrar, lista, resumo, fechado, historico, config, tf: () => TFUI.lista(), tfnovo: () => TFUI.novo(EDIT), tfpronto: () => TFUI.pronto(EDIT) }[view])();
+  if (view === 'modulos' || view === 'config') MODULO = 'hub';
+  else if (view === 'tf') MODULO = 'tf';
+  else if (VIEWS_VEICULOS.includes(view)) MODULO = 'veiculos';
+  else if (/^tf/.test(view) && MODULO === 'hub') MODULO = 'tf';          // TF aberto a partir do veículo continua no módulo de veículos (embutido)
+  renderNav(view);
+  ({ modulos, home, registrar, editar: registrar, lista, resumo, fechado, historico, config, tf: () => TFUI.lista(), tfnovo: () => TFUI.novo(EDIT), tfpronto: () => TFUI.pronto(EDIT) }[view])();
   window.scrollTo(0, 0);
+}
+
+async function modulos() {
+  if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());      // 1º instalar, 2º ativar, 3º módulos
+  const t = await turnoAtual(), v = t ? await veiculosDe(t.id) : [];
+  const tfs = await Store.todos('tfs'), pend = tfs.filter(x => x.pendente).length, nome = Sync.nome().split(' ')[0];
+  view(`<div class="card"><h3>Olá${nome ? ', ' + esc(nome) : ''}!</h3><p class="dica" style="text-align:left">Escolha o que deseja fazer.</p></div>
+    <button class="modulo" data-v="home"><span class="ic">🚛</span><span><b>Controle de veículos</b><small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)` : 'Registro dos veículos abordados, por turno'}</small></span></button>
+    <button class="modulo" data-v="tf"><span class="ic">📄</span><span><b>Termo de Fiscalização de Barreira</b><small>${tfs.length} TF(s) neste aparelho${pend ? ` · ⏳ ${pend} aguardando envio` : ''}</small></span></button>
+    <p class="dica">Dentro do controle de veículos também dá para lavrar o TF de um veículo (botão “Lavrar TF”).</p>`);
 }
 const view = html => { $('#view').innerHTML = bannerInstalar() + html; };
 
@@ -118,7 +145,8 @@ async function home() {
     <div class="card contador"><h1>${v.length}</h1><p>Veículos registrados</p></div>
     <button class="botao" data-go="registrar">➕ Registrar veículo</button>
     <button class="botao" data-go="lista">📋 Lista de veículos</button>
-    <button class="botao" data-go="resumo">📊 Resumo e documentos</button>`);
+    <button class="botao" data-go="resumo">📊 Resumo e documentos</button>
+    <button class="botao sec" data-go="tfnovo">📄 Lavrar TF neste turno</button>`);
 }
 function novoTurno() {
   if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());   // turno só após a ativação
@@ -356,7 +384,7 @@ Sync.onEstado(e => {
   const pend = e.pend ? ` · ${e.pend} a enviar` : '';
   b.textContent = (e.tipo === 'sync' ? '🔄 Sincronizando…' : e.tipo === 'erro' ? '⚠️ Falha ao sincronizar' : (navigator.onLine ? '🟢 Online' : '🔴 Offline')) + (e.tipo === 'sync' ? '' : pend);
 });
-window.addEventListener('gdv-dados', () => { if (['home', 'lista', 'resumo', 'historico'].includes(VIEW)) go(VIEW); });
+window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'resumo', 'historico', 'tf'].includes(VIEW)) go(VIEW); });
 window.addEventListener('online', () => Sync.atualizarContagem());
 
 $('#sync').onclick = () => Sync.sincronizar();
@@ -374,7 +402,7 @@ if ('serviceWorker' in navigator) {
   $('#btnAtualizar').onclick = () => location.reload();
 }
 (async () => {
-  go('home');
+  go('modulos');
   await Sync.atualizarContagem();
   Sync.iniciar();
 })();

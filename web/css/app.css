@@ -67,3 +67,8 @@ hr { border:0; border-top:1px solid var(--linha); margin:10px 0; }
 .prod { display:grid; grid-template-columns:1fr 70px 78px 34px; gap:6px; margin:6px 0; align-items:center; } .prod select,.prod input { padding:9px 6px; }
 .tf-modal { position:fixed; inset:0; background:rgba(0,0,0,.55); z-index:99; display:flex; align-items:center; justify-content:center; padding:14px; }
 .tf-modal-box { background:#fff; border-radius:12px; padding:18px; width:100%; max-width:420px; text-align:center; } .tf-modal-box input { text-align:center; font-size:22px; font-weight:700; }
+
+.modulo { display:flex; align-items:center; gap:14px; width:100%; text-align:left; background:#fff; border:2px solid var(--linha); border-radius:14px; padding:18px 16px; margin:0 0 12px; font:inherit; color:var(--ink); cursor:pointer; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+.modulo:active { border-color:var(--azul2); background:#f2f7ff; }
+.modulo .ic { font-size:40px; line-height:1; }
+.modulo b { display:block; font-size:17px; color:var(--azul); } .modulo small { display:block; color:var(--mut); font-size:13px; margin-top:3px; }

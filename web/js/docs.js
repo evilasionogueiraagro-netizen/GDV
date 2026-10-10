@@ -38,8 +38,7 @@ const Docs = (() => {
     set('local', turno.local);
     set('data', dataBR(turno.data));
     set('fiscal', turno.fiscal);
-    set('turnoA', turno.letra === 'A' ? '☑' : '☐');
-    set('turnoB', turno.letra === 'B' ? '☑' : '☐');
+    set('turnoHorario', `das ${turno.inicio || '__:__'} às ${turno.fim || '__:__'}`);   // horário real de início/encerramento
     veiculos.slice(0, CONFIG.linhasFicha).forEach((v, i) => {
       set('hora' + (i + 1), v.hora); set('placa' + (i + 1), v.placa); set('tipo' + (i + 1), v.tipo);
     });

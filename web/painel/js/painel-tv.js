@@ -17,6 +17,7 @@
   const SS_RECARGA = 'gdv.painel.tv.recarga';                           // recarga automática (6 h / versão nova) feita por esta página
   const FONTE = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
   const SITUACAO = { ok: 'Em andamento', semsinal: 'Sem sinal > 30 min', longa: 'Aberta > 14 h' };
+  const sitTxt = t => t.tfAndamento ? P.rotuloTF(t) : SITUACAO[t.situacao];          // TF em preenchimento / apreensão em andamento na frente
 
   const TELAS = {
     aovivo: { nome: 'Ao vivo — Barreiras (hoje)', curto: 'Ao vivo', render: telaAoVivo },
@@ -61,6 +62,7 @@
         <div class="tv-atual" id="tv-atual" role="status" aria-live="polite"><span class="tv-ponto"></span><span id="tv-atual-txt">Conectando…</span></div>
         <div class="tv-relogio"><div class="tv-hora" id="tv-hora"></div><div class="tv-data" id="tv-data"></div></div>
       </header>
+      <div class="tv-faixa tv-faixa-tf" id="tv-tf" role="alert" hidden></div>
       <div class="tv-faixa" id="tv-faixa" role="alert" hidden></div>
       <main class="tv-palco" id="tv-palco" aria-live="off"></main>
       <footer class="tv-rodape">
@@ -89,11 +91,36 @@
     const velho = !!e.ultimaCarga && Date.now() - e.ultimaCarga > SEM_CONEXAO_MS;
     $('#tv-atual-txt').textContent = e.ultimaCarga ? `Atualizado às ${fmt.hora(e.ultimaCarga)}` : (e.falhas ? 'Sem conexão' : 'Conectando…');
     at.classList.toggle('atrasado', velho || (!e.ultimaCarga && e.falhas > 0));
-    const mudou = fx.hidden === velho;
+    let mudou = fx.hidden === velho;
     fx.hidden = !velho;
+    if (faixaTF()) mudou = true;
     // a faixa muda a altura do palco: redesenha a tela para o mapa e os gráficos se ajustarem (senão o mapa fica cortado embaixo)
     if (mudou && T.raiz.isConnected && P.todos) setTimeout(() => desenhar(false), 0);
     if (velho) fx.innerHTML = `<span class="tv-faixa-ic" aria-hidden="true">!</span>Sem conexão — exibindo dados de ${esc(fmt.hora(e.ultimaCarga))}`;
+  }
+  /**
+   * Faixa vermelha "TF em preenchimento / Apreensão em andamento" no topo, enquanto algum fiscal estiver preenchendo um TF
+   * (até 2 linhas; o resto vira "+N"). Devolve true se a faixa apareceu ou sumiu (o palco muda de altura).
+   */
+  function faixaTF() {
+    const fx = $('#tv-tf'); if (!fx) return false;
+    const lst = P.logado && P.todos ? (P.todos.tfsAndamento || []) : [], antes = !fx.hidden;
+    T.raiz.dataset.tf = String(lst.length);
+    if (!lst.length) { fx.hidden = true; fx.innerHTML = ''; return antes; }
+    const linha = a => `<div class="tv-tf-linha${a.apreensao ? ' apreensao' : ''}"><span class="tv-tf-ic" aria-hidden="true">TF</span><b>${esc(a.titulo)}</b>` +
+      `<span class="tv-tf-det">${esc([a.onde, a.fiscal, a.placa && 'placa ' + a.placa, a.inicioMs && fmt.rel(a.inicioMs)].filter(Boolean).join(' · '))}</span></div>`;
+    const html = lst.slice(0, 2).map(linha).join('') + (lst.length > 2 ? `<div class="tv-tf-mais">+${plural(lst.length - 2, 'outro TF em preenchimento', 'outros TFs em preenchimento')} — veja a tela Ao vivo</div>` : '');
+    if (fx.innerHTML !== html) fx.innerHTML = html;
+    fx.hidden = false;
+    return !antes;
+  }
+  /** TF novo em preenchimento (o painel avisa): a rotação pula para "Ao vivo" e fica nela por dois períodos (pelo menos um ciclo inteiro). */
+  function novoTF() {
+    if (!ativo || !T.raiz) return;
+    const i = opc.telas.indexOf('aovivo'); faixaTF();
+    if (i < 0) return;
+    T.i = i; T.resta = opc.rotacaoMs * 2; desenhar(true);
+    if (T.pausado) { rodape(); progresso(); } else agendarTroca();
   }
 
   /* ---------------- rodapé e rotação ---------------- */
@@ -180,7 +207,7 @@
     cont.appendChild(g);
     // valor numérico nunca leva reticências ("10,5 m…"): se não couber, a fonte diminui até caber (mínimo 4,4vh)
     g.querySelectorAll('.tv-kpi-val').forEach(v => {
-      for (let t = 7.2; v.scrollWidth > v.clientWidth + 1 && t > 4.4; ) { t = Math.max(4.4, t - 0.4); v.style.fontSize = t + 'vh'; }
+      for (let t = parseFloat(getComputedStyle(v).fontSize) / window.innerHeight * 100; v.scrollWidth > v.clientWidth + 1 && t > 4.4; ) { t = Math.max(4.4, t - 0.4); v.style.fontSize = t + 'vh'; }
     });
     return g;
   }
@@ -341,7 +368,8 @@
   /* ================= 1. Ao vivo — Barreiras (hoje) ================= */
   function telaAoVivo(palco) {
     const hoje = P.hoje(), N = P.todos, dH = P.recorte(hoje, hoje), p = P.paleta;
-    const vivos = dH.emAndamento.slice().sort((a, b) => P.ORDEM_SITUACAO[a.situacao] - P.ORDEM_SITUACAO[b.situacao] || (b.duracaoMin || 0) - (a.duracaoMin || 0));
+    const vivos = dH.emAndamento.slice().sort((a, b) => P.ordemVivo(a) - P.ordemVivo(b) || (b.duracaoMin || 0) - (a.duracaoMin || 0));
+    const semTurno = dH.tfsSemTurno || [], tfGPS = semTurno.filter(a => a.lat != null && a.lon != null);
     const vHoje = N.veiculosTodos.filter(v => v.dia === hoje);             // dia real da passagem (turno que virou a noite conta certo)
     const hojePorTurno = {}; vHoje.forEach(v => { const h = hojePorTurno[v.turnoId] = hojePorTurno[v.turnoId] || { n: 0, pessoas: 0 }; h.n++; h.pessoas += v.pessoas; });
     const deHoje = t => hojePorTurno[t.id] || { n: 0, pessoas: 0 };
@@ -364,29 +392,33 @@
     const cm = cartao(g, 'Barreiras no Amazonas agora', vivos.length ? 'Rótulo: barreira e nº de veículos abordados hoje' : 'Nenhuma barreira em andamento agora', 'tv-cartao-mapa');
     const cl = cartao(g, 'Barreiras em andamento', vivos.length ? `${plural(vivos.length, 'barreira', 'barreiras')} · com alerta primeiro` : 'Resumo de hoje', 'tv-cartao-lista');
     const divMapa = el('div', 'tv-mapa-lugar'); cm.appendChild(divMapa);
-    const n = s => vivos.filter(t => t.situacao === s).length, comGPS = vivos.filter(t => t.lat != null && t.lon != null), semGPS = vivos.length - comGPS.length;
-    legenda(cm, [{ marca: marcaPino('ok'), txt: `Em andamento (${n('ok')})` }, { marca: marcaPino('semsinal'), txt: `Sem sinal > 30 min (${n('semsinal')})` },
+    const n = s => vivos.filter(t => P.pinoDe(t) === s).length, comGPS = vivos.filter(t => t.lat != null && t.lon != null), semGPS = vivos.length - comGPS.length;
+    legenda(cm, [{ marca: marcaPino('tf'), txt: `TF em preenchimento (${n('tf') + tfGPS.length})` }, { marca: marcaPino('ok'), txt: `Em andamento (${n('ok')})` }, { marca: marcaPino('semsinal'), txt: `Sem sinal > 30 min (${n('semsinal')})` },
       { marca: marcaPino('longa'), txt: `Aberta > 14 h (${n('longa')})` }, { marca: `<i class="tv-lg-pto" style="background:${p.alfa(p.serie[6], 0.6)};box-shadow:0 0 0 1.5px ${p.ink}"></i>`, txt: `Encerrada hoje (${encHoje.length})` }]
       .concat(semGPS ? [{ marca: '', txt: `${plural(semGPS, 'barreira', 'barreiras')} sem GPS` }] : []));
 
     // lista: cartões; se não couberem, linhas compactas; o que ainda sobrar vira "+N"
     const lista = el('div', 'tv-lista'); cl.appendChild(lista);
     let maisTxt;
+    // TF em preenchimento sem turno aberto: linha própria no topo da lista (a barreira com turno mostra o TF no próprio cartão)
+    const tfAvulso = a => `<div class="tv-vivo-c tf"><span class="tv-pin tf" style="--pin:${px(PINO_LISTA)}px"></span><div class="tv-vivo-c-nome"><b>${esc(a.onde)}</b><span>${esc([a.apreensao ? 'APREENSÃO' : 'TF', 'sem turno aberto', a.placa, a.inicioMs && fmt.rel(a.inicioMs)].filter(Boolean).join(' · '))}</span></div><div class="tv-vivo-c-num"></div></div>`;
     if (!vivos.length) {
-      lista.innerHTML = `<div class="tv-nada"><b>Nenhuma barreira em andamento agora</b><span>Hoje: ${plural(encHoje.length, 'turno realizado', 'turnos realizados')} · ${plural(vHoje.length, 'veículo', 'veículos')} · ${plural(dH.tfs.length, 'TF', 'TFs')}</span></div>` +
+      lista.innerHTML = semTurno.map(tfAvulso).join('') + `<div class="tv-nada"><b>Nenhuma barreira em andamento agora</b><span>Hoje: ${plural(encHoje.length, 'turno realizado', 'turnos realizados')} · ${plural(vHoje.length, 'veículo', 'veículos')} · ${plural(dH.tfs.length, 'TF', 'TFs')}</span></div>` +
         encHoje.slice().sort((a, b) => (b.inicioMs || 0) - (a.inicioMs || 0)).map(t => `<div class="tv-vivo-c encerrada"><i class="tv-dot encerrada"></i><div class="tv-vivo-c-nome"><b>${esc(t.local || 'Sem local')}</b><span>${esc([t.municipio, `encerrada · ${t.inicio || '?'}–${t.fim || '?'}`].filter(Boolean).join(' · '))}</span></div><div class="tv-vivo-c-num"><b>${fmt.int(t.nVeiculos)}</b> veíc.</div></div>`).join('');
       maisTxt = k => `+${plural(k, 'turno encerrado', 'turnos encerrados')} hoje`;
     } else {
       const completo = t => { const h = deHoje(t), desde = t.data !== hoje ? ` · desde ${fmt.dataCurta(t.data)} ${t.inicio || ''}` : '';
-        return `<div class="tv-vivo ${t.situacao}"><div class="tv-vivo-l1"><span class="tv-selo ${t.situacao}"><i></i>${esc(SITUACAO[t.situacao])}</span><span class="tv-vivo-sinal">Último sinal ${esc(fmt.rel(t.ultimoSinal))}</span></div>
-          <div class="tv-vivo-nome">${esc(t.local || 'Sem local')}</div><div class="tv-vivo-onde">${esc([t.municipio, t.fiscal].filter(Boolean).join(' · ') || '—')}</div>
+        const tf = (t.tfAndamento || [])[0], linhaTF = tf ? `<div class="tv-vivo-tf">${esc([tf.placa && 'Placa ' + tf.placa, tf.procedimentoNome, tf.inicioMs && 'iniciado ' + fmt.rel(tf.inicioMs)].filter(Boolean).join(' · '))}</div>` : '';
+        return `<div class="tv-vivo ${P.pinoDe(t)}"><div class="tv-vivo-l1"><span class="tv-selo ${P.pinoDe(t)}"><i></i>${esc(sitTxt(t))}</span><span class="tv-vivo-sinal">Último sinal ${esc(fmt.rel(t.ultimoSinal))}</span></div>
+          <div class="tv-vivo-nome">${esc(t.local || 'Sem local')}</div>${linhaTF}<div class="tv-vivo-onde">${esc([t.municipio, t.fiscal].filter(Boolean).join(' · ') || '—')}</div>
           <div class="tv-vivo-num"><span><b>${fmt.int(h.n)}</b> veículos hoje</span><span><b>${fmt.int(h.pessoas)}</b> pessoas</span><span><b>${esc(fmt.duracao(t.duracaoMin))}</b> aberta${esc(desde)}</span></div></div>`; };
       // linha compacta: a situação vai por extenso no texto (não só na cor do marcador, igual ao do mapa)
       const sub = t => { const dur = fmt.duracao(t.duracaoMin), sin = fmt.rel(t.ultimoSinal);
+        if (t.tfAndamento) { const tf = t.tfAndamento[0]; return [P.rotuloTF(t).toUpperCase(), tf.placa && 'placa ' + tf.placa, tf.inicioMs && fmt.rel(tf.inicioMs), t.municipio].filter(Boolean).join(' · '); }
         return [t.municipio].concat(t.situacao === 'semsinal' ? [`SEM SINAL ${sin}`, `${dur} aberta`] : t.situacao === 'longa' ? [`ABERTA HÁ ${dur}`, `sinal ${sin}`] : [`${dur} aberta`, `sinal ${sin}`]).filter(Boolean).join(' · '); };
-      const compacto = t => `<div class="tv-vivo-c ${t.situacao}"><span class="tv-pin ${t.situacao}" style="--pin:${px(PINO_LISTA)}px"></span><div class="tv-vivo-c-nome"><b>${esc(t.local || 'Sem local')}</b><span>${esc(sub(t))}</span></div><div class="tv-vivo-c-num"><b>${fmt.int(deHoje(t).n)}</b> veíc.</div></div>`;
-      lista.innerHTML = vivos.map(completo).join('');
-      if (transborda(lista)) { lista.innerHTML = vivos.map(compacto).join(''); lista.classList.add('compacta'); }
+      const compacto = t => `<div class="tv-vivo-c ${P.pinoDe(t)}"><span class="tv-pin ${P.pinoDe(t)}" style="--pin:${px(PINO_LISTA)}px"></span><div class="tv-vivo-c-nome"><b>${esc(t.local || 'Sem local')}</b><span>${esc(sub(t))}</span></div><div class="tv-vivo-c-num"><b>${fmt.int(deHoje(t).n)}</b> veíc.</div></div>`;
+      lista.innerHTML = semTurno.map(tfAvulso).join('') + vivos.map(completo).join('');
+      if (transborda(lista)) { lista.innerHTML = semTurno.map(tfAvulso).join('') + vivos.map(compacto).join(''); lista.classList.add('compacta'); }
       maisTxt = k => `+${plural(k, 'barreira', 'barreiras')} em andamento`;
     }
 
@@ -395,11 +427,13 @@
     if (m) {
       encHoje.filter(t => t.lat != null && t.lon != null).forEach(t => L.circleMarker([t.lat, t.lon], { radius: px(0.8), color: p.ink, weight: 1.5, fillColor: p.serie[6], fillOpacity: 0.6, interactive: false }).addTo(m.map));
       const tam = px(PINO_MAPA);
-      comGPS.slice().reverse().forEach(t => L.marker([t.lat, t.lon], { icon: pino(t.situacao, tam), interactive: false, keyboard: false, zIndexOffset: 1000 - P.ORDEM_SITUACAO[t.situacao] * 100 }).addTo(m.map));
+      comGPS.slice().reverse().forEach(t => L.marker([t.lat, t.lon], { icon: pino(P.pinoDe(t), tam), interactive: false, keyboard: false, zIndexOffset: 1000 - P.ordemVivo(t) * 100 }).addTo(m.map));
+      tfGPS.forEach(a => L.marker([a.lat, a.lon], { icon: pino('tf', tam), interactive: false, keyboard: false, zIndexOffset: 1200 }).addTo(m.map));
       // a situação vai escrita no rótulo (barreiras juntas, como em Manaus, ficam identificadas sem depender do pino)
       // (curto, para caber no aglomerado; o detalhe completo está na lista ao lado)
-      const sitRot = t => t.situacao === 'longa' ? `<em>! ${fmt.int(Math.floor((t.duracaoMin || 0) / 60))} h</em>` : t.situacao === 'semsinal' ? '<em>? sem sinal</em>' : '';
-      rotular(m, comGPS.map(t => ({ lat: t.lat, lon: t.lon, cls: t.situacao, html: `${sitRot(t)}<b>${esc(curto(t.local) || 'Barreira')}</b><span>${fmt.int(deHoje(t).n)}</span>` })), tam / 2);
+      const sitRot = t => t.tfAndamento ? `<em>${P.tfApreensao(t) ? 'APREENSÃO' : 'TF'}</em>` : t.situacao === 'longa' ? `<em>! ${fmt.int(Math.floor((t.duracaoMin || 0) / 60))} h</em>` : t.situacao === 'semsinal' ? '<em>? sem sinal</em>' : '';
+      rotular(m, comGPS.map(t => ({ lat: t.lat, lon: t.lon, cls: P.pinoDe(t), html: `${sitRot(t)}<b>${esc(curto(t.local) || 'Barreira')}</b><span>${fmt.int(deHoje(t).n)}</span>` }))
+        .concat(tfGPS.map(a => ({ lat: a.lat, lon: a.lon, cls: 'tf', html: `<em>${a.apreensao ? 'APREENSÃO' : 'TF'}</em><b>${esc(curto(a.onde))}</b>` }))), tam / 2);
     }
     // veículos por hora (hoje), dentro do indicador "Veículos abordados hoje"
     const gk = palco.querySelector('.tv-kpi[data-chave="veiculos"] .tv-kpi-graf');
@@ -622,7 +656,8 @@
   P.usarTV({
     ativo: () => ativo,
     iniciar: () => { if (ativo) ligar(); },
-    atualizar: () => { if (ativo) { desenhar(false); cabecalho(); } }
+    atualizar: () => { if (ativo) { desenhar(false); cabecalho(); } },
+    novoTF
   });
 
   /** Ganchos para testes e operação manual pelo console. */

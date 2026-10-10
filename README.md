@@ -49,13 +49,33 @@ App para registrar os veículos abordados em barreiras **fixas ou móveis**, por
 
 Para testar localmente: `cd web && python3 -m http.server 8080`.
 
+## Painel do administrador (fora do app)
+
+Painel web só para o administrador, lendo a própria planilha. Fica no mesmo projeto do Apps Script (arquivo `apps-script/Painel.html`), mas é aberto por uma **segunda implantação**, com acesso restrito.
+
+**O que mostra** (filtros: período, local, posto e fiscal; todos os números comparam com o período anterior de mesmo tamanho):
+- Veículos abordados, pessoas impactadas, **horas de barreira**, turnos (encerrados e em andamento), veículos e pessoas **por hora de barreira**, média de veículos por turno e horário de maior fluxo.
+- Veículos, pessoas ou horas **por dia, semana ou mês**.
+- **Fluxo por hora do dia**, **mapa de calor** (dia da semana × hora) e **fluxo ao longo do turno** (média de veículos em cada hora decorrida desde o início, turnos A × B).
+- Veículos por tipo, **mapa** das barreiras (ponto final do turno), tabelas por local e por fiscal, placas recorrentes, alertas (turno que ficou aberto, sem veículos, duração incomum, sem coordenadas) e lista de turnos, com CSV de turnos e de veículos.
+- *Horas de barreira* = soma da duração (fim − início, atravessando a meia-noite quando preciso) dos turnos **encerrados**. Cada gráfico tem a versão em tabela (botão *Tabela*).
+
+**Como publicar**
+1. No projeto do Apps Script: crie um arquivo **HTML** chamado `Painel` e cole `apps-script/Painel.html`; atualize o `Code.gs` com a versão do repositório.
+2. **Configurações do projeto → Propriedades do script**: `ADMIN_EMAILS` = e-mails dos administradores, separados por vírgula (ex.: `voce@gmail.com,colega@gmail.com`). Vazio = ninguém acessa.
+3. **Implantar → Nova implantação** (não altere a implantação dos aparelhos): tipo *App da Web*; **Executar como: Usuário que acessa o app da Web**; **Quem pode acessar: Qualquer pessoa com Conta Google**. Copie a URL.
+4. **Compartilhe a planilha** com cada administrador (permissão *Leitor*). Na primeira abertura o Google pede autorização (*Avançado → Acessar*).
+5. Abra `URL_DA_IMPLANTAÇÃO_DO_PAINEL?p=painel` e salve nos favoritos.
+
+**Proteção:** só abre quem estiver em `ADMIN_EMAILS` *e* tiver acesso à planilha; a leitura é feita com a permissão de quem acessa. Na implantação dos aparelhos (acesso anônimo) o painel nunca abre. Ao alterar o `Code.gs` ou o `Painel.html`, crie uma nova versão em **cada** implantação.
+
 ## Estrutura
 
 | Pasta | Conteúdo |
 |---|---|
 | `web/` | App (HTML/JS/CSS puro, sem build). `js/config.js` guarda unidade, tipos de veículo, turnos e pessoas estimadas |
 | `web/documentos/` | Modelos HTML do Termo e da Ficha (impressos via “Salvar como PDF”) |
-| `apps-script/` | API de sincronização que grava na planilha |
+| `apps-script/` | API de sincronização que grava na planilha e o painel do administrador (`Painel.html`) |
 
 ## Limites conhecidos
 - A **Ficha de Campo** tem 50 linhas; acima disso o app avisa e os excedentes ficam fora da ficha (o Termo conta todos).

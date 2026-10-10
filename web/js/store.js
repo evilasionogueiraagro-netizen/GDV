@@ -29,6 +29,15 @@ const Store = (() => {
       t.oncomplete = ok; t.onerror = t.onabort = () => no(t.error);
     });
   }
+  async function apagar(store, ids) {
+    if (!ids.length) return;
+    const d = await db();
+    return new Promise((ok, no) => {
+      const t = d.transaction(store, 'readwrite'), o = t.objectStore(store);
+      ids.forEach(id => o.delete(id));
+      t.oncomplete = ok; t.onerror = t.onabort = () => no(t.error);
+    });
+  }
   async function meta(k) { const r = await obter('meta', k); return r ? r.v : undefined; }
   async function setMeta(k, v) { return gravar('meta', { k, v }); }
 
@@ -46,5 +55,5 @@ const Store = (() => {
     return rec;
   }
 
-  return { todos, obter, gravar, gravarVarios, meta, setMeta, salvar };
+  return { todos, obter, gravar, gravarVarios, apagar, meta, setMeta, salvar };
 })();

@@ -37,7 +37,7 @@ const TFUI = (() => {
         const r = await Sync.proximoNumero(b, a);                                  // consulta rápida: último nº usado + 1
         await Sync.lembrarUltimos({ [chave(b, a)]: r.ultimo });
         return { numero: Math.max(r.proximo, (await ultimoConhecido(b, a)) + 1), origem: 'servidor', ultimo: r.ultimo, ultimoTF: r.ultimoTF };
-      } catch (e) { if (/revogado|inv[aá]lido|desconhecida/i.test(e.message)) throw e; }   // sem resposta: segue offline
+      } catch (e) { if (e.semPermissao || /revogado|inv[aá]lido|desconhecida/i.test(e.message)) throw e; }   // sem resposta: segue offline
     }
     const u = await ultimoConhecido(b, a);
     return { numero: u + 1, origem: 'offline', ultimo: u, ultimoTF: null };
@@ -234,7 +234,7 @@ const TFUI = (() => {
         if (r.pessoa) await Store.gravar('pessoas', { ...r.pessoa, criadoEm: Date.now(), atualizadoEm: Date.now(), pendente: 0 });
         if (r.placa) await Store.gravar('placas', { ...r.placa, criadoEm: Date.now(), atualizadoEm: Date.now(), pendente: 0 });
         return { ...r, parcial: false };
-      } catch (e) { if (/revogado|inv[aá]lido/i.test(e.message)) throw e; }
+      } catch (e) { if (e.semPermissao || /revogado|inv[aá]lido/i.test(e.message)) throw e; }
     }
     const meus = (await Store.todos('tfs')).filter(t => !t.cancelado);                // sem conexão: só o que este aparelho conhece
     return { pessoa: doc ? await Store.obter('pessoas', doc) || null : null, placa: placa ? await Store.obter('placas', placa) || null : null, parcial: true,
@@ -339,7 +339,7 @@ const TFUI = (() => {
             continue;
           }
           emitido = r;
-        } catch (e) { if (/revogado|inv[aá]lido/i.test(e.message)) return toast(e.message, true); }   // sem resposta: guarda e envia ao sincronizar
+        } catch (e) { if (e.semPermissao || /revogado|inv[aá]lido/i.test(e.message)) return toast(e.message, true); }   // sem resposta: guarda e envia ao sincronizar
       }
       const est = emitido ? { pendente: 0, emitidoEm: emitido.emitidoEm } : { pendente: 1, provisorio: sug.origem !== 'servidor' ? 1 : 0 };
       await Store.gravar('tfs', { ...rec, ...est });

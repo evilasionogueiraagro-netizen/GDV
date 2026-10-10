@@ -31,6 +31,35 @@ const Sync = (() => {
   function desativar() { ['gdv.key', 'gdv.nome', 'gdv.revogado'].forEach(k => localStorage.removeItem(k)); }
   function emitir(e) { estado = e; listeners.forEach(f => f(e)); }
 
+  /* ---------- Módulos autorizados (definidos pela gerência no painel → Servidores) ----------
+     O servidor devolve {veiculos, tf, pce} a cada sync; guardamos a última (meta "permissoes") para usar sem internet.
+     Padrão: tudo liberado (aparelho que nunca sincronizou, ou versão antiga do servidor que não manda permissões). */
+  const MODULOS = { veiculos: 'Educação Sanitária/Fiscalização', tf: 'TF de Barreira', pce: 'PCE' };
+  // stores de cada módulo (pessoas servem ao TF e ao PCE: sobem se qualquer um dos dois estiver liberado)
+  const MODULO_DO_STORE = { t: ['veiculos'], v: ['veiculos'], f: ['tf'], l: ['tf'], p: ['tf', 'pce'], g: ['pce'], c: ['pce'], r: ['pce'], a: ['pce'] };
+  let PERM = { veiculos: 1, tf: 1, pce: 1 };
+  const normPerm = o => { const r = { veiculos: 1, tf: 1, pce: 1 }; if (o && typeof o === 'object') Object.keys(r).forEach(k => { if (k in o) r[k] = Number(o[k]) === 0 || o[k] === false ? 0 : 1; }); return r; };
+  const permissoes = () => ({ ...PERM });
+  const pode = m => PERM[m] !== 0;
+  const storePermitido = n => MODULO_DO_STORE[n].some(pode);
+  async function carregarPermissoes() { try { PERM = normPerm(await Store.meta('permissoes')); } catch (e) { /* sem banco: tudo liberado */ } return permissoes(); }
+  /** Novas permissões vindas do servidor: guarda e avisa a tela (gdv-permissoes) se algo mudou. */
+  async function guardarPermissoes(o) {
+    if (!o) return false;
+    const novo = normPerm(o), mudou = Object.keys(novo).some(k => novo[k] !== PERM[k]);
+    PERM = novo; await Store.setMeta('permissoes', novo);
+    if (mudou) window.dispatchEvent(new CustomEvent('gdv-permissoes', { detail: permissoes() }));
+    return mudou;
+  }
+  /** Módulos sem autorização que ainda têm registros guardados no aparelho (não enviados). */
+  async function bloqueadosComPendentes(p) {
+    p = p || await pendentes();
+    const m = new Set();
+    Object.keys(MODULO_DO_STORE).forEach(n => { if ((p[n] || []).length && !storePermitido(n)) MODULO_DO_STORE[n].forEach(x => { if (!pode(x)) m.add(x); }); });
+    return [...m];
+  }
+  const avisoSemPermissao = mods => mods.length ? `Sem autorização para o módulo ${mods.map(m => MODULOS[m]).join(' / ')} — fale com a gerência. Os registros continuam guardados neste aparelho.` : '';
+
   async function chamar(corpo, limiteMs) {
     const c = cfg(), ctrl = new AbortController(), t = limiteMs ? setTimeout(() => ctrl.abort(), limiteMs) : null;
     try {
@@ -42,7 +71,11 @@ const Sync = (() => {
         signal: ctrl.signal
       });
       const j = await r.json();
-      if (!j.ok) throw new Error(j.erro || 'Erro no servidor');
+      if (!j.ok) {
+        if (j.semPermissao) await guardarPermissoes(j.permissoes || { ...PERM, [j.semPermissao]: 0 });   // gerência tirou o módulo
+        const e = new Error(j.erro || 'Erro no servidor'); if (j.semPermissao) e.semPermissao = j.semPermissao;
+        throw e;
+      }
       return j;
     } finally { if (t) clearTimeout(t); }
   }
@@ -55,13 +88,14 @@ const Sync = (() => {
   const LIMITES = { t: 500, v: 1000, f: 100, p: 300, l: 300, g: 100, c: 100, r: 300 };                                                         // registros por rodada
   const lerJSON = (v, pad) => { try { return JSON.parse(v) || pad; } catch (e) { return pad; } };
 
-  /* Fotos e assinaturas (PCE): ficam no aparelho (store "arquivos") e sobem ao Drive depois do sync principal.
+  /* Fotos, assinaturas e PDFs (PCE): ficam no aparelho (store "arquivos") e sobem ao Drive depois do sync principal.
      Só contam/sobem as que estão ligadas a um levantamento ou termo salvo (não excluído): rascunhos não sobem. */
   function idsReferenciados(regs) {
     const s = new Set();
     regs.forEach(r => {
       if (!r || r.excluido) return;
       lerJSON(r.fotos, []).forEach(id => id && s.add(id));
+      lerJSON(r.documentos, []).forEach(id => id && s.add(id));                 // PDFs escaneados (registro digitado do papel)
       Object.values(lerJSON(r.assinaturas, {})).forEach(id => id && s.add(id));
     });
     return s;
@@ -112,28 +146,30 @@ const Sync = (() => {
     for (const id of fila.slice(0, (CONFIG.PCE && CONFIG.PCE.arquivosPorRodada) || 5)) {
       const a = await Store.obter('arquivos', id);
       if (!a || a.enviado || !a.dados) continue;
-      const ext = a.mime === 'image/png' ? 'png' : 'jpg';
+      const ext = a.mime === 'image/png' ? 'png' : a.mime === 'application/pdf' ? 'pdf' : 'jpg';
       const arquivo = { id: a.id, dono: a.dono, donoId: a.donoId, tipo: a.tipo, papel: a.papel || '', mime: a.mime,
         nome: `${a.donoId}_${a.tipo}_${a.papel || 'n'}_${a.id}.${ext}` };
       let r;
-      try { r = await chamar({ action: 'arquivoEnviar', arquivo, base64: String(a.dados).replace(/^data:[^,]*,/, '') }, 60000); }
+      // PDF (até 10 MB ≈ 13,4 MB em base64) tem mais tempo para subir
+      try { r = await chamar({ action: 'arquivoEnviar', arquivo, base64: String(a.dados).replace(/^data:[^,]*,/, '') }, a.tipo === 'documento' ? 180000 : 60000); }
       catch (e) {
         falhasArq[id] = (falhasArq[id] || 0) + 1; erro = erro || e;
         // credencial recusada ou sem resposta do servidor (rede/tempo esgotado): os outros falhariam também
-        if (/revogado|n[aã]o ativado|abort|fetch|network|rede/i.test(e.message) || e.name === 'AbortError' || e.name === 'TypeError') break;
+        if (e.semPermissao || /revogado|n[aã]o ativado|abort|fetch|network|rede/i.test(e.message) || e.name === 'AbortError' || e.name === 'TypeError') break;
         continue;
       }
       delete falhasArq[id];
       const atual = await Store.obter('arquivos', id);
       if (!atual) continue;                                                   // removido durante o envio
-      await Store.gravar('arquivos', { ...atual, enviado: 1, url: r.url || '', driveId: r.driveId || '' });
+      // PDF já no Drive sai do aparelho (não é impresso nos documentos e ocuparia muito espaço); fotos/assinaturas ficam para reimprimir
+      await Store.gravar('arquivos', { ...atual, enviado: 1, url: r.url || '', driveId: r.driveId || '', ...(atual.tipo === 'documento' ? { dados: '' } : {}) });
       enviados++;
     }
     if (erro) throw erro;                                                     // quem chamou mostra o erro (depois de tentar os demais)
     return enviados;
   }
   async function enviarArquivos() {
-    if (rodando || !ativado() || !navigator.onLine) return 0;
+    if (rodando || !ativado() || !navigator.onLine || !pode('pce')) return 0;
     rodando = true;
     try { return await enviarPendentesArquivos(await arquivosPendentes()); }
     finally { rodando = false; await atualizarContagem(); }
@@ -150,7 +186,7 @@ const Sync = (() => {
    */
   let filaAndamento = Promise.resolve();
   function tfAndamento(dados) {
-    if (!ativado() || localStorage.getItem('gdv.revogado') || !navigator.onLine) return filaAndamento;
+    if (!ativado() || localStorage.getItem('gdv.revogado') || !navigator.onLine || !pode('tf')) return filaAndamento;
     filaAndamento = filaAndamento.then(() => chamar({ action: 'tfAndamento', ...dados }, 8000)).catch(() => {});
     return filaAndamento;
   }
@@ -167,9 +203,10 @@ const Sync = (() => {
     await Store.gravarVarios(store, novos);
   }
 
-  async function marcarEnviados(store, enviados) {
-    const ok = [];
+  async function marcarEnviados(store, enviados, recusados) {
+    const ok = [], fora = new Set((recusados || []).map(String));         // recusados pelo servidor (módulo sem autorização): continuam pendentes
     for (const e of enviados) {
+      if (fora.has(String(e.id))) continue;
       const atual = await Store.obter(store, e.id);
       if (atual && atual.atualizadoEm === e.atualizadoEm) ok.push({ ...atual, pendente: 0 });
     }
@@ -185,11 +222,15 @@ const Sync = (() => {
     try {
       for (let volta = 0; volta < 20; volta++) {
         const p = await pendentes();
-        const env = {}; NOMES.forEach(n => { env[n] = p[n].slice(0, LIMITES[n]); });
+        // módulo sem autorização (última permissão conhecida): os registros nem sobem; ficam pendentes até a gerência liberar
+        const vai = {}; NOMES.forEach(n => { vai[n] = storePermitido(n) ? p[n] : []; });
+        const env = {}; NOMES.forEach(n => { env[n] = vai[n].slice(0, LIMITES[n]); });
         const since = (await Store.meta('lastSync')) || 0;
         const corpo = { action: 'sync', since }; NOMES.forEach(n => { corpo[CAMPOS[n]] = env[n].map(limpo); });
         const r = await chamar(corpo);
-        for (const n of NOMES) await marcarEnviados(STORES[n], env[n]);
+        const rec = r.recusados || {};
+        for (const n of NOMES) await marcarEnviados(STORES[n], env[n], rec[CAMPOS[n]]);
+        const mudou = await guardarPermissoes(r.permissoes);
         await aplicar('turnos', r.turnos);
         await aplicar('veiculos', r.veiculos);
         await aplicar('tfs', r.tfs || []);
@@ -199,15 +240,21 @@ const Sync = (() => {
         await lembrarUltimos(r.ultimos);
         await lembrarUltimosPce(r.ultimosPce);
         await Store.setMeta('lastSync', r.agora);
-        if (NOMES.every(n => p[n].length <= env[n].length)) break;
+        const recusouAlgo = Object.keys(rec).some(k => (rec[k] || []).length);
+        if (mudou && !recusouAlgo) continue;                                 // módulo liberado agora: manda o que estava guardado
+        if (NOMES.every(n => vai[n].length <= env[n].length)) break;
       }
       let erroArq = '';
-      try { await enviarPendentesArquivos(await arquivosPendentes()); }      // falha numa foto não derruba o sync principal
-      catch (e) { erroArq = e.message || String(e); }
+      if (pode('pce')) {
+        try { await enviarPendentesArquivos(await arquivosPendentes()); }    // falha numa foto não derruba o sync principal
+        catch (e) { erroArq = e.message || String(e); }
+      }
       await Store.setMeta('ultimaSync', Date.now());
       localStorage.removeItem('gdv.revogado');
-      const resta = await pendentes();
-      emitir({ tipo: 'ok', msg: erroArq ? 'Sincronizado (fotos/assinaturas: ' + erroArq + ')' : 'Sincronizado', pend: resta.total, erroArquivos: erroArq });
+      const resta = await pendentes(), semPerm = await bloqueadosComPendentes(resta);
+      const aviso = avisoSemPermissao(semPerm);
+      emitir({ tipo: 'ok', msg: erroArq ? 'Sincronizado (fotos/assinaturas: ' + erroArq + ')' : 'Sincronizado', pend: resta.total, erroArquivos: erroArq,
+        semPermissao: semPerm, aviso });
       window.dispatchEvent(new Event('gdv-dados'));
     } catch (e) {
       const p = await pendentes();
@@ -221,8 +268,8 @@ const Sync = (() => {
   }
 
   async function atualizarContagem() {
-    const p = await pendentes();
-    emitir({ tipo: navigator.onLine ? 'idle' : 'offline', pend: p.total, msg: '' });
+    const p = await pendentes(), semPerm = await bloqueadosComPendentes(p);
+    emitir({ tipo: navigator.onLine ? 'idle' : 'offline', pend: p.total, msg: '', semPermissao: semPerm, aviso: avisoSemPermissao(semPerm) });
   }
 
   async function testar() { return chamar({ action: 'ping' }); }
@@ -236,5 +283,6 @@ const Sync = (() => {
   }
 
   return { iniciar, sincronizar, testar, atualizarContagem, ativado, nome, ativar, desativar, consultar, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
+    permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
     pceProximoNumero, pceEmitir, pceConsultar, lembrarUltimosPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

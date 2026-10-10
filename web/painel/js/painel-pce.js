@@ -1,4 +1,4 @@
-/* Painel gerencial do GDV — aba "PCE" (Levantamento fitossanitário e Termo de Colheita de Amostras). Usa a API do objeto global Painel (js/painel.js). */
+/* Painel gerencial do GDV — aba "PCE" (Programa de Controle e Erradicação: levantamento fitossanitário e Termo de Colheita de Amostras). Usa a API do objeto global Painel (js/painel.js). */
 (() => {
   'use strict';
   if (typeof Painel === 'undefined') return;

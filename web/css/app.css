@@ -22,7 +22,7 @@ input:focus,select:focus,textarea:focus { outline:2px solid var(--azul2); border
 .item { background:#fff; border-radius:12px; padding:12px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
 .item .topo { display:flex; justify-content:space-between; align-items:center; }
 .item .placa { font-size:22px; font-weight:700; color:var(--azul); letter-spacing:1px; } .item .tipo,.item .hora,.item .info { color:var(--mut); font-size:14px; }
-.item .pend { color:#b26a00; } .botoes { display:flex; gap:8px; margin-top:8px; }
+.item .pend, .card .pend { color:#b26a00; } .botoes { display:flex; gap:8px; margin-top:8px; }
 .botoes button { flex:1; border:0; border-radius:8px; padding:9px; color:#fff; font:inherit; cursor:pointer; }
 .editar { background:var(--azul2); } .excluir { background:var(--verm); }
 .resumo-item { display:flex; justify-content:space-between; padding:9px 0; border-bottom:1px solid var(--linha); }

@@ -130,6 +130,7 @@
           b.onclick = () => { const m = window.__pnBarMapa; if (!m) return; m.map.setView([t.lat, t.lon], 11); document.querySelector('.pn-bar-mapa').scrollIntoView({ behavior: 'smooth', block: 'start' }); };
           it.appendChild(b);
         }
+        const be = P.botaoEncerrar(t); if (be) { const ac = P.el('div', 'pn-vivo-acoes'); ac.appendChild(be); it.appendChild(ac); }
         g.appendChild(it);
       });
       sv.appendChild(g);
@@ -246,7 +247,7 @@
       { chave: 'data', rotulo: 'Data', fmt: fmt.data, ordem: l => (l.data || '') + (l.inicio || '') }, { chave: 'letra', rotulo: 'Turno', fmt: (v, l) => letraDe(l) || '—' },
       { chave: 'local', rotulo: 'Barreira / local', fmt: v => v || '—' }, { chave: 'municipio', rotulo: 'Município', fmt: v => v || '—' },
       { chave: 'posto', rotulo: 'Posto', fmt: v => v || '—' }, { chave: 'fiscal', rotulo: 'Fiscais', fmt: v => v || '—' },
-      { chave: 'inicio', rotulo: 'Início', fmt: v => v || '—' }, { chave: 'fim', rotulo: 'Fim', fmt: (v, l) => l.emAndamento ? 'aberto' : (v || '—') },
+      { chave: 'inicio', rotulo: 'Início', fmt: v => v || '—' }, { chave: 'fim', rotulo: 'Fim', fmt: (v, l) => l.emAndamento ? 'aberto' : (v || '—') + (l.encerradoPor ? ' (gerência)' : '') },
       { chave: 'duracaoMin', rotulo: 'Duração', num: true, fmt: fmt.duracao, csv: v => v == null ? '' : Math.round(v) },
       { chave: 'nVeiculos', rotulo: 'Veículos', num: true, fmt: fmt.int }, { chave: 'nPessoas', rotulo: 'Pessoas', num: true, fmt: fmt.int },
       { chave: 'gps', rotulo: 'Coordenadas', fmt: (v, l) => temCoord(l) ? 'Sim' : 'Não', ordem: l => temCoord(l) ? 1 : 0 },

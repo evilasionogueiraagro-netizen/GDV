@@ -19,7 +19,8 @@
 const TABELAS = {
   Turnos: ['id', 'numeroTF', 'data', 'letra', 'inicio', 'fim', 'fiscal', 'local', 'unidade', 'posto',
            'encerrado', 'criadoEm', 'atualizadoEm', 'srv_ts',
-           'latIni', 'lngIni', 'precIni', 'latFim', 'lngFim', 'precFim', 'usuario', 'semPlaca'],   // colunas novas ficam sempre no fim (semPlaca=1: placa opcional no turno)
+           'latIni', 'lngIni', 'precIni', 'latFim', 'lngFim', 'precFim', 'usuario', 'semPlaca',   // colunas novas ficam sempre no fim (semPlaca=1: placa opcional no turno)
+           'encerradoPor', 'encerradoEm'],   // turno encerrado pela gerência no painel: nome do administrador e quando (ms)
   Veiculos: ['id', 'turnoId', 'hora', 'placa', 'tipo', 'pessoas', 'obs',
              'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
   Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm', 'perfil',   // perfil: vazio = fiscal, 'admin' = administrador
@@ -58,7 +59,7 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criad
                           'expiraEm', 'ativo', 'ativadoEm',
                           'ano', 'numero', 'ultimo', 'de', 'ate', 'em', 'numeroSugerido', 'emitidoEm', 'amostras', 'inspecao', 'coleta', 'fiel', 'auto',
                           'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito', 'tamanho',
-                          'inicioTs', 'atualizadoTs', 'registroAntigo'];   // lat/lon/precisao ficam como texto (como em Turnos)
+                          'inicioTs', 'atualizadoTs', 'registroAntigo', 'encerradoEm'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000 };   // demais colunas: 500
 // culturas/fotos/assinaturas são JSON: cortar o texto invalidaria o JSON (e apagaria as referências no aparelho). Os limites acima
@@ -84,6 +85,7 @@ function doPost(e) {
     if (req.action === 'painelAcessos') return json_(painelAcessos(req.key));
     if (req.action === 'painelRevogar') return json_(painelRevogar(req.key, req.nome));
     if (req.action === 'painelPermissoes') return json_(painelPermissoes(req.key, req.nome, req));
+    if (req.action === 'painelEncerrarTurno') return json_(painelEncerrarTurno(req.key, req.turnoId, req.fim));
     const usuario = autenticar_(req.key);
     const modulo = MODULO_DA_ACAO[req.action];                                              // TF/PCE: o servidor confere a autorização do módulo
     if (modulo) exigirModulo_(usuario, modulo);
@@ -806,6 +808,51 @@ function painelRevogar(token, nome) {
   return { ok: true, nome: nome, revogados: n };
 }
 
+/* ---------- Painel → "Encerrar turno" (barreira esquecida aberta no aparelho) ---------- */
+
+const RE_HM_ = /^([01]\d|2[0-3]):[0-5]\d$/;
+const ENCERRAR_TOLERANCIA_MS = 2 * 3600 * 1000;   // fuso do oeste do AM (UTC−5) e relógio do aparelho adiantado
+
+/**
+ * O gerente encerra um turno que ficou aberto (o fiscal diz que encerrou, mas o encerramento não chegou à planilha).
+ * Só administrador. fim = "HH:MM" informado no painel; antes do início = dia seguinte (turno que passou da meia-noite).
+ * Grava encerrado = 1, fim, encerradoPor/encerradoEm e atualizadoEm/srv_ts = agora: o aparelho do fiscal recebe o encerramento
+ * na próxima sincronização, e um envio antigo do aparelho (encerrado = 0) não reabre o turno (ver gravar_).
+ */
+function painelEncerrarTurno(token, turnoId, fim) {
+  const admin = adminDoToken_(token);
+  const id = String(turnoId === null || turnoId === undefined ? '' : turnoId).trim();
+  if (!id || id.length > 64) throw new Error('Turno não informado.');
+  fim = String(fim === null || fim === undefined ? '' : fim).trim();
+  if (!RE_HM_.test(fim)) throw new Error('Horário de encerramento inválido. Use o formato HH:MM (ex.: 17:30).');
+  const quem = String(admin || 'Administrador').replace(/^[=+\-@\s]+/, '').slice(0, 120) || 'Administrador';   // texto, nunca fórmula
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const t = lerTudo_('Turnos'), cols = t.cols;
+    let idx = -1;
+    t.valores.forEach(function (l, i) { if (String(l[0]) === id) idx = i; });
+    if (idx < 0) throw new Error('Turno não encontrado na planilha. Atualize o painel e tente de novo.');
+    const o = paraObjeto_(cols, t.valores[idx]);
+    if (o.encerrado === 1) {
+      throw new Error('Este turno já está encerrado' + (o.fim ? ' (fim ' + o.fim + ')' : '') + (o.encerradoPor ? ', encerrado por ' + o.encerradoPor : ' pelo fiscal') + '.');
+    }
+    const ini = tsManaus_(o.data, o.inicio), agora = Date.now();
+    let fimTs = tsManaus_(o.data, fim);
+    if (fimTs !== null && ini !== null && fimTs < ini) fimTs += 864e5;                // passou da meia-noite
+    if (fimTs !== null && fimTs > agora + ENCERRAR_TOLERANCIA_MS) {
+      throw new Error('O horário de encerramento (' + fim + ') ainda não chegou. Um horário antes do início do turno (' + o.inicio + ') conta como o dia seguinte.');
+    }
+    const novo = { encerrado: 1, fim: fim, atualizadoEm: agora, srv_ts: agora, encerradoPor: quem, encerradoEm: agora };
+    const linha = cols.map(function (c, i) { return c in novo ? novo[c] : t.valores[idx][i]; });
+    t.sh.getRange(idx + 2, 1, 1, cols.length).setValues([linha]);
+    return { ok: true, turno: { id: id, data: o.data, inicio: o.inicio, fim: fim, encerrado: 1, inicioTs: ini, fimTs: fimTs,
+                                encerradoPor: quem, encerradoEm: agora, atualizadoEm: agora, srv_ts: agora } };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 /** Troca o código de administrador por uma credencial (limitador de tentativas próprio, mais restrito que o dos aparelhos). */
 function painelAtivar(codigo) {
   return ativar_({ codigo: codigo, perfil: 'admin' });
@@ -964,7 +1011,7 @@ function painelDados(token, filtro) {
     if (fim !== null && ini !== null && fim < ini) fim += 864e5;                       // turno que passou da meia-noite
     return { id: t.id, numeroTF: t.numeroTF, data: t.data, letra: t.letra, inicio: t.inicio, fim: t.fim, fiscal: t.fiscal, local: t.local,
              unidade: t.unidade, posto: t.posto, encerrado: t.encerrado === 1 ? 1 : 0, emAndamento: t.encerrado !== 1, usuario: t.usuario,
-             criadoEm: t.criadoEm, atualizadoEm: t.atualizadoEm, srv_ts: t.srv_ts,
+             criadoEm: t.criadoEm, atualizadoEm: t.atualizadoEm, srv_ts: t.srv_ts, encerradoPor: t.encerradoPor, encerradoEm: t.encerradoEm || null,
              latIni: numOuNulo_(t.latIni), lngIni: numOuNulo_(t.lngIni), precIni: numOuNulo_(t.precIni),
              latFim: numOuNulo_(t.latFim), lngFim: numOuNulo_(t.lngFim), precFim: numOuNulo_(t.precFim),
              inicioTs: ini, fimTs: fim, nVeiculos: a.n, nPessoas: a.pessoas,
@@ -1339,6 +1386,7 @@ function paraObjeto_(cols, linha) {
   return o;
 }
 
+const CAMPOS_ENCERRAMENTO_ = ['encerrado', 'fim', 'latFim', 'lngFim', 'precFim', 'encerradoPor', 'encerradoEm'];
 function gravar_(nome, recebidos, ts, usuario) {
   if (!recebidos.length) return;
   const t = lerTudo_(nome), cols = t.cols, idx = {};
@@ -1364,7 +1412,19 @@ function gravar_(nome, recebidos, ts, usuario) {
       if (o.atualizadoEm >= atual.atualizadoEm) {   // última edição vence
         // campo que o app NÃO enviou (ex.: TF não conhece o e-mail da pessoa, versão antiga do app) mantém o valor da planilha
         cols.forEach(function (c, i) { if (c !== 'srv_ts' && c !== 'usuario' && !(c in r)) linha[i] = t.valores[idx[id]][i]; });
+        // turno já encerrado na planilha não reabre: um envio do aparelho com encerrado = 0 (edição local feita antes de saber do
+        // encerramento) mantém o encerramento; encerrado pela gerência, o horário final e quem encerrou também não mudam
+        if (nome === 'Turnos' && atual.encerrado === 1 && (o.encerrado !== 1 || atual.encerradoPor)) {
+          CAMPOS_ENCERRAMENTO_.forEach(function (c) { const i = cols.indexOf(c); if (i >= 0) linha[i] = t.valores[idx[id]][i]; });
+        }
         t.sh.getRange(idx[id] + 2, 1, 1, cols.length).setValues([linha]);
+      } else if (nome === 'Turnos' && o.encerrado === 1 && atual.encerrado !== 1) {
+        // encerramento com atualizadoEm mais velho que a planilha (relógio do aparelho corrigido para trás depois de abrir o turno):
+        // o turno não pode ficar aberto para sempre; grava só o encerramento e devolve ao aparelho (srv_ts)
+        const l2 = t.valores[idx[id]].slice();
+        ['encerrado', 'fim', 'latFim', 'lngFim', 'precFim'].forEach(function (c) { const i = cols.indexOf(c); if (i >= 0 && (c in r)) l2[i] = o[c]; });
+        l2[cols.indexOf('srv_ts')] = ts;
+        t.sh.getRange(idx[id] + 2, 1, 1, cols.length).setValues([l2]);
       }
     }
   });

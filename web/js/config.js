@@ -25,7 +25,6 @@ const CONFIG = {
 
   // Termo de Fiscalização de Barreira (TF)
   TF: {
-    reserva: 3,                                   // quantos números cada aparelho mantém reservados (funciona sem internet)
     vias: ['1ª via', '2ª via'],                   // impressas em páginas separadas, para assinatura
     relacoes: ['Transportador', 'Proprietário', 'Motorista', 'Responsável Técnico', 'Outro'],
     unidades: ['Kg', 'Ton', 'Caixas', 'Sacos', 'Unidades', 'Mudas'],

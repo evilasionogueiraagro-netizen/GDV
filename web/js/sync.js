@@ -31,17 +31,20 @@ const Sync = (() => {
   function desativar() { ['gdv.key', 'gdv.nome', 'gdv.revogado'].forEach(k => localStorage.removeItem(k)); }
   function emitir(e) { estado = e; listeners.forEach(f => f(e)); }
 
-  async function chamar(corpo) {
-    const c = cfg();
-    const r = await fetch(c.url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // evita preflight CORS
-      body: JSON.stringify({ ...corpo, key: c.key }),
-      redirect: 'follow'
-    });
-    const j = await r.json();
-    if (!j.ok) throw new Error(j.erro || 'Erro no servidor');
-    return j;
+  async function chamar(corpo, limiteMs) {
+    const c = cfg(), ctrl = new AbortController(), t = limiteMs ? setTimeout(() => ctrl.abort(), limiteMs) : null;
+    try {
+      const r = await fetch(c.url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // evita preflight CORS
+        body: JSON.stringify({ ...corpo, key: c.key }),
+        redirect: 'follow',
+        signal: ctrl.signal
+      });
+      const j = await r.json();
+      if (!j.ok) throw new Error(j.erro || 'Erro no servidor');
+      return j;
+    } finally { if (t) clearTimeout(t); }
   }
 
   const limpo = ({ pendente, provisorio, ...r }) => r;
@@ -54,21 +57,18 @@ const Sync = (() => {
     return o;
   }
 
-  /* Numeração de TF: reserva de números da sequência da barreira (planilha) para uso inclusive offline. */
-  async function aplicarReserva(res) {
-    if (!res) return;
-    const key = res.barreira + '|' + res.ano;
-    const todas = (await Store.meta('reservas')) || {}, uv = (await Store.meta('ultimoVisto')) || {};
-    todas[key] = [...new Set([...(todas[key] || []), ...res.numeros])].sort((a, b) => a - b);
-    uv[key] = Math.max(uv[key] || 0, res.ultimo);
-    await Store.setMeta('reservas', todas); await Store.setMeta('ultimoVisto', uv);
+  /* Numeração de TF: o servidor guarda UMA sequência por barreira/ano. Aqui guardamos só o "último nº usado" conhecido,
+     para propor um número provisório quando não há internet. */
+  async function lembrarUltimos(ultimos) {
+    if (!ultimos) return;
+    const uv = (await Store.meta('ultimoVisto')) || {};
+    Object.keys(ultimos).forEach(k => { uv[k] = Math.max(uv[k] || 0, ultimos[k] || 0); });
+    await Store.setMeta('ultimoVisto', uv);
   }
-  async function pedidoReserva() {
-    const b = localStorage.getItem('gdv.barreira'); if (!b) return undefined;
-    const ano = new Date().getFullYear(), tem = (((await Store.meta('reservas')) || {})[b + '|' + ano] || []).length;
-    const falta = CONFIG.TF.reserva - tem;
-    return falta > 0 ? { barreira: b, ano, quantidade: falta } : undefined;
-  }
+  /** Consulta rápida: último nº usado e próximo, direto na planilha. */
+  const proximoNumero = (barreira, ano) => chamar({ action: 'tfProximoNumero', barreira, ano }, 9000);
+  /** Emissão: a planilha só grava o TF se o número ainda estiver livre. */
+  const emitirTF = (tf, pessoa, placa) => chamar({ action: 'tfEmitir', tf: limpo(tf), pessoa: limpo(pessoa), placa: placa ? limpo(placa) : undefined }, 20000);
   /** Cadastro + histórico (reincidência) de um CPF/CNPJ e/ou placa, consultados no servidor. */
   const consultar = (doc, placa) => chamar({ action: 'tfConsultar', doc, placa });
 
@@ -103,13 +103,13 @@ const Sync = (() => {
         const env = { t: p.t.slice(0, 500), v: p.v.slice(0, 1000), f: p.f.slice(0, 100), p: p.p.slice(0, 300), l: p.l.slice(0, 300) };
         const since = (await Store.meta('lastSync')) || 0;
         const r = await chamar({ action: 'sync', since, turnos: env.t.map(limpo), veiculos: env.v.map(limpo), tfs: env.f.map(limpo),
-          pessoas: env.p.map(limpo), placas: env.l.map(limpo), reservar: volta === 0 ? await pedidoReserva() : undefined });
+          pessoas: env.p.map(limpo), placas: env.l.map(limpo) });
         for (const n of NOMES) await marcarEnviados(STORES[n], env[n]);
         await aplicar('turnos', r.turnos);
         await aplicar('veiculos', r.veiculos);
         await aplicar('tfs', r.tfs || []);
         if (r.barreiras) await Store.setMeta('barreiras', r.barreiras);
-        await aplicarReserva(r.reserva);
+        await lembrarUltimos(r.ultimos);
         await Store.setMeta('lastSync', r.agora);
         if (NOMES.every(n => p[n].length <= env[n].length)) break;
       }
@@ -143,5 +143,5 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { iniciar, sincronizar, testar, atualizarContagem, ativado, nome, ativar, desativar, consultar, onEstado: f => listeners.push(f), estado: () => estado, cfg };
+  return { iniciar, sincronizar, testar, atualizarContagem, ativado, nome, ativar, desativar, consultar, proximoNumero, emitirTF, lembrarUltimos, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

@@ -22,20 +22,19 @@ const TABELAS = {
   TFs: ['id', 'barreira', 'ano', 'numero', 'numeroTxt', 'turnoId', 'veiculoId', 'data', 'hora', 'fiscal', 'local', 'placa', 'origem', 'destino',
         'doc', 'nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone', 'relacao', 'inspecao', 'coleta', 'amostras',
         'procedimento', 'fiel', 'auto', 'advertencia', 'documentos', 'produtos', 'constatacao', 'enquadramento',
-        'reincidente', 'tfsAnteriores', 'cancelado', 'motivoCancel', 'conflito', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
+        'reincidente', 'tfsAnteriores', 'cancelado', 'motivoCancel', 'conflito', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
+        'numeroSugerido', 'numeroOrigem', 'emitidoEm'],   // auditoria da numeração (colunas novas ficam sempre no fim)
   Pessoas: ['id', 'tipo', 'nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],   // id = CPF/CNPJ (só dígitos)
   Placas: ['id', 'doc', 'nome', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],                                                    // id = placa
   Barreiras: ['id', 'nome', 'sufixo', 'local', 'ativo'],                                                                            // cadastro feito direto na planilha
-  Sequencias: ['id', 'barreira', 'ano', 'ultimo', 'atualizadoEm'],                                                                   // id = barreira|ano
-  Reservas: ['em', 'usuario', 'barreira', 'ano', 'de', 'ate'],
+  Numeracao: ['id', 'barreira', 'ano', 'ultimo', 'atualizadoEm'],                                                                    // ponto de partida definido pelo administrador (id = barreira|ano)
   Consultas: ['em', 'usuario', 'doc', 'placa', 'resultado']
 };
 const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
                           'expiraEm', 'ativo', 'ativadoEm',
-                          'ano', 'numero', 'ultimo', 'de', 'ate', 'em', 'amostras', 'inspecao', 'coleta', 'fiel', 'auto',
+                          'ano', 'numero', 'ultimo', 'de', 'ate', 'em', 'numeroSugerido', 'emitidoEm', 'amostras', 'inspecao', 'coleta', 'fiel', 'auto',
                           'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito'];
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300 };   // demais colunas: 500
-const RESERVA_MAX = 5;                                 // números que um aparelho pode reservar por vez
 const VALIDADE_CODIGO_MS = 7 * 24 * 3600 * 1000;      // código de ativação vale 7 dias
 const MAX_FALHAS_ATIVACAO = 10;                        // tentativas erradas antes de bloquear por 15 min
 const MAX_LINHAS_POR_ENVIO = 2000;
@@ -53,6 +52,8 @@ function doPost(e) {
     if (req.action === 'ping') return json_({ ok: true, nome: usuario });
     if (req.action === 'sync') return json_(sincronizar_(req, usuario));
     if (req.action === 'tfConsultar') return json_(consultar_(req, usuario));
+    if (req.action === 'tfProximoNumero') return json_(proximoNumero_(req));
+    if (req.action === 'tfEmitir') return json_(emitir_(req, usuario));
     throw new Error('Ação inválida.');
   } catch (err) {
     return json_({ ok: false, erro: String(err.message || err) });
@@ -73,11 +74,11 @@ function sincronizar_(req, usuario) {
     const agora = Date.now();
     gravar_('Turnos', turnos, agora, usuario);
     gravar_('Veiculos', veiculos, agora, usuario);
+    tfs.forEach(function (t) { if (t && !t.emitidoEm) t.emitidoEm = agora; });            // momento em que a planilha recebeu o TF
     gravar_('TFs', tfs, agora, usuario);
     if (tfs.length) marcarConflitosTFs_(tfs, agora);
     gravar_('Pessoas', pessoas, agora, usuario);
     gravar_('Placas', placas, agora, usuario);
-    const reserva = req.reservar ? reservarNumeros_(req.reservar, usuario, agora) : null;
     return {
       ok: true,
       agora: agora,
@@ -85,7 +86,7 @@ function sincronizar_(req, usuario) {
       veiculos: lerMudancas_('Veiculos', since),
       tfs: lerMudancas_('TFs', since, usuario),          // cada fiscal recebe só os próprios TFs
       barreiras: listarBarreiras_(),
-      reserva: reserva
+      ultimos: ultimosPorBarreira_()                    // último nº usado em cada barreira (ano atual): base para propor número sem internet
     };
   } finally {
     lock.releaseLock();
@@ -104,26 +105,76 @@ function listarBarreiras_() {
     .map(function (b) { return { id: b.id, nome: b.nome, sufixo: b.sufixo, local: b.local }; });
 }
 
-/** Reserva uma faixa de números da sequência única da barreira (sob o lock do sincronizar_). */
-function reservarNumeros_(pedido, usuario, agora) {
-  const barreira = String(pedido.barreira || '').slice(0, 64);
-  const ano = Number(pedido.ano) || new Date().getFullYear();
-  const qtd = Math.max(1, Math.min(RESERVA_MAX, Number(pedido.quantidade) || 1));
-  if (!barreira) throw new Error('Informe a barreira.');
+/**
+ * Numeração: UMA sequência por barreira e por ano, sem faixas reservadas. O "último usado" é o maior número
+ * entre os TFs gravados (inclusive cancelados, que mantêm o número) e o ponto de partida da aba Numeracao.
+ */
+function ultimoNumero_(barreira, ano, tfs) {
+  let ultimo = 0, ref = null;
+  const base = lerLeitura_('Numeracao').filter(function (r) { return r.id === barreira + '|' + ano; })[0];
+  if (base) ultimo = base.ultimo;
+  (tfs || lerLeitura_('TFs')).forEach(function (r) { if (r.barreira === barreira && r.ano === ano && r.numero > ultimo) { ultimo = r.numero; ref = r; } });
+  return { ultimo: ultimo, ref: ref };
+}
+
+function ultimosPorBarreira_() {
+  const tfs = lerLeitura_('TFs'), ano = new Date().getFullYear(), o = {};
+  listarBarreiras_().forEach(function (b) { o[b.id + '|' + ano] = ultimoNumero_(b.id, ano, tfs).ultimo; });
+  return o;
+}
+
+/** "Qual é o próximo número?" – consulta rápida feita pelo app na hora de gerar o TF (não reserva nada). */
+function proximoNumero_(req) {
+  const barreira = String(req.barreira || '').slice(0, 64), ano = Number(req.ano) || new Date().getFullYear();
   if (!listarBarreiras_().some(function (b) { return b.id === barreira; })) throw new Error('Barreira desconhecida: ' + barreira);
-  const t = lerTudo_('Sequencias'), id = barreira + '|' + ano;
-  let idx = -1, ultimo = 0;
-  t.valores.forEach(function (l, i) { if (String(l[0]) === id) { idx = i; ultimo = Number(l[3]) || 0; } });
-  if (idx < 0) {                                       // 1ª vez: continua do maior número já gravado
-    lerLeitura_('TFs').forEach(function (r) { if (r.barreira === barreira && r.ano === ano && r.numero > ultimo) ultimo = r.numero; });
+  const u = ultimoNumero_(barreira, ano);
+  return { ok: true, barreira: barreira, ano: ano, ultimo: u.ultimo, proximo: u.ultimo + 1,
+           ultimoTF: u.ref ? { numeroTxt: u.ref.numeroTxt, data: u.ref.data, hora: u.ref.hora, usuario: u.ref.usuario } : null };
+}
+
+/**
+ * Emissão: grava o TF só se o número ainda estiver livre (sob lock). Se outro fiscal usou o número nesse
+ * intervalo, devolve emitido = false e o próximo livre, ANTES de qualquer impressão.
+ */
+function emitir_(req, usuario) {
+  const tf = req.tf || {};
+  const barreira = String(tf.barreira || ''), ano = Number(tf.ano) || 0, numero = Number(tf.numero) || 0;
+  if (!tf.id || !barreira || !ano || numero < 1) throw new Error('Dados do TF incompletos.');
+  if (!listarBarreiras_().some(function (b) { return b.id === barreira; })) throw new Error('Barreira desconhecida: ' + barreira);
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const todos = lerLeitura_('TFs');
+    const ocupante = todos.filter(function (r) { return r.barreira === barreira && r.ano === ano && r.numero === numero && r.id !== tf.id; })[0];
+    if (ocupante) {
+      const u = ultimoNumero_(barreira, ano, todos);
+      return { ok: true, emitido: false, ocupadoPor: { numeroTxt: ocupante.numeroTxt, data: ocupante.data, hora: ocupante.hora, usuario: ocupante.usuario },
+               ultimo: u.ultimo, proximo: u.ultimo + 1 };
+    }
+    const agora = Date.now(), antes = todos.filter(function (r) { return r.id === tf.id; })[0];
+    tf.emitidoEm = (antes && antes.emitidoEm) || agora;                          // reenvio do mesmo TF não muda a data de emissão
+    gravar_('TFs', [tf], agora, usuario);
+    if (req.pessoa) gravar_('Pessoas', [req.pessoa], agora, usuario);
+    if (req.placa) gravar_('Placas', [req.placa], agora, usuario);
+    return { ok: true, emitido: true, numero: numero, emitidoEm: tf.emitidoEm, srv_ts: agora };
+  } finally {
+    lock.releaseLock();
   }
-  const novo = ultimo + qtd, numeros = [];
-  for (let n = ultimo + 1; n <= novo; n++) numeros.push(n);
-  const linha = [[id, barreira, ano, novo, agora]];
-  if (idx >= 0) t.sh.getRange(idx + 2, 1, 1, 5).setValues(linha); else t.sh.getRange(t.sh.getLastRow() + 1, 1, 1, 5).setValues(linha);
-  const r = aba_('Reservas');
-  r.getRange(r.getLastRow() + 1, 1, 1, 6).setValues([[agora, usuario, barreira, ano, ultimo + 1, novo]]);
-  return { barreira: barreira, ano: ano, numeros: numeros, ultimo: novo };
+}
+
+/** Auditoria da sequência de uma barreira/ano: lacunas (números sem TF) e números usados mais de uma vez. */
+function auditarSequencia_(barreira, ano) {
+  const tfs = lerLeitura_('TFs').filter(function (r) { return r.barreira === barreira && r.ano === Number(ano); });
+  const usos = {};
+  tfs.forEach(function (r) { (usos[r.numero] = usos[r.numero] || []).push(r); });
+  const nums = Object.keys(usos).map(Number).sort(function (a, b) { return a - b; });
+  const base = lerLeitura_('Numeracao').filter(function (r) { return r.id === barreira + '|' + ano; })[0];
+  const inicio = base ? base.ultimo + 1 : 1, lacunas = [], duplicados = [];
+  const maior = nums.length ? nums[nums.length - 1] : inicio - 1;
+  for (let n = inicio; n <= maior; n++) if (!usos[n]) lacunas.push(n);
+  nums.forEach(function (n) { if (usos[n].length > 1) duplicados.push({ numero: n, ids: usos[n].map(function (r) { return r.usuario + ' ' + r.data + ' ' + r.hora; }) }); });
+  const editados = tfs.filter(function (r) { return r.numeroOrigem === 'editado' || r.numeroOrigem === 'provisorio'; }).map(function (r) { return { numero: r.numero, origem: r.numeroOrigem, sugerido: r.numeroSugerido, usuario: r.usuario }; });
+  return { total: tfs.length, primeiro: nums[0] || null, ultimo: maior || null, inicioEsperado: inicio, lacunas: lacunas, duplicados: duplicados, editados: editados };
 }
 
 /** Número duplicado (mesma barreira/ano): o TF mais antigo vale; os demais ficam com conflito = 1. */
@@ -146,13 +197,13 @@ function marcarConflitosTFs_(recebidos, agora) {
   });
 }
 
-/** Define o último número usado de uma sequência (ex.: ao começar a usar o sistema no meio do ano). */
+/** Define o ponto de partida (último nº já usado) de uma barreira/ano, ex.: ao começar a usar o sistema no meio do ano. */
 function definirSequencia_(barreira, ano, ultimo) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
     if (!listarBarreiras_().some(function (b) { return b.id === barreira; })) throw new Error('Barreira desconhecida: ' + barreira);
-    const t = lerTudo_('Sequencias'), id = barreira + '|' + ano;
+    const t = lerTudo_('Numeracao'), id = barreira + '|' + ano;
     let idx = -1;
     t.valores.forEach(function (l, i) { if (String(l[0]) === id) idx = i; });
     const linha = [[id, barreira, Number(ano), Number(ultimo), Date.now()]];
@@ -368,6 +419,7 @@ function onOpen() {
     .addItem('Gerar código de ativação', 'menuGerarCodigo')
     .addItem('Gerar código de administrador (painel)', 'menuGerarCodigoAdmin')
     .addItem('Definir último nº de TF usado (barreira)', 'menuDefinirSequencia')
+    .addItem('Auditar numeração de TF (lacunas e duplicidades)', 'menuAuditarNumeracao')
     .addItem('Revogar acesso de um fiscal ou administrador', 'menuRevogar')
     .addToUi();
 }
@@ -404,6 +456,19 @@ function menuDefinirSequencia() {
   if (u.getSelectedButton() !== ui.Button.OK) return;
   try { const n = definirSequencia_(b.getResponseText().trim(), Number(a.getResponseText()), Number(u.getResponseText())); ui.alert('Pronto', 'O próximo TF será o nº ' + (n + 1) + '.', ui.ButtonSet.OK); }
   catch (e) { ui.alert('Não foi possível definir', String(e.message || e), ui.ButtonSet.OK); }
+}
+
+function menuAuditarNumeracao() {
+  const ui = SpreadsheetApp.getUi();
+  const b = ui.prompt('Barreira', 'Código da barreira (coluna id da aba Barreiras), ex.: BVA-CEASA', ui.ButtonSet.OK_CANCEL);
+  if (b.getSelectedButton() !== ui.Button.OK) return;
+  const a = ui.prompt('Ano', 'Ano da numeração (ex.: ' + new Date().getFullYear() + ')', ui.ButtonSet.OK_CANCEL);
+  if (a.getSelectedButton() !== ui.Button.OK) return;
+  const r = auditarSequencia_(b.getResponseText().trim(), Number(a.getResponseText()));
+  const f = function (l) { return l.length ? l.join(', ') : 'nenhuma'; };
+  ui.alert('Auditoria da numeração', r.total + ' TF(s), do nº ' + r.primeiro + ' ao nº ' + r.ultimo + '.\n\nLacunas (números sem TF): ' + f(r.lacunas) +
+    '\nNúmeros repetidos: ' + (r.duplicados.length ? r.duplicados.map(function (d) { return d.numero; }).join(', ') : 'nenhum') +
+    '\nNúmeros alterados à mão ou provisórios: ' + (r.editados.length ? r.editados.map(function (e) { return e.numero + ' (' + e.origem + ', ' + e.usuario + ')'; }).join('; ') : 'nenhum'), ui.ButtonSet.OK);
 }
 
 function menuRevogar() {

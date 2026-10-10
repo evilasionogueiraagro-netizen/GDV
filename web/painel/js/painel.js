@@ -16,7 +16,7 @@ const Painel = (() => {
   // TF em preenchimento (apreensão em andamento): enquanto houver um, as barreiras ao vivo são consultadas a cada 25 s;
   // sem batimento do aparelho há mais de 10 min o TF é considerado encerrado (o servidor já filtra; aqui vale também sem conexão)
   const TF_RAPIDO_MS = 25 * 1000, TF_VALIDADE_MS = 10 * 60 * 1000;
-  const ORDEM_ABAS = ['geral', 'barreiras', 'tf', 'pce'];
+  const ORDEM_ABAS = ['geral', 'barreiras', 'tf', 'pce', 'acessos'];
 
   /* ---------------- utilidades ---------------- */
   const $ = s => document.querySelector(s);
@@ -138,6 +138,13 @@ const Painel = (() => {
   }
   // só estas respostas do servidor encerram a sessão (credencial revogada/inválida); falha de rede, cota ou "período inválido" nunca deslogam
   const erroDeSessao = m => /sess[aã]o do painel|revogad|acesso restrito|n[aã]o autorizado|aparelho n[aã]o ativado/i.test(m || '');
+  /** Chamada à API com a credencial do painel (abas que leem ou gravam fora do painelDados). Credencial recusada → volta ao login. */
+  async function chamar(corpo) {
+    const tok = S.token; if (!tok) throw new Error('Sessão do painel encerrada. Entre de novo.');
+    try { return await api(Object.assign({}, corpo, { key: tok })); }
+    catch (e) { if (e.servidor && erroDeSessao(e.message) && S.token === tok) sair(e.message); throw e; }
+  }
+  const aoSairFns = [];                                  // abas que guardam estado próprio (ex.: Servidores) limpam ao sair
 
   /* ---------------- estado ---------------- */
   const S = { token: ls.get(LS_TOKEN) || '', nome: ls.get(LS_NOME) || '', bruto: null, todos: null, dados: null, filtros: null,
@@ -593,7 +600,9 @@ const Painel = (() => {
   }
   function irPara(id) { if (!S.abas[id]) return; S.aba = id; ls.set(LS_ABA, id); desenharAbas(); renderAba(); window.scrollTo({ top: 0 }); }
   function renderAba(auto) {
-    const def = S.abas[S.aba], c = $('#pn-conteudo'); if (!def || !S.dados || emTV()) return;
+    const def = S.abas[S.aba], c = $('#pn-conteudo');
+    if (!emTV()) $('.pn-filtros').hidden = !!(def && def.semFiltros);   // aba sem período/filtros (ex.: Servidores)
+    if (!def || !S.dados || emTV()) return;
     const y = window.scrollY, h = c.offsetHeight;
     if (auto) c.style.minHeight = h + 'px';
     Object.keys(S.graficos).forEach(k => { try { S.graficos[k].destroy(); } catch (e) { /* já destruído */ } delete S.graficos[k]; });
@@ -951,8 +960,10 @@ const Painel = (() => {
     container.appendChild(card);
 
     // controles (chips liga/desliga + seletores)
-    const pragas = [...new Set(d.levantamentos.flatMap(l => l.pragas))].sort();
-    const culturas = [...new Set(d.levantamentos.flatMap(l => l.culturasLista.filter(c => c.praga).map(c => c.cultura)))].sort();
+    // listas do formulário de levantamento (config.js do app) + o que já foi registrado, mesmo sem detecção no período
+    const PCEcfg = (typeof CONFIG !== 'undefined' && CONFIG.PCE) || {}, cmp = (x, y) => x.localeCompare(y, 'pt-BR');
+    const pragas = [...new Set([...(PCEcfg.pragas || []), ...d.levantamentos.flatMap(l => l.pragas)].filter(Boolean))].sort(cmp);
+    const culturas = [...new Set([...(PCEcfg.culturas || []), ...d.levantamentos.flatMap(l => l.culturasLista.map(c => c.cultura))].filter(Boolean))].sort(cmp);
     ctl.innerHTML = camadas.map(k => `<label class="pn-chip"><input type="checkbox" data-camada="${k}" ${ativas.has(k) ? 'checked' : ''}> ${esc(CAMADAS[k])}</label>`).join('') +
       (camadas.includes('calor') ? `<span class="pn-sel" data-de="calor">Praga <select data-f="praga"><option value="">Todas</option>${pragas.map(x => `<option ${x === st.praga ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></span>
         <span class="pn-sel" data-de="calor">Cultura <select data-f="cultura"><option value="">Todas</option>${culturas.map(x => `<option ${x === st.cultura ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></span>` : '') +
@@ -1279,7 +1290,8 @@ const Painel = (() => {
     S.encerrada = !!msg;                                       // credencial recusada pelo servidor (não é a 1ª configuração)
     // o motivo fica gravado no aparelho: depois de recarregar (versão nova, TV reiniciada) continua "Sessão encerrada"
     if (msg) ls.set(LS_ENCERRADA, msg); else ls.del(LS_ENCERRADA);
-    ls.del(LS_TOKEN); ls.del(LS_NOME); S.token = ''; S.nome = ''; S.bruto = S.todos = S.dados = null; clearTimeout(S.timer); S.falhas = 0; S.tfRapido = false;
+    ls.del(LS_TOKEN); ls.del(LS_NOME); S.token = ''; S.nome = '';
+    aoSairFns.forEach(fn => { try { fn(); } catch (e) { /* aba */ } }); S.bruto = S.todos = S.dados = null; clearTimeout(S.timer); S.falhas = 0; S.tfRapido = false;
     desenharAvisoTF();
     mostrar('login'); status(''); const e = $('#pn-login-erro'); e.hidden = !msg; e.textContent = msg || ''; $('#pn-codigo').value = ''; $('#pn-codigo').focus();
     if (S.tv) S.tv.atualizar();
@@ -1378,6 +1390,8 @@ const Painel = (() => {
     estado: () => ({ ultimaCarga: S.ultimaCarga, ultimaCompleta: S.ultimaCompleta, erro: S.erro, falhas: S.falhas, proxima: S.proxima, carregando: S.carregando, temDados: !!S.todos }),
     /** O modo TV se registra aqui: {ativo() → bool, iniciar(), atualizar()} (atualizar é chamado a cada carga, falha ou fim de sessão). */
     usarTV: h => { S.tv = h; },
+    /** API com a credencial do painel ({action, ...} → resposta; erro de sessão volta ao login) e o nome do administrador logado. */
+    chamar, get usuario() { return S.nome; }, aoSair: fn => { aoSairFns.push(fn); },
     trocarModo
   };
 })();

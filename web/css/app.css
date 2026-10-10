@@ -94,3 +94,5 @@ input:disabled { background:#eef1f6; color:#99a; }
 .pce-partes-grupo { border:0; padding:0; margin:10px 0; min-width:0; } .pce-partes-grupo legend { padding:0; font-size:13px; color:var(--mut); margin-bottom:4px; }
 .pce-acoes { flex-wrap:wrap; } .pce-acoes button { flex:1 1 45%; }
 .tf-status li .mini { margin-left:6px; }
+.linha-acoes { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:-4px 0 6px; } .linha-acoes small { color:var(--mut); }
+#nPlacaInfo { text-align:left; padding:0 0 8px; }

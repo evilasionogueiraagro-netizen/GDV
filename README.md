@@ -14,7 +14,7 @@ App para registrar os veículos abordados em barreiras **fixas ou móveis**, por
  └─────────────────────────────────────────┘   sincroniza   └──────────────────────┘
 ```
 
-- **Fluxo do fiscal:** abre o link → recebe as instruções para **instalar** (iOS/Android) → abre o app instalado e informa o **código de ativação** → cai na tela de **Módulos**, com dois cartões: **Controle de veículos** (turno, registro, lista, resumo, histórico, Termo e Ficha) e **Termo de Fiscalização de Barreira** (TF isolado). Dentro do controle de veículos também é possível lavrar o TF (botão *Lavrar TF neste turno* na tela do turno e *Lavrar TF* em cada veículo da lista), sem sair do módulo. O item *Módulos* do menu volta sempre para essa tela.
+- **Fluxo do fiscal:** abre o link → recebe as instruções para **instalar** (iOS/Android) → abre o app instalado e informa o **código de ativação** → cai na tela de **Módulos**, com os cartões: **Educação Sanitária/Fiscalização** (turno, registro, lista, resumo, histórico, Termo e Ficha) e **Termo de Fiscalização de Barreira** (TF isolado). Dentro da Educação Sanitária/Fiscalização também é possível lavrar o TF (botão *Lavrar TF neste turno* na tela do turno e *Lavrar TF* em cada veículo da lista), sem sair do módulo. O item *Módulos* do menu volta sempre para essa tela.
 - **Offline primeiro:** tudo é salvo no aparelho. Ao voltar a conexão (ou a cada 60 s online) o app envia o que está pendente e baixa o que mudou. O selo no topo mostra 🟢 Online / 🔴 Offline e quantos registros aguardam envio.
 - **Um fiscal por turno** lança os dados; vários aparelhos/barreiras podem usar a mesma planilha (cada registro tem ID único; em conflito vale a edição mais recente).
 - **Horários do turno:** o início é o instante em que o fiscal toca em *Iniciar turno* e o fim, o instante de *Encerrar turno* (relógio do aparelho; mantenha data/hora automáticas). Ambos vão para o Termo. Na Ficha de Campo, o campo *Turno* traz esses horários reais (das HH:MM às HH:MM). A letra do TF é deduzida do início: 04:00–11:59 = A, demais = B. O Termo é liberado após encerrar. O encerramento é definitivo (não há como reabrir o turno).
@@ -44,7 +44,7 @@ App para registrar os veículos abordados em barreiras **fixas ou móveis**, por
    1. Na planilha: menu **GDV → Gerar código de ativação** e informe o **nome completo** do fiscal. O código aparece na tela (uso único, vale 7 dias). Os acessos ficam na aba `Fiscais`. Também dá para gerar pelo **painel do administrador**, aba **Servidores → Gerar chave de ativação** (com botões para copiar a mensagem ou enviar pelo WhatsApp).
    2. Envie o código ao fiscal. No app, ele digita o código uma vez (precisa de internet só nesse momento). O aparelho passa a ter uma credencial própria, **vinculada ao nome**, e o campo *Fiscal 1* do turno já vem preenchido com ele.
    3. Para tirar o acesso (celular perdido, desligamento): **GDV → Revogar acesso de um fiscal** (ou **Revogar** na aba Servidores do painel). O aparelho deixa de sincronizar e passa a pedir novo código.
-   4. **Módulos de cada servidor** (opcional): no painel, aba **Servidores**, cada servidor tem três caixas — **Veículos** (Controle de veículos), **TF** (TF de Barreira) e **PCE** — que dizem em quais módulos ele pode **inserir dados**. Veja [Módulos autorizados por servidor](#módulos-autorizados-por-servidor).
+   4. **Módulos de cada servidor** (opcional): no painel, aba **Servidores**, cada servidor tem três caixas — **Fiscalização** (Educação Sanitária/Fiscalização), **TF** (TF de Barreira) e **PCE** — que dizem em quais módulos ele pode **inserir dados**. Veja [Módulos autorizados por servidor](#módulos-autorizados-por-servidor).
 
 ### Módulos autorizados por servidor
 
@@ -63,7 +63,7 @@ Para testar localmente: `cd web && python3 -m http.server 8080`.
 
 ## Termo de Fiscalização de Barreira (TF)
 
-Dentro do mesmo app, no módulo **Termo de Fiscalização de Barreira** (menu *Módulos*): o fiscal preenche o TF digitalmente e imprime em **2 vias** (páginas separadas, uma via por folha A4) para assinatura. Pode ser usado **isolado** (módulo TF → *Novo TF*) ou **embutido no controle de veículos**: o botão **Lavrar TF neste turno** (tela do turno) e o botão **Lavrar TF** de cada veículo da lista abrem o mesmo formulário com o local do turno (e a placa, no caso do veículo), ligam o TF ao turno e, ao terminar, voltam para o controle de veículos. No **Termo do turno**, o campo “Termos de Barreira Lavrados” sai preenchido com os números dos TFs lavrados naquele turno.
+Dentro do mesmo app, no módulo **Termo de Fiscalização de Barreira** (menu *Módulos*): o fiscal preenche o TF digitalmente e imprime em **2 vias** (páginas separadas, uma via por folha A4) para assinatura. Pode ser usado **isolado** (módulo TF → *Novo TF*) ou **embutido na Educação Sanitária/Fiscalização**: o botão **Lavrar TF neste turno** (tela do turno) e o botão **Lavrar TF** de cada veículo da lista abrem o mesmo formulário com o local do turno (e a placa, no caso do veículo), ligam o TF ao turno e, ao terminar, voltam para a Educação Sanitária/Fiscalização. No **Termo do turno**, o campo “Termos de Barreira Lavrados” sai preenchido com os números dos TFs lavrados naquele turno.
 
 **Numeração (uma sequência única por barreira e por ano, na planilha)**
 - Formato `0012/2026 - BVA - CEASA` (o sufixo vem da aba `Barreiras`). **Não há faixas reservadas por celular**: o número é o *último usado na planilha + 1*.
@@ -87,7 +87,7 @@ Dentro do mesmo app, no módulo **Termo de Fiscalização de Barreira** (menu *M
 
 **Para publicar:** atualize o `Code.gs` no Apps Script e crie uma **nova versão** da implantação (as abas novas são criadas automaticamente na primeira sincronização). Nos celulares, abra o app com internet para baixar a versão nova.
 
-## Módulo PCE (Levantamento fitossanitário e Termo de Colheita de Amostras)
+## Módulo PCE – Programa de Controle e Erradicação (levantamento fitossanitário e Termo de Colheita de Amostras)
 
 Fotos e assinaturas colhidas no app ficam no aparelho e, depois, sobem para o **Google Drive** do dono da planilha (pasta `GDV - Arquivos/PCE/<ano>/<levantamentos|colheitas>`, sem compartilhamento público); a aba `Arquivos` guarda o link. O Termo de Colheita tem numeração por unidade/ano, como o TF (menu **GDV → Definir último nº / Auditar numeração de Termo de Colheita**).
 
@@ -95,6 +95,23 @@ Fotos e assinaturas colhidas no app ficam no aparelho e, depois, sobem para o **
 1. Atualize o `Code.gs` no Apps Script e recarregue a planilha.
 2. Menu **GDV → Autorizar acesso ao Drive (fotos do PCE)** e aceite a permissão do Google Drive (cria a pasta `GDV - Arquivos`).
 3. **Implantar → Gerenciar implantações → lápis → Nova versão → Implantar**. Enquanto isso não for feito, o envio das fotos falha com erro de autorização e elas ficam pendentes nos aparelhos (nada se perde).
+
+### Registro antigo (digitar do papel)
+
+Para lançar no app levantamentos e Termos de Colheita feitos no papel (ex.: fichas escaneadas em PDF digitadas por um estagiário no computador).
+
+**Chave do estagiário só com PCE:** no painel, aba **Servidores** → **Gerar chave de ativação**: digite o nome completo do estagiário, deixe marcada **só a caixa PCE** (desmarque Veículos e TF) e gere o código; envie a mensagem (Copiar / WhatsApp). Ele abre o app no computador (`https://evilasionogueiraagro-netizen.github.io/GDV/`), digita o código e entra no módulo PCE. Se a chave já existir, basta desmarcar Veículos e TF na coluna **Módulos** da lista. Na primeira entrada no PCE, ele marca **"Só vou digitar registros antigos do papel"** na identificação (cargo e lotação deixam de ser obrigatórios); a partir daí, "Novo levantamento"/"Novo termo" já abrem no modo do papel.
+
+**Como usar:** em **Levantamentos** → **📄 Registro antigo (digitar do papel)**, ou em **Termos de colheita** → **📄 Termo antigo (digitar do papel)** (o botão também aparece para os fiscais). Diferenças em relação ao registro feito em campo:
+- **Servidor que fez a vistoria** (nome, cargo, matrícula, lotação) é digitado — não é o perfil de quem digita. Os últimos nomes ficam numa lista (até 40); escolher um nome completa cargo, matrícula e lotação. Quem digitou fica registrado na coluna `usuario` da planilha, como sempre.
+- **Data e hora** obrigatórias, digitadas (nada vem preenchido com "agora"); data/hora no futuro é recusada.
+- **Coordenadas** digitadas (sem GPS), em graus decimais (`-3.1190, -60.0217`, também com vírgula decimal: `-3,1190 -60,0217`) ou GMS (`3°07'08,4"S 60°01'18,1"W`; aceita º/°, '/′, "/''/″, espaços, hemisfério antes ou depois, `O` para oeste, `sul`/`oeste`, graus e minutos decimais `3°07,14'S`). S/W/O = negativo. O app mostra a conversão (decimal e GMS) e só aceita coordenada dentro do Amazonas (latitude −10…+3, longitude −74…−56; avisa se parece trocada ou sem o W). Coordenada é opcional (o papel pode não ter), mas o app avisa que o registro não aparecerá no mapa e pede confirmação.
+- **PDF escaneado**: um ou mais (até 10 por registro, 10 MB cada; o app não altera o arquivo e recusa o que não começa com `%PDF-`). Sobe ao Drive como as fotos (`GDV - Arquivos/PCE/<ano>/<levantamentos|colheitas>`, aba `Arquivos` com `tipo = documento`); depois de enviado, o PDF sai do aparelho e fica só o link "Abrir no Drive".
+- **Sem assinaturas** na tela.
+- **Salvar e digitar outro**: grava e abre um formulário novo mantendo servidor, município e data (no termo, também unidade e local); o resto é limpo e o cursor vai para a hora.
+- **Termo de Colheita antigo**: digite o número do papel (`007/2026/MANAUS`, `7/2026` ou só `7`). O ano é o da data do termo (o app avisa se o número tiver outro ano ou outra unidade). Precisa de internet: ao gravar, o app consulta a planilha e mostra um popup com o último número usado na unidade/ano; a planilha **aceita qualquer número livre** (não precisa ser o próximo) e **recusa número já usado**, mostrando quem usou. Efeito na sequência: o próximo número sugerido é sempre "maior número usado + 1"; então um número do papel **menor** que o último não muda nada, mas um número **maior** que o último faz a sequência daquela unidade/ano continuar a partir dele (inclusive para os fiscais em campo) — o popup avisa isso antes de gravar. Ao digitar termos do ano corrente, confira o número com cuidado. Na auditoria da numeração, esses termos aparecem como número "editado" quando diferem do sugerido.
+
+**Nada indica "registro antigo" no painel nem nos documentos**: os registros entram nos mapas, números e PDFs normalmente. As abas `Levantamentos` e `Colheitas` ganham no fim duas colunas técnicas (criadas sozinhas): `registroAntigo` (1 = digitado do papel, usado só pelo app para reabrir no formulário certo) e `documentos` (ids dos PDFs). O `painelDados` devolve `nDocumentos` (PDFs) separado de `nFotos`, sem exibi-lo. A action `arquivoEnviar` aceita `application/pdf` com `tipo: "documento"` (até 10 MB decodificados ≈ 13,4 MB em base64, conteúdo começando por `%PDF-`); fotos e assinaturas continuam só JPEG/PNG até 4 MB. **Para publicar:** atualize o `Code.gs` e crie uma nova versão da implantação.
 
 ## Painel gerencial do administrador
 

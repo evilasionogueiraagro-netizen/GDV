@@ -100,3 +100,9 @@ input:disabled { background:#eef1f6; color:#99a; }
 .tf-status li .mini { margin-left:6px; }
 .linha-acoes { display:flex; justify-content:space-between; align-items:center; gap:8px; margin:-4px 0 6px; } .linha-acoes small { color:var(--mut); }
 #nPlacaInfo { text-align:left; padding:0 0 8px; }
+/* PCE — registro antigo (digitação do papel): PDFs anexados e formulário mais largo no computador */
+.pce-docs { display:flex; flex-direction:column; gap:6px; }
+.pce-doc { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:8px 10px; border:1px solid var(--linha); border-radius:8px; background:#f8fafd; font-size:14px; }
+.pce-doc > span:first-child { min-width:0; overflow-wrap:anywhere; } .pce-doc small { color:var(--mut); white-space:nowrap; }
+.pce-doc-acoes { display:flex; gap:4px; flex-shrink:0; } .pce-doc-acoes .mini { margin:0; text-decoration:none; }
+@media (min-width:900px) { main:has(> form.pce-antigo) { max-width:820px; } }

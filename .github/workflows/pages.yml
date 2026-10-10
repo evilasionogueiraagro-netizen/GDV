@@ -17,7 +17,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Versionar o service worker (força os aparelhos a atualizar)
-        run: sed -i "s/^const VERSAO = .*/const VERSAO = 'gdv-${GITHUB_SHA::7}';/" web/sw.js
+        run: |
+          sed -i "s/^const VERSAO = .*/const VERSAO = 'gdv-${GITHUB_SHA::7}';/" web/sw.js
+          sed -i "s/^const VERSAO = .*/const VERSAO = 'painel-${GITHUB_SHA::7}';/" web/painel/sw.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with: { path: web }

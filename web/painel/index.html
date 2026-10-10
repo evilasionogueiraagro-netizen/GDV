@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B3A82">
+<meta name="robots" content="noindex">
+<title>GDV Painel</title>
+<link rel="icon" href="img/icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="img/icon-192.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="GDV Painel">
+<link rel="stylesheet" href="vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="css/painel.css">
+</head>
+<body>
+<header class="pn-topo">
+  <img src="../img/logo-adaf.png" alt="ADAF">
+  <div class="pn-topo-txt"><h1>GDV · Painel gerencial</h1><div id="pn-status" class="pn-status" aria-live="polite"></div></div>
+  <div class="pn-usuario" id="pn-usuario" hidden><span id="pn-nome"></span><button type="button" id="pn-sair" class="pn-btn-topo">Sair</button></div>
+</header>
+
+<!-- Login por código de administrador -->
+<main id="pn-login" class="pn-login" hidden>
+  <form class="pn-cartao pn-login-form" id="pn-login-form" autocomplete="off">
+    <h2>Acesso do administrador</h2>
+    <p class="pn-sub">Digite o código de administrador de 6 dígitos gerado na planilha (menu <b>GDV → Gerar código de administrador</b>). Cada código vale uma vez.</p>
+    <label for="pn-codigo">Código de administrador</label>
+    <input id="pn-codigo" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" required>
+    <button type="submit" class="pn-botao" id="pn-entrar">Entrar</button>
+    <p class="pn-erro" id="pn-login-erro" role="alert" hidden></p>
+  </form>
+</main>
+
+<!-- Painel -->
+<div id="pn-app" hidden>
+  <section class="pn-filtros" aria-label="Filtros">
+    <div class="pn-presets" role="group" aria-label="Período" id="pn-presets"></div>
+    <div class="pn-custom" id="pn-custom" hidden>
+      <label>De <input type="date" id="pn-de"></label>
+      <label>Até <input type="date" id="pn-ate"></label>
+      <button type="button" class="pn-btn" id="pn-aplicar">Aplicar</button>
+    </div>
+    <div class="pn-selects">
+      <label>Fiscal / servidor<select id="pn-fiscal"><option value="">Todos</option></select></label>
+      <label>Barreira ou município<select id="pn-local"><option value="">Todos</option></select></label>
+      <button type="button" class="pn-btn pn-btn-prim" id="pn-atualizar">Atualizar</button>
+    </div>
+  </section>
+  <nav class="pn-abas" id="pn-abas" role="tablist" aria-label="Módulos"></nav>
+  <main id="pn-conteudo" class="pn-conteudo"></main>
+  <footer class="pn-rodape">Dados da planilha do GDV · CPF/CNPJ mascarados · sem telefone, e-mail, endereço ou fotos (LGPD). Mapa: © colaboradores do OpenStreetMap.</footer>
+</div>
+
+<div id="pn-tip" class="pn-tip" role="tooltip" hidden></div>
+
+<script src="../js/config.js"></script>
+<script src="vendor/leaflet/leaflet.js"></script>
+<script src="vendor/leaflet-heat.js"></script>
+<script src="vendor/chart.umd.js"></script>
+<script src="js/painel.js"></script>
+<script src="js/painel-barreiras.js"></script>
+<script src="js/painel-tf.js"></script>
+<script src="js/painel-pce.js"></script>
+<script>
+// App separado (GDV Painel): instalável à parte do app de campo; sempre busca a versão nova quando online.
+if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+</script>
+</body>
+</html>

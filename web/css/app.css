@@ -43,3 +43,4 @@ nav button span { font-size:10px; } nav button.on { color:var(--azul2); font-wei
 
 .aviso { background:#fff4d6; border:1px solid #f0c040; color:#5a4300; font-size:14px; }
 #sync { cursor:pointer; text-decoration:underline dotted; }
+input[readonly] { background:#eef1f6; color:#445; }

@@ -20,7 +20,7 @@ App para registrar os veículos abordados em barreiras **fixas ou móveis**, por
 - **Coordenadas:** ao iniciar e ao encerrar o turno o app grava latitude, longitude e precisão (m) do GPS do aparelho (funciona sem internet; o navegador pede permissão de localização na primeira vez). Se o GPS falhar ou for negado, o turno segue normalmente, sem coordenadas. No Termo, o campo *Coordenadas Geográficas* recebe a coordenada **final** (encerramento; se ela faltar, a do início). Aparecem nas telas (com link para o mapa) e na planilha (`Turnos`).
 - **Excluir** apenas marca como excluído (some das telas e relatórios, permanece na planilha para auditoria).
 - **Histórico/Dashboard** funcionam offline, a partir dos dados já sincronizados no aparelho. O botão **Limpar histórico deste aparelho** remove do celular os turnos já encerrados (não apaga a planilha, não afeta o turno em andamento e só funciona se tudo já tiver sido enviado).
-- **Sincronização automática:** a cada minuto, ao voltar a internet, ao reabrir o app e após cada registro. Tocar no selo do topo força na hora. A tela *Status* só mostra o estado; não há campos de URL/chave.
+- **Sincronização automática:** a cada minuto, ao voltar a internet, ao reabrir o app e após cada registro. Tocar no selo do topo força na hora. A tela *Status* só mostra o estado e permite desativar o aparelho / trocar de fiscal.
 - **Fiscais:** dois campos de nome completo (nome e sobrenome); pelo menos um é obrigatório. No Termo e na Ficha aparecem como “Nome 1 e Nome 2”.
 - A quantidade de **pessoas** é uma estimativa por tipo de veículo (padrões em `web/js/config.js`), editável em cada registro.
 
@@ -29,15 +29,22 @@ App para registrar os veículos abordados em barreiras **fixas ou móveis**, por
 ### 1. Banco de dados e API (Google)
 1. Crie uma planilha no Google Sheets (ex.: “GDV – Banco de dados”).
 2. **Extensões → Apps Script**. Cole `apps-script/Code.gs`; em *Configurações do projeto* ative “Mostrar arquivo de manifesto” e cole `apps-script/appsscript.json`.
-3. **Configurações do projeto → Propriedades do script → Adicionar**: `ACCESS_KEY` = uma senha longa (será usada só para gerar o link de ativação).
+3. Recarregue a planilha: aparece o menu **GDV** (na primeira vez ele pede autorização). *Opcional:* em **Configurações do projeto → Propriedades do script**, `ACCESS_KEY` = chave mestra de administrador (mantém aparelhos antigos funcionando; não é necessária para o código de ativação).
 4. **Implantar → Nova implantação → App da Web**: executar como *Eu*, acesso *Qualquer pessoa*. Copie a URL que termina em `/exec`.
-   > O acesso é “qualquer pessoa” para o app funcionar sem login Google no campo; a proteção é a `ACCESS_KEY`. Ao alterar o `Code.gs` (ex.: nova versão do projeto), cole o código novo e faça uma nova implantação (as colunas novas são acrescentadas sozinhas na planilha existente) (Gerenciar implantações → editar → nova versão).
+   > O acesso é “qualquer pessoa” para o app funcionar sem login Google no campo; a proteção é a credencial de cada fiscal (ou a `ACCESS_KEY`). Ao alterar o `Code.gs`, cole o código novo e faça uma nova versão da implantação (Gerenciar implantações → lápis → Nova versão). As colunas novas são acrescentadas sozinhas na planilha existente.
+   > O código de ativação é de 6 dígitos, uso único e vale 7 dias; após 10 tentativas erradas a ativação fica bloqueada por 15 minutos.
 
 ### 2. O app (GitHub Pages)
 1. No GitHub: **Settings → Pages → Source: GitHub Actions**.
 2. Faça merge na `main`; o workflow `.github/workflows/pages.yml` publica a pasta `web/`.
-3. **Ativar os aparelhos sem digitar nada:** abra `…/ativar.html` do app, informe a URL `/exec` e a chave e clique em *Gerar link*. Envie o link (ex.: WhatsApp) a cada fiscal; ao abri-lo e confirmar, o aparelho fica ativado e o código sai da barra de endereço. Depois use *Adicionar à tela inicial* para instalar e abra uma vez com internet para o app ser guardado no aparelho.
-   > Alternativa (não recomendada): preencher `CONFIG.sync` em `web/js/config.js` deixa todos os aparelhos já ativados, mas a chave fica **pública** (o site e o repositório são públicos): qualquer pessoa poderia ler e gravar na planilha.
+3. **Ativar cada fiscal (código de 6 dígitos, um por pessoa):**
+   1. Na planilha: menu **GDV → Gerar código de ativação** e informe o **nome completo** do fiscal. O código aparece na tela (uso único, vale 7 dias). Os acessos ficam na aba `Fiscais`.
+   2. Envie o código ao fiscal. No app, ele digita o código uma vez (precisa de internet só nesse momento). O aparelho passa a ter uma credencial própria, **vinculada ao nome**, e o campo *Fiscal 1* do turno já vem preenchido com ele.
+   3. Para tirar o acesso (celular perdido, desligamento): **GDV → Revogar acesso de um fiscal**. O aparelho deixa de sincronizar e passa a pedir novo código.
+   4. Para gerar outro acesso ao mesmo fiscal (novo celular), gere um novo código com o mesmo nome.
+   - O endereço do servidor (`…/exec`, não é segredo) fica em `CONFIG.sync.url` (`web/js/config.js`); se estiver vazio, o app pede o endereço junto com o código.
+   - A planilha registra em cada turno/veículo, na coluna `usuario`, quem sincronizou.
+   Depois use *Adicionar à tela inicial* para instalar e abra uma vez com internet para o app ser guardado no aparelho.
 
 Para testar localmente: `cd web && python3 -m http.server 8080`.
 

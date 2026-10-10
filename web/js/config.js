@@ -1,9 +1,8 @@
 // Configurações do posto. Ajuste aqui o que for fixo da unidade.
 const CONFIG = {
-  // Sincronização embutida (OPCIONAL). Se preencher aqui, todos os aparelhos já nascem ativados.
-  // ATENÇÃO: este arquivo é público (site e repositório). Quem abrir o app consegue ler a chave e
-  // acessar/gravar na planilha. Prefira o LINK DE ATIVAÇÃO (ativar.html), que não expõe a chave no código.
-  sync: { url: '', key: '' },
+  // Endereço do servidor (Apps Script, termina em /exec). Não é segredo: sem uma credencial de fiscal
+  // o servidor recusa tudo. Com ele preenchido, o fiscal só digita o código de 6 dígitos.
+  sync: { url: '' },
   unidadePadrao: 'MANAUS',          // unidade que aparece no Termo; pode ser alterada a cada turno
   localPadrao: '',                  // sugestão de local (ex.: 'Barreira Porto CEASA'); vazio = digitar a cada turno
   postos: ['Fixa', 'Móvel'],

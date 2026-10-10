@@ -48,3 +48,7 @@ input[readonly] { background:#eef1f6; color:#445; }
 .instalar { background:#e7f0ff; border:1px solid #9bbcf0; }
 .instalar ol { margin:6px 0 10px; padding-left:20px; } .instalar li { margin:6px 0; }
 .instalar .duas .botao { margin:6px 0; font-size:14px; }
+
+#atualizar { position:sticky; top:58px; z-index:6; background:#0B5ED7; color:#fff; padding:10px 14px; font-size:14px; display:flex; justify-content:space-between; align-items:center; gap:10px; }
+#atualizar[hidden] { display:none; }
+#atualizar button { background:#fff; color:#0B3A82; border:0; border-radius:8px; padding:8px 12px; font:inherit; font-weight:600; cursor:pointer; }

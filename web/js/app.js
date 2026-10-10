@@ -50,6 +50,7 @@ function renderNav(view) {
   $('#nav').innerHTML = NAVS[MODULO].map(([v, i, t]) => `<button data-v="${v}" class="${v === ativo ? 'on' : ''}">${i}<span>${t}</span></button>`).join('');
 }
 function go(view, arg) {
+  if (VIEW === 'tfnovo' && view !== 'tfnovo' && typeof TFUI !== 'undefined') TFUI.saiu();   // saiu do formulário de TF sem gerar
   VIEW = view; EDIT = arg || null;
   if (view === 'modulos' || view === 'config') MODULO = 'hub';
   else if (view === 'tf') MODULO = 'tf';

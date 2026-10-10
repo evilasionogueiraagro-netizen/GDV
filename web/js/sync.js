@@ -5,9 +5,10 @@ const Sync = (() => {
   let estado = { tipo: 'idle', msg: '' };
 
   const cfg = () => ({
-    url: localStorage.getItem('gdv.url') || '',
-    key: localStorage.getItem('gdv.key') || ''
+    url: localStorage.getItem('gdv.url') || CONFIG.sync.url || '',
+    key: localStorage.getItem('gdv.key') || CONFIG.sync.key || ''
   });
+  const ativado = () => { const c = cfg(); return !!(c.url && c.key); };
   function emitir(e) { estado = e; listeners.forEach(f => f(e)); }
 
   async function chamar(corpo) {
@@ -89,9 +90,10 @@ const Sync = (() => {
   function iniciar() {
     window.addEventListener('online', sincronizar);
     window.addEventListener('offline', atualizarContagem);
-    setInterval(sincronizar, 60000);
+    setInterval(sincronizar, 60000);                       // automático, a cada minuto
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) sincronizar(); });
     sincronizar();
   }
 
-  return { iniciar, sincronizar, testar, atualizarContagem, onEstado: f => listeners.push(f), estado: () => estado, cfg };
+  return { iniciar, sincronizar, testar, atualizarContagem, ativado, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

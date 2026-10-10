@@ -47,11 +47,13 @@ function go(view, arg) {
 const view = html => { $('#view').innerHTML = html; };
 
 /* ---------- Início / novo turno ---------- */
+const avisoAtivacao = () => Sync.ativado() ? '' :
+  '<div class="card aviso">⚠️ Este aparelho ainda não está ativado para sincronizar com a planilha. Abra o <b>link de ativação</b> enviado pelo administrador. Enquanto isso, os registros ficam salvos só neste aparelho.</div>';
 async function home() {
   const t = await turnoAtual();
   if (!t) return novoTurno();
   const v = await veiculosDe(t.id);
-  view(`
+  view(`${avisoAtivacao()}
     <div class="card"><h3>Turno atual</h3>
       <p><b>${esc(t.numeroTF)}</b></p>
       <p><b>Fiscal:</b> ${esc(t.fiscal)}</p><p><b>Local:</b> ${esc(t.local)}</p>
@@ -65,15 +67,20 @@ async function home() {
 }
 function novoTurno() {
   const ls = k => esc(localStorage.getItem('gdv.' + k) || '');
-  view(`<form class="card" id="fTurno"><h3>Iniciar turno</h3>
+  view(`${avisoAtivacao()}<form class="card" id="fTurno"><h3>Iniciar turno</h3>
     <label>Nº do Termo de Fiscalização<input id="nTF" type="number" min="1" inputmode="numeric" required placeholder="ex.: 12"></label>
     <label>Tipo de posto<select id="nPosto">${CONFIG.postos.map(p => `<option ${localStorage.getItem('gdv.posto') === p ? 'selected' : ''}>${p}</option>`).join('')}</select></label>
     <label>Local / Posto<input id="nLocal" required value="${localStorage.getItem('gdv.local') ? ls('local') : esc(CONFIG.localPadrao)}" placeholder="ex.: Barreira Porto CEASA ou BR-174 km 120"></label>
     <label>Unidade (Termo)<input id="nUnidade" required value="${localStorage.getItem('gdv.unidade') ? ls('unidade') : esc(CONFIG.unidadePadrao)}"></label>
-    <label>Fiscal(is)<input id="nFiscal" required value="${ls('fiscal')}"></label>
+    <label>Fiscal 1 — nome completo *<input id="nFiscal1" autocomplete="off" value="${ls('fiscal1')}" placeholder="Nome e sobrenome"></label>
+    <label>Fiscal 2 — nome completo (opcional)<input id="nFiscal2" autocomplete="off" value="${ls('fiscal2')}" placeholder="Nome e sobrenome"></label>
     <button class="botao">Iniciar turno</button></form>`);
   $('#fTurno').onsubmit = async e => {
     e.preventDefault();
+    const nomes = ['#nFiscal1', '#nFiscal2'].map(id => $(id).value.trim().replace(/\s+/g, ' ')).filter(Boolean);
+    if (!nomes.length) { toast('Informe o nome completo de pelo menos um fiscal.', true); $('#nFiscal1').focus(); return; }
+    const curto = nomes.find(n => n.split(' ').length < 2);
+    if (curto) { toast(`Informe o nome completo (nome e sobrenome): "${curto}"`, true); return; }
     const data = hojeISO(), inicio = agoraHM(), letra = letraDoTurno(inicio);   // horário = instante do clique
     const btn = $('#fTurno button'); btn.disabled = true; btn.textContent = '📍 Obtendo localização…';
     const gps = await pegarLocal();
@@ -82,10 +89,11 @@ function novoTurno() {
       numeroTF: `TF-${pad(parseInt($('#nTF').value, 10), 3)}-${letra}-${data.slice(0, 4)}`,
       data, letra, posto: $('#nPosto').value,
       inicio, fim: '', ...camposLocal(gps, 'Ini'),
-      fiscal: $('#nFiscal').value.trim(), local: $('#nLocal').value.trim(),
+      fiscal: nomes.join(' e '), local: $('#nLocal').value.trim(),
       unidade: $('#nUnidade').value.trim(), encerrado: 0
     });
-    ['fiscal', 'local', 'unidade', 'posto'].forEach(k => localStorage.setItem('gdv.' + k, t[k]));
+    ['local', 'unidade', 'posto'].forEach(k => localStorage.setItem('gdv.' + k, t[k]));
+    localStorage.setItem('gdv.fiscal1', $('#nFiscal1').value.trim()); localStorage.setItem('gdv.fiscal2', $('#nFiscal2').value.trim());
     await Store.setMeta('turnoAtual', t.id);
     Sync.sincronizar(); go('home');
   };
@@ -161,7 +169,7 @@ async function resumo() {
     <p class="dica">Início do turno: ${esc(t.inicio)}. Ao encerrar, o horário final é registrado e o Termo de Fiscalização fica disponível.<br>Na janela de impressão, escolha “Salvar como PDF”.</p>`);
   $('#encerrar').onclick = async () => {
     const fim = agoraHM();
-    if (!confirm(`Encerrar o turno agora (${fim})? Não será possível registrar novos veículos nele.`)) return;
+    if (!confirm(`Encerrar o turno agora (${fim})? Esta ação é definitiva: não será possível registrar novos veículos nem reabrir o turno.`)) return;
     const b = $('#encerrar'); b.disabled = true; b.textContent = '📍 Obtendo localização…';
     const gps = await pegarLocal();
     if (!gps) toast('Turno encerrado sem coordenadas (GPS indisponível ou permissão negada).', true);
@@ -181,14 +189,7 @@ async function fechado() {
     <button class="botao" data-doc="termo" data-id="${t.id}">📄 Termo de Fiscalização (PDF)</button>
     <button class="botao" data-doc="ficha" data-id="${t.id}">📝 Ficha de Campo (PDF)</button>
     <button class="botao" data-go="home">➕ Iniciar novo turno</button>
-    <button class="botao sec" id="reabrir">↩ Reabrir este turno (encerrei sem querer)</button>
     <p class="dica">Os documentos deste turno também ficam no Histórico.</p>`);
-  $('#reabrir').onclick = async () => {
-    if (!confirm('Reabrir o turno? O horário de encerramento será apagado.')) return;
-    await Store.salvar('turnos', { ...t, encerrado: 0, fim: '', latFim: '', lngFim: '', precFim: '' });
-    await Store.setMeta('turnoAtual', t.id);
-    Sync.sincronizar(); go('home');
-  };
 }
 const contar = v => v.reduce((o, x) => (o[x.tipo] = (o[x.tipo] || 0) + 1, o), {});
 
@@ -218,21 +219,25 @@ async function historico() {
       <div class="card"><h3>Turnos</h3>${turnos.length ? turnos.map(t => `
         <div class="turno-linha"><div><b>${esc(t.numeroTF)}</b><br><small>${dBR(t.data)} · ${esc(t.inicio)}${t.fim ? '–' + esc(t.fim) : ''} · ${esc(t.fiscal)} · ${porTurno[t.id] || 0} veíc.${t.encerrado ? '' : ' · em andamento'}</small></div>
         <div>${t.encerrado ? `<button class="mini" data-doc="termo" data-id="${t.id}">Termo</button>` : ''}<button class="mini" data-doc="ficha" data-id="${t.id}">Ficha</button></div></div>`).join('') : '<div class="vazio">Sem turnos no período.</div>'}</div>
-      <button class="botao" id="csv">⬇ Baixar CSV dos veículos</button>`;
-    $('#csv').onclick = () => {
-      const q = v => '"' + String(v == null ? '' : v).replace(/"/g, '""') + '"';
-      const tf = Object.fromEntries(turnos.map(t => [t.id, t]));
-      const linhas = [['TF', 'Data', 'Hora', 'Placa', 'Tipo', 'Pessoas', 'Fiscal', 'Local', 'Obs', 'Lat início', 'Lng início', 'Lat fim', 'Lng fim']].concat(
-        veic.sort((a, b) => dataDe[a.turnoId].localeCompare(dataDe[b.turnoId]) || a.hora.localeCompare(b.hora)).map(v => {
-          const t = tf[v.turnoId]; return [t.numeroTF, dBR(t.data), v.hora, v.placa, v.tipo, v.pessoas, t.fiscal, t.local, v.obs, t.latIni, t.lngIni, t.latFim, t.lngFim];
-        }));
-      const a = document.createElement('a');
-      a.href = URL.createObjectURL(new Blob(['﻿' + linhas.map(l => l.map(q).join(';')).join('\n')], { type: 'text/csv;charset=utf-8' }));
-      a.download = `veiculos_${de}_${ate}.csv`; a.click();
-    };
+      <button class="botao vermelho" id="limpar">🗑 Limpar histórico deste aparelho</button>
+      <p class="dica">Remove só os turnos já encerrados <b>deste celular</b>. Os dados continuam salvos na planilha.</p>`;
+    $('#limpar').onclick = limparHistorico;
   };
   $('#hDe').onchange = $('#hAte').onchange = desenhar;
   desenhar();
+}
+async function limparHistorico() {
+  const atual = await Store.meta('turnoAtual');
+  const turnos = (await Store.todos('turnos')).filter(t => t.encerrado && t.id !== atual);
+  const ids = new Set(turnos.map(t => t.id));
+  const veic = (await Store.todos('veiculos')).filter(v => ids.has(v.turnoId));
+  if (!turnos.length) return toast('Não há histórico para limpar.');
+  const pend = turnos.filter(t => t.pendente).length + veic.filter(v => v.pendente).length;
+  if (pend) return toast(`${pend} registro(s) ainda não foram enviados à planilha. Conecte-se à internet e aguarde a sincronização antes de limpar.`, true);
+  if (!confirm(`Limpar o histórico deste aparelho?\n\n${turnos.length} turno(s) e ${veic.length} veículo(s) serão removidos DESTE celular.\nOs dados continuam salvos na planilha. O turno em andamento não é afetado.`)) return;
+  await Store.apagar('turnos', turnos.map(t => t.id));
+  await Store.apagar('veiculos', veic.map(v => v.id));
+  toast('Histórico limpo.'); historico();
 }
 function barras(pares) {
   const max = Math.max(1, ...pares.map(p => p[1]));
@@ -240,25 +245,29 @@ function barras(pares) {
     <span class="trilho"><i style="width:${(n / max) * 100}%"></i></span><b>${n}</b></div>`).join('') : '<div class="vazio">Sem dados.</div>';
 }
 
-/* ---------- Configurações ---------- */
+/* ---------- Status da sincronização ---------- */
 async function config() {
-  const c = Sync.cfg(), ult = await Store.meta('ultimaSync');
-  view(`<form class="card" id="fCfg"><h3>Sincronização com a planilha</h3>
-    <label>URL do Apps Script (termina em /exec)<input id="cUrl" type="url" value="${esc(c.url)}" placeholder="https://script.google.com/macros/s/…/exec"></label>
-    <label>Chave de acesso<input id="cKey" type="password" value="${esc(c.key)}" autocomplete="off"></label>
-    <button class="botao">Salvar e testar</button></form>
-    <div class="card"><h3>Estado</h3><p id="cEst"></p>
-      <p>Última sincronização: ${ult ? new Date(ult).toLocaleString('pt-BR') : 'nunca'}</p>
-      <button class="botao" id="cSync">🔄 Sincronizar agora</button></div>`);
-  const est = () => { const e = Sync.estado(); $('#cEst') && ($('#cEst').textContent = (navigator.onLine ? 'Online' : 'Offline') + ' · pendentes de envio: ' + (e.pend || 0) + (e.tipo === 'erro' ? ' · erro: ' + e.msg : '')); };
-  est();
-  $('#cSync').onclick = async () => { await Sync.sincronizar(); est(); toast(Sync.estado().tipo === 'erro' ? 'Falhou: ' + Sync.estado().msg : 'Sincronizado.', Sync.estado().tipo === 'erro'); };
-  $('#fCfg').onsubmit = async e => {
-    e.preventDefault();
-    localStorage.setItem('gdv.url', $('#cUrl').value.trim()); localStorage.setItem('gdv.key', $('#cKey').value.trim());
-    try { await Sync.testar(); toast('Conexão OK. Sincronizando…'); await Sync.sincronizar(); est(); }
-    catch (err) { toast('Não foi possível conectar: ' + err.message, true); }
-  };
+  const ult = await Store.meta('ultimaSync');
+  view(`${avisoAtivacao()}<div class="card"><h3>Sincronização</h3>
+    <p>Aparelho: ${Sync.ativado() ? '✅ ativado' : '⚠️ não ativado'}</p><p id="cEst"></p>
+    <p>Última sincronização: ${ult ? new Date(ult).toLocaleString('pt-BR') : 'nunca'}</p>
+    <p class="dica">A sincronização é automática (a cada minuto, quando há internet). Para forçar agora, toque no selo no topo da tela.</p></div>`);
+  const e = Sync.estado();
+  $('#cEst').textContent = (navigator.onLine ? 'Online' : 'Offline') + ' · pendentes de envio: ' + (e.pend || 0) + (e.tipo === 'erro' ? ' · erro: ' + e.msg : '');
+}
+
+/* ---------- ativação por link: https://…/#ativar=<código> ---------- */
+function ativarPorLink() {
+  const m = location.hash.match(/^#ativar=([\w-]+)/);
+  if (!m) return;
+  history.replaceState(null, '', location.pathname + location.search);     // tira o código da barra de endereço
+  try {
+    const j = JSON.parse(decodeURIComponent(escape(atob(m[1].replace(/-/g, '+').replace(/_/g, '/')))));
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(j.u) || !j.k) throw new Error('inválido');
+    if (!confirm(`Ativar este aparelho para sincronizar com a planilha da unidade?\n\nServidor: …${j.u.slice(-14)}`)) return;
+    localStorage.setItem('gdv.url', j.u); localStorage.setItem('gdv.key', j.k);
+    toast('Aparelho ativado. Sincronizando…');
+  } catch (e) { toast('Link de ativação inválido.', true); }
 }
 
 /* ---------- eventos globais ---------- */
@@ -290,10 +299,11 @@ Sync.onEstado(e => {
 window.addEventListener('gdv-dados', () => { if (['home', 'lista', 'resumo', 'historico'].includes(VIEW)) go(VIEW); });
 window.addEventListener('online', () => Sync.atualizarContagem());
 
+$('#sync').onclick = () => Sync.sincronizar();
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 (async () => {
+  ativarPorLink();
   go('home');
   await Sync.atualizarContagem();
-  if (!Sync.cfg().url) toast('Configure a sincronização em ⚙️ Config.');
   Sync.iniciar();
 })();

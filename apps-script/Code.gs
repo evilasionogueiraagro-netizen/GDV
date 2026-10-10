@@ -14,7 +14,7 @@
 const TABELAS = {
   Turnos: ['id', 'numeroTF', 'data', 'letra', 'inicio', 'fim', 'fiscal', 'local', 'unidade', 'posto',
            'encerrado', 'criadoEm', 'atualizadoEm', 'srv_ts',
-           'latIni', 'lngIni', 'precIni', 'latFim', 'lngFim', 'precFim', 'usuario'],   // colunas novas ficam sempre no fim
+           'latIni', 'lngIni', 'precIni', 'latFim', 'lngFim', 'precFim', 'usuario', 'semPlaca'],   // colunas novas ficam sempre no fim (semPlaca=1: placa opcional no turno)
   Veiculos: ['id', 'turnoId', 'hora', 'placa', 'tipo', 'pessoas', 'obs',
              'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
   Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm', 'perfil'],   // perfil: vazio = fiscal, 'admin' = administrador
@@ -43,7 +43,7 @@ const TABELAS = {
   // TF de Barreira em preenchimento no aparelho (alerta "apreensão em andamento" no painel). id = usuario|rascunhoId. Sem CPF/nome do fiscalizado.
   Andamento: ['id', 'usuario', 'fiscal', 'turnoId', 'placa', 'procedimento', 'local', 'barreira', 'lat', 'lon', 'estado', 'inicioTs', 'atualizadoTs']
 };
-const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
+const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
                           'expiraEm', 'ativo', 'ativadoEm',
                           'ano', 'numero', 'ultimo', 'de', 'ate', 'em', 'numeroSugerido', 'emitidoEm', 'amostras', 'inspecao', 'coleta', 'fiel', 'auto',
                           'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito', 'tamanho',

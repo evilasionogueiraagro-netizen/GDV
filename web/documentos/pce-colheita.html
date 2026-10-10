@@ -1,0 +1,109 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Termo de Colheita de Amostras</title>
+<link rel="stylesheet" href="pce.css">
+<style>
+/* 2 vias (ADAF / produtor), cada uma numa folha A4: docs.js clona a .a4 e ajusta com caberEmUmaPagina */
+@page{ size:A4 portrait; margin:0; }
+.a4{ padding-top:5mm; }
+.descricao{ font-size:13px; line-height:1.4; height:60px; text-align:justify; }
+.num-termo{ font-size:15px; white-space:nowrap; }
+.fotos-colheita .foto img, .fotos-colheita .foto .sem-foto{ height:38mm; }
+.assinaturas .assinatura{ width:47%; }
+.local-data{ text-align:right; font-size:13px; }
+/* modo compacto: usado automaticamente quando o conteúdo não cabe numa folha A4 */
+.compacto td{ padding-top:2px; padding-bottom:2px; }
+.compacto .fotos-colheita .foto img, .compacto .fotos-colheita .foto .sem-foto{ height:28mm; }
+.compacto .assinatura .area{ height:13mm; }
+.compacto .assinatura .area img{ max-height:13mm; }
+.compacto .logo-amazonas{ height:58px; }
+.compacto .rodape img{ max-height:42px; }
+</style>
+</head>
+<body>
+<div class="a4">
+  <div class="via"></div>
+  <div class="logo-container"><img src="../img/brasao.png" class="logo-amazonas" alt=""></div>
+  <div class="identificacao-orgao">
+    <div class="governo">GOVERNO DO ESTADO DO AMAZONAS</div>
+    <div class="agencia">Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM</div>
+  </div>
+
+  <table class="quadro">
+    <tr>
+      <td colspan="3" class="cabecalho">TERMO DE COLHEITA DE AMOSTRAS</td>
+      <td class="centro negrito num-termo">Nº <span data-campo="numeroTxt"></span></td>
+    </tr>
+
+    <tr><td colspan="4" class="titulo">1. Identificação</td></tr>
+    <tr>
+      <td colspan="2" style="width:50%"><span class="rot">Unidade</span><span class="val" data-campo="unidade"></span></td>
+      <td colspan="2" style="width:50%"><span class="rot">Município</span><span class="val" data-campo="municipio"></span></td>
+    </tr>
+    <tr>
+      <td colspan="3"><span class="rot">Produtor / Razão Social</span><span class="val" data-campo="nome"></span></td>
+      <td style="width:26%"><span class="rot">CPF/CNPJ</span><span class="val" data-campo="doc"></span></td>
+    </tr>
+    <tr>
+      <td colspan="2"><span class="rot">Endereço da propriedade</span><span class="val" data-campo="endereco"></span></td>
+      <td colspan="2"><span class="rot">Coordenadas geográficas (graus decimais / GMS)</span>
+        <span class="val" data-campo="coordDec"></span><br><span class="val" style="font-size:11px" data-campo="coordGms"></span></td>
+    </tr>
+
+    <tr><td colspan="4" class="titulo">2. Descrição da ação</td></tr>
+    <tr>
+      <td style="width:25%"><span class="rot">Data</span><span class="val" data-campo="data"></span></td>
+      <td style="width:25%"><span class="rot">Hora</span><span class="val" data-campo="hora"></span></td>
+      <td style="width:24%"><span class="rot">Cultura</span><span class="val" data-campo="cultura"></span></td>
+      <td><span class="rot">Quantidade de amostras</span><span class="val" data-campo="quantidade"></span></td>
+    </tr>
+    <tr>
+      <td colspan="2"><span class="rot">Análise</span><span class="val" data-campo="analise"></span></td>
+      <td colspan="2"><span class="rot">Partes da planta coletadas</span><span class="val" data-campo="partes"></span></td>
+    </tr>
+    <tr>
+      <td colspan="2"><span class="rot">Servidor responsável</span><span class="val" data-campo="servidor"></span></td>
+      <td><span class="rot">Cargo</span><span class="val" data-campo="cargo"></span></td>
+      <td><span class="rot">Matrícula</span><span class="val" data-campo="matricula"></span></td>
+    </tr>
+    <tr><td colspan="4" class="descricao"><span class="val" id="descricao" data-campo="descricao"></span></td></tr>
+
+    <tr><td colspan="4" class="titulo">3. Fotos da amostra</td></tr>
+    <tr><td colspan="4"><div class="fotos fotos-colheita" id="fotos"></div><div class="fotos-extra" id="fotosExtra"></div></td></tr>
+
+    <tr><td colspan="4" class="titulo">4. Testemunhas</td></tr>
+    <tr>
+      <td colspan="2"><span class="rot">Testemunha 1 – Nome</span><span class="val" data-campo="testemunha1Nome"></span></td>
+      <td colspan="2"><span class="rot">CPF/RG</span><span class="val" data-campo="testemunha1Doc"></span></td>
+    </tr>
+    <tr>
+      <td colspan="2"><span class="rot">Testemunha 2 – Nome</span><span class="val" data-campo="testemunha2Nome"></span></td>
+      <td colspan="2"><span class="rot">CPF/RG</span><span class="val" data-campo="testemunha2Doc"></span></td>
+    </tr>
+
+    <tr><td colspan="4" class="titulo">Assinaturas</td></tr>
+    <tr><td colspan="4">
+      <div class="assinaturas">
+        <div class="assinatura" data-papel="testemunha1"><div class="area"></div><div class="linha">Testemunha 1</div><div class="nome" data-campo="testemunha1Nome"></div></div>
+        <div class="assinatura" data-papel="testemunha2"><div class="area"></div><div class="linha">Testemunha 2</div><div class="nome" data-campo="testemunha2Nome"></div></div>
+        <div class="assinatura" data-papel="produtor"><div class="area"></div><div class="linha">Produtor / responsável</div><div class="nome" data-campo="nome"></div></div>
+        <div class="assinatura" data-papel="servidor"><div class="area"></div><div class="linha">Servidor da ADAF (assinatura e carimbo)</div><div class="nome" data-campo="servidor"></div></div>
+      </div>
+    </td></tr>
+    <tr><td colspan="4" class="local-data"><span class="rot" style="text-align:left">Local e data</span><span class="val" data-campo="localData"></span></td></tr>
+  </table>
+
+  <div class="rodape">
+    <div class="rodape-esquerda">
+      Av. Carlos Drummond de Andrade, 1460 Japiim, Manaus - AM<br>
+      Conj. Atílio Andreazza, ULBRA, Bloco G, 1º andar<br>
+      Fone: (92) 99380-9174
+    </div>
+    <div class="rodape-centro"><img src="../img/logo-adaf.png" alt="ADAF"></div>
+    <div class="rodape-direita"><img src="../img/sepror.png" alt="SEPROR"></div>
+  </div>
+</div>
+</body>
+</html>

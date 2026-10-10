@@ -155,13 +155,25 @@ function ativar_(req) {
     if (cod.length === 6) {
       t.valores.forEach(function (l, i) {
         const f = paraObjeto_(t.cols, l);
-        if (achada < 0 && f.ativo === 1 && !f.token && f.codigo.padStart(6, '0') === cod && f.expiraEm > agora &&
+        if (achada < 0 && f.ativo === 1 && !f.token && f.codigo !== '' && f.codigo.padStart(6, '0') === cod && f.expiraEm > agora &&
             (f.perfil === 'admin') === (req.perfil === 'admin')) achada = i;
       });
     }
     if (achada < 0) {
+      let motivo = 'Código incorreto ou já usado. Gere um novo código no menu GDV da planilha.';
+      if (cod.length !== 6) motivo = 'O código tem 6 dígitos.';
+      else t.valores.forEach(function (l) {                        // explica o motivo quando o código existe, mas não pode ser usado aqui
+        const f = paraObjeto_(t.cols, l);
+        if (f.token || f.codigo === '' || f.codigo.padStart(6, '0') !== cod) return;
+        if (f.ativo !== 1) motivo = 'Este código foi revogado. Gere um novo código.';
+        else if ((f.perfil === 'admin') !== (req.perfil === 'admin')) {
+          motivo = req.perfil === 'admin'
+            ? 'Este é um código de FISCAL. Para o painel, gere o código em GDV → Gerar código de administrador (painel).'
+            : 'Este é um código de ADMINISTRADOR (painel). Para o app dos fiscais, gere o código em GDV → Gerar código de ativação.';
+        } else if (f.expiraEm <= agora) motivo = 'Código expirado. Gere um novo código.';
+      });
       cache.put('falhas_ativacao', String(falhas + 1), 900);
-      throw new Error('Código inválido, já usado ou expirado.');
+      throw new Error(motivo);
     }
     const f = paraObjeto_(t.cols, t.valores[achada]);
     f.token = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '');

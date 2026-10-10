@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Ficha de Levantamento Fitossanitário</title>
+<link rel="stylesheet" href="pce.css">
+<style>
+/* 1 via; pode ocupar mais de uma folha (muitas culturas/fotos), com quebra limpa entre quadros e linhas */
+@page{ size:A4 portrait; margin:8mm 7mm; }
+.quadro{ margin-top:2mm; }
+.quadro.inteiro{ break-inside:avoid; page-break-inside:avoid; }
+.quadro thead{ display:table-header-group; }
+#culturas td, #culturas th{ font-size:11px; }
+#culturas th{ font-size:10.5px; }
+#culturas td.n{ text-align:center; width:5mm; }
+.coord-gms{ font-size:11px; color:#333; }
+</style>
+</head>
+<body>
+<div class="a4">
+  <div class="logo-container"><img src="../img/brasao.png" class="logo-amazonas" alt=""></div>
+  <div class="identificacao-orgao">
+    <div class="governo">GOVERNO DO ESTADO DO AMAZONAS</div>
+    <div class="agencia">Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM</div>
+  </div>
+
+  <table class="quadro inteiro">
+    <tr>
+      <td colspan="3" class="cabecalho">FICHA DE LEVANTAMENTO FITOSSANITÁRIO</td>
+      <td class="centro negrito">Data <span data-campo="data"></span></td>
+    </tr>
+  </table>
+
+  <table class="quadro inteiro">
+    <tr><td colspan="4" class="titulo">1. Servidor responsável</td></tr>
+    <tr>
+      <td style="width:38%"><span class="rot">Nome</span><span class="val" data-campo="servidor"></span></td>
+      <td style="width:30%"><span class="rot">Cargo</span><span class="val" data-campo="cargo"></span></td>
+      <td style="width:14%"><span class="rot">Matrícula</span><span class="val" data-campo="matricula"></span></td>
+      <td style="width:18%"><span class="rot">Lotação</span><span class="val" data-campo="lotacao"></span></td>
+    </tr>
+  </table>
+
+  <table class="quadro inteiro">
+    <tr><td colspan="4" class="titulo">2. Produtor e propriedade</td></tr>
+    <tr>
+      <td colspan="2" style="width:56%"><span class="rot">Nome / Razão Social</span><span class="val" data-campo="nome"></span></td>
+      <td style="width:22%"><span class="rot">CPF/CNPJ</span><span class="val" data-campo="doc"></span></td>
+      <td style="width:22%"><span class="rot">Telefone</span><span class="val" data-campo="telefone"></span></td>
+    </tr>
+    <tr>
+      <td colspan="2"><span class="rot">Propriedade</span><span class="val" data-campo="propriedade"></span></td>
+      <td><span class="rot">Código da propriedade</span><span class="val" data-campo="codigoPropriedade"></span></td>
+      <td><span class="rot">Situação fundiária</span><span class="val" data-campo="situacaoFundiaria"></span></td>
+    </tr>
+    <tr>
+      <td colspan="4"><span class="rot">E-mail</span><span class="val" data-campo="email"></span></td>
+    </tr>
+  </table>
+
+  <table class="quadro inteiro">
+    <tr><td colspan="4" class="titulo">3. Localização</td></tr>
+    <tr>
+      <td style="width:28%"><span class="rot">Município</span><span class="val" data-campo="municipio"></span></td>
+      <td style="width:44%"><span class="rot">Coordenadas geográficas (graus decimais / GMS)</span>
+        <span class="val" data-campo="coordDec"></span><br><span class="coord-gms" data-campo="coordGms"></span></td>
+      <td style="width:14%"><span class="rot">Data da vistoria</span><span class="val" data-campo="data"></span></td>
+      <td style="width:14%"><span class="rot">Hora</span><span class="val" data-campo="hora"></span></td>
+    </tr>
+  </table>
+
+  <table class="quadro" id="culturas">
+    <thead>
+      <tr><td colspan="10" class="titulo">4. Culturas e pragas</td></tr>
+      <tr>
+        <th>#</th><th>Cultura</th><th>Área (ha)</th><th>Espaç. linha (m)</th><th>Espaç. planta (m)</th>
+        <th>Praga</th><th>Coleta</th><th>Material</th><th>Cód. amostra</th><th>Destino da amostra</th>
+      </tr>
+    </thead>
+    <tbody id="culturasCorpo"></tbody>
+  </table>
+
+  <table class="quadro" id="quadroObs">
+    <tr><td class="titulo">Observações</td></tr>
+    <tr><td><span class="val" data-campo="obs"></span></td></tr>
+  </table>
+
+  <table class="quadro" id="quadroFotos">
+    <thead><tr><td class="titulo">5. Fotos <span data-campo="nFotos" style="font-weight:normal;font-size:11px"></span></td></tr></thead>
+    <tbody><tr><td><div class="fotos" id="fotos"></div></td></tr></tbody>
+  </table>
+
+  <table class="quadro inteiro">
+    <tr><td class="titulo">6. Assinaturas</td></tr>
+    <tr><td>
+      <div class="assinaturas">
+        <div class="assinatura" data-papel="servidor">
+          <div class="area"></div><div class="linha">Assinatura e carimbo do servidor da ADAF</div><div class="nome" data-campo="servidor"></div>
+        </div>
+        <div class="assinatura" data-papel="produtor">
+          <div class="area"></div><div class="linha">Assinatura do produtor / responsável</div><div class="nome" data-campo="nome"></div>
+        </div>
+      </div>
+    </td></tr>
+  </table>
+
+  <div class="rodape">
+    <div class="rodape-esquerda">
+      Av. Carlos Drummond de Andrade, 1460 Japiim, Manaus - AM<br>
+      Conj. Atílio Andreazza, ULBRA, Bloco G, 1º andar<br>
+      Fone: (92) 99380-9174
+    </div>
+    <div class="rodape-centro"><img src="../img/logo-adaf.png" alt="ADAF"></div>
+    <div class="rodape-direita"><img src="../img/sepror.png" alt="SEPROR"></div>
+  </div>
+</div>
+</body>
+</html>

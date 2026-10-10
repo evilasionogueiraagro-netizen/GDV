@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Gerar link de ativação – GDV</title>
+<link rel="stylesheet" href="css/app.css">
+</head>
+<body>
+<main>
+  <div class="card">
+    <h3>Gerar link de ativação</h3>
+    <p class="dica" style="text-align:left">Uso do administrador. Nada digitado aqui é enviado a nenhum servidor: o link é montado no seu navegador.
+    Envie o link (ex.: por WhatsApp) a cada fiscal; ao abri-lo, o aparelho fica ativado e a chave não aparece na tela.</p>
+    <label>URL do Apps Script (termina em /exec)<input id="u" type="url" placeholder="https://script.google.com/macros/s/…/exec"></label>
+    <label>Chave de acesso (ACCESS_KEY)<input id="k" type="password" autocomplete="off"></label>
+    <button class="botao" id="g">Gerar link</button>
+    <label id="saida" hidden>Link de ativação<textarea id="l" rows="5" readonly></textarea></label>
+    <button class="botao sec" id="c" hidden>Copiar link</button>
+  </div>
+</main>
+<script>
+const $ = s => document.querySelector(s);
+$('#g').onclick = () => {
+  const u = $('#u').value.trim(), k = $('#k').value.trim();
+  if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(u)) return alert('URL inválida. Use a URL do app da Web (termina em /exec).');
+  if (!k) return alert('Informe a chave de acesso.');
+  const cod = btoa(unescape(encodeURIComponent(JSON.stringify({ u, k })))).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  $('#l').value = new URL('./', location.href).href + '#ativar=' + cod;
+  $('#saida').hidden = false; $('#c').hidden = false;
+};
+$('#c').onclick = async () => { $('#l').select(); try { await navigator.clipboard.writeText($('#l').value); alert('Link copiado.'); } catch (e) { document.execCommand('copy'); } };
+</script>
+</body>
+</html>

@@ -40,3 +40,6 @@ nav button span { font-size:10px; } nav button.on { color:var(--azul2); font-wei
 #toast { position:fixed; left:50%; bottom:92px; transform:translateX(-50%); background:#222; color:#fff; padding:10px 16px; border-radius:8px; display:none; max-width:90%; z-index:9; text-align:center; }
 #toast.on { display:block; } #toast.erro { background:var(--verm); }
 .botao.sec { background:#fff; color:var(--azul2); border:2px solid var(--azul2); }
+
+.aviso { background:#fff4d6; border:1px solid #f0c040; color:#5a4300; font-size:14px; }
+#sync { cursor:pointer; text-decoration:underline dotted; }

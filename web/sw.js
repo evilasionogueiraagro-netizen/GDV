@@ -1,8 +1,8 @@
 // Service worker: guarda o app no aparelho para abrir sem internet.
 // Ao alterar qualquer arquivo, aumente VERSAO para os aparelhos baixarem a atualização.
-const VERSAO = 'gdv-v3';
+const VERSAO = 'gdv-v8';
 const ARQUIVOS = [
-  './', 'index.html', 'manifest.webmanifest', 'css/app.css',
+  './', 'index.html', 'manifest.webmanifest', 'ativar.html', 'css/app.css',
   'js/config.js', 'js/store.js', 'js/sync.js', 'js/docs.js', 'js/app.js',
   'documentos/ficha.html', 'documentos/termo.html', 'documentos/ficha-campo.css', 'documentos/termo.css',
   'img/logo-adaf.png', 'img/brasao.png', 'img/sepror.png', 'img/icon-192.png', 'img/icon-512.png'

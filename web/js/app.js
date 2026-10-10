@@ -499,7 +499,7 @@ window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'r
 window.addEventListener('gdv-permissoes', () => {
   if (semPermissaoPara(VIEW)) go(VIEW);                                   // go() avisa e leva para a tela de módulos
   else if (VIEW === 'modulos') go('modulos');
-  else if (['home', 'lista'].includes(VIEW)) go(VIEW);                     // botões "Lavrar TF" aparecem/somem
+  else if (['home', 'lista', 'pce', 'pcetermos', 'pcepronto'].includes(VIEW)) go(VIEW, EDIT);   // botões "Lavrar TF" / "do papel" aparecem/somem
 });
 window.addEventListener('online', () => Sync.atualizarContagem());
 

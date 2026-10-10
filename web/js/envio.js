@@ -9,9 +9,19 @@ const Envio = (() => {
   const LIMITES = { t: 500, v: 1000, f: 100, p: 300, l: 300, g: 100, c: 100, r: 300 };                                                         // registros por rodada
   // stores de cada módulo (pessoas servem ao TF e ao PCE: sobem se qualquer um dos dois estiver liberado)
   const MODULO_DO_STORE = { t: ['veiculos'], v: ['veiculos'], f: ['tf'], l: ['tf'], p: ['tf', 'pce'], g: ['pce'], c: ['pce'], r: ['pce'], a: ['pce'] };
-  /** Permissões por módulo (padrão: tudo liberado — aparelho que nunca sincronizou ou servidor antigo que não manda permissões). */
-  const normPerm = o => { const r = { veiculos: 1, tf: 1, pce: 1 }; if (o && typeof o === 'object') Object.keys(r).forEach(k => { if (k in o) r[k] = Number(o[k]) === 0 || o[k] === false ? 0 : 1; }); return r; };
+  /** Permissões por módulo (padrão: tudo liberado — aparelho que nunca sincronizou ou servidor antigo que não manda permissões).
+   *  "antigo" (Digitar do papel: registros antigos e PDFs escaneados) é o contrário: só vale se o servidor mandar antigo=1. */
+  const normPerm = o => {
+    const r = { veiculos: 1, tf: 1, pce: 1, antigo: 0 };
+    if (o && typeof o === 'object') ['veiculos', 'tf', 'pce'].forEach(k => { if (k in o) r[k] = Number(o[k]) === 0 || o[k] === false ? 0 : 1; });
+    r.antigo = o && (o.antigo === true || Number(o.antigo) === 1) && r.pce ? 1 : 0;
+    return r;
+  };
   const storePermitido = (n, perm) => MODULO_DO_STORE[n].some(m => (perm || {})[m] !== 0);
+  /** Registro digitado do papel (levantamento/termo com registroAntigo=1): só sobe com a permissão "antigo". */
+  const ehAntigo = r => !!r && Number(r.registroAntigo) === 1;
+  const podeAntigo = perm => !!perm && Number(perm.antigo) === 1;
+  const ANTIGO_NOS = ['g', 'c'];                                              // stores que podem ter registros antigos
   const TAG = 'gdv-enviar', TAG_PERIODICO = 'gdv-enviar-periodico';
 
   const limpo = ({ pendente, provisorio, ...r }) => r;
@@ -55,8 +65,10 @@ const Envio = (() => {
     });
     return s;
   }
-  async function arquivosPendentes(regs) {
+  /** perm (opcional): sem a permissão "antigo", os arquivos dos registros do papel (e qualquer PDF) ficam fora da lista de envio. */
+  async function arquivosPendentes(regs, perm) {
     if (!regs) regs = [...await Store.todos('levantamentos'), ...await Store.todos('colheitas')];
+    if (perm && !podeAntigo(perm)) regs = regs.filter(r => !ehAntigo(r)).map(r => ({ ...r, documentos: '[]' }));
     const ref = idsReferenciados(regs);
     return (await Store.chaves('arquivos', 'enviado', 0)).filter(id => ref.has(id));
   }
@@ -89,6 +101,8 @@ const Envio = (() => {
     const p = await pendentes();
     // módulo sem autorização (última permissão conhecida): os registros nem sobem; ficam pendentes até a gerência liberar
     const vai = {}; NOMES.forEach(n => { vai[n] = storePermitido(n, perm) ? p[n] : []; });
+    // registro antigo (do papel) sem a permissão "antigo": também fica guardado (pendente) até a gerência liberar
+    if (!podeAntigo(perm)) ANTIGO_NOS.forEach(n => { vai[n] = vai[n].filter(r => !ehAntigo(r)); });
     const env = {}; NOMES.forEach(n => { env[n] = vai[n].slice(0, LIMITES[n]); });
     const since = (await Store.meta('lastSync')) || 0;
     const corpo = { action: 'sync', since }; NOMES.forEach(n => { corpo[CAMPOS[n]] = env[n].map(limpo); });
@@ -167,15 +181,15 @@ const Envio = (() => {
       }
       // fotos/assinaturas/PDFs: algumas rodadas, até ~2 min (o navegador limita o tempo do evento); o resto fica para depois
       while (perm.pce !== 0 && Date.now() - inicio < 120000) {
-        const ids = await arquivosPendentes();
+        const ids = await arquivosPendentes(null, perm);
         if (!ids.length) break;
         let n = 0;
         try { n = await enviarArquivos(ids, chamar); }
-        catch (e) { if (erroDeRede(e) || credencialRecusada(e)) throw e; break; }   // arquivo com problema: a página mostra o erro
+        catch (e) { if (erroDeRede(e) || credencialRecusada(e)) throw e; break; }   // (sem permissão: a permissão já foi guardada)   // arquivo com problema: a página mostra o erro
         arquivos += n;
         if (!n) break;
       }
-      resta = perm.pce !== 0 && (await arquivosPendentes()).length > 0 && Date.now() - inicio >= 120000;
+      resta = perm.pce !== 0 && (await arquivosPendentes(null, perm)).length > 0 && Date.now() - inicio >= 120000;
     } catch (e) {
       if (credencialRecusada(e)) {
         const atual = await Store.meta('cred');                              // só marca se ainda for a mesma credencial (sem corrida com nova ativação)
@@ -187,6 +201,6 @@ const Envio = (() => {
     return { enviados, arquivos, resta };
   }
 
-  return { NOMES, STORES, CAMPOS, LIMITES, MODULO_DO_STORE, TAG, TAG_PERIODICO, normPerm, storePermitido, limpo, lerJSON,
+  return { NOMES, STORES, CAMPOS, LIMITES, MODULO_DO_STORE, TAG, TAG_PERIODICO, normPerm, storePermitido, ehAntigo, podeAntigo, limpo, lerJSON,
     erroDeRede, credencialRecusada, post, arquivosPendentes, pendentes, marcarEnviados, enviarLote, enviarArquivos, subir };
 })();

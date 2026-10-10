@@ -159,8 +159,8 @@ function sincronizar_(req, usuario) {
     return {
       ok: true,
       agora: agora,
-      turnos: lerMudancas_('Turnos', since),
-      veiculos: lerMudancas_('Veiculos', since),
+      turnos: lerMudancas_('Turnos', since, usuario),       // cada aparelho recebe só os turnos/veículos do próprio fiscal
+      veiculos: lerMudancas_('Veiculos', since, usuario),
       tfs: lerMudancas_('TFs', since, usuario),          // cada fiscal recebe só os próprios TFs
       barreiras: listarBarreiras_(),
       ultimos: ultimosPorBarreira_(),                   // último nº usado em cada barreira (ano atual): base para propor número sem internet

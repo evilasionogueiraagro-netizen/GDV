@@ -53,11 +53,13 @@ Para testar localmente: `cd web && python3 -m http.server 8080`.
 
 Dentro do mesmo app, na aba **📄 TF**: o fiscal preenche o TF digitalmente e imprime em **2 vias** (páginas separadas, uma via por folha A4) para assinatura. Pode ser usado **isolado** (aba TF → *Novo TF*) ou **a partir do controle de veículos**: na lista de veículos, o botão **Lavrar TF** já traz a placa e o local do turno e liga o TF ao turno. No **Termo do turno**, o campo “Termos de Barreira Lavrados” sai preenchido com os números dos TFs lavrados naquele turno.
 
-**Numeração (uma sequência por barreira e por ano, na planilha)**
-- A numeração segue o formato `0012/2026 - BVA - CEASA` (o sufixo vem da aba `Barreiras`).
-- Para funcionar **sem internet**, cada aparelho mantém **3 números reservados** da sequência da planilha (aba `Sequencias`; o histórico de reservas fica em `Reservas`). Assim dois celulares nunca recebem o mesmo número, mesmo offline; os números saem em ordem de reserva, e não necessariamente na ordem em que os TFs são lavrados. Um número reservado e não usado (celular desligado, por exemplo) fica como falha na sequência: confira em `Reservas` × `TFs`.
-- Sem reserva e sem internet, o app propõe um número **provisório** e avisa. Se o número for repetido (ou digitado à mão e já usado), o TF mais antigo vale e o outro fica com `conflito = 1` na planilha e com o aviso **“Número duplicado”** na lista do fiscal.
-- Para começar a usar no meio do ano: menu **GDV → Definir último nº de TF usado (barreira)** (informe o código da barreira, o ano e o último número já usado; o próximo será +1).
+**Numeração (uma sequência única por barreira e por ano, na planilha)**
+- Formato `0012/2026 - BVA - CEASA` (o sufixo vem da aba `Barreiras`). **Não há faixas reservadas por celular**: o número é o *último usado na planilha + 1*.
+- Ao tocar em **Gerar TF**, o app faz uma consulta rápida à planilha e abre um **popup com o número** (e o último TF usado na barreira), que o fiscal pode **editar** antes de gerar o PDF.
+- Ao confirmar, a planilha **grava o TF só se o número ainda estiver livre**. Se outro fiscal usou o número nesse intervalo, o app avisa e sugere o próximo, **ainda antes do PDF**.
+- **Auditoria:** cada TF guarda `numeroSugerido` (o que o sistema sugeriu), `numeroOrigem` (`sistema`, `editado` ou `provisorio`) e `emitidoEm` (quando a planilha o recebeu). TFs cancelados mantêm o número. Menu **GDV → Auditar numeração de TF** lista lacunas, números repetidos e números alterados à mão ou provisórios.
+- **Sem internet:** o app propõe um número **provisório** (último nº conhecido + 1), avisa no popup e confere na planilha ao sincronizar. Se o número já tiver sido usado, o TF mais antigo vale e o outro fica com `conflito = 1` na planilha e com o aviso **“Número duplicado”** na lista do fiscal. Por isso, quando possível, gere o TF com internet.
+- Para começar a usar no meio do ano: menu **GDV → Definir último nº de TF usado (barreira)** (aba `Numeracao`; o próximo será +1). As abas `Sequencias` e `Reservas` da versão anterior não são mais usadas e podem ser apagadas.
 - **Barreiras:** aba `Barreiras` (`id`, `nome`, `sufixo`, `local`, `ativo`). Vem com `BVA-CEASA`; acrescente uma linha para cada barreira, fixa ou móvel.
 
 **Cadastro de pessoas e placas, e reincidência**

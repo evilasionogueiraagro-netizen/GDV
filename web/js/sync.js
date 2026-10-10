@@ -81,13 +81,14 @@ const Sync = (() => {
   function emitir(e) { estado = e; listeners.forEach(f => f(e)); }
 
   /* ---------- Módulos autorizados (definidos pela gerência no painel → Servidores) ----------
-     O servidor devolve {veiculos, tf, pce} a cada sync; guardamos a última (meta "permissoes") para usar sem internet.
-     Padrão: tudo liberado (aparelho que nunca sincronizou, ou versão antiga do servidor que não manda permissões). */
-  const MODULOS = { veiculos: 'Educação Sanitária/Fiscalização de Trânsito', tf: 'TF de Barreira', pce: 'PCE' };
+     O servidor devolve {veiculos, tf, pce, antigo} a cada sync; guardamos a última (meta "permissoes") para usar sem internet.
+     Padrão: módulos liberados (aparelho que nunca sincronizou, ou versão antiga do servidor que não manda permissões);
+     "antigo" (Digitar do papel: registro/termo antigo e PDF escaneado) é o contrário: desligado até o servidor mandar antigo=1. */
+  const MODULOS = { veiculos: 'Educação Sanitária/Fiscalização de Trânsito', tf: 'TF de Barreira', pce: 'PCE', antigo: 'Digitar do papel' };
   const { MODULO_DO_STORE, normPerm } = Envio;
-  let PERM = { veiculos: 1, tf: 1, pce: 1 };
+  let PERM = normPerm(null);
   const permissoes = () => ({ ...PERM });
-  const pode = m => PERM[m] !== 0;
+  const pode = m => (m === 'antigo' ? Envio.podeAntigo(PERM) : PERM[m] !== 0);
   const storePermitido = n => Envio.storePermitido(n, PERM);
   async function carregarPermissoes() { try { PERM = normPerm(await Store.meta('permissoes')); } catch (e) { /* sem banco: tudo liberado */ } return permissoes(); }
   /** Novas permissões vindas do servidor: guarda e avisa a tela (gdv-permissoes) se algo mudou. */
@@ -103,9 +104,16 @@ const Sync = (() => {
     p = p || await pendentes();
     const m = new Set();
     Object.keys(MODULO_DO_STORE).forEach(n => { if ((p[n] || []).length && !storePermitido(n)) MODULO_DO_STORE[n].forEach(x => { if (!pode(x)) m.add(x); }); });
+    if (!pode('antigo') && pode('pce') && ([...(p.g || []), ...(p.c || [])].some(Envio.ehAntigo)               // registro do papel guardado
+      || (p.a || []).length > (await arquivosPendentes(null, PERM)).length)) m.add('antigo');                   // ou PDF/foto dele ainda não enviado
     return [...m];
   }
-  const avisoSemPermissao = mods => mods.length ? `Sem autorização para o módulo ${mods.map(m => MODULOS[m]).join(' / ')} — fale com a gerência. Os registros continuam guardados neste aparelho.` : '';
+  function avisoSemPermissao(mods) {
+    const mod = mods.filter(m => m !== 'antigo'), txt = [];
+    if (mod.length) txt.push(`Sem autorização para o módulo ${mod.map(m => MODULOS[m]).join(' / ')}`);
+    if (mods.includes('antigo')) txt.push('Sem autorização para digitar registros antigos (do papel)');
+    return txt.length ? `${txt.join('. ')} — fale com a gerência. Os registros continuam guardados neste aparelho.` : '';
+  }
 
   async function chamar(corpo, limiteMs) {
     try { return await Envio.post(cfg(), corpo, limiteMs); }
@@ -145,7 +153,7 @@ const Sync = (() => {
   async function enviarArquivos() {
     if (rodando || !ativado() || !navigator.onLine || !pode('pce')) return 0;
     rodando = true;
-    try { return await enviarPendentesArquivos(await arquivosPendentes()); }
+    try { return await enviarPendentesArquivos(await arquivosPendentes(null, PERM)); }
     finally { rodando = false; await atualizarContagem(); }
   }
 
@@ -231,7 +239,7 @@ const Sync = (() => {
       }
       let erroArq = '';
       if (pode('pce')) {
-        try { await enviarPendentesArquivos(await arquivosPendentes()); }    // falha numa foto não derruba o sync principal
+        try { await enviarPendentesArquivos(await arquivosPendentes(null, PERM)); }   // falha numa foto não derruba o sync principal
         catch (e) { erroArq = e.message || String(e); }
       }
       await limparDeOutros();

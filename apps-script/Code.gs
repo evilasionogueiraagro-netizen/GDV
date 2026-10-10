@@ -12,6 +12,8 @@
  * Módulos por servidor (aba "Permissoes", editada no painel → Servidores): Educação Sanitária/Fiscalização de Trânsito, TF de Barreira e PCE.
  *   Sem linha = tudo liberado. O sync não grava registros de módulo não liberado (devolve em "recusados"; o app os mantém
  *   pendentes) e as actions do TF/PCE respondem "Sem autorização para o módulo …".
+ *   Coluna "antigo" (Digitar do papel): ao contrário dos módulos, vem DESLIGADA por padrão (vazio ou sem linha = 0). Só com
+ *   antigo=1 (e PCE liberado) o servidor aceita levantamentos/termos com registroAntigo=1 e PDFs escaneados (arquivo "documento").
  *
  * Opcional (compatibilidade): Propriedades do script → ACCESS_KEY = chave mestra (administrador).
  */
@@ -53,7 +55,8 @@ const TABELAS = {
   Andamento: ['id', 'usuario', 'fiscal', 'turnoId', 'placa', 'procedimento', 'local', 'barreira', 'lat', 'lon', 'estado', 'inicioTs', 'atualizadoTs'],
   // Módulos que cada servidor pode usar para INSERIR dados (por nome; vale para todos os aparelhos dele). 1 = liberado, 0 = sem autorização.
   // Servidor sem linha aqui = os três módulos liberados (padrão). Editada pelo painel (aba Servidores) ou à mão na planilha.
-  Permissoes: ['nome', 'veiculos', 'tf', 'pce', 'atualizadoEm', 'atualizadoPor']
+  // antigo = "Digitar do papel" (registros antigos digitados do papel + PDF escaneado): 1 = autorizado; vazio/sem linha = NÃO autorizado.
+  Permissoes: ['nome', 'veiculos', 'tf', 'pce', 'atualizadoEm', 'atualizadoPor', 'antigo']
 };
 const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
                           'expiraEm', 'ativo', 'ativadoEm',
@@ -131,6 +134,15 @@ function sincronizar_(req, usuario) {
     levantamentos: filtrar('levantamentos', levantamentos, perm.pce), colheitas: filtrar('colheitas', colheitas, perm.pce),
     propriedades: filtrar('propriedades', propriedades, perm.pce)
   };
+  // registros antigos (digitados do papel) só com a permissão "antigo": os demais do mesmo lote entram normalmente
+  if (!perm.antigo) {
+    ['levantamentos', 'colheitas'].forEach(function (campo) {
+      const fora = T[campo].filter(function (r) { return r && Number(r.registroAntigo) === 1; });
+      if (!fora.length) return;
+      T[campo] = T[campo].filter(function (r) { return !(r && Number(r.registroAntigo) === 1); });
+      recusados[campo] = (recusados[campo] || []).concat(fora.map(function (r) { return r.id ? String(r.id).slice(0, 64) : ''; }).filter(Boolean));
+    });
+  }
 
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -170,7 +182,7 @@ function sincronizar_(req, usuario) {
       colheitas: lerMudancas_('Colheitas', since, usuario),
       ultimosPce: ultimosPce_(),                        // último nº de Termo de Colheita por "UNIDADE|ano"
       permissoes: perm,                                 // módulos liberados para este servidor (o app guarda e esconde o que não pode)
-      recusados: recusados                              // ids NÃO gravados por falta de autorização no módulo (ficam pendentes no aparelho)
+      recusados: recusados                              // ids NÃO gravados por falta de autorização no módulo ou para registro antigo (ficam pendentes no aparelho)
     };
   } finally {
     lock.releaseLock();
@@ -430,6 +442,7 @@ function pceProximoNumero_(req) {
 /** Emissão do Termo de Colheita: grava só se o número ainda estiver livre (sob lock), como no TF. */
 function pceEmitir_(req, usuario) {
   const c = req.colheita || {};
+  if (Number(c.registroAntigo) === 1) exigirAntigo_(usuario);                  // termo digitado do papel: só com a permissão "Digitar do papel"
   c.unidade = unidadePce_(c.unidade);
   const unidade = c.unidade, ano = Number(c.ano) || 0, numero = Number(c.numero) || 0;
   if (!c.id || !unidade || !ano || numero < 1) throw new Error('Dados do Termo de Colheita incompletos.');
@@ -515,6 +528,7 @@ function arquivoEnviar_(req, usuario) {
   const pdf = mime === 'application/pdf';
   if (pdf !== (tipo === 'documento')) throw new Error(pdf ? 'PDF só pode ser enviado como documento.' : 'Documento só pode ser PDF.');
   if (pdf && papel) throw new Error('Papel inválido para documento.');
+  if (tipo === 'documento') exigirAntigo_(usuario);                                // PDF escaneado: só para registro antigo (Digitar do papel)
   const max = pdf ? ARQ_MAX_BYTES_PDF : ARQ_MAX_BYTES, maxTxt = pdf ? '10 MB' : '4 MB';
 
   const existente = function () { return lerLeitura_('Arquivos').filter(function (r) { return r.id === id; })[0]; };
@@ -578,8 +592,9 @@ function arquivoEnviar_(req, usuario) {
  *   painelGerarCodigo {key, nome}    → gera um código de ativação de FISCAL (aba Servidores): {ok, nome, codigo, expiraEm}
  *   painelAcessos {key}              → lista dos acessos (situação, datas, quem gerou; sem credenciais; código só enquanto aguarda ativação)
  *   painelRevogar {key, nome}        → revoga os acessos de FISCAL com esse nome (administradores só pelo menu da planilha)
- *   painelPermissoes {key, nome, veiculos, tf, pce} → módulos em que o FISCAL pode inserir dados (aba Permissoes; pelo menos um)
- *   painelGerarCodigo aceita também modulos:{veiculos, tf, pce} (gravados junto); painelAcessos devolve permissoes de cada fiscal.
+ *   painelPermissoes {key, nome, veiculos, tf, pce, antigo} → módulos em que o FISCAL pode inserir dados (aba Permissoes; pelo menos um
+ *                                       entre veiculos/tf/pce; antigo = "Digitar do papel", padrão 0, exige pce=1)
+ *   painelGerarCodigo aceita também modulos:{veiculos, tf, pce, antigo} (gravados junto); painelAcessos devolve permissoes de cada fiscal.
  * O código é gerado no menu da planilha: GDV → Gerar código de administrador. Credenciais de fiscais não leem o painel,
  * e códigos de administrador não ativam aparelhos de fiscais. A rota antiga "?p=painel" só mostra o novo endereço.
  */
@@ -664,7 +679,7 @@ function nomeServidor_(v) {
 
 /**
  * Painel → "Gerar chave de ativação": código de FISCAL (uso único, 7 dias). Códigos de administrador continuam só pelo menu da planilha.
- * modulos (opcional) {veiculos, tf, pce}: módulos liberados para o servidor, gravados junto (aba Permissoes; pelo menos um).
+ * modulos (opcional) {veiculos, tf, pce, antigo}: módulos liberados para o servidor, gravados junto (aba Permissoes; pelo menos um).
  */
 function painelGerarCodigo(token, nome, modulos) {
   const admin = adminDoToken_(token);
@@ -683,7 +698,8 @@ const NOME_MODULO = { veiculos: 'Educação Sanitária/Fiscalização de Trânsi
 // actions do app que pertencem a um módulo (o servidor recusa se o módulo não estiver liberado para quem chama)
 const MODULO_DA_ACAO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf',
                          pceProximoNumero: 'pce', pceEmitir: 'pce', pceConsultar: 'pce', arquivoEnviar: 'pce' };
-const tudoLiberado_ = function () { return { veiculos: 1, tf: 1, pce: 1 }; };
+const tudoLiberado_ = function () { return { veiculos: 1, tf: 1, pce: 1, antigo: 0 }; };   // "antigo" (Digitar do papel): desligado por padrão
+const MSG_SEM_ANTIGO = 'Sem autorização para digitar registros antigos (do papel). Fale com a gerência.';
 
 /** Célula da aba Permissoes → 0/1. Vazio ou qualquer outro valor = liberado (só "0", "não", "false" bloqueiam). */
 function moduloLiberado_(v) {
@@ -691,20 +707,40 @@ function moduloLiberado_(v) {
   return s === '0' || s === 'false' || s === 'não' || s === 'nao' || s === 'n' ? 0 : 1;
 }
 
-/** Mapa nome normalizado → {veiculos, tf, pce} (linhas repetidas: vale a última). */
+/** Célula "antigo" → 0/1. Ao contrário dos módulos, só "1", "sim", "true" ou "s" autorizam (vazio = não autorizado). */
+function antigoLiberado_(v) {
+  const s = String(v === null || v === undefined ? '' : v).trim().toLowerCase();
+  return s === '1' || s === 'true' || s === 'sim' || s === 's' ? 1 : 0;
+}
+
+/** Mapa nome normalizado → {veiculos, tf, pce, antigo} (linhas repetidas: vale a última). "antigo" só vale com o PCE liberado. */
 function mapaPermissoes_() {
   const m = {};
   lerLeitura_('Permissoes').forEach(function (r) {
     const k = nomeChave_(r.nome);
-    if (k) m[k] = { veiculos: moduloLiberado_(r.veiculos), tf: moduloLiberado_(r.tf), pce: moduloLiberado_(r.pce) };
+    if (!k) return;
+    const pce = moduloLiberado_(r.pce);
+    m[k] = { veiculos: moduloLiberado_(r.veiculos), tf: moduloLiberado_(r.tf), pce: pce, antigo: pce ? antigoLiberado_(r.antigo) : 0 };
   });
   return m;
 }
 
-/** Módulos liberados para um usuário (nome do fiscal). Sem linha na aba = tudo liberado; chave mestra = tudo liberado. */
+/**
+ * Módulos liberados para um usuário (nome do fiscal). Sem linha na aba = três módulos liberados e "antigo" desligado.
+ * Chave mestra (ACCESS_KEY, usuário "Administrador") = tudo, inclusive "antigo".
+ */
 function permissoesDe_(usuario, mapa) {
-  if (!usuario || usuario === 'Administrador') return tudoLiberado_();
+  if (!usuario || usuario === 'Administrador') { const t = tudoLiberado_(); t.antigo = 1; return t; }
   return (mapa || mapaPermissoes_())[nomeChave_(usuario)] || tudoLiberado_();
+}
+
+/** Recusa registro antigo (digitado do papel) / PDF escaneado sem a permissão "antigo". Mensagem sem "revogado"/"inválido". */
+function exigirAntigo_(usuario) {
+  const perm = permissoesDe_(usuario);
+  if (perm.antigo) return perm;
+  const e = new Error(MSG_SEM_ANTIGO);
+  e.semPermissao = 'antigo'; e.permissoes = perm;
+  throw e;
 }
 
 /** Recusa a ação de um módulo não liberado. A mensagem não fala em "revogado"/"inválido" (o app trataria como acesso revogado). */
@@ -716,16 +752,24 @@ function exigirModulo_(usuario, modulo) {
   throw e;
 }
 
-/** {veiculos, tf, pce} vindos do painel → 0/1, com pelo menos um módulo marcado. */
+/**
+ * {veiculos, tf, pce, antigo?} vindos do painel → 0/1, com pelo menos um módulo marcado (só veiculos/tf/pce contam).
+ * antigo ("Digitar do papel") exige o PCE: antigo marcado sem PCE é recusado com mensagem clara (o painel já marca o PCE junto).
+ * antigo ausente (painel antigo) = mantém o que estiver gravado (se o PCE for tirado, vira 0).
+ */
 function modulosValidos_(m) {
   if (!m || typeof m !== 'object') throw new Error('Informe os módulos do servidor.');
-  const o = {};
-  MODULOS.forEach(function (k) { const v = m[k]; o[k] = v === true || v === 1 || v === '1' ? 1 : 0; });
+  const o = {}, sim = function (v) { return v === true || v === 1 || v === '1' ? 1 : 0; };
+  MODULOS.forEach(function (k) { o[k] = sim(m[k]); });
   if (!o.veiculos && !o.tf && !o.pce) throw new Error('Marque pelo menos um módulo. Para tirar todo o acesso do servidor, use o botão Revogar.');
+  if (m.antigo !== undefined && m.antigo !== null) {
+    o.antigo = sim(m.antigo);
+    if (o.antigo && !o.pce) throw new Error('“Digitar do papel” só vale com o módulo PCE: marque também o PCE (ou desmarque “Digitar do papel”).');
+  }
   return o;
 }
 
-/** Grava (ou atualiza) a linha do servidor na aba Permissoes, sob lock. Devolve {veiculos, tf, pce, atualizadoEm, atualizadoPor}. */
+/** Grava (ou atualiza) a linha do servidor na aba Permissoes, sob lock. Devolve {veiculos, tf, pce, antigo, atualizadoEm, atualizadoPor}. */
 function gravarPermissoes_(nome, perm, autor) {
   const chave = nomeChave_(nome);
   const quem = String(autor || 'planilha').replace(/^[=+\-@\s]+/, '').slice(0, 120) || 'planilha';   // texto, nunca fórmula
@@ -735,20 +779,23 @@ function gravarPermissoes_(nome, perm, autor) {
     const t = lerTudo_('Permissoes'), agora = Date.now();
     let idx = -1;
     t.valores.forEach(function (l, i) { if (nomeChave_(l[0]) === chave) idx = i; });
+    const antes = idx >= 0 ? antigoLiberado_(t.valores[idx][t.cols.indexOf('antigo')]) : 0;
+    const antigo = perm.pce ? (perm.antigo === undefined ? antes : perm.antigo) : 0;      // sem PCE não há "Digitar do papel"
     const o = { nome: idx >= 0 ? String(t.valores[idx][0]) : String(nome).replace(/^[=+\-@\s]+/, ''), veiculos: perm.veiculos, tf: perm.tf, pce: perm.pce,
-                atualizadoEm: agora, atualizadoPor: quem };
+                atualizadoEm: agora, atualizadoPor: quem, antigo: antigo };
     const linha = [t.cols.map(function (c) { return o[c]; })];
     if (idx >= 0) t.sh.getRange(idx + 2, 1, 1, t.cols.length).setValues(linha);
     else t.sh.getRange(t.sh.getLastRow() + 1, 1, 1, t.cols.length).setValues(linha);
-    return { veiculos: o.veiculos, tf: o.tf, pce: o.pce, atualizadoEm: agora, atualizadoPor: quem };
+    return { veiculos: o.veiculos, tf: o.tf, pce: o.pce, antigo: antigo, atualizadoEm: agora, atualizadoPor: quem };
   } finally {
     lock.releaseLock();
   }
 }
 
 /**
- * Painel → aba Servidores → caixas "Veículos / TF / PCE": módulos em que o servidor pode inserir dados (por nome, todos os aparelhos).
+ * Painel → aba Servidores → caixas "Veículos / TF / PCE / Papel": módulos em que o servidor pode inserir dados (por nome, todos os aparelhos).
  * Só administrador. O servidor precisa existir na aba Fiscais (como fiscal). Pelo menos um módulo; para bloquear tudo, Revogar.
+ * "antigo" (Digitar do papel) é opcional, desligado por padrão e exige o PCE marcado (senão: erro pedindo para marcar o PCE).
  */
 function painelPermissoes(token, nome, req) {
   const admin = adminDoToken_(token);
@@ -762,7 +809,7 @@ function painelPermissoes(token, nome, req) {
     throw new Error('Servidor não encontrado na lista de acessos.');
   }
   const g = gravarPermissoes_(fiscal.nome, perm, admin);
-  return { ok: true, nome: fiscal.nome, permissoes: { veiculos: g.veiculos, tf: g.tf, pce: g.pce }, atualizadoEm: g.atualizadoEm, atualizadoPor: g.atualizadoPor };
+  return { ok: true, nome: fiscal.nome, permissoes: { veiculos: g.veiculos, tf: g.tf, pce: g.pce, antigo: g.antigo }, atualizadoEm: g.atualizadoEm, atualizadoPor: g.atualizadoPor };
 }
 
 /**
@@ -788,7 +835,7 @@ function painelAcessos(token) {
     if (f.perfil === 'admin') return { nome: f.nome, perfil: 'admin', situacao: situacao };
     const o = { nome: f.nome, perfil: 'fiscal', situacao: situacao, criadoEm: f.expiraEm > VALIDADE_CODIGO_MS ? f.expiraEm - VALIDADE_CODIGO_MS : 0,
                 expiraEm: f.expiraEm > VALIDADE_CODIGO_MS ? f.expiraEm : 0, ativadoEm: f.ativadoEm > 1e12 ? f.ativadoEm : 0, geradoPor: f.geradoPor || '',
-                permissoes: permissoesDe_(f.nome, mapa) };                                     // módulos liberados (por nome; padrão: todos)
+                permissoes: permissoesDe_(f.nome, mapa) };                                     // módulos liberados (por nome; padrão: todos, "antigo" desligado)
     if (situacao === 'aguardando') o.codigo = f.codigo.padStart(6, '0');
     return o;
   });

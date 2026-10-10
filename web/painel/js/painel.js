@@ -1212,9 +1212,87 @@ const Painel = (() => {
       it.innerHTML = `${seloSituacao(t)}<b>${esc(t.local || 'Sem local')}</b><small>${esc(t.fiscal || '')}${t.municipio ? ' · ' + esc(t.municipio) : ''}</small>${linhaTFVivo(t.tfAndamento)}
         <small>Início ${esc(fmt.dataCurta(t.data))} ${esc(t.inicio || '')} · ${esc(fmt.duracao(t.duracaoMin))} · último sinal ${esc(fmt.rel(t.ultimoSinal))}</small>
         <div class="pn-vivo-num"><span><strong>${fmt.int(t.nVeiculos)}</strong>veículos</span><span><strong>${fmt.int(t.nPessoas)}</strong>pessoas</span>${t.ultimoVeiculo ? `<span>último ${esc(t.ultimoVeiculo.hora)}</span>` : ''}</div>`;
+      const be = botaoEncerrar(t); if (be) { const ac = el('div', 'pn-vivo-acoes'); ac.appendChild(be); it.appendChild(ac); }
       g.appendChild(it);
     });
     sv.appendChild(g);
+  }
+
+  /* ---------------- encerrar turno pela gerência (só no painel normal; nunca no modo TV) ---------------- */
+  const RE_HM = /^([01]\d|2[0-3]):[0-5]\d$/;
+  /** Botão "Encerrar turno" de um cartão de barreira em andamento (null no modo TV ou para turno já encerrado). */
+  function botaoEncerrar(t) {
+    if (emTV() || !t || !t.emAndamento) return null;
+    const b = el('button', 'pn-btn pn-btn-mini pn-btn-encerrar', 'Encerrar turno'); b.type = 'button'; b.dataset.encerrar = t.id;
+    b.setAttribute('aria-label', `Encerrar o turno de ${t.local || 'barreira sem local'}${t.fiscal ? ' (' + t.fiscal + ')' : ''}`);
+    b.onclick = () => dialogoEncerrar(t);
+    return b;
+  }
+  /** Aviso curto no rodapé (sucesso de uma ação). */
+  function avisar(msg) {
+    let a = $('#pn-toast');
+    if (!a) { a = el('div', 'pn-toast'); a.id = 'pn-toast'; a.setAttribute('role', 'status'); a.setAttribute('aria-live', 'polite'); document.body.appendChild(a); }
+    a.textContent = msg; a.classList.add('on'); clearTimeout(avisar.t); avisar.t = setTimeout(() => a.classList.remove('on'), 4000);
+  }
+  /** Diálogo do gerente: horário de encerramento (sugestões: último veículo / agora), aviso e confirmação. */
+  function dialogoEncerrar(t) {
+    const velho = $('#pn-encerrar'); if (velho) velho.remove();
+    const hAgora = horaManaus(agora()), hUlt = t.ultimoVeiculo && RE_HM.test(String(t.ultimoVeiculo.hora || '')) ? String(t.ultimoVeiculo.hora) : '';
+    const dlg = el('dialog', 'pn-dlg'); dlg.id = 'pn-encerrar'; dlg.setAttribute('aria-labelledby', 'pn-enc-tit');
+    dlg.innerHTML = `<form method="dialog" class="pn-dlg-form" novalidate>
+      <h3 id="pn-enc-tit">Encerrar turno</h3>
+      <div class="pn-dlg-info"><b>${esc(t.local || 'Sem local')}</b><span>${esc(t.fiscal || 'Fiscal não informado')}</span>
+        <span>Início ${esc(fmt.dataCurta(t.data))} às ${esc(t.inicio || '—')} · ${fmt.int(t.nVeiculos)} veículo(s)${hUlt ? ` · último às ${esc(hUlt)}` : ' · nenhum veículo registrado'}</span></div>
+      <label class="pn-dlg-campo">Horário de encerramento<input type="time" id="pn-enc-fim" required value="${esc(hUlt || hAgora)}"></label>
+      <div class="pn-dlg-rapidos">${hUlt ? `<button type="button" class="pn-btn pn-btn-mini" data-hora="${esc(hUlt)}">Último veículo (${esc(hUlt)})</button>` : ''}
+        <button type="button" class="pn-btn pn-btn-mini" data-hora="${esc(hAgora)}">Agora (${esc(hAgora)})</button></div>
+      <p class="pn-dlg-prev" id="pn-enc-prev"></p>
+      <p class="pn-dlg-aviso">O turno sai das barreiras em andamento e o aparelho do fiscal será avisado na próxima sincronização.</p>
+      <p class="pn-dlg-erro" id="pn-enc-erro" role="alert" hidden></p>
+      <div class="pn-dlg-botoes"><button type="button" class="pn-btn" value="cancelar" id="pn-enc-cancelar">Cancelar</button>
+        <button type="submit" class="pn-btn pn-btn-perigo" id="pn-enc-ok">Encerrar turno</button></div></form>`;
+    document.body.appendChild(dlg);
+    const inp = dlg.querySelector('#pn-enc-fim'), erro = dlg.querySelector('#pn-enc-erro'), ok = dlg.querySelector('#pn-enc-ok');
+    const mostrarErro = m => { erro.textContent = m; erro.hidden = !m; };
+    const previa = () => {
+      const h = inp.value, pv = dlg.querySelector('#pn-enc-prev');
+      if (!RE_HM.test(h) || t.inicioMs == null) { pv.textContent = ''; return; }
+      let f = msDe(t.data, h); if (f < t.inicioMs) f += 864e5;
+      pv.textContent = `Turno das ${t.inicio} de ${fmt.dataCurta(t.data)} às ${h} de ${fmt.dataCurta(diaManaus(f))} · duração ${fmt.duracao((f - t.inicioMs) / 60000)}` +
+        (f > agora() ? ' · atenção: horário ainda não chegou' : '');
+    };
+    inp.addEventListener('input', () => { mostrarErro(''); previa(); });
+    dlg.querySelectorAll('[data-hora]').forEach(b => { b.onclick = () => { inp.value = b.dataset.hora; mostrarErro(''); previa(); inp.focus(); }; });
+    dlg.querySelector('#pn-enc-cancelar').onclick = () => dlg.close();
+    dlg.addEventListener('close', () => dlg.remove());
+    dlg.querySelector('form').addEventListener('submit', async ev => {
+      ev.preventDefault();
+      const fim = inp.value;
+      if (!RE_HM.test(fim)) { mostrarErro('Informe o horário de encerramento no formato HH:MM.'); inp.focus(); return; }
+      ok.disabled = true; ok.textContent = 'Encerrando…'; mostrarErro('');
+      try {
+        const j = await chamar({ action: 'painelEncerrarTurno', turnoId: t.id, fim });
+        aplicarEncerramento(j.turno || { id: t.id, encerrado: 1, fim });
+        dlg.close(); avisar('Turno encerrado');
+      } catch (e) {
+        if (!S.token) { dlg.close(); return; }                       // sessão encerrada: chamar() já voltou ao login
+        mostrarErro(e.rede ? 'Sem conexão com o servidor. Verifique a internet e tente de novo.' : e.message || 'Não foi possível encerrar o turno.');
+        ok.disabled = false; ok.textContent = 'Encerrar turno';
+      }
+    });
+    previa();
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+    inp.focus();
+  }
+  /** Turno encerrado no painel: atualiza os dados já carregados na hora e busca a situação ao vivo no servidor. */
+  function aplicarEncerramento(r) {
+    const B = S.bruto;
+    if (B && Array.isArray(B.turnos)) {
+      B.turnos = B.turnos.map(x => x.id !== r.id ? x : { ...x, encerrado: 1, emAndamento: false, fim: r.fim, fimTs: r.fimTs != null ? r.fimTs : x.fimTs,
+        encerradoPor: r.encerradoPor || S.nome || '', encerradoEm: r.encerradoEm || agora(), atualizadoEm: r.atualizadoEm || x.atualizadoEm, srv_ts: r.srv_ts || x.srv_ts });
+      S.todos = normalizar(B); recalcular(true); processarTF();
+    }
+    if (S.carregando) S.repetir = true; else carregarAoVivo();
   }
 
   function renderGeral(c, d, f) {
@@ -1392,6 +1470,8 @@ const Painel = (() => {
     usarTV: h => { S.tv = h; },
     /** API com a credencial do painel ({action, ...} → resposta; erro de sessão volta ao login) e o nome do administrador logado. */
     chamar, get usuario() { return S.nome; }, aoSair: fn => { aoSairFns.push(fn); },
+    /** Botão "Encerrar turno" (gerência) para um turno em andamento; null no modo TV. */
+    botaoEncerrar,
     trocarModo
   };
 })();

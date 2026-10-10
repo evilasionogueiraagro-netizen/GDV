@@ -118,9 +118,8 @@
     if (!abertos.length) P.vazio(sv, 'Nenhuma barreira aberta no momento.');
     else {
       const g = P.el('div', 'pn-vivo');
-      const ordem = { longa: 0, semsinal: 1, ok: 2 };
-      abertos.slice().sort((a, b) => ordem[a.situacao] - ordem[b.situacao] || (b.duracaoMin || 0) - (a.duracaoMin || 0)).forEach(t => {
-        const it = P.el('div', 'pn-vivo-item'); it.dataset.turno = t.id;
+      abertos.slice().sort((a, b) => P.ordemVivo(a) - P.ordemVivo(b) || (b.duracaoMin || 0) - (a.duracaoMin || 0)).forEach(t => {   // TF em preenchimento primeiro
+        const it = P.el('div', 'pn-vivo-item' + (t.tfAndamento ? ' tf' : '')); it.dataset.turno = t.id;
         const vph = porHora(t.nVeiculos, t.duracaoContabilMin);
         it.innerHTML = `${P.seloSituacao(t)}<b>${esc(t.local || 'Sem local')}</b><small>${esc(t.fiscal || '')}${t.municipio ? ' · ' + esc(t.municipio) : ''}${t.posto ? ' · posto ' + esc(t.posto) : ''}</small>
           <small>Início ${esc(fmt.dataCurta(t.data))} ${esc(t.inicio || '')} · ${esc(fmt.duracao(t.duracaoMin))} · último sinal ${esc(fmt.rel(t.ultimoSinal))}</small>

@@ -44,7 +44,7 @@ const TFUI = (() => {
   }
 
   /* ---------- estado do formulário ---------- */
-  let S = null;                                                                   // { numero, hist:{doc,placa}, tpl, turnoId, veiculoId }
+  let S = null;                                                                   // { numero, hist:{doc,placa}, tpl, turnoId, veiculoId, rid }
   const vazio = () => ({ barreira: '', data: hojeISO(), hora: agoraHM(), doc: '', nome: '', rg: '', endereco: '', municipio: '', uf: '', telefone: '', relacao: T.relacoes[0],
     inspecao: false, coleta: false, amostras: '', procedimento: '', fiel: false, auto: false, advertencia: false, local: '', placa: '', origem: '', destino: '',
     docs: { nf: '', ptv: '', gta: '', sif: '', sie: '', sim: '', lacre: '', outros: '' }, produtos: [{ p: '', q: '', u: T.unidades[0] }], constatacao: '', enquadramento: '' });
@@ -60,7 +60,46 @@ const TFUI = (() => {
       constatacao: g('constatacao'), enquadramento: g('enquadramento') };
   }
   let tRasc = null;
-  const salvarRascunho = () => { clearTimeout(tRasc); const f = $('#tfForm'); tRasc = setTimeout(() => { if (S && f && $('#tfForm') === f) Store.setMeta('tfRascunho', { dados: coletar(), turnoId: S.turnoId, veiculoId: S.veiculoId, em: Date.now() }); }, 500); };   // só grava se o formulário ainda for o mesmo que originou a digitação
+  const salvarRascunho = () => { clearTimeout(tRasc); const f = $('#tfForm'); tRasc = setTimeout(() => { if (S && f && $('#tfForm') === f) Store.setMeta('tfRascunho', { dados: coletar(), turnoId: S.turnoId, veiculoId: S.veiculoId, rid: S.rid, em: Date.now() }); }, 500); };   // só grava se o formulário ainda for o mesmo que originou a digitação
+
+  /* ---------- sinal "TF em preenchimento" para o painel do gestor ----------
+     Melhor esforço: avisa ao abrir o formulário, ao mudar procedimento ou placa e a cada 2 min ("batimento"); "fim" ao gerar,
+     descartar ou sair do formulário. Nunca espera resposta, nunca mostra erro e não guarda nada para depois (sem internet, não envia). */
+  const BATIMENTO_MS = 2 * 60 * 1000;
+  const AND = { rid: '', timer: null, tm: null, gps: null, chave: '' };
+  const placaAnd = () => { const p = placaNorm($('#tf-placa') ? $('#tf-placa').value : ''); return p.length >= 7 ? p : ''; };
+  const procAnd = () => { const r = document.querySelector('input[name=tf-proc]:checked'); return r ? r.value : ''; };
+  function sinal(estado) {
+    if (!AND.rid) return;
+    const dados = { estado, rascunhoId: AND.rid };
+    if (estado === 'preenchendo') {
+      const sel = $('#tf-barreira'), op = sel && sel.selectedOptions && sel.selectedOptions[0];
+      Object.assign(dados, { turnoId: (S && S.turnoId) || '', placa: placaAnd(), procedimento: procAnd(), local: $('#tf-local') ? $('#tf-local').value.trim() : '',
+        barreira: op ? op.textContent.trim() : '', lat: AND.gps ? AND.gps.lat : '', lon: AND.gps ? AND.gps.lng : '' });
+      AND.chave = dados.placa + '|' + dados.procedimento;
+    }
+    try { Sync.tfAndamento(dados); } catch (e) { /* melhor esforço */ }
+  }
+  function iniciarAndamento(rid) {
+    if (AND.rid && AND.rid !== rid) encerrarAndamento();                          // outro formulário (rascunho descartado): o anterior termina
+    AND.rid = rid; clearInterval(AND.timer); clearTimeout(AND.tm);
+    sinal('preenchendo');
+    AND.timer = setInterval(() => { if (AND.rid === rid && $('#tfForm')) sinal('preenchendo'); else if (AND.rid === rid) encerrarAndamento(); }, BATIMENTO_MS);
+    if (!AND.gps && typeof pegarLocal === 'function') {                             // GPS uma vez, em segundo plano (não trava o formulário)
+      pegarLocal().then(g => { if (g && AND.rid === rid && $('#tfForm')) { AND.gps = g; sinal('preenchendo'); } }).catch(() => {});
+    }
+  }
+  function encerrarAndamento() {
+    if (!AND.rid) return;
+    clearInterval(AND.timer); clearTimeout(AND.tm); sinal('fim');
+    AND.rid = ''; AND.gps = null; AND.chave = '';
+  }
+  /** Procedimento ou placa mudou: reenvia (com uma pequena espera, para não mandar a placa a cada letra). */
+  function mudouAndamento() {
+    clearTimeout(AND.tm);
+    AND.tm = setTimeout(() => { if (AND.rid && $('#tfForm') && placaAnd() + '|' + procAnd() !== AND.chave) sinal('preenchendo'); }, 1200);
+  }
+  document.addEventListener('visibilitychange', () => { if (!document.hidden && AND.rid && $('#tfForm')) sinal('preenchendo'); });   // voltou ao app: batimento já
 
   /* ---------- tela: formulário ---------- */
   const campo = (id, rot, v, extra = '') => `<label>${rot}<input id="tf-${id}" value="${esc(v)}" ${extra}></label>`;
@@ -129,10 +168,10 @@ const TFUI = (() => {
     prefill = prefill || {}; clearTimeout(tRasc);
     const bars = await barreiras();
     if (!bars.length) { view('<div class="card aviso">⚠️ A lista de barreiras ainda não foi carregada. Conecte-se à internet e aguarde a sincronização.</div>'); Sync.sincronizar(); return; }
-    let D = vazio(); S = { hist: { doc: null, placa: null }, tpl: { constatacao: '', enquadramento: '' }, turnoId: '', veiculoId: '' };
+    let D = vazio(); S = { hist: { doc: null, placa: null }, tpl: { constatacao: '', enquadramento: '' }, turnoId: '', veiculoId: '', rid: Store.novoId() };
     const rasc = await Store.meta('tfRascunho');
     if (rasc && rasc.dados && confirm(`Há um TF não gerado, iniciado em ${new Date(rasc.em).toLocaleString('pt-BR')}.\n\nContinuar de onde parou? (Cancelar descarta o rascunho.)`)) {
-      D = { ...D, ...rasc.dados }; S.turnoId = rasc.turnoId || ''; S.veiculoId = rasc.veiculoId || '';
+      D = { ...D, ...rasc.dados }; S.turnoId = rasc.turnoId || ''; S.veiculoId = rasc.veiculoId || ''; if (rasc.rid) S.rid = rasc.rid;   // mesmo rascunho = mesmo sinal no painel
     } else {
       await Store.setMeta('tfRascunho', null);
       const turno = await turnoAtual(); let veic = null;
@@ -151,6 +190,7 @@ const TFUI = (() => {
     if (digitos(D.doc).length >= 11) consultarDoc();
     if (placaNorm(D.placa).length >= 7) consultarPlaca();
     ligarForm();
+    iniciarAndamento(S.rid);
   }
 
   function ligarForm() {
@@ -158,11 +198,12 @@ const TFUI = (() => {
     f.addEventListener('input', e => {
       if (e.target.id === 'tf-placa') { e.target.value = placaNorm(e.target.value); if (e.target.value.length === 7) agendar('placa'); }
       if (e.target.id === 'tf-doc') { const d = digitos(e.target.value); if (d.length === 11 || d.length === 14) agendar('doc'); else $('#tf-st-doc').replaceChildren(); }
+      if (e.target.id === 'tf-placa') mudouAndamento();
       salvarRascunho();
     });
     f.addEventListener('change', async e => {
       if (e.target.id === 'tf-barreira') { localStorage.setItem('gdv.barreira', e.target.value); await mostrarInfoNumero(); }
-      if (e.target.name === 'tf-proc') aplicarModelo(e.target.value);
+      if (e.target.name === 'tf-proc') { aplicarModelo(e.target.value); mudouAndamento(); }
       if (e.target.id === 'tf-doc') { e.target.value = fmtDoc(digitos(e.target.value)); }
       salvarRascunho();
     });
@@ -306,6 +347,7 @@ const TFUI = (() => {
       if (placa) await Store.gravar('placas', { ...placa, pendente: est.pendente });
       await Sync.lembrarUltimos({ [chave(bar.id, a)]: n });
       clearTimeout(tRasc); await Store.setMeta('tfRascunho', null); localStorage.setItem('gdv.barreira', bar.id);
+      encerrarAndamento();                                                        // painel: o TF deixou de estar em preenchimento (sem esperar resposta)
       S = null; Sync.sincronizar(); go('tfpronto', rec.id); return;
     }
     toast('Não foi possível definir o número do TF. Tente novamente.', true);
@@ -356,10 +398,13 @@ const TFUI = (() => {
         Sync.sincronizar(); toast('TF cancelado.'); lista();
       } else if (a === 'addprod') { const c = coletar(); c.produtos.push({ p: '', q: '', u: T.unidades[0] }); $('#tf-produtos').innerHTML = c.produtos.map(linhaProd).join(''); salvarRascunho(); }
       else if (a === 'delprod') { const c = coletar(); c.produtos.splice(+el.dataset.i, 1); if (!c.produtos.length) c.produtos.push({ p: '', q: '', u: T.unidades[0] }); $('#tf-produtos').innerHTML = c.produtos.map(linhaProd).join(''); salvarRascunho(); }
-      else if (a === 'descartar') { if (confirm('Descartar este TF? Os dados preenchidos serão perdidos.')) { clearTimeout(tRasc); S = null; await Store.setMeta('tfRascunho', null); go(MODULO === 'veiculos' ? 'lista' : 'tf'); } }
+      else if (a === 'descartar') { if (confirm('Descartar este TF? Os dados preenchidos serão perdidos.')) { clearTimeout(tRasc); encerrarAndamento(); S = null; await Store.setMeta('tfRascunho', null); go(MODULO === 'veiculos' ? 'lista' : 'tf'); } }
       else if (a === 'usardoc') { $('#tf-doc').value = fmtDoc(el.dataset.doc); consultarDoc(); }
     } catch (err) { toast(err.message || String(err), true); }
   });
 
-  return { lista, novo, pronto };
+  /** O fiscal saiu do formulário sem gerar (app.js → go): o rascunho continua salvo, mas o painel deixa de mostrar o TF em preenchimento. */
+  const saiu = () => encerrarAndamento();
+
+  return { lista, novo, pronto, saiu };
 })();

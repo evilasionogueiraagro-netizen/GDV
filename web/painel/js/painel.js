@@ -13,6 +13,9 @@ const Painel = (() => {
   // (ou a cada minuto em períodos de até 7 dias, que são pequenos)
   const COMPLETA_MS = 10 * 60 * 1000, DIAS_COMPLETA_SEMPRE = 7;
   const AM_LIMITES = [[-9.9, -73.9], [2.3, -56.0]];
+  // TF em preenchimento (apreensão em andamento): enquanto houver um, as barreiras ao vivo são consultadas a cada 25 s;
+  // sem batimento do aparelho há mais de 10 min o TF é considerado encerrado (o servidor já filtra; aqui vale também sem conexão)
+  const TF_RAPIDO_MS = 25 * 1000, TF_VALIDADE_MS = 10 * 60 * 1000;
   const ORDEM_ABAS = ['geral', 'barreiras', 'tf', 'pce'];
 
   /* ---------------- utilidades ---------------- */
@@ -198,8 +201,21 @@ const Painel = (() => {
    */
   function reavaliarAbertos() {
     if (!S.todos) return; const tAgora = agora();
+    expirarTF(S.todos, tAgora);
     S.todos.turnosTodos.forEach(t => { if (t.emAndamento) { duracaoAberto(t, tAgora); situar(t, tAgora); } });
   }
+  /** TF em preenchimento sem batimento há mais de 10 min deixa de valer (barreira volta ao estado normal). */
+  function expirarTF(N, tAgora) {
+    const vale = a => !a.sinalMs || tAgora - a.sinalMs <= TF_VALIDADE_MS;
+    if (N.tfsAndamento.every(vale)) return;
+    N.tfsAndamento = N.tfsAndamento.filter(vale);
+    N.turnosTodos.forEach(t => { if (t.tfAndamento) { t.tfAndamento = t.tfAndamento.filter(vale); if (!t.tfAndamento.length) t.tfAndamento = null; } });
+  }
+  /** Marcador/estado ao vivo de uma barreira aberta: TF em preenchimento na frente de tudo; depois > 14 h, sem sinal, em andamento. */
+  const pinoDe = t => t.tfAndamento ? 'tf' : t.situacao;
+  const ordemVivo = t => t.tfAndamento ? -1 : ORDEM_SITUACAO[t.situacao];
+  const tfApreensao = t => !!(t.tfAndamento && t.tfAndamento.some(a => a.apreensao));
+  const rotuloTF = t => tfApreensao(t) ? 'Apreensão em andamento' : 'TF em preenchimento';
   function normalizar(r) {
     const de = r.de || r._de, ate = r.ate || r._ate;
     const barreiras = (r.barreiras || []).map(b => ({ ...b }));
@@ -239,6 +255,20 @@ const Painel = (() => {
       return t;
     });
     const turnoPorId = {}; turnos.forEach(t => { turnoPorId[t.id] = t; });
+    // TF sendo preenchido agora no aparelho (aba Andamento): liga-se ao turno aberto pelo turnoId; sem turno aberto fica avulso
+    const tfsAndamento = (r.tfsAndamento || []).map(x => {
+      const a = { ...x, lat: num(x.lat), lon: num(x.lon), inicioMs: num(x.inicioTs), sinalMs: num(x.atualizadoTs) };
+      a.placa = String(a.placa || ''); a.apreensao = a.procedimento === 'apreensao';
+      a.titulo = a.apreensao ? 'Apreensão em andamento' : 'TF em preenchimento';
+      a.procedimentoNome = a.procedimento ? (PROC[a.procedimento] || String(a.procedimento)) : 'procedimento ainda não marcado';
+      const tr = turnoPorId[a.turnoId]; a.turno = tr && tr.emAndamento ? tr : null;
+      a.onde = (a.turno && a.turno.local) || a.barreira || a.local || 'Local não informado';
+      a.municipio = (a.turno && a.turno.municipio) || municipioDe(a.lat, a.lon) || null;
+      return a;
+    }).filter(a => !a.sinalMs || tAgora - a.sinalMs <= TF_VALIDADE_MS).sort((a, b) => (a.inicioMs || 0) - (b.inicioMs || 0));
+    turnos.forEach(t => { t.tfAndamento = null; });
+    tfsAndamento.forEach(a => { const t = a.turno; if (!t) return; (t.tfAndamento = t.tfAndamento || []).push(a);
+      if (a.sinalMs > (t.ultimoSinal || 0)) { t.ultimoSinal = a.sinalMs; situar(t, tAgora); } });       // o batimento do TF também é sinal do aparelho
     const tfsTodos = (r.tfs || []).filter(vivos).map(x => {
       const t = { ...x }; t.data = isoDe(t.data); t.cancelado = Number(t.cancelado) === 1; t.numero = num(t.numero); t.ano = num(t.ano) || (t.data ? +t.data.slice(0, 4) : null);
       t.reincidente = Number(t.reincidente) === 1; t.conflito = Number(t.conflito) === 1; t.auto = Number(t.auto) === 1; t.advertencia = Number(t.advertencia) === 1;
@@ -275,7 +305,7 @@ const Painel = (() => {
       pragas: (Array.isArray(h.pragas) ? h.pragas : lerJSON(h.pragas, [])).filter(Boolean) }));
     const auditoria = r.auditoria ? { tf: auditoriaDoServidor(r.auditoria.tf, g => nomeBarreira[g] || g), pce: auditoriaDoServidor(r.auditoria.pce, g => g) }
       : { tf: auditarNumeracao(tfsTodos, t => t.barreiraNome || t.barreira), pce: auditarNumeracao(colheitasTodas, 'unidade') };
-    return { agora: num(r.agora) || tAgora, de, ate, barreiras, auditoria, turnosTodos: turnos, veiculosTodos: veiculos, tfsTodos, levantamentos, colheitasTodas, historicoPce };
+    return { agora: num(r.agora) || tAgora, de, ate, barreiras, auditoria, turnosTodos: turnos, veiculosTodos: veiculos, tfsTodos, levantamentos, colheitasTodas, historicoPce, tfsAndamento };
   }
 
   /**
@@ -328,6 +358,8 @@ const Painel = (() => {
              tfs: tfsTodos.filter(t => !t.cancelado), tfsCancelados: tfsTodos.filter(t => t.cancelado), tfsTodos,
              levantamentos, colheitas: colheitasTodas.filter(c => !c.cancelado), colheitasCanceladas: colheitasTodas.filter(c => c.cancelado), colheitasTodas,
              historicoPce, municipios: MUN.map(m => m.nome),
+             // TF em preenchimento: urgente, vale qualquer filtro; os sem turno aberto ganham marcador e cartão próprios
+             tfsAndamento: N.tfsAndamento, tfsSemTurno: N.tfsAndamento.filter(a => !a.turno),
              semFiltro: N };
   }
 
@@ -380,9 +412,9 @@ const Painel = (() => {
       if (S.token !== tok) return;                                     // saiu no meio
       if (num(j.agora)) relogio = num(j.agora) - Math.round((t0 + Date.now()) / 2);
       j.de = (j.periodo && j.periodo.de) || j.de || p.de; j.ate = (j.periodo && j.periodo.ate) || j.ate || p.ate;
-      S.bruto = j; S.todos = normalizar(j); S.ultimaCarga = S.ultimaCompleta = Date.now(); S.erro = ''; S.falhas = 0;
-      preencherOpcoes(); recalcular(auto);
-      status(`Atualizado às ${fmt.hora(Date.now())} · atualização automática a cada minuto`);
+      S.bruto = j; S.todos = normalizar(j); S.ultimaCarga = S.ultimaCompleta = S.ultimaRegular = Date.now(); S.erro = ''; S.falhas = 0;
+      preencherOpcoes(); recalcular(auto); processarTF();
+      status(`Atualizado às ${fmt.hora(Date.now())} · atualização automática a cada minuto${S.tfRapido ? ' (barreiras a cada 25 s: TF em preenchimento)' : ''}`);
     } catch (e) {
       if (S.token !== tok || falhou(e)) return;
       if (!S.todos && !emTV()) { const c = $('#pn-conteudo'); c.innerHTML = `<div class="pn-cartao pn-falha" role="alert"><b>Não foi possível carregar os dados.</b><p class="pn-sub">${esc(e.message)} Nova tentativa automática em instantes.</p><button type="button" class="pn-btn" id="pn-tentar">Tentar de novo</button></div>`;
@@ -406,9 +438,10 @@ const Painel = (() => {
       const tocados = new Set(ids.concat((j.turnos || []).map(t => t.id)));
       B.turnos = (B.turnos || []).filter(t => !tocados.has(t.id)).concat(j.turnos || []);
       B.veiculos = (B.veiculos || []).filter(v => !tocados.has(v.turnoId)).concat(j.veiculos || []);
+      B.tfsAndamento = j.tfsAndamento || [];
       S.todos = normalizar(B); S.ultimaCarga = Date.now(); S.erro = ''; S.falhas = 0;
-      preencherOpcoes(); recalcular(true);
-      status(`Atualizado às ${fmt.hora(Date.now())} · barreiras ao vivo a cada minuto; demais dados às ${fmt.hora(S.ultimaCompleta)} (a cada 10 min)`);
+      preencherOpcoes(); recalcular(true); processarTF();
+      status(`Atualizado às ${fmt.hora(Date.now())} · barreiras ao vivo a cada ${S.tfRapido ? '25 s (TF em preenchimento)' : 'minuto'}; demais dados às ${fmt.hora(S.ultimaCompleta)} (a cada 10 min)`);
     } catch (e) {
       if (S.token === tok && !falhou(e) && emTV()) S.tv.atualizar();
     } finally {
@@ -427,23 +460,117 @@ const Painel = (() => {
     if (emTV()) { S.tv.atualizar(); return; }                         // no modo TV quem desenha é o painel-tv.js
     desenharAbas(); renderAba(auto);
   }
-  /** Próxima atualização automática: a cada minuto; depois de falha, espera crescente (15 s → 5 min). */
+  /**
+   * Próxima atualização automática: a cada minuto; com TF em preenchimento, a cada 25 s (entre as atualizações normais, só a consulta
+   * leve das barreiras ao vivo); depois de falha, espera crescente (15 s → 5 min).
+   */
   function agendar(ms) {
     clearTimeout(S.timer);
     if (!S.token) return;
-    if (ms == null) ms = S.falhas ? Math.min(ESPERA_MAX_MS, ESPERA_INI_MS * 2 ** (S.falhas - 1)) : ATUALIZAR_MS;
+    if (ms == null) ms = S.falhas ? Math.min(ESPERA_MAX_MS, ESPERA_INI_MS * 2 ** (S.falhas - 1)) : S.tfRapido ? TF_RAPIDO_MS : ATUALIZAR_MS;
     S.proxima = Date.now() + ms;
     S.timer = setTimeout(async () => {
       if (!S.token) return;
-      if (!document.hidden && !$('#pn-app').hidden) { try { await atualizarSozinho(); } catch (e) { /* tratado em carregar */ } }
+      if (!document.hidden && !$('#pn-app').hidden) {
+        try {
+          if (S.tfRapido && S.bruto && !S.falhas && Date.now() - (S.ultimaRegular || 0) < ATUALIZAR_MS - 2000) await carregarAoVivo();
+          else { S.ultimaRegular = Date.now(); await atualizarSozinho(); }
+        } catch (e) { /* tratado em carregar */ }
+      }
       agendar();
     }, ms);
+  }
+
+  /* ---------------- TF em preenchimento: aviso, som e notificação ---------------- */
+  // "visto" = já avisado nesta sessão (som/notificação/salto da TV uma vez por TF; de novo se passar a ser apreensão)
+  const TFA = { vistos: new Set(), dispensados: new Set(), sons: 0, notificacoes: 0, audio: null, avisos: 0 };
+  function audioCtx() {
+    const AC = window.AudioContext || window.webkitAudioContext; if (!AC) return null;
+    if (!TFA.audio) TFA.audio = new AC();
+    return TFA.audio;
+  }
+  /** Primeiro gesto na página (clique/tecla) libera o áudio: navegadores bloqueiam som sem interação (no quiosque, ver README). */
+  function destravarAudio() { try { const a = audioCtx(); if (a && a.state === 'suspended') a.resume().catch(() => {}); } catch (e) { /* sem áudio */ } }
+  /** Três bipes curtos (Web Audio). Bloqueado pelo navegador → silêncio, sem erro. */
+  function tocarSom() {
+    TFA.sons++;
+    try {
+      const a = audioCtx(); if (!a) return;
+      const tocar = () => {
+        const t0 = a.currentTime + 0.03;
+        [0, 0.24, 0.48].forEach((d, i) => {
+          const o = a.createOscillator(), g = a.createGain(); o.type = 'square'; o.frequency.value = i === 1 ? 660 : 880;
+          g.gain.setValueAtTime(0.0001, t0 + d); g.gain.exponentialRampToValueAtTime(0.2, t0 + d + 0.02); g.gain.exponentialRampToValueAtTime(0.0001, t0 + d + 0.2);
+          o.connect(g); g.connect(a.destination); o.start(t0 + d); o.stop(t0 + d + 0.22);
+        });
+      };
+      if (a.state === 'running') tocar(); else a.resume().then(() => { if (a.state === 'running') tocar(); }).catch(() => {});
+    } catch (e) { /* navegador bloqueou o áudio: segue em silêncio */ }
+  }
+  const textoTF = a => [a.fiscal && 'Fiscal: ' + a.fiscal, a.placa && 'Placa ' + a.placa, a.procedimentoNome, a.inicioMs && 'iniciado ' + fmt.rel(a.inicioMs)].filter(Boolean).join(' · ');
+  /** Notificação do sistema: só se o usuário já permitiu (botão "Ativar notificações"); nunca pede permissão sozinho. */
+  function notificar(novos) {
+    if (emTV() || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
+    novos.forEach(a => {
+      const tit = `${a.titulo} — ${a.onde}`, op = { body: textoTF(a), tag: 'gdv-tf-' + a.id, renotify: true, requireInteraction: true, icon: 'img/icon-192.png' };
+      TFA.notificacoes++;
+      const direto = () => { try { new Notification(tit, op); } catch (e) { /* ex.: Android exige o service worker */ } };
+      try {
+        if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) navigator.serviceWorker.getRegistration().then(r => r ? r.showNotification(tit, op) : direto()).catch(direto);
+        else direto();
+      } catch (e) { direto(); }
+    });
+  }
+  /** Depois de cada carga: avisa os TFs novos (som, notificação, salto da TV), redesenha o aviso e acelera a atualização. */
+  function processarTF() {
+    const lista = S.todos ? S.todos.tfsAndamento : [], ids = new Set(lista.map(a => a.id));
+    TFA.dispensados.forEach(id => { if (!ids.has(id)) TFA.dispensados.delete(id); });      // terminou: se voltar, aparece de novo
+    const novos = lista.filter(a => !TFA.vistos.has(a.id) || (a.apreensao && !TFA.vistos.has(a.id + '|apreensao')));
+    lista.forEach(a => { TFA.vistos.add(a.id); if (a.apreensao) TFA.vistos.add(a.id + '|apreensao'); });
+    if (novos.length) {
+      novos.forEach(a => TFA.dispensados.delete(a.id));
+      TFA.avisos++; tocarSom(); notificar(novos);
+      if (emTV() && S.tv.novoTF) S.tv.novoTF(novos);
+    }
+    const eraRapido = !!S.tfRapido; S.tfRapido = lista.length > 0;
+    desenharAvisoTF();
+    if (S.token && !S.falhas) {
+      if (S.tfRapido && S.proxima - Date.now() > TF_RAPIDO_MS + 1000) agendar(TF_RAPIDO_MS);
+      else if (!S.tfRapido && eraRapido) agendar(Math.max(1000, ATUALIZAR_MS - (Date.now() - (S.ultimaRegular || 0))));   // TF terminou: volta ao ritmo de 1 min
+    }
+  }
+  /** Aviso vermelho (painel normal): fica até o TF terminar ou ser dispensado. Na TV quem mostra é a faixa do topo. */
+  function desenharAvisoTF() {
+    let box = $('#pn-tfaviso');
+    const lista = S.token && S.todos && !emTV() ? S.todos.tfsAndamento.filter(a => !TFA.dispensados.has(a.id)) : [];
+    if (!lista.length) { if (box) { box.hidden = true; box.innerHTML = ''; } return; }
+    if (!box) {
+      box = el('div', 'pn-tfaviso'); box.id = 'pn-tfaviso'; box.setAttribute('role', 'alert'); box.setAttribute('aria-live', 'assertive'); document.body.appendChild(box);
+      box.addEventListener('click', e => { const b = e.target.closest('[data-dispensar]'); if (b) { TFA.dispensados.add(b.dataset.dispensar); desenharAvisoTF(); } });
+    }
+    // a animação de entrada/pulso só nos itens que acabaram de aparecer (redesenhar a cada carga não pode reiniciá-la)
+    const ja = new Set([...box.querySelectorAll('[data-tf]')].map(e => e.dataset.tf));
+    const html = lista.map(a => `<div class="pn-tfaviso-item${a.apreensao ? ' apreensao' : ''}${ja.has(a.id) ? '' : ' novo'}" data-tf="${esc(a.id)}">
+      <span class="pn-tfaviso-ic" aria-hidden="true">TF</span>
+      <div class="pn-tfaviso-txt"><b>${esc(a.titulo)}</b><span class="pn-tfaviso-onde">${esc(a.onde)}${a.municipio && a.municipio !== a.onde ? ' · ' + esc(a.municipio) : ''}${a.turno ? '' : ' · sem turno aberto'}</span>
+        <small>${esc(textoTF(a))}</small></div>
+      <button type="button" class="pn-tfaviso-x" data-dispensar="${esc(a.id)}" aria-label="Dispensar o aviso (${esc(a.titulo)} em ${esc(a.onde)})">Dispensar</button></div>`).join('');
+    if (box.dataset.html !== html) {                                   // só troca o conteúdo se mudou (texto, itens ou apreensão)
+      box.innerHTML = html; box.dataset.html = html;
+    }
+    box.hidden = false;
+  }
+  /** Botão discreto "Ativar notificações" (só no painel normal, só enquanto o navegador ainda não perguntou). */
+  function desenharBotaoNotif() {
+    const b = $('#pn-notif'); if (!b) return;
+    b.hidden = !(typeof Notification !== 'undefined' && Notification.permission === 'default' && !emTV());
   }
   /** Troca de modo (TV ↔ normal): o período muda, então descarta os dados e recarrega. */
   function trocarModo() {
     S.bruto = S.todos = S.dados = null; S.ultimaCarga = 0;
     if (!S.token) return;
     if (!emTV()) { desenharPresets(); $('#pn-conteudo').innerHTML = ''; }
+    desenharAvisoTF(); desenharBotaoNotif();
     carregar(); agendar();
   }
 
@@ -800,7 +927,7 @@ const Painel = (() => {
   let tilesFalharamEm = 0;
   const TILES_PAUSA_MS = 10 * 60 * 1000;
   const popup = (titulo, linhas, extra) => `<div class="pn-pop"><h4>${esc(titulo)}</h4>${extra || ''}<dl>${linhas.filter(l => l && l[1] != null && l[1] !== '').map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl></div>`;
-  const seloSituacao = t => t.situacao === 'longa' ? '<span class="pn-selo critico">Aberta há mais de 14 h</span>' : t.situacao === 'semsinal' ? '<span class="pn-selo info">Sem sinal há mais de 30 min</span>' : t.situacao === 'ok' ? '<span class="pn-selo bom">Em andamento</span>' : '<span class="pn-selo info">Encerrada</span>';
+  const seloSituacao = t => t.tfAndamento ? `<span class="pn-selo tf">${rotuloTF(t)}</span>` : t.situacao === 'longa' ? '<span class="pn-selo critico">Aberta há mais de 14 h</span>' : t.situacao === 'semsinal' ? '<span class="pn-selo info">Sem sinal há mais de 30 min</span>' : t.situacao === 'ok' ? '<span class="pn-selo bom">Em andamento</span>' : '<span class="pn-selo info">Encerrada</span>';
 
   /**
    * Painel.mapa(container, {id, titulo, subtitulo, camadas, ativas, indicador, altura, dados})
@@ -872,14 +999,23 @@ const Painel = (() => {
     // 1. barreiras em andamento
     if (camadas.includes('andamento')) {
       const g = grupos.andamento = L.layerGroup(); let s = 0;
+      const linhasTF = lst => (lst || []).flatMap(a => [['TF em preenchimento', `${a.procedimentoNome}${a.placa ? ' · placa ' + a.placa : ''}`], ['Fiscal do TF', a.fiscal], ['TF iniciado', a.inicioMs ? `${fmt.hora(a.inicioMs)} (${fmt.rel(a.inicioMs)})` : '—']]);
       d.emAndamento.forEach(t => {
         if (t.lat == null || t.lon == null) { s++; return; }
-        const ic = L.divIcon({ className: '', html: `<div class="pn-pin ${t.situacao}" aria-label="${esc(t.local || 'Barreira')}"></div>`, iconSize: [18, 18], iconAnchor: [9, 9], popupAnchor: [0, -10] });
-        L.marker([t.lat, t.lon], { icon: ic, zIndexOffset: 1000, title: t.local || 'Barreira em andamento', keyboard: true })
-          .bindPopup(() => popup(t.local || 'Barreira', [['Posto', t.posto], ['Unidade', t.unidade], ['Município', t.municipio], ['Fiscais', t.fiscal], ['Início', `${fmt.data(t.data)} ${t.inicio || ''}`],
+        const pin = pinoDe(t), tam = pin === 'tf' ? 26 : 18;
+        const ic = L.divIcon({ className: '', html: `<div class="pn-pin ${pin}" aria-label="${esc((t.local || 'Barreira') + (t.tfAndamento ? ' — ' + rotuloTF(t) : ''))}"></div>`, iconSize: [tam, tam], iconAnchor: [tam / 2, tam / 2], popupAnchor: [0, -tam / 2 - 1] });
+        L.marker([t.lat, t.lon], { icon: ic, zIndexOffset: t.tfAndamento ? 2000 : 1000, title: (t.local || 'Barreira em andamento') + (t.tfAndamento ? ' — ' + rotuloTF(t) : ''), keyboard: true })
+          .bindPopup(() => popup(t.local || 'Barreira', linhasTF(t.tfAndamento).concat([['Posto', t.posto], ['Unidade', t.unidade], ['Município', t.municipio], ['Fiscais', t.fiscal], ['Início', `${fmt.data(t.data)} ${t.inicio || ''}`],
             ['Duração até agora', fmt.duracao(t.duracaoMin)], ['Veículos', fmt.int(t.nVeiculos)], ['Pessoas', fmt.int(t.nPessoas)],
-            ['Último veículo', t.ultimoVeiculo ? `${t.ultimoVeiculo.hora} (${t.ultimoVeiculo.placa || 's/ placa'})` : 'nenhum ainda'], ['Último sinal', t.ultimoSinal ? `${fmt.dataHora(t.ultimoSinal)} (${fmt.rel(t.ultimoSinal)})` : '—']],
+            ['Último veículo', t.ultimoVeiculo ? `${t.ultimoVeiculo.hora} (${t.ultimoVeiculo.placa || 's/ placa'})` : 'nenhum ainda'], ['Último sinal', t.ultimoSinal ? `${fmt.dataHora(t.ultimoSinal)} (${fmt.rel(t.ultimoSinal)})` : '—']]),
             seloSituacao(t))).addTo(g);
+      });
+      // TF em preenchimento sem turno aberto: marcador próprio na coordenada do aparelho (sem coordenada: só no aviso e nos alertas)
+      (d.tfsSemTurno || []).forEach(a => {
+        if (a.lat == null || a.lon == null) return;
+        const ic = L.divIcon({ className: '', html: `<div class="pn-pin tf" aria-label="${esc(a.titulo + ' — ' + a.onde)}"></div>`, iconSize: [26, 26], iconAnchor: [13, 13], popupAnchor: [0, -14] });
+        L.marker([a.lat, a.lon], { icon: ic, zIndexOffset: 2000, title: a.titulo + ' — ' + a.onde, keyboard: true })
+          .bindPopup(() => popup(a.onde, linhasTF([a]).concat([['Município', a.municipio], ['Turno', 'nenhum turno aberto ligado a este TF']]), `<span class="pn-selo tf">${esc(a.titulo)}</span>`)).addTo(g);
       });
       semCoord.andamento = s;
     }
@@ -941,9 +1077,10 @@ const Painel = (() => {
       const it = [];
       // a legenda desenha o mesmo marcador do mapa (pino com anel, "?" ou "!" para barreiras; círculos para levantamentos)
       const pino = sit => `<i class="pn-lg-pino"><span class="pn-pin ${sit}"></span></i>`;
-      if (ativas.has('andamento')) it.push(`<span>${pino('ok')}Barreira em andamento (${fmt.int(d.emAndamento.filter(t => t.situacao === 'ok').length)})</span>`,
-        `<span>${pino('semsinal')}Barreira sem sinal &gt; 30 min (${fmt.int(d.emAndamento.filter(t => t.situacao === 'semsinal').length)})</span>`,
-        `<span>${pino('longa')}Barreira aberta &gt; 14 h (${fmt.int(d.emAndamento.filter(t => t.situacao === 'longa').length)})</span>`);
+      if (ativas.has('andamento')) it.push(`<span>${pino('tf')}TF em preenchimento / apreensão em andamento (${fmt.int(d.emAndamento.filter(t => t.tfAndamento).length + (d.tfsSemTurno || []).filter(a => a.lat != null && a.lon != null).length)})</span>`,
+        `<span>${pino('ok')}Barreira em andamento (${fmt.int(d.emAndamento.filter(t => pinoDe(t) === 'ok').length)})</span>`,
+        `<span>${pino('semsinal')}Barreira sem sinal &gt; 30 min (${fmt.int(d.emAndamento.filter(t => pinoDe(t) === 'semsinal').length)})</span>`,
+        `<span>${pino('longa')}Barreira aberta &gt; 14 h (${fmt.int(d.emAndamento.filter(t => pinoDe(t) === 'longa').length)})</span>`);
       if (ativas.has('realizadas')) it.push(`<span><i class="pn-lg-pto" style="background:${p.alfa(p.serie[6], .55)};border-color:${p.ink};border-width:1.5px;box-shadow:none"></i>Barreira realizada (tamanho = nº de veículos)</span>`);
       if (ativas.has('levantamentos')) it.push(`<span><i class="pn-lg-pto" style="width:14px;height:14px;background:${p.serie[1]};border-color:${p.ink}"></i>Levantamento com praga</span>`, `<span><i class="pn-lg-pto" style="background:${p.serie[0]}"></i>Levantamento sem praga</span>`);
       if (ativas.has('colheitas')) it.push(`<span><i class="pn-lg-los" style="background:${p.serie[2]}"></i>Termo de colheita</span>`);
@@ -972,6 +1109,9 @@ const Painel = (() => {
   /* ---------------- Visão geral ---------------- */
   function alertasGerais(d) {
     const A = [], N = d.semFiltro, ag = d.agora;
+    // 0. TF sendo preenchido agora (apreensão em andamento): aparece até o TF ser gerado/descartado ou o aparelho parar de avisar
+    (d.tfsAndamento || []).forEach(a => A.push({ nivel: 'critico', aba: 'barreiras', tf: true,
+      titulo: `${a.titulo}: ${a.onde}`, detalhe: textoTF(a) + (a.turno ? '' : ' · TF lavrado sem turno aberto') + '.' }));
     // 1. novo foco de praga (sem detecção no município nos 365 dias anteriores ao período)
     const hist = {}; d.historicoPce.forEach(h => h.pragas.forEach(pr => { hist[norm(h.municipio) + '|' + norm(pr)] = true; }));
     const munComHist = new Set(d.historicoPce.filter(h => h.pragas.length).map(h => norm(h.municipio)));
@@ -1042,14 +1182,23 @@ const Painel = (() => {
   }
 
   /** Cartões das barreiras em andamento (Visão geral). */
-  function secaoAoVivo(c, vivos) {
-    const sv = secao(c, 'Barreiras em andamento agora', vivos.length ? 'Atualiza sozinho a cada minuto.' : null);
+  /** Linha do TF em preenchimento nos cartões ao vivo (barreira com TF aberto ou TF sem turno). */
+  const linhaTFVivo = lst => (lst || []).map(a => `<small class="pn-vivo-tf"><b>TF</b> ${esc([a.placa && 'placa ' + a.placa, a.procedimentoNome, a.fiscal, a.inicioMs && 'iniciado ' + fmt.rel(a.inicioMs)].filter(Boolean).join(' · '))}</small>`).join('');
+  /** Cartão de um TF em preenchimento sem turno aberto (lista "Barreiras em andamento agora"). */
+  const cartaoTFSemTurno = a => { const it = el('div', 'pn-vivo-item tf'); it.dataset.tf = a.id;
+    it.innerHTML = `<span class="pn-selo tf">${esc(a.titulo)}</span><b>${esc(a.onde)}</b><small>${esc(a.fiscal || '')}${a.municipio ? ' · ' + esc(a.municipio) : ''} · sem turno aberto${a.lat == null ? ' · sem GPS' : ''}</small>${linhaTFVivo([a])}`;
+    return it; };
+  /** Cartões das barreiras em andamento (Visão geral). */
+  function secaoAoVivo(c, vivos, semTurno) {
+    semTurno = semTurno || [];
+    const sv = secao(c, 'Barreiras em andamento agora', vivos.length || semTurno.length ? 'Atualiza sozinho a cada minuto (a cada 25 s enquanto houver TF em preenchimento).' : null);
     sv.parentNode.classList.add('pn-geral-vivo');
-    if (!vivos.length) { vazio(sv, 'Nenhuma barreira aberta no momento.'); return; }
+    if (!vivos.length && !semTurno.length) { vazio(sv, 'Nenhuma barreira aberta no momento.'); return; }
     const g = el('div', 'pn-vivo');
-    vivos.slice().sort((a, b) => ORDEM_SITUACAO[a.situacao] - ORDEM_SITUACAO[b.situacao]).forEach(t => {
-      const it = el('div', 'pn-vivo-item');
-      it.innerHTML = `${seloSituacao(t)}<b>${esc(t.local || 'Sem local')}</b><small>${esc(t.fiscal || '')}${t.municipio ? ' · ' + esc(t.municipio) : ''}</small>
+    semTurno.forEach(a => g.appendChild(cartaoTFSemTurno(a)));
+    vivos.slice().sort((a, b) => ordemVivo(a) - ordemVivo(b)).forEach(t => {
+      const it = el('div', 'pn-vivo-item' + (t.tfAndamento ? ' tf' : '')); it.dataset.turno = t.id;
+      it.innerHTML = `${seloSituacao(t)}<b>${esc(t.local || 'Sem local')}</b><small>${esc(t.fiscal || '')}${t.municipio ? ' · ' + esc(t.municipio) : ''}</small>${linhaTFVivo(t.tfAndamento)}
         <small>Início ${esc(fmt.dataCurta(t.data))} ${esc(t.inicio || '')} · ${esc(fmt.duracao(t.duracaoMin))} · último sinal ${esc(fmt.rel(t.ultimoSinal))}</small>
         <div class="pn-vivo-num"><span><strong>${fmt.int(t.nVeiculos)}</strong>veículos</span><span><strong>${fmt.int(t.nPessoas)}</strong>pessoas</span>${t.ultimoVeiculo ? `<span>último ${esc(t.ultimoVeiculo.hora)}</span>` : ''}</div>`;
       g.appendChild(it);
@@ -1061,7 +1210,7 @@ const Painel = (() => {
     const vivos = d.emAndamento, celular = matchMedia(CELULAR).matches;
     const s0 = el('p', 'pn-sub', `Período: ${esc(f.rotuloPeriodo)}${f.fiscal ? ' · Fiscal: ' + esc(f.fiscal) : ''}${f.local ? ` · ${f.local.tipo === 'barreira' ? 'Barreira' : 'Município'}: ${esc(f.local.valor)}` : ''}`);
     s0.style.marginTop = '4px'; c.appendChild(s0);
-    if (celular) secaoAoVivo(c, vivos);                    // no celular: consulta rápida do que está acontecendo, antes de tudo
+    if (celular) secaoAoVivo(c, vivos, d.tfsSemTurno);                    // no celular: consulta rápida do que está acontecendo, antes de tudo
     const k = secao(c, 'Resumo do período');
     kpis(k, indicadoresGerais(d));
 
@@ -1074,7 +1223,7 @@ const Painel = (() => {
     sm.parentNode.classList.add('pn-duo-mapa');
     mapa(sm, { id: 'geral', titulo: 'Situação no estado', camadas: ['andamento', 'realizadas', 'levantamentos', 'colheitas', 'calor', 'coropletico'], ativas: ['andamento', 'realizadas', 'levantamentos', 'colheitas', 'coropletico'] });
 
-    if (!celular) secaoAoVivo(c, vivos);
+    if (!celular) secaoAoVivo(c, vivos, d.tfsSemTurno);
 
     const sr = secao(c, 'Atividade por município', 'Soma dos três módulos no período (barreiras pelo local do turno; PCE pelo município do levantamento).');
     const M = porMunicipio(d);
@@ -1130,7 +1279,8 @@ const Painel = (() => {
     S.encerrada = !!msg;                                       // credencial recusada pelo servidor (não é a 1ª configuração)
     // o motivo fica gravado no aparelho: depois de recarregar (versão nova, TV reiniciada) continua "Sessão encerrada"
     if (msg) ls.set(LS_ENCERRADA, msg); else ls.del(LS_ENCERRADA);
-    ls.del(LS_TOKEN); ls.del(LS_NOME); S.token = ''; S.nome = ''; S.bruto = S.todos = S.dados = null; clearTimeout(S.timer); S.falhas = 0;
+    ls.del(LS_TOKEN); ls.del(LS_NOME); S.token = ''; S.nome = ''; S.bruto = S.todos = S.dados = null; clearTimeout(S.timer); S.falhas = 0; S.tfRapido = false;
+    desenharAvisoTF();
     mostrar('login'); status(''); const e = $('#pn-login-erro'); e.hidden = !msg; e.textContent = msg || ''; $('#pn-codigo').value = ''; $('#pn-codigo').focus();
     if (S.tv) S.tv.atualizar();
   }
@@ -1149,7 +1299,7 @@ const Painel = (() => {
     } catch (e) { err.textContent = e.message; err.hidden = false; }
     finally { b.disabled = false; b.textContent = 'Entrar'; }
   }
-  function iniciarApp() { mostrar('app'); desenharPresets(); carregar(); agendar(); }
+  function iniciarApp() { mostrar('app'); desenharPresets(); desenharBotaoNotif(); carregar(); agendar(); }
 
   function ligarEventos() {
     $('#pn-login-form').addEventListener('submit', entrar);
@@ -1184,6 +1334,13 @@ const Painel = (() => {
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (S.dados) renderAba(true); });
     $('#pn-codigo').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6); });
     $('#pn-instalar').addEventListener('click', e => { const b = e.target.closest('[data-instalar]'); if (b) acaoInstalar(b.dataset.instalar); });
+    // áudio do alerta de TF: o primeiro gesto na página libera o som (bloqueado pelo navegador até lá)
+    ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, destravarAudio, { once: true, passive: true }));
+    const bn = $('#pn-notif');
+    if (bn) bn.onclick = () => {
+      destravarAudio();
+      try { const r = Notification.requestPermission(desenharBotaoNotif); if (r && r.then) r.then(desenharBotaoNotif, desenharBotaoNotif); } catch (e) { desenharBotaoNotif(); }
+    };
   }
 
   registrarAba({ id: 'geral', titulo: 'Visão geral', render: renderGeral,
@@ -1209,6 +1366,10 @@ const Painel = (() => {
     TIPOS: (typeof CONFIG !== 'undefined' && CONFIG.tipos) || {},
     // usados pelo modo TV (js/painel-tv.js): mesmos dados e cálculos das abas, sem duplicar regras
     indicadoresGerais, NIVEIS, ORDEM_NIVEL, ORDEM_SITUACAO, diaManaus, horaManaus, temaEscuro, carregarGeo, ls,
+    // TF em preenchimento (apreensão em andamento): estado do marcador, ordem nas listas, rótulo e ganchos de teste
+    pinoDe, ordemVivo, rotuloTF, tfApreensao, textoTF,
+    alertaTF: () => ({ ativos: S.todos ? S.todos.tfsAndamento.map(a => ({ id: a.id, titulo: a.titulo, onde: a.onde, turnoId: a.turno ? a.turno.id : '' })) : [],
+                       sons: TFA.sons, notificacoes: TFA.notificacoes, avisos: TFA.avisos, rapido: !!S.tfRapido, proximaMs: S.proxima ? S.proxima - Date.now() : null }),
     hoje: () => diaManaus(agora()), reavaliarAbertos,
     aba: id => S.abas[id] || null,
     /** Dados (já normalizados, sem filtros) recortados em [de, ate] dentro da carga atual; null sem dados. */

@@ -25,7 +25,8 @@ const VALIDADE_CODIGO_MS = 7 * 24 * 3600 * 1000;      // código de ativação v
 const MAX_FALHAS_ATIVACAO = 10;                        // tentativas erradas antes de bloquear por 15 min
 const MAX_LINHAS_POR_ENVIO = 2000;
 
-function doGet() {
+function doGet(e) {
+  if (e && e.parameter && e.parameter.p === 'painel') return painel_();
   return json_({ ok: true, servico: 'GDV Controle de Veículos' });
 }
 
@@ -62,6 +63,69 @@ function sincronizar_(req, usuario) {
   } finally {
     lock.releaseLock();
   }
+}
+
+
+/* ---------- Painel do administrador (somente leitura) ---------- */
+
+/**
+ * O painel é servido por uma SEGUNDA implantação do mesmo projeto, aberta em
+ *   <URL da implantação do painel>?p=painel
+ * Configuração (README): executar como "Usuário que acessa o app da Web", acesso "Qualquer pessoa com
+ * conta Google", e Propriedades do script → ADMIN_EMAILS = "admin1@gmail.com,admin2@gmail.com".
+ * Camadas de proteção: (1) lista ADMIN_EMAILS; (2) o servidor lê a planilha com a permissão de quem acessa.
+ * Na implantação pública dos aparelhos (acesso anônimo) o e-mail vem vazio, então o painel nunca abre.
+ */
+function ehAdmin_() {
+  const email = String(Session.getActiveUser().getEmail() || '').trim().toLowerCase();
+  const lista = String(PropertiesService.getScriptProperties().getProperty('ADMIN_EMAILS') || '')
+    .split(',').map(function (x) { return x.trim().toLowerCase(); }).filter(String);
+  return !!email && lista.indexOf(email) >= 0;
+}
+
+function exigirAdmin_() {
+  if (!ehAdmin_()) throw new Error('Acesso restrito ao administrador.');
+}
+
+function painel_() {
+  if (!ehAdmin_()) {
+    return HtmlService.createHtmlOutput('<!doctype html><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+      '<body style="font:16px system-ui;padding:24px;max-width:520px;margin:auto"><h2>Acesso restrito</h2>' +
+      '<p>Este painel é exclusivo do administrador. Entre com a conta Google autorizada e abra o endereço do painel novamente.</p></body>')
+      .setTitle('GDV – Acesso restrito');
+  }
+  return HtmlService.createHtmlOutputFromFile('Painel')
+    .setTitle('GDV – Painel do administrador')
+    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+}
+
+function lerLeitura_(nome) {                       // leitura pura: não cria abas nem colunas
+  const sh = planilha_().getSheetByName(nome), cols = TABELAS[nome];
+  if (!sh || sh.getLastRow() < 2) return [];
+  return sh.getRange(2, 1, sh.getLastRow() - 1, cols.length).getValues()
+    .map(function (l) { return paraObjeto_(cols, l); });
+}
+
+/** Dados brutos do período (o painel calcula tudo no navegador). filtro: {de:'aaaa-mm-dd', ate:'aaaa-mm-dd'} */
+function painelDados(filtro) {
+  exigirAdmin_();
+  filtro = filtro || {};
+  const re = /^\d{4}-\d{2}-\d{2}$/;
+  const de = re.test(filtro.de) ? filtro.de : '0000-00-00', ate = re.test(filtro.ate) ? filtro.ate : '9999-99-99';
+  const turnos = lerLeitura_('Turnos').filter(function (t) { return t.data >= de && t.data <= ate; });
+  const ids = {};
+  turnos.forEach(function (t) { ids[t.id] = true; });
+  const num = function (v) { const n = parseFloat(v); return isNaN(n) ? null : n; };
+  return {
+    geradoEm: Date.now(),
+    turnos: turnos.map(function (t) {
+      return { id: t.id, tf: t.numeroTF, d: t.data, ini: t.inicio, fim: t.fim, l: t.letra, po: t.posto, lo: t.local,
+               un: t.unidade, f: t.fiscal, e: t.encerrado, u: t.usuario,
+               la1: num(t.latIni), ln1: num(t.lngIni), la2: num(t.latFim), ln2: num(t.lngFim) };
+    }),
+    veiculos: lerLeitura_('Veiculos').filter(function (v) { return ids[v.turnoId] && !v.excluido; })
+      .map(function (v) { return { t: v.turnoId, h: v.hora, p: v.placa, k: v.tipo, n: v.pessoas }; })
+  };
 }
 
 /* ---------- Segurança ---------- */

@@ -555,6 +555,8 @@ body{ flex-direction:column; align-items:center; gap:20px; }
 @media print{
     html, body{ height:auto; }
     body{ display:block; }
-    #pagina{ break-after:page; page-break-after:always; }
-    #pagina:last-child{ break-after:auto; page-break-after:auto; }
+    /* Folha reduzida a 90% (≈267 mm) e sem transbordar: o iPhone e algumas impressoras impõem margens próprias e
+       a folha de 297 mm "vazava" para a página seguinte, gerando uma página em branco depois de cada folha. */
+    #pagina{ height:297mm; zoom:.9; overflow:hidden; break-inside:avoid; page-break-inside:avoid; }
+    #pagina + #pagina{ break-before:page; page-break-before:always; }
 }

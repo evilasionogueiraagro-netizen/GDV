@@ -44,12 +44,65 @@ function go(view, arg) {
   ({ home, registrar, editar: registrar, lista, resumo, fechado, historico, config }[view])();
   window.scrollTo(0, 0);
 }
-const view = html => { $('#view').innerHTML = html; };
+const view = html => { $('#view').innerHTML = bannerInstalar() + html; };
+
+/* ---------- instalação: Adicionar à tela inicial (iOS / Android) ---------- */
+// Ordem em celulares: 1) instalar na tela inicial → 2) ativar com o código → 3) iniciar turno.
+const UA = navigator.userAgent;
+const ehIOS = /iPad|iPhone|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const ehAndroid = /Android/i.test(UA);
+const instalado = () => matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true;
+const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+let eventoInstalar = null;                                   // evento nativo de instalação (Android/Chrome)
+const precisaInstalar = () => (ehIOS || ehAndroid) && !instalado() && !lsGet('gdv.semInstalar');
+
+function bannerInstalar() {
+  if (!precisaInstalar()) return '<div id="bInstalar"></div>';
+  const saida = `<p class="dica" style="text-align:left">Se a opção não aparecer, abra este endereço direto no ${ehIOS ? 'Safari' : 'Chrome'} (no WhatsApp: toque em ⋯ ou ⋮ → <i>Abrir no navegador</i>).</p>
+    <div class="duas"><button class="botao sec" data-instalar="copiar">Copiar endereço</button>
+    <button class="botao sec" data-instalar="continuar">Continuar no navegador mesmo assim</button></div>`;
+  if (lsGet('gdv.instalado')) {
+    return `<div id="bInstalar" class="card instalar"><h3>✅ App instalado</h3>
+      <p>Agora <b>feche esta página</b> e abra o app pelo <b>ícone</b> na ${ehIOS ? 'Tela de Início' : 'tela inicial'}. Ele vai pedir o código de ativação e, em seguida, liberar o início do turno.</p>${saida}</div>`;
+  }
+  const passos = ehIOS
+    ? ['Toque no botão <b>Compartilhar</b> (quadrado com seta para cima ⬆️): fica na barra de baixo do Safari (no Chrome, no topo, ao lado do endereço).',
+       'Role a lista e toque em <b>Adicionar à Tela de Início</b>.', 'Toque em <b>Adicionar</b>.',
+       'Abra o app pelo <b>ícone</b> na Tela de Início.']
+    : ['Toque no menu <b>⋮</b> do navegador (canto superior direito).', 'Toque em <b>Adicionar à tela inicial</b> (ou <b>Instalar app</b>).',
+       'Confirme em <b>Instalar</b> / <b>Adicionar</b>.', 'Abra o app pelo <b>ícone</b> na tela inicial.'];
+  return `<div id="bInstalar" class="card instalar"><h3>📲 Passo 1: instale o app</h3>
+    <p>Instale na tela inicial para abrir como aplicativo e funcionar mesmo sem internet. Depois de instalar, abra pelo ícone: o app pede o <b>código de ativação</b> e só então libera o <b>início do turno</b>.</p>
+    <ol>${passos.map(p => `<li>${p}</li>`).join('')}</ol>
+    ${eventoInstalar ? '<button class="botao" data-instalar="agora">Instalar agora</button>' : ''}
+    ${ehIOS ? '<p class="dica" style="text-align:left">No iPhone o app instalado guarda os dados separados do Safari; por isso a ativação é feita depois, dentro do app instalado.' + (Sync.ativado() ? ' Este aparelho já estava ativado no navegador: no app instalado será preciso ativar de novo, com um código novo.' : '') + '</p>' : ''}
+    ${saida}</div>`;
+}
+const atualizarBannerInstalar = () => { const el = $('#bInstalar'); if (el) el.outerHTML = bannerInstalar(); };
+window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); eventoInstalar = e; atualizarBannerInstalar(); });
+window.addEventListener('appinstalled', () => { lsSet('gdv.instalado', '1'); atualizarBannerInstalar(); });
+
+async function acaoInstalar(acao) {
+  if (acao === 'agora' && eventoInstalar) {
+    eventoInstalar.prompt();
+    const r = await eventoInstalar.userChoice; eventoInstalar = null;
+    if (r && r.outcome === 'accepted') lsSet('gdv.instalado', '1');
+    atualizarBannerInstalar();
+  } else if (acao === 'copiar') {
+    try { await navigator.clipboard.writeText(location.origin + location.pathname); toast('Endereço copiado.'); }
+    catch (e) { toast('Não foi possível copiar. Copie o endereço na barra do navegador.', true); }
+  } else if (acao === 'continuar') {
+    if (!confirm('Continuar sem instalar? O app funciona no navegador, mas pode perder o modo offline e a instalação na tela inicial é o recomendado.')) return;
+    lsSet('gdv.semInstalar', '1'); go(VIEW === 'editar' ? 'home' : VIEW);
+  }
+}
 
 /* ---------- Início / novo turno ---------- */
 const avisoAtivacao = () => {
   const revog = localStorage.getItem('gdv.revogado');
   if (Sync.ativado() && !revog) return '';
+  if (precisaInstalar()) return '';   // passo 1 ainda pendente: só as instruções de instalação aparecem
   return `<form class="card aviso" id="fAtivar"><h3>${revog ? '⛔ Acesso revogado' : '🔑 Ativar este aparelho'}</h3>
     <p>${revog ? 'Peça um novo código de ativação ao administrador.' : 'Digite o código de 6 dígitos enviado pelo administrador. Só esta etapa exige internet.'}</p>
     ${CONFIG.sync.url ? '' : '<label>Endereço do servidor<input id="aUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" required></label>'}
@@ -282,10 +335,11 @@ document.addEventListener('submit', async e => {            // ativação por c�
 
 /* ---------- eventos globais ---------- */
 document.addEventListener('click', async e => {
-  const el = e.target.closest('[data-v],[data-go],[data-edit],[data-del],[data-doc]');
+  const el = e.target.closest('[data-v],[data-go],[data-edit],[data-del],[data-doc],[data-instalar]');
   if (!el) return;
   const d = el.dataset;
-  if (d.v) go(d.v);
+  if (d.instalar) acaoInstalar(d.instalar);
+  else if (d.v) go(d.v);
   else if (d.go) go(d.go);
   else if (d.edit) go('editar', d.edit);
   else if (d.del) {

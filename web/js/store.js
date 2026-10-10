@@ -62,6 +62,20 @@ const Store = (() => {
       t.oncomplete = ok; t.onerror = t.onabort = () => no(t.error);
     });
   }
+  /**
+   * Grava registros vindos do servidor lendo o registro local NA MESMA transação: decidir(local, remoto) devolve o que gravar
+   * (ou nada). Uma edição feita no aparelho durante a sincronização (ex.: encerrar o turno) não é sobrescrita pela versão antiga.
+   */
+  async function mesclar(store, linhas, decidir) {
+    linhas = (linhas || []).filter(r => r && r.id !== undefined && r.id !== null && r.id !== '');
+    if (!linhas.length) return;
+    const d = await db();
+    return new Promise((ok, no) => {
+      const t = d.transaction(store, 'readwrite'), s = t.objectStore(store);
+      linhas.forEach(row => { const g = s.get(row.id); g.onsuccess = () => { const r = decidir(g.result, row); if (r) s.put(r); }; });
+      t.oncomplete = ok; t.onerror = t.onabort = () => no(t.error);
+    });
+  }
   /** Só as chaves (ids) dos registros com índice = valor, sem carregar os registros (ex.: arquivos ainda não enviados). */
   async function chaves(store, indice, valor) {
     const d = await db();
@@ -84,11 +98,12 @@ const Store = (() => {
     const agora = Date.now();
     rec.id = rec.id || uuid();
     rec.criadoEm = rec.criadoEm || agora;
-    rec.atualizadoEm = agora;
+    // nunca "volta no tempo": se o relógio do aparelho foi corrigido para trás, a edição nova ainda vence a anterior na planilha
+    rec.atualizadoEm = Math.max(agora, (Number(rec.atualizadoEm) || 0) + 1);
     rec.pendente = 1;
     await gravar(store, rec);
     return rec;
   }
 
-  return { todos, obter, gravar, gravarVarios, apagar, chaves, meta, setMeta, salvar, novoId: uuid };
+  return { todos, obter, gravar, gravarVarios, mesclar, apagar, chaves, meta, setMeta, salvar, novoId: uuid };
 })();

@@ -193,14 +193,31 @@ const Sync = (() => {
   /** Cadastro + histórico (reincidência) de um CPF/CNPJ e/ou placa, consultados no servidor. */
   const consultar = (doc, placa) => chamar({ action: 'tfConsultar', doc, placa });
 
+  // campos do encerramento de um turno (iguais aos que a planilha protege contra reabertura)
+  const CAMPOS_ENCERRAMENTO = ['encerrado', 'fim', 'latFim', 'lngFim', 'precFim', 'encerradoPor', 'encerradoEm'];
   async function aplicar(store, linhas) {
-    const novos = [];
-    for (const row of linhas) {
-      const local = await Store.obter(store, row.id);
-      if (local && local.pendente && local.atualizadoEm > row.atualizadoEm) continue; // edição local mais nova
-      novos.push({ ...row, pendente: 0 });
-    }
-    await Store.gravarVarios(store, novos);
+    await Store.mesclar(store, linhas, (local, row) => {
+      if (local && local.pendente && local.atualizadoEm > row.atualizadoEm) {               // edição local mais nova: fica a local…
+        // …mas o turno encerrado na planilha (pela gerência, p.ex.) encerra aqui também; o resto da edição local continua pendente
+        if (store === 'turnos' && Number(row.encerrado) === 1 && (Number(local.encerrado) !== 1 || row.encerradoPor)) {
+          const m = { ...local }; CAMPOS_ENCERRAMENTO.forEach(c => { if (c in row) m[c] = row[c]; });
+          return m;
+        }
+        return null;
+      }
+      return { ...row, pendente: 0 };
+    });
+  }
+
+  /** O turno em andamento neste aparelho veio encerrado da planilha (pela gerência no painel, ou por outro motivo):
+   *  deixa de ser o turno atual e avisa a tela (gdv-turno-encerrado). Os veículos pendentes continuam subindo normalmente. */
+  async function conferirTurnoAtual(linhas) {
+    const id = await Store.meta('turnoAtual');
+    if (!id || !(linhas || []).some(t => t && t.id === id && Number(t.encerrado) === 1)) return;
+    const t = await Store.obter('turnos', id);
+    if (!t || Number(t.encerrado) !== 1) return;
+    await Store.setMeta('turnoAtual', '');
+    window.dispatchEvent(new CustomEvent('gdv-turno-encerrado', { detail: { id, numeroTF: t.numeroTF || '', fim: t.fim || '', encerradoPor: t.encerradoPor || '' } }));
   }
 
   async function marcarEnviados(store, enviados, recusados) {
@@ -244,6 +261,7 @@ const Sync = (() => {
         for (const n of NOMES) await marcarEnviados(STORES[n], env[n], rec[CAMPOS[n]]);
         const mudou = await guardarPermissoes(r.permissoes);
         await aplicar('turnos', r.turnos);
+        await conferirTurnoAtual(r.turnos);
         await aplicar('veiculos', r.veiculos);
         await aplicar('tfs', r.tfs || []);
         await aplicar('levantamentos', r.levantamentos || []);

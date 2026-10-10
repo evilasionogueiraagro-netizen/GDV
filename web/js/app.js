@@ -102,6 +102,7 @@ async function modulos() {
   const aviso = (Sync.estado() || {}).aviso || Sync.avisoSemPermissao(await Sync.bloqueadosComPendentes());
   view(`<div class="card"><h3>Olá${nome ? ', ' + esc(nome) : ''}!</h3><p class="dica" style="text-align:left">Escolha o que deseja fazer.</p></div>
     ${aviso ? `<div class="card aviso" id="avisoPerm">⚠️ ${esc(aviso)}</div>` : ''}
+    ${avisoTurnoEncerrado()}
     ${cartao('veiculos', 'home', '🚛', 'Educação Sanitária/Fiscalização', `<small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)${Sync.pode('veiculos') ? '' : ' (guardado neste aparelho)'}` : 'Registro dos veículos abordados, por turno'}</small>`)}
     ${cartao('tf', 'tf', '📄', 'Termo de Fiscalização de Barreira', `<small>${tfs.length} TF(s) neste aparelho${pend ? ` · ⏳ ${pend} aguardando envio` : ''}</small>`)}
     ${cartao('pce', 'pce', '🌱', 'PCE', `<small>Programa de Controle e Erradicação — levantamento fitossanitário e Termo de Colheita de Amostras</small><small class="pce-status">${esc(stPce)}</small>`)}
@@ -161,6 +162,32 @@ async function acaoInstalar(acao) {
   }
 }
 
+/* ---------- turno encerrado fora do aparelho (gerência no painel) ---------- */
+// O sync avisa (gdv-turno-encerrado) quando o turno em andamento chega encerrado da planilha. O aviso fica na tela até o fiscal
+// tocar em "Entendi" ou iniciar outro turno (sobrevive a recarregar o app).
+const LS_AVISO_ENC = 'gdv.avisoEncerrado';
+function textoTurnoEncerrado(a) {
+  const hora = a.fim ? ` às ${a.fim}` : '';
+  return a.encerradoPor ? `Este turno foi encerrado pela gerência${hora}. Os documentos estão no Histórico.`
+    : `Este turno foi encerrado fora deste aparelho${hora}. Os documentos estão no Histórico.`;
+}
+function avisoTurnoEncerrado() {
+  let a = null; try { a = JSON.parse(lsGet(LS_AVISO_ENC) || 'null'); } catch (e) { a = null; }
+  if (!a || !a.id) return '';
+  return `<div class="card aviso" id="avisoEncerrado" role="alert"><h3>⏹ Turno encerrado</h3><p>${esc(textoTurnoEncerrado(a))}</p>
+    ${a.numeroTF || a.encerradoPor ? `<p><small>${esc([a.numeroTF, a.encerradoPor && 'encerrado por ' + a.encerradoPor].filter(Boolean).join(' · '))}</small></p>` : ''}
+    <div class="duas"><button class="botao sec" data-go="historico">📈 Abrir o Histórico</button><button class="botao sec" data-avisook="1">Entendi</button></div></div>`;
+}
+window.addEventListener('gdv-turno-encerrado', e => {
+  const a = e.detail || {};
+  lsSet(LS_AVISO_ENC, JSON.stringify(a));
+  // sai da tela do turno (registrar, lista, resumo…): volta ao início do módulo, onde aparece o aviso e o formulário de novo turno;
+  // em outra tela (TF, PCE, histórico…) só avisa: o cartão aparece ao voltar para Módulos/Turno
+  if (['home', 'registrar', 'editar', 'lista', 'resumo'].includes(VIEW)) go('home');
+  else if (VIEW === 'modulos') go('modulos');
+  else toast(textoTurnoEncerrado(a), true);
+});
+
 /* ---------- Início / novo turno ---------- */
 const avisoAtivacao = () => {
   const revog = localStorage.getItem('gdv.revogado');
@@ -192,7 +219,7 @@ async function home() {
 function novoTurno() {
   if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());   // turno só após a ativação
   const ls = k => esc(localStorage.getItem('gdv.' + k) || '');
-  view(`${avisoAtivacao()}<form class="card" id="fTurno"><h3>Iniciar turno</h3>
+  view(`${avisoAtivacao()}${avisoTurnoEncerrado()}<form class="card" id="fTurno"><h3>Iniciar turno</h3>
     <label>Nº do Termo de Fiscalização<input id="nTF" type="number" min="1" inputmode="numeric" required placeholder="ex.: 12"></label>
     <label>Tipo de posto<select id="nPosto">${CONFIG.postos.map(p => `<option value="${p}" ${localStorage.getItem('gdv.posto') === p ? 'selected' : ''}>${p === 'Móvel' ? 'Volante (móvel)' : p}</option>`).join('')}</select></label>
     <div id="nLocalBox"></div>
@@ -250,6 +277,7 @@ function novoTurno() {
     ['local', 'unidade', 'posto'].forEach(k => localStorage.setItem('gdv.' + k, t[k]));
     localStorage.setItem('gdv.fiscal1', $('#nFiscal1').value.trim()); localStorage.setItem('gdv.fiscal2', $('#nFiscal2').value.trim());
     await Store.setMeta('turnoAtual', t.id);
+    try { localStorage.removeItem(LS_AVISO_ENC); } catch (e2) { /* sem armazenamento */ }
     Sync.sincronizar(); go('home');
   };
 }
@@ -345,7 +373,8 @@ async function fechado() {
   const v = await veiculosDe(t.id);
   view(`<div class="card"><h3>Turno encerrado</h3><p><b>${esc(t.numeroTF)}</b></p>
     <p>${dBR(t.data)} · das <b>${esc(t.inicio)}</b> às <b>${esc(t.fim)}</b></p>
-    <p>${v.length} veículos · ${v.reduce((s, x) => s + (Number(x.pessoas) || 0), 0)} pessoas</p></div>
+    <p>${v.length} veículos · ${v.reduce((s, x) => s + (Number(x.pessoas) || 0), 0)} pessoas</p>
+    ${t.pendente ? '<p class="pend" id="encPend">⏳ Encerramento ainda não enviado à planilha. Mantenha o app aberto com internet até aparecer “Sincronizado”: enquanto não chegar, a gerência vê esta barreira como em andamento.</p>' : '<p id="encPend"><small>✅ Encerramento enviado à planilha.</small></p>'}</div>
     <button class="botao" data-doc="termo" data-id="${t.id}">📄 Termo de Fiscalização (PDF)</button>
     ${temFicha(t) ? `<button class="botao" data-doc="ficha" data-id="${t.id}">📝 Ficha de Campo (PDF)</button>` : ''}
     <button class="botao" data-go="home">➕ Iniciar novo turno</button>
@@ -377,7 +406,7 @@ async function historico() {
       <div class="card"><h3>Veículos por tipo</h3>${barras(Object.entries(CONFIG.tipos).map(([c, x]) => [x.icone + ' ' + x.nome, porTipo[c] || 0]))}</div>
       <div class="card"><h3>Veículos por dia</h3>${barras(Object.entries(porDia).sort().map(([k, n]) => [dBR(k).slice(0, 5), n]))}</div>
       <div class="card"><h3>Turnos</h3>${turnos.length ? turnos.map(t => `
-        <div class="turno-linha"><div><b>${esc(t.numeroTF)}</b><br><small>${dBR(t.data)} · ${esc(t.inicio)}${t.fim ? '–' + esc(t.fim) : ''} · ${esc(t.fiscal)} · ${porTurno[t.id] || 0} veíc.${t.encerrado ? '' : ' · em andamento'}</small></div>
+        <div class="turno-linha"><div><b>${esc(t.numeroTF)}</b><br><small>${dBR(t.data)} · ${esc(t.inicio)}${t.fim ? '–' + esc(t.fim) : ''} · ${esc(t.fiscal)} · ${porTurno[t.id] || 0} veíc.${t.encerrado ? '' : ' · em andamento'}${t.encerradoPor ? ' · encerrado pela gerência' : ''}${t.pendente ? ' · ⏳ aguardando envio' : ''}</small></div>
         <div>${t.encerrado ? `<button class="mini" data-doc="termo" data-id="${t.id}">Termo</button>` : ''}${temFicha(t) ? `<button class="mini" data-doc="ficha" data-id="${t.id}">Ficha</button>` : ''}</div></div>`).join('') : '<div class="vazio">Sem turnos no período.</div>'}</div>
       <button class="botao vermelho" id="limpar">🗑 Limpar histórico deste aparelho</button>
       <p class="dica">Remove só os turnos já encerrados <b>deste celular</b>. Os dados continuam salvos na planilha.</p>`;
@@ -434,10 +463,11 @@ document.addEventListener('submit', async e => {            // ativação por c�
 
 /* ---------- eventos globais ---------- */
 document.addEventListener('click', async e => {
-  const el = e.target.closest('[data-v],[data-go],[data-edit],[data-del],[data-doc],[data-instalar],[data-tfveic],[data-bloq]');
+  const el = e.target.closest('[data-v],[data-go],[data-edit],[data-del],[data-doc],[data-instalar],[data-tfveic],[data-bloq],[data-avisook]');
   if (!el) return;
   const d = el.dataset;
-  if (d.bloq) toast(`${SEM_AUT}: ${Sync.MODULOS[d.bloq] || d.bloq}.`, true);
+  if (d.avisook) { try { localStorage.removeItem(LS_AVISO_ENC); } catch (e2) { /* idem */ } const a = $('#avisoEncerrado'); if (a) a.remove(); }
+  else if (d.bloq) toast(`${SEM_AUT}: ${Sync.MODULOS[d.bloq] || d.bloq}.`, true);
   else if (d.instalar) acaoInstalar(d.instalar);
   else if (d.tfveic) go('tfnovo', { veiculoId: d.tfveic });
   else if (d.v) go(d.v);
@@ -460,7 +490,7 @@ Sync.onEstado(e => {
   const pend = e.pend ? ` · ${e.pend} a enviar` : '';
   b.textContent = (e.tipo === 'sync' ? '🔄 Sincronizando…' : e.tipo === 'erro' ? '⚠️ Falha ao sincronizar' : (navigator.onLine ? '🟢 Online' : '🔴 Offline')) + (e.tipo === 'sync' ? '' : pend);
 });
-window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'resumo', 'historico', 'tf', 'pce', 'pcetermos'].includes(VIEW)) go(VIEW); });
+window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'resumo', 'historico', 'tf', 'pce', 'pcetermos', 'fechado'].includes(VIEW)) go(VIEW, EDIT); });
 // permissões mudaram no sync: se a tela aberta é de um módulo que deixou de ser autorizado, volta para os módulos (nada é apagado);
 // na tela de módulos (ou em telas livres) só redesenha
 window.addEventListener('gdv-permissoes', () => {

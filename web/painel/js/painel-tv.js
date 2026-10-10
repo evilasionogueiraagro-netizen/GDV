@@ -2,7 +2,8 @@
    Tela cheia sem rolagem para a TV da sala da gerência (1920×1080 ou 3840×2160, lida a 3–5 m): relógio de Manaus, telas em
    rotação (ao vivo, alertas, barreiras 7 dias, TF 30 dias, PCE 30 dias), atualização automática e operação 24 h.
    Ativação: painel/?tv=1 ou botão "Modo TV" (lembrado no aparelho: localStorage gdv.painel.tv=1). Parâmetros opcionais na URL:
-   rotacao (segundos por tela, padrão 30, mínimo 10), tema (escuro | claro), telas (ex.: aovivo,alertas,pce).
+   rotacao (segundos em cada uma das demais telas, padrão 10, mínimo 10), rotacaoAoVivo (segundos em cada passagem pela tela Ao vivo,
+   padrão 60, mínimo 10 — com a ordem padrão, ≈ 86% do tempo fica na Ao vivo), tema (escuro | claro), telas (ex.: aovivo,alertas,pce).
    Teclas: ← → trocam de tela, espaço pausa, Esc sai do modo TV (não faz logout).
    Os números vêm dos mesmos cálculos das abas (Painel.aba(id).indicadores/calculos, Painel.alertasGerais, Painel.recorte).
    Ganchos para testes: window.PainelTV (ir, proxima, anterior, pausar, estado…) e #tv-raiz[data-tela][data-indice][data-pausado]. */
@@ -32,7 +33,8 @@
   const q = new URLSearchParams(location.search);
   const listaTelas = String(q.get('telas') || '').split(',').map(x => x.trim().toLowerCase()).filter(x => TELAS[x]);
   const opc = {
-    rotacaoMs: Math.max(10, parseInt(q.get('rotacao'), 10) || 30) * 1000,
+    rotacaoMs: Math.max(10, parseInt(q.get('rotacao'), 10) || 10) * 1000,               // Alertas, Barreiras 7 dias, TF, PCE
+    aoVivoMs: Math.max(10, parseInt(q.get('rotacaoAoVivo'), 10) || 60) * 1000,         // a tela principal fica mais tempo
     tema: q.get('tema') === 'claro' ? 'light' : 'dark',
     telas: listaTelas.length ? listaTelas : ORDEM_PADRAO.slice()
   };
@@ -40,7 +42,7 @@
   let ativo = q.get('tv') === '1' || (q.get('tv') !== '0' && P.ls.get(LS_TV) === '1');
 
   /* ---------------- estado e utilidades ---------------- */
-  const T = { i: 0, pausado: false, fimEm: 0, resta: opc.rotacaoMs, timer: null, relogio: null, vigia: null, graficos: [], mapas: [],
+  const T = { i: 0, pausado: false, fimEm: 0, resta: 0, dur: 0, timer: null, relogio: null, vigia: null, graficos: [], mapas: [],
               inicio: Date.now(), ultimaVersao: Date.now(), wake: null, ocioso: null, dicaTimer: null, raiz: null, redim: null };
   const $ = s => document.querySelector(s);
   const el = (tag, cls, html) => P.el(tag, cls, html);
@@ -114,16 +116,18 @@
     fx.hidden = false;
     return !antes;
   }
-  /** TF novo em preenchimento (o painel avisa): a rotação pula para "Ao vivo" e fica nela por dois períodos (pelo menos um ciclo inteiro). */
+  /** TF novo em preenchimento (o painel avisa): a rotação pula para "Ao vivo" e fica nela pelo menos um período inteiro da Ao vivo (e no mínimo dois das demais telas). */
   function novoTF() {
     if (!ativo || !T.raiz) return;
     const i = opc.telas.indexOf('aovivo'); faixaTF();
     if (i < 0) return;
-    T.i = i; T.resta = opc.rotacaoMs * 2; desenhar(true);
+    T.i = i; T.resta = T.dur = Math.max(opc.aoVivoMs, opc.rotacaoMs * 2); desenhar(true);
     if (T.pausado) { rodape(); progresso(); } else agendarTroca();
   }
 
   /* ---------------- rodapé e rotação ---------------- */
+  /** Tempo de cada tela: a Ao vivo tem o seu (rotacaoAoVivo); as demais, rotacao. */
+  const duracaoTela = i => opc.telas[i] === 'aovivo' ? opc.aoVivoMs : opc.rotacaoMs;
   function periodoTxt(id) {
     const hoje = P.hoje();
     if (id === 'aovivo') return `Hoje, ${fmt.data(hoje)}`;
@@ -141,7 +145,7 @@
   }
   function progresso() {
     const b = $('#tv-barra'); if (!b) return;
-    b.style.transition = 'none'; b.style.transform = `scaleX(${Math.min(1, Math.max(0, 1 - T.resta / opc.rotacaoMs))})`;
+    b.style.transition = 'none'; b.style.transform = `scaleX(${Math.min(1, Math.max(0, 1 - T.resta / (T.dur || T.resta || 1)))})`;
     if (T.pausado || opc.telas.length < 2) return;
     void b.offsetWidth;                                                   // reinicia a transição
     b.style.transition = `transform ${T.resta}ms linear`; b.style.transform = 'scaleX(1)';
@@ -156,13 +160,13 @@
   function ir(i) {
     if (!ativo) return;
     const n = opc.telas.length;
-    T.i = ((i % n) + n) % n; T.resta = opc.rotacaoMs;
+    T.i = ((i % n) + n) % n; T.resta = T.dur = duracaoTela(T.i);
     desenhar(true); agendarTroca();
   }
   function pausar(sim) {
     sim = !!sim; if (sim === T.pausado) return;
     if (sim) { T.resta = Math.max(0, T.fimEm - Date.now()); clearTimeout(T.timer); T.pausado = true; progresso(); }
-    else { T.pausado = false; if (!T.resta) T.resta = opc.rotacaoMs; agendarTroca(); }
+    else { T.pausado = false; if (!T.resta) T.resta = T.dur = duracaoTela(T.i); agendarTroca(); }
     rodape();
   }
 
@@ -191,23 +195,23 @@
   }
 
   /* ---------------- peças visuais ---------------- */
-  function kpisTV(cont, itens) {
-    const g = el('div', 'tv-kpis');
-    g.style.gridTemplateColumns = itens.map(k => k.largo ? 'minmax(0, 2.2fr)' : 'minmax(0, 1fr)').join(' ');
+  function kpisTV(cont, itens, cls) {
+    const g = el('div', 'tv-kpis' + (cls ? ' ' + cls : '')), minVh = g.classList.contains('tv-kpis-mini') ? 3.4 : 4.4;
+    g.style.setProperty('--n', itens.length);
     itens.forEach(k => {
       const v = typeof k.valor === 'number' ? fmt.compacto(k.valor) : (k.valor == null ? '—' : k.valor);
       // detalhe longo (feito para a tela do computador): na TV fica só a primeira parte, sem cortar no meio da palavra
-      const det = k.detalhe && k.detalhe.length > 50 ? k.detalhe.split(' · ')[0] : k.detalhe;
-      const d = el('div', 'tv-kpi' + (k.status ? ' st-' + k.status : '') + (k.largo ? ' tv-kpi-largo' : '')); d.dataset.chave = k.chave || '';
+    // número e unidade ("> 14 h", "30 min") não se separam na quebra de linha
+    const det = (k.detalhe && k.detalhe.length > 50 ? k.detalhe.split(' · ')[0] : k.detalhe || '').replace(/(\d) (h|min)\b/g, '$1\u00a0$2').replace(/([<>≥≤]) (?=\d)/g, '$1\u00a0');
+      const d = el('div', 'tv-kpi' + (k.status ? ' st-' + k.status : '')); d.dataset.chave = k.chave || '';
       const med = k.medidor != null ? `<div class="tv-kpi-med" role="img" aria-label="${esc(fmt.pct(k.medidor))}"><i style="width:${(Math.min(1, Math.max(0, k.medidor)) * 100).toFixed(1)}%"></i></div>` : '';
-      d.innerHTML = `<div class="tv-kpi-rot">${esc(k.rotulo)}</div><div class="tv-kpi-val">${esc(v)}</div>${med}${det ? `<div class="tv-kpi-det">${esc(det)}</div>` : ''}` +
-        (k.largo ? `<div class="tv-kpi-graf"><span>${esc(k.largo)}</span></div>` : '');
+      d.innerHTML = `<div class="tv-kpi-rot">${esc(k.rotulo)}</div><div class="tv-kpi-val">${esc(v)}</div>${med}${det ? `<div class="tv-kpi-det">${esc(det)}</div>` : ''}`;
       g.appendChild(d);
     });
     cont.appendChild(g);
-    // valor numérico nunca leva reticências ("10,5 m…"): se não couber, a fonte diminui até caber (mínimo 4,4vh)
+    // valor numérico nunca leva reticências ("10,5 m…"): se não couber, a fonte diminui até caber (mínimo 4,4vh; 3,4vh nos menores)
     g.querySelectorAll('.tv-kpi-val').forEach(v => {
-      for (let t = parseFloat(getComputedStyle(v).fontSize) / window.innerHeight * 100; v.scrollWidth > v.clientWidth + 1 && t > 4.4; ) { t = Math.max(4.4, t - 0.4); v.style.fontSize = t + 'vh'; }
+      for (let t = parseFloat(getComputedStyle(v).fontSize) / window.innerHeight * 100; v.scrollWidth > v.clientWidth + 1 && t > minVh; ) { t = Math.max(minVh, t - 0.4); v.style.fontSize = t + 'vh'; }
     });
     return g;
   }
@@ -377,20 +381,25 @@
     const nProc = k => dH.tfs.filter(t => t.procedimento === k).length;
     const encHoje = dH.turnos.filter(t => t.encerrado);
     const h24 = Array(24).fill(0); vHoje.forEach(v => { if (v.horaNum != null && v.horaNum >= 0 && v.horaNum < 24) h24[v.horaNum]++; });
+    const turnosHoje = Object.keys(hojePorTurno).length, pico = h24.indexOf(Math.max(...h24));
 
-    kpisTV(palco, [
-      { chave: 'andamento', rotulo: 'Barreiras ativas', valor: vivos.length, detalhe: and.detalhe, status: and.status },
-      { chave: 'veiculos', rotulo: 'Veículos hoje', valor: vHoje.length, largo: 'Veículos por hora',
-        detalhe: vHoje.length ? `em ${plural(Object.keys(hojePorTurno).length, 'turno', 'turnos')} de barreira` : 'nenhum registro ainda' },
-      { chave: 'pessoas', rotulo: 'Pessoas hoje', valor: vHoje.reduce((s, v) => s + v.pessoas, 0), detalhe: 'estimativa por veículo' },
-      { chave: 'tfs', rotulo: 'TFs hoje', valor: dH.tfs.length, detalhe: dH.tfs.length ? `${fmt.int(nProc('liberacao'))} liberações · ${fmt.int(nProc('rechaco'))} rechaços` : 'nenhum TF hoje' },
-      { chave: 'apreensoes', rotulo: 'Apreensões hoje', valor: nProc('apreensao'), detalhe: 'TFs com apreensão p/ destruição' }
-    ]);
-
-    // estrutura primeiro (o mapa e os gráficos medem o espaço final)
+    // estrutura primeiro (o mapa e os gráficos medem o espaço final): o mapa ocupa a altura toda à esquerda (≈ 60% da largura);
+    // à direita, os indicadores de hoje (dois em destaque + três menores) e a lista de barreiras em andamento
     const g = el('div', 'tv-grade tv-grade-vivo'); palco.appendChild(g);
     const cm = cartao(g, 'Barreiras no Amazonas agora', vivos.length ? 'Rótulo: barreira e nº de veículos abordados hoje' : 'Nenhuma barreira em andamento agora', 'tv-cartao-mapa');
-    const cl = cartao(g, 'Barreiras em andamento', vivos.length ? `${plural(vivos.length, 'barreira', 'barreiras')} · com alerta primeiro` : 'Resumo de hoje', 'tv-cartao-lista');
+    const dir = el('div', 'tv-coluna tv-vivo-dir'); g.appendChild(dir);
+    kpisTV(dir, [
+      { chave: 'andamento', rotulo: 'Barreiras ativas', valor: vivos.length, detalhe: and.detalhe, status: and.status },
+      // o gráfico "veículos por hora" não cabe legível nesta coluna: o pico do dia vai escrito no detalhe
+      { chave: 'veiculos', rotulo: 'Veículos hoje', valor: vHoje.length,
+        detalhe: vHoje.length ? `em ${plural(turnosHoje, 'turno', 'turnos')}` + (h24[pico] ? ` · pico às ${pico}h (${fmt.int(h24[pico])})` : '') : 'nenhum registro ainda' }
+    ], 'tv-kpis-vivo');
+    kpisTV(dir, [
+      { chave: 'pessoas', rotulo: 'Pessoas hoje', valor: vHoje.reduce((s, v) => s + v.pessoas, 0), detalhe: 'estimativa por veículo' },
+      { chave: 'tfs', rotulo: 'TFs hoje', valor: dH.tfs.length, detalhe: dH.tfs.length ? `${fmt.int(nProc('liberacao'))} lib. · ${fmt.int(nProc('rechaco'))} rech.` : 'nenhum TF hoje' },
+      { chave: 'apreensoes', rotulo: 'Apreensões hoje', valor: nProc('apreensao'), detalhe: 'p/ destruição' }
+    ], 'tv-kpis-vivo tv-kpis-mini');
+    const cl = cartao(dir, 'Barreiras em andamento', vivos.length ? `${plural(vivos.length, 'barreira', 'barreiras')} · com alerta primeiro` : 'Resumo de hoje', 'tv-cartao-lista');
     const divMapa = el('div', 'tv-mapa-lugar'); cm.appendChild(divMapa);
     const n = s => vivos.filter(t => P.pinoDe(t) === s).length, comGPS = vivos.filter(t => t.lat != null && t.lon != null), semGPS = vivos.length - comGPS.length;
     legenda(cm, [{ marca: marcaPino('tf'), txt: `TF em preenchimento (${n('tf') + tfGPS.length})` }, { marca: marcaPino('ok'), txt: `Em andamento (${n('ok')})` }, { marca: marcaPino('semsinal'), txt: `Sem sinal > 30 min (${n('semsinal')})` },
@@ -435,9 +444,6 @@
       rotular(m, comGPS.map(t => ({ lat: t.lat, lon: t.lon, cls: P.pinoDe(t), html: `${sitRot(t)}<b>${esc(curto(t.local) || 'Barreira')}</b><span>${fmt.int(deHoje(t).n)}</span>` }))
         .concat(tfGPS.map(a => ({ lat: a.lat, lon: a.lon, cls: 'tf', html: `<em>${a.apreensao ? 'APREENSÃO' : 'TF'}</em><b>${esc(curto(a.onde))}</b>` }))), tam / 2);
     }
-    // veículos por hora (hoje), dentro do indicador "Veículos abordados hoje"
-    const gk = palco.querySelector('.tv-kpi[data-chave="veiculos"] .tv-kpi-graf');
-    if (gk) barras(gk, { labels: h24.map((_, h) => h + 'h'), datasets: [{ label: 'Veículos', data: h24, cor: p.serie[0] }], mini: true, passo: 6, rotulos: 'max', vazio: '—', rotulo: 'Veículos por hora hoje', espessura: 1.6 });
     caber(lista, maisTxt);                                                   // por último: com o espaço final
   }
 
@@ -621,7 +627,7 @@
   }
   function ligar() {
     ativo = true; aplicarClasses(); montar();
-    T.i = 0; T.pausado = false; T.resta = opc.rotacaoMs;
+    T.i = 0; T.pausado = false; T.resta = T.dur = duracaoTela(0);
     cabecalho(); clearInterval(T.relogio); T.relogio = setInterval(cabecalho, 1000);
     clearInterval(T.vigia); T.vigia = setInterval(vigiar, 60 * 1000);
     desenhar(true); agendarTroca(); manterAcesa(); mexeu(); mostrarDica();
@@ -636,8 +642,8 @@
     if (!ativo) return;
     ativo = false; P.ls.del(LS_TV);
     const u = new URL(location.href);
-    if (['tv', 'rotacao', 'tema', 'telas'].some(k => u.searchParams.has(k))) {
-      ['tv', 'rotacao', 'tema', 'telas'].forEach(k => u.searchParams.delete(k));
+    if (['tv', 'rotacao', 'rotacaoAoVivo', 'tema', 'telas'].some(k => u.searchParams.has(k))) {
+      ['tv', 'rotacao', 'rotacaoAoVivo', 'tema', 'telas'].forEach(k => u.searchParams.delete(k));
       history.replaceState(history.state, '', u.pathname + (u.searchParams.toString() ? '?' + u.searchParams : '') + u.hash);
     }
     clearTimeout(T.timer); clearInterval(T.relogio); clearInterval(T.vigia); clearTimeout(T.ocioso); esconderDica();
@@ -662,7 +668,7 @@
 
   /** Ganchos para testes e operação manual pelo console. */
   window.PainelTV = {
-    get ativo() { return ativo; }, get opcoes() { return { rotacaoMs: opc.rotacaoMs, tema: opc.tema, telas: opc.telas.slice() }; },
+    get ativo() { return ativo; }, get opcoes() { return { rotacaoMs: opc.rotacaoMs, aoVivoMs: opc.aoVivoMs, tema: opc.tema, telas: opc.telas.slice() }; },
     estado: () => ({ ativo, indice: T.i, tela: opc.telas[T.i], pausado: T.pausado, restaMs: T.pausado ? T.resta : Math.max(0, T.fimEm - Date.now()), graficos: T.graficos.length, mapas: T.mapas.length }),
     ir: alvo => { const i = typeof alvo === 'number' ? alvo : opc.telas.indexOf(alvo); if (i >= 0) ir(i); },
     proxima: () => ir(T.i + 1), anterior: () => ir(T.i - 1),

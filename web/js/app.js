@@ -364,7 +364,19 @@ window.addEventListener('gdv-dados', () => { if (['home', 'lista', 'resumo', 'hi
 window.addEventListener('online', () => Sync.atualizarContagem());
 
 $('#sync').onclick = () => Sync.sincronizar();
-if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('sw.js').then(reg => {
+    const verificar = () => reg.update().catch(() => {});                    // procura versão nova
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) verificar(); });
+    setInterval(verificar, 30 * 60 * 1000);
+  }).catch(() => {});
+  let tinhaControlador = !!navigator.serviceWorker.controller;               // na 1ª instalação não avisa
+  navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (tinhaControlador) $('#atualizar').hidden = false;
+    tinhaControlador = true;
+  });
+  $('#btnAtualizar').onclick = () => location.reload();
+}
 (async () => {
   go('home');
   await Sync.atualizarContagem();

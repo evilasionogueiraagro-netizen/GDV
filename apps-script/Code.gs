@@ -51,6 +51,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 // cabem numa célula (50.000 caracteres) e o app limita a quantidade de culturas/fotos e o tamanho dos campos para nunca chegar neles.
 const VALIDADE_CODIGO_MS = 7 * 24 * 3600 * 1000;      // código de ativação vale 7 dias
 const MAX_FALHAS_ATIVACAO = 10;                        // tentativas erradas antes de bloquear por 15 min
+const MAX_FALHAS_ADMIN = 5;                            // idem para o código de administrador do painel (contador próprio)
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 function doGet(e) {
@@ -61,7 +62,10 @@ function doGet(e) {
 function doPost(e) {
   try {
     const req = JSON.parse(e.postData.contents);
-    if (req.action === 'ativar') return json_(ativar_(req));
+    if (req.action === 'ativar') return json_(ativar_({ codigo: req.codigo }));          // app dos fiscais: só códigos de fiscal
+    if (req.action === 'painelAtivar') return json_(painelAtivar(req.codigo));             // painel (GitHub Pages): só códigos de administrador
+    if (req.action === 'painelDados') return json_(painelDados(req.key, { de: req.de, ate: req.ate, aoVivo: req.aoVivo, ids: req.ids }));
+    if (req.action === 'painelSair') return json_(painelSair(req.key));
     const usuario = autenticar_(req.key);
     if (req.action === 'ping') return json_({ ok: true, nome: usuario });
     if (req.action === 'sync') return json_(sincronizar_(req, usuario));
@@ -217,19 +221,8 @@ function emitir_(req, usuario) {
 /** Auditoria da sequência de uma barreira (TF) ou unidade (PCE) / ano: lacunas e números usados mais de uma vez. */
 function auditarSequencia_(barreira, ano, tipo) {
   tipo = tipo || 'TF';
-  const s = SEQUENCIAS[tipo];
   if (tipo === 'PCE') barreira = unidadePce_(barreira);
-  const tfs = lerLeitura_(s.aba).filter(function (r) { return r[s.grupo] === barreira && r.ano === Number(ano) && (tipo === 'TF' || r.numero > 0); });
-  const usos = {};
-  tfs.forEach(function (r) { (usos[r.numero] = usos[r.numero] || []).push(r); });
-  const nums = Object.keys(usos).map(Number).sort(function (a, b) { return a - b; });
-  const base = lerLeitura_('Numeracao').filter(function (r) { return r.id === chaveSeq_(tipo, barreira, ano); })[0];
-  const inicio = base ? base.ultimo + 1 : 1, lacunas = [], duplicados = [];
-  const maior = nums.length ? nums[nums.length - 1] : inicio - 1;
-  for (let n = inicio; n <= maior; n++) if (!usos[n]) lacunas.push(n);
-  nums.forEach(function (n) { if (usos[n].length > 1) duplicados.push({ numero: n, ids: usos[n].map(function (r) { return r.usuario + ' ' + r.data + ' ' + r.hora; }) }); });
-  const editados = tfs.filter(function (r) { return r.numeroOrigem === 'editado' || r.numeroOrigem === 'provisorio'; }).map(function (r) { return { numero: r.numero, origem: r.numeroOrigem, sugerido: r.numeroSugerido, usuario: r.usuario }; });
-  return { total: tfs.length, primeiro: nums[0] || null, ultimo: maior || null, inicioEsperado: inicio, lacunas: lacunas, duplicados: duplicados, editados: editados };
+  return auditarRegs_(tipo, barreira, ano, lerLeitura_(SEQUENCIAS[tipo].aba), lerLeitura_('Numeracao'));
 }
 
 /** Número duplicado (mesmo grupo/ano): o registro mais antigo vale; os demais ficam com conflito = 1. */
@@ -475,28 +468,79 @@ function arquivoEnviar_(req, usuario) {
 /* ---------- Painel do administrador (somente leitura) ---------- */
 
 /**
- * O painel abre na MESMA implantação dos aparelhos:  <URL /exec>?p=painel
- * A página em si não contém dados. Os dados só são entregues a quem tem uma credencial de ADMINISTRADOR,
- * obtida com um código de 6 dígitos (uso único) gerado no menu da planilha: GDV → Gerar código de administrador.
- * Credenciais de fiscais não leem o painel, e códigos de administrador não ativam aparelhos de fiscais.
+ * O painel é uma página do GitHub Pages (mesmo site do app): web/painel/ (app separado "GDV Painel"). Ela chama esta API (doPost) com:
+ *   painelAtivar {codigo}            → troca um código de ADMINISTRADOR (6 dígitos, uso único) por {ok, token, nome}
+ *   painelDados  {key, de, ate}      → dados do período, já sem dados pessoais desnecessários (documentos mascarados)
+ *   painelDados  {key, aoVivo:true, ids:[...]} → só os turnos em andamento (e os de "ids", para saber se encerraram) com seus veículos
+ *                                       (atualização automática de 1 em 1 minuto, sem reler TFs, levantamentos e termos)
+ *   painelSair   {key}               → revoga a credencial do administrador (botão Sair)
+ * O código é gerado no menu da planilha: GDV → Gerar código de administrador. Credenciais de fiscais não leem o painel,
+ * e códigos de administrador não ativam aparelhos de fiscais. A rota antiga "?p=painel" só mostra o novo endereço.
  */
-function painelHtml_() {
-  return HtmlService.createHtmlOutputFromFile('Painel')
-    .setTitle('GDV – Painel do administrador')
-    .addMetaTag('viewport', 'width=device-width, initial-scale=1');
+const PAINEL_URL_PADRAO = 'https://evilasionogueiraagro-netizen.github.io/GDV/painel/';
+const PAINEL_MAX_DIAS = 366;                 // período máximo de uma consulta
+const PAINEL_MAX_REGISTROS = 60000;          // turnos + veículos + TFs + levantamentos + termos devolvidos numa resposta
+const PAINEL_MAX_LACUNAS = 200;              // lacunas listadas por sequência na auditoria (o total vem em lacunasTotal)
+
+/** Endereço do painel (Propriedades do script → PAINEL_URL troca o padrão, ex.: outro domínio). */
+function painelUrl_() {
+  return PropertiesService.getScriptProperties().getProperty('PAINEL_URL') || PAINEL_URL_PADRAO;
 }
 
-/** Valida a credencial do painel e devolve o nome do administrador. */
+/** Rota antiga (<URL /exec>?p=painel): página mínima que só aponta para o novo painel. */
+function painelHtml_() {
+  const url = painelUrl_().replace(/[<>"'&]/g, '');
+  const out = HtmlService.createHtmlOutput(
+    '<div style="font-family:system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 16px;line-height:1.5">' +
+    '<h2>GDV – Painel gerencial</h2><p>O painel do administrador mudou de endereço:</p>' +
+    '<p><a href="' + url + '" target="_blank" rel="noopener" style="font-size:1.1rem">' + url + '</a></p>' +
+    '<p>Abra o link, digite o código de administrador (GDV → Gerar código de administrador, na planilha) e salve o endereço nos favoritos.</p></div>')
+    .setTitle('GDV – Painel gerencial');
+  return out.addMetaTag ? out.addMetaTag('viewport', 'width=device-width, initial-scale=1') : out;
+}
+
+/**
+ * Valida a credencial do painel e devolve o nome do administrador.
+ * Aceita a chave mestra (ACCESS_KEY) e credenciais de perfil "admin"; credencial de fiscal recebe "Acesso restrito".
+ */
 function adminDoToken_(token) {
   token = String(token || '');
   if (token) {
+    const mestra = PropertiesService.getScriptProperties().getProperty('ACCESS_KEY');
+    if (mestra && token === mestra) return 'Administrador';
     const t = lerLeitura_('Fiscais');
-    for (let i = 0; i < t.length; i++) if (t[i].token === token && t[i].ativo === 1 && t[i].perfil === 'admin') return t[i].nome;
+    for (let i = 0; i < t.length; i++) {
+      if (t[i].token !== token || t[i].ativo !== 1) continue;
+      if (t[i].perfil === 'admin') return t[i].nome;
+      throw new Error('Acesso restrito ao administrador. Entre com um código de administrador (GDV → Gerar código de administrador).');
+    }
   }
   throw new Error('Sessão do painel inválida ou revogada. Entre com um código de administrador.');
 }
 
-/** Chamada pela página do painel: troca o código de administrador por uma credencial. */
+/** Botão "Sair" do painel: revoga a credencial de administrador no servidor (a cópia local deixa de valer em qualquer lugar). */
+function painelSair(token) {
+  token = String(token || '');
+  const mestra = PropertiesService.getScriptProperties().getProperty('ACCESS_KEY');
+  if (!token || (mestra && token === mestra)) return { ok: true };            // chave mestra não é revogada por aqui
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const t = lerTudo_('Fiscais');
+    for (let i = 0; i < t.valores.length; i++) {
+      const f = paraObjeto_(t.cols, t.valores[i]);
+      if (!f.token || f.token !== token || f.perfil !== 'admin') continue;    // só credencial de administrador
+      f.token = ''; f.ativo = 0;
+      t.sh.getRange(i + 2, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return f[c]; })]);
+      break;
+    }
+    return { ok: true };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Troca o código de administrador por uma credencial (limitador de tentativas próprio, mais restrito que o dos aparelhos). */
 function painelAtivar(codigo) {
   return ativar_({ codigo: codigo, perfil: 'admin' });
 }
@@ -508,25 +552,235 @@ function lerLeitura_(nome) {                       // leitura pura: não cria ab
     .map(function (l) { return paraObjeto_(cols, l); });
 }
 
-/** Dados brutos do período (o painel calcula tudo no navegador). filtro: {de:'aaaa-mm-dd', ate:'aaaa-mm-dd'} */
-function painelDados(token, filtro) {
-  adminDoToken_(token);
+/* --- auxiliares do painel (sem efeitos colaterais) --- */
+
+const RE_DIA_ = /^\d{4}-\d{2}-\d{2}$/;
+/** "aaaa-mm-dd" + n dias (calendário puro, sem fuso). */
+function somarDias_(dia, n) {
+  const d = new Date(Date.UTC(Number(dia.slice(0, 4)), Number(dia.slice(5, 7)) - 1, Number(dia.slice(8, 10))) + n * 864e5);
+  return d.toISOString().slice(0, 10);
+}
+function diaValido_(v) { return RE_DIA_.test(String(v || '')) && somarDias_(v, 0) === v; }
+function hojeManaus_() { return Utilities.formatDate(new Date(), 'America/Manaus', 'yyyy-MM-dd'); }
+/** Data + "HH:MM" do horário de Manaus (UTC−4, sem horário de verão) → milissegundos; null se faltar algo. */
+function tsManaus_(dia, hm) {
+  const m = /^(\d{1,2}):(\d{2})/.exec(String(hm || ''));
+  if (!diaValido_(dia) || !m) return null;
+  return Date.parse(dia + 'T' + m[1].padStart(2, '0') + ':' + m[2] + ':00-04:00');
+}
+function numOuNulo_(v) {
+  const s = String(v === null || v === undefined ? '' : v).trim().replace(',', '.');
+  if (!s) return null;
+  const n = Number(s);
+  return isFinite(n) ? n : null;
+}
+function lerJSONSeguro_(v, padrao) {
+  try { const o = JSON.parse(String(v || '')); return o === null || o === undefined ? padrao : o; } catch (e) { return padrao; }
+}
+/** CPF → "***.456.789-**"; CNPJ → "**.345.678/0001-**"; outro valor → "***" (vazio continua vazio). */
+function mascararDoc_(v) {
+  const d = digitos_(v);
+  if (d.length === 11) return '***.' + d.slice(3, 6) + '.' + d.slice(6, 9) + '-**';
+  if (d.length === 14) return '**.' + d.slice(2, 5) + '.' + d.slice(5, 8) + '/' + d.slice(8, 12) + '-**';
+  return String(v || '').trim() ? '***' : '';
+}
+function tipoDoc_(v) { const n = digitos_(v).length; return n === 11 ? 'CPF' : n === 14 ? 'CNPJ' : ''; }
+/** Quantidade "1.234,5" / "1234.5" / "12" → número; null se não der para ler. */
+function quantidade_(q) {
+  let s = String(q || '').trim();
+  if (!s) return null;
+  if (s.indexOf(',') >= 0) s = s.replace(/\./g, '').replace(',', '.');
+  const n = Number(s);
+  return isFinite(n) ? n : null;
+}
+/** Produtos do TF: o app grava JSON ["PRODUTO - 10 Kg", ...] (aceita também [{p,q,u}] e texto solto). */
+function produtosTF_(v) {
+  const bruto = lerJSONSeguro_(v, null);
+  const lista = Array.isArray(bruto) ? bruto : (String(v || '').trim() ? String(v).split(/\s*[;\n]\s*/) : []);
+  return lista.map(function (x) {
+    if (x && typeof x === 'object') {
+      const p = String(x.p || x.produto || '').trim(), q = String(x.q || x.quantidade || '').trim(), u = String(x.u || x.unidade || '').trim();
+      return { produto: p, quantidade: quantidade_(q), unidade: u, texto: (p + (q ? ' - ' + q + ' ' + u : '')).trim() };
+    }
+    const t = String(x || '').trim(), m = /^(.*?)\s+-\s+([\d.,]+)\s*(.*)$/.exec(t);
+    return m ? { produto: m[1].trim(), quantidade: quantidade_(m[2]), unidade: m[3].trim(), texto: t }
+             : { produto: t, quantidade: null, unidade: '', texto: t };
+  }).filter(function (p) { return p.produto; });
+}
+/** Documentos apresentados no TF (JSON {nf, ptv, gta, ...}): só os tipos preenchidos, sem os números. */
+function documentosTF_(v) {
+  const o = lerJSONSeguro_(v, {});
+  return o && typeof o === 'object' && !Array.isArray(o) ? Object.keys(o).filter(function (k) { return String(o[k] || '').trim(); }) : [];
+}
+function contarFotos_(v) { const a = lerJSONSeguro_(v, []); return Array.isArray(a) ? a.filter(Boolean).length : 0; }
+function contarAssinaturas_(v) {
+  const o = lerJSONSeguro_(v, {});
+  return o && typeof o === 'object' ? Object.keys(o).filter(function (k) { return o[k]; }).length : 0;
+}
+/** Culturas do levantamento (JSON [{cultura, area, espLinha, espPlanta, praga, coleta, tipoMaterial, codigoAmostra, destinoAmostra}]). */
+function culturasLev_(v) {
+  const a = lerJSONSeguro_(v, []);
+  return (Array.isArray(a) ? a : []).filter(function (c) { return c && typeof c === 'object' && String(c.cultura || '').trim(); }).map(function (c) {
+    return { cultura: String(c.cultura).trim(), area: numOuNulo_(c.area), espLinha: String(c.espLinha || ''), espPlanta: String(c.espPlanta || ''),
+             praga: String(c.praga || '').trim(), coleta: c.coleta === 'Sim' ? 'Sim' : 'Não', tipoMaterial: String(c.tipoMaterial || ''),
+             codigoAmostra: String(c.codigoAmostra || ''), destinoAmostra: String(c.destinoAmostra || '') };
+  });
+}
+function pragasDe_(culturas) {
+  const vistas = {};
+  culturas.forEach(function (c) { if (c.praga) vistas[c.praga] = true; });
+  return Object.keys(vistas);
+}
+
+/**
+ * Resolve o período do painel. Sem datas: últimos 30 dias (até hoje, horário de Manaus). Só "de": até hoje.
+ * Só "ate": 30 dias terminando em "ate". Máximo de 366 dias.
+ */
+function periodoPainel_(filtro) {
   filtro = filtro || {};
-  const re = /^\d{4}-\d{2}-\d{2}$/;
-  const de = re.test(filtro.de) ? filtro.de : '0000-00-00', ate = re.test(filtro.ate) ? filtro.ate : '9999-99-99';
-  const turnos = lerLeitura_('Turnos').filter(function (t) { return t.data >= de && t.data <= ate; });
-  const ids = {};
-  turnos.forEach(function (t) { ids[t.id] = true; });
-  const num = function (v) { const n = parseFloat(v); return isNaN(n) ? null : n; };
+  const temDe = String(filtro.de || '') !== '', temAte = String(filtro.ate || '') !== '';
+  if ((temDe && !diaValido_(filtro.de)) || (temAte && !diaValido_(filtro.ate))) throw new Error('Período inválido: use datas no formato aaaa-mm-dd.');
+  const ate = temAte ? filtro.ate : hojeManaus_();
+  const de = temDe ? filtro.de : somarDias_(ate, -29);
+  if (de > ate) throw new Error('Período inválido: a data inicial é posterior à data final.');
+  const dias = Math.round((Date.parse(ate + 'T00:00:00Z') - Date.parse(de + 'T00:00:00Z')) / 864e5) + 1;
+  if (dias > PAINEL_MAX_DIAS) throw new Error('Período longo demais (máximo de ' + PAINEL_MAX_DIAS + ' dias). Escolha um período menor.');
+  return { de: de, ate: ate, dias: dias };
+}
+
+/** Auditoria de uma sequência a partir de registros já lidos (usada pelo menu e pelo painel). */
+function auditarRegs_(tipo, grupo, ano, todos, numeracao) {
+  const s = SEQUENCIAS[tipo];
+  ano = Number(ano);
+  const regs = todos.filter(function (r) { return r[s.grupo] === grupo && r.ano === ano && (tipo === 'TF' || r.numero > 0); });
+  const usos = {};
+  regs.forEach(function (r) { (usos[r.numero] = usos[r.numero] || []).push(r); });
+  const nums = Object.keys(usos).map(Number).sort(function (a, b) { return a - b; });
+  const base = numeracao.filter(function (r) { return r.id === chaveSeq_(tipo, grupo, ano); })[0];
+  const inicio = base ? base.ultimo + 1 : 1, lacunas = [], duplicados = [];
+  const maior = nums.length ? nums[nums.length - 1] : inicio - 1;
+  for (let n = inicio; n <= maior; n++) if (!usos[n]) lacunas.push(n);
+  nums.forEach(function (n) { if (usos[n].length > 1) duplicados.push({ numero: n, ids: usos[n].map(function (r) { return r.usuario + ' ' + r.data + ' ' + r.hora; }) }); });
+  const editados = regs.filter(function (r) { return r.numeroOrigem === 'editado' || r.numeroOrigem === 'provisorio'; }).map(function (r) { return { numero: r.numero, origem: r.numeroOrigem, sugerido: r.numeroSugerido, usuario: r.usuario }; });
+  return { total: regs.length, primeiro: nums[0] || null, ultimo: maior || null, inicioEsperado: inicio, lacunas: lacunas, duplicados: duplicados, editados: editados,
+           conflitos: regs.filter(function (r) { return r.conflito === 1; }).length, cancelados: regs.filter(function (r) { return r.cancelado === 1; }).length };
+}
+
+/**
+ * Dados do período para o painel (o painel calcula indicadores, gráficos e mapa no navegador).
+ * filtro: {de:'aaaa-mm-dd', ate:'aaaa-mm-dd'}. Turnos em andamento vêm SEMPRE, qualquer que seja o período.
+ * Registros excluídos ficam de fora; TFs/termos cancelados vêm com cancelado = 1. Documentos mascarados; sem telefone,
+ * e-mail, endereço, RG, matrícula, testemunhas, assinaturas nem ids de fotos (só contagens).
+ */
+function painelDados(token, filtro) {
+  const admin = adminDoToken_(token);
+  const p = periodoPainel_(filtro), de = p.de, ate = p.ate;
+  const noPeriodo = function (r) { return r.data >= de && r.data <= ate; };
+
+  // Barreira (Controle de veículos)
+  const aoVivo = filtro && filtro.aoVivo === true, idsVivo = {};
+  if (aoVivo) (Array.isArray(filtro.ids) ? filtro.ids : []).slice(0, 500).forEach(function (id) { idsVivo[String(id)] = true; });
+  const turnosLidos = lerLeitura_('Turnos').filter(function (t) {
+    return t.id && (t.encerrado !== 1 || (aoVivo ? idsVivo[t.id] === true : noPeriodo(t)));
+  });
+  const porTurno = {};
+  turnosLidos.forEach(function (t) { porTurno[t.id] = { n: 0, pessoas: 0, ts: 0, hora: '' }; });
+  const veiculos = lerLeitura_('Veiculos').filter(function (v) { return v.id && porTurno[v.turnoId] && v.excluido !== 1; }).map(function (v) {
+    const a = porTurno[v.turnoId];
+    a.n++; a.pessoas += v.pessoas;
+    if (v.srv_ts > a.ts) a.ts = v.srv_ts;
+    if (String(v.hora) > a.hora) a.hora = String(v.hora);
+    return { id: v.id, turnoId: v.turnoId, hora: v.hora, placa: v.placa, tipo: v.tipo, pessoas: v.pessoas, srv_ts: v.srv_ts, usuario: v.usuario };
+  });
+  const turnos = turnosLidos.map(function (t) {
+    const a = porTurno[t.id], ini = tsManaus_(t.data, t.inicio);
+    let fim = t.fim ? tsManaus_(t.data, t.fim) : null;
+    if (fim !== null && ini !== null && fim < ini) fim += 864e5;                       // turno que passou da meia-noite
+    return { id: t.id, numeroTF: t.numeroTF, data: t.data, letra: t.letra, inicio: t.inicio, fim: t.fim, fiscal: t.fiscal, local: t.local,
+             unidade: t.unidade, posto: t.posto, encerrado: t.encerrado === 1 ? 1 : 0, emAndamento: t.encerrado !== 1, usuario: t.usuario,
+             criadoEm: t.criadoEm, atualizadoEm: t.atualizadoEm, srv_ts: t.srv_ts,
+             latIni: numOuNulo_(t.latIni), lngIni: numOuNulo_(t.lngIni), precIni: numOuNulo_(t.precIni),
+             latFim: numOuNulo_(t.latFim), lngFim: numOuNulo_(t.lngFim), precFim: numOuNulo_(t.precFim),
+             inicioTs: ini, fimTs: fim, nVeiculos: a.n, nPessoas: a.pessoas,
+             ultimoVeiculoHora: a.hora, ultimoVeiculoTs: a.ts || null, ultimoSinal: Math.max(t.srv_ts, a.ts) || null };
+  });
+
+  if (aoVivo) return { ok: true, agora: Date.now(), admin: admin, aoVivo: true, periodo: p, turnos: turnos, veiculos: veiculos };
+
+  // TF de Barreira
+  const todosTFs = lerLeitura_('TFs').filter(function (r) { return r.id; });
+  const tfsPer = todosTFs.filter(noPeriodo);
+  const tfs = tfsPer.map(function (r) {
+    return { id: r.id, barreira: r.barreira, ano: r.ano, numero: r.numero, numeroTxt: r.numeroTxt, numeroSugerido: r.numeroSugerido,
+             numeroOrigem: r.numeroOrigem, conflito: r.conflito, emitidoEm: r.emitidoEm, turnoId: r.turnoId, veiculoId: r.veiculoId,
+             data: r.data, hora: r.hora, fiscal: r.fiscal, local: r.local, placa: r.placa, origem: r.origem, destino: r.destino,
+             doc: mascararDoc_(r.doc), tipoDoc: tipoDoc_(r.doc), nome: r.nome, municipio: r.municipio, uf: r.uf, relacao: r.relacao,
+             inspecao: r.inspecao, coleta: r.coleta, amostras: r.amostras, procedimento: r.procedimento, fiel: r.fiel, auto: r.auto,
+             advertencia: r.advertencia, documentos: documentosTF_(r.documentos), produtos: produtosTF_(r.produtos),
+             reincidente: r.reincidente, tfsAnteriores: r.tfsAnteriores, cancelado: r.cancelado, motivoCancel: r.motivoCancel,
+             criadoEm: r.criadoEm, srv_ts: r.srv_ts, usuario: r.usuario };
+  });
+
+  // PCE: levantamentos (período e 365 dias anteriores, para "novo foco" e cobertura) e Termos de Colheita
+  const iniHist = somarDias_(de, -365), fimHist = somarDias_(de, -1);
+  const levLidos = lerLeitura_('Levantamentos').filter(function (r) { return r.id && r.excluido !== 1; });
+  const historicoPce = [], levantamentos = [];
+  levLidos.forEach(function (r) {
+    if (r.data >= iniHist && r.data <= fimHist) { historicoPce.push({ municipio: r.municipio, data: r.data, pragas: pragasDe_(culturasLev_(r.culturas)) }); return; }
+    if (!noPeriodo(r)) return;
+    const cult = culturasLev_(r.culturas);
+    levantamentos.push({ id: r.id, data: r.data, hora: r.hora, servidor: r.servidor, cargo: r.cargo, lotacao: r.lotacao,
+                         doc: mascararDoc_(r.doc), tipoDoc: tipoDoc_(r.doc), nome: r.nome, propriedade: r.propriedade,
+                         codigoPropriedade: r.codigoPropriedade, situacaoFundiaria: r.situacaoFundiaria, municipio: r.municipio,
+                         lat: numOuNulo_(r.lat), lon: numOuNulo_(r.lon), precisao: numOuNulo_(r.precisao),
+                         culturas: cult, pragas: pragasDe_(cult), nFotos: contarFotos_(r.fotos), nAssinaturas: contarAssinaturas_(r.assinaturas),
+                         criadoEm: r.criadoEm, srv_ts: r.srv_ts, usuario: r.usuario });
+  });
+  const todasColheitas = lerLeitura_('Colheitas').filter(function (r) { return r.id && r.excluido !== 1; });
+  const colPer = todasColheitas.filter(noPeriodo);
+  const colheitas = colPer.map(function (r) {
+    return { id: r.id, unidade: r.unidade, ano: r.ano, numero: r.numero, numeroTxt: r.numeroTxt, numeroSugerido: r.numeroSugerido,
+             numeroOrigem: r.numeroOrigem, conflito: r.conflito, emitidoEm: r.emitidoEm, levantamentoId: r.levantamentoId,
+             data: r.data, hora: r.hora, servidor: r.servidor, lotacao: r.lotacao, municipio: r.municipio,
+             doc: mascararDoc_(r.doc), tipoDoc: tipoDoc_(r.doc), nome: r.nome,
+             lat: numOuNulo_(r.lat), lon: numOuNulo_(r.lon), precisao: numOuNulo_(r.precisao),
+             cultura: r.cultura, quantidade: r.quantidade, analise: r.analise, partes: r.partes, local: r.local,
+             cancelado: r.cancelado, motivoCancel: r.motivoCancel, nFotos: contarFotos_(r.fotos),
+             criadoEm: r.criadoEm, srv_ts: r.srv_ts, usuario: r.usuario };
+  });
+
+  const total = turnos.length + veiculos.length + tfs.length + levantamentos.length + colheitas.length + historicoPce.length;
+  if (total > PAINEL_MAX_REGISTROS) throw new Error('O período escolhido tem registros demais (' + total + '). Escolha um período menor.');
+
+  // Auditoria da numeração: cada barreira/ano (TF) e unidade/ano (Termo de Colheita) presente no período, sobre TODOS os registros do ano
+  const numeracao = lerLeitura_('Numeracao');
+  const auditar = function (tipo, todos, doPeriodo) {
+    const s = SEQUENCIAS[tipo], vistos = {}, out = [];
+    doPeriodo.forEach(function (r) {
+      const k = r[s.grupo] + '|' + r.ano;
+      if (!r[s.grupo] || !r.ano || vistos[k]) return;
+      vistos[k] = true;
+      const a = auditarRegs_(tipo, r[s.grupo], r.ano, todos, numeracao);
+      a.grupo = r[s.grupo]; a.ano = r.ano; a.lacunasTotal = a.lacunas.length; a.lacunas = a.lacunas.slice(0, PAINEL_MAX_LACUNAS);
+      out.push(a);
+    });
+    return out;
+  };
+
   return {
-    geradoEm: Date.now(),
-    turnos: turnos.map(function (t) {
-      return { id: t.id, tf: t.numeroTF, d: t.data, ini: t.inicio, fim: t.fim, l: t.letra, po: t.posto, lo: t.local,
-               un: t.unidade, f: t.fiscal, e: t.encerrado, u: t.usuario,
-               la1: num(t.latIni), ln1: num(t.lngIni), la2: num(t.latFim), ln2: num(t.lngFim) };
-    }),
-    veiculos: lerLeitura_('Veiculos').filter(function (v) { return ids[v.turnoId] && !v.excluido; })
-      .map(function (v) { return { t: v.turnoId, h: v.hora, p: v.placa, k: v.tipo, n: v.pessoas }; })
+    ok: true,
+    agora: Date.now(),
+    admin: admin,
+    periodo: p,
+    turnos: turnos,
+    veiculos: veiculos,
+    tfs: tfs,
+    levantamentos: levantamentos,
+    colheitas: colheitas,
+    historicoPce: historicoPce,
+    barreiras: lerLeitura_('Barreiras').filter(function (b) { return b.id; })
+      .map(function (b) { return { id: b.id, nome: b.nome, sufixo: b.sufixo, local: b.local, ativo: b.ativo === 1 }; }),
+    auditoria: { tf: auditar('TF', todosTFs, tfsPer), pce: auditar('PCE', todasColheitas, colPer) }
   };
 }
 
@@ -549,13 +803,20 @@ function autenticar_(key) {
 /** O aparelho troca o código de 6 dígitos por uma credencial própria (uso único). */
 function ativar_(req) {
   const cache = CacheService.getScriptCache();
-  const falhas = Number(cache.get('falhas_ativacao') || 0);
-  if (falhas >= MAX_FALHAS_ATIVACAO) throw new Error('Muitas tentativas incorretas. Aguarde 15 minutos e tente de novo.');
+  // contadores separados: erros no painel (admin) não travam a ativação dos aparelhos dos fiscais, e vice-versa
+  const chaveFalhas = req.perfil === 'admin' ? 'falhas_ativacao_admin' : 'falhas_ativacao';
+  const limite = req.perfil === 'admin' ? MAX_FALHAS_ADMIN : MAX_FALHAS_ATIVACAO;
+  const bloqueado = function () { return Number(cache.get(chaveFalhas) || 0) >= limite; };
+  const msgBloqueio = 'Muitas tentativas incorretas. Aguarde 15 minutos e tente de novo.';
+  if (bloqueado()) throw new Error(msgBloqueio);                  // recusa rápida, sem esperar o lock
   const cod = String(req.codigo || '').replace(/\D/g, '');
 
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
+    // releitura DENTRO do lock: requisições em paralelo não leem o mesmo contador (cada erro soma 1 de verdade)
+    const falhas = Number(cache.get(chaveFalhas) || 0);
+    if (falhas >= limite) throw new Error(msgBloqueio);
     const t = lerTudo_('Fiscais'), agora = Date.now();
     let achada = -1;
     if (cod.length === 6) {
@@ -578,7 +839,7 @@ function ativar_(req) {
             : 'Este é um código de ADMINISTRADOR (painel). Para o app dos fiscais, gere o código em GDV → Gerar código de ativação.';
         } else if (f.expiraEm <= agora) motivo = 'Código expirado. Gere um novo código.';
       });
-      cache.put('falhas_ativacao', String(falhas + 1), 900);
+      cache.put(chaveFalhas, String(falhas + 1), 900);
       throw new Error(motivo);
     }
     const f = paraObjeto_(t.cols, t.valores[achada]);
@@ -683,7 +944,7 @@ function menuGerarCodigoAdmin() {
   try {
     const g = gerarCodigo_(r.getResponseText(), 'admin');
     const venc = Utilities.formatDate(new Date(g.expiraEm), 'America/Manaus', 'dd/MM/yyyy HH:mm');
-    ui.alert('Código de administrador para ' + g.nome, g.codigo.slice(0, 3) + ' ' + g.codigo.slice(3) + '\n\nAbra o painel (URL do app + ?p=painel) e digite o código. Uso único, válido até ' + venc + '.', ui.ButtonSet.OK);
+    ui.alert('Código de administrador para ' + g.nome, g.codigo.slice(0, 3) + ' ' + g.codigo.slice(3) + '\n\nAbra o painel em ' + painelUrl_() + ' e digite o código. Uso único, válido até ' + venc + '.', ui.ButtonSet.OK);
   } catch (e) { ui.alert('Não foi possível gerar', String(e.message || e), ui.ButtonSet.OK); }
 }
 

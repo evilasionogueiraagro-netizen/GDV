@@ -44,7 +44,8 @@ App para registrar os veículos abordados em barreiras **fixas ou móveis**, por
    4. Para gerar outro acesso ao mesmo fiscal (novo celular), gere um novo código com o mesmo nome.
    - O endereço do servidor (`…/exec`, não é segredo) fica em `CONFIG.sync.url` (`web/js/config.js`); se estiver vazio, o app pede o endereço junto com o código.
    - A planilha registra em cada turno/veículo, na coluna `usuario`, quem sincronizou.
-   Depois use *Adicionar à tela inicial* para instalar e abra uma vez com internet para o app ser guardado no aparelho.
+   - **Ordem no celular (iOS e Android):** 1) o app mostra primeiro as instruções para **adicionar à tela inicial** (e, no Android, o botão *Instalar agora*); 2) aberto pelo ícone, pede o **código de ativação**; 3) só depois libera o **início do turno**. Enquanto não estiver instalado, não aparece o campo do código. Há a saída *Continuar no navegador mesmo assim* para casos em que a instalação não é possível.
+   - No iPhone, o app instalado guarda os dados separados do Safari, por isso a ativação é feita depois da instalação (o código é de uso único). Abra o app uma vez com internet para ele ser guardado no aparelho.
 
 Para testar localmente: `cd web && python3 -m http.server 8080`.
 

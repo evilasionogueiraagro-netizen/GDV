@@ -63,7 +63,7 @@ span{
 .enquadramento{
     font-size:13px;
     line-height:1.4;
-    height:110px;
+    height:66px;            /* era 110px (-40%): sobra espaço para as testemunhas e o rodapé na mesma folha */
 }
 .linha-origem-destino td{
     padding-top:10px;
@@ -218,6 +218,10 @@ span{
 .a4 + .a4{ page-break-before:always; break-before:page; }
 .cancelado-faixa{ border:2px solid #b00020; color:#b00020; font-weight:bold; text-align:center; font-size:14px; padding:3px; margin-bottom:3px; }
 span{ white-space:pre-line; }
+/* modo compacto: usado automaticamente quando o conteúdo não cabe numa folha A4 */
+.compacto .linha-produtos td, .compacto .linha-origem-destino td{ padding-top:3px; padding-bottom:3px; height:auto; }
+.compacto td{ padding-top:2px; padding-bottom:2px; }
+.compacto .assinatura-area{ height:55px; }
 </style>
 </head>
 <body>

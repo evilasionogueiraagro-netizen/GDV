@@ -101,6 +101,34 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
   const fmtDoc = v => { const d = String(v || '').replace(/\D/g, ''); return d.length === 11 ? d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : d.length === 14 ? d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5') : d; };
   const PROC_TITULO = { liberacao: 'LIBERACAO', apreensao: 'APREENSAO', rechaco: 'RECHACO' };
 
+  /**
+   * Garante que a via caiba em UMA folha A4 (297 mm). Etapas, da menos para a mais visível:
+   * 1) tira a linha em branco extra dos produtos; 2) compacta os espaçamentos; 3) deixa Constatação/Enquadramento
+   * com a altura do próprio texto; 4) reduz a letra desses dois campos (até 10,5 px); 5) zoom leve (até 88%);
+   * 6) último recurso: letra 9 px e zoom até 78%.
+   */
+  async function caberEmUmaPagina(d, pg) {
+    await Promise.all([...d.images].map(i => (i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; }))));
+    if (d.fonts && d.fonts.ready) await d.fonts.ready;
+    const alvo = 294 * 96 / 25.4;                                   // 294 mm em px (3 mm de folga na folha de 297 mm)
+    const alt = () => pg.getBoundingClientRect().height;
+    const campos = ['constatacao', 'enquadramento'].map(i => d.getElementById(i));
+    const usado = [];
+    const etapa = (nome, fn) => { if (alt() <= alvo) return; fn(); usado.push(nome); };
+    etapa('linha extra dos produtos', () => { const l = d.getElementById('produtos2'); if (l) l.closest('tr').style.display = 'none'; });
+    etapa('espaçamento compacto', () => pg.classList.add('compacto'));
+    etapa('campos com a altura do texto', () => campos.forEach(c => { const td = c.closest('td'); td.style.height = 'auto'; td.style.minHeight = '0'; }));
+    let tam = 13, z = 1;
+    const fonte = piso => { while (alt() > alvo && tam > piso) { tam -= 0.5; campos.forEach(c => { c.style.fontSize = tam + 'px'; c.style.lineHeight = '1.25'; }); } };
+    const zoom = piso => { while (alt() > alvo && z > piso) { z = Math.round((z - 0.02) * 100) / 100; pg.style.zoom = String(z); } };
+    fonte(10.5); if (tam < 13) usado.push('letra ' + tam + 'px');
+    zoom(0.88);  if (z < 1) usado.push('zoom ' + z);
+    fonte(9); zoom(0.78);
+    const r = { etapas: usado, fonte: tam, zoom: z, altura: Math.round(alt()), alvo: Math.round(alvo) };
+    pg.setAttribute('data-ajuste', JSON.stringify(r));
+    return r;
+  }
+
   async function tf(id) {
     const t = await Store.obter('tfs', id);
     if (!t) throw new Error('TF não encontrado.');
@@ -125,6 +153,7 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     set('produtos', prods.join('\n')); set('constatacao', t.constatacao); set('enquadramento', t.enquadramento);
 
     const pg = d.querySelector('.a4'), vias = CONFIG.TF.vias;
+    await caberEmUmaPagina(d, pg);                                  // antes de duplicar: as 2 vias saem iguais
     if (t.cancelado) { const b = d.createElement('div'); b.className = 'cancelado-faixa'; b.textContent = 'TF CANCELADO' + (t.motivoCancel ? ' – ' + t.motivoCancel : ''); pg.insertBefore(b, pg.children[1] || null); }
     const paginas = [pg];
     vias.slice(1).forEach(() => { const c = pg.cloneNode(true); paginas[paginas.length - 1].after(c); paginas.push(c); });

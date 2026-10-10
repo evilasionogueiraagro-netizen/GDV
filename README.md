@@ -60,4 +60,4 @@ Para testar localmente: `cd web && python3 -m http.server 8080`.
 ## Limites conhecidos
 - A **Ficha de Campo** tem 50 linhas; acima disso o app avisa e os excedentes ficam fora da ficha (o Termo conta todos).
 - Em caso de relógios de aparelho muito errados, a regra “edição mais recente vence” pode escolher a edição errada; mantenha data/hora automáticas ativadas.
-- Ao alterar arquivos de `web/`, aumente `VERSAO` em `web/sw.js` para os aparelhos receberem a atualização.
+- Atualizações do app: a cada publicação o workflow troca `VERSAO` em `web/sw.js` pelo hash do commit; os aparelhos baixam a versão nova ao abrir com internet (sempre revalidando com o servidor) e, se o app estiver aberto, mostram a faixa “Nova versão disponível — Atualizar agora”.

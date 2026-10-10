@@ -1,5 +1,5 @@
 // Service worker: guarda o app no aparelho para abrir sem internet.
-// Ao alterar qualquer arquivo, aumente VERSAO para os aparelhos baixarem a atualização.
+// VERSAO é trocada automaticamente a cada publicação (workflow do GitHub Pages usa o hash do commit).
 const VERSAO = 'gdv-v12';
 const ARQUIVOS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
@@ -19,7 +19,7 @@ self.addEventListener('fetch', e => {
   const req = e.request;
   if (req.method !== 'GET' || new URL(req.url).origin !== location.origin) return;   // API do Apps Script passa direto
   // Rede primeiro (pega atualizações quando online); cai no cache quando offline.
-  e.respondWith(fetch(req).then(r => {
+  e.respondWith(fetch(req, { cache: 'no-cache' }).then(r => {      // no-cache: sempre revalida com o servidor
     const copia = r.clone(); caches.open(VERSAO).then(c => c.put(req, copia)); return r;
   }).catch(() => caches.match(req, { ignoreSearch: true })));
 });

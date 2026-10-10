@@ -16,12 +16,6 @@
   const temCoord = t => (t.latIni != null && t.lonIni != null) || (t.latFim != null && t.lonFim != null);
   const SITUACAO = { ok: 'Em andamento', semsinal: 'Sem sinal > 30 min', longa: 'Aberta > 14 h', encerrada: 'Encerrada' };
 
-  /** Data real do veículo: se a hora é anterior ao início do turno, o turno passou da meia-noite. */
-  function diaDoVeiculo(v, turnoPorId) {
-    const t = turnoPorId[v.turnoId]; if (!v.data) return '';
-    const hv = minDe(v.hora), hi = t ? minDe(t.inicio) : null;
-    return hv != null && hi != null && hv < hi - 30 ? P.somaDias(v.data, 1) : v.data;
-  }
 
   /** Minutos de barreira aberta em cada hora do relógio (0–23) e em cada dia da semana × hora. */
   function cobertura(turnos) {
@@ -72,26 +66,51 @@
     return A;
   }
 
-  function render(c, d, f) {
+  /** Indicadores do módulo (aba e modo TV). Cada item: {chave, rotulo, valor, detalhe, status}. */
+  function indicadores(d) {
     const turnos = d.turnos, veiculos = d.veiculos, abertos = d.emAndamento;
-    const turnoPorId = {}; turnos.concat(abertos).forEach(t => { turnoPorId[t.id] = t; });
     const min = horasDe(turnos), pessoas = veiculos.reduce((s, v) => s + v.pessoas, 0);
     const encerrados = turnos.filter(t => t.encerrado), ruins = abertos.filter(t => t.situacao !== 'ok');
     const longas = abertos.filter(t => t.situacao === 'longa').length;
+    return [
+      { chave: 'turnos', rotulo: 'Turnos de barreira', valor: turnos.length, detalhe: `${fmt.int(encerrados.length)} encerrado(s) · ${fmt.int(turnos.length - encerrados.length)} aberto(s)` },
+      { chave: 'horas', rotulo: 'Horas de barreira', valor: Math.round(min / 60), detalhe: turnos.length ? `média de ${fmt.duracao(min / turnos.length)} por turno${limitadosTxt(turnos)}` : null },
+      { chave: 'veiculos', rotulo: 'Veículos abordados', valor: veiculos.length, detalhe: turnos.length ? `${fmt.num(veiculos.length / turnos.length, 1)} por turno` : null },
+      { chave: 'pessoas', rotulo: 'Pessoas impactadas', valor: pessoas, detalhe: veiculos.length ? `${fmt.num(pessoas / veiculos.length, 1)} por veículo (estimativa)` : 'estimativa por veículo' },
+      { chave: 'vph', rotulo: 'Veículos por hora de barreira', valor: min ? fmt.num(veiculos.length / (min / 60), 1) : '—', detalhe: 'veículos ÷ horas de turno' + limitadosTxt(turnos) },
+      { chave: 'andamento', rotulo: 'Em andamento agora', valor: abertos.length, status: longas ? 'critico' : ruins.length ? 'serio' : abertos.length ? 'bom' : null,
+        detalhe: abertos.length ? (ruins.length ? `${ruins.length} com alerta (sem sinal ou > 14 h)` : 'todas com sinal') : 'nenhuma barreira aberta' }
+    ];
+  }
+
+  /**
+   * Séries do módulo (aba e modo TV): veículos por dia/semana empilhados por turno A/B, veículos por hora do relógio,
+   * cobertura (minutos de barreira aberta por hora) e o agregado por barreira/local (ranking).
+   */
+  function calculos(d, f) {
+    const turnos = d.turnos, veiculos = d.veiculos;
+    const turnoPorId = {}; turnos.concat(d.emAndamento).forEach(t => { turnoPorId[t.id] = t; });
+    // barras pela data do turno (v.data): fecham com o KPI "Veículos abordados" mesmo quando o turno passa da meia-noite do último dia
+    const serieLetra = L => P.porDia(veiculos.filter(v => letraDe(turnoPorId[v.turnoId] || {}) === L), f.de, f.ate, v => v.data);
+    const sA = serieLetra('A'), sB = serieLetra('B'), sX = serieLetra('');
+    const semanal = sA.labels.length > LIMITE_LINHA;
+    const agrupar = sr => { if (!semanal) return sr; const o = { labels: [], valores: [] };
+      for (let i = 0; i < sr.valores.length; i += 7) { o.labels.push(sr.labels[i]); o.valores.push(sr.valores.slice(i, i + 7).reduce((a, b) => a + b, 0)); } return o; };
+    const wA = agrupar(sA), wB = agrupar(sB), wX = agrupar(sX);
+    const h24 = Array(24).fill(0); veiculos.forEach(v => { if (v.horaNum != null && v.horaNum >= 0 && v.horaNum < 24) h24[v.horaNum]++; });
+    return { turnoPorId, semanal, porDia: { labels: wA.labels, A: wA.valores, B: wB.valores, X: wX.valores }, h24, cob: cobertura(turnos),
+             porBar: agregar(turnos, t => t.local || 'Sem local').sort((a, b) => b.veiculos - a.veiculos) };
+  }
+
+  function render(c, d, f) {
+    const turnos = d.turnos, veiculos = d.veiculos, abertos = d.emAndamento;
+    const K = calculos(d, f);
 
     const cab = P.el('p', 'pn-sub pn-bar-periodo', `Período: ${esc(f.rotuloPeriodo)}${f.fiscal ? ' · Fiscal: ' + esc(f.fiscal) : ''}${f.local ? ` · ${f.local.tipo === 'barreira' ? 'Barreira' : 'Município'}: ${esc(f.local.valor)}` : ''}`);
     cab.style.marginTop = '4px'; c.appendChild(cab);
 
     /* ---------- indicadores ---------- */
-    P.kpis(P.secao(c, 'Indicadores do controle de veículos'), [
-      { rotulo: 'Turnos de barreira', valor: turnos.length, detalhe: `${fmt.int(encerrados.length)} encerrado(s) · ${fmt.int(turnos.length - encerrados.length)} aberto(s)` },
-      { rotulo: 'Horas de barreira', valor: Math.round(min / 60), detalhe: turnos.length ? `média de ${fmt.duracao(min / turnos.length)} por turno${limitadosTxt(turnos)}` : null },
-      { rotulo: 'Veículos abordados', valor: veiculos.length, detalhe: turnos.length ? `${fmt.num(veiculos.length / turnos.length, 1)} por turno` : null },
-      { rotulo: 'Pessoas impactadas', valor: pessoas, detalhe: veiculos.length ? `${fmt.num(pessoas / veiculos.length, 1)} por veículo (estimativa)` : 'estimativa por veículo' },
-      { rotulo: 'Veículos por hora de barreira', valor: min ? fmt.num(veiculos.length / (min / 60), 1) : '—', detalhe: 'veículos ÷ horas de turno' + limitadosTxt(turnos) },
-      { rotulo: 'Em andamento agora', valor: abertos.length, status: longas ? 'critico' : ruins.length ? 'serio' : abertos.length ? 'bom' : null,
-        detalhe: abertos.length ? (ruins.length ? `${ruins.length} com alerta (sem sinal ou > 14 h)` : 'todas com sinal') : 'nenhuma barreira aberta' }
-    ]);
+    P.kpis(P.secao(c, 'Indicadores do controle de veículos'), indicadores(d));
 
     /* ---------- ao vivo + alertas ---------- */
     const duo = P.el('div', 'pn-duo pn-bar-vivo'); c.appendChild(duo);
@@ -124,25 +143,18 @@
     /* ---------- movimento ---------- */
     const sm = P.secao(c, 'Movimento de veículos', 'Quando e quanto passa pelas barreiras — base para escala de fiscais e horários de turno.');
     const g1 = P.grade(sm);
-    const vComDia = veiculos.map(v => ({ v, dia: diaDoVeiculo(v, turnoPorId) }));
-    // barras pela data do turno (v.data): fecham com o KPI "Veículos abordados" mesmo quando o turno passa da meia-noite do último dia
-    const serieLetra = L => P.porDia(veiculos.filter(v => letraDe(turnoPorId[v.turnoId] || {}) === L), f.de, f.ate, v => v.data);
-    const sA = serieLetra('A'), sB = serieLetra('B'), sX = serieLetra('');
-    const semanal = sA.labels.length > LIMITE_LINHA;
-    const agrupar = sr => { if (!semanal) return sr; const o = { labels: [], valores: [] };
-      for (let i = 0; i < sr.valores.length; i += 7) { o.labels.push(sr.labels[i]); o.valores.push(sr.valores.slice(i, i + 7).reduce((a, b) => a + b, 0)); } return o; };
-    const wA = agrupar(sA), wB = agrupar(sB), wX = agrupar(sX);
-    const dsDia = [{ label: 'Turno A', data: wA.valores }, { label: 'Turno B', data: wB.valores }];
-    if (wX.valores.some(Boolean)) dsDia.push({ label: 'Sem turno', data: wX.valores });
+    const vComDia = veiculos.map(v => ({ v, dia: v.dia || v.data }));            // dia real da passagem (Painel.normalizar)
+    const semanal = K.semanal;
+    const dsDia = [{ label: 'Turno A', data: K.porDia.A }, { label: 'Turno B', data: K.porDia.B }];
+    if (K.porDia.X.some(Boolean)) dsDia.push({ label: 'Sem turno', data: K.porDia.X });
     P.grafico(g1, 'bar-vdia', { type: 'bar', titulo: semanal ? 'Veículos por semana' : 'Veículos por dia',
       subtitulo: `Pela data de início do turno (turno que passa da meia-noite conta no dia em que começou). Empilhado por turno: A (04h–12h) e B (12h–20h)${semanal ? '. Cada barra = 7 dias a partir da data indicada.' : ''}`,
       tabelaRotulo: semanal ? 'Semana iniciada em' : 'Dia',
-      data: { labels: wA.labels, datasets: dsDia },
+      data: { labels: K.porDia.labels, datasets: dsDia },
       options: { scales: { x: { stacked: true }, y: { stacked: true } } } });
 
     // fluxo ao longo do dia: veículos por hora do relógio + cobertura
-    const cob = cobertura(turnos);
-    const h24 = Array(24).fill(0); veiculos.forEach(v => { if (v.horaNum != null && v.horaNum >= 0 && v.horaNum < 24) h24[v.horaNum]++; });
+    const cob = K.cob, h24 = K.h24;
     const horas = [...Array(24).keys()];
     P.grafico(g1, 'bar-vhora', { type: 'bar', titulo: 'Fluxo ao longo do dia', subtitulo: 'Veículos por hora do relógio (soma do período). Passe o dedo/mouse para ver a taxa por hora de barreira aberta.',
       tabelaRotulo: 'Hora',
@@ -181,7 +193,7 @@
       options: { indexAxis: 'y', plugins: { tooltip: { callbacks: { afterBody: it => [`Pessoas: ${fmt.int(pesTp[it[0].label] || 0)}`] } } } },
       data: { labels: tp.map(x => x[0]), datasets: [{ label: 'Veículos', data: tp.map(x => x[1]) }] } });
 
-    const porBar = agregar(turnos, t => t.local || 'Sem local').sort((a, b) => b.veiculos - a.veiculos);
+    const porBar = K.porBar;
     const topBar = porBar.slice(0, 12);
     P.grafico(g2, 'bar-barreira', { type: 'bar', titulo: 'Veículos por barreira / local', subtitulo: porBar.length > 12 ? `12 locais com mais veículos de ${porBar.length}` : 'Turnos e taxa no detalhe de cada barra.',
       tabelaRotulo: 'Barreira / local',
@@ -264,6 +276,6 @@
     @media (min-width: 1100px) { .pn-bar-vivo { grid-template-columns: minmax(0, 1.65fr) minmax(0, 1fr); } .pn-bar-vivo .pn-duo-mapa { order: 0; } }`;
   document.head.appendChild(css);
 
-  P.registrarAba({ id: 'barreiras', titulo: 'Barreiras', render,
+  P.registrarAba({ id: 'barreiras', titulo: 'Barreiras', render, indicadores, calculos, letraDe,
     contador: d => d.emAndamento.filter(t => t.situacao !== 'ok').length });
 })();

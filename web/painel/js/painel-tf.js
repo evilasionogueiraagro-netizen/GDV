@@ -112,9 +112,15 @@
     aplicar();
   }
 
-  /* ---------- render ---------- */
-  function render(c, d, f) {
-    const p = P.paleta;
+  /** Auditoria da numeração respeitando o filtro de barreira. */
+  function auditoriaFiltrada(d, f) {
+    const audBase = d.auditoria.tf || [];
+    return f.local && f.local.tipo === 'barreira'
+      ? audBase.filter(a => norm(a.grupo) === norm(f.local.valor) || norm(a.grupoId) === norm(f.local.valor)) : audBase;
+  }
+
+  /** Indicadores do módulo (aba e modo TV). Cada item: {chave, rotulo, valor, detalhe, status}. */
+  function indicadores(d, f) {
     const tfs = d.tfs, n = tfs.length;
     const nProc = k => tfs.filter(t => procDe(t) === k).length;
     const pct = v => n ? fmt.pct(v / n) + ' dos TFs' : null;
@@ -122,28 +128,65 @@
     const reinc = tfs.filter(t => t.reincidente), reincAp = reinc.filter(t => t.procedimento === 'apreensao').length;
     const canc = d.tfsCancelados.length, emit = d.tfsTodos.length;
     const coleta = tfs.filter(t => Number(t.coleta) === 1 || t.coleta === true).length;
-    const audBase = d.auditoria.tf || [];
-    const audit = f.local && f.local.tipo === 'barreira'
-      ? audBase.filter(a => norm(a.grupo) === norm(f.local.valor) || norm(a.grupoId) === norm(f.local.valor)) : audBase;
+    const audit = auditoriaFiltrada(d, f);
     const nConf = audit.reduce((s, a) => s + (a.conflitos || 0) + a.duplicados.length, 0);
     const nLac = audit.reduce((s, a) => s + (a.lacunasTotal || 0), 0);
     const nEd = audit.reduce((s, a) => s + a.editados.length + a.provisorios.length, 0);
+    return [
+      { chave: 'tfs', rotulo: 'TFs emitidos', valor: n, detalhe: d.veiculos.length ? `${fmt.num(n / d.veiculos.length * 100, 1)} por 100 veículos abordados` : (coleta ? `${coleta} com coleta de amostra` : 'válidos (sem cancelados)') },
+      { chave: 'liberacao', rotulo: 'Liberações', valor: nProc('liberacao'), detalhe: pct(nProc('liberacao')) },
+      { chave: 'apreensao', rotulo: 'Apreensões p/ destruição', valor: nProc('apreensao'), detalhe: pct(nProc('apreensao')) },
+      { chave: 'rechaco', rotulo: 'Rechaços (retorno à origem)', valor: nProc('rechaco'), detalhe: pct(nProc('rechaco')) },
+      { chave: 'autos', rotulo: 'Autos de infração', valor: autos, detalhe: `${fmt.int(adv)} advertência(s) · ${fmt.int(fiel)} com fiel depositário` },
+      { chave: 'reincidentes', rotulo: 'Reincidentes', valor: reinc.length, detalhe: reinc.length ? `${fmt.int(reincAp)} com nova apreensão` : 'nenhum no período', status: reincAp ? 'serio' : null },
+      { chave: 'cancelados', rotulo: 'Cancelados', valor: canc, detalhe: emit ? `${fmt.pct(canc / emit, 1)} dos ${fmt.int(emit)} emitidos` : null },
+      { chave: 'conflitos', rotulo: 'Conflitos de numeração', valor: nConf, detalhe: `${fmt.int(nLac)} lacuna(s) · ${fmt.int(nEd)} nº editado(s) ou provisório(s)`,
+        status: nConf ? 'critico' : (nLac || nEd ? 'atencao' : 'bom'), titulo: 'Auditoria da numeração (ano inteiro de cada barreira presente no período)' }
+    ];
+  }
+
+  const rota = t => { const o = lugar(t.origem), de = lugar(t.destino); return o || de ? `${o || '?'} → ${de || '?'}` : null; };
+  const prodDe = t => [...new Set(t.produtosLista.map(x => String(x.produto).toUpperCase()))];
+  /**
+   * Séries do módulo (aba e modo TV), sempre com a cor do procedimento: TFs por dia (ou semana, acima de 92 dias), por procedimento,
+   * produtos mais apreendidos/rechaçados e principais rotas.
+   */
+  function calculos(d, f, p) {
+    const tfs = d.tfs, nProc = k => tfs.filter(t => procDe(t) === k).length;
+    let rotDia, chaveDia;
+    if (f.dias > 92) {
+      const nb = Math.ceil(f.dias / 7);
+      rotDia = [...Array(nb).keys()].map(i => fmt.dataCurta(P.somaDias(f.de, i * 7)));
+      chaveDia = t => t.data ? rotDia[Math.floor(P.diasEntre(f.de, t.data) / 7)] : null;
+    } else {
+      const s = P.porDia([], f.de, f.ate), ix = {}; s.dias.forEach((x, i) => { ix[x] = s.labels[i]; });
+      rotDia = s.labels; chaveDia = t => ix[t.data];
+    }
+    const pk = PROCS.concat(SEM).filter(k => nProc(k));
+    const retidos = tfs.filter(t => t.procedimento === 'apreensao' || t.procedimento === 'rechaco');
+    const topProd = P.contar(retidos, prodDe).map(x => x[0]).slice(0, 12);
+    const topRotas = P.contar(tfs, rota).map(x => x[0]).slice(0, 10);
+    return {
+      semanal: f.dias > 92, retidos,
+      dia: { labels: rotDia, datasets: serieEmpilhada(rotDia, chaveDia, tfs, p) },
+      porProc: { chaves: pk, labels: pk.map(nomeProc), curtos: pk.map(curtoProc), valores: pk.map(nProc), cores: pk.map(k => corProc(k, p)) },
+      produtos: { labels: topProd, datasets: serieEmpilhada(topProd, prodDe, retidos, p) },
+      rotas: { labels: topRotas, datasets: serieEmpilhada(topRotas, rota, tfs, p) }
+    };
+  }
+
+  /* ---------- render ---------- */
+  function render(c, d, f) {
+    const p = P.paleta;
+    const tfs = d.tfs, n = tfs.length;
+    const audit = auditoriaFiltrada(d, f);
+    const K = calculos(d, f, p);
 
     const s0 = P.el('p', 'pn-sub', `Período: ${esc(f.rotuloPeriodo)}${f.fiscal ? ' · Fiscal: ' + esc(f.fiscal) : ''}${f.local ? ` · ${f.local.tipo === 'barreira' ? 'Barreira' : 'Município'}: ${esc(f.local.valor)}` : ''}`);
     s0.style.marginTop = '4px'; c.appendChild(s0);
 
     /* KPIs */
-    P.kpis(P.secao(c, 'Indicadores do TF de Barreira'), [
-      { rotulo: 'TFs emitidos', valor: n, detalhe: d.veiculos.length ? `${fmt.num(n / d.veiculos.length * 100, 1)} por 100 veículos abordados` : (coleta ? `${coleta} com coleta de amostra` : 'válidos (sem cancelados)') },
-      { rotulo: 'Liberações', valor: nProc('liberacao'), detalhe: pct(nProc('liberacao')) },
-      { rotulo: 'Apreensões p/ destruição', valor: nProc('apreensao'), detalhe: pct(nProc('apreensao')) },
-      { rotulo: 'Rechaços (retorno à origem)', valor: nProc('rechaco'), detalhe: pct(nProc('rechaco')) },
-      { rotulo: 'Autos de infração', valor: autos, detalhe: `${fmt.int(adv)} advertência(s) · ${fmt.int(fiel)} com fiel depositário` },
-      { rotulo: 'Reincidentes', valor: reinc.length, detalhe: reinc.length ? `${fmt.int(reincAp)} com nova apreensão` : 'nenhum no período', status: reincAp ? 'serio' : null },
-      { rotulo: 'Cancelados', valor: canc, detalhe: emit ? `${fmt.pct(canc / emit, 1)} dos ${fmt.int(emit)} emitidos` : null },
-      { rotulo: 'Conflitos de numeração', valor: nConf, detalhe: `${fmt.int(nLac)} lacuna(s) · ${fmt.int(nEd)} nº editado(s) ou provisório(s)`,
-        status: nConf ? 'critico' : (nLac || nEd ? 'atencao' : 'bom'), titulo: 'Auditoria da numeração (ano inteiro de cada barreira presente no período)' }
-    ]);
+    P.kpis(P.secao(c, 'Indicadores do TF de Barreira'), indicadores(d, f));
 
     /* Alertas do módulo */
     const al = alertasTF(d);
@@ -153,21 +196,11 @@
     /* Gráficos */
     const g = P.grade(P.secao(c, 'Emissão e procedimentos', 'Somente TFs válidos (cancelados ficam na auditoria). Cores por procedimento: liberação, apreensão, rechaço.'));
     // por dia (ou semana, em períodos longos)
-    let rotDia, chaveDia, tituloDia;
-    if (f.dias > 92) {
-      const nb = Math.ceil(f.dias / 7);
-      rotDia = [...Array(nb).keys()].map(i => fmt.dataCurta(P.somaDias(f.de, i * 7)));
-      chaveDia = t => t.data ? rotDia[Math.floor(P.diasEntre(f.de, t.data) / 7)] : null; tituloDia = 'TFs por semana';
-    } else {
-      rotDia = P.porDia([], f.de, f.ate).labels; const dias = P.porDia([], f.de, f.ate).dias, ix = {}; dias.forEach((x, i) => { ix[x] = rotDia[i]; });
-      chaveDia = t => ix[t.data]; tituloDia = 'TFs por dia';
-    }
-    P.grafico(g, 'tf-dia', { type: 'bar', titulo: tituloDia, subtitulo: 'Empilhado por procedimento', tabelaRotulo: f.dias > 92 ? 'Semana iniciada em' : 'Dia',
-      options: pilhaX, data: { labels: rotDia, datasets: serieEmpilhada(rotDia, chaveDia, tfs, p) } });
+    P.grafico(g, 'tf-dia', { type: 'bar', titulo: K.semanal ? 'TFs por semana' : 'TFs por dia', subtitulo: 'Empilhado por procedimento', tabelaRotulo: K.semanal ? 'Semana iniciada em' : 'Dia',
+      options: pilhaX, data: K.dia });
     // por procedimento
-    const pk = PROCS.concat(SEM).filter(k => nProc(k));
     P.grafico(g, 'tf-proc', { type: 'bar', titulo: 'Por procedimento', subtitulo: `${fmt.int(n)} TF(s) válido(s) no período`, options: { indexAxis: 'y' }, tabelaRotulo: 'Procedimento',
-      data: { labels: pk.map(nomeProc), datasets: [{ label: 'TFs', data: pk.map(nProc), backgroundColor: pk.map(k => corProc(k, p)) }] } });
+      data: { labels: K.porProc.labels, datasets: [{ label: 'TFs', data: K.porProc.valores, backgroundColor: K.porProc.cores }] } });
     // por barreira
     const bars = P.contar(tfs, t => t.barreiraNome || t.local || 'Sem barreira').map(x => x[0]).slice(0, 15);
     P.grafico(g, 'tf-barreira', { type: 'bar', titulo: 'Por barreira', altura: altH(bars.length), subtitulo: bars.length >= 15 ? 'As 15 barreiras com mais TFs' : null, tabelaRotulo: 'Barreira',
@@ -179,16 +212,11 @@
 
     /* Produtos e rotas */
     const g2 = P.grade(P.secao(c, 'Produtos e rotas', 'Produtos e trajetos que mais geram apreensão ou rechaço — onde concentrar a fiscalização.'));
-    const retidos = tfs.filter(t => t.procedimento === 'apreensao' || t.procedimento === 'rechaco');
-    const prodDe = t => [...new Set(t.produtosLista.map(x => String(x.produto).toUpperCase()))];
-    const topProd = P.contar(retidos, prodDe).map(x => x[0]).slice(0, 12);
-    P.grafico(g2, 'tf-produtos', { type: 'bar', titulo: 'Produtos mais apreendidos ou rechaçados', altura: altH(topProd.length), subtitulo: 'Nº de TFs em que o produto aparece (unidades diferentes não são somadas aqui; veja a tabela de quantidades)',
-      tabelaRotulo: 'Produto', options: pilhaY, vazio: 'Nenhuma apreensão ou rechaço no período.',
-      data: { labels: topProd, datasets: serieEmpilhada(topProd, prodDe, retidos, p) } });
-    const rota = t => { const o = lugar(t.origem), de = lugar(t.destino); return o || de ? `${o || '?'} → ${de || '?'}` : null; };
-    const topRotas = P.contar(tfs, rota).map(x => x[0]).slice(0, 10);
-    P.grafico(g2, 'tf-rotas', { type: 'bar', titulo: 'Principais rotas (origem → destino)', altura: altH(topRotas.length), subtitulo: 'As 10 rotas com mais TFs, por procedimento', tabelaRotulo: 'Rota',
-      options: pilhaY, vazio: 'Origem e destino não informados nos TFs do período.', data: { labels: topRotas, datasets: serieEmpilhada(topRotas, rota, tfs, p) } });
+    const retidos = K.retidos;
+    P.grafico(g2, 'tf-produtos', { type: 'bar', titulo: 'Produtos mais apreendidos ou rechaçados', altura: altH(K.produtos.labels.length), subtitulo: 'Nº de TFs em que o produto aparece (unidades diferentes não são somadas aqui; veja a tabela de quantidades)',
+      tabelaRotulo: 'Produto', options: pilhaY, vazio: 'Nenhuma apreensão ou rechaço no período.', data: K.produtos });
+    P.grafico(g2, 'tf-rotas', { type: 'bar', titulo: 'Principais rotas (origem → destino)', altura: altH(K.rotas.labels.length), subtitulo: 'As 10 rotas com mais TFs, por procedimento', tabelaRotulo: 'Rota',
+      options: pilhaY, vazio: 'Origem e destino não informados nos TFs do período.', data: K.rotas });
     const topOrig = P.contar(retidos, t => lugar(t.origem) || 'Não informada');
     const orig = P.topN(topOrig, 10, 'Outras origens');
     P.grafico(g2, 'tf-origem', { type: 'bar', titulo: 'Origem das cargas retidas', subtitulo: 'Apreensões + rechaços por local de origem', tabelaRotulo: 'Origem', options: { indexAxis: 'y' },
@@ -285,6 +313,6 @@
     ], tfs, { id: 'tf-lista', csv: 'tfs.csv', ordenar: 'data', limite: 25, vazio: 'Nenhum TF válido no período.' });
   }
 
-  P.registrarAba({ id: 'tf', titulo: 'TF de Barreira', render,
+  P.registrarAba({ id: 'tf', titulo: 'TF de Barreira', render, indicadores, calculos, corProc, curtoProc, PROCS,
     contador: d => alertasTF(d).filter(a => a.nivel === 'critico').length });
 })();

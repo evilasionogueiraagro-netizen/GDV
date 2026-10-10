@@ -1,6 +1,6 @@
 /* Painel gerencial do GDV — aba "Servidores": gerar chave de ativação do app de campo para um fiscal/servidor, reenviar o código
    (copiar / WhatsApp), acompanhar ou revogar os acessos e escolher os módulos em que cada servidor pode inserir dados
-   (Educação Sanitária/Fiscalização, TF de Barreira, PCE; por nome, valem para todos os aparelhos dele).
+   (Educação Sanitária/Fiscalização de Trânsito, TF de Barreira, PCE; por nome, valem para todos os aparelhos dele).
    Usa as actions painelGerarCodigo, painelAcessos, painelRevogar e painelPermissoes (Code.gs).
    Não depende do período nem dos filtros e não aparece no Modo TV. Usa a API do objeto global Painel (js/painel.js). */
 (() => {
@@ -10,7 +10,7 @@
   const APP_URL = 'https://evilasionogueiraagro-netizen.github.io/GDV/';
   const RECARREGAR_MS = 60 * 1000;                    // ao voltar à aba, relê a lista se a última leitura tiver mais de 1 min
   const NOME_MAX = 80;
-  const MODULOS = [['veiculos', 'Fiscalização', 'Educação Sanitária/Fiscalização', 'Fisc.'], ['tf', 'TF', 'TF de Barreira', 'TF'], ['pce', 'PCE', 'PCE – Programa de Controle e Erradicação', 'PCE']];
+  const MODULOS = [['veiculos', 'Fiscalização', 'Educação Sanitária/Fiscalização de Trânsito', 'Fisc.'], ['tf', 'TF', 'TF de Barreira', 'TF'], ['pce', 'PCE', 'PCE – Programa de Controle e Erradicação', 'PCE']];
   const TUDO = { veiculos: 1, tf: 1, pce: 1 };
   const permDe = a => Object.assign({}, TUDO, (a && a.permissoes) || {});
   const MSG_MIN = 'Marque pelo menos um módulo. Para tirar todo o acesso do servidor, use Revogar.';

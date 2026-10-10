@@ -149,12 +149,19 @@ async function home() {
       <p><b>${esc(t.numeroTF)}</b></p>
       <p><b>Fiscal:</b> ${esc(t.fiscal)}</p><p><b>Local:</b> ${esc(t.local)}</p>
       <p><b>Data:</b> ${dBR(t.data)} &nbsp; <b>Posto:</b> ${esc(t.posto || '')}</p>
-      <p><b>Início do turno:</b> ${esc(t.inicio)}</p></div>
+      <p><b>Início do turno:</b> ${esc(t.inicio)}</p>
+      <label class="chk"><input type="checkbox" id="semPlacaTurno" ${Number(t.semPlaca) ? 'checked' : ''}> Placa opcional neste turno</label></div>
     <div class="card contador"><h1>${v.length}</h1><p>Veículos registrados</p></div>
     <button class="botao" data-go="registrar">➕ Registrar veículo</button>
     <button class="botao" data-go="lista">📋 Lista de veículos</button>
     <button class="botao" data-go="resumo">📊 Resumo e documentos</button>
     <button class="botao sec" data-go="tfnovo">📄 Lavrar TF neste turno</button>`);
+  $('#semPlacaTurno').onchange = async e => {                 // dá para ligar/desligar com o turno já aberto
+    const atual = await Store.obter('turnos', t.id);
+    await Store.salvar('turnos', { ...atual, semPlaca: e.target.checked ? 1 : 0 });
+    localStorage.setItem('gdv.semPlaca', e.target.checked ? '1' : '0');
+    toast(e.target.checked ? 'Placa opcional neste turno.' : 'Placa obrigatória neste turno.'); Sync.sincronizar();
+  };
 }
 function novoTurno() {
   if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());   // turno só após a ativação
@@ -166,7 +173,12 @@ function novoTurno() {
     <label>Unidade (Termo)<input id="nUnidade" required value="${localStorage.getItem('gdv.unidade') ? ls('unidade') : esc(CONFIG.unidadePadrao)}"></label>
     <label>Fiscal 1 — nome completo *${Sync.nome() ? ' <small>(vinculado a este aparelho)</small>' : ''}<input id="nFiscal1" autocomplete="off" ${Sync.nome() ? 'readonly' : ''} value="${Sync.nome() ? esc(Sync.nome()) : ls('fiscal1')}" placeholder="Nome e sobrenome"></label>
     <label>Fiscal 2 — nome completo (opcional)<input id="nFiscal2" autocomplete="off" value="${ls('fiscal2')}" placeholder="Nome e sobrenome"></label>
+    <label class="chk"><input type="checkbox" id="nSemPlaca"> Placa opcional neste turno <small>(ex.: Barreira do Jundiá — conta veículo, tipo e pessoas sem exigir a placa)</small></label>
     <button class="botao">Iniciar turno</button></form>`);
+  // marcada por padrão no Jundiá ou se o aparelho usou placa opcional no último turno
+  const semPlacaPadrao = () => /jundi/i.test($('#nLocal').value.normalize('NFD').replace(/[\u0300-\u036f]/g, '')) || localStorage.getItem('gdv.semPlaca') === '1';
+  $('#nSemPlaca').checked = semPlacaPadrao();
+  $('#nLocal').addEventListener('change', () => { $('#nSemPlaca').checked = semPlacaPadrao(); });
   $('#fTurno').onsubmit = async e => {
     e.preventDefault();
     const nomes = ['#nFiscal1', '#nFiscal2'].map(id => $(id).value.trim().replace(/\s+/g, ' ')).filter(Boolean);
@@ -182,8 +194,9 @@ function novoTurno() {
       data, letra, posto: $('#nPosto').value,
       inicio, fim: '', ...camposLocal(gps, 'Ini'),
       fiscal: nomes.join(' e '), local: $('#nLocal').value.trim(),
-      unidade: $('#nUnidade').value.trim(), encerrado: 0
+      unidade: $('#nUnidade').value.trim(), semPlaca: $('#nSemPlaca').checked ? 1 : 0, encerrado: 0
     });
+    localStorage.setItem('gdv.semPlaca', t.semPlaca ? '1' : '0');
     ['local', 'unidade', 'posto'].forEach(k => localStorage.setItem('gdv.' + k, t[k]));
     localStorage.setItem('gdv.fiscal1', $('#nFiscal1').value.trim()); localStorage.setItem('gdv.fiscal2', $('#nFiscal2').value.trim());
     await Store.setMeta('turnoAtual', t.id);
@@ -196,9 +209,9 @@ async function registrar() {
   const t = await turnoAtual();
   if (!t) { toast('Inicie um turno primeiro.', true); return go('home'); }
   const v = EDIT ? await Store.obter('veiculos', EDIT) : null;
-  const tipo = v ? v.tipo : 'PA';
+  const tipo = v ? v.tipo : 'PA', semPlaca = !!Number(t.semPlaca);    // turno com placa opcional (ex.: Jundiá)
   view(`<form class="card" id="fVeic"><h3>${v ? 'Editar veículo' : 'Registrar veículo'}</h3>
-    <label>Placa<input id="placa" maxlength="8" autocapitalize="characters" autocomplete="off" required placeholder="ABC1D23" value="${esc(v ? v.placa : '')}"></label>
+    <label>Placa${semPlaca ? ' <small>(opcional)</small>' : ''}<input id="placa" maxlength="8" autocapitalize="characters" autocomplete="off" ${semPlaca ? '' : 'required'} placeholder="ABC1D23" value="${esc(v ? v.placa : '')}"></label>
     <label>Tipo do veículo</label>
     <div class="tipos">${Object.entries(CONFIG.tipos).map(([c, x]) => `
       <label class="tipo-card"><input type="radio" name="tipo" value="${c}" ${c === tipo ? 'checked' : ''}>${x.icone}<span>${x.nome}</span></label>`).join('')}</div>
@@ -210,17 +223,18 @@ async function registrar() {
   document.querySelectorAll('input[name=tipo]').forEach(r => r.onchange = () => {
     if (!v) $('#pessoas').value = CONFIG.tipos[r.value].pessoas;
   });
-  if (!v) placa.focus();
+  if (!v && !semPlaca) placa.focus();
   $('#fVeic').onsubmit = async e => {
     e.preventDefault();
     const p = placa.value.trim();
-    if (!/^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(p) && !confirm(`A placa "${p}" está fora do padrão. Salvar mesmo assim?`)) return;
+    if (!p && !semPlaca) { toast('Informe a placa.', true); placa.focus(); return; }
+    if (p && !/^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(p) && !confirm(`A placa "${p}" está fora do padrão. Salvar mesmo assim?`)) return;
     const existentes = await veiculosDe(t.id);
-    if (existentes.some(x => x.placa === p && x.id !== (v && v.id)) && !confirm(`A placa ${p} já foi registrada neste turno. Registrar de novo?`)) return;
+    if (p && existentes.some(x => x.placa === p && x.id !== (v && v.id)) && !confirm(`A placa ${p} já foi registrada neste turno. Registrar de novo?`)) return;
     const tp = document.querySelector('input[name=tipo]:checked').value;
     const dados = { turnoId: t.id, placa: p, tipo: tp, pessoas: Math.max(0, parseInt($('#pessoas').value, 10) || 0), obs: $('#obs').value.trim(), excluido: 0 };
     if (v) { await Store.salvar('veiculos', { ...v, ...dados }); toast('Registro atualizado.'); Sync.sincronizar(); go('lista'); }
-    else { await Store.salvar('veiculos', { ...dados, hora: agoraHM() }); toast(`${p} registrado.`); Sync.sincronizar(); go('registrar'); }
+    else { await Store.salvar('veiculos', { ...dados, hora: agoraHM() }); toast(p ? `${p} registrado.` : 'Veículo registrado (sem placa).'); Sync.sincronizar(); go('registrar'); }
   };
 }
 
@@ -234,7 +248,7 @@ async function lista() {
     const q = $('#q').value.toUpperCase();
     const v = todos.filter(x => !q || x.placa.includes(q));
     $('#itens').innerHTML = v.length ? v.map(x => `
-      <div class="item"><div class="topo"><div><div class="placa">${esc(x.placa)}</div>
+      <div class="item"><div class="topo"><div><div class="placa">${x.placa ? esc(x.placa) : '<small>sem placa</small>'}</div>
         <div class="tipo">${CONFIG.tipos[x.tipo] ? CONFIG.tipos[x.tipo].icone + ' ' + CONFIG.tipos[x.tipo].nome : esc(x.tipo)}</div></div>
         <div class="hora">${esc(x.hora)}</div></div>
         <div class="info"><b>Pessoas:</b> ${Number(x.pessoas) || 0}</div>

@@ -76,6 +76,15 @@ Dentro do mesmo app, no módulo **Termo de Fiscalização de Barreira** (menu *M
 
 **Para publicar:** atualize o `Code.gs` no Apps Script e crie uma **nova versão** da implantação (as abas novas são criadas automaticamente na primeira sincronização). Nos celulares, abra o app com internet para baixar a versão nova.
 
+## Módulo PCE (Levantamento fitossanitário e Termo de Colheita de Amostras)
+
+Fotos e assinaturas colhidas no app ficam no aparelho e, depois, sobem para o **Google Drive** do dono da planilha (pasta `GDV - Arquivos/PCE/<ano>/<levantamentos|colheitas>`, sem compartilhamento público); a aba `Arquivos` guarda o link. O Termo de Colheita tem numeração por unidade/ano, como o TF (menu **GDV → Definir último nº / Auditar numeração de Termo de Colheita**).
+
+**Para publicar (uma vez):** o PCE usa o Drive, que exige uma **nova autorização**:
+1. Atualize o `Code.gs` no Apps Script e recarregue a planilha.
+2. Menu **GDV → Autorizar acesso ao Drive (fotos do PCE)** e aceite a permissão do Google Drive (cria a pasta `GDV - Arquivos`).
+3. **Implantar → Gerenciar implantações → lápis → Nova versão → Implantar**. Enquanto isso não for feito, o envio das fotos falha com erro de autorização e elas ficam pendentes nos aparelhos (nada se perde).
+
 ## Painel do administrador (fora do app)
 
 Painel web só para o administrador, lendo a própria planilha. Fica no mesmo projeto do Apps Script (arquivo `apps-script/Painel.html`), mas é aberto por uma **segunda implantação**, com acesso restrito.

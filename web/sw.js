@@ -1,10 +1,11 @@
 // Service worker: guarda o app no aparelho para abrir sem internet.
 // VERSAO é trocada automaticamente a cada publicação (workflow do GitHub Pages usa o hash do commit).
-const VERSAO = 'gdv-v12';
+const VERSAO = 'gdv-v13';
 const ARQUIVOS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/config.js', 'js/store.js', 'js/sync.js', 'js/docs.js', 'js/tf.js', 'js/app.js',
+  'js/config.js', 'js/store.js', 'js/sync.js', 'js/docs.js', 'js/tf.js', 'js/pce.js', 'js/app.js',
   'documentos/ficha.html', 'documentos/termo.html', 'documentos/tf.html', 'documentos/ficha-campo.css', 'documentos/termo.css',
+  'documentos/pce-levantamento.html', 'documentos/pce-colheita.html', 'documentos/pce.css',
   'img/logo-adaf.png', 'img/brasao.png', 'img/sepror.png', 'img/icon-192.png', 'img/icon-512.png'
 ];
 

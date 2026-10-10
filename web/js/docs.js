@@ -107,17 +107,20 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
    * com a altura do próprio texto; 4) reduz a letra desses dois campos (até 10,5 px); 5) zoom leve (até 88%);
    * 6) último recurso: letra 9 px e zoom até 78%.
    */
-  async function caberEmUmaPagina(d, pg) {
+  // `opc` (opcional) adapta a outros modelos: `campos` = ids dos textos longos que podem ter a letra reduzida;
+  // `primeiro` = [nome, função] da 1ª etapa. Sem `opc`, vale o comportamento do TF.
+  async function caberEmUmaPagina(d, pg, opc = {}) {
     await Promise.all([...d.images].map(i => (i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; }))));
     if (d.fonts && d.fonts.ready) await d.fonts.ready;
     const alvo = 294 * 96 / 25.4;                                   // 294 mm em px (3 mm de folga na folha de 297 mm)
     const alt = () => pg.getBoundingClientRect().height;
-    const campos = ['constatacao', 'enquadramento'].map(i => d.getElementById(i));
+    const campos = (opc.campos || ['constatacao', 'enquadramento']).map(i => d.getElementById(i)).filter(Boolean);
     const usado = [];
     const etapa = (nome, fn) => { if (alt() <= alvo) return; fn(); usado.push(nome); };
-    etapa('linha extra dos produtos', () => { const l = d.getElementById('produtos2'); if (l) l.closest('tr').style.display = 'none'; });
+    const [nome1, fn1] = opc.primeiro || ['linha extra dos produtos', () => { const l = d.getElementById('produtos2'); if (l) l.closest('tr').style.display = 'none'; }];
+    etapa(nome1, fn1);
     etapa('espaçamento compacto', () => pg.classList.add('compacto'));
-    etapa('campos com a altura do texto', () => campos.forEach(c => { const td = c.closest('td'); td.style.height = 'auto'; td.style.minHeight = '0'; }));
+    etapa('campos com a altura do texto', () => campos.forEach(c => { const td = c.closest('td'); if (td) { td.style.height = 'auto'; td.style.minHeight = '0'; } }));
     let tam = 13, z = 1;
     const fonte = piso => { while (alt() > alvo && tam > piso) { tam -= 0.5; campos.forEach(c => { c.style.fontSize = tam + 'px'; c.style.lineHeight = '1.25'; }); } };
     const zoom = piso => { while (alt() > alvo && z > piso) { z = Math.round((z - 0.02) * 100) / 100; pg.style.zoom = String(z); } };
@@ -162,5 +165,110 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     imprimir(f, nomeArq);
   }
 
-  return { ficha, termo, tf, ordenar, esc };
+  /* ---------- PCE: Ficha de Levantamento Fitossanitário e Termo de Colheita de Amostras ---------- */
+  // Campos JSON chegam como string (ou já como objeto); parse defensivo.
+  const jsonPce = (v, pad) => { if (v && typeof v === 'object') return v; const r = json(v, pad); return r && typeof r === 'object' ? r : pad; };
+  const dataPce = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? `${m[3]}/${m[2]}/${m[1]}` : String(iso || ''); };
+  const dataExtenso = iso => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(iso || '')); return m ? `${Number(m[3])} de ${MESES[Number(m[2]) - 1]} de ${m[1]}` : ''; };
+  const nomeArquivo = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^\w.-]+/g, '_').replace(/^_+|_+$/g, '');
+  // Graus decimais → GMS (ex.: -3.1234 → 3°07'24,2" S)
+  function gms(v, pos, neg) {
+    const a = Math.abs(v); let g = Math.floor(a), m = Math.floor((a - g) * 60), s = Math.round(((a - g) * 60 - m) * 600) / 10;
+    if (s >= 60) { s = 0; m++; } if (m >= 60) { m = 0; g++; }
+    return `${g}°${String(m).padStart(2, '0')}'${s.toFixed(1).padStart(4, '0').replace('.', ',')}" ${v < 0 ? neg : pos}`;
+  }
+  function coordenadas(r) {
+    const la = parseFloat(r.lat), lo = parseFloat(r.lon);
+    if (isNaN(la) || isNaN(lo)) return { dec: '', gms: '' };
+    const prec = parseFloat(r.precisao);
+    return { dec: `${la.toFixed(6)}, ${lo.toFixed(6)}` + (isNaN(prec) ? '' : ` (± ${Math.round(prec)} m)`), gms: `${gms(la, 'N', 'S')}  ${gms(lo, 'L', 'O')}` };
+  }
+  // Preenche todos os elementos [data-campo] com texto (textContent: sem risco de HTML injetado).
+  function preencherCampos(d, valores) {
+    d.querySelectorAll('[data-campo]').forEach(e => {
+      const k = e.getAttribute('data-campo'), v = valores[k];
+      e.textContent = v == null ? '' : String(v);
+    });
+  }
+  const imgSegura = a => (a && typeof a.dados === 'string' && /^data:image\/(jpeg|png|webp|gif);/i.test(a.dados) ? a.dados : '');
+  // Grade de fotos: miniatura se a foto está no aparelho; senão, aviso de que está no Drive.
+  function montarFotos(d, alvo, ids, arquivos) {
+    alvo.textContent = '';
+    ids.forEach((id, i) => {
+      const fig = d.createElement('figure'); fig.className = 'foto';
+      const src = imgSegura(arquivos[id]);
+      if (src) { const im = d.createElement('img'); im.src = src; im.alt = ''; fig.append(im); }
+      else { const s = d.createElement('div'); s.className = 'sem-foto'; s.textContent = 'foto arquivada no Drive'; fig.append(s); }
+      const c = d.createElement('figcaption'); c.textContent = 'Foto ' + (i + 1); fig.append(c);
+      alvo.append(fig);
+    });
+  }
+  // Coloca a imagem da assinatura (se colhida na tela) sobre a linha correspondente.
+  function montarAssinaturas(d, ass, arquivos) {
+    d.querySelectorAll('.assinatura[data-papel]').forEach(b => {
+      const src = imgSegura(arquivos[ass[b.getAttribute('data-papel')]]), area = b.querySelector('.area');
+      area.textContent = '';
+      if (src) { const im = d.createElement('img'); im.src = src; im.alt = ''; area.append(im); }
+    });
+  }
+  const listaIds = v => { const a = jsonPce(v, []); return Array.isArray(a) ? a.filter(x => typeof x === 'string' && x) : []; };
+
+  async function pceLevantamento(reg, arquivosPorId) {
+    if (!reg) throw new Error('Levantamento não encontrado.');
+    const arquivos = arquivosPorId || {};
+    const f = await abrirModelo('pce-levantamento.html'), d = f.contentDocument;
+    const co = coordenadas(reg), fotos = listaIds(reg.fotos);
+    const culturas = (() => { const c = jsonPce(reg.culturas, []); return Array.isArray(c) ? c.filter(x => x && typeof x === 'object') : []; })();
+    preencherCampos(d, Object.assign({}, reg, {
+      data: dataPce(reg.data), doc: fmtDoc(reg.doc), coordDec: co.dec || 'Não capturadas', coordGms: co.gms,
+      nFotos: fotos.length ? `(${fotos.length})` : ''
+    }));
+    const corpo = d.getElementById('culturasCorpo');
+    if (!culturas.length) corpo.innerHTML = '<tr><td colspan="10" class="vazio">Nenhuma cultura informada.</td></tr>';
+    else corpo.innerHTML = culturas.map((c, i) => {
+      const amostra = c.coleta === 'Sim';
+      const td = v => `<td>${esc(v)}</td>`;
+      return `<tr><td class="n">${i + 1}</td>${td(c.cultura)}${td(c.area)}${td(c.espLinha)}${td(c.espPlanta)}${td(c.praga)}${td(c.coleta || 'Não')}`
+        + `${td(amostra ? c.tipoMaterial : '–')}${td(amostra ? c.codigoAmostra : '–')}${td(amostra ? c.destinoAmostra : '–')}</tr>`;
+    }).join('');
+    if (!String(reg.obs || '').trim()) d.getElementById('quadroObs').remove();
+    const gradeFotos = d.getElementById('fotos');
+    if (fotos.length) montarFotos(d, gradeFotos, fotos, arquivos);
+    else { gradeFotos.className = 'vazio'; gradeFotos.textContent = 'Nenhuma foto registrada.'; }
+    montarAssinaturas(d, jsonPce(reg.assinaturas, {}), arquivos);
+    await Promise.all([...d.images].map(i => (i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; }))));
+    imprimir(f, nomeArquivo(`Levantamento_${reg.nome || 'SEM_NOME'}_${dataPce(reg.data).replace(/\//g, '-')}`));
+  }
+
+  async function pceColheita(termo, arquivosPorId) {
+    const t = termo;
+    if (!t) throw new Error('Termo de colheita não encontrado.');
+    const arquivos = arquivosPorId || {};
+    const f = await abrirModelo('pce-colheita.html'), d = f.contentDocument;
+    const co = coordenadas(t), fotos = listaIds(t.fotos), MAX_FOTOS = 4;
+    const ext = dataExtenso(t.data);
+    preencherCampos(d, Object.assign({}, t, {
+      unidade: String(t.unidade || '').toUpperCase(), data: dataPce(t.data), doc: fmtDoc(t.doc),
+      coordDec: co.dec || 'Não capturadas', coordGms: co.gms,
+      localData: [t.local || t.municipio, ext].filter(Boolean).join(', ') || '____________________, ____ de ______________ de ______'
+    }));
+    const gradeFotos = d.getElementById('fotos'), extra = d.getElementById('fotosExtra');
+    if (fotos.length) {
+      montarFotos(d, gradeFotos, fotos.slice(0, MAX_FOTOS), arquivos);
+      if (fotos.length > MAX_FOTOS) extra.textContent = `+${fotos.length - MAX_FOTOS} foto(s) no Drive`;
+    } else { gradeFotos.className = 'vazio'; gradeFotos.textContent = 'Nenhuma foto registrada.'; }
+    montarAssinaturas(d, jsonPce(t.assinaturas, {}), arquivos);
+
+    const pg = d.querySelector('.a4');
+    if (t.cancelado) { const b = d.createElement('div'); b.className = 'cancelado-faixa'; b.textContent = 'TERMO CANCELADO' + (t.motivoCancel ? ' – ' + t.motivoCancel : ''); pg.insertBefore(b, d.querySelector('.quadro')); }
+    await caberEmUmaPagina(d, pg, { campos: ['descricao'], primeiro: ['texto oficial com a altura do texto', () => { const td = d.querySelector('td.descricao'); if (td) td.style.height = 'auto'; }] });
+    const cfg = (typeof CONFIG !== 'undefined' && CONFIG.PCE && CONFIG.PCE.vias) || 2;
+    const vias = Array.isArray(cfg) ? cfg : ['Via da ADAF', 'Via do produtor'].slice(0, Math.max(1, Number(cfg) || 2));
+    const paginas = [pg];
+    vias.slice(1).forEach(() => { const c = pg.cloneNode(true); paginas[paginas.length - 1].after(c); paginas.push(c); });
+    paginas.forEach((p, i) => { p.querySelector('.via').textContent = vias[i] || ''; });
+    imprimir(f, nomeArquivo('Termo_Colheita_' + String(t.numeroTxt || t.numero || 'SEM_NUMERO').replace(/\//g, '_')));
+  }
+
+  return { ficha, termo, tf, pceLevantamento, pceColheita, ordenar, esc };
 })();

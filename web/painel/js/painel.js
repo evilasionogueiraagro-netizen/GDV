@@ -3,7 +3,12 @@
 const Painel = (() => {
   'use strict';
   const LS_TOKEN = 'gdv.painel.token', LS_NOME = 'gdv.painel.nome', LS_ABA = 'gdv.painel.aba', LS_FILTRO = 'gdv.painel.filtro';
+  const LS_SEM_INSTALAR = 'gdv.painel.semInstalar';
+  const API_TEMPO_MS = 90 * 1000, LS_ENCERRADA = 'gdv.painel.encerrada';
   const ATUALIZAR_MS = 60 * 1000, SEM_SINAL_MIN = 30, ABERTA_LONGA_H = 14, MAX_DIAS = 366;
+  // falha de rede: nova tentativa com espera crescente (15 s, 30 s, 1 min, 2 min, 4 min, 5 min…), mantendo os últimos dados na tela
+  const ESPERA_INI_MS = 15 * 1000, ESPERA_MAX_MS = 5 * 60 * 1000;
+  const CELULAR = '(max-width: 899px)';
   // atualização automática: de minuto em minuto só as barreiras em andamento (leve); o período inteiro a cada 10 min
   // (ou a cada minuto em períodos de até 7 dias, que são pequenos)
   const COMPLETA_MS = 10 * 60 * 1000, DIAS_COMPLETA_SEMPRE = 7;
@@ -62,13 +67,16 @@ const Painel = (() => {
 
   /* ---------------- paleta (lida dos tokens CSS, acompanha claro/escuro) ---------------- */
   const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+  /** Tema efetivo: o escolhido na página (data-theme, ex.: modo TV) ou o do sistema. */
+  const temaEscuro = () => { const t = document.documentElement.dataset.theme; return t ? t === 'dark' : matchMedia('(prefers-color-scheme: dark)').matches; };
   const paleta = () => ({
     serie: [1, 2, 3, 4, 5, 6, 7, 8].map(i => css('--s' + i)),
     status: { bom: css('--bom'), atencao: css('--atencao'), serio: css('--serio'), critico: css('--critico') },
     seq: [1, 2, 3, 4, 5].map(i => css('--q' + i)),
     calor: { 0.25: '#f9c7ae', 0.5: '#f29466', 0.75: '#eb6834', 1: '#a8360f' },
     sf: css('--sf'), sf2: css('--sf2'), ink: css('--ink'), ink2: css('--ink2'), mut: css('--mut'), eixo: css('--eixo'),
-    grade: css('--grade'), base: css('--base'), escuro: matchMedia('(prefers-color-scheme: dark)').matches,
+    grade: css('--grade'), base: css('--base'), escuro: temaEscuro(),
+    mapa: { fundo: css('--mapa-fundo'), terra: css('--mapa-terra'), linha: css('--mapa-linha') },
     cor: i => css('--s' + ((i % 8) + 1)),
     alfa: (hex, a) => { const h = hex.replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
       return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; }
@@ -114,23 +122,35 @@ const Painel = (() => {
   async function api(corpo) {
     const url = urlApi(); if (!url) throw new Error('Endereço do servidor não configurado (js/config.js).');
     let r, j;
-    try { r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(corpo), redirect: 'follow' }); }
-    catch (e) { throw Object.assign(new Error('Sem conexão com o servidor. Verifique a internet.'), { rede: true }); }
-    try { j = await r.json(); } catch (e) { throw new Error('Resposta inválida do servidor (HTTP ' + r.status + ').'); }
+    // tempo limite: uma conexão travada (Wi-Fi trocado, servidor que não responde) não pode prender as atualizações para sempre
+    const ctl = typeof AbortController !== 'undefined' ? new AbortController() : null, lim = ctl ? setTimeout(() => ctl.abort(), API_TEMPO_MS) : null;
+    const semRede = () => Object.assign(new Error('Sem conexão com o servidor. Verifique a internet.'), { rede: true });
+    try {
+      try { r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(corpo), redirect: 'follow', signal: ctl ? ctl.signal : undefined }); }
+      catch (e) { throw semRede(); }
+      try { j = await r.json(); } catch (e) { if (ctl && ctl.signal.aborted) throw semRede(); throw new Error('Resposta inválida do servidor (HTTP ' + r.status + ').'); }
+    } finally { clearTimeout(lim); }
     if (!j || !j.ok) throw Object.assign(new Error((j && j.erro) || 'Erro no servidor.'), { servidor: true });
     return j;
   }
-  const erroDeSessao = m => /sess[aã]o|credencial|inv[aá]lid|revogad|restrito|administrador|n[aã]o autorizado/i.test(m || '');
+  // só estas respostas do servidor encerram a sessão (credencial revogada/inválida); falha de rede, cota ou "período inválido" nunca deslogam
+  const erroDeSessao = m => /sess[aã]o do painel|revogad|acesso restrito|n[aã]o autorizado|aparelho n[aã]o ativado/i.test(m || '');
 
   /* ---------------- estado ---------------- */
   const S = { token: ls.get(LS_TOKEN) || '', nome: ls.get(LS_NOME) || '', bruto: null, todos: null, dados: null, filtros: null,
-              aba: ls.get(LS_ABA) || 'geral', carregando: false, ultimaCarga: 0, erro: '', timer: null, abas: {}, graficos: {}, mapas: {}, tabelas: {} };
+              aba: ls.get(LS_ABA) || 'geral', carregando: false, ultimaCarga: 0, ultimaCompleta: 0, erro: '', falhas: 0, proxima: 0, timer: null,
+              abas: {}, graficos: {}, mapas: {}, tabelas: {}, tv: null };
+  // no celular a aba inicial é sempre a Visão geral (consulta rápida: barreiras em andamento no topo)
+  if (matchMedia(CELULAR).matches) S.aba = 'geral';
+  /** Modo TV (js/painel-tv.js) ligado: carga única dos últimos 30 dias, sem filtros; as abas não são desenhadas. */
+  const emTV = () => !!(S.tv && S.tv.ativo());
 
   /* ---------------- filtros ---------------- */
   const PRESETS = [['hoje', 'Hoje'], ['7d', '7 dias'], ['30d', '30 dias'], ['mes', 'Mês atual'], ['ano', 'Ano'], ['custom', 'Personalizado']];
   const F = Object.assign({ preset: '30d', de: '', ate: '', fiscal: '', local: '' }, lerJSON(ls.get(LS_FILTRO), {}));
   function periodo() {
     const hoje = diaManaus(agora());                     // "hoje" de Manaus, não do fuso do aparelho
+    if (emTV()) return { de: somaDias(hoje, -29), ate: hoje };
     switch (F.preset) {
       case 'hoje': return { de: hoje, ate: hoje };
       case '7d': return { de: somaDias(hoje, -6), ate: hoje };
@@ -142,6 +162,7 @@ const Painel = (() => {
   }
   const salvarFiltro = () => ls.set(LS_FILTRO, JSON.stringify(F));
   function filtrosAtuais() {
+    if (emTV()) { const p = periodo(); return { de: p.de, ate: p.ate, dias: diasEntre(p.de, p.ate) + 1, preset: '30d', rotuloPeriodo: `Últimos 30 dias (${fmt.dataCurta(p.de)}–${fmt.dataCurta(p.ate)})`, fiscal: '', local: null }; }
     const p = periodo(), rot = (PRESETS.find(x => x[0] === F.preset) || [])[1];
     const loc = F.local ? { tipo: F.local.slice(0, 1) === 'b' ? 'barreira' : 'municipio', valor: F.local.slice(2) } : null;
     return { de: p.de, ate: p.ate, dias: diasEntre(p.de, p.ate) + 1, preset: F.preset,
@@ -161,6 +182,24 @@ const Painel = (() => {
   }
   /** Propriedade distinta: código do cadastro; sem código, nome + município (mesma regra na Visão geral e no PCE). */
   const chaveProp = l => norm(l.codigoPropriedade) || (norm(l.propriedade) ? norm(l.propriedade) + '|' + norm(l.municipio) : 'id:' + l.id);
+  /** Duração de um turno aberto até o instante tAgora. */
+  function duracaoAberto(t, tAgora) { t.duracaoMin = t.inicioMs != null ? Math.max(0, (tAgora - t.inicioMs) / 60000) : null; }
+  /** Situação do turno no instante tAgora (sem sinal > 30 min / aberta > 14 h). */
+  function situar(t, tAgora) {
+    t.semSinal = t.emAndamento && (!t.ultimoSinal || tAgora - t.ultimoSinal > SEM_SINAL_MIN * 60000);
+    t.abertaLonga = t.emAndamento && t.duracaoMin != null && t.duracaoMin > ABERTA_LONGA_H * 60;
+    // turno esquecido aberto: nas horas de barreira (KPIs, tabelas, taxas) conta no máximo 14 h; a duração real fica em duracaoMin
+    t.horasLimitadas = t.abertaLonga; t.duracaoContabilMin = t.abertaLonga ? ABERTA_LONGA_H * 60 : t.duracaoMin;
+    t.situacao = !t.emAndamento ? 'encerrada' : t.abertaLonga ? 'longa' : t.semSinal ? 'semsinal' : 'ok';
+  }
+  /**
+   * Recalcula duração e situação dos turnos em andamento com o relógio de agora (sem nova carga). O modo TV chama a cada desenho:
+   * sem conexão, uma barreira continua "envelhecendo" (passa a sem sinal / aberta > 14 h) em vez de ficar congelada na última carga.
+   */
+  function reavaliarAbertos() {
+    if (!S.todos) return; const tAgora = agora();
+    S.todos.turnosTodos.forEach(t => { if (t.emAndamento) { duracaoAberto(t, tAgora); situar(t, tAgora); } });
+  }
   function normalizar(r) {
     const de = r.de || r._de, ate = r.ate || r._ate;
     const barreiras = (r.barreiras || []).map(b => ({ ...b }));
@@ -184,18 +223,15 @@ const Painel = (() => {
       t.inicioMs = num(t.inicioTs) || msDe(t.data, t.inicio);
       t.fimMs = t.encerrado ? (num(t.fimTs) || msDe(t.data, t.fim)) : null;
       if (t.fimMs != null && t.inicioMs != null && t.fimMs < t.inicioMs) t.fimMs += 864e5;   // passou da meia-noite
-      const fim = t.encerrado ? t.fimMs : tAgora;
-      t.duracaoMin = t.inicioMs != null && fim != null ? Math.max(0, (fim - t.inicioMs) / 60000) : null;
-      const vs = (veicPorTurno[t.id] || []).sort((a, b) => String(a.hora).localeCompare(String(b.hora)));
-      vs.forEach(v => { v.data = t.data; v.local = t.local; v.fiscal = t.fiscal; v.posto = t.posto; v.letra = t.letra; v.turnoAberto = t.emAndamento; });
+      if (t.encerrado) t.duracaoMin = t.inicioMs != null && t.fimMs != null ? Math.max(0, (t.fimMs - t.inicioMs) / 60000) : null;
+      else duracaoAberto(t, tAgora);
+      // ordem de chegada (sinal do servidor) e, no empate, pela hora: o "último veículo" fica certo em turno que passa da meia-noite
+      const vs = (veicPorTurno[t.id] || []).sort((a, b) => (a.sinal || 0) - (b.sinal || 0) || String(a.hora).localeCompare(String(b.hora)));
+      vs.forEach(v => { v.data = t.data; v.local = t.local; v.fiscal = t.fiscal; v.posto = t.posto; v.letra = t.letra; v.turnoAberto = t.emAndamento; v.dia = diaDoVeiculo(v, t); });
       t.veiculosLista = vs; t.nVeiculos = vs.length; t.nPessoas = vs.reduce((s, v) => s + v.pessoas, 0);
       t.ultimoVeiculo = vs.length ? vs[vs.length - 1] : null;
       t.ultimoSinal = Math.max(num(t.ultimoSinal) || 0, num(t.srv_ts) || 0, num(t.atualizadoEm) || 0, num(t.criadoEm) || 0, ...vs.map(v => v.sinal || 0)) || null;
-      t.semSinal = t.emAndamento && (!t.ultimoSinal || tAgora - t.ultimoSinal > SEM_SINAL_MIN * 60000);
-      t.abertaLonga = t.emAndamento && t.duracaoMin != null && t.duracaoMin > ABERTA_LONGA_H * 60;
-      // turno esquecido aberto: nas horas de barreira (KPIs, tabelas, taxas) conta no máximo 14 h; a duração real fica em duracaoMin
-      t.horasLimitadas = t.abertaLonga; t.duracaoContabilMin = t.abertaLonga ? ABERTA_LONGA_H * 60 : t.duracaoMin;
-      t.situacao = !t.emAndamento ? 'encerrada' : t.abertaLonga ? 'longa' : t.semSinal ? 'semsinal' : 'ok';
+      situar(t, tAgora);
       t.fiscais = separarNomes(t.fiscal); t.barreirasTF = [];
       t.municipio = municipioDe(t.lat, t.lon) || municipioNome(t.unidade) || null;
       t.noPeriodo = (!de || t.data >= de) && (!ate || t.data <= ate);
@@ -242,8 +278,28 @@ const Painel = (() => {
     return { agora: num(r.agora) || tAgora, de, ate, barreiras, auditoria, turnosTodos: turnos, veiculosTodos: veiculos, tfsTodos, levantamentos, colheitasTodas, historicoPce };
   }
 
-  /** Aplica fiscal e barreira/município e separa períodos, válidos e cancelados. */
-  function aplicarFiltros(N, f) {
+  /**
+   * Dia real (Manaus) em que o veículo passou: a data do turno, ou o dia seguinte se a hora é anterior ao início (turno que passou
+   * da meia-noite). Turno aberto há 20 h ou mais pode atravessar mais de uma meia-noite: aí vale o dia em que o registro chegou ao servidor.
+   */
+  function diaDoVeiculo(v, t) {
+    if (!t.data) return '';
+    const mins = hm => { const m = String(hm || '').match(/^(\d{1,2}):(\d{2})/); return m ? (+m[1]) * 60 + (+m[2]) : null; };
+    const hv = mins(v.hora); if (hv == null) return t.data;
+    if (!(t.duracaoMin != null && t.duracaoMin < 20 * 60) && v.sinal) {
+      let d = diaManaus(v.sinal); if (msDe(d, v.hora) > v.sinal + 5 * 60000) d = somaDias(d, -1);
+      return d < t.data ? t.data : d;
+    }
+    const hi = mins(t.inicio);
+    return hi != null && hv < hi - 30 ? somaDias(t.data, 1) : t.data;
+  }
+
+  /**
+   * Aplica fiscal e barreira/município e separa períodos, válidos e cancelados.
+   * faixa {de, ate} (opcional): recorte de datas dentro do período carregado (o modo TV calcula hoje, 7 e 30 dias de uma carga só);
+   * o histórico do PCE passa a ser os 365 dias anteriores ao recorte (para "novo foco" e cobertura valerem como numa carga própria).
+   */
+  function aplicarFiltros(N, f, faixa) {
     const fis = f.fiscal ? norm(f.fiscal) : '', loc = f.local;
     // nome a nome e por igualdade ("João" não traz "João Carlos"; "Ana Silva" não traz "Juliana Silva")
     const temFiscal = (...nomes) => !fis || nomes.some(n => n && separarNomes(n).some(x => norm(x) === fis));
@@ -252,19 +308,26 @@ const Painel = (() => {
     const barreiraOk = (...txts) => !loc || loc.tipo !== 'barreira' || txts.some(t => t && alvos.includes(norm(t)));
     const munOk = m => !loc || loc.tipo !== 'municipio' || norm(m) === norm(loc.valor);
     const turnoOk = t => temFiscal(t.fiscal, t.usuario) && barreiraOk(t.local, ...t.barreirasTF) && munOk(t.municipio);
+    const naFaixa = faixa ? (x => x.data >= faixa.de && x.data <= faixa.ate) : () => true;
     const turnosTodos = N.turnosTodos.filter(turnoOk);
-    const turnos = turnosTodos.filter(t => t.noPeriodo);
+    const turnos = turnosTodos.filter(t => faixa ? naFaixa(t) : t.noPeriodo);
     const emAndamento = turnosTodos.filter(t => t.emAndamento);
     const ids = new Set(turnos.map(t => t.id));
     const veiculos = N.veiculosTodos.filter(v => ids.has(v.turnoId));
-    const tfsTodos = N.tfsTodos.filter(t => temFiscal(t.fiscal, t.usuario) && barreiraOk(t.barreiraNome, t.barreira, t.local, t.turno && t.turno.local) && munOk(t.municipio));
-    const pceOk = x => temFiscal(x.servidor, x.usuario) && munOk(x.municipio);     // filtro de barreira não se aplica ao PCE
+    const tfsTodos = N.tfsTodos.filter(t => naFaixa(t) && temFiscal(t.fiscal, t.usuario) && barreiraOk(t.barreiraNome, t.barreira, t.local, t.turno && t.turno.local) && munOk(t.municipio));
+    const pceOk = x => naFaixa(x) && temFiscal(x.servidor, x.usuario) && munOk(x.municipio);     // filtro de barreira não se aplica ao PCE
     const levantamentos = N.levantamentos.filter(pceOk);
     const colheitasTodas = N.colheitasTodas.filter(pceOk);
-    return { agora: N.agora, de: N.de, ate: N.ate, barreiras: N.barreiras, auditoria: N.auditoria, turnos, emAndamento, veiculos,
+    let historicoPce = N.historicoPce;
+    if (faixa && faixa.de > (N.de || '')) {
+      const lim = somaDias(faixa.de, -365);
+      historicoPce = N.historicoPce.filter(h => h.data >= lim)
+        .concat(N.levantamentos.filter(l => l.data >= lim && l.data < faixa.de).map(l => ({ municipio: l.municipio, data: l.data, pragas: l.pragas })));
+    }
+    return { agora: N.agora, de: faixa ? faixa.de : N.de, ate: faixa ? faixa.ate : N.ate, barreiras: N.barreiras, auditoria: N.auditoria, turnos, emAndamento, veiculos,
              tfs: tfsTodos.filter(t => !t.cancelado), tfsCancelados: tfsTodos.filter(t => t.cancelado), tfsTodos,
              levantamentos, colheitas: colheitasTodas.filter(c => !c.cancelado), colheitasCanceladas: colheitasTodas.filter(c => c.cancelado), colheitasTodas,
-             historicoPce: N.historicoPce, municipios: MUN.map(m => m.nome),
+             historicoPce, municipios: MUN.map(m => m.nome),
              semFiltro: N };
   }
 
@@ -296,49 +359,62 @@ const Painel = (() => {
 
   /* ---------------- carga ---------------- */
   function status(txt, erro) { const el = $('#pn-status'); el.className = 'pn-status' + (erro ? ' erro' : ''); el.innerHTML = `<span class="pn-ponto"></span>${esc(txt)}`; }
+  /** Falha numa atualização: sessão revogada → login; qualquer outra (rede, cota, servidor fora) → mantém os dados e tenta de novo. */
+  function falhou(e) {
+    S.erro = e.message;
+    if (e.servidor && erroDeSessao(e.message)) { sair(e.message); return true; }
+    S.falhas++;
+    status(`Falha ao atualizar às ${fmt.hora(Date.now())}: ${e.message}${S.todos ? ` · exibindo dados de ${fmt.hora(S.ultimaCarga)}` : ''}`, true);
+    return false;
+  }
   async function carregar(auto) {
-    if (S.carregando) return; S.carregando = true;
-    const p = periodo();
+    if (S.carregando) { if (!auto) S.repetir = true; return; }   // pedido manual no meio de uma atualização: refaz ao terminar
+    S.carregando = true;
+    const p = periodo(), tok = S.token;
     $('#pn-conteudo').classList.add('carregando');
     if (!auto) status('Carregando…');
     try {
       await carregarGeo();
       const t0 = Date.now();
-      const j = await api({ action: 'painelDados', key: S.token, de: p.de, ate: p.ate });
+      const j = await api({ action: 'painelDados', key: tok, de: p.de, ate: p.ate });
+      if (S.token !== tok) return;                                     // saiu no meio
       if (num(j.agora)) relogio = num(j.agora) - Math.round((t0 + Date.now()) / 2);
       j.de = (j.periodo && j.periodo.de) || j.de || p.de; j.ate = (j.periodo && j.periodo.ate) || j.ate || p.ate;
-      S.bruto = j; S.todos = normalizar(j); S.ultimaCarga = S.ultimaCompleta = Date.now(); S.erro = '';
+      S.bruto = j; S.todos = normalizar(j); S.ultimaCarga = S.ultimaCompleta = Date.now(); S.erro = ''; S.falhas = 0;
       preencherOpcoes(); recalcular(auto);
       status(`Atualizado às ${fmt.hora(Date.now())} · atualização automática a cada minuto`);
     } catch (e) {
-      S.erro = e.message;
-      if (e.servidor && erroDeSessao(e.message)) { sair(e.message); return; }
-      status(`Falha ao atualizar às ${fmt.hora(Date.now())}: ${e.message}`, true);
-      if (!S.todos) { const c = $('#pn-conteudo'); c.innerHTML = `<div class="pn-cartao pn-falha" role="alert"><b>Não foi possível carregar os dados.</b><p class="pn-sub">${esc(e.message)}</p><button type="button" class="pn-btn" id="pn-tentar">Tentar de novo</button></div>`;
+      if (S.token !== tok || falhou(e)) return;
+      if (!S.todos && !emTV()) { const c = $('#pn-conteudo'); c.innerHTML = `<div class="pn-cartao pn-falha" role="alert"><b>Não foi possível carregar os dados.</b><p class="pn-sub">${esc(e.message)} Nova tentativa automática em instantes.</p><button type="button" class="pn-btn" id="pn-tentar">Tentar de novo</button></div>`;
         $('#pn-tentar').onclick = () => carregar(); }
-    } finally { S.carregando = false; $('#pn-conteudo').classList.remove('carregando'); }
+      if (emTV()) S.tv.atualizar();
+    } finally {
+      S.carregando = false; $('#pn-conteudo').classList.remove('carregando');
+      if (S.repetir) { S.repetir = false; setTimeout(() => carregar(), 0); }
+    }
   }
   /** Atualização leve: pede só os turnos em andamento (e os que estavam abertos, para saber se encerraram) com seus veículos. */
   async function carregarAoVivo() {
     if (S.carregando || !S.bruto) return; S.carregando = true;
-    const p = periodo(), B = S.bruto;
+    const p = periodo(), B = S.bruto, tok = S.token;
     try {
       const ids = (B.turnos || []).filter(t => Number(t.encerrado) !== 1).map(t => t.id);
       const t0 = Date.now();
-      const j = await api({ action: 'painelDados', key: S.token, de: B.de || p.de, ate: B.ate || p.ate, aoVivo: true, ids });
-      if (S.bruto !== B) return;                                       // uma carga completa chegou no meio
+      const j = await api({ action: 'painelDados', key: tok, de: B.de || p.de, ate: B.ate || p.ate, aoVivo: true, ids });
+      if (S.bruto !== B || S.token !== tok) return;                    // uma carga completa chegou no meio / saiu
       if (num(j.agora)) { relogio = num(j.agora) - Math.round((t0 + Date.now()) / 2); B.agora = j.agora; }
       const tocados = new Set(ids.concat((j.turnos || []).map(t => t.id)));
       B.turnos = (B.turnos || []).filter(t => !tocados.has(t.id)).concat(j.turnos || []);
       B.veiculos = (B.veiculos || []).filter(v => !tocados.has(v.turnoId)).concat(j.veiculos || []);
-      S.todos = normalizar(B); S.ultimaCarga = Date.now(); S.erro = '';
+      S.todos = normalizar(B); S.ultimaCarga = Date.now(); S.erro = ''; S.falhas = 0;
       preencherOpcoes(); recalcular(true);
       status(`Atualizado às ${fmt.hora(Date.now())} · barreiras ao vivo a cada minuto; demais dados às ${fmt.hora(S.ultimaCompleta)} (a cada 10 min)`);
     } catch (e) {
-      S.erro = e.message;
-      if (e.servidor && erroDeSessao(e.message)) { sair(e.message); return; }
-      status(`Falha ao atualizar às ${fmt.hora(Date.now())}: ${e.message}`, true);
-    } finally { S.carregando = false; }
+      if (S.token === tok && !falhou(e) && emTV()) S.tv.atualizar();
+    } finally {
+      S.carregando = false;
+      if (S.repetir) { S.repetir = false; setTimeout(() => carregar(), 0); }
+    }
   }
   function atualizarSozinho() {
     const f = filtrosAtuais();
@@ -348,11 +424,27 @@ const Painel = (() => {
   function recalcular(auto) {
     if (!S.todos) return;
     S.filtros = filtrosAtuais(); S.dados = aplicarFiltros(S.todos, S.filtros);
+    if (emTV()) { S.tv.atualizar(); return; }                         // no modo TV quem desenha é o painel-tv.js
     desenharAbas(); renderAba(auto);
   }
-  function agendar() {
-    clearInterval(S.timer);
-    S.timer = setInterval(() => { if (!document.hidden && S.token && !$('#pn-app').hidden) atualizarSozinho(); }, ATUALIZAR_MS);
+  /** Próxima atualização automática: a cada minuto; depois de falha, espera crescente (15 s → 5 min). */
+  function agendar(ms) {
+    clearTimeout(S.timer);
+    if (!S.token) return;
+    if (ms == null) ms = S.falhas ? Math.min(ESPERA_MAX_MS, ESPERA_INI_MS * 2 ** (S.falhas - 1)) : ATUALIZAR_MS;
+    S.proxima = Date.now() + ms;
+    S.timer = setTimeout(async () => {
+      if (!S.token) return;
+      if (!document.hidden && !$('#pn-app').hidden) { try { await atualizarSozinho(); } catch (e) { /* tratado em carregar */ } }
+      agendar();
+    }, ms);
+  }
+  /** Troca de modo (TV ↔ normal): o período muda, então descarta os dados e recarrega. */
+  function trocarModo() {
+    S.bruto = S.todos = S.dados = null; S.ultimaCarga = 0;
+    if (!S.token) return;
+    if (!emTV()) { desenharPresets(); $('#pn-conteudo').innerHTML = ''; }
+    carregar(); agendar();
   }
 
   /* ---------------- abas ---------------- */
@@ -374,7 +466,7 @@ const Painel = (() => {
   }
   function irPara(id) { if (!S.abas[id]) return; S.aba = id; ls.set(LS_ABA, id); desenharAbas(); renderAba(); window.scrollTo({ top: 0 }); }
   function renderAba(auto) {
-    const def = S.abas[S.aba], c = $('#pn-conteudo'); if (!def || !S.dados) return;
+    const def = S.abas[S.aba], c = $('#pn-conteudo'); if (!def || !S.dados || emTV()) return;
     const y = window.scrollY, h = c.offsetHeight;
     if (auto) c.style.minHeight = h + 'px';
     Object.keys(S.graficos).forEach(k => { try { S.graficos[k].destroy(); } catch (e) { /* já destruído */ } delete S.graficos[k]; });
@@ -616,10 +708,11 @@ const Painel = (() => {
 
   /* ---------------- alertas ---------------- */
   const NIVEIS = { critico: ['!', 'Crítico'], serio: ['!', 'Sério'], atencao: ['i', 'Atenção'], info: ['i', 'Info'] };
+  const ORDEM_NIVEL = { critico: 0, serio: 1, atencao: 2, info: 3 };
+  const ORDEM_SITUACAO = { longa: 0, semsinal: 1, ok: 2 };              // barreiras em andamento: as com alerta primeiro
   function alertas(container, lista, opts) {
     opts = opts || {};
-    const ordem = { critico: 0, serio: 1, atencao: 2, info: 3 };
-    const l = lista.slice().sort((a, b) => ordem[a.nivel] - ordem[b.nivel]);
+    const l = lista.slice().sort((a, b) => ORDEM_NIVEL[a.nivel] - ORDEM_NIVEL[b.nivel]);
     if (!l.length) { const v = vazio(container, opts.vazio || 'Nenhum alerta no período. ✓'); return v; }
     const ul = el('ul', 'pn-alertas'), max = opts.max || 8;
     l.forEach((a, i) => {
@@ -702,6 +795,10 @@ const Painel = (() => {
   };
   const INDICADORES = { deteccoes: 'Detecções de pragas', levantamentos: 'Levantamentos PCE', veiculos: 'Veículos abordados (barreira)',
                         turnos: 'Turnos de barreira', tfs: 'TFs (local da barreira)', tfsOrigem: 'TFs por município de origem', colheitas: 'Termos de colheita' };
+  // tiles do OpenStreetMap que não carregam (sem internet para mapas, rede bloqueada): o mapa fica com fundo neutro + municípios
+  // preenchidos (contornos legíveis) e não tenta de novo por 10 minutos (o painel redesenha a cada minuto)
+  let tilesFalharamEm = 0;
+  const TILES_PAUSA_MS = 10 * 60 * 1000;
   const popup = (titulo, linhas, extra) => `<div class="pn-pop"><h4>${esc(titulo)}</h4>${extra || ''}<dl>${linhas.filter(l => l && l[1] != null && l[1] !== '').map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl></div>`;
   const seloSituacao = t => t.situacao === 'longa' ? '<span class="pn-selo critico">Aberta há mais de 14 h</span>' : t.situacao === 'semsinal' ? '<span class="pn-selo info">Sem sinal há mais de 30 min</span>' : t.situacao === 'ok' ? '<span class="pn-selo bom">Em andamento</span>' : '<span class="pn-selo info">Encerrada</span>';
 
@@ -741,7 +838,16 @@ const Painel = (() => {
     const dica = el('p', 'pn-sub pn-mapa-dica', toque ? 'Use dois dedos para mover ou ampliar o mapa.' : 'Clique no mapa para ampliar com a roda do mouse.');
     card.insertBefore(dica, leg);
     map.attributionControl.setPrefix(false);
-    L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>' }).addTo(map);
+    let tiles = null, munLayer = null;
+    const ficarSemTiles = () => { div.classList.add('pn-sem-tiles'); if (tiles && map.hasLayer(tiles)) map.removeLayer(tiles); if (munLayer) munLayer.setStyle(estiloMun); };
+    if (Date.now() - tilesFalharamEm < TILES_PAUSA_MS) div.classList.add('pn-sem-tiles');
+    else {
+      tiles = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19, attribution: '© <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>' });
+      let carregados = 0, erros = 0;
+      tiles.on('tileload', () => { carregados++; });
+      tiles.on('tileerror', () => { if (++erros >= 2 && !carregados) { tilesFalharamEm = Date.now(); ficarSemTiles(); } });
+      tiles.addTo(map);
+    }
     if (memo.centro) map.setView(memo.centro, memo.zoom); else map.fitBounds(AM_LIMITES, { padding: [4, 4] });
     map.createPane('pn-mun'); map.getPane('pn-mun').style.zIndex = 350;
     const grupos = {};
@@ -751,11 +857,12 @@ const Painel = (() => {
     const limites = () => { maxInd = 0; Object.keys(porMun).forEach(n => { maxInd = Math.max(maxInd, valorInd(n)); }); };
     const classe = v => v <= 0 || !maxInd ? -1 : Math.min(4, Math.floor((v / maxInd) * 5 - 1e-9));
     const estiloMun = f => {
-      const coro = ativas.has('coropletico'), k = coro ? classe(valorInd(f.properties.name)) : -1;
+      const coro = ativas.has('coropletico'), k = coro ? classe(valorInd(f.properties.name)) : -1, sem = div.classList.contains('pn-sem-tiles');
+      if (sem) return { pane: 'pn-mun', color: p.mapa.linha, weight: 1, opacity: 1, fillColor: k >= 0 ? p.seq[k] : p.mapa.terra, fillOpacity: k >= 0 ? 0.85 : 1 };
       return { pane: 'pn-mun', color: p.escuro ? '#8d8c86' : '#5b5a56', weight: 1, opacity: 0.8, fillColor: k >= 0 ? p.seq[k] : p.sf, fillOpacity: k >= 0 ? 0.78 : 0.04 };
     };
     limites();
-    const munLayer = L.geoJSON(GEO, { style: estiloMun, pane: 'pn-mun', onEachFeature: (f, lay) => {
+    munLayer = L.geoJSON(GEO, { style: estiloMun, pane: 'pn-mun', onEachFeature: (f, lay) => {
       lay.bindTooltip(() => { const m = porMun[f.properties.name] || {}; const v = k => fmt.int(m[k] || 0);
         return `<b>${esc(f.properties.name)}</b><br>Levantamentos: ${v('levantamentos')} · Detecções: ${v('deteccoes')}<br>Turnos: ${v('turnos')} · Veículos: ${v('veiculos')}<br>TFs: ${v('tfs')} · Termos de colheita: ${v('colheitas')}${m.andamento ? `<br><b>${m.andamento} barreira(s) em andamento</b>` : ''}`; }, { sticky: true });
       lay.on('mouseover', () => lay.setStyle({ weight: 2.5, opacity: 1 })); lay.on('mouseout', () => munLayer.resetStyle(lay));
@@ -913,7 +1020,8 @@ const Painel = (() => {
     return A;
   }
 
-  function renderGeral(c, d, f) {
+  /** Indicadores da Visão geral (também usados pelo modo TV). Cada item: {chave, rotulo, valor, detalhe, status}. */
+  function indicadoresGerais(d) {
     const horas = d.turnos.reduce((s, t) => s + (t.duracaoContabilMin || 0), 0), nLim = d.turnos.filter(t => t.horasLimitadas).length;
     const pessoas = d.turnos.reduce((s, t) => s + t.nPessoas, 0);
     const proc = k => d.tfs.filter(t => t.procedimento === k).length;
@@ -921,19 +1029,41 @@ const Painel = (() => {
     const amostras = d.levantamentos.reduce((s, l) => s + l.nAmostras, 0);
     const vivos = d.emAndamento, ruins = vivos.filter(t => t.situacao !== 'ok').length;
     const prop = new Set(d.levantamentos.map(l => l.chaveProp)).size;
+    return [
+      { chave: 'andamento', rotulo: 'Barreiras em andamento agora', valor: vivos.length, detalhe: vivos.length ? (ruins ? `${ruins} com alerta (sem sinal ou > 14 h)` : 'todas com sinal') : 'nenhuma aberta', status: ruins ? 'serio' : (vivos.length ? 'bom' : null) },
+      { chave: 'horas', rotulo: 'Horas de barreira', valor: Math.round(horas / 60), detalhe: `${fmt.int(d.turnos.length)} turno(s)${nLim ? ` · ${nLim} aberto(s) há mais de 14 h contado(s) com 14 h` : ''}` },
+      { chave: 'veiculos', rotulo: 'Veículos abordados', valor: d.veiculos.length, detalhe: horas ? `${fmt.num(d.veiculos.length / (horas / 60), 1)} por hora de barreira` : null },
+      { chave: 'pessoas', rotulo: 'Pessoas impactadas', valor: pessoas, detalhe: 'estimativa por veículo' },
+      { chave: 'tfs', rotulo: 'TFs lavrados', valor: d.tfs.length, detalhe: `${fmt.int(proc('apreensao'))} apreensões · ${fmt.int(proc('rechaco'))} rechaços${d.tfsCancelados.length ? ` · ${d.tfsCancelados.length} cancelado(s)` : ''}`, apreensoes: proc('apreensao') },
+      { chave: 'levantamentos', rotulo: 'Levantamentos PCE', valor: d.levantamentos.length, detalhe: `${fmt.int(prop)} propriedade(s)` },
+      { chave: 'deteccoes', rotulo: 'Detecções de pragas', valor: det, detalhe: d.levantamentos.length ? `${fmt.pct(comPraga / d.levantamentos.length)} dos levantamentos` : null, status: det ? 'critico' : null },
+      { chave: 'amostras', rotulo: 'Amostras / termos de colheita', valor: `${fmt.int(amostras)} / ${fmt.int(d.colheitas.length)}`, detalhe: 'culturas com coleta / termos emitidos' }
+    ];
+  }
+
+  /** Cartões das barreiras em andamento (Visão geral). */
+  function secaoAoVivo(c, vivos) {
+    const sv = secao(c, 'Barreiras em andamento agora', vivos.length ? 'Atualiza sozinho a cada minuto.' : null);
+    sv.parentNode.classList.add('pn-geral-vivo');
+    if (!vivos.length) { vazio(sv, 'Nenhuma barreira aberta no momento.'); return; }
+    const g = el('div', 'pn-vivo');
+    vivos.slice().sort((a, b) => ORDEM_SITUACAO[a.situacao] - ORDEM_SITUACAO[b.situacao]).forEach(t => {
+      const it = el('div', 'pn-vivo-item');
+      it.innerHTML = `${seloSituacao(t)}<b>${esc(t.local || 'Sem local')}</b><small>${esc(t.fiscal || '')}${t.municipio ? ' · ' + esc(t.municipio) : ''}</small>
+        <small>Início ${esc(fmt.dataCurta(t.data))} ${esc(t.inicio || '')} · ${esc(fmt.duracao(t.duracaoMin))} · último sinal ${esc(fmt.rel(t.ultimoSinal))}</small>
+        <div class="pn-vivo-num"><span><strong>${fmt.int(t.nVeiculos)}</strong>veículos</span><span><strong>${fmt.int(t.nPessoas)}</strong>pessoas</span>${t.ultimoVeiculo ? `<span>último ${esc(t.ultimoVeiculo.hora)}</span>` : ''}</div>`;
+      g.appendChild(it);
+    });
+    sv.appendChild(g);
+  }
+
+  function renderGeral(c, d, f) {
+    const vivos = d.emAndamento, celular = matchMedia(CELULAR).matches;
     const s0 = el('p', 'pn-sub', `Período: ${esc(f.rotuloPeriodo)}${f.fiscal ? ' · Fiscal: ' + esc(f.fiscal) : ''}${f.local ? ` · ${f.local.tipo === 'barreira' ? 'Barreira' : 'Município'}: ${esc(f.local.valor)}` : ''}`);
     s0.style.marginTop = '4px'; c.appendChild(s0);
+    if (celular) secaoAoVivo(c, vivos);                    // no celular: consulta rápida do que está acontecendo, antes de tudo
     const k = secao(c, 'Resumo do período');
-    kpis(k, [
-      { rotulo: 'Barreiras em andamento agora', valor: vivos.length, detalhe: vivos.length ? (ruins ? `${ruins} com alerta (sem sinal ou > 14 h)` : 'todas com sinal') : 'nenhuma aberta', status: ruins ? 'serio' : (vivos.length ? 'bom' : null) },
-      { rotulo: 'Horas de barreira', valor: Math.round(horas / 60), detalhe: `${fmt.int(d.turnos.length)} turno(s)${nLim ? ` · ${nLim} aberto(s) há mais de 14 h contado(s) com 14 h` : ''}` },
-      { rotulo: 'Veículos abordados', valor: d.veiculos.length, detalhe: horas ? `${fmt.num(d.veiculos.length / (horas / 60), 1)} por hora de barreira` : null },
-      { rotulo: 'Pessoas impactadas', valor: pessoas, detalhe: 'estimativa por veículo' },
-      { rotulo: 'TFs lavrados', valor: d.tfs.length, detalhe: `${fmt.int(proc('apreensao'))} apreensões · ${fmt.int(proc('rechaco'))} rechaços${d.tfsCancelados.length ? ` · ${d.tfsCancelados.length} cancelado(s)` : ''}` },
-      { rotulo: 'Levantamentos PCE', valor: d.levantamentos.length, detalhe: `${fmt.int(prop)} propriedade(s)` },
-      { rotulo: 'Detecções de pragas', valor: det, detalhe: d.levantamentos.length ? `${fmt.pct(comPraga / d.levantamentos.length)} dos levantamentos` : null, status: det ? 'critico' : null },
-      { rotulo: 'Amostras / termos de colheita', valor: `${fmt.int(amostras)} / ${fmt.int(d.colheitas.length)}`, detalhe: 'culturas com coleta / termos emitidos' }
-    ]);
+    kpis(k, indicadoresGerais(d));
 
     const lista = alertasGerais(d), duo = el('div', 'pn-duo'); c.appendChild(duo);
     const nCrit = lista.filter(a => a.nivel === 'critico').length;
@@ -944,19 +1074,7 @@ const Painel = (() => {
     sm.parentNode.classList.add('pn-duo-mapa');
     mapa(sm, { id: 'geral', titulo: 'Situação no estado', camadas: ['andamento', 'realizadas', 'levantamentos', 'colheitas', 'calor', 'coropletico'], ativas: ['andamento', 'realizadas', 'levantamentos', 'colheitas', 'coropletico'] });
 
-    const sv = secao(c, 'Barreiras em andamento agora', vivos.length ? 'Atualiza sozinho a cada minuto.' : null);
-    if (!vivos.length) vazio(sv, 'Nenhuma barreira aberta no momento.');
-    else {
-      const g = el('div', 'pn-vivo');
-      vivos.slice().sort((a, b) => ({ longa: 0, semsinal: 1, ok: 2 }[a.situacao] - { longa: 0, semsinal: 1, ok: 2 }[b.situacao])).forEach(t => {
-        const it = el('div', 'pn-vivo-item');
-        it.innerHTML = `${seloSituacao(t)}<b>${esc(t.local || 'Sem local')}</b><small>${esc(t.fiscal || '')}${t.municipio ? ' · ' + esc(t.municipio) : ''}</small>
-          <small>Início ${esc(fmt.dataCurta(t.data))} ${esc(t.inicio || '')} · ${esc(fmt.duracao(t.duracaoMin))} · último sinal ${esc(fmt.rel(t.ultimoSinal))}</small>
-          <div class="pn-vivo-num"><span><strong>${fmt.int(t.nVeiculos)}</strong>veículos</span><span><strong>${fmt.int(t.nPessoas)}</strong>pessoas</span>${t.ultimoVeiculo ? `<span>último ${esc(t.ultimoVeiculo.hora)}</span>` : ''}</div>`;
-        g.appendChild(it);
-      });
-      sv.appendChild(g);
-    }
+    if (!celular) secaoAoVivo(c, vivos);
 
     const sr = secao(c, 'Atividade por município', 'Soma dos três módulos no período (barreiras pelo local do turno; PCE pelo município do levantamento).');
     const M = porMunicipio(d);
@@ -967,14 +1085,54 @@ const Painel = (() => {
     linhas, { csv: 'atividade-por-municipio.csv', ordenar: 'veiculos', vazio: 'Nenhum registro com município identificado no período.' });
   }
 
+  /* ---------------- dica de instalação no celular (mesma ideia do app de campo: precisaInstalar/bannerInstalar) ---------------- */
+  const UA = navigator.userAgent;
+  const ehIOS = /iPad|iPhone|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const ehAndroid = /Android/i.test(UA);
+  const instalado = () => matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true;
+  let eventoInstalar = null;                                   // evento nativo de instalação (Android/Chrome)
+  const precisaInstalar = () => (ehIOS || ehAndroid) && !instalado() && !ls.get(LS_SEM_INSTALAR) && !emTV();
+  function desenharDicaInstalar() {
+    const el = $('#pn-instalar'); if (!el) return;
+    if (!precisaInstalar()) { el.hidden = true; el.innerHTML = ''; return; }
+    const como = ehIOS
+      ? 'No Safari, toque em <b>Compartilhar</b> <span aria-hidden="true">⬆︎</span> e depois em <b>Adicionar à Tela de Início</b>. Abra pelo ícone' + (S.token ? '' : ' e entre por lá: o app instalado não aproveita o acesso feito no Safari') + '.'
+      : eventoInstalar ? 'Toque em <b>Instalar app</b> para abrir o painel pelo ícone, em tela cheia.' : 'No Chrome, toque no menu <b>⋮</b> e em <b>Instalar app</b> (ou <b>Adicionar à tela inicial</b>).';
+    el.innerHTML = `<div class="pn-instalar-txt"><b>Instale o GDV Painel no celular</b> para consultar de qualquer lugar. ${como}</div>
+      <div class="pn-instalar-acoes">${!ehIOS && eventoInstalar ? '<button type="button" class="pn-btn pn-btn-prim pn-btn-mini" data-instalar="agora">Instalar app</button>' : ''}
+      <button type="button" class="pn-instalar-x" data-instalar="fechar" aria-label="Fechar a dica de instalação">✕</button></div>`;
+    el.hidden = false;
+  }
+  window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); eventoInstalar = e; desenharDicaInstalar(); });
+  window.addEventListener('appinstalled', () => { ls.set(LS_SEM_INSTALAR, '1'); eventoInstalar = null; desenharDicaInstalar(); });
+  async function acaoInstalar(acao) {
+    if (acao === 'agora' && eventoInstalar) {
+      const ev = eventoInstalar; eventoInstalar = null; ev.prompt();
+      try { const r = await ev.userChoice; if (r && r.outcome === 'accepted') ls.set(LS_SEM_INSTALAR, '1'); } catch (e) { /* cancelado */ }
+    } else if (acao === 'fechar') ls.set(LS_SEM_INSTALAR, '1');
+    desenharDicaInstalar();
+  }
+
   /* ---------------- login / sessão ---------------- */
   function mostrar(qual) {
     $('#pn-login').hidden = qual !== 'login'; $('#pn-app').hidden = qual !== 'app'; $('#pn-usuario').hidden = qual !== 'app';
     if (qual === 'app') $('#pn-nome').textContent = S.nome || 'Administrador';
+    // no modo TV a tela de login só aparece quando o servidor diz que a credencial foi revogada/inválida (nunca por falha de rede)
+    // (na primeira configuração da TV, sem credencial ainda, não há sessão para "encerrar": pede o código normalmente)
+    const tv = emTV(), encerrada = tv && (S.encerrada || !!ls.get(LS_ENCERRADA));
+    $('#pn-login-tit').textContent = encerrada ? 'Sessão encerrada' : tv ? 'Modo TV — acesso do administrador' : 'Acesso do administrador';
+    $('#pn-login-txt').innerHTML = tv ? (encerrada ? 'Gere um novo código de administrador e digite aqui' : 'Digite um código de administrador próprio para esta TV')
+        + ' (planilha: menu <b>GDV → Gerar código de administrador</b>, ex.: nome “TV Sala da Gerência”).'
+      : 'Digite o código de administrador de 6 dígitos gerado na planilha (menu <b>GDV → Gerar código de administrador</b>). Cada código vale uma vez.';
+    desenharDicaInstalar();
   }
   function sair(msg) {
-    ls.del(LS_TOKEN); ls.del(LS_NOME); S.token = ''; S.nome = ''; S.bruto = S.todos = S.dados = null; clearInterval(S.timer);
+    S.encerrada = !!msg;                                       // credencial recusada pelo servidor (não é a 1ª configuração)
+    // o motivo fica gravado no aparelho: depois de recarregar (versão nova, TV reiniciada) continua "Sessão encerrada"
+    if (msg) ls.set(LS_ENCERRADA, msg); else ls.del(LS_ENCERRADA);
+    ls.del(LS_TOKEN); ls.del(LS_NOME); S.token = ''; S.nome = ''; S.bruto = S.todos = S.dados = null; clearTimeout(S.timer); S.falhas = 0;
     mostrar('login'); status(''); const e = $('#pn-login-erro'); e.hidden = !msg; e.textContent = msg || ''; $('#pn-codigo').value = ''; $('#pn-codigo').focus();
+    if (S.tv) S.tv.atualizar();
   }
   async function entrar(ev) {
     ev.preventDefault();
@@ -986,11 +1144,12 @@ const Painel = (() => {
       const j = await api({ action: 'painelAtivar', codigo: cod });
       if (!j.token) throw new Error('Resposta sem credencial.');
       S.token = j.token; S.nome = j.nome || 'Administrador'; ls.set(LS_TOKEN, S.token); ls.set(LS_NOME, S.nome);
+      S.encerrada = false; ls.del(LS_ENCERRADA);
       iniciarApp();
     } catch (e) { err.textContent = e.message; err.hidden = false; }
     finally { b.disabled = false; b.textContent = 'Entrar'; }
   }
-  function iniciarApp() { mostrar('app'); desenharPresets(); agendar(); carregar(); }
+  function iniciarApp() { mostrar('app'); desenharPresets(); carregar(); agendar(); }
 
   function ligarEventos() {
     $('#pn-login-form').addEventListener('submit', entrar);
@@ -1020,8 +1179,11 @@ const Painel = (() => {
       const n = l[(i + (e.key === 'ArrowRight' ? 1 : -1) + l.length) % l.length]; irPara(n.id); const b = document.getElementById('pn-aba-' + n.id); if (b) b.focus();
     });
     document.addEventListener('visibilitychange', () => { if (!document.hidden && S.token && S.todos && Date.now() - S.ultimaCarga > ATUALIZAR_MS) atualizarSozinho(); });
+    // a rede voltou: tenta já, sem esperar o fim da espera crescente
+    window.addEventListener('online', () => { if (S.token && S.falhas) agendar(500); });
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (S.dados) renderAba(true); });
     $('#pn-codigo').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6); });
+    $('#pn-instalar').addEventListener('click', e => { const b = e.target.closest('[data-instalar]'); if (b) acaoInstalar(b.dataset.instalar); });
   }
 
   registrarAba({ id: 'geral', titulo: 'Visão geral', render: renderGeral,
@@ -1029,7 +1191,13 @@ const Painel = (() => {
 
   function iniciar() {
     ligarEventos(); desenharPresets();
-    if (S.token) iniciarApp(); else { mostrar('login'); }
+    if (S.tv) S.tv.iniciar();
+    if (S.token) iniciarApp();
+    else {
+      const msg = ls.get(LS_ENCERRADA);                                    // sessão encerrada antes de recarregar: mostra o motivo de novo
+      S.encerrada = !!msg; mostrar('login');
+      if (msg) { const e = $('#pn-login-erro'); e.textContent = msg; e.hidden = false; }
+    }
   }
   if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', iniciar); else setTimeout(iniciar, 0);
 
@@ -1038,6 +1206,17 @@ const Painel = (() => {
     contar, porDia, topN, porMunicipio, municipioDe, municipioNome, parseProdutos, csv: csvBaixar, csvTexto, norm, lerJSON, alertasGerais, seloSituacao,
     get paleta() { return paleta(); }, get dados() { return S.dados; }, get filtros() { return S.filtros; }, get municipios() { return MUN.map(m => m.nome); },
     agora, recarregar: () => carregar(), DIAS_SEMANA, PROC, somaDias, diasEntre, isoDia,
-    TIPOS: (typeof CONFIG !== 'undefined' && CONFIG.tipos) || {}
+    TIPOS: (typeof CONFIG !== 'undefined' && CONFIG.tipos) || {},
+    // usados pelo modo TV (js/painel-tv.js): mesmos dados e cálculos das abas, sem duplicar regras
+    indicadoresGerais, NIVEIS, ORDEM_NIVEL, ORDEM_SITUACAO, diaManaus, horaManaus, temaEscuro, carregarGeo, ls,
+    hoje: () => diaManaus(agora()), reavaliarAbertos,
+    aba: id => S.abas[id] || null,
+    /** Dados (já normalizados, sem filtros) recortados em [de, ate] dentro da carga atual; null sem dados. */
+    recorte: (de, ate) => S.todos ? aplicarFiltros(S.todos, { fiscal: '', local: null }, { de, ate }) : null,
+    get todos() { return S.todos; }, get geo() { return GEO; }, get logado() { return !!S.token; },
+    estado: () => ({ ultimaCarga: S.ultimaCarga, ultimaCompleta: S.ultimaCompleta, erro: S.erro, falhas: S.falhas, proxima: S.proxima, carregando: S.carregando, temDados: !!S.todos }),
+    /** O modo TV se registra aqui: {ativo() → bool, iniciar(), atualizar()} (atualizar é chamado a cada carga, falha ou fim de sessão). */
+    usarTV: h => { S.tv = h; },
+    trocarModo
   };
 })();

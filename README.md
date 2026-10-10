@@ -17,7 +17,7 @@ App para registrar os veículos abordados em barreiras **fixas ou móveis**, por
 - **Fluxo do fiscal:** abre o link → recebe as instruções para **instalar** (iOS/Android) → abre o app instalado e informa o **código de ativação** → cai na tela de **Módulos**, com dois cartões: **Controle de veículos** (turno, registro, lista, resumo, histórico, Termo e Ficha) e **Termo de Fiscalização de Barreira** (TF isolado). Dentro do controle de veículos também é possível lavrar o TF (botão *Lavrar TF neste turno* na tela do turno e *Lavrar TF* em cada veículo da lista), sem sair do módulo. O item *Módulos* do menu volta sempre para essa tela.
 - **Offline primeiro:** tudo é salvo no aparelho. Ao voltar a conexão (ou a cada 60 s online) o app envia o que está pendente e baixa o que mudou. O selo no topo mostra 🟢 Online / 🔴 Offline e quantos registros aguardam envio.
 - **Um fiscal por turno** lança os dados; vários aparelhos/barreiras podem usar a mesma planilha (cada registro tem ID único; em conflito vale a edição mais recente).
-- **Horários do turno:** o início é o instante em que o fiscal toca em *Iniciar turno* e o fim, o instante de *Encerrar turno* (relógio do aparelho; mantenha data/hora automáticas). Ambos vão para o Termo. A letra do TF e o quadradinho da Ficha são deduzidos do início: 04:00–11:59 = A, demais = B. O Termo é liberado após encerrar. O encerramento é definitivo (não há como reabrir o turno).
+- **Horários do turno:** o início é o instante em que o fiscal toca em *Iniciar turno* e o fim, o instante de *Encerrar turno* (relógio do aparelho; mantenha data/hora automáticas). Ambos vão para o Termo. Na Ficha de Campo, o campo *Turno* traz esses horários reais (das HH:MM às HH:MM). A letra do TF é deduzida do início: 04:00–11:59 = A, demais = B. O Termo é liberado após encerrar. O encerramento é definitivo (não há como reabrir o turno).
 - **Coordenadas:** ao iniciar e ao encerrar o turno o app grava latitude, longitude e precisão (m) do GPS do aparelho (funciona sem internet; o navegador pede permissão de localização na primeira vez). Se o GPS falhar ou for negado, o turno segue normalmente, sem coordenadas. No Termo, o campo *Coordenadas Geográficas* recebe a coordenada **final** (encerramento; se ela faltar, a do início). Ficam **ocultas no app**: são usadas só para preencher o Termo e para gravar na planilha (`Turnos`).
 - **Excluir** apenas marca como excluído (some das telas e relatórios, permanece na planilha para auditoria).
 - **Histórico/Dashboard** funcionam offline, a partir dos dados já sincronizados no aparelho. O botão **Limpar histórico deste aparelho** remove do celular os turnos já encerrados (não apaga a planilha, não afeta o turno em andamento e só funciona se tudo já tiver sido enviado).
@@ -103,6 +103,36 @@ Fotos e assinaturas colhidas no app ficam no aparelho e, depois, sobem para o **
 3. Abra o endereço do painel, digite o código e salve nos favoritos. A sessão fica guardada no navegador; **Sair** revoga a credencial no servidor (cópias dela deixam de valer) e pede um novo código para entrar de novo. (O endereço antigo `…/exec?p=painel` só mostra um link para o novo.) Para usar outro endereço, defina a propriedade do script `PAINEL_URL`.
 
 **Proteção:** a página não contém dados; eles só são entregues a quem tem uma credencial de **administrador** (ou a chave mestra `ACCESS_KEY`). Credenciais de fiscais recebem "Acesso restrito ao administrador", e códigos de administrador não ativam aparelhos de fiscais. Após 5 códigos de administrador errados o painel fica bloqueado por 15 minutos (10 para a ativação dos aparelhos; os contadores são separados, então erros no painel não travam os fiscais). Para tirar um acesso: **GDV → Revogar acesso de um fiscal ou administrador** (a credencial deixa de valer na hora). A aba `Fiscais` lista todos os acessos (coluna `perfil` = `admin` para administradores).
+
+### Modo TV — Sala de Situação (TV da sala da gerência)
+
+Painel em tela cheia, sem rolagem e sem controles, para ficar aberto 24 h numa TV de 50" (1920×1080 ou 4K) e ser lido a 3–5 m. Topo com relógio e data de Manaus e "Atualizado às HH:MM"; telas em rotação: **Ao vivo — Barreiras (hoje)** (mapa do AM com as barreiras em andamento, rótulo com nome + veículos de hoje e a situação escrita — `! 27 h` aberta há mais de 14 h, `? sem sinal` há mais de 30 min —, cartões de cada barreira e KPIs de hoje), **Alertas para decisão**, **Barreiras — 7 dias**, **TF — 30 dias** e **PCE — 30 dias**; a tela ao vivo volta a cada duas telas. Os números são os mesmos das abas do painel.
+
+**Como montar a TV da sala**
+1. **Aparelho:** um computador ou mini PC ligado na TV pelo HDMI (o mais estável: Chrome em modo quiosque, ver abaixo), **ou** uma Smart TV / Android TV / TV box com navegador (Chrome, Edge ou o navegador da TV) — abra o endereço e use a opção de tela cheia do navegador. Ligue a TV/PC na tomada sem desligamento automático e desative a proteção de tela/suspensão do sistema (o painel também pede ao navegador para manter a tela acesa — Screen Wake Lock — quando suportado).
+2. **Credencial própria da TV:** na planilha, **GDV → Gerar código de administrador (painel)** com um nome só dela, ex.: `TV Sala da Gerência`. Não use o código do gerente: assim cada um pode ser revogado sem derrubar o outro. A credencial de administrador **não expira** sozinha (só o código de 6 dígitos, que vale 7 dias até ser usado); ela vale até ser revogada.
+3. **Abrir em modo quiosque** (Windows/Linux, atalho na inicialização do sistema):
+   ```
+   chrome --kiosk "https://evilasionogueiraagro-netizen.github.io/GDV/painel/?tv=1"
+   ```
+   (no Windows: `"C:\Program Files\Google\Chrome\Application\chrome.exe" --kiosk "…/painel/?tv=1"`; coloque o atalho em `shell:startup`). Sem quiosque, aperte **F11** (tela cheia do navegador). Use o quiosque ou o F11 e não só o botão "Tela cheia" da página: o painel recarrega sozinho a cada 6 h e quando sai uma versão nova, e o navegador sai da tela cheia da página a cada recarga (nesse caso aparece uma faixa fixa "clique em qualquer lugar para voltar à tela cheia").
+4. Na primeira vez a TV pede o código: digite o código gerado no passo 2. O aparelho lembra o modo TV (`gdv.painel.tv`) e a credencial: depois de reiniciar, volta sozinho às telas.
+
+**Parâmetros na URL** (opcionais, combináveis com `&`): `rotacao=45` (segundos por tela; padrão 30, mínimo 10), `tema=claro` (padrão `escuro` na TV; o claro é melhor em sala muito iluminada), `telas=aovivo,alertas,pce` (quais telas e em que ordem; nomes: `aovivo`, `alertas`, `barreiras`, `tf`, `pce`). Ex.: `…/painel/?tv=1&rotacao=40&telas=aovivo,alertas,aovivo,pce`. `?tv=0` desliga e esquece o modo TV naquele aparelho.
+
+**Na TV:** mexer o mouse mostra **Tela cheia** e **Sair do modo TV** (o cursor some após 3 s); teclado: ← → trocam de tela, espaço pausa ("Pausado"), Esc sai do modo TV (não faz logout). O botão Sair (logout) fica escondido no modo TV. No computador do gerente há o botão **Modo TV** no topo do painel (telas com 900 px ou mais).
+
+**Operação 24 h:** barreiras ao vivo a cada minuto e o período inteiro a cada 10 min. Sem internet a TV mantém os últimos dados (as durações e as situações "sem sinal"/"> 14 h" continuam sendo recalculadas pelo relógio), mostra a faixa âmbar **"Sem conexão — exibindo dados de HH:MM"** após 3 min e tenta de novo com espera crescente (até 5 min; uma requisição sem resposta é abandonada após 90 s). Falha de rede nunca mostra a tela de login.
+
+**Revogar a TV:** **GDV → Revogar acesso de um fiscal ou administrador** com o nome (`TV Sala da Gerência`). Na atualização seguinte (até 1 min) a TV mostra **"Sessão encerrada — Gere um novo código de administrador e digite aqui"** com o campo do código (continua assim mesmo se a página recarregar); gere um novo código e digite na TV, com um teclado ou pelo controle.
+
+### Gerente pelo celular (app em qualquer lugar)
+
+O GDV Painel é um app instalável, separado do app de campo:
+- **Android (Chrome):** abra **https://evilasionogueiraagro-netizen.github.io/GDV/painel/**; na primeira abertura aparece a dica **Instalar app** (ou menu ⋮ → **Instalar app** / **Adicionar à tela inicial**).
+- **iPhone (Safari):** abra o mesmo endereço no Safari → botão **Compartilhar** → **Adicionar à Tela de Início**.
+- Gere um código de administrador com o nome do gerente (ex.: `Gerente — celular`) e digite no app. No celular o painel abre sempre na **Visão geral**, com **Barreiras em andamento agora** no topo, antes do mapa. A dica de instalação pode ser fechada no ✕ e não volta.
+- Perdeu o celular? Revogue só essa credencial pelo nome (a da TV continua funcionando).
 
 ## Estrutura
 

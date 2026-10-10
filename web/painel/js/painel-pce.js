@@ -88,9 +88,14 @@
     return A;
   }
 
-  /* ---------- render ---------- */
-  function render(c, d, f) {
-    const p = P.paleta;
+  /** Auditoria da numeração dos termos respeitando o filtro de município. */
+  function auditoriaFiltrada(d, f) {
+    const audBase = d.auditoria.pce || [];
+    return f.local && f.local.tipo === 'municipio' ? audBase.filter(a => norm(a.grupo) === norm(f.local.valor)) : audBase;
+  }
+
+  /** Indicadores do módulo (aba e modo TV). Cada item: {chave, rotulo, valor, detalhe, status}. */
+  function indicadores(d, f) {
     const levs = d.levantamentos, nL = levs.length, itens = itensCultura(levs);
     const comPraga = levs.filter(l => l.detectou).length, det = itens.filter(x => x.praga).length;
     const props = new Set(levs.map(chaveProp)).size;
@@ -100,9 +105,37 @@
     const termos = d.colheitas, amostrasTermos = termos.reduce((s, t) => s + qtdAmostras(t), 0);
     const cob = cobertura(d, f), nMun = cob.linhas.length;
     const cob90 = cob.linhas.filter(l => l.sit >= 1).length, munPer = cob.linhas.filter(l => l.periodo).length;
-    const audBase = d.auditoria.pce || [];
-    const audit = f.local && f.local.tipo === 'municipio' ? audBase.filter(a => norm(a.grupo) === norm(f.local.valor)) : audBase;
-    const nConf = audit.reduce((s, a) => s + (a.conflitos || 0) + a.duplicados.length, 0);
+    const nConf = auditoriaFiltrada(d, f).reduce((s, a) => s + (a.conflitos || 0) + a.duplicados.length, 0);
+    return [
+      { chave: 'levantamentos', rotulo: 'Levantamentos', valor: nL, detalhe: `${fmt.int(munPer)} município(s) no período` },
+      { chave: 'propriedades', rotulo: 'Propriedades visitadas', valor: props, detalhe: 'distintas (código ou nome da propriedade)' },
+      { chave: 'area', rotulo: 'Área inspecionada', valor: area ? fmt.ha(area) : '0 ha', detalhe: 'soma das áreas das culturas' },
+      { chave: 'culturas', rotulo: 'Culturas inspecionadas', valor: itens.length, detalhe: `${fmt.int(tipos)} cultura(s) diferente(s)` },
+      { chave: 'taxa', rotulo: 'Taxa de detecção', valor: nL ? fmt.pct(comPraga / nL, 1) : '—', detalhe: `${fmt.int(comPraga)} levantamento(s) com praga · ${fmt.int(det)} detecção(ões)`,
+        status: comPraga ? 'critico' : (nL ? 'bom' : null), titulo: 'Percentual de levantamentos com alguma praga detectada em ao menos uma cultura' },
+      { chave: 'amostras', rotulo: 'Amostras coletadas', valor: amostras, detalhe: 'culturas com coleta = Sim' },
+      { chave: 'termos', rotulo: 'Termos de colheita', valor: termos.length, detalhe: `${fmt.int(amostrasTermos)} amostra(s) nos termos${d.colheitasCanceladas.length ? ` · ${d.colheitasCanceladas.length} cancelado(s)` : ''}${nConf ? ` · ${nConf} conflito(s) de nº` : ''}`,
+        status: nConf ? 'critico' : null },
+      { chave: 'cobertura', rotulo: `Cobertura (${COBERTURA_DIAS} dias)`, valor: `${fmt.int(cob90)} / ${fmt.int(nMun)}`, detalhe: `municípios com levantamento de ${fmt.dataCurta(cob.lim)} a ${fmt.dataCurta(f.ate)}`,
+        status: nMun && cob90 / nMun < 0.5 ? 'atencao' : null, cobertos: cob90, total: nMun }
+    ];
+  }
+
+  /** Cálculos do módulo para o modo TV e a aba: detecções por praga, focos (novo × recorrente) e cobertura municipal. */
+  function calculos(d, f) {
+    const itens = itensCultura(d.levantamentos);
+    const cob = cobertura(d, f), nSit = k => cob.linhas.filter(l => l.sit === k).length;
+    return { itens, pragas: P.contar(itens.filter(x => x.praga), 'praga'), cobertura: cob, focos: focos(d),
+             cob: { cobertos: cob.linhas.filter(l => l.sit >= 1).length, total: cob.linhas.length, semVisita90: nSit(0), semVisitaAno: nSit(-1), noPeriodo: cob.linhas.filter(l => l.periodo).length } };
+  }
+
+  /* ---------- render ---------- */
+  function render(c, d, f) {
+    const p = P.paleta;
+    const levs = d.levantamentos, termos = d.colheitas;
+    const K = calculos(d, f), itens = K.itens, cob = K.cobertura, nMun = cob.linhas.length;
+    const cob90 = K.cob.cobertos, munPer = K.cob.noPeriodo;
+    const audit = auditoriaFiltrada(d, f);
 
     const s0 = P.el('p', 'pn-sub', `Período: ${esc(f.rotuloPeriodo)}${f.fiscal ? ' · Servidor: ' + esc(f.fiscal) : ''}${f.local && f.local.tipo === 'municipio' ? ' · Município: ' + esc(f.local.valor) : ''}` +
       (f.local && f.local.tipo === 'barreira' ? ' · (o filtro de barreira não se aplica ao PCE)' : ''));
@@ -111,19 +144,7 @@
     /* KPIs */
     const kp = P.secao(c, 'Indicadores do PCE');
     kp.parentNode.classList.add('pn-pce-kpis');
-    P.kpis(kp, [
-      { rotulo: 'Levantamentos', valor: nL, detalhe: `${fmt.int(munPer)} município(s) no período` },
-      { rotulo: 'Propriedades visitadas', valor: props, detalhe: 'distintas (código ou nome da propriedade)' },
-      { rotulo: 'Área inspecionada', valor: area ? fmt.ha(area) : '0 ha', detalhe: 'soma das áreas das culturas' },
-      { rotulo: 'Culturas inspecionadas', valor: itens.length, detalhe: `${fmt.int(tipos)} cultura(s) diferente(s)` },
-      { rotulo: 'Taxa de detecção', valor: nL ? fmt.pct(comPraga / nL, 1) : '—', detalhe: `${fmt.int(comPraga)} levantamento(s) com praga · ${fmt.int(det)} detecção(ões)`,
-        status: comPraga ? 'critico' : (nL ? 'bom' : null), titulo: 'Percentual de levantamentos com alguma praga detectada em ao menos uma cultura' },
-      { rotulo: 'Amostras coletadas', valor: amostras, detalhe: 'culturas com coleta = Sim' },
-      { rotulo: 'Termos de colheita', valor: termos.length, detalhe: `${fmt.int(amostrasTermos)} amostra(s) nos termos${d.colheitasCanceladas.length ? ` · ${d.colheitasCanceladas.length} cancelado(s)` : ''}${nConf ? ` · ${nConf} conflito(s) de nº` : ''}`,
-        status: nConf ? 'critico' : null },
-      { rotulo: `Cobertura (${COBERTURA_DIAS} dias)`, valor: `${fmt.int(cob90)} / ${fmt.int(nMun)}`, detalhe: `municípios com levantamento de ${fmt.dataCurta(cob.lim)} a ${fmt.dataCurta(f.ate)}`,
-        status: nMun && cob90 / nMun < 0.5 ? 'atencao' : null }
-    ]);
+    P.kpis(kp, indicadores(d, f));
 
     /* Alertas */
     const al = alertasPce(d);
@@ -142,7 +163,7 @@
     P.grafico(g, 'pce-tempo', { type: 'bar', titulo: ex.porSemana ? 'Levantamentos por semana' : 'Levantamentos por dia', subtitulo: 'Empilhado por resultado',
       tabelaRotulo: ex.porSemana ? 'Semana iniciada em' : 'Dia', options: pilhaX, vazio: 'Nenhum levantamento no período.',
       data: { labels: ex.rot, datasets: serieDeteccao(ex.rot, ex.chave, levs, l => l.detectou, p) } });
-    const pr = P.contar(itens.filter(x => x.praga), 'praga');
+    const pr = K.pragas;
     P.grafico(g, 'pce-pragas', { type: 'bar', titulo: 'Detecções por praga', altura: altH(pr.length), subtitulo: 'Nº de culturas com a praga detectada', tabelaRotulo: 'Praga',
       options: horiz(), vazio: 'Nenhuma praga detectada no período.',
       data: { labels: pr.map(x => x[0]), datasets: [{ label: 'Detecções', data: pr.map(x => x[1]), cor: p.serie[1] }] } });
@@ -176,7 +197,7 @@
 
     /* Focos de pragas */
     const sf = P.secao(c, 'Focos de pragas e doenças', 'Cada praga por município no período. "Novo foco" = sem registro desta praga no município nos 365 dias anteriores ao período.');
-    const fc = focos(d).sort((a, b) => (b.novo - a.novo) || (b.deteccoes - a.deteccoes) || String(b.ultima).localeCompare(String(a.ultima)));
+    const fc = K.focos.sort((a, b) => (b.novo - a.novo) || (b.deteccoes - a.deteccoes) || String(b.ultima).localeCompare(String(a.ultima)));
     P.tabela(sf, [
       { chave: 'novo', rotulo: 'Situação', html: v => v ? selo('critico', 'Novo foco') : selo('atencao', 'Recorrente'), fmt: v => v ? 'Novo foco' : 'Recorrente', csv: v => v ? 'Novo foco' : 'Recorrente', ordem: l => l.novo ? 1 : 0 },
       { chave: 'praga', rotulo: 'Praga / doença' }, { chave: 'municipio', rotulo: 'Município' },
@@ -273,6 +294,6 @@
     }
   }
 
-  P.registrarAba({ id: 'pce', titulo: 'PCE', render,
+  P.registrarAba({ id: 'pce', titulo: 'PCE', render, indicadores, calculos, COBERTURA_DIAS,
     contador: d => alertasPce(d).filter(a => a.nivel === 'critico').length });
 })();

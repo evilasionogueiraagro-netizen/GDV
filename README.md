@@ -231,6 +231,11 @@ O GDV Painel é um app instalável, separado do app de campo:
 | `web/documentos/` | Modelos HTML do Termo e da Ficha (impressos via “Salvar como PDF”) |
 | `apps-script/` | API de sincronização que grava na planilha e entrega os dados do painel gerencial |
 | `web/painel/` | App "GDV Painel" do administrador (`index.html`, `js/painel*.js`, `css/painel.css`, `vendor/`, `dados/`, `manifest.webmanifest`, `sw.js`) |
+| `tests/` | Testes automáticos (`fakegas.js` roda o `Code.gs` real com Google falso; testes Playwright do app e do painel; `run.js`) |
+
+## Testes automáticos
+
+A pasta `tests/` tem a suíte de testes de ponta a ponta: o `tests/fakegas.js` executa o `apps-script/Code.gs` **real** em Node, com planilha, Drive, gatilhos, e-mail, cache e propriedades falsos em memória, e serve a pasta `web/`; os testes abrem o app do fiscal, o painel e o modo TV no Chromium (Playwright) e conferem planilha, telas e PDFs. Cada teste roda com um servidor novo. O workflow `.github/workflows/testes.yml` roda tudo a cada push/PR para `main` e `claude/**`; se algo falhar, os logs e screenshots ficam no artifact `saida-testes-*` da execução. Para rodar localmente: `cd tests && npm ci && npx playwright-core install chromium && node run.js` (ou `node run.js tv_test` para um teste só). Detalhes em [`tests/README.md`](tests/README.md).
 
 ## Limites conhecidos
 - A **Ficha de Campo** tem 50 linhas; acima disso o app avisa e os excedentes ficam fora da ficha (o Termo conta todos).

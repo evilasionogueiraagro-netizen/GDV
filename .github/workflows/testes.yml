@@ -1,0 +1,47 @@
+name: Testes automáticos
+# Roda tests/run.js (Code.gs real no fakegas + app/painel no Chromium). Localmente a suíte leva ~9 min,
+# então um job só basta. Se passar de ~30 min, troque por matrix com "node run.js --parte N/3"
+# (cada job em sua máquina, com seu fakegas nas portas padrão).
+on:
+  push:
+    branches: [main, 'claude/**']
+  pull_request:
+    branches: [main, 'claude/**']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: testes-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  testes:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: tests
+    env:
+      GDV_PORTA_WEB: 8081
+      GDV_PORTA_API: 8082
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: tests/package-lock.json
+      - name: Instalar dependências
+        run: npm ci
+      - name: Instalar Chromium do Playwright (mesma versão do playwright-core)
+        run: npx playwright-core install --with-deps chromium
+      - name: Instalar pypdf (usado pelo tf_paginas)
+        run: python3 -m pip install --user --break-system-packages pypdf
+      - name: Rodar testes
+        run: node run.js --tentativas 2
+      - name: Publicar saída (screenshots, PDFs, logs)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: saida-testes
+          path: tests/saida/
+          retention-days: 14

@@ -1,6 +1,6 @@
 {
-  "name": "GDV – Fiscalização",
-  "short_name": "GDV",
+  "name": "e-GDV – Fiscalização",
+  "short_name": "e-GDV",
   "start_url": "./index.html",
   "scope": "./",
   "display": "standalone",

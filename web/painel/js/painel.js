@@ -5,7 +5,7 @@ const Painel = (() => {
   const LS_TOKEN = 'gdv.painel.token', LS_NOME = 'gdv.painel.nome', LS_ABA = 'gdv.painel.aba', LS_FILTRO = 'gdv.painel.filtro';
   const LS_SEM_INSTALAR = 'gdv.painel.semInstalar';
   const API_TEMPO_MS = 90 * 1000, LS_ENCERRADA = 'gdv.painel.encerrada';
-  const ATUALIZAR_MS = 60 * 1000, SEM_SINAL_MIN = 30, ABERTA_LONGA_H = 14, MAX_DIAS = 366;
+  const ATUALIZAR_MS = 60 * 1000, SEM_SINAL_MIN = 30, ABERTA_LONGA_H = 12, MAX_DIAS = 366;
   // falha de rede: nova tentativa com espera crescente (15 s, 30 s, 1 min, 2 min, 4 min, 5 min…), mantendo os últimos dados na tela
   const ESPERA_INI_MS = 15 * 1000, ESPERA_MAX_MS = 5 * 60 * 1000;
   const CELULAR = '(max-width: 899px)';
@@ -194,11 +194,11 @@ const Painel = (() => {
   const chaveProp = l => norm(l.codigoPropriedade) || (norm(l.propriedade) ? norm(l.propriedade) + '|' + norm(l.municipio) : 'id:' + l.id);
   /** Duração de um turno aberto até o instante tAgora. */
   function duracaoAberto(t, tAgora) { t.duracaoMin = t.inicioMs != null ? Math.max(0, (tAgora - t.inicioMs) / 60000) : null; }
-  /** Situação do turno no instante tAgora (sem sinal > 30 min / aberta > 14 h). */
+  /** Situação do turno no instante tAgora (sem sinal > 30 min / aberta > 12 h). */
   function situar(t, tAgora) {
     t.semSinal = t.emAndamento && (!t.ultimoSinal || tAgora - t.ultimoSinal > SEM_SINAL_MIN * 60000);
     t.abertaLonga = t.emAndamento && t.duracaoMin != null && t.duracaoMin > ABERTA_LONGA_H * 60;
-    // turno esquecido aberto: nas horas de barreira (KPIs, tabelas, taxas) conta no máximo 14 h; a duração real fica em duracaoMin
+    // turno esquecido aberto: nas horas de barreira (KPIs, tabelas, taxas) conta no máximo 12 h; a duração real fica em duracaoMin
     t.horasLimitadas = t.abertaLonga; t.duracaoContabilMin = t.abertaLonga ? ABERTA_LONGA_H * 60 : t.duracaoMin;
     // o celular do fiscal avisou que encerrou este turno, mas o encerramento ainda não chegou à planilha
     t.situacao = !t.emAndamento ? 'encerrada' : t.encerradoNoCelular ? 'aguardando' : t.abertaLonga ? 'longa' : t.semSinal ? 'semsinal' : 'ok';
@@ -218,7 +218,7 @@ const Painel = (() => {
   const textoSemSinal = t => `Celular sem sincronizar ${t.ultimoSinal ? fmt.rel(t.ultimoSinal) : 'desde o início'} (sem internet ou app fechado)`;
   /**
    * Recalcula duração e situação dos turnos em andamento com o relógio de agora (sem nova carga). O modo TV chama a cada desenho:
-   * sem conexão, uma barreira continua "envelhecendo" (passa a sem sinal / aberta > 14 h) em vez de ficar congelada na última carga.
+   * sem conexão, uma barreira continua "envelhecendo" (passa a sem sinal / aberta > 12 h) em vez de ficar congelada na última carga.
    */
   function reavaliarAbertos() {
     if (!S.todos) return; const tAgora = agora();
@@ -232,7 +232,7 @@ const Painel = (() => {
     N.tfsAndamento = N.tfsAndamento.filter(vale);
     N.turnosTodos.forEach(t => { if (t.tfAndamento) { t.tfAndamento = t.tfAndamento.filter(vale); if (!t.tfAndamento.length) t.tfAndamento = null; } });
   }
-  /** Marcador/estado ao vivo de uma barreira aberta: TF em preenchimento na frente de tudo; depois > 14 h, sem sinal, em andamento. */
+  /** Marcador/estado ao vivo de uma barreira aberta: TF em preenchimento na frente de tudo; depois > 12 h, sem sinal, em andamento. */
   const pinoDe = t => t.tfAndamento ? 'tf' : t.situacao;
   const ordemVivo = t => t.tfAndamento ? -1 : ORDEM_SITUACAO[t.situacao];
   const tfApreensao = t => !!(t.tfAndamento && t.tfAndamento.some(a => a.apreensao));
@@ -416,6 +416,13 @@ const Painel = (() => {
 
   /* ---------------- carga ---------------- */
   function status(txt, erro) { const el = $('#pn-status'); el.className = 'pn-status' + (erro ? ' erro' : ''); el.innerHTML = `<span class="pn-ponto"></span>${esc(txt)}`; }
+  /** Rodapé: último backup automático da planilha (rotinas automáticas do Apps Script; servidor antigo não manda nada). */
+  function rodapeBackup(r) {
+    const el = $('#pn-backup'); if (!el) return;
+    if (!r) { el.textContent = ''; return; }
+    el.textContent = (r.ultimoBackup ? ` · Último backup: ${fmt.dataHora(num(r.ultimoBackup))}` : ' · Backup automático ainda não feito (GDV → Ativar rotinas automáticas)') +
+      (r.backupFalhou ? ` · falha no backup de ${fmt.dataHora(num(r.backupFalhou))}` : '');
+  }
   /** Falha numa atualização: sessão revogada → login; qualquer outra (rede, cota, servidor fora) → mantém os dados e tenta de novo. */
   function falhou(e) {
     S.erro = e.message;
@@ -438,7 +445,7 @@ const Painel = (() => {
       if (num(j.agora)) relogio = num(j.agora) - Math.round((t0 + Date.now()) / 2);
       j.de = (j.periodo && j.periodo.de) || j.de || p.de; j.ate = (j.periodo && j.periodo.ate) || j.ate || p.ate;
       S.bruto = j; S.todos = normalizar(j); S.ultimaCarga = S.ultimaCompleta = S.ultimaRegular = Date.now(); S.erro = ''; S.falhas = 0;
-      preencherOpcoes(); recalcular(auto); processarTF();
+      preencherOpcoes(); recalcular(auto); processarTF(); rodapeBackup(j.rotinas);
       status(`Atualizado às ${fmt.hora(Date.now())} · atualização automática a cada minuto${S.tfRapido ? ' (barreiras a cada 25 s: TF em preenchimento)' : ''}`);
     } catch (e) {
       if (S.token !== tok || falhou(e)) return;
@@ -954,7 +961,7 @@ const Painel = (() => {
   let tilesFalharamEm = 0;
   const TILES_PAUSA_MS = 10 * 60 * 1000;
   const popup = (titulo, linhas, extra) => `<div class="pn-pop"><h4>${esc(titulo)}</h4>${extra || ''}<dl>${linhas.filter(l => l && l[1] != null && l[1] !== '').map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl></div>`;
-  const seloSituacao = t => t.tfAndamento ? `<span class="pn-selo tf">${rotuloTF(t)}</span>` : t.situacao === 'aguardando' ? '<span class="pn-selo aguardando">Encerrado no celular, aguardando envio</span>' : t.situacao === 'longa' ? '<span class="pn-selo critico">Aberta há mais de 14 h</span>' : t.situacao === 'semsinal' ? '<span class="pn-selo info">Sem sinal há mais de 30 min</span>' : t.situacao === 'ok' ? '<span class="pn-selo bom">Em andamento</span>' : '<span class="pn-selo info">Encerrada</span>';
+  const seloSituacao = t => t.tfAndamento ? `<span class="pn-selo tf">${rotuloTF(t)}</span>` : t.situacao === 'aguardando' ? '<span class="pn-selo aguardando">Encerrado no celular, aguardando envio</span>' : t.situacao === 'longa' ? '<span class="pn-selo critico">Aberta há mais de 12 h</span>' : t.situacao === 'semsinal' ? '<span class="pn-selo info">Sem sinal há mais de 30 min</span>' : t.situacao === 'ok' ? '<span class="pn-selo bom">Em andamento</span>' : '<span class="pn-selo info">Encerrada</span>';
 
   /**
    * Painel.mapa(container, {id, titulo, subtitulo, camadas, ativas, indicador, altura, dados})
@@ -1112,7 +1119,7 @@ const Painel = (() => {
         ...(d.emAndamento.some(t => pinoDe(t) === 'aguardando') ? [`<span>${pino('aguardando')}Encerrada no celular, aguardando envio (${fmt.int(d.emAndamento.filter(t => pinoDe(t) === 'aguardando').length)})</span>`] : []),
         `<span>${pino('ok')}Barreira em andamento (${fmt.int(d.emAndamento.filter(t => pinoDe(t) === 'ok').length)})</span>`,
         `<span>${pino('semsinal')}Barreira sem sinal &gt; 30 min (${fmt.int(d.emAndamento.filter(t => pinoDe(t) === 'semsinal').length)})</span>`,
-        `<span>${pino('longa')}Barreira aberta &gt; 14 h (${fmt.int(d.emAndamento.filter(t => pinoDe(t) === 'longa').length)})</span>`);
+        `<span>${pino('longa')}Barreira aberta &gt; 12 h (${fmt.int(d.emAndamento.filter(t => pinoDe(t) === 'longa').length)})</span>`);
       if (ativas.has('realizadas')) it.push(`<span><i class="pn-lg-pto" style="background:${p.alfa(p.serie[6], .55)};border-color:${p.ink};border-width:1.5px;box-shadow:none"></i>Barreira realizada (tamanho = nº de veículos)</span>`);
       if (ativas.has('levantamentos')) it.push(`<span><i class="pn-lg-pto" style="width:14px;height:14px;background:${p.serie[1]};border-color:${p.ink}"></i>Levantamento com praga</span>`, `<span><i class="pn-lg-pto" style="background:${p.serie[0]}"></i>Levantamento sem praga</span>`);
       if (ativas.has('colheitas')) it.push(`<span><i class="pn-lg-los" style="background:${p.serie[2]}"></i>Termo de colheita</span>`);
@@ -1157,11 +1164,11 @@ const Painel = (() => {
       titulo: `Novo foco de ${pr}: ${fs.length === 1 ? fs[0].mun : fs.length + ' municípios'}`,
       detalhe: fs.map(f => `${f.mun} (desde ${fmt.dataCurta(f.data)}, ${f.n} levant.)`).join('; ') + '. Sem registro desta praga no município nos 365 dias anteriores.' +
         (fs.some(f => f.novoMun) ? ` Sem nenhuma detecção anterior: ${fs.filter(f => f.novoMun).map(f => f.mun).join(', ')}.` : '') }));
-    // 2. barreiras abertas há mais de 14 h / sem sinal
+    // 2. barreiras abertas há mais de 12 h / sem sinal
     d.emAndamento.forEach(t => {
       if (t.situacao === 'aguardando') A.push({ nivel: 'serio', aba: 'barreiras', titulo: `Encerrado no celular, aguardando envio: ${t.local || 'sem local'}`,
         detalhe: `${t.fiscal || 'O fiscal'} encerrou o turno no celular${t.fimNoCelular ? ' às ' + t.fimNoCelular : ''}, mas o encerramento ainda não chegou à planilha${t.aparelho && t.aparelho.erroAtual && t.aparelho.ultimoErro ? ' (erro ao enviar: ' + t.aparelho.ultimoErro + ')' : ''}. Peça para abrir o app com internet; se não der, use Encerrar turno.` });
-      else if (t.abertaLonga) A.push({ nivel: 'critico', aba: 'barreiras', titulo: `Barreira aberta há ${fmt.duracao(t.duracaoMin)}: ${t.local || 'sem local'}`, detalhe: `Início ${fmt.data(t.data)} ${t.inicio || ''} · ${t.fiscal || ''}. Verificar se o turno não foi encerrado no aparelho.` });
+      else if (t.abertaLonga) A.push({ nivel: 'critico', aba: 'barreiras', titulo: `Barreira aberta há ${fmt.duracao(t.duracaoMin)}: ${t.local || 'sem local'}`, detalhe: `Início ${fmt.data(t.data)} ${t.inicio || ''} · ${t.fiscal || ''}. Verificar se o turno não foi encerrado no aparelho. Plantão vai até 12 h: o GDV encerra este turno sozinho (rotina automática).` });
       else if (t.semSinal) A.push({ nivel: 'serio', aba: 'barreiras', titulo: `Barreira sem sinal ${fmt.rel(t.ultimoSinal)}: ${t.local || 'sem local'}`, detalhe: `Último dado recebido ${fmt.dataHora(t.ultimoSinal)} · ${t.fiscal || ''}. ${textoSemSinal(t)}.` });
     });
     // 3. numeração de TFs e termos (agrupado por módulo)
@@ -1204,8 +1211,8 @@ const Painel = (() => {
     const vivos = d.emAndamento, ruins = vivos.filter(t => t.situacao !== 'ok').length;
     const prop = new Set(d.levantamentos.map(l => l.chaveProp)).size;
     return [
-      { chave: 'andamento', rotulo: 'Barreiras em andamento agora', valor: vivos.length, detalhe: vivos.length ? (ruins ? `${ruins} com alerta (sem sinal ou > 14 h)` : 'todas com sinal') : 'nenhuma aberta', status: ruins ? 'serio' : (vivos.length ? 'bom' : null) },
-      { chave: 'horas', rotulo: 'Horas de barreira', valor: Math.round(horas / 60), detalhe: `${fmt.int(d.turnos.length)} turno(s)${nLim ? ` · ${nLim} aberto(s) há mais de 14 h contado(s) com 14 h` : ''}` },
+      { chave: 'andamento', rotulo: 'Barreiras em andamento agora', valor: vivos.length, detalhe: vivos.length ? (ruins ? `${ruins} com alerta (sem sinal ou > 12 h)` : 'todas com sinal') : 'nenhuma aberta', status: ruins ? 'serio' : (vivos.length ? 'bom' : null) },
+      { chave: 'horas', rotulo: 'Horas de barreira', valor: Math.round(horas / 60), detalhe: `${fmt.int(d.turnos.length)} turno(s)${nLim ? ` · ${nLim} aberto(s) há mais de 12 h contado(s) com 12 h` : ''}` },
       { chave: 'veiculos', rotulo: 'Veículos abordados', valor: d.veiculos.length, detalhe: horas ? `${fmt.num(d.veiculos.length / (horas / 60), 1)} por hora de barreira` : null },
       { chave: 'pessoas', rotulo: 'Pessoas impactadas', valor: pessoas, detalhe: 'estimativa por veículo' },
       { chave: 'tfs', rotulo: 'TFs lavrados', valor: d.tfs.length, detalhe: `${fmt.int(proc('apreensao'))} apreensões · ${fmt.int(proc('rechaco'))} rechaços${d.tfsCancelados.length ? ` · ${d.tfsCancelados.length} cancelado(s)` : ''}`, apreensoes: proc('apreensao') },

@@ -467,7 +467,7 @@ body.tv.tv-ocioso, body.tv.tv-ocioso * { cursor: none !important; }
 .tv-rotulo.longa b, .tv-rotulo.semsinal b { font-weight: 750; }
 .tv-pin { width: var(--pin, 28px); height: var(--pin, 28px); border-radius: 50%; border: calc(var(--pin, 28px) * .16) solid var(--sf); box-shadow: 0 0 0 1px rgba(0,0,0,.45); position: relative; box-sizing: border-box;
   color: #fff; font: 800 calc(var(--pin, 28px) * .5)/1 system-ui, sans-serif; display: flex; align-items: center; justify-content: center; }
-/* forma por situação (verde × vermelho não basta para daltonismo): círculo = em andamento, quadrado "?" = sem sinal, losango "!" = aberta > 14 h */
+/* forma por situação (verde × vermelho não basta para daltonismo): círculo = em andamento, quadrado "?" = sem sinal, losango "!" = aberta > 12 h */
 .tv-pin.ok { background: var(--bom); } .tv-pin.semsinal { background: #8a8a85; border-radius: 18%; } .tv-pin.longa { background: var(--critico); border-radius: 14%; transform: rotate(45deg) scale(.78); font-size: calc(var(--pin, 28px) * .64); }   /* a escala encolhe o glifo: fonte compensada */
 .tv-pin::before { display: block; } .tv-pin.semsinal::before { content: "?"; } .tv-pin.longa::before { content: "!"; transform: rotate(-45deg); }
 .tv-pin.ok::after { content: ""; position: absolute; inset: calc(var(--pin, 28px) * -.55); border-radius: 50%; border: calc(var(--pin, 28px) * .1) solid var(--bom); animation: pn-pulso 1.8s ease-out infinite; }

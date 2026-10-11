@@ -233,7 +233,9 @@ async function home() {
     <button class="botao" data-go="registrar">➕ Registrar veículo</button>
     <button class="botao" data-go="lista">📋 Lista de veículos</button>
     <button class="botao" data-go="resumo">📊 Resumo e documentos</button>
-    ${Sync.pode('tf') ? '<button class="botao sec" data-go="tfnovo">📄 Lavrar TF neste turno</button>' : ''}`);
+    ${Sync.pode('tf') ? '<button class="botao sec" data-go="tfnovo">📄 Lavrar TF neste turno</button>' : ''}
+    <button class="botao vermelho" id="encerrar">⏹ Encerrar turno</button>`);
+  $('#encerrar').onclick = () => encerrarTurno(t);
 }
 function novoTurno() {
   if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());   // turno só após a ativação
@@ -371,21 +373,23 @@ async function resumo() {
     ${temFicha(t) ? `<button class="botao" data-doc="ficha" data-id="${t.id}">📝 Ficha de Campo (PDF)</button>` : ''}
     <button class="botao vermelho" id="encerrar">⏹ Encerrar turno</button>
     <p class="dica">Início do turno: ${esc(t.inicio)}. Ao encerrar, o horário final é registrado e o Termo de Fiscalização fica disponível.<br>Na janela de impressão, escolha “Salvar como PDF”.</p>`);
-  $('#encerrar').onclick = async () => {
-    const fim = agoraHM();
-    if (!confirm(`Encerrar o turno agora (${fim})? Esta ação é definitiva: não será possível registrar novos veículos nem reabrir o turno.`)) return;
-    const b = $('#encerrar'); b.disabled = true; b.textContent = 'Encerrando…';
-    // Grava o encerramento NA HORA (antes do GPS): se o app for fechado ou o celular travar esperando a localização,
-    // o turno já está encerrado e nada se perde. A coordenada final é acrescentada depois, quando o GPS responder.
-    const f = await Store.salvar('turnos', { ...t, encerrado: 1, fim });
-    await Store.setMeta('turnoAtual', '');
-    Sync.sincronizar();                                    // envia já (não espera o GPS: o fiscal pode fechar o app logo em seguida)
-    go('fechado', f.id);
-    const gps = await pegarLocal();
-    if (gps) { const atual = await Store.obter('turnos', f.id); if (atual) await Store.salvar('turnos', { ...atual, ...camposLocal(gps, 'Fim') }); }
-    else toast('Turno encerrado sem coordenadas (GPS indisponível ou permissão negada).', true);
-    Sync.sincronizar();
-  };
+  $('#encerrar').onclick = () => encerrarTurno(t);
+}
+/** Encerra o turno (botão na tela do turno e no Resumo). */
+async function encerrarTurno(t) {
+  const fim = agoraHM();
+  if (!confirm(`Encerrar o turno agora (${fim})? Esta ação é definitiva: não será possível registrar novos veículos nem reabrir o turno.`)) return;
+  const b = $('#encerrar'); b.disabled = true; b.textContent = 'Encerrando…';
+  // Grava o encerramento NA HORA (antes do GPS): se o app for fechado ou o celular travar esperando a localização,
+  // o turno já está encerrado e nada se perde. A coordenada final é acrescentada depois, quando o GPS responder.
+  const f = await Store.salvar('turnos', { ...((await Store.obter('turnos', t.id)) || t), encerrado: 1, fim });
+  await Store.setMeta('turnoAtual', '');
+  Sync.sincronizar();                                    // envia já (não espera o GPS: o fiscal pode fechar o app logo em seguida)
+  go('fechado', f.id);
+  const gps = await pegarLocal();
+  if (gps) { const atual = await Store.obter('turnos', f.id); if (atual) await Store.salvar('turnos', { ...atual, ...camposLocal(gps, 'Fim') }); }
+  else toast('Turno encerrado sem coordenadas (GPS indisponível ou permissão negada).', true);
+  Sync.sincronizar();
 }
 async function fechado() {
   const t = await Store.obter('turnos', EDIT);

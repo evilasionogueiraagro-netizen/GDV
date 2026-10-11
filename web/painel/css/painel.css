@@ -85,6 +85,10 @@ a { color: var(--marca2); }
 .pn-grade > * { min-width: 0; }
 .pn-vazio { color: var(--mut); font-size: 14px; text-align: center; padding: 22px 8px; }
 .pn-falha { color: var(--critico); border-color: color-mix(in srgb, var(--critico) 40%, transparent); }
+/* aviso do arquivo anual: período com anos que já saíram da planilha principal (discreto, no topo do conteúdo) */
+.pn-arquivo { max-width: 1400px; margin: 10px auto 0; padding: 0 16px; font-size: 13px; color: var(--ink2); }
+.pn-arquivo > div { background: var(--sf2); border: 1px solid var(--borda); border-left: 3px solid var(--eixo); border-radius: 8px; padding: 8px 12px; overflow-wrap: anywhere; }
+.pn-arquivo a { color: inherit; font-weight: 600; }
 .pn-rodape { max-width: 1400px; margin: 0 auto; padding: 8px 16px 28px; color: var(--mut); font-size: 12px; }
 
 /* Filtros */

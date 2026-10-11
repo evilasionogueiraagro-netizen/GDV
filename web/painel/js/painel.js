@@ -432,7 +432,18 @@ const Painel = (() => {
     const el = $('#pn-backup'); if (!el) return;
     if (!r) { el.textContent = ''; return; }
     el.textContent = (r.ultimoBackup ? ` · Último backup: ${fmt.dataHora(num(r.ultimoBackup))}` : ' · Backup automático ainda não feito (e-GDV → Ativar rotinas automáticas)') +
-      (r.backupFalhou ? ` · falha no backup de ${fmt.dataHora(num(r.backupFalhou))}` : '');
+      (r.backupFalhou ? ` · falha no backup de ${fmt.dataHora(num(r.backupFalhou))}` : '') +
+      (r.ultimoArquivamento ? ` · Último arquivamento: ${fmt.dataHora(num(r.ultimoArquivamento))}` : '');
+  }
+  /** Faixa do arquivo anual: o período pedido começa num ano que já saiu da planilha principal (servidor manda avisoArquivo/arquivosAnuais). */
+  function avisoArquivo(j) {
+    const el = $('#pn-arquivo'); if (!el) return;
+    const arqs = Array.isArray(j && j.arquivosAnuais) ? j.arquivosAnuais.filter(a => a && /^https:\/\//.test(String(a.url || ''))) : [];
+    if (!j || !j.avisoArquivo) { el.hidden = true; el.innerHTML = ''; return; }
+    el.innerHTML = arqs.length
+      ? `<div>Dados de veículos e turnos de ${esc(arqs.map(a => a.ano).join(' e '))} estão no arquivo anual: ${arqs.map(a => `<a href="${esc(a.url)}" target="_blank" rel="noopener">e-GDV – Arquivo ${esc(a.ano)}</a>`).join(' · ')}. Este período mostra só o que continua na planilha principal.</div>`
+      : `<div>${esc(j.avisoArquivo)}</div>`;
+    el.hidden = false;
   }
   /** Falha numa atualização: sessão revogada → login; qualquer outra (rede, cota, servidor fora) → mantém os dados e tenta de novo. */
   function falhou(e) {
@@ -456,7 +467,7 @@ const Painel = (() => {
       if (num(j.agora)) relogio = num(j.agora) - Math.round((t0 + Date.now()) / 2);
       j.de = (j.periodo && j.periodo.de) || j.de || p.de; j.ate = (j.periodo && j.periodo.ate) || j.ate || p.ate;
       S.bruto = j; S.todos = normalizar(j); S.ultimaCarga = S.ultimaCompleta = S.ultimaRegular = Date.now(); S.erro = ''; S.falhas = 0;
-      preencherOpcoes(); recalcular(auto); processarTF(); rodapeBackup(j.rotinas);
+      preencherOpcoes(); recalcular(auto); processarTF(); rodapeBackup(j.rotinas); avisoArquivo(j);
       status(`Atualizado às ${fmt.hora(Date.now())} · barreiras ao vivo a cada 15 s`);
     } catch (e) {
       if (S.token !== tok || falhou(e)) return;

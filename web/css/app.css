@@ -13,6 +13,7 @@ input,select,textarea { font:inherit; padding:11px; border:1px solid var(--linha
 input:focus,select:focus,textarea:focus { outline:2px solid var(--azul2); border-color:var(--azul2); }
 .duas { display:grid; grid-template-columns:1fr 1fr; gap:10px; } .duas[hidden]{display:none;}
 .botao { display:block; width:100%; background:var(--azul2); color:#fff; border:0; border-radius:10px; padding:14px; font:inherit; font-weight:600; margin:10px 0; cursor:pointer; }
+a.botao { text-align:center; text-decoration:none; box-sizing:border-box; }
 .botao:active { background:#0949a8; } .botao.vermelho { background:var(--verm); }
 .contador { text-align:center; } .contador h1 { font-size:54px; margin:0; color:var(--azul); } .contador p { color:var(--mut); }
 .tipos { display:grid; grid-template-columns:repeat(3,1fr); gap:8px; margin:6px 0; }

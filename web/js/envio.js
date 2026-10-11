@@ -186,7 +186,7 @@ const Envio = (() => {
       if (!a || a.enviado || !a.dados) continue;
       const ext = a.mime === 'image/png' ? 'png' : a.mime === 'application/pdf' ? 'pdf' : 'jpg';
       const arquivo = { id: a.id, dono: a.dono, donoId: a.donoId, tipo: a.tipo, papel: a.papel || '', mime: a.mime,
-        nome: `${a.donoId}_${a.tipo}_${a.papel || 'n'}_${a.id}.${ext}` };
+        nome: `${a.donoId}_${a.tipo}_${a.papel || 'n'}_${a.id}.${ext}`, rotulo: a.rotulo || '' };   // rotulo: "praga – cultura" da foto do levantamento
       let r;
       // PDF (até 10 MB ≈ 13,4 MB em base64) tem mais tempo para subir
       try { r = await chamar({ action: 'arquivoEnviar', arquivo, base64: String(a.dados).replace(/^data:[^,]*,/, '') }, a.tipo === 'documento' ? 180000 : 60000); }

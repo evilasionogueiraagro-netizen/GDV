@@ -5,7 +5,7 @@ const Painel = (() => {
   const LS_TOKEN = 'gdv.painel.token', LS_NOME = 'gdv.painel.nome', LS_ABA = 'gdv.painel.aba', LS_FILTRO = 'gdv.painel.filtro';
   const LS_SEM_INSTALAR = 'gdv.painel.semInstalar';
   const API_TEMPO_MS = 90 * 1000, LS_ENCERRADA = 'gdv.painel.encerrada';
-  const ATUALIZAR_MS = 60 * 1000, SEM_SINAL_MIN = 30, ABERTA_LONGA_H = 12, MAX_DIAS = 366;
+  const ATUALIZAR_MS = 15 * 1000, SEM_SINAL_MIN = 30, ABERTA_LONGA_H = 12, MAX_DIAS = 366;
   // falha de rede: nova tentativa com espera crescente (15 s, 30 s, 1 min, 2 min, 4 min, 5 min…), mantendo os últimos dados na tela
   const ESPERA_INI_MS = 15 * 1000, ESPERA_MAX_MS = 5 * 60 * 1000;
   const CELULAR = '(max-width: 899px)';
@@ -15,7 +15,7 @@ const Painel = (() => {
   const AM_LIMITES = [[-9.9, -73.9], [2.3, -56.0]];
   // TF em preenchimento (apreensão em andamento): enquanto houver um, as barreiras ao vivo são consultadas a cada 25 s;
   // sem batimento do aparelho há mais de 10 min o TF é considerado encerrado (o servidor já filtra; aqui vale também sem conexão)
-  const TF_RAPIDO_MS = 25 * 1000, TF_VALIDADE_MS = 10 * 60 * 1000;
+  const TF_RAPIDO_MS = 15 * 1000, TF_VALIDADE_MS = 10 * 60 * 1000;
   const ORDEM_ABAS = ['geral', 'barreiras', 'tf', 'pce', 'acessos'];
 
   /* ---------------- utilidades ---------------- */
@@ -311,10 +311,21 @@ const Painel = (() => {
     tfsTodos.forEach(tf => { const tr = turnoPorId[tf.turnoId]; if (tr && tf.barreiraNome && !tr.barreirasTF.includes(tf.barreiraNome)) tr.barreirasTF.push(tf.barreiraNome); });
     const levantamentos = (r.levantamentos || []).filter(vivos).map(x => {
       const l = { ...x }; l.data = isoDe(l.data); l.lat = num(l.lat); l.lon = num(l.lon); l.doc = fmt.mascarar(l.doc);
-      l.culturasLista = lerJSON(l.culturas, []).filter(c => c && c.cultura).map(c => ({ ...c, area: num(c.area), praga: String(c.praga || '').trim(), coleta: c.coleta === 'Sim' }));
+      // uma linha por cultura × praga avaliada. praga = nome só quando detectada ou suspeita (as duas contam como detecção);
+      // resultado = detectada | suspeita | nao_detectada (registro anterior sem resultado: praga preenchida = detectada)
+      l.culturasLista = lerJSON(l.culturas, []).filter(c => c && c.cultura).map(c => {
+        const praga = String(c.praga || '').trim(), resultado = ['detectada', 'suspeita', 'nao_detectada'].includes(c.resultado) ? c.resultado : (praga ? 'detectada' : 'nao_detectada');
+        return { ...c, area: num(c.area), praga: resultado === 'nao_detectada' ? '' : praga, avaliada: String(c.avaliada || c.pragaAvaliada || praga || '').trim(), resultado, suspeita: resultado === 'suspeita', coleta: c.coleta === 'Sim' };
+      });
       l.pragas = [...new Set(l.culturasLista.map(c => c.praga).filter(Boolean))];
       l.deteccoes = l.culturasLista.filter(c => c.praga).length; l.detectou = l.deteccoes > 0;
-      l.area = l.culturasLista.reduce((s, c) => s + (c.area || 0), 0);
+      l.suspeitas = l.culturasLista.filter(c => c.praga && c.suspeita).length;
+      l.negativo = !l.detectou;                                           // levantamento negativo: nenhuma praga detectada nem suspeita
+      l.pragasAvaliadas = [...new Set(l.culturasLista.map(c => c.avaliada).filter(Boolean))];
+      // área e culturas inspecionadas: a mesma cultura avaliada para pragas diferentes conta uma vez (maior área informada)
+      const porCultura = {}; l.culturasLista.forEach(c => { porCultura[c.cultura] = Math.max(porCultura[c.cultura] || 0, c.area || 0); });
+      l.culturasUnicas = Object.keys(porCultura);
+      l.area = Object.values(porCultura).reduce((s, a) => s + a, 0);
       l.nAmostras = l.culturasLista.filter(c => c.coleta).length;
       l.municipio = municipioNome(l.municipio) || l.municipio || municipioDe(l.lat, l.lon) || '';
       l.nFotos = num(l.nFotos) || 0;
@@ -446,7 +457,7 @@ const Painel = (() => {
       j.de = (j.periodo && j.periodo.de) || j.de || p.de; j.ate = (j.periodo && j.periodo.ate) || j.ate || p.ate;
       S.bruto = j; S.todos = normalizar(j); S.ultimaCarga = S.ultimaCompleta = S.ultimaRegular = Date.now(); S.erro = ''; S.falhas = 0;
       preencherOpcoes(); recalcular(auto); processarTF(); rodapeBackup(j.rotinas);
-      status(`Atualizado às ${fmt.hora(Date.now())} · atualização automática a cada minuto${S.tfRapido ? ' (barreiras a cada 25 s: TF em preenchimento)' : ''}`);
+      status(`Atualizado às ${fmt.hora(Date.now())} · barreiras ao vivo a cada 15 s`);
     } catch (e) {
       if (S.token !== tok || falhou(e)) return;
       if (!S.todos && !emTV()) { const c = $('#pn-conteudo'); c.innerHTML = `<div class="pn-cartao pn-falha" role="alert"><b>Não foi possível carregar os dados.</b><p class="pn-sub">${esc(e.message)} Nova tentativa automática em instantes.</p><button type="button" class="pn-btn" id="pn-tentar">Tentar de novo</button></div>`;
@@ -483,7 +494,8 @@ const Painel = (() => {
   }
   function atualizarSozinho() {
     const f = filtrosAtuais();
-    if (!S.bruto || f.dias <= DIAS_COMPLETA_SEMPRE || Date.now() - (S.ultimaCompleta || 0) >= COMPLETA_MS) return carregar(true);
+    const desde = Date.now() - (S.ultimaCompleta || 0);   // a cada 15 s só as barreiras ao vivo (leve); a carga completa no máximo 1x/min
+    if (!S.bruto || (f.dias <= DIAS_COMPLETA_SEMPRE && desde >= 60 * 1000) || desde >= COMPLETA_MS) return carregar(true);
     return carregarAoVivo();
   }
   function recalcular(auto) {
@@ -493,7 +505,7 @@ const Painel = (() => {
     desenharAbas(); renderAba(auto);
   }
   /**
-   * Próxima atualização automática: a cada minuto; com TF em preenchimento, a cada 25 s (entre as atualizações normais, só a consulta
+   * Próxima atualização automática: a cada 15 s (barreiras ao vivo; carga completa no máximo 1x/min em períodos curtos e a cada 10 min nos longos) (entre as atualizações normais, só a consulta
    * leve das barreiras ao vivo); depois de falha, espera crescente (15 s → 5 min).
    */
   function agendar(ms) {
@@ -568,7 +580,7 @@ const Painel = (() => {
     desenharAvisoTF();
     if (S.token && !S.falhas) {
       if (S.tfRapido && S.proxima - Date.now() > TF_RAPIDO_MS + 1000) agendar(TF_RAPIDO_MS);
-      else if (!S.tfRapido && eraRapido) agendar(Math.max(1000, ATUALIZAR_MS - (Date.now() - (S.ultimaRegular || 0))));   // TF terminou: volta ao ritmo de 1 min
+      else if (!S.tfRapido && eraRapido) agendar(Math.max(1000, ATUALIZAR_MS - (Date.now() - (S.ultimaRegular || 0))));   // TF terminou: volta ao ritmo normal
     }
   }
   /** Aviso vermelho (painel normal): fica até o TF terminar ou ser dispensado. Na TV quem mostra é a faixa do topo. */
@@ -776,6 +788,9 @@ const Painel = (() => {
     if (max >= 1) { const k = classe(Math.ceil(max)); if (k >= 0) { if (f[k][0] == null) f[k][0] = Math.ceil(max); f[k][1] = Math.ceil(max); } }
     return f;
   }
+
+  /** Pragas detectadas do levantamento; a que só aparece como suspeita leva "(suspeita)". */
+  const pragasTexto = l => l.pragas.map(pr => l.culturasLista.some(c => c.praga === pr && !c.suspeita) ? pr : pr + ' (suspeita)').join(', ');
 
   /* ---------------- matriz (mapa de calor em grade: dia × hora, cultura × praga) ---------------- */
   function matriz(container, o) {
@@ -1076,9 +1091,9 @@ const Painel = (() => {
         if (l.lat == null || l.lon == null) { s++; return; }
         // mesmas cores dos gráficos do PCE (azul = sem praga, laranja = com praga); com praga ganha anel escuro (não depende só da cor)
         L.circleMarker([l.lat, l.lon], l.detectou ? { radius: 7, color: p.ink, weight: 2.5, fillColor: p.serie[1], fillOpacity: 1 } : { radius: 5, color: p.sf, weight: 2, fillColor: p.serie[0], fillOpacity: 1 })
-          .bindPopup(popup(l.propriedade || 'Levantamento', [['Data', fmt.data(l.data)], ['Município', l.municipio], ['Produtor', l.nome], ['Culturas', l.culturasLista.map(c => c.cultura).join(', ')],
-            ['Pragas', l.pragas.join(', ') || 'nenhuma detectada'], ['Amostras', fmt.int(l.nAmostras)], ['Servidor', l.servidor]],
-            l.detectou ? '<span class="pn-selo praga">Praga detectada</span>' : '<span class="pn-selo sempraga">Sem detecção</span>')).addTo(g);
+          .bindPopup(popup(l.propriedade || 'Levantamento', [['Data', fmt.data(l.data)], ['Município', l.municipio], ['Produtor', l.nome], ['Culturas', l.culturasUnicas.join(', ')],
+            ['Pragas', pragasTexto(l) || 'nenhuma detectada'], ['Avaliadas', l.pragasAvaliadas.join(', ') || '—'], ['Amostras', fmt.int(l.nAmostras)], ['Servidor', l.servidor]],
+            l.detectou ? `<span class="pn-selo praga">${l.suspeitas === l.deteccoes ? 'Suspeita de praga' : 'Praga detectada'}</span>` : '<span class="pn-selo sempraga">Negativo (sem detecção)</span>')).addTo(g);
       });
       semCoord.levantamentos = s;
     }
@@ -1207,6 +1222,7 @@ const Painel = (() => {
     const pessoas = d.turnos.reduce((s, t) => s + t.nPessoas, 0);
     const proc = k => d.tfs.filter(t => t.procedimento === k).length;
     const comPraga = d.levantamentos.filter(l => l.detectou).length, det = d.levantamentos.reduce((s, l) => s + l.deteccoes, 0);
+    const susp = d.levantamentos.reduce((s, l) => s + l.suspeitas, 0), neg = d.levantamentos.filter(l => l.negativo).length;
     const amostras = d.levantamentos.reduce((s, l) => s + l.nAmostras, 0);
     const vivos = d.emAndamento, ruins = vivos.filter(t => t.situacao !== 'ok').length;
     const prop = new Set(d.levantamentos.map(l => l.chaveProp)).size;
@@ -1217,7 +1233,8 @@ const Painel = (() => {
       { chave: 'pessoas', rotulo: 'Pessoas impactadas', valor: pessoas, detalhe: 'estimativa por veículo' },
       { chave: 'tfs', rotulo: 'TFs lavrados', valor: d.tfs.length, detalhe: `${fmt.int(proc('apreensao'))} apreensões · ${fmt.int(proc('rechaco'))} rechaços${d.tfsCancelados.length ? ` · ${d.tfsCancelados.length} cancelado(s)` : ''}`, apreensoes: proc('apreensao') },
       { chave: 'levantamentos', rotulo: 'Levantamentos PCE', valor: d.levantamentos.length, detalhe: `${fmt.int(prop)} propriedade(s)` },
-      { chave: 'deteccoes', rotulo: 'Detecções de pragas', valor: det, detalhe: d.levantamentos.length ? `${fmt.pct(comPraga / d.levantamentos.length)} dos levantamentos` : null, status: det ? 'critico' : null },
+      { chave: 'deteccoes', rotulo: 'Detecções de pragas', valor: det, detalhe: d.levantamentos.length ? `${fmt.pct(comPraga / d.levantamentos.length)} dos levantamentos${susp ? ` · ${fmt.int(susp)} suspeita(s)` : ''} · ${fmt.int(neg)} negativo(s)` : null, status: det ? 'critico' : null,
+        titulo: 'Culturas com praga detectada ou suspeita (a suspeita conta como detecção)' },
       { chave: 'amostras', rotulo: 'Amostras / termos de colheita', valor: `${fmt.int(amostras)} / ${fmt.int(d.colheitas.length)}`, detalhe: 'culturas com coleta / termos emitidos' }
     ];
   }
@@ -1232,7 +1249,7 @@ const Painel = (() => {
   /** Cartões das barreiras em andamento (Visão geral). */
   function secaoAoVivo(c, vivos, semTurno) {
     semTurno = semTurno || [];
-    const sv = secao(c, 'Barreiras em andamento agora', vivos.length || semTurno.length ? 'Atualiza sozinho a cada minuto (a cada 25 s enquanto houver TF em preenchimento).' : null);
+    const sv = secao(c, 'Barreiras em andamento agora', vivos.length || semTurno.length ? 'Atualiza sozinho a cada 15 s.' : null);
     sv.parentNode.classList.add('pn-geral-vivo');
     if (!vivos.length && !semTurno.length) { vazio(sv, 'Nenhuma barreira aberta no momento.'); return; }
     const g = el('div', 'pn-vivo');
@@ -1481,7 +1498,7 @@ const Painel = (() => {
 
   return {
     registrarAba, irPara, kpis, grafico, matriz, tabela, mapa, alertas, secao, grade, cartao, vazio, el, esc, fmt, auditarNumeracao,
-    contar, porDia, topN, porMunicipio, municipioDe, municipioNome, parseProdutos, csv: csvBaixar, csvTexto, norm, lerJSON, alertasGerais, seloSituacao,
+    contar, porDia, topN, porMunicipio, municipioDe, municipioNome, parseProdutos, pragasTexto, csv: csvBaixar, csvTexto, norm, lerJSON, alertasGerais, seloSituacao,
     get paleta() { return paleta(); }, get dados() { return S.dados; }, get filtros() { return S.filtros; }, get municipios() { return MUN.map(m => m.nome); },
     agora, recarregar: () => carregar(), DIAS_SEMANA, PROC, somaDias, diasEntre, isoDia,
     TIPOS: (typeof CONFIG !== 'undefined' && CONFIG.tipos) || {},

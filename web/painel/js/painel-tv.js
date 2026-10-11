@@ -516,18 +516,19 @@
     const M = P.aba('pce'); if (!M || !M.calculos) { palco.appendChild(el('div', 'tv-aviso', '<b>Aba PCE não carregada.</b>')); return; }
     const d = P.dados, f = P.filtros, p = P.paleta, K = M.calculos(d, f), cb = K.cob;
     // cobertura municipal: indicador com medidor (cobertos ÷ municípios do estado)
-    kpisTV(palco, escolher(M.indicadores(d, f), ['levantamentos', 'taxa', 'amostras', 'termos', 'cobertura'],
-      { cobertura: { medidor: cb.total ? cb.cobertos / cb.total : 0, detalhe: `${fmt.int(cb.semVisitaAno)} sem nenhum no último ano` } }));
+    kpisTV(palco, escolher(M.indicadores(d, f), ['levantamentos', 'taxa', 'negativos', 'termos', 'cobertura'],
+      { negativos: { rotulo: 'Negativos' },                 // rótulo curto: cabe na TV com qualquer fonte
+        cobertura: { medidor: cb.total ? cb.cobertos / cb.total : 0, detalhe: `${fmt.int(cb.semVisitaAno)} sem nenhum no último ano` } }));
     const g = el('div', 'tv-grade tv-grade-pce'); palco.appendChild(g);
     const cm = cartao(g, 'Calor de pragas e levantamentos', 'Detecções de pragas/doenças e levantamentos com GPS', 'tv-cartao-mapa');
     const divMapa = el('div', 'tv-mapa-lugar'); cm.appendChild(divMapa);
     const semGPS = d.levantamentos.filter(l => l.lat == null || l.lon == null).length;
-    legenda(cm, [{ marca: `<i class="tv-lg-pto" style="background:${p.serie[1]};box-shadow:0 0 0 2px ${p.ink}"></i>`, txt: 'Levantamento com praga' },
-      { marca: `<i class="tv-lg-pto" style="background:${p.serie[0]};box-shadow:0 0 0 2px ${p.ink}"></i>`, txt: 'Sem praga' },
-      { marca: `<i class="tv-lg-gra" style="background:linear-gradient(90deg, ${Object.values(p.calor).join(',')})"></i>`, txt: 'Calor das detecções' }]
+    legenda(cm, [{ marca: `<i class="tv-lg-pto" style="background:${p.serie[1]};box-shadow:0 0 0 2px ${p.ink}"></i>`, txt: 'Com praga (detectada ou suspeita)' },
+      { marca: `<i class="tv-lg-pto" style="background:${p.serie[0]};box-shadow:0 0 0 2px ${p.ink}"></i>`, txt: 'Negativo' },
+      { marca: `<i class="tv-lg-gra" style="background:linear-gradient(90deg, ${Object.values(p.calor).join(',')})"></i>`, txt: 'Calor: detectada + suspeita' }]
       .concat(semGPS ? [{ marca: '', txt: `${fmt.int(semGPS)} sem GPS (fora do mapa)` }] : []));
     const col = el('div', 'tv-coluna'); g.appendChild(col);
-    const cp = cartao(col, 'Detecções por praga', 'Nº de culturas com a praga detectada', 'tv-flex');
+    const cp = cartao(col, 'Detecções por praga', 'Nº de culturas com a praga detectada ou suspeita (amarelo = suspeita)', 'tv-flex');
     const novos = K.focos.filter(x => x.novo).sort((a, b) => String(b.primeira).localeCompare(String(a.primeira)));
     const cf = cartao(col, `Novos focos (${fmt.int(novos.length)})`, 'Praga sem registro no município nos 365 dias anteriores · mais recentes primeiro', 'tv-flex tv-flex-maior tv-cartao-focos');
     const lf = el('ul', 'tv-focos'); cf.appendChild(lf);
@@ -545,8 +546,9 @@
           : { radius: px(1), color: p.ink, weight: 2, fillColor: p.serie[0], fillOpacity: 1, interactive: false }).addTo(m.map);
       });
     }
-    const pr = K.pragas.slice(0, 6);
-    barras(cp, { horizontal: true, labels: pr.map(x => x[0]), datasets: [{ label: 'Detecções', data: pr.map(x => x[1]), cor: p.serie[1] }], vazio: 'Nenhuma praga detectada no período.', rotulo: 'Detecções por praga', maxRotulo: 24, espessura: 2.4 });
+    const pr = K.pragas.slice(0, 6), sp = (K.suspPorPraga || []).slice(0, 6);
+    barras(cp, { horizontal: true, empilhado: true, labels: pr.map(x => x[0]), datasets: [{ label: 'Detectada', data: pr.map((x, i) => x[1] - (sp[i] || 0)), cor: p.serie[1] },
+      { label: 'Suspeita', data: pr.map((x, i) => sp[i] || 0), cor: p.serie[3] }], vazio: 'Nenhuma praga detectada no período.', rotulo: 'Detecções por praga', maxRotulo: 24, espessura: 2.4 });
     caber(lf, k => `+${plural(k, 'foco novo', 'focos novos')}`);                // por último: com o espaço final de cada cartão
   }
 

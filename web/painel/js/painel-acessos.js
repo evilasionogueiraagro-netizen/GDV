@@ -3,7 +3,10 @@
    (Educação Sanitária/Fiscalização de Trânsito, TF de Barreira, PCE; por nome, valem para todos os aparelhos dele) e se pode
    "Digitar do papel" (registros antigos do PCE com PDF escaneado: desmarcado por padrão; exige o PCE — marcar "Papel" marca o PCE
    junto e desmarcar o PCE desmarca "Papel").
-   Usa as actions painelGerarCodigo, painelAcessos, painelRevogar e painelPermissoes (Code.gs).
+   Servidor revogado ou com código vencido pode sair da lista ("Remover": botão no computador; no celular, deslizar a linha para a
+   esquerda revela "Remover da lista"). Nada é apagado da planilha (oculto=1); "Mostrar removidos" lista esses e permite Restaurar.
+   O cartão da chave gerada some sozinho ~3 s depois de "Copiar mensagem" ou "Enviar pelo WhatsApp" (o código segue na lista, com Reenviar).
+   Usa as actions painelGerarCodigo, painelAcessos, painelRevogar, painelOcultarAcesso, painelRestaurarAcesso e painelPermissoes (Code.gs).
    Não depende do período nem dos filtros e não aparece no Modo TV. Usa a API do objeto global Painel (js/painel.js). */
 (() => {
   'use strict';
@@ -11,6 +14,9 @@
   const P = Painel, fmt = P.fmt, esc = P.esc, norm = P.norm;
   const APP_URL = 'https://evilasionogueiraagro-netizen.github.io/GDV/';
   const RECARREGAR_MS = 60 * 1000;                    // ao voltar à aba, relê a lista se a última leitura tiver mais de 1 min
+  const RECOLHER_MS = 3000;                           // cartão da chave: tempo da confirmação (copiada / WhatsApp aberto) antes de recolher
+  const DESL_W = 124;                                 // celular: largura do botão "Remover da lista" revelado ao deslizar a linha
+  const celular = () => window.matchMedia('(max-width: 560px)').matches;
   const NOME_MAX = 80;
   const MODULOS = [['veiculos', 'Fiscalização', 'Educação Sanitária/Fiscalização de Trânsito', 'Fisc.'], ['tf', 'TF', 'TF de Barreira', 'TF'], ['pce', 'PCE', 'PCE – Programa de Controle e Erradicação', 'PCE'],
     ['antigo', 'Digitar do papel', 'Digitar do papel (registros antigos do PCE, com PDF escaneado)', 'Papel']];
@@ -31,7 +37,7 @@
   };
 
   /* ---------- estado (sobrevive às atualizações automáticas do painel, que redesenham a aba) ---------- */
-  const E = { raiz: null, lista: null, lidoEm: 0, carregando: false, erro: '', ultimo: null, aviso: '', busca: '', situacao: '', admins: false };
+  const E = { raiz: null, lista: null, lidoEm: 0, carregando: false, erro: '', ultimo: null, aviso: '', busca: '', situacao: '', admins: false, removidos: false };
 
   const codigoFmt = c => String(c || '').replace(/\D/g, '').padStart(6, '0').replace(/^(\d{3})(\d{3})$/, '$1 $2');
   const dataHora = ms => ms > 1e12 ? `${fmt.data(P.diaManaus(ms))} às ${P.horaManaus(ms)}` : '—';
@@ -89,6 +95,7 @@
             <label>Buscar nome<input type="search" id="pn-ac-busca" placeholder="Nome do servidor" autocomplete="off"></label>
             <label>Situação<select id="pn-ac-sit"><option value="">Todas</option>${Object.keys(SITUACOES).map(k => `<option value="${k}">${esc(SITUACOES[k].rot)}</option>`).join('')}</select></label>
             <label class="pn-ac-check"><input type="checkbox" id="pn-ac-admins"> Mostrar administradores</label>
+            <label class="pn-ac-check"><input type="checkbox" id="pn-ac-removidos"> Mostrar removidos</label>
             <button type="button" class="pn-btn" id="pn-ac-recarregar">Atualizar lista</button>
           </div>
           <div id="pn-ac-tab"></div>
@@ -104,16 +111,21 @@
     q('#pn-ac-busca').addEventListener('input', e => { E.busca = e.target.value; desenharLista(); });
     q('#pn-ac-sit').addEventListener('change', e => { E.situacao = e.target.value; desenharLista(); });
     q('#pn-ac-admins').addEventListener('change', e => { E.admins = e.target.checked; desenharLista(); });
+    q('#pn-ac-removidos').addEventListener('change', e => { E.removidos = e.target.checked; E.aviso = ''; carregar(true); });
     q('#pn-ac-recarregar').addEventListener('click', () => carregar());
     r.addEventListener('click', e => {
       const b = e.target.closest('button[data-acao]'); if (!b) return;
       if (b.dataset.acao === 'copiar') copiarMensagem(b);
       else if (b.dataset.acao === 'revogar') revogar(b.dataset.nome, b);
+      else if (b.dataset.acao === 'remover') ocultar(b.dataset.nome, b, false);
+      else if (b.dataset.acao === 'restaurar') ocultar(b.dataset.nome, b, true);
       else if (b.dataset.acao === 'reenviar') {
         const a = (E.lista || []).find(x => x.perfil === 'fiscal' && x.codigo === b.dataset.codigo);
         if (a) { E.ultimo = { nome: a.nome, codigo: a.codigo, expiraEm: a.expiraEm, reenvio: true }; desenharResultado(); q('#pn-ac-res').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
       }
     });
+    r.addEventListener('click', e => { if (e.target.closest('#pn-ac-whats')) whatsAberto(); });
+    deslizar(r);
     return r;
   }
   const q = s => E.raiz && E.raiz.querySelector(s);
@@ -152,6 +164,7 @@
 
   function desenharResultado() {
     const box = q('#pn-ac-res'), g = E.ultimo; if (!box) return;
+    clearTimeout(E.tmRecolher); box.classList.remove('pn-ac-saindo');
     if (!g) { box.hidden = true; box.innerHTML = ''; return; }
     box.hidden = false;
     box.innerHTML = `
@@ -174,7 +187,27 @@
     if (!E.ultimo) return;
     const okc = await copiar(mensagem(E.ultimo)), av = q('#pn-ac-aviso');
     if (av) { av.textContent = okc ? 'Mensagem copiada. Cole no WhatsApp, SMS ou e-mail.' : 'Não foi possível copiar. Selecione o código e copie à mão.'; av.className = 'pn-ac-aviso' + (okc ? ' ok' : ' erro'); }
-    if (okc && b) { b.textContent = 'Copiada ✓'; setTimeout(() => { if (b.isConnected) b.textContent = 'Copiar mensagem'; }, 2500); }
+    if (okc && b) b.textContent = 'Copiada ✓';
+    if (okc) recolherDepois();                       // se não copiou, o cartão fica para copiar o código à mão
+  }
+  function whatsAberto() {
+    if (!E.ultimo) return;
+    const av = q('#pn-ac-aviso');
+    if (av) { av.textContent = 'WhatsApp aberto. Escolha o contato do servidor e envie a mensagem.'; av.className = 'pn-ac-aviso ok'; }
+    recolherDepois();
+  }
+  /** Depois de copiar/abrir o WhatsApp: mostra a confirmação por ~3 s, recolhe o cartão, limpa o nome e relê a lista. */
+  function recolherDepois() {
+    const g = E.ultimo; clearTimeout(E.tmRecolher);
+    E.tmRecolher = setTimeout(() => {
+      const box = q('#pn-ac-res');
+      if (E.ultimo !== g || !box || box.hidden) return;                       // outro código entrou no cartão nesse meio-tempo
+      box.classList.add('pn-ac-saindo');
+      const fim = () => { if (E.ultimo !== g) return; E.ultimo = null; desenharResultado(); };
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) fim(); else setTimeout(fim, 260);
+      const inp = q('#pn-ac-nome'); if (inp && document.activeElement !== inp) { inp.value = ''; sugerirModulos(); }
+      carregar(true);
+    }, RECOLHER_MS);
   }
 
   /* ---------- sinal dos aparelhos (último sinal, versão, pendentes, último erro) ---------- */
@@ -214,21 +247,22 @@
   }
 
   /* ---------- lista ---------- */
-  async function carregar() {
-    if (E.carregando) return; E.carregando = true;
+  async function carregar(deNovo) {
+    if (E.carregando) { if (deNovo) E.reler = true; return; }
+    E.carregando = true; E.reler = false;
     const tab = q('#pn-ac-tab'); if (tab && !E.lista) tab.innerHTML = '<div class="pn-vazio">Carregando acessos…</div>';
     try {
-      const j = await P.chamar({ action: 'painelAcessos' });
+      const j = await P.chamar(E.removidos ? { action: 'painelAcessos', ocultos: true } : { action: 'painelAcessos' });
       E.lista = Array.isArray(j.acessos) ? j.acessos : []; E.lidoEm = Date.now(); E.erro = '';
     } catch (e) { E.erro = e.message; }
-    finally { E.carregando = false; if (P.logado) desenharLista(); }
+    finally { E.carregando = false; if (P.logado) { desenharLista(); if (E.reler) carregar(); } }
   }
   function desenharLista() {
     const tab = q('#pn-ac-tab'), kp = q('#pn-ac-kpis'); if (!tab) return;
     tab.innerHTML = ''; kp.innerHTML = '';
     if (E.erro && !E.lista) { tab.innerHTML = `<div class="pn-cartao pn-falha" role="alert"><b>Não foi possível carregar os acessos.</b><p class="pn-sub">${esc(E.erro)}</p></div>`; return; }
     if (!E.lista) return;
-    const fiscais = E.lista.filter(a => a.perfil === 'fiscal'), n = k => fiscais.filter(a => a.situacao === k).length;
+    const fiscais = E.lista.filter(a => a.perfil === 'fiscal' && !a.oculto), n = k => fiscais.filter(a => a.situacao === k).length;
     const nomesAtivos = new Set(fiscais.filter(a => a.situacao === 'ativo').map(a => norm(a.nome)));
     P.kpis(kp, [
       { rotulo: 'Servidores com app ativo', valor: nomesAtivos.size, detalhe: `${fmt.int(n('ativo'))} aparelho(s)` },
@@ -239,11 +273,14 @@
     const b = norm(E.busca);
     const linhas = E.lista.filter(a => (E.admins || a.perfil === 'fiscal') && (!E.situacao || a.situacao === E.situacao) && (!b || norm(a.nome).includes(b)))
       .map(a => Object.assign({}, a, { ordemSit: (SITUACOES[a.situacao] || {}).ordem }));
-    const podeRevogar = a => a.perfil === 'fiscal' && a.situacao !== 'revogado' && a.situacao !== 'vencido';
+    const podeRevogar = a => a.perfil === 'fiscal' && !a.oculto && a.situacao !== 'revogado' && a.situacao !== 'vencido';
+    // "Remover da lista": só servidor sem nenhum aparelho ativo nem código aguardando (todas as linhas dele revogadas/vencidas)
+    const vivos = new Set(fiscais.filter(a => a.situacao === 'ativo' || a.situacao === 'aguardando').map(a => norm(a.nome)));
+    const podeRemover = a => a.perfil === 'fiscal' && !a.oculto && (a.situacao === 'revogado' || a.situacao === 'vencido') && !vivos.has(norm(a.nome));
     P.tabela(tab, [
       { chave: 'nome', rotulo: 'Servidor', html: (v, l) => `<b>${esc(v)}</b>${l.perfil === 'admin' ? ' <span class="pn-ac-perfil">administrador</span>' : ''}` },
       { chave: 'situacao', rotulo: 'Situação', ordem: l => l.ordemSit, csv: v => (SITUACOES[v] || {}).rot || v,
-        html: (v, l) => { const s = SITUACOES[v] || { rot: v, cls: 'info' }; return `<span class="pn-selo ${s.cls}">${esc(s.rot)}</span>${sinalCurto(l)}`; } },
+        html: (v, l) => { const s = SITUACOES[v] || { rot: v, cls: 'info' }; return `<span class="pn-selo ${s.cls}">${esc(s.rot)}</span>${l.oculto ? ' <span class="pn-ac-perfil pn-ac-removido">removido da lista</span>' : ''}${sinalCurto(l)}`; } },
       { chave: 'permissoes', rotulo: 'Módulos', ordem: l => l.perfil === 'admin' ? '' : MODULOS.filter(([k]) => permDe(l)[k]).length,
         csv: (v, l) => l.perfil === 'admin' ? 'todos (administrador)' : MODULOS.filter(([k]) => permDe(l)[k]).map(m => m[1]).join(', '),
         html: (v, l) => l.perfil === 'admin' ? '<span class="pn-sub">—</span>' : modulosHTML(l) },
@@ -261,6 +298,9 @@
       { chave: 'ativadoEm', rotulo: 'Ativado em', num: true, fmt: v => dataCurta(v), csv: v => v ? dataCurta(v) : '' },
       { chave: 'geradoPor', rotulo: 'Gerado por', fmt: (v, l) => l.perfil === 'admin' ? '—' : v === 'planilha' ? 'Planilha (menu)' : (v || '—') },
       { chave: 'acoes', rotulo: '', csv: () => '', html: (v, l) => podeRevogar(l) ? `<button type="button" class="pn-btn pn-btn-mini pn-ac-revogar" data-acao="revogar" data-nome="${esc(l.nome)}">Revogar</button>`
+        : podeRemover(l) ? `<button type="button" class="pn-btn pn-btn-mini pn-ac-remover" data-acao="remover" data-nome="${esc(l.nome)}" title="Tira ${esc(l.nome)} da lista (a planilha guarda o registro)">Remover</button>` +
+          `<button type="button" class="pn-ac-desl" data-acao="remover" data-nome="${esc(l.nome)}" tabindex="-1">Remover da lista</button>`
+        : l.oculto && l.perfil === 'fiscal' ? `<button type="button" class="pn-btn pn-btn-mini pn-ac-restaurar" data-acao="restaurar" data-nome="${esc(l.nome)}">Restaurar</button>`
         : l.perfil === 'admin' && l.situacao !== 'revogado' ? '<span class="pn-sub">só pela planilha</span>' : '' }
     ], linhas, { id: 'acessos', csv: 'acessos-servidores.csv', busca: false, limite: 50, ordenar: 'criadoEm', desc: true,
       titulo: E.aviso || undefined,
@@ -317,6 +357,68 @@
     }
   }
 
+  /* ---------- remover da lista / restaurar (oculto na planilha; nada é apagado) ---------- */
+  async function ocultar(nome, b, restaurar) {
+    if (!nome) return;
+    fecharDesl();
+    if (!restaurar && !confirm(`Remover ${nome} da lista?\n\nO registro continua guardado na planilha. Se gerar uma nova chave para esse nome, o servidor volta a aparecer.`)) return;
+    const rot = b ? b.textContent : '';
+    if (b) { b.disabled = true; b.textContent = restaurar ? 'Restaurando…' : 'Removendo…'; }
+    try {
+      await P.chamar({ action: restaurar ? 'painelRestaurarAcesso' : 'painelOcultarAcesso', nome });
+      const tr = b && b.closest('tr');
+      if (!restaurar && tr && !E.removidos) { tr.classList.add('pn-ac-sumindo'); await new Promise(res => setTimeout(res, 220)); }
+      E.aviso = restaurar ? `${nome} voltou para a lista.` : `${nome} saiu da lista (o registro continua na planilha; veja em "Mostrar removidos").`;
+      await carregar(true);
+    } catch (e) {
+      if (P.logado) alert((restaurar ? 'Não foi possível restaurar: ' : 'Não foi possível remover da lista: ') + e.message);
+      if (b && b.isConnected) { b.disabled = false; b.textContent = rot; }
+    }
+  }
+
+  /* ---------- celular: deslizar a linha para a esquerda revela "Remover da lista" ---------- */
+  let aberta = null;                                   // linha com o botão à mostra
+  const celulasDe = tr => [...tr.cells].filter(td => !td.querySelector('.pn-ac-desl'));
+  function posicionar(tr, x, animar) {
+    celulasDe(tr).forEach(td => { td.style.transition = animar ? 'transform .2s ease' : 'none'; td.style.transform = x ? `translateX(${x}px)` : ''; });
+    const bt = tr.querySelector('.pn-ac-desl');
+    if (bt) { bt.style.transition = animar ? 'opacity .2s ease' : 'none'; bt.style.opacity = String(Math.min(1, -x / DESL_W)); bt.classList.toggle('vis', x < 0); bt.tabIndex = x <= -DESL_W ? 0 : -1; }
+  }
+  function fecharDesl() { if (aberta && aberta.isConnected) { posicionar(aberta, 0, true); aberta.classList.remove('pn-ac-aberta'); } aberta = null; }
+  function deslizar(r) {
+    let g = null, engolirClique = false;
+    r.addEventListener('pointerdown', e => {
+      if (aberta && !aberta.contains(e.target)) fecharDesl();
+      const tr = e.target.closest('#pn-ac-tab tbody tr');
+      if (!tr || !celular() || !tr.querySelector('.pn-ac-desl') || e.target.closest('.pn-ac-desl') || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      g = { tr, id: e.pointerId, x0: e.clientX, y0: e.clientY, base: tr === aberta ? -DESL_W : 0, x: tr === aberta ? -DESL_W : 0, arrastando: false };
+    });
+    r.addEventListener('pointermove', e => {
+      if (!g || e.pointerId !== g.id) return;
+      const dx = e.clientX - g.x0, dy = e.clientY - g.y0;
+      if (!g.arrastando) {
+        if (Math.abs(dy) > 10 && Math.abs(dy) > Math.abs(dx)) { g = null; return; }   // rolagem vertical: não é deslize
+        if (Math.abs(dx) < 8) return;
+        g.arrastando = true; try { g.tr.setPointerCapture(e.pointerId); } catch (er) { /* sem captura */ }
+      }
+      g.x = Math.max(-DESL_W - 24, Math.min(0, g.base + dx));
+      posicionar(g.tr, g.x, false);
+      e.preventDefault();
+    });
+    const soltar = e => {
+      if (!g || e.pointerId !== g.id) return;
+      const { tr, arrastando, x } = g; g = null;
+      if (!arrastando) { if (tr === aberta && e.type === 'pointerup' && !e.target.closest('button, input, a, label')) fecharDesl(); return; }
+      engolirClique = true; setTimeout(() => { engolirClique = false; }, 350);
+      if (e.type === 'pointerup' && x < -DESL_W / 2) { if (aberta && aberta !== tr) fecharDesl(); posicionar(tr, -DESL_W, true); tr.classList.add('pn-ac-aberta'); aberta = tr; }
+      else { posicionar(tr, 0, true); tr.classList.remove('pn-ac-aberta'); if (aberta === tr) aberta = null; }
+    };
+    r.addEventListener('pointerup', soltar); r.addEventListener('pointercancel', soltar);
+    r.addEventListener('click', e => { if (engolirClique) { engolirClique = false; e.preventDefault(); e.stopPropagation(); } }, true);   // o arraste não marca caixas
+    document.addEventListener('pointerdown', e => { if (aberta && !aberta.contains(e.target)) fecharDesl(); }, true);          // tocar fora fecha
+    window.addEventListener('resize', () => { if (aberta && !celular()) fecharDesl(); });
+  }
+
   /* ---------- aba ---------- */
   function render(c) {
     if (!E.raiz) E.raiz = montar();
@@ -324,7 +426,8 @@
     if (!E.lista || (!E.carregando && Date.now() - E.lidoEm > RECARREGAR_MS)) carregar();
   }
   // outro administrador pode entrar neste aparelho: nada da sessão anterior fica na tela
-  P.aoSair(() => { if (E.raiz) E.raiz.remove(); Object.assign(E, { raiz: null, lista: null, lidoEm: 0, erro: '', ultimo: null, aviso: '', busca: '', situacao: '', admins: false }); });
+  P.aoSair(() => { if (E.raiz) E.raiz.remove(); clearTimeout(E.tmRecolher); aberta = null;
+    Object.assign(E, { raiz: null, lista: null, lidoEm: 0, erro: '', ultimo: null, aviso: '', busca: '', situacao: '', admins: false, removidos: false }); });
 
   P.registrarAba({ id: 'acessos', titulo: 'Servidores', render, semFiltros: true, mensagem, linkWhats });
 })();

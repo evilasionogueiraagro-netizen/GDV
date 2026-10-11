@@ -333,7 +333,12 @@ const Sync = (() => {
     });
     window.addEventListener('online', sincronizar);
     window.addEventListener('offline', atualizarContagem);
-    setInterval(sincronizar, 60000);                       // automático, a cada minuto
+    // automático: a cada 20 s com turno aberto (o painel acompanha a barreira quase ao vivo); sem turno, a cada minuto
+    let ultimaAuto = 0;
+    setInterval(async () => {
+      const comTurno = !!(await Store.meta('turnoAtual').catch(() => ''));
+      if (comTurno || Date.now() - ultimaAuto >= 59000) { ultimaAuto = Date.now(); sincronizar(); }
+    }, 20000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden) sincronizar(); else enviarNaSaida(); });
     window.addEventListener('pagehide', enviarNaSaida);
     sincronizar();

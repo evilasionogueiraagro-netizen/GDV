@@ -13,7 +13,7 @@ const ANO = new Date().getFullYear();
   const aparelho = async ({ token, nome }) => {
     const c = await b.newContext({ viewport: { width: 400, height: 900 }, permissions: ['geolocation'], geolocation: { latitude: -3.1234567, longitude: -58.4432, accuracy: 9 } });
     await c.addInitScript(([t, n]) => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } } catch (e) {} }, [token, nome]);
-    await c.addInitScript(() => { if (window !== window.top) window.print = () => { const d = document; window.top.__prints = window.top.__prints || []; window.top.__prints.push({ texto: d.body.innerText.replace(/\s+/g, ' '), paginas: d.querySelectorAll('.a4').length, vias: [...d.querySelectorAll('.via')].map(v => v.textContent), titulo: window.top.document.title, cancelado: !!d.querySelector('.cancelado-faixa'), imgs: [...d.querySelectorAll('img')].filter(i => i.src.startsWith('data:image')).length, semFoto: d.querySelectorAll('.sem-foto').length }); }; });
+    await c.addInitScript(() => { if (window !== window.top) window.print = () => { const d = document; window.top.__prints = window.top.__prints || []; window.top.__prints.push({ texto: d.body.innerText.replace(/\s+/g, ' '), paginas: d.querySelectorAll('.a4').length, vias: [...d.querySelectorAll('.via')].map(v => v.textContent), titulo: window.top.document.title, cancelado: !!d.querySelector('.cancelado-faixa'), imgs: [...d.querySelectorAll('img')].filter(i => i.src.startsWith('data:image')).length, semFoto: d.querySelectorAll('.sem-foto').length, html: d.documentElement.outerHTML }); }; });
     const p = await c.newPage(); p.err = []; p.on('pageerror', e => p.err.push(e.message)); p.on('console', m => m.type() === 'error' && !/Failed to load resource|net::ERR/.test(m.text()) && p.err.push(m.text()));
     p.on('dialog', d => d.type() === 'prompt' ? d.accept('digitação errada') : d.accept()); p.ctx = c;
     await p.goto(APP); await p.waitForSelector('#view *', { state: 'attached' }); await p.waitForTimeout(700); return p;
@@ -31,6 +31,14 @@ const ANO = new Date().getFullYear();
     await p.waitForSelector('#pceServForm');
     await p.selectOption('#pce-s-cargo', { index: cargoIdx }); await p.fill('#pce-s-matricula', '12345'); await p.selectOption('#pce-s-lotacao', 'Manaus');
     await p.click('#pce-s-salvar'); await p.waitForSelector('#pce-novolev');
+  };
+  const PR = i => `.pce-praga >> nth=${i}`, CU = (i, k) => `.pce-praga >> nth=${i} >> .pce-cult >> nth=${k}`;
+  // grava o documento impresso (HTML capturado em window.print) como PDF e PNG em saida/, para conferência visual
+  const salvarPdf = async (p, pr, nome) => {
+    const pg = await p.context().newPage(); await pg.goto(APP + 'documentos/pce-levantamento.html');
+    await pg.setContent(pr.html.replace('<head>', `<head><base href="${APP}documentos/">`)); await pg.waitForTimeout(300);
+    await pg.pdf({ path: amb.saida(nome + '.pdf'), format: 'A4', printBackground: true, margin: { top: '8mm', bottom: '8mm', left: '7mm', right: '7mm' } });
+    await pg.setViewportSize({ width: 800, height: 1100 }); await pg.screenshot({ path: amb.saida(nome + '.png'), fullPage: true }); await pg.close();
   };
   const novoTermo = async p => { await p.click('nav [data-v=pcetermo]'); await p.waitForSelector('#pceTermoForm'); };
   const statusDoc = (p, pref, re) => p.waitForFunction(([pref, re]) => new RegExp(re).test(document.querySelector('#' + pref + 'st-doc').textContent), [pref, re.source], { timeout: 10000 });
@@ -52,73 +60,135 @@ const ANO = new Date().getFullYear();
   ok(/Ana Paula Lima/.test(await A.textContent('.pce-serv')) && /Manaus/.test(await A.textContent('.pce-serv')), 'lista mostra o servidor identificado');
   ok(/Nenhum levantamento/.test(await A.textContent('#pceItens')), 'lista vazia');
 
-  console.log('2) novo levantamento SEM internet: 2 culturas, foto, assinatura');
+  console.log('2) novo levantamento SEM internet: 2 pragas (cards), culturas com resultado e fotos por cultura, assinatura');
   await A.ctx.setOffline(true); await A.evaluate(() => window.dispatchEvent(new Event('offline')));
   await A.click('#pce-novolev'); await A.waitForSelector('#pceLevForm');
   await A.waitForFunction(() => document.querySelector('#pce-lat').value !== '', null, { timeout: 10000 });
   ok((await A.inputValue('#pce-lat')).startsWith('-3.12') && await A.getAttribute('#pce-lat', 'readonly') !== null, 'GPS automático ao abrir (lat/lon somente leitura): ' + await A.inputValue('#pce-lat') + ', ' + await A.inputValue('#pce-lon'));
   ok((await A.inputValue('#pce-data')) && (await A.inputValue('#pce-hora')) && (await A.inputValue('#pce-municipio')) === 'Manaus', 'data/hora preenchidas; município = lotação');
+  ok(await A.locator('.pce-praga').count() === 1 && await A.locator('.pce-praga .pce-cult').count() === 1 && (await A.inputValue(PR(0) + ' >> .p-praga')) === '', 'formulário começa com 1 card de praga (sem praga escolhida) e 1 cultura');
   await A.fill('#pce-doc', '52998224725'); await statusDoc(A, 'pce-', /Novo cadastro/);
   await A.fill('#pce-nome', 'josé da silva'); await A.fill('#pce-telefone', '92 98888-7777'); await A.fill('#pce-email', 'jose@exemplo.com');
   await A.fill('#pce-propriedade', 'Sítio Boa Vista'); await A.fill('#pce-codigo', ''); await A.selectOption('#pce-situacao', 'Posse');
-  await A.selectOption('.pce-cult >> nth=0 >> .c-cultura', 'Banana'); await A.fill('.pce-cult >> nth=0 >> .c-area', '2,5'); await A.selectOption('.pce-cult >> nth=0 >> .c-praga', 'Fusarium R4T');
-  ok(await A.isDisabled('.pce-cult >> nth=0 >> .c-tipoMaterial') && await A.isDisabled('.pce-cult >> nth=0 >> .c-codigoAmostra'), 'coleta = Não: campos de amostra desabilitados');
-  await A.click('#pce-addcult'); ok(await A.locator('.pce-cult').count() === 2, '2º bloco de cultura adicionado');
-  await A.selectOption('.pce-cult >> nth=1 >> .c-cultura', 'Cacau'); await A.selectOption('.pce-cult >> nth=1 >> .c-coleta', 'Sim');
-  ok(!(await A.isDisabled('.pce-cult >> nth=1 >> .c-tipoMaterial')) && !(await A.isDisabled('.pce-cult >> nth=1 >> .c-destinoAmostra')), 'coleta = Sim: campos de amostra habilitados');
-  await A.fill('.pce-cult >> nth=1 >> .c-tipoMaterial', 'Frutos'); await A.fill('.pce-cult >> nth=1 >> .c-codigoAmostra', 'AM-001'); await A.fill('.pce-cult >> nth=1 >> .c-destinoAmostra', 'LAB ADAF');
-  ok((await A.inputValue('.pce-cult >> nth=0 >> .c-cultura')) === 'Banana', 'adicionar cultura não apaga a anterior');
+  // card 1: Fusarium R4T — Banana (detectada, foto) e Cacau (não detectada, com amostra)
+  await A.selectOption(PR(0) + ' >> .p-praga', 'Fusarium R4T');
+  await A.selectOption(CU(0, 0) + ' >> .c-cultura', 'Banana'); await A.fill(CU(0, 0) + ' >> .c-area', '2,5'); await A.click(CU(0, 0) + ' >> .pce-res-detectada');
+  ok(await A.isDisabled(CU(0, 0) + ' >> .c-tipoMaterial') && await A.isDisabled(CU(0, 0) + ' >> .c-codigoAmostra'), 'coleta = Não: campos de amostra desabilitados');
+  await A.click(PR(0) + ' >> [data-pce=addcult]'); ok(await A.locator(PR(0) + ' >> .pce-cult').count() === 2, '2ª cultura adicionada no card da praga');
+  await A.selectOption(CU(0, 1) + ' >> .c-cultura', 'Cacau'); await A.click(CU(0, 1) + ' >> .pce-res-nao_detectada'); await A.selectOption(CU(0, 1) + ' >> .c-coleta', 'Sim');
+  ok(!(await A.isDisabled(CU(0, 1) + ' >> .c-tipoMaterial')) && !(await A.isDisabled(CU(0, 1) + ' >> .c-destinoAmostra')), 'coleta = Sim: campos de amostra habilitados');
+  await A.fill(CU(0, 1) + ' >> .c-tipoMaterial', 'Folhas'); await A.fill(CU(0, 1) + ' >> .c-codigoAmostra', 'AM-002'); await A.fill(CU(0, 1) + ' >> .c-destinoAmostra', 'LAB ADAF');
+  ok((await A.inputValue(CU(0, 0) + ' >> .c-cultura')) === 'Banana' && await A.locator(CU(0, 0) + ' >> .c-res:checked').getAttribute('value') === 'detectada', 'adicionar cultura não apaga a anterior (cultura e resultado)');
   const foto = await imagem(A, 2400, 1800, '#2a7');
-  await A.setInputFiles('#pce-fotos', [{ name: 'lavoura.jpg', mimeType: 'image/jpeg', buffer: foto }]);
-  await A.waitForSelector('#pce-fotos-prev .pce-foto img');
-  const dims = await A.evaluate(async () => { const a = (await Store.todos('arquivos'))[0]; const i = new Image(); await new Promise(r => { i.onload = r; i.src = a.dados; }); return { w: i.naturalWidth, h: i.naturalHeight, mime: a.mime, enviado: a.enviado }; });
+  await A.setInputFiles(CU(0, 0) + ' >> .c-fotos', [{ name: 'lavoura.jpg', mimeType: 'image/jpeg', buffer: foto }]);
+  await A.waitForSelector(CU(0, 0) + ' >> .pce-fotos .pce-foto img');
+  const dims = await A.evaluate(async () => { const a = (await Store.todos('arquivos'))[0]; const i = new Image(); await new Promise(r => { i.onload = r; i.src = a.dados; }); return { w: i.naturalWidth, h: i.naturalHeight, mime: a.mime, enviado: a.enviado, rotulo: a.rotulo }; });
   ok(dims.w === 1600 && dims.h === 1200 && dims.mime === 'image/jpeg' && dims.enviado === 0, 'foto reduzida no aparelho (2400×1800 → ' + dims.w + '×' + dims.h + ', JPEG)');
+  ok(dims.rotulo === 'Fusarium R4T – Banana', 'foto ligada à praga e à cultura do card: ' + dims.rotulo);
+  ok(await A.locator(CU(0, 1) + ' >> .pce-foto img').count() === 0, 'a foto fica só na cultura em que foi tirada');
+  // card 2: praga "Outra" digitada — a MESMA cultura (Banana) com resultado suspeita, amostra e foto
+  await A.click('#pce-addpraga'); ok(await A.locator('.pce-praga').count() === 2, '2º card de praga/doença adicionado');
+  ok(await A.locator(PR(1) + ' >> .p-outra').isHidden(), 'campo "nome da praga" escondido até escolher "Outra"');
+  await A.selectOption(PR(1) + ' >> .p-praga', '__outra'); ok(await A.locator(PR(1) + ' >> .p-outra').isVisible(), '"Outra (digitar o nome)" mostra o campo do nome');
+  await A.selectOption(CU(1, 0) + ' >> .c-cultura', 'Banana'); await A.fill(CU(1, 0) + ' >> .c-area', '2,5');
+  await A.click('#pce-salvar'); await A.waitForTimeout(250);
+  ok(/Digite o nome da praga/.test(await A.textContent('#toast')) && await A.locator('#pceLevForm').count() === 1, '"Outra" sem nome não salva: ' + await A.textContent('#toast'));
+  await A.fill(PR(1) + ' >> .p-outra', 'Mosca-negra-dos-citros');
+  await A.click('#pce-salvar'); await A.waitForTimeout(250);
+  ok(/Informe o resultado de Banana em Mosca-negra-dos-citros/.test(await A.textContent('#toast')), 'cultura sem resultado não salva: ' + await A.textContent('#toast'));
+  await A.click(CU(1, 0) + ' >> .pce-res-suspeita'); await A.selectOption(CU(1, 0) + ' >> .c-coleta', 'Sim');
+  await A.fill(CU(1, 0) + ' >> .c-tipoMaterial', 'Frutos'); await A.fill(CU(1, 0) + ' >> .c-codigoAmostra', 'AM-001'); await A.fill(CU(1, 0) + ' >> .c-destinoAmostra', 'LAB ADAF');
+  await A.setInputFiles(CU(1, 0) + ' >> .c-fotos', [{ name: 'fruto.jpg', mimeType: 'image/jpeg', buffer: await imagem(A, 900, 700, '#c52') }]);
+  await A.waitForSelector(CU(1, 0) + ' >> .pce-fotos .pce-foto img');
+  // card 3 repetindo a praga do card 1: recusado (junta num card só); depois removido
+  await A.click('#pce-addpraga'); await A.selectOption(PR(2) + ' >> .p-praga', 'Fusarium R4T'); await A.selectOption(CU(2, 0) + ' >> .c-cultura', 'Milho'); await A.click(CU(2, 0) + ' >> .pce-res-nao_detectada');
+  await A.click('#pce-salvar'); await A.waitForTimeout(250);
+  ok(/Fusarium R4T está em dois cards/.test(await A.textContent('#toast')), 'a mesma praga em dois cards é recusada: ' + await A.textContent('#toast'));
+  await A.click(PR(2) + ' >> [data-pce=delpraga]'); ok(await A.locator('.pce-praga').count() === 2, 'card repetido removido');
+  await A.setViewportSize({ width: 390, height: 844 }); await A.locator(PR(0)).scrollIntoViewIfNeeded();
+  await A.screenshot({ path: amb.saida('pce_form_praga_390.png'), fullPage: true }); await A.setViewportSize({ width: 400, height: 900 });
+  ok(await A.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'formulário sem rolagem horizontal no celular');
   await assinar(A, '#pce-ass-servidor'); await A.waitForTimeout(700);
   await A.fill('#pce-obs', 'Plantas com sintomas de murcha.');
-  await A.click('#pce-salvar'); await A.waitForSelector('.item.pce-lev');
-  ok(/JOSÉ DA SILVA/.test(await A.textContent('#pceItens')) && /2 cultura\(s\) · 1 com coleta · 1 foto\(s\)/.test(await A.textContent('#pceItens')), 'levantamento na lista: ' + (await A.textContent('.item.pce-lev .info')).trim());
+  await A.click('#pce-salvar'); await A.waitForSelector('#pce-lev-pronto');
+  ok(await A.locator('#pce-lev-pronto').count() === 1 && /Fusarium R4T/.test(await A.textContent('#pce-lev-pronto')) && /Mosca-negra-dos-citros/.test(await A.textContent('#pce-lev-pronto')), 'depois de salvar: tela com o resumo por praga');
+  const botoesPdf = await A.locator('[data-pce=imprimirlev]').allTextContents();
+  ok(botoesPdf.length === 2 && /PDF: Fusarium R4T/.test(botoesPdf[0]) && /PDF: Mosca-negra-dos-citros/.test(botoesPdf[1]) && await A.locator('[data-pce=imprimirtodos]').count() === 1, 'botões "PDF: <praga>" (um por praga) e "Imprimir todos": ' + botoesPdf.join(' | '));
+  ok(await A.locator('#pce-pronto-termo').count() === 1 && /2 amostra/.test(await A.textContent('#pce-pronto-termo')), 'atalho para o Termo de colheita (2 amostras)');
+  await A.screenshot({ path: amb.saida('pce_lev_pronto.png'), fullPage: true });
+  await A.click('#pce-pronto-lista'); await A.waitForSelector('.item.pce-lev');
+  ok(/JOSÉ DA SILVA/.test(await A.textContent('#pceItens')) && /2 praga\(s\)\/doença\(s\) · 3 cultura\(s\) avaliada\(s\) · 2 com coleta · 2 foto\(s\)/.test(await A.textContent('#pceItens')), 'levantamento na lista: ' + (await A.textContent('.item.pce-lev .info')).trim());
+  ok(await A.locator('.item.pce-lev [data-pce=imprimirlev]').count() === 2 && await A.locator('.item.pce-lev [data-pce=imprimirtodos]').count() === 1, 'lista: um botão de PDF por praga + Imprimir todos');
+  ok(/Fusarium R4T Detectada/.test(await A.textContent('.item.pce-lev .pce-res-resumo')) && /Mosca-negra-dos-citros Suspeita/.test(await A.textContent('.item.pce-lev .pce-res-resumo')), 'lista: resultado de cada praga');
   ok(await A.locator('.item.pce-lev .info.pend').count() === 1, 'pendente de envio (sem internet)');
-  const loc = await A.evaluate(async () => ({ lev: (await Store.todos('levantamentos'))[0], pes: await Store.obter('pessoas', '52998224725'), props: await Store.todos('propriedades'), arqs: (await Store.todos('arquivos')).map(a => ({ id: a.id, tipo: a.tipo, papel: a.papel, mime: a.mime, enviado: a.enviado })) }));
-  const cult = JSON.parse(loc.lev.culturas), ass = JSON.parse(loc.lev.assinaturas);
-  ok(cult.length === 2 && cult[0].coleta === 'Não' && cult[0].codigoAmostra === '' && cult[1].codigoAmostra === 'AM-001' && cult[1].coleta === 'Sim', 'culturas gravadas como JSON (amostra só na que tem coleta)');
+  const loc = await A.evaluate(async () => ({ lev: (await Store.todos('levantamentos'))[0], pes: await Store.obter('pessoas', '52998224725'), props: await Store.todos('propriedades'), arqs: (await Store.todos('arquivos')).map(a => ({ id: a.id, tipo: a.tipo, papel: a.papel, mime: a.mime, enviado: a.enviado, rotulo: a.rotulo })) }));
+  const cult = JSON.parse(loc.lev.culturas), ass = JSON.parse(loc.lev.assinaturas), prg = JSON.parse(loc.lev.pragas), fotosLev = JSON.parse(loc.lev.fotos);
+  ok(prg.length === 2 && prg[0].praga === 'Fusarium R4T' && prg[0].culturas.length === 2 && prg[1].praga === 'Mosca-negra-dos-citros' && prg[1].culturas[0].cultura === 'Banana', 'pragas gravadas como JSON: um card por praga, a mesma cultura nas duas');
+  ok(prg[0].culturas[0].resultado === 'detectada' && prg[0].culturas[1].resultado === 'nao_detectada' && prg[1].culturas[0].resultado === 'suspeita', 'resultado de cada cultura (detectada / não detectada / suspeita)');
+  ok(prg[0].culturas[0].fotos.length === 1 && prg[0].culturas[1].fotos.length === 0 && prg[1].culturas[0].fotos.length === 1 && fotosLev.length === 2 && fotosLev.includes(prg[1].culturas[0].fotos[0]), 'fotos dentro de cada cultura; "fotos" do registro = todas');
+  ok(prg[0].culturas[0].coleta === 'Não' && prg[0].culturas[0].codigoAmostra === '' && prg[0].culturas[1].codigoAmostra === 'AM-002' && prg[1].culturas[0].codigoAmostra === 'AM-001', 'amostra só nas culturas com coleta');
+  ok(cult.length === 3 && cult[0].praga === 'Fusarium R4T' && cult[1].praga === '' && cult[1].pragaAvaliada === 'Fusarium R4T' && cult[2].praga === 'Mosca-negra-dos-citros' && cult[2].resultado === 'suspeita', 'culturas derivadas (uma por cultura × praga; praga só se detectada/suspeita)');
   ok(loc.lev.servidor === 'Ana Paula Lima' && loc.lev.lotacao === 'Manaus' && loc.lev.matricula === '12345' && loc.lev.nome === 'JOSÉ DA SILVA' && loc.lev.doc === '52998224725', 'dados do servidor copiados para o registro; nome em maiúsculas; doc só dígitos');
-  ok(ass.servidor && !ass.produtor && loc.arqs.length === 2 && loc.arqs.some(a => a.tipo === 'assinatura' && a.papel === 'servidor' && a.mime === 'image/png'), 'assinatura do servidor virou arquivo PNG; a do produtor (não desenhada) não');
+  ok(ass.servidor && !ass.produtor && loc.arqs.length === 3 && loc.arqs.some(a => a.tipo === 'assinatura' && a.papel === 'servidor' && a.mime === 'image/png'), 'assinatura do servidor virou arquivo PNG; a do produtor (não desenhada) não');
+  ok(loc.arqs.filter(a => a.tipo === 'foto').map(a => a.rotulo).sort().join('|') === 'Fusarium R4T – Banana|Mosca-negra-dos-citros – Banana', 'cada foto guarda praga e cultura (rótulo)');
   ok(loc.pes && loc.pes.email === 'jose@exemplo.com' && loc.pes.telefone === '92 98888-7777' && loc.props.length === 1 && loc.props[0].id === '52998224725|SITIO BOA VISTA' && loc.props[0].situacaoFundiaria === 'Posse', 'produtor (com e-mail) e propriedade gravados no aparelho');
-  const nPend = await pendentes(A); ok(nPend === 5, 'pendentes: levantamento + pessoa + propriedade + 2 arquivos = ' + nPend);
-  await A.waitForFunction(() => /5 a enviar/.test(document.querySelector('#sync').textContent), null, { timeout: 5000 }); ok(true, 'selo: ' + await A.textContent('#sync'));
+  const nPend = await pendentes(A); ok(nPend === 6, 'pendentes: levantamento + pessoa + propriedade + 3 arquivos = ' + nPend);
+  await A.waitForFunction(() => /6 a enviar/.test(document.querySelector('#sync').textContent), null, { timeout: 5000 }); ok(true, 'selo: ' + await A.textContent('#sync'));
   await A.click('nav [data-v=modulos]'); await A.waitForSelector('.modulo[data-v=pce]');
-  ok(/1 levantamento\(s\) · 0 termo\(s\) · ⏳ 3 aguardando envio/.test(await A.textContent('.modulo[data-v=pce] .pce-status')), 'cartão do hub: ' + await A.textContent('.modulo[data-v=pce] .pce-status'));
+  ok(/1 levantamento\(s\) · 0 termo\(s\) · ⏳ 4 aguardando envio/.test(await A.textContent('.modulo[data-v=pce] .pce-status')), 'cartão do hub: ' + await A.textContent('.modulo[data-v=pce] .pce-status'));
 
   console.log('3) volta a internet: sincroniza e envia as fotos ao Drive');
   await A.ctx.setOffline(false); await A.evaluate(() => window.dispatchEvent(new Event('online'))); await sync(A);
   const levs = await ler('Levantamentos');
-  ok(levs.length === 1 && levs[0].usuario === 'Ana Paula Lima' && JSON.parse(levs[0].culturas).length === 2 && levs[0].email === 'jose@exemplo.com', 'planilha: levantamento gravado (usuário, culturas, e-mail)');
+  ok(levs.length === 1 && levs[0].usuario === 'Ana Paula Lima' && JSON.parse(levs[0].culturas).length === 3 && JSON.parse(levs[0].pragas).length === 2 && levs[0].email === 'jose@exemplo.com', 'planilha: levantamento gravado (usuário, pragas, culturas derivadas, e-mail)');
   const pes = (await ler('Pessoas')).find(x => x.id === '52998224725'); ok(pes && pes.email === 'jose@exemplo.com', 'planilha: pessoa com e-mail');
   ok((await ler('Propriedades')).some(x => x.id === '52998224725|SITIO BOA VISTA'), 'planilha: propriedade');
   let arqS = await ler('Arquivos'), drive = await get('/__drive');
-  ok(arqS.length === 2 && drive.arquivos.length === 2 && drive.arquivos.every(a => a.caminho === `GDV - Arquivos/PCE/${ANO}/levantamentos` && !a.compartilhado), 'Drive falso recebeu foto e assinatura: ' + drive.arquivos.map(a => a.nome.slice(0, 50)).join(' ; '));
+  ok(arqS.length === 3 && drive.arquivos.length === 3 && drive.arquivos.every(a => a.caminho === `GDV - Arquivos/PCE/${ANO}/levantamentos` && !a.compartilhado), 'Drive falso recebeu 2 fotos e a assinatura: ' + drive.arquivos.map(a => a.nome.slice(0, 70)).join(' ; '));
+  ok(drive.arquivos.some(a => /_foto_\d_Fusarium-R4T-Banana_/.test(a.nome)) && drive.arquivos.some(a => /_foto_\d_Mosca-negra-dos-citros-Banana_/.test(a.nome)) && arqS.filter(a => a.rotulo).length === 2, 'fotos no Drive com praga e cultura no nome; rótulo na aba Arquivos');
   const locArq = await A.evaluate(async () => (await Store.todos('arquivos')).map(a => ({ enviado: a.enviado, url: a.url, temDados: !!a.dados })));
   ok(locArq.every(a => a.enviado === 1 && /drive\.google\.com/.test(a.url) && a.temDados), 'arquivos marcados enviado=1 com link; imagem mantida no aparelho');
   ok((await pendentes(A)) === 0 && !/a enviar/.test(await A.textContent('#sync')), 'nada pendente; selo: ' + await A.textContent('#sync'));
   await irPCE(A); await A.waitForSelector('.item.pce-lev'); ok(await A.locator('.item.pce-lev .info.pend').count() === 0, 'lista sem "aguardando envio"');
 
-  console.log('4) ficha de levantamento (PDF)');
-  let pr = await imprimir(A, '[data-pce=imprimirlev]');
-  ok(/Ficha de Levantamento Fitossanit/i.test(pr.texto) && pr.texto.includes('JOSÉ DA SILVA') && pr.texto.includes('529.982.247-25') && pr.texto.includes('Sítio Boa Vista') && pr.texto.includes('jose@exemplo.com'), 'ficha: título, produtor, CPF formatado, propriedade, e-mail');
-  ok(pr.texto.includes('Banana') && pr.texto.includes('Cacau') && pr.texto.includes('AM-001') && pr.texto.includes('LAB ADAF') && pr.texto.includes('Fusarium R4T'), 'ficha: tabela de culturas e pragas com a amostra');
-  ok(/3°07'/.test(pr.texto) && /-3\.12345/.test(pr.texto) && pr.texto.includes('Ana Paula Lima') && pr.texto.includes('Plantas com sintomas de murcha.'), 'ficha: coordenadas (decimal e GMS), servidor, observações');
-  ok(pr.imgs === 2 && pr.semFoto === 0, 'ficha: foto e assinatura impressas a partir do aparelho (' + pr.imgs + ' imagens)');
-  ok(/^Levantamento_JOSE_DA_SILVA_\d\d-\d\d-\d{4}$/.test(pr.titulo), 'nome sugerido do PDF: ' + pr.titulo);
+  console.log('4) um PDF por praga/doença');
+  let pr = await imprimir(A, '.item.pce-lev [data-pce=imprimirlev][data-g="0"]');
+  ok(/Ficha de Levantamento Fitossanit/i.test(pr.texto) && pr.texto.includes('JOSÉ DA SILVA') && pr.texto.includes('529.982.247-25') && pr.texto.includes('Sítio Boa Vista') && pr.texto.includes('jose@exemplo.com'), 'PDF 1: título, produtor, CPF formatado, propriedade, e-mail');
+  ok(/Praga\/doença avaliada Fusarium R4T/.test(pr.texto) && /1 de 2/.test(pr.texto) && pr.texto.includes('Banana') && pr.texto.includes('Cacau') && pr.texto.includes('AM-002') && pr.texto.includes('LAB ADAF') && /Detectada/.test(pr.texto) && /Não detectada/.test(pr.texto),
+    'PDF 1 (Fusarium): praga avaliada, ficha 1 de 2, culturas com resultado e amostra');
+  ok(!pr.texto.includes('Mosca-negra') && !pr.texto.includes('AM-001') && !/Suspeita/.test(pr.texto), 'PDF 1 não traz a outra praga nem a cultura/amostra dela');
+  ok(/3°07'/.test(pr.texto) && /-3\.12345/.test(pr.texto) && pr.texto.includes('Ana Paula Lima') && pr.texto.includes('Plantas com sintomas de murcha.'), 'PDF 1: coordenadas (decimal e GMS), servidor, observações');
+  ok(pr.imgs === 2 && pr.semFoto === 0 && /Cultura 1: Banana · Detectada · 1 foto\(s\)/.test(pr.texto) && /Banana – foto 1/.test(pr.texto), 'PDF 1: só a foto da Banana (agrupada por cultura, com legenda) + assinatura (' + pr.imgs + ' imagens)');
+  ok(/^Levantamento_JOSE_DA_SILVA_Fusarium_R4T_\d\d-\d\d-\d{4}$/.test(pr.titulo), 'nome sugerido do PDF 1: ' + pr.titulo);
+  await salvarPdf(A, pr, 'pce_lev_pdf_fusarium');
+  pr = await imprimir(A, '.item.pce-lev [data-pce=imprimirlev][data-g="1"]');
+  ok(/Praga\/doença avaliada Mosca-negra-dos-citros/.test(pr.texto) && /2 de 2/.test(pr.texto) && pr.texto.includes('Banana') && /Suspeita/.test(pr.texto) && pr.texto.includes('AM-001') && !pr.texto.includes('Cacau') && !pr.texto.includes('Fusarium') && !pr.texto.includes('AM-002'),
+    'PDF 2 (Mosca-negra): só a Banana suspeita e a amostra dela');
+  ok(pr.imgs === 2 && /Banana – foto 1/.test(pr.texto) && /^Levantamento_JOSE_DA_SILVA_Mosca-negra-dos-citros_\d\d-\d\d-\d{4}$/.test(pr.titulo), 'PDF 2: a foto da Banana desta praga + assinatura; nome ' + pr.titulo);
+  await salvarPdf(A, pr, 'pce_lev_pdf_mosca');
+  // Imprimir todos: o 1º sai já; os seguintes um a um, com um toque (no celular cada um abre a sua janela de impressão)
+  await A.evaluate(() => { window.__prints = []; }); await A.click('.item.pce-lev [data-pce=imprimirtodos]');
+  await A.waitForSelector('#pce-modal-todos #pce-todos-prox');
+  ok((await A.evaluate(() => window.__prints.length)) === 1 && /PDF 1 de 2 gerado: Fusarium R4T/.test(await A.textContent('#pce-modal-todos')) && /Mosca-negra-dos-citros/.test(await A.textContent('#pce-todos-prox')), 'Imprimir todos: PDF 1 de 2 e botão para o próximo');
+  await A.click('#pce-todos-prox'); await A.waitForFunction(() => window.__prints.length === 2 && /Todos os 2 PDFs/.test(document.querySelector('#pce-modal-todos')?.textContent || ''));
+  const todos = await A.evaluate(() => window.__prints.map(x => x.titulo));
+  ok(/_Fusarium_R4T_/.test(todos[0]) && /_Mosca-negra-dos-citros_/.test(todos[1]), 'Imprimir todos: os 2 PDFs, um por praga, em sequência: ' + todos.join(' | '));
+  await A.click('#pce-todos-fechar'); ok(await A.locator('#pce-modal-todos').count() === 0, 'Imprimir todos: fechar');
 
   console.log('5) termo de colheita a partir do levantamento');
   await A.click('[data-pce=termodelev]'); await A.waitForSelector('#pceTermoForm');
   ok((await A.inputValue('#pce-t-doc')) === '529.982.247-25' && (await A.inputValue('#pce-t-nome')) === 'JOSÉ DA SILVA' && (await A.inputValue('#pce-t-municipio')) === 'Manaus', 'pré-preenchido: produtor e município do levantamento');
-  ok((await A.inputValue('#pce-t-cultura')) === 'Cacau' && (await A.inputValue('#pce-t-lat')).startsWith('-3.12') && /Sítio Boa Vista/.test(await A.inputValue('#pce-t-endereco')) && (await A.inputValue('#pce-t-unidade')) === 'Manaus', 'cultura com coleta = Sim, coordenadas, propriedade e unidade (lotação)');
+  ok((await A.inputValue('#pce-t-cultura')) === 'Cacau' && (await A.inputValue('#pce-t-lat')).startsWith('-3.12') && /Sítio Boa Vista/.test(await A.inputValue('#pce-t-endereco')) && (await A.inputValue('#pce-t-unidade')) === 'Manaus', 'cultura com coleta = Sim (a 1ª), coordenadas, propriedade e unidade (lotação)');
+  const opAm = await A.locator('#pce-t-amostra option').allTextContents();
+  ok(opAm.length === 2 && /Cacau — Fusarium R4T · cód\. AM-002/.test(opAm[0]) && /Banana — Mosca-negra-dos-citros · cód\. AM-001/.test(opAm[1]), 'duas culturas/pragas com coleta: o termo deixa escolher a amostra: ' + opAm.join(' | '));
+  ok(await A.isChecked('input[name=pce-t-parte][value=folhas]') && !(await A.isChecked('input[name=pce-t-parte][value=frutos]')), 'partes da planta vêm do tipo de material (Folhas)');
+  await A.selectOption('#pce-t-amostra', '1');
+  ok((await A.inputValue('#pce-t-cultura')) === 'Banana' && await A.isChecked('input[name=pce-t-parte][value=frutos]') && !(await A.isChecked('input[name=pce-t-parte][value=folhas]')), 'escolhida a amostra da Banana (Mosca-negra): cultura e partes (Frutos) acompanham');
   ok(/definido ao gerar/.test(await A.textContent('#pce-t-numero')), 'número só é definido ao gerar');
   await A.fill('#pce-t-quantidade', '3'); await A.fill('#pce-t-analise', 'fitopatológica');
   await A.check('input[name=pce-t-parte][value=folhas]'); await A.check('input[name=pce-t-parte][value=frutos]');
   const desc = await A.inputValue('#pce-t-descricao');
-  ok(/^Em \d+ de \w+ de \d{4}, às \d\dh\d\d, o\(a\) servidor\(a\) Ana Paula Lima, da Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF, realizou a coleta de 3 amostra\(s\) de folhas, frutos da cultura de Cacau, destinadas à análise fitopatológica\.$/.test(desc), 'texto oficial gerado: ' + desc);
+  ok(/^Em \d+ de \w+ de \d{4}, às \d\dh\d\d, o\(a\) servidor\(a\) Ana Paula Lima, da Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF, realizou a coleta de 3 amostra\(s\) de folhas, frutos da cultura de Banana, destinadas à análise fitopatológica\.$/.test(desc), 'texto oficial gerado: ' + desc);
   await A.fill('#pce-t-descricao', desc + ' Texto complementado à mão.'); await A.fill('#pce-t-quantidade', '4');
   ok((await A.inputValue('#pce-t-descricao')).endsWith('à mão.') && (await A.inputValue('#pce-t-descricao')).includes('3 amostra'), 'texto editado à mão não é sobrescrito');
   await A.click('#pce-t-gerartexto'); ok((await A.inputValue('#pce-t-descricao')).includes('4 amostra(s)'), 'botão "Gerar texto oficial" refaz o texto');
@@ -134,7 +204,7 @@ const ANO = new Date().getFullYear();
   ok(cols.length === 1 && c1.numeroOrigem === 'sistema' && c1.usuario === 'Ana Paula Lima' && c1.levantamentoId === levs[0].id && c1.emitidoEm > 0 && c1.partes === 'folhas, frutos' && c1.testemunha1Nome === 'Carlos Testemunha', 'planilha já tem o termo (origem sistema, ligado ao levantamento) sem esperar o sync');
   pr = await imprimir(A, '#pce-imprimir');
   ok(pr.paginas === 2 && pr.vias.join('|') === 'Via da ADAF|Via do produtor', 'PDF em 2 vias: ' + pr.vias.join(' | '));
-  ok(pr.texto.includes(`001/${ANO}/MANAUS`) && /Termo de Colheita de Amostras/i.test(pr.texto) && pr.texto.includes('JOSÉ DA SILVA') && pr.texto.includes('Cacau') && pr.texto.includes('Texto complementado') === false && pr.texto.includes('4 amostra(s)') && pr.texto.includes('Carlos Testemunha'), 'termo: número, produtor, cultura, texto oficial, testemunha');
+  ok(pr.texto.includes(`001/${ANO}/MANAUS`) && /Termo de Colheita de Amostras/i.test(pr.texto) && pr.texto.includes('JOSÉ DA SILVA') && pr.texto.includes('Banana') && pr.texto.includes('Texto complementado') === false && pr.texto.includes('4 amostra(s)') && pr.texto.includes('Carlos Testemunha'), 'termo: número, produtor, cultura, texto oficial, testemunha');
   ok(pr.imgs === 4 && !pr.cancelado, 'termo: foto e assinatura nas 2 vias (' + pr.imgs + ' imagens), sem faixa de cancelado');
   ok(pr.titulo === `Termo_Colheita_001_${ANO}_MANAUS`, 'nome sugerido do PDF: ' + pr.titulo);
   await sync(A); drive = await get('/__drive');
@@ -193,27 +263,51 @@ const ANO = new Date().getFullYear();
   ok(pr.cancelado && /TERMO CANCELADO – digitação errada/.test(pr.texto) && pr.paginas === 2, 'PDF do cancelado com faixa CANCELADO nas 2 vias');
 
   console.log('9) rascunhos automáticos');
-  await A.click('nav [data-v=pcelev]'); await A.waitForSelector('#pceLevForm'); await A.fill('#pce-nome', 'RASCUNHO PCE'); await A.selectOption('.pce-cult >> nth=0 >> .c-cultura', 'Açaí');
-  await A.setInputFiles('#pce-fotos', [{ name: 'r.jpg', mimeType: 'image/jpeg', buffer: await imagem(A, 300, 200, '#33c') }]); await A.waitForSelector('#pce-fotos-prev .pce-foto img');
+  await A.click('nav [data-v=pcelev]'); await A.waitForSelector('#pceLevForm'); await A.fill('#pce-nome', 'RASCUNHO PCE');
+  await A.selectOption(PR(0) + ' >> .p-praga', 'HLB / Greening'); await A.selectOption(CU(0, 0) + ' >> .c-cultura', 'Açaí'); await A.click(CU(0, 0) + ' >> .pce-res-suspeita');
+  await A.setInputFiles(CU(0, 0) + ' >> .c-fotos', [{ name: 'r.jpg', mimeType: 'image/jpeg', buffer: await imagem(A, 300, 200, '#33c') }]); await A.waitForSelector(CU(0, 0) + ' >> .pce-foto img');
   await A.waitForTimeout(900);
   ok((await pendentes(A)) === 0, 'foto de rascunho não conta como pendente');
   await A.click('nav [data-v=pce]'); await A.waitForSelector('#pce-novolev'); await A.click('#pce-novolev'); await A.waitForSelector('#pceLevForm');
-  ok((await A.inputValue('#pce-nome')) === 'RASCUNHO PCE' && (await A.inputValue('.pce-cult >> nth=0 >> .c-cultura')) === 'Açaí' && await A.locator('#pce-fotos-prev .pce-foto img').count() === 1, 'rascunho do levantamento restaurado (nome, cultura e foto)');
-  const nArq = await A.evaluate(async () => (await Store.todos('arquivos')).length);
+  await A.waitForSelector(CU(0, 0) + ' >> .pce-foto img');
+  ok((await A.inputValue('#pce-nome')) === 'RASCUNHO PCE' && (await A.inputValue(PR(0) + ' >> .p-praga')) === 'HLB / Greening' && (await A.inputValue(CU(0, 0) + ' >> .c-cultura')) === 'Açaí'
+    && await A.locator(CU(0, 0) + ' >> .c-res:checked').getAttribute('value') === 'suspeita' && await A.locator(CU(0, 0) + ' >> .pce-foto img').count() === 1, 'rascunho do levantamento restaurado (nome, praga, cultura, resultado e foto da cultura)');
+  let nArq = await A.evaluate(async () => (await Store.todos('arquivos')).length);
   await A.click('[data-pce=descartarlev]'); await A.waitForSelector('#pce-novolev');
   ok((await A.evaluate(async () => (await Store.todos('arquivos')).length)) === nArq - 1 && !(await A.evaluate(() => Store.meta('pceLevRascunho'))), 'descartar apaga o rascunho e a foto que só existia nele');
+  // rascunho da versão anterior do app (culturas com praga + fotos do levantamento inteiro): abre convertido em cards
+  await A.evaluate(async () => {
+    const t = Date.now(), c = document.createElement('canvas'); c.width = c.height = 24; const jpg = c.toDataURL('image/jpeg');
+    await Store.gravar('arquivos', { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', dono: 'levantamentos', donoId: 'rasc-velho', tipo: 'foto', papel: '', mime: 'image/jpeg', dados: jpg, tamanho: 10, criadoEm: t, enviado: 0, url: '', driveId: '' });
+    await Store.setMeta('pceLevRascunho', { dados: { doc: '', nome: 'RASCUNHO VELHO', telefone: '', email: '', propriedade: '', codigoPropriedade: '', situacaoFundiaria: '', municipio: 'Manaus', lat: '', lon: '', precisao: '', data: '2026-10-01', hora: '08:00', obs: '',
+      culturas: [{ cultura: 'Banana', area: '1', espLinha: '', espPlanta: '', praga: 'Moko da bananeira', coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '' }, { cultura: 'Mandioca', area: '2', espLinha: '', espPlanta: '', praga: '', coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '' }] },
+      id: 'rasc-velho', novo: true, fotos: ['aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa'], docs: [], antigo: 0, ass: {}, assNovas: {}, em: t });
+  });
+  await A.click('nav [data-v=pce]'); await A.waitForSelector('#pce-novolev'); await A.click('#pce-novolev'); await A.waitForSelector('#pceLevForm'); await A.waitForSelector('#pce-fotos-gerais .pce-foto img');
+  ok((await A.inputValue('#pce-nome')) === 'RASCUNHO VELHO' && await A.locator('.pce-praga').count() === 2 && (await A.inputValue(PR(0) + ' >> .p-praga')) === '__outra' && (await A.inputValue(PR(0) + ' >> .p-outra')) === 'Moko da bananeira' && (await A.inputValue(CU(0, 0) + ' >> .c-cultura')) === 'Banana'
+    && await A.locator(CU(0, 0) + ' >> .c-res:checked').getAttribute('value') === 'detectada', 'rascunho antigo: cultura com praga vira card da praga (fora da lista: "Outra" com o nome; resultado detectada)');
+  ok((await A.inputValue(PR(1) + ' >> .p-praga')) === '' && /Sem praga informada \(registro anterior\)/.test(await A.textContent(PR(1) + ' >> .p-praga option >> nth=0')) && await A.locator(CU(1, 0) + ' >> .c-res:checked').getAttribute('value') === 'nao_detectada',
+    'rascunho antigo: cultura sem praga vira card "Sem praga informada" (não detectada)');
+  ok(await A.locator('#pce-gerais-card .pce-foto img').count() === 1 && /Fotos gerais \(registro anterior\)/.test(await A.textContent('#pce-gerais-card')), 'rascunho antigo: fotos do levantamento inteiro em "Fotos gerais (registro anterior)"');
+  nArq = await A.evaluate(async () => (await Store.todos('arquivos')).length);
+  await A.click('[data-pce=descartarlev]'); await A.waitForSelector('#pce-novolev');
+  ok((await A.evaluate(async () => (await Store.todos('arquivos')).length)) === nArq - 1, 'descartar o rascunho antigo apaga a foto dele');
   await novoTermo(A); await A.fill('#pce-t-nome', 'TERMO RASCUNHO'); await A.waitForTimeout(800);
   await A.click('nav [data-v=pce]'); await A.waitForSelector('#pce-novolev'); await novoTermo(A);
   ok((await A.inputValue('#pce-t-nome')) === 'TERMO RASCUNHO', 'rascunho do termo restaurado');
   await A.click('[data-pce=descartartermo]'); await A.waitForSelector('#pce-novotermo');
 
   console.log('10) editar levantamento, "Meus dados" e excluir');
-  await A.click('nav [data-v=pce]'); await A.waitForSelector('.item.pce-lev'); await A.click('[data-pce=abrirlev]'); await A.waitForSelector('#pceLevForm');
-  ok((await A.inputValue('#pce-nome')) === 'JOSÉ DA SILVA' && await A.locator('.pce-cult').count() === 2 && await A.locator('#pce-fotos-prev .pce-foto img').count() === 1, 'levantamento reaberto para edição com culturas e foto');
-  await A.click('[data-pce=delfoto]'); await A.fill('#pce-obs', 'Observação revisada.'); await A.click('#pce-salvar'); await A.waitForSelector('.item.pce-lev');
-  ok(/0 foto\(s\)/.test(await A.textContent('#pceItens')), 'foto removida do registro');
-  ok((await A.evaluate(async () => (await Store.todos('arquivos')).filter(a => a.dono === 'levantamentos').length)) === 2, 'foto já enviada fica no aparelho/Drive (auditoria): só sai do registro');
-  await sync(A); ok((await ler('Levantamentos'))[0].obs === 'Observação revisada.' && (await ler('Levantamentos'))[0].fotos === '[]', 'edição sincronizada');
+  await A.click('nav [data-v=pce]'); await A.waitForSelector('.item.pce-lev'); await A.click('[data-pce=abrirlev]'); await A.waitForSelector('#pceLevForm'); await A.waitForSelector(CU(1, 0) + ' >> .pce-foto img');
+  ok((await A.inputValue('#pce-nome')) === 'JOSÉ DA SILVA' && await A.locator('.pce-praga').count() === 2 && await A.locator(PR(0) + ' >> .pce-cult').count() === 2 && await A.locator(CU(0, 0) + ' >> .pce-foto img').count() === 1
+    && await A.locator(CU(0, 1) + ' >> .pce-foto').count() === 0 && (await A.inputValue(PR(1) + ' >> .p-praga')) === '__outra' && (await A.inputValue(PR(1) + ' >> .p-outra')) === 'Mosca-negra-dos-citros' && await A.locator('#pce-gerais-card').count() === 0,
+    'levantamento reaberto: cards de praga ("Outra" com o nome), culturas e fotos de cada cultura');
+  await A.click(CU(0, 0) + ' >> [data-pce=delfoto]'); await A.fill('#pce-obs', 'Observação revisada.'); await A.click('#pce-salvar'); await A.waitForSelector('#pce-lev-pronto');
+  await A.click('#pce-pronto-lista'); await A.waitForSelector('.item.pce-lev');
+  ok(/1 foto\(s\)/.test(await A.textContent('#pceItens')), 'foto da Banana (Fusarium) removida do registro; a da Mosca-negra fica');
+  ok((await A.evaluate(async () => (await Store.todos('arquivos')).filter(a => a.dono === 'levantamentos').length)) === 3, 'foto já enviada fica no aparelho/Drive (auditoria): só sai do registro');
+  await sync(A); const lv = (await ler('Levantamentos'))[0];
+  ok(lv.obs === 'Observação revisada.' && JSON.parse(lv.fotos).length === 1 && JSON.parse(lv.pragas)[0].culturas[0].fotos.length === 0 && JSON.parse(lv.pragas)[1].culturas[0].fotos.length === 1, 'edição sincronizada (fotos por cultura)');
   await A.click('#pce-meusdados'); await A.waitForSelector('#pceServForm'); await A.selectOption('#pce-s-lotacao', 'Parintins'); await A.click('#pce-s-salvar'); await A.waitForSelector('#pce-novolev');
   ok(/Parintins/.test(await A.textContent('.pce-serv')), '"Meus dados" altera a lotação');
   await novoTermo(A); ok((await A.inputValue('#pce-t-unidade')) === 'Parintins', 'novo termo usa a nova lotação como unidade'); await A.click('[data-pce=descartartermo]'); await A.waitForSelector('#pce-novotermo');
@@ -250,7 +344,8 @@ const ANO = new Date().getFullYear();
   ok((await Cd.getAttribute('#pce-obs', 'aria-label')) === 'Observações', 'campo de observações com nome acessível');
   await Cd.fill('#pce-doc', '11.222.333/0001-81'); await statusDoc(Cd, 'pce-', /Novo cadastro/);
   await Cd.fill('#pce-nome', 'Agro Longo Ltda'); await Cd.fill('#pce-propriedade', 'Sítio Nossa Senhora Aparecida do Rio Preto da Eva km 32 ramal do Pau Rosa');
-  await Cd.selectOption('.pce-cult >> nth=0 >> .c-cultura', 'Banana'); ok(await Cd.getAttribute('.pce-cult >> nth=0 >> .c-area', 'maxlength') === '60', 'campos livres das culturas com tamanho máximo');
+  await Cd.selectOption(PR(0) + ' >> .p-praga', 'Cancro Cítrico'); await Cd.click(CU(0, 0) + ' >> .pce-res-nao_detectada');
+  await Cd.selectOption(CU(0, 0) + ' >> .c-cultura', 'Banana'); ok(await Cd.getAttribute(CU(0, 0) + ' >> .c-area', 'maxlength') === '60' && await Cd.getAttribute(PR(0) + ' >> .p-outra', 'maxlength') === '80', 'campos livres das culturas e da praga com tamanho máximo');
   await Cd.fill('#pce-data', ''); await Cd.click('#pce-salvar'); await Cd.waitForTimeout(300);
   ok(/Informe a data/.test(await Cd.textContent('#toast')) && await Cd.locator('#pceLevForm').count() === 1, 'levantamento sem data não é salvo');
   await Cd.fill('#pce-data', '2026-10-09');
@@ -269,8 +364,37 @@ const ANO = new Date().getFullYear();
   await Cd.setViewportSize({ width: 400, height: 900 });
   ok(px.meio, 'depois de girar o celular, o traço sai embaixo do dedo (meio do quadro)');
   ok(!px.zigue, 'segundo dedo/palma não desenha linha atravessando o quadro');
-  await Cd.click('#pce-salvar'); await Cd.waitForSelector('.item.pce-lev');
-  const propL = await Cd.evaluate(async () => (await Store.todos('propriedades')).map(p => p.id));
+  await Cd.click('#pce-salvar'); await Cd.waitForSelector('#pce-lev-pronto');
+  ok(await Cd.locator('[data-pce=imprimirlev]').count() === 1 && await Cd.locator('[data-pce=imprimirtodos]').count() === 0 && await Cd.locator('#pce-pronto-termo').count() === 0, 'uma praga só: um PDF, sem "Imprimir todos"; sem coleta, sem atalho do termo');
+  // registro da versão anterior (sem "pragas"): lista, PDFs por praga e edição no formulário novo
+  await Cd.evaluate(async () => {
+    const t = Date.now(), c = document.createElement('canvas'); c.width = 40; c.height = 30; const x = c.getContext('2d'); x.fillStyle = '#c33'; x.fillRect(0, 0, 40, 30); const jpg = c.toDataURL('image/jpeg');
+    await Store.gravar('arquivos', { id: 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', dono: 'levantamentos', donoId: 'lev-velho', tipo: 'foto', papel: '', mime: 'image/jpeg', dados: jpg, tamanho: 10, criadoEm: t, enviado: 1, url: 'https://drive.google.com/x', driveId: 'x' });
+    await Store.gravar('levantamentos', { id: 'lev-velho', data: '2026-09-20', hora: '10:00', servidor: 'Carla Mendes Rocha', cargo: 'Fiscal', matricula: '', lotacao: 'Manaus', doc: '52998224725', nome: 'PRODUTOR VELHO', telefone: '', email: '',
+      propriedade: 'Sítio Antigo', codigoPropriedade: '', situacaoFundiaria: '', municipio: 'Manaus', lat: -3.1, lon: -60, precisao: '',
+      culturas: JSON.stringify([{ cultura: 'Banana', area: '2', espLinha: '3', espPlanta: '2', praga: 'Moko da bananeira', coleta: 'Sim', tipoMaterial: 'Folha', codigoAmostra: 'V-1', destinoAmostra: 'LAB' },
+        { cultura: 'Mandioca', area: '1', espLinha: '', espPlanta: '', praga: '', coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '' }]),
+      fotos: JSON.stringify(['bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb']), assinaturas: '{}', obs: '', excluido: 0, criadoEm: t, atualizadoEm: t, pendente: 0 });
+  });
+  await Cd.click('#pce-pronto-lista'); await Cd.waitForSelector('.item.pce-lev[data-lev="lev-velho"]');
+  const itV = '.item.pce-lev[data-lev="lev-velho"]';
+  ok((await Cd.locator(itV + ' [data-pce=imprimirlev]').allTextContents()).join('|') === 'PDF: Moko da bananeira|PDF: Sem praga informada' && await Cd.locator(itV + ' [data-pce=imprimirtodos]').count() === 1,
+    'registro anterior na lista: um PDF por praga (cultura sem praga = "Sem praga informada")');
+  let prV = await imprimir(Cd, itV + ' [data-pce=imprimirlev][data-g="0"]');
+  ok(/Praga\/doença avaliada Moko da bananeira/.test(prV.texto) && prV.texto.includes('V-1') && /Detectada/.test(prV.texto) && !prV.texto.includes('Mandioca') && /Fotos gerais \(registro anterior\)/.test(prV.texto) && prV.imgs === 1,
+    'registro anterior: PDF da praga com a cultura dela e as fotos gerais');
+  prV = await imprimir(Cd, itV + ' [data-pce=imprimirlev][data-g="1"]');
+  ok(/Praga\/doença avaliada Sem praga informada/.test(prV.texto) && prV.texto.includes('Mandioca') && /Não detectada/.test(prV.texto) && !prV.texto.includes('V-1') && prV.imgs === 1 && /_Sem_praga_informada_20-09-2026$/.test(prV.titulo),
+    'registro anterior: PDF "Sem praga informada" (não detectada) também traz as fotos gerais: ' + prV.titulo);
+  await Cd.click(itV + ' [data-pce=abrirlev]'); await Cd.waitForSelector('#pceLevForm'); await Cd.waitForSelector('#pce-fotos-gerais .pce-foto img');
+  ok(await Cd.locator('.pce-praga').count() === 2 && (await Cd.inputValue(PR(0) + ' >> .p-outra')) === 'Moko da bananeira' && (await Cd.inputValue(CU(0, 0) + ' >> .c-codigoAmostra')) === 'V-1' && (await Cd.inputValue(PR(1) + ' >> .p-praga')) === ''
+    && await Cd.locator(CU(1, 0) + ' >> .c-res:checked').getAttribute('value') === 'nao_detectada', 'registro anterior aberto no formulário novo (cards por praga; "Sem praga informada")');
+  await Cd.click('#pce-salvar'); await Cd.waitForSelector('#pce-lev-pronto');
+  const velho = await Cd.evaluate(async () => await Store.obter('levantamentos', 'lev-velho'));
+  ok(JSON.parse(velho.pragas).map(g => g.praga).join('|') === 'Moko da bananeira|' && JSON.parse(velho.fotos).join() === 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb' && JSON.parse(velho.culturas).length === 2,
+    'salvo de novo: ganha "pragas" e mantém as fotos gerais em "fotos"');
+  await Cd.click('#pce-pronto-lista'); await Cd.waitForSelector('.item.pce-lev');
+  const propL = await Cd.evaluate(async () => (await Store.todos('propriedades')).map(p => p.id).filter(id => id.startsWith('11222333000181')));
   ok(propL.length === 1 && propL[0].length <= 64 && propL[0].startsWith('11222333000181|SITIO NOSSA'), 'id da propriedade limitado a 64 caracteres: ' + propL[0]);
   await sync(Cd); ok((await ler('Propriedades')).some(p => p.id === propL[0]), 'propriedade de nome longo chegou à planilha');
   // rascunho de termo de OUTRO levantamento: pergunta explícita, e abre o selecionado

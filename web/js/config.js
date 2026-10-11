@@ -74,7 +74,10 @@ const CONFIG = {
     partes: ['folhas', 'frutos', 'raízes', 'caule', 'sementes', 'outros'],
     fotoLado: 1600, fotoQualidade: 0.7,            // redução das fotos antes de guardar/enviar (lado maior em px, JPEG)
     arquivosPorRodada: 5,                          // fotos/assinaturas/PDFs enviados ao Drive por sincronização (um por requisição)
-    maxDocumentos: 10                              // PDFs escaneados por registro antigo (até 10 MB cada)
+    maxDocumentos: 10,                             // PDFs escaneados por registro antigo (até 10 MB cada)
+    // Levantamento por praga/doença: um card por praga, com as culturas avaliadas (resultado e fotos de cada cultura). Um PDF por praga.
+    resultados: [['detectada', 'Detectada'], ['nao_detectada', 'Não detectada'], ['suspeita', 'Suspeita']],
+    maxPragas: 20, maxCulturas: 40, maxFotos: 60     // por levantamento (cards de praga, culturas somadas e fotos somadas)
   }
 };
 

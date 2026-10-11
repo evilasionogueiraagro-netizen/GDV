@@ -336,6 +336,25 @@ body.tv .pn-tfaviso { display: none !important; }
 .pn-ac-cod { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; white-space: nowrap; }
 .pn-ac-perfil { font-size: 11px; color: var(--ink2); border: 1px solid var(--base); border-radius: 999px; padding: 0 6px; white-space: nowrap; }
 .pn-ac-revogar { color: var(--critico); border-color: color-mix(in srgb, var(--critico) 45%, var(--base)); }
+/* "Remover da lista" (revogado/código vencido): botão no computador; no celular, deslizar a linha revela .pn-ac-desl */
+.pn-ac-remover { color: var(--ink2); }
+.pn-ac-restaurar { color: var(--marca2); }
+.pn-ac-removido { margin-left: 2px; }
+.pn-ac-desl { display: none; }
+.pn-ac-res { transition: opacity .25s ease, transform .25s ease; }
+.pn-ac-res.pn-ac-saindo { opacity: 0; transform: translateY(-6px) scale(.98); }
+#pn-ac-tab tbody tr.pn-ac-sumindo { opacity: 0; transition: opacity .2s ease; }
+@media (max-width: 560px) {
+  #pn-ac-tab tbody tr { position: relative; }
+  #pn-ac-tab tbody td { touch-action: pan-y pinch-zoom; }          /* touch-action não vale em <tr>: vai nas células (o deslize horizontal fica com o JS) */
+  #pn-ac-tab .pn-ac-remover { display: none; }
+  #pn-ac-tab .pn-ac-desl { display: flex; align-items: center; justify-content: center; position: absolute; top: 0; bottom: 0; right: 0; width: 124px;
+    border: 0; border-radius: 0; background: var(--critico); color: #fff; font-weight: 600; font-size: 13px; line-height: 1.2; padding: 0 8px; text-align: center;
+    opacity: 0; visibility: hidden; cursor: pointer; z-index: 1; }
+  #pn-ac-tab .pn-ac-desl.vis { visibility: visible; }
+  #pn-ac-tab tr.pn-ac-aberta td { background: var(--sf); }
+}
+@media (prefers-reduced-motion: reduce) { .pn-ac-res, #pn-ac-tab tbody tr.pn-ac-sumindo { transition: none; } }
 .pn-ac-mods { border: 1px solid var(--base); border-radius: 10px; padding: 8px 12px 10px; margin: 12px 0 0; min-width: 0; }
 .pn-ac-mods legend { font-size: 13px; color: var(--ink2); font-weight: 600; padding: 0 4px; }
 .pn-ac-form .pn-ac-mod { display: flex; align-items: center; gap: 8px; font-weight: 400; color: var(--ink); font-size: 14px; margin: 4px 0; cursor: pointer; }

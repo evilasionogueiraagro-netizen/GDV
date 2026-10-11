@@ -70,13 +70,20 @@ const cult = (c, praga, area, coleta = 'Não') => ({ cultura: c, area: String(ar
 const LEV = (id, data, mun, servidor, culturas, extra = {}) => ({ id, data, hora: '09:30', servidor, cargo: 'Fiscal', matricula: 'M1', lotacao: 'IDAM', doc: CPF, nome: 'Produtor ' + id, telefone: '97 9', email: 'a@b.c',
   propriedade: 'Sítio ' + id, codigoPropriedade: 'P-' + id, situacaoFundiaria: 'Própria', municipio: mun, lat: P[mun] ? String(P[mun][0]) : '', lon: P[mun] ? String(P[mun][1]) : '', precisao: '6',
   culturas: JSON.stringify(culturas), fotos: JSON.stringify(['f1']), assinaturas: '{}', obs: '', excluido: 0, criadoEm: ts0, atualizadoEm: ts0, ...extra });
+// levantamento por praga, como o app grava: pragas + culturas derivadas (praga só se detectada/suspeita)
+const LEVP = (id, data, mun, servidor, pragas, extra = {}) => LEV(id, data, mun, servidor, pragas.flatMap(g => g.culturas.map(c => ({ cultura: c.cultura, area: c.area, espLinha: '', espPlanta: '',
+  praga: c.resultado === 'nao_detectada' ? '' : g.praga, pragaAvaliada: g.praga, resultado: c.resultado, coleta: c.coleta, tipoMaterial: '', codigoAmostra: '', destinoAmostra: '' }))), { pragas: JSON.stringify(pragas), ...extra });
 const LEVS = [
   LEV('l1', dia(-3), 'Tabatinga', 'Ana Pereira', [cult('Banana', 'Moko da bananeira', 2, 'Sim'), cult('Mandioca', '', 1.5)]),
   LEV('l2', dia(-2), 'Manaus', 'Bruno Costa', [cult('Cupuaçu', 'Vassoura-de-bruxa', 3)]),
   LEV('l3', dia(-10), 'Parintins', 'Bruno Costa', [cult('Açaí', '', 4)]),
   LEV('l4', dia(-15), 'Coari', 'Ana Pereira', [cult('Banana', 'Sigatoka-negra', 1, 'Sim')], { lat: '', lon: '' }),
   LEV('l5', dia(-100), 'Manaus', 'Bruno Costa', [cult('Cupuaçu', 'Vassoura-de-bruxa', 2)]),          // histórico: Vassoura em Manaus não é foco novo
-  LEV('l6', dia(-3), 'Manaus', 'Bruno Costa', [cult('Banana', 'Moko da bananeira', 9)], { excluido: 1 })   // excluído: fora de tudo
+  LEV('l6', dia(-3), 'Manaus', 'Bruno Costa', [cult('Banana', 'Moko da bananeira', 9)], { excluido: 1 }),   // excluído: fora de tudo
+  // formato novo (por praga): a mesma cultura em 2 pragas (suspeita + não detectada) e um levantamento negativo
+  LEVP('l7', dia(-4), 'Manaus', 'Ana Pereira', [{ praga: 'Vassoura-de-bruxa', culturas: [{ cultura: 'Cupuaçu', area: '3', resultado: 'suspeita', coleta: 'Não', fotos: [] }] },
+    { praga: 'Fusarium R4T', culturas: [{ cultura: 'Cupuaçu', area: '3', resultado: 'nao_detectada', coleta: 'Não', fotos: [] }] }]),
+  LEVP('l8', dia(-5), 'Parintins', 'Bruno Costa', [{ praga: 'Sigatoka-negra', culturas: [{ cultura: 'Banana', area: '1,5', resultado: 'nao_detectada', coleta: 'Não', fotos: [] }] }])
 ];
 const COL = (id, data, mun, numero, levId) => ({ id, unidade: 'IDAM TABATINGA', ano: +data.slice(0, 4), numero, numeroTxt: '', levantamentoId: levId, data, hora: '10:00', servidor: 'Ana Pereira', cargo: 'Fiscal',
   matricula: 'M1', lotacao: 'IDAM', municipio: mun, doc: CPF, nome: 'Produtor', endereco: 'Rua', lat: P[mun] ? String(P[mun][0] + 0.01) : '', lon: P[mun] ? String(P[mun][1]) : '', precisao: '5',
@@ -95,7 +102,10 @@ function esperado(de, ate, filtroT = () => true, filtroL = () => true) {
   const levs = LEVS.filter(l => !l.excluido && l.data >= de && l.data <= ate && filtroL(l)).map(l => ({ ...l, c: JSON.parse(l.culturas) }));
   return { turnos: ts.length, veiculos: vs.length, pessoas: vs.reduce((s, v) => s + v[2], 0), horas: ts.reduce((s, t) => s + durMin(t), 0) / 60, abertos: abertos.length,
     levs: levs.length, det: levs.reduce((s, l) => s + l.c.filter(c => c.praga).length, 0), comPraga: levs.filter(l => l.c.some(c => c.praga)).length,
-    area: levs.reduce((s, l) => s + l.c.reduce((a, c) => a + Number(c.area), 0), 0), culturas: levs.reduce((s, l) => s + l.c.length, 0),
+    // a mesma cultura avaliada para várias pragas conta uma vez (área e culturas inspecionadas)
+    area: levs.reduce((s, l) => s + Object.values(l.c.reduce((m, c) => ({ ...m, [c.cultura]: Math.max(m[c.cultura] || 0, Number(String(c.area).replace(',', '.'))) }), {})).reduce((a, b) => a + b, 0), 0),
+    culturas: levs.reduce((s, l) => s + new Set(l.c.map(c => c.cultura)).size, 0),
+    susp: levs.reduce((s, l) => s + l.c.filter(c => c.praga && c.resultado === 'suspeita').length, 0), negativos: levs.filter(l => !l.c.some(c => c.praga)).length,
     amostras: levs.reduce((s, l) => s + l.c.filter(c => c.coleta === 'Sim').length, 0),
     termos: COLS.filter(c => c.data >= de && c.data <= ate && filtroL(c)).length,
     tfs: TFS.filter(t => !t.cancelado && t.data >= de && t.data <= ate) };

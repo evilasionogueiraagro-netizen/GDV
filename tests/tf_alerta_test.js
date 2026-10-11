@@ -88,7 +88,7 @@ const geoVivo = eval(fonteTV.slice(fonteTV.indexOf('const geoVivo = p =>') + 'co
     'aviso vermelho: barreira, fiscal, procedimento e há quanto tempo', aviso);
   let st = await G.evaluate(() => Painel.alertaTF());
   ok(st.sons === 1 && st.avisos === 1 && st.notificacoes === 1, 'som tocado (Web Audio) e notificação do sistema (permissão concedida) uma vez', st);
-  ok(st.rapido && st.proximaMs <= 25000, 'com TF em preenchimento a consulta ao vivo passa a cada 25 s', st.proximaMs);
+  ok(st.rapido && st.proximaMs <= 15000, 'com TF em preenchimento a consulta ao vivo continua a cada 15 s', st.proximaMs);
   const alertas = await G.$$eval('.pn-alertas-caixa .pn-alerta', x => x.map(e => ({ n: e.className.replace('pn-alerta ', ''), t: e.querySelector('.pn-alerta-tit').textContent })));
   ok(alertas[0] && alertas[0].n === 'critico' && /^TF em preenchimento: Barreira Porto CEASA/.test(alertas[0].t), 'item crítico nos "Alertas para decisão" (primeiro da lista)', alertas[0]);
   const card = await G.$eval('.pn-geral-vivo .pn-vivo-item', e => ({ cls: e.className, t: e.textContent.replace(/\s+/g, ' ') })).catch(() => null);
@@ -134,7 +134,7 @@ const geoVivo = eval(fonteTV.slice(fonteTV.indexOf('const geoVivo = p =>') + 'co
   ok(await ate(async () => (await doUsuario('Ana Paula Lima')).every(x => x.estado === 'fim')), 'servidor: estado "fim" depois de gerar');
   ok(await atualizar(G, () => document.querySelectorAll('.pn-duo-mapa .leaflet-marker-pane .pn-pin.tf').length === 0 && document.querySelectorAll('.pn-duo-mapa .leaflet-marker-pane .pn-pin.ok').length === 1), 'painel: barreira volta a verde');
   ok(await G.isHidden('#pn-tfaviso') && !/TF em preenchimento|Apreensão em andamento/.test(await G.textContent('.pn-alertas-caixa')), 'aviso some e o alerta sai da lista');
-  st = await G.evaluate(() => Painel.alertaTF()); ok(!st.rapido && st.proximaMs > 25000, 'sem TF em preenchimento: volta a atualizar a cada minuto', st.proximaMs);
+  st = await G.evaluate(() => Painel.alertaTF()); ok(!st.rapido && st.proximaMs > 0 && st.proximaMs <= 15000, 'sem TF em preenchimento: segue atualizando a cada 15 s', st.proximaMs);
   await G.screenshot({ path: amb.saida('alerta_painel_fim.png') });
 
   console.log('5. Descartar e sair do formulário também encerram');

@@ -116,7 +116,7 @@
 
     /* ---------- ao vivo + alertas ---------- */
     const duo = P.el('div', 'pn-duo pn-bar-vivo'); c.appendChild(duo);
-    const sv = P.secao(duo, 'Barreiras em andamento agora', abertos.length ? 'Atualiza sozinho a cada minuto. Toque no local para ver no mapa.' : null);
+    const sv = P.secao(duo, 'Barreiras em andamento agora', abertos.length ? 'Atualiza sozinho a cada 15 s. Toque no local para ver no mapa.' : null);
     if (!abertos.length) P.vazio(sv, 'Nenhuma barreira aberta no momento.');
     else {
       const g = P.el('div', 'pn-vivo');

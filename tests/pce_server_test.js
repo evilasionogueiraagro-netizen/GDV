@@ -18,6 +18,7 @@ const uuid = () => require('crypto').randomUUID();
 
   const A = await ativar('Ana Paula Lima'), Bk = await ativar('Bruno Costa Souza'), ADM = 'segredo';
   const agora = Date.now(); const ANO = new Date().getFullYear();
+  const hojeM = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10);   // hoje em Manaus (UTC−4)
   const C = (id, numero, extra = {}) => ({ id, unidade: 'MANAUS', ano: ANO, numero, numeroTxt: String(numero).padStart(3, '0') + '/' + ANO + '/MANAUS', numeroSugerido: numero,
     numeroOrigem: 'sistema', conflito: 0, levantamentoId: '', data: '2026-10-10', hora: '09:00', servidor: 'Ana Paula Lima', cargo: 'Fiscal', matricula: '1', lotacao: 'Manaus',
     municipio: 'Manaus', doc: '52998224725', nome: 'JOSE DA SILVA', endereco: 'SITIO BOA VISTA', lat: -3.1, lon: -60.02, precisao: 10, cultura: 'Banana', quantidade: 2,
@@ -117,7 +118,7 @@ const uuid = () => require('crypto').randomUUID();
   ok((await fn('lerLeitura_', 'Pessoas')).r.find(p => p.id === '52998224725').email === '', 'e-mail enviado vazio de propósito é apagado');
   ok(pes.length === 2 && pes[1][0] === '52998224725', 'linha antiga continua na mesma posição (sem duplicar)');
   const cab = async n => (await aba(n))[0];
-  ok((await cab('Levantamentos')).join() === 'id,data,hora,servidor,cargo,matricula,lotacao,doc,nome,telefone,email,propriedade,codigoPropriedade,situacaoFundiaria,municipio,lat,lon,precisao,culturas,fotos,assinaturas,obs,excluido,criadoEm,atualizadoEm,srv_ts,usuario,registroAntigo,documentos', 'aba Levantamentos criada com as colunas da especificação');
+  ok((await cab('Levantamentos')).join() === 'id,data,hora,servidor,cargo,matricula,lotacao,doc,nome,telefone,email,propriedade,codigoPropriedade,situacaoFundiaria,municipio,lat,lon,precisao,culturas,fotos,assinaturas,obs,excluido,criadoEm,atualizadoEm,srv_ts,usuario,registroAntigo,documentos,pragas', 'aba Levantamentos criada com as colunas da especificação (pragas no fim)');
   ok((await cab('Colheitas')).length === 44 && (await cab('Colheitas')).slice(-2).join() === 'registroAntigo,documentos' && (await cab('Propriedades')).join() === 'id,codigo,nome,doc,municipio,situacaoFundiaria,lat,lon,criadoEm,atualizadoEm,srv_ts,usuario', 'abas Colheitas (44 colunas, as 2 novas no fim) e Propriedades criadas');
 
   console.log('9) consulta do produtor (pceConsultar)');
@@ -196,6 +197,49 @@ const uuid = () => require('crypto').randomUUID();
   r = await post({ action: 'sync', key: A, since: 0, levantamentos: [LEV('gBig', { culturas: JSON.stringify(muitasCult), fotos: JSON.stringify(muitasFotos) })] });
   const gBig = r.levantamentos.find(l => l.id === 'gBig'); let pc = null, pf = null; try { pc = JSON.parse(gBig.culturas); pf = JSON.parse(gBig.fotos); } catch (e) { /* JSON cortado */ }
   ok(pc && pc.length === 40 && pf && pf.length === 120, `culturas (${gBig.culturas.length} caract.) e fotos (${gBig.fotos.length} caract.) voltam como JSON válido e completo`);
+
+  console.log('12) levantamento por praga/doença (coluna pragas)');
+  ok((await cab('Arquivos')).slice(-2).join() === 'criadoEm,rotulo', 'aba Arquivos ganhou "rotulo" no fim');
+  const F1 = uuid(), F2 = uuid(), F3 = uuid();
+  const PR = [{ praga: 'Moko da bananeira', culturas: [{ cultura: 'Banana', area: '2,5', espLinha: '3', espPlanta: '2', resultado: 'detectada', coleta: 'Sim', tipoMaterial: 'Frutos', codigoAmostra: 'AM-1', destinoAmostra: 'LAB', fotos: [F1, F2] },
+    { cultura: 'Cacau', area: '1', espLinha: '', espPlanta: '', resultado: 'nao_detectada', coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '', fotos: [] }] },
+    { praga: 'Fusarium R4T', culturas: [{ cultura: 'Banana', area: '2,5', espLinha: '3', espPlanta: '2', resultado: 'suspeita', coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '', fotos: [F3] }] },
+    { praga: 'Sigatoka-negra', culturas: [{ cultura: 'Banana', area: '2,5', resultado: 'nao_detectada', coleta: 'Não', fotos: [] }] }];
+  const derivadas = PR.flatMap(g => g.culturas.map(c => ({ cultura: c.cultura, area: c.area, praga: c.resultado === 'nao_detectada' ? '' : g.praga, pragaAvaliada: g.praga, resultado: c.resultado, coleta: c.coleta })));
+  r = await post({ action: 'sync', key: A, since: 0, levantamentos: [LEV('gP1', { data: hojeM, pragas: JSON.stringify(PR), culturas: JSON.stringify(derivadas), fotos: JSON.stringify([F1, F2, F3]) }),
+    LEV('gP0', { data: hojeM, culturas: JSON.stringify([{ cultura: 'Açaí', area: '1', praga: '', coleta: 'Não' }, { cultura: 'Cupuaçu', area: '1', praga: 'Vassoura-de-bruxa', coleta: 'Não' }]) })] });
+  const gP1 = r.levantamentos.find(l => l.id === 'gP1');
+  ok(gP1 && JSON.stringify(JSON.parse(gP1.pragas)) === JSON.stringify(PR) && JSON.parse(gP1.fotos).length === 3, 'pragas (JSON) volta inteiro ao aparelho, com as fotos de cada cultura');
+  ok((await fn('lerLeitura_', 'Levantamentos')).r.find(l => l.id === 'gP1').pragas.length > 300, 'planilha guarda a coluna pragas');
+  // JSON grande de pragas não é cortado: 20 pragas × 2 culturas com campos no limite e 60 fotos
+  const fotosG = Array(60).fill(0).map(() => uuid());
+  const prBig = Array(20).fill(0).map((_, i) => ({ praga: 'Praga longa número ' + i + ' '.padEnd(60, 'p'), culturas: [0, 1].map(k => ({ cultura: 'Cultura ' + k, area: 'a'.repeat(60), espLinha: 'l'.repeat(60), espPlanta: 'p'.repeat(60),
+    resultado: 'suspeita', coleta: 'Sim', tipoMaterial: 'm'.repeat(60), codigoAmostra: 'c'.repeat(60), destinoAmostra: 'd'.repeat(60), fotos: fotosG.slice(i * 3 + k, i * 3 + k + 2) })) }));
+  r = await post({ action: 'sync', key: A, since: 0, levantamentos: [LEV('gPBig', { pragas: JSON.stringify(prBig) })] });
+  let pb = null; try { pb = JSON.parse(r.levantamentos.find(l => l.id === 'gPBig').pragas); } catch (e) { /* cortado */ }
+  ok(pb && pb.length === 20 && pb[19].culturas[1].fotos.length === 2, `pragas grande (${JSON.stringify(prBig).length} caract.) volta como JSON válido e completo`);
+  // painel: culturas derivadas com resultado, pragas = detectada + suspeita, pragasLev sem dados pessoais; registro anterior convertido
+  const pd = await post({ action: 'painelDados', key: ADM });
+  const p1 = (pd.levantamentos || []).find(l => l.id === 'gP1'), p0 = (pd.levantamentos || []).find(l => l.id === 'gP0');
+  ok(p1 && JSON.stringify(p1.pragas) === '["Moko da bananeira","Fusarium R4T"]', 'painel: pragas = detectada + suspeita (sem a "não detectada")', p1 && p1.pragas);
+  ok(p1 && p1.culturas.length === 4 && p1.culturas.filter(c => c.resultado === 'suspeita').length === 1 && p1.culturas.find(c => c.cultura === 'Cacau').praga === '' && p1.culturas.find(c => c.cultura === 'Cacau').avaliada === 'Moko da bananeira',
+    'painel: uma cultura por cultura × praga, com resultado e praga avaliada');
+  ok(p1 && JSON.stringify(p1.pragasLev) === JSON.stringify([{ praga: 'Moko da bananeira', nFotos: 2, culturas: [{ cultura: 'Banana', area: 2.5, resultado: 'detectada', coleta: 'Sim' }, { cultura: 'Cacau', area: 1, resultado: 'nao_detectada', coleta: 'Não' }] },
+    { praga: 'Fusarium R4T', nFotos: 1, culturas: [{ cultura: 'Banana', area: 2.5, resultado: 'suspeita', coleta: 'Não' }] }, { praga: 'Sigatoka-negra', nFotos: 0, culturas: [{ cultura: 'Banana', area: 2.5, resultado: 'nao_detectada', coleta: 'Não' }] }]),
+    'painel: pragasLev (praga, culturas com resultado, nº de fotos; sem código de amostra/destino)', p1 && p1.pragasLev);
+  ok(p0 && JSON.stringify(p0.pragasLev.map(g => [g.praga, g.culturas.map(c => c.resultado).join()])) === '[["","nao_detectada"],["Vassoura-de-bruxa","detectada"]]' && JSON.stringify(p0.pragas) === '["Vassoura-de-bruxa"]',
+    'painel: registro anterior (sem pragas) convertido: praga preenchida = detectada, vazia = "sem praga informada"', p0 && p0.pragasLev);
+  ok(p1 && p1.nFotos === 3 && !('fotos' in p1) && !JSON.stringify(p1.pragasLev).includes('AM-1'), 'painel: fotos só como contagem');
+  // relatório: detectada e suspeita contam; não detectada = negativo
+  const ag = (await fn('agregarRelatorio_', { turnos: [], tfs: [], colheitas: [], levantamentos: [p1, p0].map(l => ({ id: l.id, data: l.data, municipio: l.municipio, culturas: l.culturas, pragas: l.pragas })) }, pd.periodo.de, pd.periodo.ate, Date.now())).r;
+  ok(ag && ag.pce.suspeitas === 1 && ag.pce.pragas.find(x => x.praga === 'Fusarium R4T').suspeitas === 1 && !ag.pce.pragas.some(x => x.praga === 'Sigatoka-negra'), 'relatório: suspeita conta (e à parte); "não detectada" não', ag && ag.pce);
+  // foto com rótulo "praga – cultura": vai para a aba Arquivos e para o nome no Drive
+  const FR = { id: uuid(), dono: 'levantamentos', donoId: 'gP1', tipo: 'foto', papel: '', mime: 'image/jpeg', rotulo: 'Moko da bananeira – Banana' };
+  r = await env(A, FR, jpg); dr = await get('/__drive');
+  ok(r.ok && dr.arquivos.some(a => a.nome === `gP1_foto_1_Moko-da-bananeira-Banana_${FR.id}.jpg`), 'foto da cultura: praga e cultura no nome do arquivo no Drive', dr.arquivos.map(a => a.nome).filter(n => n.startsWith('gP1')));
+  ok((await fn('lerLeitura_', 'Arquivos')).r.find(a => a.id === FR.id).rotulo === 'Moko da bananeira – Banana', 'aba Arquivos: rótulo da foto (praga – cultura)');
+  r = await env(A, { ...FR, id: uuid(), tipo: 'assinatura', papel: 'servidor', mime: 'image/png', rotulo: 'x' }, png);
+  ok(r.ok && !(await fn('lerLeitura_', 'Arquivos')).r.find(a => a.id === r.id).rotulo, 'assinatura não leva rótulo');
 
   console.log(falhas ? 'FALHOU=' + falhas : 'OK'); process.exit(falhas ? 1 : 0);
 })().catch(e => { console.error('FALHOU', e.stack || e.message); process.exit(1); });

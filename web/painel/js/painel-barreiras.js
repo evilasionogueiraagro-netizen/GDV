@@ -9,12 +9,12 @@
   const minDe = hm => { const m = String(hm || '').match(/^(\d{1,2}):(\d{2})/); return m ? (+m[1]) * 60 + (+m[2]) : null; };
   const letraDe = t => { const l = String(t.letra || '').trim().toUpperCase(); if (l === 'A' || l === 'B') return l;
     const h = parseInt(t.inicio, 10); return isNaN(h) ? '' : (h >= 4 && h < 12 ? 'A' : 'B'); };
-  // horas de barreira: turno aberto há mais de 14 h (provavelmente esquecido) conta 14 h (duracaoContabilMin, ver Painel.normalizar)
+  // horas de barreira: turno aberto há mais de 12 h (provavelmente esquecido) conta 12 h (duracaoContabilMin, ver Painel.normalizar)
   const horasDe = lista => lista.reduce((s, t) => s + (t.duracaoContabilMin || 0), 0);
-  const limitadosTxt = lista => { const n = lista.filter(t => t.horasLimitadas).length; return n ? ` · ${n} turno(s) aberto(s) há mais de 14 h contado(s) com 14 h` : ''; };
+  const limitadosTxt = lista => { const n = lista.filter(t => t.horasLimitadas).length; return n ? ` · ${n} turno(s) aberto(s) há mais de 12 h contado(s) com 12 h` : ''; };
   const porHora = (n, min) => min > 0 ? n / (min / 60) : null;
   const temCoord = t => (t.latIni != null && t.lonIni != null) || (t.latFim != null && t.lonFim != null);
-  const SITUACAO = { ok: 'Em andamento', semsinal: 'Sem sinal > 30 min', longa: 'Aberta > 14 h', aguardando: 'Encerrado no celular, aguardando envio', encerrada: 'Encerrada' };
+  const SITUACAO = { ok: 'Em andamento', semsinal: 'Sem sinal > 30 min', longa: 'Aberta > 12 h', aguardando: 'Encerrado no celular, aguardando envio', encerrada: 'Encerrada' };
 
 
   /** Minutos de barreira aberta em cada hora do relógio (0–23) e em cada dia da semana × hora. */
@@ -81,7 +81,7 @@
       { chave: 'pessoas', rotulo: 'Pessoas impactadas', valor: pessoas, detalhe: veiculos.length ? `${fmt.num(pessoas / veiculos.length, 1)} por veículo (estimativa)` : 'estimativa por veículo' },
       { chave: 'vph', rotulo: 'Veículos por hora de barreira', valor: min ? fmt.num(veiculos.length / (min / 60), 1) : '—', detalhe: 'veículos ÷ horas de turno' + limitadosTxt(turnos) },
       { chave: 'andamento', rotulo: 'Em andamento agora', valor: abertos.length, status: longas ? 'critico' : ruins.length ? 'serio' : abertos.length ? 'bom' : null,
-        detalhe: abertos.length ? (ruins.length ? `${ruins.length} com alerta (sem sinal ou > 14 h)` : 'todas com sinal') : 'nenhuma barreira aberta' }
+        detalhe: abertos.length ? (ruins.length ? `${ruins.length} com alerta (sem sinal ou > 12 h)` : 'todas com sinal') : 'nenhuma barreira aberta' }
     ];
   }
 
@@ -249,7 +249,7 @@
       { chave: 'data', rotulo: 'Data', fmt: fmt.data, ordem: l => (l.data || '') + (l.inicio || '') }, { chave: 'letra', rotulo: 'Turno', fmt: (v, l) => letraDe(l) || '—' },
       { chave: 'local', rotulo: 'Barreira / local', fmt: v => v || '—' }, { chave: 'municipio', rotulo: 'Município', fmt: v => v || '—' },
       { chave: 'posto', rotulo: 'Posto', fmt: v => v || '—' }, { chave: 'fiscal', rotulo: 'Fiscais', fmt: v => v || '—' },
-      { chave: 'inicio', rotulo: 'Início', fmt: v => v || '—' }, { chave: 'fim', rotulo: 'Fim', fmt: (v, l) => l.emAndamento ? 'aberto' : (v || '—') + (l.encerradoPor ? ' (gerência)' : '') },
+      { chave: 'inicio', rotulo: 'Início', fmt: v => v || '—' }, { chave: 'fim', rotulo: 'Fim', fmt: (v, l) => l.emAndamento ? 'aberto' : (v || '—') + (l.encerradoPor ? (/^Automático/.test(l.encerradoPor) ? ' (automático)' : ' (gerência)') : '') },
       { chave: 'duracaoMin', rotulo: 'Duração', num: true, fmt: fmt.duracao, csv: v => v == null ? '' : Math.round(v) },
       { chave: 'nVeiculos', rotulo: 'Veículos', num: true, fmt: fmt.int }, { chave: 'nPessoas', rotulo: 'Pessoas', num: true, fmt: fmt.int },
       { chave: 'gps', rotulo: 'Coordenadas', fmt: (v, l) => temCoord(l) ? 'Sim' : 'Não', ordem: l => temCoord(l) ? 1 : 0 },

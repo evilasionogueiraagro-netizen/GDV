@@ -183,16 +183,18 @@ async function acaoInstalar(acao) {
 // O sync avisa (gdv-turno-encerrado) quando o turno em andamento chega encerrado da planilha. O aviso fica na tela até o fiscal
 // tocar em "Entendi" ou iniciar outro turno (sobrevive a recarregar o app).
 const LS_AVISO_ENC = 'gdv.avisoEncerrado';
+const encerradoAuto = por => /^Automático/.test(String(por || ''));   // encerramento automático da planilha (turno aberto há mais de 12 h)
 function textoTurnoEncerrado(a) {
-  const hora = a.fim ? ` às ${a.fim}` : '';
-  return a.encerradoPor ? `Este turno foi encerrado pela gerência${hora}. Os documentos estão no Histórico.`
-    : `Este turno foi encerrado fora deste aparelho${hora}. Os documentos estão no Histórico.`;
+  const hora = a.fim ? `, às ${a.fim}` : '';
+  if (encerradoAuto(a.encerradoPor)) return `Este turno foi encerrado automaticamente após 12\u00a0h${hora}. Os documentos estão no Histórico.`;
+  return a.encerradoPor ? `Este turno foi encerrado pela gerência${hora.replace(',', '')}. Os documentos estão no Histórico.`
+    : `Este turno foi encerrado fora deste aparelho${hora.replace(',', '')}. Os documentos estão no Histórico.`;
 }
 function avisoTurnoEncerrado() {
   let a = null; try { a = JSON.parse(lsGet(LS_AVISO_ENC) || 'null'); } catch (e) { a = null; }
   if (!a || !a.id) return '';
   return `<div class="card aviso" id="avisoEncerrado" role="alert"><h3>⏹ Turno encerrado</h3><p>${esc(textoTurnoEncerrado(a))}</p>
-    ${a.numeroTF || a.encerradoPor ? `<p><small>${esc([a.numeroTF, a.encerradoPor && 'encerrado por ' + a.encerradoPor].filter(Boolean).join(' · '))}</small></p>` : ''}
+    ${a.numeroTF || a.encerradoPor ? `<p><small>${esc([a.numeroTF, a.encerradoPor && !encerradoAuto(a.encerradoPor) && 'encerrado por ' + a.encerradoPor].filter(Boolean).join(' · '))}</small></p>` : ''}
     <div class="duas"><button class="botao sec" data-go="historico">📈 Abrir o Histórico</button><button class="botao sec" data-avisook="1">Entendi</button></div></div>`;
 }
 window.addEventListener('gdv-turno-encerrado', e => {
@@ -479,7 +481,7 @@ async function historico() {
       <div class="card"><h3>Veículos por tipo</h3>${barras(Object.entries(CONFIG.tipos).map(([c, x]) => [x.icone + ' ' + x.nome, porTipo[c] || 0]))}</div>
       <div class="card"><h3>Veículos por dia</h3>${barras(Object.entries(porDia).sort().map(([k, n]) => [dBR(k).slice(0, 5), n]))}</div>
       <div class="card"><h3>Turnos</h3>${turnos.length ? turnos.map(t => `
-        <div class="turno-linha"><div><b>${esc(t.numeroTF)}</b><br><small>${dBR(t.data)} · ${esc(t.inicio)}${t.fim ? '–' + esc(t.fim) : ''} · ${esc(t.fiscal)} · ${porTurno[t.id] || 0} veíc.${t.encerrado ? '' : ' · em andamento'}${t.encerradoPor ? ' · encerrado pela gerência' : ''}${t.pendente ? ' · ⏳ aguardando envio' : ''}</small></div>
+        <div class="turno-linha"><div><b>${esc(t.numeroTF)}</b><br><small>${dBR(t.data)} · ${esc(t.inicio)}${t.fim ? '–' + esc(t.fim) : ''} · ${esc(t.fiscal)} · ${porTurno[t.id] || 0} veíc.${t.encerrado ? '' : ' · em andamento'}${t.encerradoPor ? (encerradoAuto(t.encerradoPor) ? ' · encerrado automaticamente (12 h)' : ' · encerrado pela gerência') : ''}${t.pendente ? ' · ⏳ aguardando envio' : ''}</small></div>
         <div>${t.encerrado ? `<button class="mini" data-doc="termo" data-id="${t.id}">Termo</button>` : ''}${temFicha(t) ? `<button class="mini" data-doc="ficha" data-id="${t.id}">Ficha</button>` : ''}</div></div>`).join('') : '<div class="vazio">Sem turnos no período.</div>'}</div>
       <button class="botao vermelho" id="limpar">🗑 Limpar histórico deste aparelho</button>
       <p class="dica">Remove só os turnos já encerrados <b>deste celular</b>. Os dados continuam salvos na planilha.</p>`;

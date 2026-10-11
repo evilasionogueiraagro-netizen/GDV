@@ -103,9 +103,12 @@ const Sync = (() => {
   async function bloqueadosComPendentes(p) {
     p = p || await pendentes();
     const m = new Set();
-    Object.keys(MODULO_DO_STORE).forEach(n => { if ((p[n] || []).length && !storePermitido(n)) MODULO_DO_STORE[n].forEach(x => { if (!pode(x)) m.add(x); }); });
+    Object.keys(MODULO_DO_STORE).forEach(n => { if (n !== 'a' && (p[n] || []).length && !storePermitido(n)) MODULO_DO_STORE[n].forEach(x => { if (!pode(x)) m.add(x); }); });
+    const aTF = p.aTF || [], aPCE = (p.a || []).filter(id => !aTF.includes(id));                                // arquivos: fotos/assinaturas do TF ou do PCE
+    if (aTF.length && !pode('tf')) m.add('tf');
+    if (aPCE.length && !pode('pce')) m.add('pce');
     if (!pode('antigo') && pode('pce') && ([...(p.g || []), ...(p.c || [])].some(Envio.ehAntigo)               // registro do papel guardado
-      || (p.a || []).length > (await arquivosPendentes(null, PERM)).length)) m.add('antigo');                   // ou PDF/foto dele ainda não enviado
+      || (await arquivosPendentes(null, { ...PERM, antigo: 1 })).length > (await arquivosPendentes(null, PERM)).length)) m.add('antigo');   // ou PDF/foto dele ainda não enviado
     return [...m];
   }
   function avisoSemPermissao(mods) {
@@ -148,10 +151,10 @@ const Sync = (() => {
   /** Cadastro do produtor (pessoa + propriedades) e nº de levantamentos/termos, consultados no servidor. */
   const pceConsultar = doc => chamar({ action: 'pceConsultar', doc }, 15000);
 
-  /** Envia ao Drive até N fotos/assinaturas pendentes, uma por requisição (envio.js). */
+  /** Envia ao Drive até N fotos/assinaturas pendentes (PCE e TF), uma por requisição (envio.js). */
   const enviarPendentesArquivos = ids => Envio.enviarArquivos(ids, chamar);
   async function enviarArquivos() {
-    if (rodando || !ativado() || !navigator.onLine || !pode('pce')) return 0;
+    if (rodando || !ativado() || !navigator.onLine || (!pode('pce') && !pode('tf'))) return 0;
     rodando = true;
     try { return await enviarPendentesArquivos(await arquivosPendentes(null, PERM)); }
     finally { rodando = false; await atualizarContagem(); }
@@ -174,6 +177,26 @@ const Sync = (() => {
   }
   /** Cadastro + histórico (reincidência) de um CPF/CNPJ e/ou placa, consultados no servidor. */
   const consultar = (doc, placa) => chamar({ action: 'tfConsultar', doc, placa });
+
+  /* ---------- Índice de reincidência (consulta do TF sem internet) ----------
+     Resumo de TODOS os TFs não cancelados (todas as barreiras) por hash do CPF/CNPJ e da placa: {h: {n, ap, re, au, li, ad, ult}}, sem dados
+     pessoais em claro. Guardado na meta "tfIndice" {agora (hora do servidor), baixadoEm, itens}; atualizado (incremental) no máximo 1x a cada
+     30 min, com internet e com o módulo TF liberado. Melhor esforço: falha não aparece para o fiscal. */
+  const INDICE_INTERVALO_MS = 30 * 60 * 1000;
+  let indiceTentado = 0;                                                     // falhou (ex.: servidor antigo): espera 5 min para tentar de novo
+  async function atualizarIndice(forcar) {
+    if (!pode('tf') || !navigator.onLine || !ativado()) return false;
+    const atual = await Store.meta('tfIndice');
+    if (!forcar && atual && Date.now() - (Number(atual.baixadoEm) || 0) < INDICE_INTERVALO_MS) return false;
+    if (!forcar && Date.now() - indiceTentado < 5 * 60 * 1000) return false;
+    indiceTentado = Date.now();
+    const incr = !!(atual && atual.itens && atual.agora);
+    const r = await chamar({ action: 'tfIndiceReincidencia', desde: incr ? atual.agora : 0 }, 30000);
+    const itens = r.completo || !incr ? {} : { ...atual.itens };
+    (r.itens || []).forEach(a => { if (!a || !a.h) return; if (Number(a.n) > 0) itens[a.h] = { n: a.n, ap: a.ap, re: a.re, au: a.au, li: a.li, ad: a.ad, ult: a.ult }; else delete itens[a.h]; });
+    await Store.setMeta('tfIndice', { agora: Number(r.agora) || Date.now(), baixadoEm: Date.now(), itens });
+    return true;
+  }
 
   // campos do encerramento de um turno (iguais aos que a planilha protege contra reabertura)
   const CAMPOS_ENCERRAMENTO = ['encerrado', 'fim', 'latFim', 'lngFim', 'precFim', 'encerradoPor', 'encerradoEm'];
@@ -257,11 +280,12 @@ const Sync = (() => {
         if (!l.resta) break;
       }
       let erroArq = '';
-      if (pode('pce')) {
+      if (pode('pce') || pode('tf')) {
         try { await enviarPendentesArquivos(await arquivosPendentes(null, PERM)); }   // falha numa foto não derruba o sync principal
         catch (e) { erroArq = e.message || String(e); }
       }
       await limparDeOutros();
+      try { await atualizarIndice(); } catch (e) { /* índice de reincidência: melhor esforço (tenta de novo na próxima sincronização) */ }
       await Store.setMeta('ultimaSync', Date.now());
       marcarRevogado(false);
       const resta = await pendentes(), semPerm = await bloqueadosComPendentes(resta);
@@ -344,7 +368,7 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, ativar, desativar, consultar, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
+  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, ativar, desativar, consultar, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
     pceProximoNumero, pceEmitir, pceConsultar, lembrarUltimosPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

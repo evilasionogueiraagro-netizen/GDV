@@ -222,12 +222,40 @@ span{ white-space:pre-line; }
 .compacto .linha-produtos td, .compacto .linha-origem-destino td{ padding-top:3px; padding-bottom:3px; height:auto; }
 .compacto td{ padding-top:2px; padding-bottom:2px; }
 .compacto .assinatura-area{ height:55px; }
+/* assinatura colhida na tela: a imagem no lugar da linha; recusa: texto no lugar da assinatura */
+.ass-img img{ display:block; margin:0 auto; max-width:90%; max-height:46px; border-bottom:1px solid #000; }
+.assinada{ height:auto !important; }
+.assinada .ass-linha{ display:none; }
+.ass-recusa{ font-size:11px; border-bottom:1px solid #000; padding-bottom:2px; margin-bottom:1px; }
+.ass-recusa b{ font-size:12px; }
+/* QR code de autenticidade: canto superior esquerdo, fora do fluxo (não muda a altura da via) */
+.verif{ position:absolute; top:2mm; left:0; width:80mm; display:flex; gap:2mm; align-items:flex-start; font-family:Arial,sans-serif; color:#000; }
+.verif[hidden]{ display:none; }
+.verif-qr{ width:19mm; height:19mm; flex:none; }
+.verif-qr svg{ width:100%; height:100%; display:block; }
+.verif-txt{ font-size:8px; line-height:1.25; white-space:normal; }
+.verif-url{ font-size:8px; font-weight:bold; word-break:break-all; white-space:normal; }
+.verif-cod{ font-size:7px; color:#333; white-space:normal; }
+/* anexo fotográfico: folha própria no fim (depois das 2 vias), 2 fotos por linha */
+.anexo{ padding-top:6mm; }
+.anexo h2{ font-size:15px; margin:0 0 2mm; text-align:center; }
+.anexo .anexo-sub{ font-size:11px; text-align:center; margin:0 0 4mm; color:#333; }
+.anexo-fotos{ display:grid; grid-template-columns:1fr 1fr; gap:4mm; }
+.anexo-fotos figure{ margin:0; break-inside:avoid; page-break-inside:avoid; }
+.anexo-fotos img{ display:block; width:100%; height:80mm; object-fit:contain; border:1px solid #999; background:#f4f4f4; }
+.anexo-fotos .sem-foto{ height:80mm; border:1px dashed #999; display:flex; align-items:center; justify-content:center; font-size:12px; color:#555; }
+.anexo-fotos figcaption{ font-size:11px; text-align:center; margin-top:1mm; }
 </style>
 </head>
 <body>
 
 <div class="a4">
     <div class="via"></div>
+    <!-- QR code de autenticidade (preenchido pelo app): leva a verificar.html?t=<id do TF> -->
+    <div class="verif" id="verif" hidden>
+        <div class="verif-qr" id="verif_qr"></div>
+        <div class="verif-txt">Verifique a autenticidade:<br><span class="verif-url" id="verif_url"></span><br><span class="verif-cod" id="verif_cod"></span></div>
+    </div>
 
     <div class="logo-container">
         <img src="../img/brasao.png" class="logo-amazonas">
@@ -423,13 +451,15 @@ span{ white-space:pre-line; }
 
         <div class="assinaturas">
 
-            <div class="assinatura-fiscalizado">
-                _______________________________<br>
+            <div class="assinatura-fiscalizado" data-papel="fiscalizado">
+                <div class="ass-img"></div>
+                <div class="ass-linha">_______________________________</div>
                 Assinatura do Fiscalizado
             </div>
 
-            <div class="assinatura-servidor">
-                _______________________________<br>
+            <div class="assinatura-servidor" data-papel="servidor">
+                <div class="ass-img"></div>
+                <div class="ass-linha">_______________________________</div>
                 Assinatura e Carimbo do Servidor da ADAF
             </div>
 

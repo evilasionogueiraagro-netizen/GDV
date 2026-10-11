@@ -3,7 +3,7 @@
 const VERSAO = 'gdv-v13';
 const ARQUIVOS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/config.js', 'js/store.js', 'js/envio.js', 'js/sync.js', 'js/docs.js', 'js/tf.js', 'js/pce.js', 'js/app.js',
+  'js/versao.js', 'js/config.js', 'js/store.js', 'js/envio.js', 'js/sync.js', 'js/docs.js', 'js/tf.js', 'js/pce.js', 'js/app.js',
   'documentos/ficha.html', 'documentos/termo.html', 'documentos/tf.html', 'documentos/ficha-campo.css', 'documentos/termo.css',
   'documentos/pce-levantamento.html', 'documentos/pce-colheita.html', 'documentos/pce.css',
   'img/logo-adaf.png', 'img/brasao.png', 'img/sepror.png', 'img/icon-192.png', 'img/icon-512.png'
@@ -31,7 +31,7 @@ self.addEventListener('fetch', e => {
    A página registra a tag "gdv-enviar" sempre que algo fica pendente; quando a conexão volta, o navegador acorda este service worker
    (mesmo com o app fechado) e ele envia os pendentes — só a subida: as mudanças do servidor são baixadas quando o app abrir.
    Usa o mesmo núcleo da página (envio.js) e o mesmo banco (store.js). A credencial vem da meta "cred" (espelho do localStorage). */
-importScripts('js/config.js', 'js/store.js', 'js/envio.js');
+importScripts('js/versao.js', 'js/config.js', 'js/store.js', 'js/envio.js');
 let enviando = null;                                                     // sync e periodicsync juntos: uma execução só
 function enviarEmSegundoPlano() {
   if (!enviando) enviando = Envio.subir().then(async r => {

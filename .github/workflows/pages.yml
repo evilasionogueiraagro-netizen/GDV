@@ -20,6 +20,7 @@ jobs:
         run: |
           sed -i "s/^const VERSAO = .*/const VERSAO = 'gdv-${GITHUB_SHA::7}';/" web/sw.js
           sed -i "s/^const VERSAO = .*/const VERSAO = 'painel-${GITHUB_SHA::7}';/" web/painel/sw.js
+          sed -i "s/^const VERSAO_APP = .*/const VERSAO_APP = 'gdv-${GITHUB_SHA::7}';/" web/js/versao.js
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
         with: { path: web }

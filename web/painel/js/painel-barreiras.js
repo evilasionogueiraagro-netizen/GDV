@@ -14,7 +14,7 @@
   const limitadosTxt = lista => { const n = lista.filter(t => t.horasLimitadas).length; return n ? ` · ${n} turno(s) aberto(s) há mais de 14 h contado(s) com 14 h` : ''; };
   const porHora = (n, min) => min > 0 ? n / (min / 60) : null;
   const temCoord = t => (t.latIni != null && t.lonIni != null) || (t.latFim != null && t.lonFim != null);
-  const SITUACAO = { ok: 'Em andamento', semsinal: 'Sem sinal > 30 min', longa: 'Aberta > 14 h', encerrada: 'Encerrada' };
+  const SITUACAO = { ok: 'Em andamento', semsinal: 'Sem sinal > 30 min', longa: 'Aberta > 14 h', aguardando: 'Encerrado no celular, aguardando envio', encerrada: 'Encerrada' };
 
 
   /** Minutos de barreira aberta em cada hora do relógio (0–23) e em cada dia da semana × hora. */
@@ -49,10 +49,12 @@
   function alertasModulo(d) {
     const A = [];
     d.emAndamento.forEach(t => {
-      if (t.abertaLonga) A.push({ nivel: 'critico', titulo: `Aberta há ${fmt.duracao(t.duracaoMin)}: ${t.local || 'sem local'}`,
+      if (t.situacao === 'aguardando') A.push({ nivel: 'serio', titulo: `Encerrado no celular, aguardando envio: ${t.local || 'sem local'}`,
+        detalhe: `${t.fiscal || 'O fiscal'} encerrou no celular${t.fimNoCelular ? ' às ' + t.fimNoCelular : ''}; o encerramento ainda não chegou à planilha${t.aparelho && t.aparelho.erroAtual && t.aparelho.ultimoErro ? ' (erro ao enviar: ' + t.aparelho.ultimoErro + ')' : ''}. Peça para abrir o app com internet; se não der, use Encerrar turno.` });
+      else if (t.abertaLonga) A.push({ nivel: 'critico', titulo: `Aberta há ${fmt.duracao(t.duracaoMin)}: ${t.local || 'sem local'}`,
         detalhe: `Início ${fmt.data(t.data)} ${t.inicio || ''} · ${t.fiscal || 'fiscal não informado'}. Confirme se o turno não ficou sem encerrar no aparelho.` });
       else if (t.semSinal) A.push({ nivel: 'serio', titulo: `Sem sinal ${fmt.rel(t.ultimoSinal)}: ${t.local || 'sem local'}`,
-        detalhe: `Último dado recebido ${fmt.dataHora(t.ultimoSinal)} · ${t.fiscal || ''}. O aparelho pode estar sem internet; os registros chegam quando reconectar.` });
+        detalhe: `Último dado recebido ${fmt.dataHora(t.ultimoSinal)} · ${t.fiscal || ''}. ${P.textoSemSinal(t)}; os registros chegam quando reconectar.` });
     });
     const zerados = d.turnos.filter(t => t.encerrado && !t.nVeiculos);
     if (zerados.length) A.push({ nivel: 'atencao', titulo: `${zerados.length} turno(s) encerrado(s) sem nenhum veículo registrado`,
@@ -122,7 +124,7 @@
         const it = P.el('div', 'pn-vivo-item' + (t.tfAndamento ? ' tf' : '')); it.dataset.turno = t.id;
         const vph = porHora(t.nVeiculos, t.duracaoContabilMin);
         it.innerHTML = `${P.seloSituacao(t)}<b>${esc(t.local || 'Sem local')}</b><small>${esc(t.fiscal || '')}${t.municipio ? ' · ' + esc(t.municipio) : ''}${t.posto ? ' · posto ' + esc(t.posto) : ''}</small>
-          <small>Início ${esc(fmt.dataCurta(t.data))} ${esc(t.inicio || '')} · ${esc(fmt.duracao(t.duracaoMin))} · último sinal ${esc(fmt.rel(t.ultimoSinal))}</small>
+          <small>Início ${esc(fmt.dataCurta(t.data))} ${esc(t.inicio || '')} · ${esc(fmt.duracao(t.duracaoMin))} · último sinal ${esc(fmt.rel(t.ultimoSinal))}</small>${P.linhasSinal(t)}
           <div class="pn-vivo-num"><span><strong>${fmt.int(t.nVeiculos)}</strong>veículos</span><span><strong>${fmt.int(t.nPessoas)}</strong>pessoas</span>${vph != null ? `<span><strong>${fmt.num(vph, 1)}</strong>/h</span>` : ''}</div>
           <small>${t.ultimoVeiculo ? `Último veículo às ${esc(t.ultimoVeiculo.hora)} (${esc(nomeTipo(t.ultimoVeiculo.tipo))})` : 'Nenhum veículo registrado ainda'}${t.lat == null ? ' · sem GPS' : ''}</small>`;
         if (t.lat != null && t.lon != null) {
@@ -252,7 +254,7 @@
       { chave: 'nVeiculos', rotulo: 'Veículos', num: true, fmt: fmt.int }, { chave: 'nPessoas', rotulo: 'Pessoas', num: true, fmt: fmt.int },
       { chave: 'gps', rotulo: 'Coordenadas', fmt: (v, l) => temCoord(l) ? 'Sim' : 'Não', ordem: l => temCoord(l) ? 1 : 0 },
       { chave: 'situacao', rotulo: 'Situação', fmt: (v, l) => sit(l), csv: (v, l) => sit(l),
-        html: (v, l) => l.situacao === 'encerrada' ? 'Encerrada' : P.seloSituacao(l) || esc(sit(l)), ordem: l => ({ longa: 0, semsinal: 1, ok: 2, encerrada: 3 })[l.situacao] }],
+        html: (v, l) => l.situacao === 'encerrada' ? 'Encerrada' : P.seloSituacao(l) || esc(sit(l)), ordem: l => ({ aguardando: 0, longa: 0.5, semsinal: 1, ok: 2, encerrada: 3 })[l.situacao] }],
     todos, { titulo: 'Turnos', subtitulo: 'Turnos do período e todas as barreiras ainda abertas. Duração de turno aberto = até agora.', csv: 'barreiras-turnos.csv', id: 'bar-turnos', ordenar: 'data', limite: 25 });
 
     P.tabela(st, [

@@ -177,6 +177,42 @@
     if (okc && b) { b.textContent = 'Copiada ✓'; setTimeout(() => { if (b.isConnected) b.textContent = 'Copiar mensagem'; }, 2500); }
   }
 
+  /* ---------- sinal dos aparelhos (último sinal, versão, pendentes, último erro) ---------- */
+  const NOMES_PEND = { turnos: ['turno', 'turnos'], veiculos: ['veículo', 'veículos'], tfs: ['TF', 'TFs'], levantamentos: ['levantamento', 'levantamentos'],
+    colheitas: ['termo', 'termos'], arquivos: ['foto/arquivo', 'fotos/arquivos'] };
+  const PLAT = { android: 'Android', ios: 'iPhone', outro: 'outro' };
+  /** Versão de referência: a publicada (js/versao.js, mesma publicação do painel); sem ela, a do aparelho visto mais recentemente. */
+  function versaoReferencia() {
+    if (typeof VERSAO_APP !== 'undefined' && VERSAO_APP) return VERSAO_APP;
+    const l = (E.lista || []).map(a => a.aparelho).filter(x => x && x.versao).sort((a, b) => b.ultimoSinal - a.ultimoSinal);
+    return l.length ? l[0].versao : '';
+  }
+  const desatualizado = ap => !!ap && (ap.legado || !ap.versao || (versaoReferencia() && ap.versao !== versaoReferencia()));
+  const pendTxt = ap => { if (!ap) return ''; const p = ap.pendentes || {};
+    const l = Object.keys(NOMES_PEND).filter(k => p[k]).map(k => `${fmt.int(p[k])} ${NOMES_PEND[k][p[k] === 1 ? 0 : 1]}`);
+    if (ap.encerradosPendentes) l.unshift(`${ap.encerradosPendentes} encerramento(s) de turno`);
+    return l.length ? l.join(', ') : 'nada pendente'; };
+  function sinalHTML(l) {
+    const ap = l.aparelho; if (!ap) return '<span class="pn-sub">—</span>';
+    const velho = P.agora() - ap.ultimoSinal > 30 * 60000;
+    return `<span${velho ? ' class="pn-sub"' : ''}>${esc(fmt.rel(ap.ultimoSinal))}</span><br><span class="pn-sub">${esc(dataCurta(ap.ultimoSinal))}${ap.origem === 'segundo-plano' ? ' · em segundo plano' : ''}${l.nAparelhos > 1 ? ` · ${l.nAparelhos} aparelhos` : ''}</span>`;
+  }
+  /** No celular as colunas do sinal ficam ocultas: um resumo vai embaixo da situação (só aparece em telas estreitas). */
+  function sinalCurto(l) {
+    const ap = l.aparelho; if (!ap) return '';
+    const alerta = [desatualizado(ap) && 'app desatualizado', ap.pendentesTotal && `${fmt.int(ap.pendentesTotal)} pendente(s)`, ap.erroAtual && 'erro ao enviar'].filter(Boolean);
+    return `<span class="pn-ac-sinal-m">sinal ${esc(fmt.rel(ap.ultimoSinal))}${alerta.length ? ` · <b>${esc(alerta.join(' · '))}</b>` : ''}</span>`;
+  }
+  function versaoHTML(l) {
+    const ap = l.aparelho; if (!ap) return '<span class="pn-sub">—</span>';
+    const v = ap.legado || !ap.versao ? 'anterior a esta função' : ap.versao;
+    return `${desatualizado(ap) ? `<span class="pn-ac-velha" title="Versão publicada: ${esc(versaoReferencia() || '?')}">⚠️ ${esc(v)} (desatualizada)</span>` : esc(v)}<br><span class="pn-sub">${esc(PLAT[ap.plataforma] || (ap.legado ? '' : 'outro'))}${ap.standalone ? ' · instalado' : ''}</span>`;
+  }
+  function erroHTML(l) {
+    const ap = l.aparelho; if (!ap || !ap.ultimoErro) return '<span class="pn-sub">—</span>';
+    return `<span class="pn-ac-erro">${ap.erroAtual ? '⚠️ ' : ''}${esc(ap.ultimoErro)}</span><span class="pn-sub">${esc(fmt.rel(ap.ultimoErroEm))}${ap.erroAtual ? ' · ainda sem envio' : ' · depois enviou normalmente'}</span>`;
+  }
+
   /* ---------- lista ---------- */
   async function carregar() {
     if (E.carregando) return; E.carregando = true;
@@ -207,10 +243,18 @@
     P.tabela(tab, [
       { chave: 'nome', rotulo: 'Servidor', html: (v, l) => `<b>${esc(v)}</b>${l.perfil === 'admin' ? ' <span class="pn-ac-perfil">administrador</span>' : ''}` },
       { chave: 'situacao', rotulo: 'Situação', ordem: l => l.ordemSit, csv: v => (SITUACOES[v] || {}).rot || v,
-        html: v => { const s = SITUACOES[v] || { rot: v, cls: 'info' }; return `<span class="pn-selo ${s.cls}">${esc(s.rot)}</span>`; } },
+        html: (v, l) => { const s = SITUACOES[v] || { rot: v, cls: 'info' }; return `<span class="pn-selo ${s.cls}">${esc(s.rot)}</span>${sinalCurto(l)}`; } },
       { chave: 'permissoes', rotulo: 'Módulos', ordem: l => l.perfil === 'admin' ? '' : MODULOS.filter(([k]) => permDe(l)[k]).length,
         csv: (v, l) => l.perfil === 'admin' ? 'todos (administrador)' : MODULOS.filter(([k]) => permDe(l)[k]).map(m => m[1]).join(', '),
         html: (v, l) => l.perfil === 'admin' ? '<span class="pn-sub">—</span>' : modulosHTML(l) },
+      { chave: 'sinal', rotulo: 'Último sinal', ordem: l => l.aparelho ? l.aparelho.ultimoSinal : 0, csv: (v, l) => l.aparelho ? dataCurta(l.aparelho.ultimoSinal) : '',
+        html: (v, l) => sinalHTML(l) },
+      { chave: 'versao', rotulo: 'Versão do app', ordem: l => l.aparelho ? (desatualizado(l.aparelho) ? 0 : 1) : 2,
+        csv: (v, l) => l.aparelho ? (l.aparelho.versao || 'anterior') + (desatualizado(l.aparelho) ? ' (desatualizada)' : '') : '', html: (v, l) => versaoHTML(l) },
+      { chave: 'pend', rotulo: 'Pendentes', ordem: l => l.aparelho ? l.aparelho.pendentesTotal + 1000 * (l.aparelho.encerradosPendentes || 0) : -1, csv: (v, l) => pendTxt(l.aparelho),
+        html: (v, l) => l.aparelho ? `<span${l.aparelho.pendentesTotal ? ' class="pn-ac-velha"' : ' class="pn-sub"'}>${esc(pendTxt(l.aparelho))}</span>` : '<span class="pn-sub">—</span>' },
+      { chave: 'erro', rotulo: 'Último erro', ordem: l => l.aparelho && l.aparelho.ultimoErro ? (l.aparelho.erroAtual ? 2 : 1) : 0, csv: (v, l) => l.aparelho ? l.aparelho.ultimoErro || '' : '',
+        html: (v, l) => erroHTML(l) },
       { chave: 'codigo', rotulo: 'Código', csv: () => '', html: (v, l) => v ? `<span class="pn-ac-cod">${esc(codigoFmt(v))}</span> <button type="button" class="pn-link" data-acao="reenviar" data-codigo="${esc(v)}">Reenviar</button>` : '—' },
       { chave: 'criadoEm', rotulo: 'Gerado em', num: true, fmt: v => dataCurta(v), csv: v => v ? dataCurta(v) : '' },
       { chave: 'expiraEm', rotulo: 'Código válido até', num: true, fmt: (v, l) => l.situacao === 'aguardando' || l.situacao === 'vencido' ? dataCurta(v) : '—', csv: v => v ? dataCurta(v) : '' },

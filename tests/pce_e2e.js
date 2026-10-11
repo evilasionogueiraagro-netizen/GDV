@@ -1,0 +1,310 @@
+const amb = require('./lib/amb');
+// Módulo PCE de ponta a ponta: app real (Chromium) + Code.gs real (fakegas, com Drive falso).
+const { chromium } = require('playwright-core');
+const { API, APP } = amb;
+const get = p => fetch(API + p).then(r => r.json());
+const post = b => fetch(API, { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
+const ler = async aba => (await get('/__fn?nome=lerLeitura_&args=' + encodeURIComponent(JSON.stringify([aba])))).r;
+const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw new Error(m); };
+const ANO = new Date().getFullYear();
+(async () => {
+  const b = await amb.lancar();
+  const credencial = async nome => { const g = await get('/__gerar?nome=' + encodeURIComponent(nome)); const r = await post({ action: 'ativar', codigo: g.codigo }); return { token: r.token, nome }; };
+  const aparelho = async ({ token, nome }) => {
+    const c = await b.newContext({ viewport: { width: 400, height: 900 }, permissions: ['geolocation'], geolocation: { latitude: -3.1234567, longitude: -58.4432, accuracy: 9 } });
+    await c.addInitScript(([t, n]) => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } } catch (e) {} }, [token, nome]);
+    await c.addInitScript(() => { if (window !== window.top) window.print = () => { const d = document; window.top.__prints = window.top.__prints || []; window.top.__prints.push({ texto: d.body.innerText.replace(/\s+/g, ' '), paginas: d.querySelectorAll('.a4').length, vias: [...d.querySelectorAll('.via')].map(v => v.textContent), titulo: window.top.document.title, cancelado: !!d.querySelector('.cancelado-faixa'), imgs: [...d.querySelectorAll('img')].filter(i => i.src.startsWith('data:image')).length, semFoto: d.querySelectorAll('.sem-foto').length }); }; });
+    const p = await c.newPage(); p.err = []; p.on('pageerror', e => p.err.push(e.message)); p.on('console', m => m.type() === 'error' && !/Failed to load resource|net::ERR/.test(m.text()) && p.err.push(m.text()));
+    p.on('dialog', d => d.type() === 'prompt' ? d.accept('digitação errada') : d.accept()); p.ctx = c;
+    await p.goto(APP); await p.waitForSelector('#view *', { state: 'attached' }); await p.waitForTimeout(700); return p;
+  };
+  const pendentes = p => p.evaluate(async () => { const n = ['turnos', 'veiculos', 'tfs', 'pessoas', 'placas', 'levantamentos', 'colheitas', 'propriedades'];
+    let t = 0; for (const s of n) t += (await Store.todos(s)).filter(x => x.pendente).length; return t + (await Sync.arquivosPendentes()).length; });
+  const sync = async p => { for (let i = 0; i < 20; i++) { await p.evaluate(() => Sync.sincronizar()); await p.waitForTimeout(300); if ((await pendentes(p)) === 0 && await p.evaluate(() => Sync.estado().tipo === 'ok')) return; } throw new Error('sync não terminou'); };
+  const imprimir = async (p, sel) => { await p.evaluate(() => { window.__prints = []; }); await p.locator(sel).first().click(); await p.waitForFunction(() => window.__prints && window.__prints.length, null, { timeout: 10000 }); return p.evaluate(() => window.__prints[0]); };
+  const imagem = (p, w, h, cor) => p.evaluate(([w, h, cor]) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d');
+    x.fillStyle = cor; x.fillRect(0, 0, w, h); x.fillStyle = '#fff'; x.fillRect(w / 4, h / 4, w / 2, h / 2); return c.toDataURL('image/jpeg', 0.9).split(',')[1]; }, [w, h, cor]).then(s => Buffer.from(s, 'base64'));
+  const assinar = async (p, sel) => { const cv = p.locator(sel); await cv.scrollIntoViewIfNeeded(); const bb = await cv.boundingBox();
+    await p.mouse.move(bb.x + 20, bb.y + 30); await p.mouse.down(); await p.mouse.move(bb.x + 140, bb.y + 90, { steps: 8 }); await p.mouse.move(bb.x + 220, bb.y + 40, { steps: 8 }); await p.mouse.up(); };
+  const irPCE = async p => { if (!(await p.locator('.modulo').count())) await p.click('nav [data-v=modulos]'); await p.waitForSelector('.modulo[data-v=pce]'); await p.click('.modulo[data-v=pce]'); };
+  const identificar = async (p, cargoIdx = 1) => {
+    await p.waitForSelector('#pceServForm');
+    await p.selectOption('#pce-s-cargo', { index: cargoIdx }); await p.fill('#pce-s-matricula', '12345'); await p.selectOption('#pce-s-lotacao', 'Manaus');
+    await p.click('#pce-s-salvar'); await p.waitForSelector('#pce-novolev');
+  };
+  const novoTermo = async p => { await p.click('nav [data-v=pcetermo]'); await p.waitForSelector('#pceTermoForm'); };
+  const statusDoc = (p, pref, re) => p.waitForFunction(([pref, re]) => new RegExp(re).test(document.querySelector('#' + pref + 'st-doc').textContent), [pref, re.source], { timeout: 10000 });
+
+  const fA = await credencial('Ana Paula Lima'), fB = await credencial('Bruno Costa Souza');
+
+  console.log('0) hub com 3 módulos');
+  const A = await aparelho(fA);
+  const tit = await A.locator('.modulo b').allTextContents();
+  ok(tit.length === 3 && /Educação Sanitária\/Fiscalização de Trânsito/.test(tit[0]) && /Termo de Fiscalização/.test(tit[1]) && tit[2] === 'PCE', 'três módulos: ' + tit.join(' | '));
+  ok(/Programa de Controle e Erradicação — levantamento fitossanitário e Termo de Colheita de Amostras/.test(await A.textContent('.modulo[data-v=pce]')) && (await A.textContent('.modulo[data-v=pce] .pce-status')) === 'Nenhum registro', 'cartão PCE com subtítulo e status "Nenhum registro"');
+
+  console.log('1) identificação do servidor na 1ª entrada');
+  await irPCE(A); await A.waitForSelector('#pceServForm');
+  ok((await A.inputValue('#pce-s-nome')) === 'Ana Paula Lima', 'nome do servidor vem da ativação');
+  ok(await A.locator('#nav [data-v=pcelev]').count() === 1 && await A.locator('#nav [data-v=pcetermos]').count() === 1, 'menu do módulo PCE (Levantamentos / Novo levantamento / Termos / Novo termo)');
+  await A.click('#pce-s-salvar'); await A.waitForTimeout(200); ok(/cargo/i.test(await A.textContent('#toast')) && await A.locator('#pceServForm').count() === 1, 'sem cargo não salva');
+  await identificar(A);
+  ok(/Ana Paula Lima/.test(await A.textContent('.pce-serv')) && /Manaus/.test(await A.textContent('.pce-serv')), 'lista mostra o servidor identificado');
+  ok(/Nenhum levantamento/.test(await A.textContent('#pceItens')), 'lista vazia');
+
+  console.log('2) novo levantamento SEM internet: 2 culturas, foto, assinatura');
+  await A.ctx.setOffline(true); await A.evaluate(() => window.dispatchEvent(new Event('offline')));
+  await A.click('#pce-novolev'); await A.waitForSelector('#pceLevForm');
+  await A.waitForFunction(() => document.querySelector('#pce-lat').value !== '', null, { timeout: 10000 });
+  ok((await A.inputValue('#pce-lat')).startsWith('-3.12') && await A.getAttribute('#pce-lat', 'readonly') !== null, 'GPS automático ao abrir (lat/lon somente leitura): ' + await A.inputValue('#pce-lat') + ', ' + await A.inputValue('#pce-lon'));
+  ok((await A.inputValue('#pce-data')) && (await A.inputValue('#pce-hora')) && (await A.inputValue('#pce-municipio')) === 'Manaus', 'data/hora preenchidas; município = lotação');
+  await A.fill('#pce-doc', '52998224725'); await statusDoc(A, 'pce-', /Novo cadastro/);
+  await A.fill('#pce-nome', 'josé da silva'); await A.fill('#pce-telefone', '92 98888-7777'); await A.fill('#pce-email', 'jose@exemplo.com');
+  await A.fill('#pce-propriedade', 'Sítio Boa Vista'); await A.fill('#pce-codigo', ''); await A.selectOption('#pce-situacao', 'Posse');
+  await A.selectOption('.pce-cult >> nth=0 >> .c-cultura', 'Banana'); await A.fill('.pce-cult >> nth=0 >> .c-area', '2,5'); await A.selectOption('.pce-cult >> nth=0 >> .c-praga', 'Fusarium R4T');
+  ok(await A.isDisabled('.pce-cult >> nth=0 >> .c-tipoMaterial') && await A.isDisabled('.pce-cult >> nth=0 >> .c-codigoAmostra'), 'coleta = Não: campos de amostra desabilitados');
+  await A.click('#pce-addcult'); ok(await A.locator('.pce-cult').count() === 2, '2º bloco de cultura adicionado');
+  await A.selectOption('.pce-cult >> nth=1 >> .c-cultura', 'Cacau'); await A.selectOption('.pce-cult >> nth=1 >> .c-coleta', 'Sim');
+  ok(!(await A.isDisabled('.pce-cult >> nth=1 >> .c-tipoMaterial')) && !(await A.isDisabled('.pce-cult >> nth=1 >> .c-destinoAmostra')), 'coleta = Sim: campos de amostra habilitados');
+  await A.fill('.pce-cult >> nth=1 >> .c-tipoMaterial', 'Frutos'); await A.fill('.pce-cult >> nth=1 >> .c-codigoAmostra', 'AM-001'); await A.fill('.pce-cult >> nth=1 >> .c-destinoAmostra', 'LAB ADAF');
+  ok((await A.inputValue('.pce-cult >> nth=0 >> .c-cultura')) === 'Banana', 'adicionar cultura não apaga a anterior');
+  const foto = await imagem(A, 2400, 1800, '#2a7');
+  await A.setInputFiles('#pce-fotos', [{ name: 'lavoura.jpg', mimeType: 'image/jpeg', buffer: foto }]);
+  await A.waitForSelector('#pce-fotos-prev .pce-foto img');
+  const dims = await A.evaluate(async () => { const a = (await Store.todos('arquivos'))[0]; const i = new Image(); await new Promise(r => { i.onload = r; i.src = a.dados; }); return { w: i.naturalWidth, h: i.naturalHeight, mime: a.mime, enviado: a.enviado }; });
+  ok(dims.w === 1600 && dims.h === 1200 && dims.mime === 'image/jpeg' && dims.enviado === 0, 'foto reduzida no aparelho (2400×1800 → ' + dims.w + '×' + dims.h + ', JPEG)');
+  await assinar(A, '#pce-ass-servidor'); await A.waitForTimeout(700);
+  await A.fill('#pce-obs', 'Plantas com sintomas de murcha.');
+  await A.click('#pce-salvar'); await A.waitForSelector('.item.pce-lev');
+  ok(/JOSÉ DA SILVA/.test(await A.textContent('#pceItens')) && /2 cultura\(s\) · 1 com coleta · 1 foto\(s\)/.test(await A.textContent('#pceItens')), 'levantamento na lista: ' + (await A.textContent('.item.pce-lev .info')).trim());
+  ok(await A.locator('.item.pce-lev .info.pend').count() === 1, 'pendente de envio (sem internet)');
+  const loc = await A.evaluate(async () => ({ lev: (await Store.todos('levantamentos'))[0], pes: await Store.obter('pessoas', '52998224725'), props: await Store.todos('propriedades'), arqs: (await Store.todos('arquivos')).map(a => ({ id: a.id, tipo: a.tipo, papel: a.papel, mime: a.mime, enviado: a.enviado })) }));
+  const cult = JSON.parse(loc.lev.culturas), ass = JSON.parse(loc.lev.assinaturas);
+  ok(cult.length === 2 && cult[0].coleta === 'Não' && cult[0].codigoAmostra === '' && cult[1].codigoAmostra === 'AM-001' && cult[1].coleta === 'Sim', 'culturas gravadas como JSON (amostra só na que tem coleta)');
+  ok(loc.lev.servidor === 'Ana Paula Lima' && loc.lev.lotacao === 'Manaus' && loc.lev.matricula === '12345' && loc.lev.nome === 'JOSÉ DA SILVA' && loc.lev.doc === '52998224725', 'dados do servidor copiados para o registro; nome em maiúsculas; doc só dígitos');
+  ok(ass.servidor && !ass.produtor && loc.arqs.length === 2 && loc.arqs.some(a => a.tipo === 'assinatura' && a.papel === 'servidor' && a.mime === 'image/png'), 'assinatura do servidor virou arquivo PNG; a do produtor (não desenhada) não');
+  ok(loc.pes && loc.pes.email === 'jose@exemplo.com' && loc.pes.telefone === '92 98888-7777' && loc.props.length === 1 && loc.props[0].id === '52998224725|SITIO BOA VISTA' && loc.props[0].situacaoFundiaria === 'Posse', 'produtor (com e-mail) e propriedade gravados no aparelho');
+  const nPend = await pendentes(A); ok(nPend === 5, 'pendentes: levantamento + pessoa + propriedade + 2 arquivos = ' + nPend);
+  await A.waitForFunction(() => /5 a enviar/.test(document.querySelector('#sync').textContent), null, { timeout: 5000 }); ok(true, 'selo: ' + await A.textContent('#sync'));
+  await A.click('nav [data-v=modulos]'); await A.waitForSelector('.modulo[data-v=pce]');
+  ok(/1 levantamento\(s\) · 0 termo\(s\) · ⏳ 3 aguardando envio/.test(await A.textContent('.modulo[data-v=pce] .pce-status')), 'cartão do hub: ' + await A.textContent('.modulo[data-v=pce] .pce-status'));
+
+  console.log('3) volta a internet: sincroniza e envia as fotos ao Drive');
+  await A.ctx.setOffline(false); await A.evaluate(() => window.dispatchEvent(new Event('online'))); await sync(A);
+  const levs = await ler('Levantamentos');
+  ok(levs.length === 1 && levs[0].usuario === 'Ana Paula Lima' && JSON.parse(levs[0].culturas).length === 2 && levs[0].email === 'jose@exemplo.com', 'planilha: levantamento gravado (usuário, culturas, e-mail)');
+  const pes = (await ler('Pessoas')).find(x => x.id === '52998224725'); ok(pes && pes.email === 'jose@exemplo.com', 'planilha: pessoa com e-mail');
+  ok((await ler('Propriedades')).some(x => x.id === '52998224725|SITIO BOA VISTA'), 'planilha: propriedade');
+  let arqS = await ler('Arquivos'), drive = await get('/__drive');
+  ok(arqS.length === 2 && drive.arquivos.length === 2 && drive.arquivos.every(a => a.caminho === `GDV - Arquivos/PCE/${ANO}/levantamentos` && !a.compartilhado), 'Drive falso recebeu foto e assinatura: ' + drive.arquivos.map(a => a.nome.slice(0, 50)).join(' ; '));
+  const locArq = await A.evaluate(async () => (await Store.todos('arquivos')).map(a => ({ enviado: a.enviado, url: a.url, temDados: !!a.dados })));
+  ok(locArq.every(a => a.enviado === 1 && /drive\.google\.com/.test(a.url) && a.temDados), 'arquivos marcados enviado=1 com link; imagem mantida no aparelho');
+  ok((await pendentes(A)) === 0 && !/a enviar/.test(await A.textContent('#sync')), 'nada pendente; selo: ' + await A.textContent('#sync'));
+  await irPCE(A); await A.waitForSelector('.item.pce-lev'); ok(await A.locator('.item.pce-lev .info.pend').count() === 0, 'lista sem "aguardando envio"');
+
+  console.log('4) ficha de levantamento (PDF)');
+  let pr = await imprimir(A, '[data-pce=imprimirlev]');
+  ok(/Ficha de Levantamento Fitossanit/i.test(pr.texto) && pr.texto.includes('JOSÉ DA SILVA') && pr.texto.includes('529.982.247-25') && pr.texto.includes('Sítio Boa Vista') && pr.texto.includes('jose@exemplo.com'), 'ficha: título, produtor, CPF formatado, propriedade, e-mail');
+  ok(pr.texto.includes('Banana') && pr.texto.includes('Cacau') && pr.texto.includes('AM-001') && pr.texto.includes('LAB ADAF') && pr.texto.includes('Fusarium R4T'), 'ficha: tabela de culturas e pragas com a amostra');
+  ok(/3°07'/.test(pr.texto) && /-3\.12345/.test(pr.texto) && pr.texto.includes('Ana Paula Lima') && pr.texto.includes('Plantas com sintomas de murcha.'), 'ficha: coordenadas (decimal e GMS), servidor, observações');
+  ok(pr.imgs === 2 && pr.semFoto === 0, 'ficha: foto e assinatura impressas a partir do aparelho (' + pr.imgs + ' imagens)');
+  ok(/^Levantamento_JOSE_DA_SILVA_\d\d-\d\d-\d{4}$/.test(pr.titulo), 'nome sugerido do PDF: ' + pr.titulo);
+
+  console.log('5) termo de colheita a partir do levantamento');
+  await A.click('[data-pce=termodelev]'); await A.waitForSelector('#pceTermoForm');
+  ok((await A.inputValue('#pce-t-doc')) === '529.982.247-25' && (await A.inputValue('#pce-t-nome')) === 'JOSÉ DA SILVA' && (await A.inputValue('#pce-t-municipio')) === 'Manaus', 'pré-preenchido: produtor e município do levantamento');
+  ok((await A.inputValue('#pce-t-cultura')) === 'Cacau' && (await A.inputValue('#pce-t-lat')).startsWith('-3.12') && /Sítio Boa Vista/.test(await A.inputValue('#pce-t-endereco')) && (await A.inputValue('#pce-t-unidade')) === 'Manaus', 'cultura com coleta = Sim, coordenadas, propriedade e unidade (lotação)');
+  ok(/definido ao gerar/.test(await A.textContent('#pce-t-numero')), 'número só é definido ao gerar');
+  await A.fill('#pce-t-quantidade', '3'); await A.fill('#pce-t-analise', 'fitopatológica');
+  await A.check('input[name=pce-t-parte][value=folhas]'); await A.check('input[name=pce-t-parte][value=frutos]');
+  const desc = await A.inputValue('#pce-t-descricao');
+  ok(/^Em \d+ de \w+ de \d{4}, às \d\dh\d\d, o\(a\) servidor\(a\) Ana Paula Lima, da Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF, realizou a coleta de 3 amostra\(s\) de folhas, frutos da cultura de Cacau, destinadas à análise fitopatológica\.$/.test(desc), 'texto oficial gerado: ' + desc);
+  await A.fill('#pce-t-descricao', desc + ' Texto complementado à mão.'); await A.fill('#pce-t-quantidade', '4');
+  ok((await A.inputValue('#pce-t-descricao')).endsWith('à mão.') && (await A.inputValue('#pce-t-descricao')).includes('3 amostra'), 'texto editado à mão não é sobrescrito');
+  await A.click('#pce-t-gerartexto'); ok((await A.inputValue('#pce-t-descricao')).includes('4 amostra(s)'), 'botão "Gerar texto oficial" refaz o texto');
+  await A.fill('#pce-t-t1nome', 'Carlos Testemunha'); await A.fill('#pce-t-t1doc', '1234567');
+  await A.setInputFiles('#pce-t-fotos', [{ name: 'amostra.jpg', mimeType: 'image/jpeg', buffer: await imagem(A, 800, 600, '#a52') }]); await A.waitForSelector('#pce-t-fotos-prev .pce-foto img');
+  await assinar(A, '#pce-ass-produtor'); await A.waitForTimeout(600);
+  await A.click('#pce-t-gerar'); await A.waitForSelector('#pce-num-m', { timeout: 15000 });
+  ok(+(await A.inputValue('#pce-num-m')) === 1 && /Número obtido na planilha agora/.test(await A.textContent('.tf-modal-box')) && /Nenhum Termo de Colheita anterior/.test(await A.textContent('.tf-modal-box')), 'popup: nº 1 da planilha, sem termo anterior');
+  ok((await A.textContent('#pce-num-prev')) === `001/${ANO}/MANAUS`, 'prévia do número: ' + await A.textContent('#pce-num-prev'));
+  await A.click('#pce-m-ok'); await A.waitForSelector('#pce-pronto', { timeout: 10000 });
+  ok((await A.textContent('#pce-pronto-num')) === `001/${ANO}/MANAUS` && /Número confirmado na planilha/.test(await A.textContent('#pce-pronto')), 'termo 001 gerado e confirmado na planilha');
+  let cols = await ler('Colheitas'); const c1 = cols.find(c => c.numero === 1);
+  ok(cols.length === 1 && c1.numeroOrigem === 'sistema' && c1.usuario === 'Ana Paula Lima' && c1.levantamentoId === levs[0].id && c1.emitidoEm > 0 && c1.partes === 'folhas, frutos' && c1.testemunha1Nome === 'Carlos Testemunha', 'planilha já tem o termo (origem sistema, ligado ao levantamento) sem esperar o sync');
+  pr = await imprimir(A, '#pce-imprimir');
+  ok(pr.paginas === 2 && pr.vias.join('|') === 'Via da ADAF|Via do produtor', 'PDF em 2 vias: ' + pr.vias.join(' | '));
+  ok(pr.texto.includes(`001/${ANO}/MANAUS`) && /Termo de Colheita de Amostras/i.test(pr.texto) && pr.texto.includes('JOSÉ DA SILVA') && pr.texto.includes('Cacau') && pr.texto.includes('Texto complementado') === false && pr.texto.includes('4 amostra(s)') && pr.texto.includes('Carlos Testemunha'), 'termo: número, produtor, cultura, texto oficial, testemunha');
+  ok(pr.imgs === 4 && !pr.cancelado, 'termo: foto e assinatura nas 2 vias (' + pr.imgs + ' imagens), sem faixa de cancelado');
+  ok(pr.titulo === `Termo_Colheita_001_${ANO}_MANAUS`, 'nome sugerido do PDF: ' + pr.titulo);
+  await sync(A); drive = await get('/__drive');
+  ok(drive.arquivos.filter(a => a.caminho.endsWith('/colheitas')).length === 2, 'foto e assinatura do termo enviadas ao Drive (pasta colheitas)');
+
+  console.log('6) segundo aparelho (Bruno): números sequenciais e número ocupado');
+  const Bd = await aparelho(fB); await irPCE(Bd); await identificar(Bd, 2);
+  await novoTermo(Bd);
+  await Bd.fill('#pce-t-doc', '529.982.247-25'); await statusDoc(Bd, 'pce-t-', /Cadastro encontrado/);
+  ok((await Bd.inputValue('#pce-t-nome')) === 'JOSÉ DA SILVA' && /1 levantamento\(s\) e 1 termo\(s\)/.test(await Bd.textContent('#pce-t-st-doc')), 'consulta no servidor: cadastro de Ana encontrado, com histórico: ' + (await Bd.textContent('#pce-t-st-doc')).trim().slice(0, 140));
+  await Bd.selectOption('#pce-t-cultura', 'Banana'); await Bd.fill('#pce-t-quantidade', '1'); await Bd.check('input[name=pce-t-parte][value=folhas]');
+  await Bd.click('#pce-t-gerar'); await Bd.waitForSelector('#pce-num-m', { timeout: 15000 });
+  ok(+(await Bd.inputValue('#pce-num-m')) === 2 && new RegExp(`001/${ANO}/MANAUS`).test(await Bd.textContent('.tf-modal-box')) && /Ana Paula Lima/.test(await Bd.textContent('.tf-modal-box')), 'popup de Bruno: nº 2 e último usado 001 (Ana Paula Lima)');
+  const outro = await post({ action: 'pceEmitir', key: fA.token, colheita: { id: 'corrida', unidade: 'MANAUS', ano: ANO, numero: 2, data: '2026-10-10', hora: '10:00', nome: 'FULANO', doc: '11144477735', cultura: 'Milho', quantidade: 1, cancelado: 0, criadoEm: Date.now(), atualizadoEm: Date.now() } });
+  ok(outro.emitido === true, 'Ana emitiu o 002 por fora enquanto o popup de Bruno está aberto');
+  await Bd.click('#pce-m-ok'); await Bd.waitForFunction(() => /acabou de ser usado/.test(document.querySelector('.tf-modal-box')?.textContent || ''), null, { timeout: 10000 });
+  ok(+(await Bd.inputValue('#pce-num-m')) === 3 && /Ana Paula Lima/.test(await Bd.textContent('.tf-modal-box')), 'Bruno avisado antes do PDF: 002 já usado; nova sugestão 3');
+  await Bd.fill('#pce-num-m', '5'); ok(/Número alterado \(o sistema sugeriu 003\)/.test(await Bd.textContent('#pce-num-edit')), 'edição do número fica registrada');
+  await Bd.click('#pce-m-ok'); await Bd.waitForSelector('#pce-pronto', { timeout: 10000 });
+  ok((await Bd.textContent('#pce-pronto-num')) === `005/${ANO}/MANAUS` && /alterado manualmente \(o sistema sugeriu 003\)/.test(await Bd.textContent('#pce-pronto')), 'termo 005 gerado, marcado como editado');
+  const c5 = (await ler('Colheitas')).find(c => c.numero === 5); ok(c5 && c5.numeroOrigem === 'editado' && c5.numeroSugerido === 3 && c5.usuario === 'Bruno Costa Souza', 'planilha: 005 editado, sugerido 3');
+  await Bd.click('[data-v=pcetermos]'); await Bd.waitForSelector('.item.pce-termo'); ok(await Bd.locator('.item.pce-termo').count() === 1, 'lista de Bruno só tem os termos dele');
+
+  console.log('7) Ana sem internet: número provisório e duplicidade apontada ao sincronizar');
+  await sync(A); ok((await A.evaluate(() => Store.meta('ultimoVistoPce')))['MANAUS|' + ANO] === 5, 'aparelho de Ana conhece o último nº da unidade (5)');
+  await A.ctx.setOffline(true); await A.evaluate(() => window.dispatchEvent(new Event('offline')));
+  await novoTermo(A);
+  await A.fill('#pce-t-doc', '111.444.777-35'); await statusDoc(A, 'pce-t-', /Novo cadastro/);
+  await A.fill('#pce-t-nome', 'Maria Souza'); await A.selectOption('#pce-t-cultura', 'Milho'); await A.fill('#pce-t-quantidade', '2');
+  await A.click('#pce-t-gerar'); await A.waitForSelector('#pce-num-m');
+  ok(+(await A.inputValue('#pce-num-m')) === 6 && /Sem conexão/.test(await A.textContent('.tf-modal-box')), 'offline: popup propõe 6 (último conhecido 5) como provisório');
+  await A.fill('#pce-num-m', '2'); await A.click('#pce-m-ok'); await A.waitForTimeout(400);
+  ok(/já gerou o termo nº 002/.test(await A.textContent('.tf-modal-box')), 'o aparelho recusa um número que ele mesmo já usou (002)');
+  await A.fill('#pce-num-m', '5'); await A.click('#pce-m-ok'); await A.waitForSelector('#pce-pronto', { timeout: 10000 });
+  ok(/provisório/.test(await A.textContent('#pce-pronto')), 'termo 005 gerado offline com aviso de número provisório');
+  pr = await imprimir(A, '#pce-imprimir'); ok(pr.paginas === 2 && pr.texto.includes(`005/${ANO}/MANAUS`) && pr.texto.includes('MARIA SOUZA'), 'impressão funciona sem internet');
+  await A.click('nav [data-v=pcetermos]'); await A.waitForSelector('.item.pce-termo');
+  ok(/número provisório/.test(await A.textContent('#pceTItens')), 'lista: termo com número provisório pendente');
+  ok((await pendentes(A)) >= 2, 'termo e cadastro novos pendentes: ' + await pendentes(A));
+  await A.ctx.setOffline(false); await A.evaluate(() => window.dispatchEvent(new Event('online'))); await sync(A);
+  await A.click('nav [data-v=pcetermos]'); await A.waitForSelector('.item.pce-termo');
+  ok(/Número duplicado/.test(await A.textContent('#pceTItens')) && !/provisório/.test(await A.textContent('#pceTItens')), 'após sincronizar, o 005 repetido aparece com aviso de duplicidade');
+  const au = (await get('/__fn?nome=auditarSequencia_&args=' + encodeURIComponent(JSON.stringify(['MANAUS', ANO, 'PCE'])))).r;
+  ok(au.duplicados.some(d => d.numero === 5) && JSON.stringify(au.lacunas) === '[3,4]' && au.editados.some(e => e.origem === 'provisorio'), 'auditoria PCE: duplicado 5, lacunas ' + JSON.stringify(au.lacunas));
+  ok((await ler('Pessoas')).some(p => p.id === '11144477735' && p.nome === 'MARIA SOUZA'), 'cadastro novo do produtor sincronizado');
+
+  console.log('8) cancelar termo (mantém o número)');
+  const nAntes = await A.locator('.item.pce-termo').count();
+  await A.locator('.item.pce-termo').filter({ hasText: `001/${ANO}/MANAUS` }).locator('[data-pce=cancelartermo]').click();
+  await A.waitForFunction(() => /CANCELADO: digitação errada/.test(document.querySelector('#pceTItens').textContent));
+  ok(await A.locator('.item.pce-termo').count() === nAntes && await A.locator('.item.pce-termo').filter({ hasText: `001/${ANO}/MANAUS` }).locator('[data-pce=cancelartermo]').count() === 0, 'termo 001 cancelado continua na lista, sem botão de cancelar');
+  await sync(A);
+  const c1b = (await ler('Colheitas')).find(c => c.numero === 1); ok(c1b.cancelado === 1 && c1b.motivoCancel === 'digitação errada' && c1b.emitidoEm === c1.emitidoEm, 'planilha: cancelado com motivo; emitidoEm mantido');
+  ok((await post({ action: 'pceProximoNumero', key: fA.token, unidade: 'MANAUS', ano: ANO })).proximo === 6, 'próximo número continua 6 (cancelado não libera o número)');
+  pr = await imprimir(A, `.item.pce-termo:has-text("001/${ANO}/MANAUS") [data-pce=imprimirtermo]`);
+  ok(pr.cancelado && /TERMO CANCELADO – digitação errada/.test(pr.texto) && pr.paginas === 2, 'PDF do cancelado com faixa CANCELADO nas 2 vias');
+
+  console.log('9) rascunhos automáticos');
+  await A.click('nav [data-v=pcelev]'); await A.waitForSelector('#pceLevForm'); await A.fill('#pce-nome', 'RASCUNHO PCE'); await A.selectOption('.pce-cult >> nth=0 >> .c-cultura', 'Açaí');
+  await A.setInputFiles('#pce-fotos', [{ name: 'r.jpg', mimeType: 'image/jpeg', buffer: await imagem(A, 300, 200, '#33c') }]); await A.waitForSelector('#pce-fotos-prev .pce-foto img');
+  await A.waitForTimeout(900);
+  ok((await pendentes(A)) === 0, 'foto de rascunho não conta como pendente');
+  await A.click('nav [data-v=pce]'); await A.waitForSelector('#pce-novolev'); await A.click('#pce-novolev'); await A.waitForSelector('#pceLevForm');
+  ok((await A.inputValue('#pce-nome')) === 'RASCUNHO PCE' && (await A.inputValue('.pce-cult >> nth=0 >> .c-cultura')) === 'Açaí' && await A.locator('#pce-fotos-prev .pce-foto img').count() === 1, 'rascunho do levantamento restaurado (nome, cultura e foto)');
+  const nArq = await A.evaluate(async () => (await Store.todos('arquivos')).length);
+  await A.click('[data-pce=descartarlev]'); await A.waitForSelector('#pce-novolev');
+  ok((await A.evaluate(async () => (await Store.todos('arquivos')).length)) === nArq - 1 && !(await A.evaluate(() => Store.meta('pceLevRascunho'))), 'descartar apaga o rascunho e a foto que só existia nele');
+  await novoTermo(A); await A.fill('#pce-t-nome', 'TERMO RASCUNHO'); await A.waitForTimeout(800);
+  await A.click('nav [data-v=pce]'); await A.waitForSelector('#pce-novolev'); await novoTermo(A);
+  ok((await A.inputValue('#pce-t-nome')) === 'TERMO RASCUNHO', 'rascunho do termo restaurado');
+  await A.click('[data-pce=descartartermo]'); await A.waitForSelector('#pce-novotermo');
+
+  console.log('10) editar levantamento, "Meus dados" e excluir');
+  await A.click('nav [data-v=pce]'); await A.waitForSelector('.item.pce-lev'); await A.click('[data-pce=abrirlev]'); await A.waitForSelector('#pceLevForm');
+  ok((await A.inputValue('#pce-nome')) === 'JOSÉ DA SILVA' && await A.locator('.pce-cult').count() === 2 && await A.locator('#pce-fotos-prev .pce-foto img').count() === 1, 'levantamento reaberto para edição com culturas e foto');
+  await A.click('[data-pce=delfoto]'); await A.fill('#pce-obs', 'Observação revisada.'); await A.click('#pce-salvar'); await A.waitForSelector('.item.pce-lev');
+  ok(/0 foto\(s\)/.test(await A.textContent('#pceItens')), 'foto removida do registro');
+  ok((await A.evaluate(async () => (await Store.todos('arquivos')).filter(a => a.dono === 'levantamentos').length)) === 2, 'foto já enviada fica no aparelho/Drive (auditoria): só sai do registro');
+  await sync(A); ok((await ler('Levantamentos'))[0].obs === 'Observação revisada.' && (await ler('Levantamentos'))[0].fotos === '[]', 'edição sincronizada');
+  await A.click('#pce-meusdados'); await A.waitForSelector('#pceServForm'); await A.selectOption('#pce-s-lotacao', 'Parintins'); await A.click('#pce-s-salvar'); await A.waitForSelector('#pce-novolev');
+  ok(/Parintins/.test(await A.textContent('.pce-serv')), '"Meus dados" altera a lotação');
+  await novoTermo(A); ok((await A.inputValue('#pce-t-unidade')) === 'Parintins', 'novo termo usa a nova lotação como unidade'); await A.click('[data-pce=descartartermo]'); await A.waitForSelector('#pce-novotermo');
+  await A.click('nav [data-v=pce]'); await A.waitForSelector('.item.pce-lev'); await A.click('[data-pce=excluirlev]'); await A.waitForSelector('#pceItens .vazio');
+  await sync(A); ok((await ler('Levantamentos'))[0].excluido === 1, 'levantamento excluído (soft delete) na planilha');
+
+  console.log('11) hub e erros');
+  await A.click('nav [data-v=modulos]'); await A.waitForSelector('.modulo[data-v=pce]');
+  ok(/0 levantamento\(s\) · 3 termo\(s\)$/.test(await A.textContent('.modulo[data-v=pce] .pce-status')), 'status do hub: ' + await A.textContent('.modulo[data-v=pce] .pce-status'));
+  ok(![A, Bd].some(p => p.err.length), 'sem erros de console/página: ' + JSON.stringify([...A.err, ...Bd.err]));
+
+  console.log('12) achados da revisão');
+  const fC = await credencial('Carla Mendes Rocha'), Cd = await aparelho(fC); Cd.msgs = []; Cd.on('dialog', d => Cd.msgs.push(d.message()));
+  await irPCE(Cd); await identificar(Cd);
+  // ids sempre UUID v4, mesmo sem crypto.randomUUID (o servidor recusa arquivos com outro formato)
+  const idSem = await Cd.evaluate(() => { Object.defineProperty(crypto, 'randomUUID', { value: undefined, configurable: true }); const id = Store.novoId(); delete crypto.randomUUID; return id; });
+  ok(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(idSem), 'sem crypto.randomUUID: id ainda é UUID v4 (' + idSem + ')');
+  // um arquivo recusado pelo servidor não trava a fila dos outros
+  await Cd.evaluate(async () => {
+    const t = Date.now(), base = { dono: 'levantamentos', donoId: 'gFila', tipo: 'foto', papel: '', tamanho: 10, criadoEm: t, enviado: 0, url: '', driveId: '' };
+    const c = document.createElement('canvas'); c.width = c.height = 8; const jpg = c.toDataURL('image/jpeg');
+    await Store.gravar('arquivos', { ...base, id: '00000000-0000-4000-8000-000000000000', mime: 'image/gif', dados: 'data:image/gif;base64,R0lGODlhAQABAAAAACw=' });
+    await Store.gravar('arquivos', { ...base, id: 'ffffffff-ffff-4fff-bfff-ffffffffffff', mime: 'image/jpeg', dados: jpg });
+    await Store.salvar('levantamentos', { id: 'gFila', data: '2026-10-10', hora: '10:00', doc: '52998224725', nome: 'FILA', municipio: 'Manaus', culturas: '[{"cultura":"Banana"}]',
+      fotos: JSON.stringify(['00000000-0000-4000-8000-000000000000', 'ffffffff-ffff-4fff-bfff-ffffffffffff']), assinaturas: '{}', excluido: 0 });
+  });
+  for (let i = 0; i < 3; i++) { await Cd.evaluate(() => Sync.sincronizar()); await Cd.waitForFunction(() => Sync.estado().tipo !== 'sync', null, { timeout: 15000 }); }
+  const fila = await Cd.evaluate(async () => ({ ruim: (await Store.obter('arquivos', '00000000-0000-4000-8000-000000000000')).enviado, bom: (await Store.obter('arquivos', 'ffffffff-ffff-4fff-bfff-ffffffffffff')).enviado, est: Sync.estado() }));
+  ok(fila.bom === 1 && fila.ruim === 0 && /JPEG, PNG ou PDF/.test(fila.est.msg), 'arquivo recusado (gif) fica pendente, mas o de trás é enviado; aviso: ' + fila.est.msg);
+  ok((await ler('Levantamentos')).some(l => l.id === 'gFila'), 'o levantamento em si foi sincronizado');
+  await Cd.evaluate(() => Store.apagar('arquivos', ['00000000-0000-4000-8000-000000000000']));
+  // levantamento: data/hora obrigatórias; propriedade com nome longo (id <= 64); acessibilidade
+  await Cd.click('nav [data-v=pcelev]'); await Cd.waitForSelector('#pceLevForm');
+  ok((await Cd.getAttribute('#pce-obs', 'aria-label')) === 'Observações', 'campo de observações com nome acessível');
+  await Cd.fill('#pce-doc', '11.222.333/0001-81'); await statusDoc(Cd, 'pce-', /Novo cadastro/);
+  await Cd.fill('#pce-nome', 'Agro Longo Ltda'); await Cd.fill('#pce-propriedade', 'Sítio Nossa Senhora Aparecida do Rio Preto da Eva km 32 ramal do Pau Rosa');
+  await Cd.selectOption('.pce-cult >> nth=0 >> .c-cultura', 'Banana'); ok(await Cd.getAttribute('.pce-cult >> nth=0 >> .c-area', 'maxlength') === '60', 'campos livres das culturas com tamanho máximo');
+  await Cd.fill('#pce-data', ''); await Cd.click('#pce-salvar'); await Cd.waitForTimeout(300);
+  ok(/Informe a data/.test(await Cd.textContent('#toast')) && await Cd.locator('#pceLevForm').count() === 1, 'levantamento sem data não é salvo');
+  await Cd.fill('#pce-data', '2026-10-09');
+  // assinatura: girar o celular (canvas mais largo) e dois dedos
+  await Cd.setViewportSize({ width: 820, height: 900 }); await Cd.waitForTimeout(200);
+  const px = await Cd.evaluate(() => {
+    const cv = document.querySelector('#pce-ass-produtor'), r = cv.getBoundingClientRect(), ev = (t, id, fx, fy) => cv.dispatchEvent(new PointerEvent(t, { pointerId: id, bubbles: true, cancelable: true, clientX: r.left + fx * r.width, clientY: r.top + fy * r.height }));
+    ev('pointerdown', 1, 0.5, 0.5); ev('pointermove', 1, 0.52, 0.5); ev('pointerup', 1, 0.52, 0.5);
+    const tinta = (fx, fy) => { const d = cv.getContext('2d').getImageData(Math.round(fx * cv.width) - 3, Math.round(fy * cv.height) - 3, 6, 6).data; for (let i = 3; i < d.length; i += 4) if (d[i]) return true; return false; };
+    const meio = tinta(0.51, 0.5);
+    const cv2 = document.querySelector('#pce-ass-servidor'), r2 = cv2.getBoundingClientRect(), ev2 = (t, id, fx, fy) => cv2.dispatchEvent(new PointerEvent(t, { pointerId: id, bubbles: true, cancelable: true, clientX: r2.left + fx * r2.width, clientY: r2.top + fy * r2.height }));
+    ev2('pointerdown', 1, 0.05, 0.1); ev2('pointerdown', 2, 0.9, 0.9); ev2('pointermove', 2, 0.92, 0.9); ev2('pointermove', 1, 0.07, 0.12); ev2('pointerup', 2, 0.92, 0.9); ev2('pointerup', 1, 0.07, 0.12);
+    const d2 = (fx, fy) => { const d = cv2.getContext('2d').getImageData(Math.round(fx * cv2.width) - 3, Math.round(fy * cv2.height) - 3, 6, 6).data; for (let i = 3; i < d.length; i += 4) if (d[i]) return true; return false; };
+    return { meio, zigue: d2(0.5, 0.5) };
+  });
+  await Cd.setViewportSize({ width: 400, height: 900 });
+  ok(px.meio, 'depois de girar o celular, o traço sai embaixo do dedo (meio do quadro)');
+  ok(!px.zigue, 'segundo dedo/palma não desenha linha atravessando o quadro');
+  await Cd.click('#pce-salvar'); await Cd.waitForSelector('.item.pce-lev');
+  const propL = await Cd.evaluate(async () => (await Store.todos('propriedades')).map(p => p.id));
+  ok(propL.length === 1 && propL[0].length <= 64 && propL[0].startsWith('11222333000181|SITIO NOSSA'), 'id da propriedade limitado a 64 caracteres: ' + propL[0]);
+  await sync(Cd); ok((await ler('Propriedades')).some(p => p.id === propL[0]), 'propriedade de nome longo chegou à planilha');
+  // rascunho de termo de OUTRO levantamento: pergunta explícita, e abre o selecionado
+  await novoTermo(Cd); await Cd.fill('#pce-t-nome', 'RASCUNHO DE OUTRO'); await Cd.waitForTimeout(800);
+  await Cd.click('nav [data-v=pce]'); await Cd.waitForSelector('.item.pce-lev'); Cd.msgs = [];
+  await Cd.locator('.item.pce-lev').filter({ hasText: 'AGRO LONGO' }).locator('[data-pce=termodelev]').click(); await Cd.waitForSelector('#pceTermoForm');
+  ok(/outro levantamento/.test(Cd.msgs.join(' ')) && (await Cd.inputValue('#pce-t-nome')) === 'AGRO LONGO LTDA', 'rascunho de outro levantamento: aviso explícito e abre o termo do levantamento escolhido');
+  ok(await Cd.locator('fieldset legend', { hasText: 'Partes da planta coletadas' }).count() === 1, 'partes da planta agrupadas (fieldset/legend)');
+  // dado de outro usuário no popup não vira HTML; termo sem hora não é gerado; sem segundo fluxo de numeração
+  await post({ action: 'sync', key: fB.token, since: 0, colheitas: [{ id: 'xss', unidade: 'MANAUS', ano: ANO, numero: 50, numeroTxt: `050/${ANO}/MANAUS`, data: '<img src=x onerror="window.__xss=1">', hora: '10:00',
+    nome: 'X', doc: '11144477735', cultura: 'Milho', quantidade: 1, cancelado: 0, excluido: 0, criadoEm: Date.now(), atualizadoEm: Date.now() }] });
+  await Cd.fill('#pce-t-quantidade', '1'); await Cd.fill('#pce-t-hora', ''); await Cd.click('#pce-t-gerar'); await Cd.waitForTimeout(300);
+  ok(/Informe a hora/.test(await Cd.textContent('#toast')) && await Cd.locator('#pce-modal').count() === 0, 'termo sem hora não é gerado');
+  await Cd.fill('#pce-t-hora', '11:00'); await Cd.click('#pce-t-gerar'); await Cd.waitForSelector('#pce-num-m', { timeout: 15000 });
+  ok(+(await Cd.inputValue('#pce-num-m')) === 51 && (await Cd.textContent('.tf-modal-box')).includes('<img src=x') && !(await Cd.evaluate(() => window.__xss)) && await Cd.locator('.tf-modal-box img').count() === 0, 'data vinda da planilha aparece como texto no popup (sem HTML/script)');
+  ok(await Cd.isDisabled('#pce-t-gerar'), 'botão "Gerar" fica desabilitado enquanto o número está sendo definido');
+  await Cd.evaluate(() => document.querySelector('#pceTermoForm').requestSubmit()); await Cd.waitForTimeout(400);
+  ok(await Cd.locator('#pce-modal').count() === 1, 'segundo envio do formulário não abre outra numeração');
+  await Cd.click('#pce-m-ok'); await Cd.waitForSelector('#pce-pronto', { timeout: 10000 });
+  ok((await Cd.textContent('#pce-pronto-num')) === `051/${ANO}/MANAUS` && (await ler('Colheitas')).filter(c => c.numero === 51).length === 1, 'termo 051 gerado uma única vez');
+  ok(!Cd.err.length, 'sem erros de console/página (aparelho 3): ' + JSON.stringify(Cd.err));
+  // migração do banco local com outra janela aberta na versão antiga (v2): avisa em vez de travar calado
+  const ctxM = await b.newContext({ viewport: { width: 400, height: 900 } });
+  const velha = await ctxM.newPage(); await velha.goto(APP + 'manifest.webmanifest').catch(() => {});
+  await velha.evaluate(() => new Promise(ok => { const rq = indexedDB.open('gdv', 2); rq.onupgradeneeded = () => rq.result.createObjectStore('meta', { keyPath: 'k' }); rq.onsuccess = () => { window.__velha = rq.result; ok(); }; }));
+  const nova = await ctxM.newPage(); await nova.goto(APP);
+  await nova.waitForSelector('#gdv-aviso-db', { timeout: 8000 });
+  ok(/Feche as outras janelas/.test(await nova.textContent('#gdv-aviso-db')), 'outra janela com o banco antigo: aviso "Feche as outras janelas…"');
+  await velha.evaluate(() => window.__velha.close());
+  await nova.waitForSelector('#gdv-aviso-db', { state: 'detached', timeout: 8000 }); await nova.waitForSelector('#view *', { state: 'attached' });
+  ok(true, 'fechada a janela antiga, a atualização conclui e o aviso some');
+  await velha.evaluate(() => new Promise(ok => { const rq = indexedDB.open('gdv', 4); rq.onupgradeneeded = () => {}; rq.onsuccess = () => { rq.result.close(); ok(); }; rq.onblocked = () => {}; }));
+  await nova.waitForSelector('#gdv-aviso-db', { timeout: 8000 });
+  ok(/atualizado em outra janela/.test(await nova.textContent('#gdv-aviso-db')), 'versão mais nova em outra janela: esta libera o banco (sem travar a outra) e pede para recarregar');
+  await ctxM.close();
+  console.log('OK'); await b.close();
+})().catch(e => { console.error('FALHOU', e.message); process.exit(1); });

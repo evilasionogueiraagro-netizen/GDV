@@ -143,6 +143,18 @@ const PCEUI = (() => {
   const servidorAtual = async () => (await Store.meta('pceServidor')) || null;
   const servidorOk = s => !!(s && s.nome && s.cargo && s.lotacao);
   const soDigitador = s => !!(s && s.soDigitacao && s.nome && !servidorOk(s));   // só digita registros antigos (ex.: estagiário)
+  /* Registro antigo (digitar do papel): só com a permissão "antigo" dada pela gerência (painel → Servidores → Papel).
+     Padrão: desligado. Sem internet vale a última permissão conhecida. Os registros já guardados nunca são apagados. */
+  const SEM_ANTIGO = 'Sem autorização para digitar registros antigos (do papel). Fale com a gerência.';
+  const podeAntigo = () => Sync.pode('antigo');
+  const avisoSemAntigoHTML = () => `<div class="card aviso" id="pce-sem-antigo">⚠️ ${esc(SEM_ANTIGO)} Para registrar vistorias, complete seus dados (cargo e lotação) em “Meus dados”.</div>`;
+  /** Rascunho de registro antigo sem a permissão: pergunta se descarta (Cancelar volta sem perder). true = pode seguir. */
+  async function rascunhoAntigoSemPermissao(qual, rasc, voltar) {
+    if (!rasc || !rasc.dados || !rasc.antigo || podeAntigo()) return true;
+    if (!confirm(`Há um registro antigo (do papel) não salvo, iniciado em ${new Date(rasc.em).toLocaleString('pt-BR')}, mas você está sem autorização para digitar registros do papel.\n\nDescartar esse rascunho? (Cancelar volta sem perder o rascunho.)`)) { go(voltar); return false; }
+    await descartarRascunho(qual, rasc);
+    return true;
+  }
   async function exigirServidor(voltar, arg, aceitaDigitador) {
     const s = await servidorAtual();
     if (servidorOk(s) || (aceitaDigitador && soDigitador(s))) return s;
@@ -197,14 +209,14 @@ const PCEUI = (() => {
       <label>Cargo *<select id="pce-s-cargo">${opts(P.cargos, s.cargo, 'Selecione')}</select></label>
       <label>Matrícula<input id="pce-s-matricula" value="${esc(s.matricula || '')}" inputmode="numeric"></label>
       <label>Lotação (município) *<select id="pce-s-lotacao">${opts(P.municipios, s.lotacao, 'Selecione')}</select></label>
-      <label class="chk"><input type="checkbox" id="pce-s-digitacao" ${s.soDigitacao ? 'checked' : ''}> Só vou digitar registros antigos do papel (não faço vistorias)</label>
-      <p class="dica" style="text-align:left">Marque se você apenas digita fichas e termos já feitos (ex.: estagiário). Cargo e lotação deixam de ser obrigatórios; em cada registro você informa o servidor que fez a vistoria.</p>
+      ${podeAntigo() ? `<label class="chk"><input type="checkbox" id="pce-s-digitacao" ${s.soDigitacao ? 'checked' : ''}> Só vou digitar registros antigos do papel (não faço vistorias)</label>
+      <p class="dica" style="text-align:left">Marque se você apenas digita fichas e termos já feitos (ex.: estagiário). Cargo e lotação deixam de ser obrigatórios; em cada registro você informa o servidor que fez a vistoria.</p>` : ''}
       <button class="botao" type="submit" id="pce-s-salvar">💾 Salvar</button>
       ${primeira ? '' : '<button class="botao sec" type="button" data-v="pce">Voltar</button>'}</form>`);
     $('#pceServForm').onsubmit = async e => {
       e.preventDefault();
       const d = { nome: $('#pce-s-nome').value.trim().replace(/\s+/g, ' '), cargo: $('#pce-s-cargo').value, matricula: $('#pce-s-matricula').value.trim(), lotacao: $('#pce-s-lotacao').value };
-      if ($('#pce-s-digitacao').checked) d.soDigitacao = 1;
+      if ($('#pce-s-digitacao') && $('#pce-s-digitacao').checked) d.soDigitacao = 1;   // a opção só aparece com a permissão "antigo"
       if (d.nome.split(' ').length < 2) return toast('Informe o nome completo (nome e sobrenome).', true);
       if (!d.cargo && !d.soDigitacao) return toast('Escolha o cargo.', true);
       if (!d.lotacao && !d.soDigitacao) return toast('Escolha a lotação.', true);
@@ -554,11 +566,14 @@ const PCEUI = (() => {
     if (bloqueado()) return view(avisoAtivacao());
     const id = typeof arg === 'string' ? arg : '', o = arg && typeof arg === 'object' ? arg : {};
     const rec0 = id ? await Store.obter('levantamentos', id) : null, s0 = await servidorAtual();
-    const querAntigo = !!(o.antigo || (rec0 && Number(rec0.registroAntigo) === 1) || (!id && soDigitador(s0)));   // quem só digita: sempre do papel
+    const querAntigo = !!(o.antigo || (rec0 && Number(rec0.registroAntigo) === 1) || (!id && soDigitador(s0) && podeAntigo()));   // quem só digita: sempre do papel (sem a permissão: pede cargo/lotação)
+    if (querAntigo && !podeAntigo()) { toast(SEM_ANTIGO, true); return go('pce'); }   // registro do papel: só com a permissão "antigo"
     const s = await exigirServidor('pcelev', arg, querAntigo); if (!s) return;
     fechar(L); fechar(T); L = null;
     let F = null, D = null;
-    const rasc = await Store.meta('pceLevRascunho');
+    let rasc = await Store.meta('pceLevRascunho');
+    if (!(await rascunhoAntigoSemPermissao('lev', rasc, 'pce'))) return;
+    if (rasc && rasc.antigo && !podeAntigo()) rasc = null;                 // rascunho do papel sem permissão: já descartado acima
     if (rasc && rasc.dados && id && rasc.id !== id) {                      // o rascunho é de OUTRO levantamento: não troca o escolhido sem avisar
       if (!confirm(`Há um rascunho não salvo de outro levantamento, iniciado em ${new Date(rasc.em).toLocaleString('pt-BR')}.\n\nDescartar esse rascunho e abrir o levantamento selecionado? (Cancelar volta à lista sem perder o rascunho.)`)) return go('pce');
       await descartarRascunho('lev', rasc);
@@ -641,28 +656,29 @@ const PCEUI = (() => {
     if (bloqueado()) return view(avisoAtivacao());
     const s = await exigirServidor('pce', null, true); if (!s) return;
     fechar(L); fechar(T);
-    const dig = soDigitador(s);
+    const podeAnt = podeAntigo(), dig = soDigitador(s) && podeAnt, digSemAut = soDigitador(s) && !podeAnt;
     const todos = (await Store.todos('levantamentos')).filter(x => !x.excluido)
       .sort((a, b) => ((b.data || '') + (b.hora || '')).localeCompare((a.data || '') + (a.hora || '')) || b.criadoEm - a.criadoEm);
     const pendArq = new Set(await Store.chaves('arquivos', 'enviado', 0));
     view(`<div class="card pce-serv"><div><b>${esc(s.nome)}</b><small>${dig ? 'Digitação de registros do papel' : esc(s.cargo) + ' · ' + esc(s.lotacao)}${s.matricula ? ' · Mat. ' + esc(s.matricula) : ''}</small></div>
         <button class="mini" data-pce="servidor" id="pce-meusdados">👤 Meus dados</button></div>
+      ${digSemAut ? avisoSemAntigoHTML() : ''}
       ${dig ? '' : '<button class="botao" data-pce="novolev" id="pce-novolev">➕ Novo levantamento</button>'}
-      <button class="botao ${dig ? '' : 'sec'}" data-pce="novolevantigo" id="pce-novolevantigo">📄 Registro antigo (digitar do papel)</button>
+      ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-pce="novolevantigo" id="pce-novolevantigo">📄 Registro antigo (digitar do papel)</button>` : ''}
       <div class="card"><label>Pesquisar (produtor, CPF/CNPJ, propriedade, município)<input id="pceQ"></label></div><div id="pceItens"></div>`);
     const desenhar = () => {
       const q = semAcento($('#pceQ').value.trim()).toUpperCase(), qd = digitos(q);
       const v = todos.filter(x => !q || semAcento([x.nome, x.propriedade, x.municipio, x.codigoPropriedade].join(' ')).toUpperCase().includes(q) || (qd && digitos(x.doc).includes(qd)));
       $('#pceItens').innerHTML = v.length ? v.map(x => {
         const cult = lerJSON(x.culturas, []), fotos = lerJSON(x.fotos, []), col = cult.filter(c => c.coleta === 'Sim').length;
-        const pend = x.pendente || [...idsArquivos(x)].some(id => pendArq.has(id));
+        const pend = x.pendente || [...idsArquivos(x)].some(id => pendArq.has(id)), papelSemAut = Number(x.registroAntigo) === 1 && !podeAnt;
         return `<div class="item pce-lev" data-lev="${esc(x.id)}"><div class="topo"><div><div class="placa pce-nome">${esc(x.nome)}</div>
           <div class="tipo">${esc(x.propriedade || 'Propriedade não informada')} · ${esc(x.municipio)}</div></div><div class="hora">${esc(dBR(x.data))}<br>${esc(x.hora)}</div></div>
           <div class="info">${cult.length} cultura(s)${col ? ` · ${col} com coleta` : ''} · ${fotos.length} foto(s)</div>
-          ${pend ? '<div class="info pend">⏳ aguardando envio</div>' : ''}
-          <div class="botoes pce-acoes"><button class="editar" data-pce="abrirlev" data-id="${esc(x.id)}">Abrir</button>
+          ${pend ? `<div class="info pend">⏳ aguardando envio${papelSemAut ? ' — registro do papel: sem autorização, fica guardado neste aparelho' : ''}</div>` : ''}
+          <div class="botoes pce-acoes">${papelSemAut ? '' : `<button class="editar" data-pce="abrirlev" data-id="${esc(x.id)}">Abrir</button>`}
           <button class="editar" data-pce="imprimirlev" data-id="${esc(x.id)}">Ficha (PDF)</button>
-          ${Sync.pode('pce') ? `<button class="tfbtn" data-pce="termodelev" data-id="${esc(x.id)}">Termo de colheita</button>` : ''}
+          ${Sync.pode('pce') && !papelSemAut ? `<button class="tfbtn" data-pce="termodelev" data-id="${esc(x.id)}">Termo de colheita</button>` : ''}
           <button class="excluir" data-pce="excluirlev" data-id="${esc(x.id)}">Excluir</button></div></div>`;
       }).join('') : '<div class="vazio">Nenhum levantamento neste aparelho.</div>';
     };
@@ -800,11 +816,14 @@ const PCEUI = (() => {
   async function termo(prefill) {
     if (bloqueado()) return view(avisoAtivacao());
     const p0 = prefill || {}, s0 = await servidorAtual(), lev0 = p0.levantamentoId ? await Store.obter('levantamentos', p0.levantamentoId) : null;
-    const querAntigo = !!(p0.antigo || (lev0 && Number(lev0.registroAntigo) === 1) || soDigitador(s0));
+    const querAntigo = !!(p0.antigo || (lev0 && Number(lev0.registroAntigo) === 1) || (soDigitador(s0) && podeAntigo()));
+    if (querAntigo && !podeAntigo()) { toast(SEM_ANTIGO, true); return go(lev0 ? 'pce' : 'pcetermos'); }   // termo do papel: só com a permissão "antigo"
     const s = await exigirServidor('pcetermo', prefill, querAntigo); if (!s) return;
     prefill = p0; fechar(L); fechar(T); T = null;
     let F = null, D = null;
-    const rasc = await Store.meta('pceTermoRascunho');
+    let rasc = await Store.meta('pceTermoRascunho');
+    if (!(await rascunhoAntigoSemPermissao('termo', rasc, 'pcetermos'))) return;
+    if (rasc && rasc.antigo && !podeAntigo()) rasc = null;                 // rascunho do papel sem permissão: já descartado acima
     if (rasc && rasc.dados && prefill.levantamentoId && rasc.levantamentoId !== prefill.levantamentoId) {   // rascunho de OUTRO produtor/levantamento
       if (!confirm(`Há um Termo de Colheita não gerado${rasc.dados.nome ? ' de ' + rasc.dados.nome : ''}, de outro levantamento, iniciado em ${new Date(rasc.em).toLocaleString('pt-BR')}.\n\nDescartar esse rascunho e abrir um termo do levantamento selecionado? (Cancelar volta à lista sem perder o rascunho.)`)) return go('pce');
       await descartarRascunho('termo', rasc);
@@ -991,6 +1010,7 @@ const PCEUI = (() => {
     mostrarCoord('pce-t-'); D.lat = $('#pce-t-lat').value; D.lon = $('#pce-t-lon').value; D.precisao = '';
     if (!D.descricao.trim()) { autoTexto(true); D.descricao = $('#pce-t-descricao').value; }
     if (!navigator.onLine || !Sync.ativado()) return toast('Sem conexão. O termo antigo precisa de internet: a planilha confere se o número do papel está livre.', true);
+    if (!podeAntigo()) return toast(SEM_ANTIGO, true);                       // gerência tirou a permissão: o rascunho continua guardado
     if (F.gerando) return;
     const btns = ['#pce-t-gerar', '#pce-t-gravar-outro'].map(x => $(x)).filter(Boolean);
     F.gerando = true; btns.forEach(b => { b.disabled = true; });
@@ -1043,7 +1063,7 @@ const PCEUI = (() => {
       ${t.pendente ? '<div class="tf-novo">⏳ Número provisório / aguardando envio: será conferido na planilha ao sincronizar. Se houver repetição, a coordenação é avisada.</div>' : '<div class="tf-ok">✓ Número confirmado na planilha.</div>'}
       ${t.numeroOrigem === 'editado' && Number(t.registroAntigo) !== 1 ? `<div class="tf-novo">✏️ Número alterado manualmente (o sistema sugeriu ${num3(t.numeroSugerido)}). Registrado para auditoria.</div>` : ''}</div>
       <button class="botao" data-pce="imprimirtermo" data-id="${esc(t.id)}" id="pce-imprimir">🖨️ Imprimir / PDF (${P.vias || 2} vias)</button>
-      ${Number(t.registroAntigo) === 1 ? '<button class="botao sec" data-pce="novotermoantigo">📄 Digitar outro termo do papel</button>' : '<button class="botao sec" data-pce="novotermo">➕ Novo termo</button>'}
+      ${Number(t.registroAntigo) === 1 && podeAntigo() ? '<button class="botao sec" data-pce="novotermoantigo">📄 Digitar outro termo do papel</button>' : '<button class="botao sec" data-pce="novotermo">➕ Novo termo</button>'}
       <button class="botao sec" data-v="pcetermos">📋 Ver termos de colheita</button>
       <p class="dica">Na janela de impressão, escolha “Salvar como PDF” ou imprima direto. As vias saem em páginas separadas.</p>`);
   }
@@ -1052,10 +1072,11 @@ const PCEUI = (() => {
     if (bloqueado()) return view(avisoAtivacao());
     const s = await exigirServidor('pcetermos', null, true); if (!s) return;
     fechar(L); fechar(T);
-    const dig = soDigitador(s);
+    const podeAnt = podeAntigo(), dig = soDigitador(s) && podeAnt, digSemAut = soDigitador(s) && !podeAnt;
     const todos = (await Store.todos('colheitas')).filter(x => !x.excluido).sort((a, b) => b.criadoEm - a.criadoEm);
-    view(`${dig ? '' : '<button class="botao" data-pce="novotermo" id="pce-novotermo">➕ Novo termo de colheita</button>'}
-      <button class="botao ${dig ? '' : 'sec'}" data-pce="novotermoantigo" id="pce-novotermoantigo">📄 Termo antigo (digitar do papel)</button>
+    view(`${digSemAut ? avisoSemAntigoHTML() : ''}
+      ${dig ? '' : '<button class="botao" data-pce="novotermo" id="pce-novotermo">➕ Novo termo de colheita</button>'}
+      ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-pce="novotermoantigo" id="pce-novotermoantigo">📄 Termo antigo (digitar do papel)</button>` : ''}
       <div class="card"><label>Pesquisar (nº, produtor, CPF/CNPJ, cultura)<input id="pceTQ"></label></div><div id="pceTItens"></div>`);
     const desenhar = () => {
       const q = semAcento($('#pceTQ').value.trim()).toUpperCase(), qd = digitos(q);
@@ -1065,7 +1086,7 @@ const PCEUI = (() => {
         <div class="info">${esc(t.cultura)} · ${esc(t.quantidade)} amostra(s) · ${esc(t.municipio)}</div>
         ${t.cancelado ? `<div class="info pend">⛔ CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
         ${t.conflito ? '<div class="info pend">⚠️ Número duplicado na planilha: confira com a coordenação.</div>' : ''}
-        ${t.pendente ? `<div class="info pend">⏳ ${t.provisorio ? 'número provisório, será conferido ao sincronizar' : 'aguardando envio'}</div>` : ''}
+        ${t.pendente ? `<div class="info pend">⏳ ${t.provisorio ? 'número provisório, será conferido ao sincronizar' : 'aguardando envio'}${Number(t.registroAntigo) === 1 && !podeAnt ? ' — termo do papel: sem autorização, fica guardado neste aparelho' : ''}</div>` : ''}
         <div class="botoes"><button class="editar" data-pce="imprimirtermo" data-id="${esc(t.id)}">Imprimir</button>
         ${t.cancelado ? '' : `<button class="excluir" data-pce="cancelartermo" data-id="${esc(t.id)}">Cancelar termo</button>`}</div></div>`).join('')
         : '<div class="vazio">Nenhum Termo de Colheita neste aparelho.</div>';

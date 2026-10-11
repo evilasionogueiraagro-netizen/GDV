@@ -1,4 +1,5 @@
 // Sincronização com a planilha (Apps Script). Envia o que está pendente e recebe o que mudou.
+// O núcleo do envio (lote, marcar enviados, arquivos) fica em envio.js, compartilhado com o service worker (envio em segundo plano).
 const Sync = (() => {
   let rodando = false;
   const listeners = [];
@@ -26,22 +27,69 @@ const Sync = (() => {
     if (!j.ok) throw new Error(j.erro || 'Falha na ativação.');
     localStorage.setItem('gdv.url', url); localStorage.setItem('gdv.key', j.token);
     localStorage.setItem('gdv.nome', j.nome); localStorage.removeItem('gdv.revogado');
+    await espelharCred();
     return j.nome;
   }
-  function desativar() { ['gdv.key', 'gdv.nome', 'gdv.revogado'].forEach(k => localStorage.removeItem(k)); }
+  function desativar() { ['gdv.key', 'gdv.nome', 'gdv.revogado'].forEach(k => localStorage.removeItem(k)); espelharCred(); }
+  /** Marca a credencial como recusada pelo servidor (a tela pede novo código) ou limpa a marca. */
+  function marcarRevogado(sim) {
+    if (!!localStorage.getItem('gdv.revogado') === !!sim) return;
+    if (sim) localStorage.setItem('gdv.revogado', '1'); else localStorage.removeItem('gdv.revogado');
+    espelharCred();
+  }
+
+  /* ---------- Envio em segundo plano (Background Sync, Chrome/Android) ----------
+     O service worker não lê localStorage: a credencial é copiada para a meta "cred" do IndexedDB (ativar, desativar, revogação e
+     ao abrir o app). Ao desativar o aparelho a cópia é apagada. */
+  async function espelharCred() {
+    try {
+      const c = cfg();
+      if (c.url && c.key) await Store.setMeta('cred', { url: c.url, key: c.key, nome: nome(), revogado: localStorage.getItem('gdv.revogado') ? 1 : 0 });
+      else await Store.apagar('meta', ['cred']);
+    } catch (e) { /* sem banco: o envio em segundo plano só fica indisponível */ }
+  }
+  /** Ao abrir o app: o service worker pode ter visto a credencial recusada com o app fechado — a tela pede novo código. */
+  async function importarRevogacao() {
+    try {
+      const m = await Store.meta('cred'), c = cfg();
+      if (m && m.revogado && c.key && m.key === c.key && !localStorage.getItem('gdv.revogado')) localStorage.setItem('gdv.revogado', '1');
+    } catch (e) { /* idem */ }
+  }
+  /** Ao abrir o app (antes da 1ª tela): traz a revogação vista pelo service worker, espelha a credencial e agenda o envio a cada pendência. */
+  async function prepararFundo() {
+    await importarRevogacao();
+    await espelharCred();
+    Store.quandoPendente(agendarEnvio);
+  }
+  /** O navegador acorda o service worker para enviar os pendentes quando houver internet, mesmo com o app fechado (Android). */
+  const envioAutomatico = () => 'serviceWorker' in navigator && typeof window.SyncManager !== 'undefined';
+  let periodicoPedido = false;
+  function agendarEnvio() {
+    try {
+      if (!ativado() || !('serviceWorker' in navigator)) return;
+      navigator.serviceWorker.ready.then(async reg => {
+        if ('sync' in reg) await reg.sync.register(Envio.TAG).catch(() => {});
+        // Periodic Background Sync: só se o navegador já concedeu (app instalado e usado com frequência); nunca pede permissão
+        if (!periodicoPedido && 'periodicSync' in reg && navigator.permissions) {
+          periodicoPedido = true;
+          const st = await navigator.permissions.query({ name: 'periodic-background-sync' }).catch(() => null);
+          if (st && st.state === 'granted') await reg.periodicSync.register(Envio.TAG_PERIODICO, { minInterval: 15 * 60 * 1000 }).catch(() => {});
+        }
+      }).catch(() => {});
+    } catch (e) { /* sem suporte: o envio acontece quando o app abrir com internet */ }
+  }
   function emitir(e) { estado = e; listeners.forEach(f => f(e)); }
 
   /* ---------- Módulos autorizados (definidos pela gerência no painel → Servidores) ----------
-     O servidor devolve {veiculos, tf, pce} a cada sync; guardamos a última (meta "permissoes") para usar sem internet.
-     Padrão: tudo liberado (aparelho que nunca sincronizou, ou versão antiga do servidor que não manda permissões). */
-  const MODULOS = { veiculos: 'Educação Sanitária/Fiscalização', tf: 'TF de Barreira', pce: 'PCE' };
-  // stores de cada módulo (pessoas servem ao TF e ao PCE: sobem se qualquer um dos dois estiver liberado)
-  const MODULO_DO_STORE = { t: ['veiculos'], v: ['veiculos'], f: ['tf'], l: ['tf'], p: ['tf', 'pce'], g: ['pce'], c: ['pce'], r: ['pce'], a: ['pce'] };
-  let PERM = { veiculos: 1, tf: 1, pce: 1 };
-  const normPerm = o => { const r = { veiculos: 1, tf: 1, pce: 1 }; if (o && typeof o === 'object') Object.keys(r).forEach(k => { if (k in o) r[k] = Number(o[k]) === 0 || o[k] === false ? 0 : 1; }); return r; };
+     O servidor devolve {veiculos, tf, pce, antigo} a cada sync; guardamos a última (meta "permissoes") para usar sem internet.
+     Padrão: módulos liberados (aparelho que nunca sincronizou, ou versão antiga do servidor que não manda permissões);
+     "antigo" (Digitar do papel: registro/termo antigo e PDF escaneado) é o contrário: desligado até o servidor mandar antigo=1. */
+  const MODULOS = { veiculos: 'Educação Sanitária/Fiscalização de Trânsito', tf: 'TF de Barreira', pce: 'PCE', antigo: 'Digitar do papel' };
+  const { MODULO_DO_STORE, normPerm } = Envio;
+  let PERM = normPerm(null);
   const permissoes = () => ({ ...PERM });
-  const pode = m => PERM[m] !== 0;
-  const storePermitido = n => MODULO_DO_STORE[n].some(pode);
+  const pode = m => (m === 'antigo' ? Envio.podeAntigo(PERM) : PERM[m] !== 0);
+  const storePermitido = n => Envio.storePermitido(n, PERM);
   async function carregarPermissoes() { try { PERM = normPerm(await Store.meta('permissoes')); } catch (e) { /* sem banco: tudo liberado */ } return permissoes(); }
   /** Novas permissões vindas do servidor: guarda e avisa a tela (gdv-permissoes) se algo mudou. */
   async function guardarPermissoes(o) {
@@ -56,63 +104,26 @@ const Sync = (() => {
     p = p || await pendentes();
     const m = new Set();
     Object.keys(MODULO_DO_STORE).forEach(n => { if ((p[n] || []).length && !storePermitido(n)) MODULO_DO_STORE[n].forEach(x => { if (!pode(x)) m.add(x); }); });
+    if (!pode('antigo') && pode('pce') && ([...(p.g || []), ...(p.c || [])].some(Envio.ehAntigo)               // registro do papel guardado
+      || (p.a || []).length > (await arquivosPendentes(null, PERM)).length)) m.add('antigo');                   // ou PDF/foto dele ainda não enviado
     return [...m];
   }
-  const avisoSemPermissao = mods => mods.length ? `Sem autorização para o módulo ${mods.map(m => MODULOS[m]).join(' / ')} — fale com a gerência. Os registros continuam guardados neste aparelho.` : '';
+  function avisoSemPermissao(mods) {
+    const mod = mods.filter(m => m !== 'antigo'), txt = [];
+    if (mod.length) txt.push(`Sem autorização para o módulo ${mod.map(m => MODULOS[m]).join(' / ')}`);
+    if (mods.includes('antigo')) txt.push('Sem autorização para digitar registros antigos (do papel)');
+    return txt.length ? `${txt.join('. ')} — fale com a gerência. Os registros continuam guardados neste aparelho.` : '';
+  }
 
   async function chamar(corpo, limiteMs) {
-    const c = cfg(), ctrl = new AbortController(), t = limiteMs ? setTimeout(() => ctrl.abort(), limiteMs) : null;
-    try {
-      const r = await fetch(c.url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },   // evita preflight CORS
-        body: JSON.stringify({ ...corpo, key: c.key }),
-        redirect: 'follow',
-        signal: ctrl.signal
-      });
-      const j = await r.json();
-      if (!j.ok) {
-        if (j.semPermissao) await guardarPermissoes(j.permissoes || { ...PERM, [j.semPermissao]: 0 });   // gerência tirou o módulo
-        const e = new Error(j.erro || 'Erro no servidor'); if (j.semPermissao) e.semPermissao = j.semPermissao;
-        throw e;
-      }
-      return j;
-    } finally { if (t) clearTimeout(t); }
+    try { return await Envio.post(cfg(), corpo, limiteMs); }
+    catch (e) {
+      if (e.semPermissao) await guardarPermissoes(e.permissoes || { ...PERM, [e.semPermissao]: 0 });   // gerência tirou o módulo
+      throw e;
+    }
   }
 
-  const limpo = ({ pendente, provisorio, ...r }) => r;
-
-  const NOMES = ['t', 'v', 'f', 'p', 'l', 'g', 'c', 'r'];
-  const STORES = { t: 'turnos', v: 'veiculos', f: 'tfs', p: 'pessoas', l: 'placas', g: 'levantamentos', c: 'colheitas', r: 'propriedades' };
-  const CAMPOS = { t: 'turnos', v: 'veiculos', f: 'tfs', p: 'pessoas', l: 'placas', g: 'levantamentos', c: 'colheitas', r: 'propriedades' };   // nome no corpo da requisição
-  const LIMITES = { t: 500, v: 1000, f: 100, p: 300, l: 300, g: 100, c: 100, r: 300 };                                                         // registros por rodada
-  const lerJSON = (v, pad) => { try { return JSON.parse(v) || pad; } catch (e) { return pad; } };
-
-  /* Fotos, assinaturas e PDFs (PCE): ficam no aparelho (store "arquivos") e sobem ao Drive depois do sync principal.
-     Só contam/sobem as que estão ligadas a um levantamento ou termo salvo (não excluído): rascunhos não sobem. */
-  function idsReferenciados(regs) {
-    const s = new Set();
-    regs.forEach(r => {
-      if (!r || r.excluido) return;
-      lerJSON(r.fotos, []).forEach(id => id && s.add(id));
-      lerJSON(r.documentos, []).forEach(id => id && s.add(id));                 // PDFs escaneados (registro digitado do papel)
-      Object.values(lerJSON(r.assinaturas, {})).forEach(id => id && s.add(id));
-    });
-    return s;
-  }
-  async function arquivosPendentes(regs) {
-    if (!regs) regs = [...await Store.todos('levantamentos'), ...await Store.todos('colheitas')];
-    const ref = idsReferenciados(regs);
-    return (await Store.chaves('arquivos', 'enviado', 0)).filter(id => ref.has(id));
-  }
-
-  async function pendentes() {
-    const lst = await Promise.all(NOMES.map(n => Store.todos(STORES[n])));
-    const o = {}; NOMES.forEach((n, i) => { o[n] = lst[i].filter(x => x.pendente); });
-    o.a = await arquivosPendentes([...lst[NOMES.indexOf('g')], ...lst[NOMES.indexOf('c')]]);
-    o.total = NOMES.reduce((s, n) => s + o[n].length, 0) + o.a.length;
-    return o;
-  }
+  const { limpo, arquivosPendentes, pendentes } = Envio;
 
   /* Numeração de TF: o servidor guarda UMA sequência por barreira/ano. Aqui guardamos só o "último nº usado" conhecido,
      para propor um número provisório quando não há internet. */
@@ -137,41 +148,12 @@ const Sync = (() => {
   /** Cadastro do produtor (pessoa + propriedades) e nº de levantamentos/termos, consultados no servidor. */
   const pceConsultar = doc => chamar({ action: 'pceConsultar', doc }, 15000);
 
-  // Falhas por arquivo nesta sessão: o arquivo que falhou vai para o fim da fila e não impede o envio dos outros.
-  const falhasArq = {};
-  /** Envia ao Drive até N fotos/assinaturas pendentes, uma por requisição. Os dados ficam no aparelho (reimpressão offline). */
-  async function enviarPendentesArquivos(ids) {
-    let enviados = 0, erro = null;
-    const fila = ids.map((id, i) => ({ id, i })).sort((x, y) => (falhasArq[x.id] || 0) - (falhasArq[y.id] || 0) || x.i - y.i).map(x => x.id);
-    for (const id of fila.slice(0, (CONFIG.PCE && CONFIG.PCE.arquivosPorRodada) || 5)) {
-      const a = await Store.obter('arquivos', id);
-      if (!a || a.enviado || !a.dados) continue;
-      const ext = a.mime === 'image/png' ? 'png' : a.mime === 'application/pdf' ? 'pdf' : 'jpg';
-      const arquivo = { id: a.id, dono: a.dono, donoId: a.donoId, tipo: a.tipo, papel: a.papel || '', mime: a.mime,
-        nome: `${a.donoId}_${a.tipo}_${a.papel || 'n'}_${a.id}.${ext}` };
-      let r;
-      // PDF (até 10 MB ≈ 13,4 MB em base64) tem mais tempo para subir
-      try { r = await chamar({ action: 'arquivoEnviar', arquivo, base64: String(a.dados).replace(/^data:[^,]*,/, '') }, a.tipo === 'documento' ? 180000 : 60000); }
-      catch (e) {
-        falhasArq[id] = (falhasArq[id] || 0) + 1; erro = erro || e;
-        // credencial recusada ou sem resposta do servidor (rede/tempo esgotado): os outros falhariam também
-        if (e.semPermissao || /revogado|n[aã]o ativado|abort|fetch|network|rede/i.test(e.message) || e.name === 'AbortError' || e.name === 'TypeError') break;
-        continue;
-      }
-      delete falhasArq[id];
-      const atual = await Store.obter('arquivos', id);
-      if (!atual) continue;                                                   // removido durante o envio
-      // PDF já no Drive sai do aparelho (não é impresso nos documentos e ocuparia muito espaço); fotos/assinaturas ficam para reimprimir
-      await Store.gravar('arquivos', { ...atual, enviado: 1, url: r.url || '', driveId: r.driveId || '', ...(atual.tipo === 'documento' ? { dados: '' } : {}) });
-      enviados++;
-    }
-    if (erro) throw erro;                                                     // quem chamou mostra o erro (depois de tentar os demais)
-    return enviados;
-  }
+  /** Envia ao Drive até N fotos/assinaturas pendentes, uma por requisição (envio.js). */
+  const enviarPendentesArquivos = ids => Envio.enviarArquivos(ids, chamar);
   async function enviarArquivos() {
     if (rodando || !ativado() || !navigator.onLine || !pode('pce')) return 0;
     rodando = true;
-    try { return await enviarPendentesArquivos(await arquivosPendentes()); }
+    try { return await enviarPendentesArquivos(await arquivosPendentes(null, PERM)); }
     finally { rodando = false; await atualizarContagem(); }
   }
 
@@ -220,16 +202,6 @@ const Sync = (() => {
     window.dispatchEvent(new CustomEvent('gdv-turno-encerrado', { detail: { id, numeroTF: t.numeroTF || '', fim: t.fim || '', encerradoPor: t.encerradoPor || '' } }));
   }
 
-  async function marcarEnviados(store, enviados, recusados) {
-    const ok = [], fora = new Set((recusados || []).map(String));         // recusados pelo servidor (módulo sem autorização): continuam pendentes
-    for (const e of enviados) {
-      if (fora.has(String(e.id))) continue;
-      const atual = await Store.obter(store, e.id);
-      if (atual && atual.atualizadoEm === e.atualizadoEm) ok.push({ ...atual, pendente: 0 });
-    }
-    await Store.gravarVarios(store, ok);
-  }
-
   /** O aparelho guarda só os turnos/veículos do próprio fiscal. Versões antigas do servidor mandavam os de todos;
    *  apaga do aparelho (nunca da planilha) os já enviados que são de outro fiscal. Pendentes e o turno atual ficam. */
   async function limparDeOutros() {
@@ -250,15 +222,7 @@ const Sync = (() => {
     emitir({ tipo: 'sync', msg: 'Sincronizando…' });
     try {
       for (let volta = 0; volta < 20; volta++) {
-        const p = await pendentes();
-        // módulo sem autorização (última permissão conhecida): os registros nem sobem; ficam pendentes até a gerência liberar
-        const vai = {}; NOMES.forEach(n => { vai[n] = storePermitido(n) ? p[n] : []; });
-        const env = {}; NOMES.forEach(n => { env[n] = vai[n].slice(0, LIMITES[n]); });
-        const since = (await Store.meta('lastSync')) || 0;
-        const corpo = { action: 'sync', since }; NOMES.forEach(n => { corpo[CAMPOS[n]] = env[n].map(limpo); });
-        const r = await chamar(corpo);
-        const rec = r.recusados || {};
-        for (const n of NOMES) await marcarEnviados(STORES[n], env[n], rec[CAMPOS[n]]);
+        const l = await Envio.enviarLote(chamar, PERM), r = l.r;           // pendentes permitidos → planilha; marca os enviados
         const mudou = await guardarPermissoes(r.permissoes);
         await aplicar('turnos', r.turnos);
         await conferirTurnoAtual(r.turnos);
@@ -270,18 +234,17 @@ const Sync = (() => {
         await lembrarUltimos(r.ultimos);
         await lembrarUltimosPce(r.ultimosPce);
         await Store.setMeta('lastSync', r.agora);
-        const recusouAlgo = Object.keys(rec).some(k => (rec[k] || []).length);
-        if (mudou && !recusouAlgo) continue;                                 // módulo liberado agora: manda o que estava guardado
-        if (NOMES.every(n => vai[n].length <= env[n].length)) break;
+        if (mudou && !l.recusouAlgo) continue;                               // módulo liberado agora: manda o que estava guardado
+        if (!l.resta) break;
       }
       let erroArq = '';
       if (pode('pce')) {
-        try { await enviarPendentesArquivos(await arquivosPendentes()); }    // falha numa foto não derruba o sync principal
+        try { await enviarPendentesArquivos(await arquivosPendentes(null, PERM)); }   // falha numa foto não derruba o sync principal
         catch (e) { erroArq = e.message || String(e); }
       }
       await limparDeOutros();
       await Store.setMeta('ultimaSync', Date.now());
-      localStorage.removeItem('gdv.revogado');
+      marcarRevogado(false);
       const resta = await pendentes(), semPerm = await bloqueadosComPendentes(resta);
       const aviso = avisoSemPermissao(semPerm);
       emitir({ tipo: 'ok', msg: erroArq ? 'Sincronizado (fotos/assinaturas: ' + erroArq + ')' : 'Sincronizado', pend: resta.total, erroArquivos: erroArq,
@@ -291,8 +254,8 @@ const Sync = (() => {
       const p = await pendentes();
       emitir({ tipo: 'erro', msg: e.message, pend: p.total });
       if (/revogado|inv[aá]lido/i.test(e.message) && !localStorage.getItem('gdv.revogado')) {   // pede novo código (uma vez)
-        localStorage.setItem('gdv.revogado', '1'); window.dispatchEvent(new Event('gdv-dados'));
-      }
+        marcarRevogado(true); window.dispatchEvent(new Event('gdv-dados'));
+      } else if (p.total) agendarEnvio();                                     // sem internet/servidor: o Android tenta de novo sozinho
     } finally {
       rodando = false;
     }
@@ -300,12 +263,18 @@ const Sync = (() => {
 
   async function atualizarContagem() {
     const p = await pendentes(), semPerm = await bloqueadosComPendentes(p);
+    if (p.total) agendarEnvio();
     emitir({ tipo: navigator.onLine ? 'idle' : 'offline', pend: p.total, msg: '', semPermissao: semPerm, aviso: avisoSemPermissao(semPerm) });
   }
 
   async function testar() { return chamar({ action: 'ping' }); }
 
   function iniciar() {
+    // o service worker enviou pendentes em segundo plano: atualiza o selo e a tela
+    if ('serviceWorker' in navigator) navigator.serviceWorker.addEventListener('message', ev => {
+      if (!ev.data || ev.data.tipo !== 'gdv-enviado' || rodando) return;
+      importarRevogacao().then(atualizarContagem).then(() => window.dispatchEvent(new Event('gdv-dados'))).catch(() => {});
+    });
     window.addEventListener('online', sincronizar);
     window.addEventListener('offline', atualizarContagem);
     setInterval(sincronizar, 60000);                       // automático, a cada minuto
@@ -313,7 +282,7 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { iniciar, sincronizar, testar, atualizarContagem, ativado, nome, ativar, desativar, consultar, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
+  return { prepararFundo, envioAutomatico, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, ativar, desativar, consultar, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
     pceProximoNumero, pceEmitir, pceConsultar, lembrarUltimosPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

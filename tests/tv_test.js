@@ -179,20 +179,29 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
       const rs = [...rg.getClientRects()].filter(x => x.width > 0.5 && x.height > 0.5).map(x => { const c = (x.top + x.bottom) / 2, h = Math.min(x.height / 2, fs * 0.45);
         return { left: x.left, right: x.right, top: c - h, bottom: c + h, width: x.width, height: 2 * h }; });
       if (!rs.length) continue; if (fs < menor) { menor = fs; menorTxt = (e.className || e.tagName) + ' "' + txt.slice(0, 30) + '"'; }
-      rs.forEach(bx => {
-        if (bx.left < -0.5 || bx.top < -0.5 || bx.right > W + 0.5 || bx.bottom > H + 0.5) probs.push('fora da tela: "' + txt.slice(0, 40) + '"');
-        cx.push({ bx, txt: txt.slice(0, 30), t });
-      });
       // cortado: alguma caixa do texto passa da área de um ancestral que recorta (overflow ≠ visible)
       // reticências (text-overflow / line-clamp) são aceitas só em textos secundários (detalhes, subtítulos); nunca em rótulos e valores
       const ret = el => { const cs = getComputedStyle(el); return cs.textOverflow === 'ellipsis' || (cs.webkitLineClamp && cs.webkitLineClamp !== 'none'); };
       const essencial = e.closest('.tv-kpi-rot, .tv-kpi-val, h1, h2, .tv-vivo-nome, .tv-vivo-c-nome b, .tv-rotulo, .tv-alerta-tit, .tv-hora, .tv-faixa, #tv-nome');
+      // A caixa de um texto com reticências é a do texto INTEIRO (passa do ancestral que recorta); o que aparece na tela é
+      // só a parte dentro dele. Por isso "fora da tela" e "sobreposto" usam a parte visível (recortada pelo ancestral com
+      // reticências aceito); o próprio ancestral continua sendo checado como qualquer outro texto/caixa.
+      let vis = rs;
       for (let a = e; a && a !== raiz.parentElement; a = a.parentElement) {
         const cs = getComputedStyle(a); if (cs.overflowX === 'visible' && cs.overflowY === 'visible') continue;
-        if (ret(a) && !essencial && (a.scrollWidth > a.clientWidth + 1 || a.scrollHeight > a.clientHeight + 1)) { reticencias.push(txt.slice(0, 30)); break; }
         const ab = a.getBoundingClientRect();
+        if (ret(a) && !essencial && (a.scrollWidth > a.clientWidth + 1 || a.scrollHeight > a.clientHeight + 1)) {
+          reticencias.push(txt.slice(0, 30));
+          vis = rs.map(bx => { const l = Math.max(bx.left, ab.left), r = Math.min(bx.right, ab.right), t0 = Math.max(bx.top, ab.top), b0 = Math.min(bx.bottom, ab.bottom);
+            return { left: l, right: r, top: t0, bottom: b0, width: r - l, height: b0 - t0 }; }).filter(bx => bx.width > 0.5 && bx.height > 0.5);
+          break;
+        }
         if (rs.some(bx => bx.right > ab.right + 1 || bx.bottom > ab.bottom + 1 || bx.left < ab.left - 1 || bx.top < ab.top - 1)) { probs.push(`cortado: "${txt.slice(0, 40)}" (${String(a.className).slice(0, 30)})`); break; }
       }
+      vis.forEach(bx => {
+        if (bx.left < -0.5 || bx.top < -0.5 || bx.right > W + 0.5 || bx.bottom > H + 0.5) probs.push('fora da tela: "' + txt.slice(0, 40) + '"');
+        cx.push({ bx, txt: txt.slice(0, 30), t });
+      });
     }
     for (let i = 0; i < cx.length; i++) for (let j = i + 1; j < cx.length; j++) {
       const a = cx[i].bx, c = cx[j].bx; if (cx[i].t === cx[j].t) continue;

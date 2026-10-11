@@ -64,8 +64,8 @@
     d.levantamentos.forEach(l => l.culturasLista.forEach(c => {
       if (!c.praga) return;
       const k = norm(l.municipio) + '|' + norm(c.praga);
-      const g = G[k] = G[k] || { praga: c.praga, municipio: l.municipio || 'Não informado', deteccoes: 0, levs: new Set(), props: new Set(), culturas: new Set(), primeira: l.data, ultima: l.data, amostras: 0, novo: !hist.has(k) };
-      g.deteccoes++; g.levs.add(l.id); g.props.add(chaveProp(l)); g.culturas.add(c.cultura); if (c.coleta) g.amostras++;
+      const g = G[k] = G[k] || { praga: c.praga, municipio: l.municipio || 'Não informado', deteccoes: 0, suspeitas: 0, levs: new Set(), props: new Set(), culturas: new Set(), primeira: l.data, ultima: l.data, amostras: 0, novo: !hist.has(k) };
+      g.deteccoes++; if (c.suspeita) g.suspeitas = (g.suspeitas || 0) + 1; g.levs.add(l.id); g.props.add(chaveProp(l)); g.culturas.add(c.cultura); if (c.coleta) g.amostras++;
       if (l.data && (!g.primeira || l.data < g.primeira)) g.primeira = l.data; if (l.data && (!g.ultima || l.data > g.ultima)) g.ultima = l.data;
     }));
     return Object.values(G).map(g => ({ ...g, levantamentos: g.levs.size, propriedades: g.props.size, culturasTxt: [...g.culturas].sort().join(', ') }));
@@ -97,10 +97,12 @@
   /** Indicadores do módulo (aba e modo TV). Cada item: {chave, rotulo, valor, detalhe, status}. */
   function indicadores(d, f) {
     const levs = d.levantamentos, nL = levs.length, itens = itensCultura(levs);
-    const comPraga = levs.filter(l => l.detectou).length, det = itens.filter(x => x.praga).length;
+    const comPraga = levs.filter(l => l.detectou).length, det = itens.filter(x => x.praga).length, susp = itens.filter(x => x.praga && x.suspeita).length;
+    const neg = levs.filter(l => l.negativo).length, avalNeg = itens.filter(x => x.resultado === 'nao_detectada').length;
     const props = new Set(levs.map(chaveProp)).size;
     const area = levs.reduce((s, l) => s + (l.area || 0), 0);
     const amostras = levs.reduce((s, l) => s + l.nAmostras, 0);
+    const nCult = levs.reduce((s, l) => s + l.culturasUnicas.length, 0);   // a mesma cultura avaliada para várias pragas conta uma vez
     const tipos = new Set(itens.map(x => x.cultura)).size;
     const termos = d.colheitas, amostrasTermos = termos.reduce((s, t) => s + qtdAmostras(t), 0);
     const cob = cobertura(d, f), nMun = cob.linhas.length;
@@ -110,9 +112,11 @@
       { chave: 'levantamentos', rotulo: 'Levantamentos', valor: nL, detalhe: `${fmt.int(munPer)} município(s) no período` },
       { chave: 'propriedades', rotulo: 'Propriedades visitadas', valor: props, detalhe: 'distintas (código ou nome da propriedade)' },
       { chave: 'area', rotulo: 'Área inspecionada', valor: area ? fmt.ha(area) : '0 ha', detalhe: 'soma das áreas das culturas' },
-      { chave: 'culturas', rotulo: 'Culturas inspecionadas', valor: itens.length, detalhe: `${fmt.int(tipos)} cultura(s) diferente(s)` },
-      { chave: 'taxa', rotulo: 'Taxa de detecção', valor: nL ? fmt.pct(comPraga / nL, 1) : '—', detalhe: `${fmt.int(comPraga)} levantamento(s) com praga · ${fmt.int(det)} detecção(ões)`,
-        status: comPraga ? 'critico' : (nL ? 'bom' : null), titulo: 'Percentual de levantamentos com alguma praga detectada em ao menos uma cultura' },
+      { chave: 'culturas', rotulo: 'Culturas inspecionadas', valor: nCult, detalhe: `${fmt.int(tipos)} cultura(s) diferente(s) · ${fmt.int(itens.length)} avaliação(ões) cultura × praga` },
+      { chave: 'taxa', rotulo: 'Taxa de detecção', valor: nL ? fmt.pct(comPraga / nL, 1) : '—', detalhe: `${fmt.int(comPraga)} levantamento(s) com praga · ${fmt.int(det)} detecção(ões)${susp ? ` (${fmt.int(susp)} suspeita(s))` : ''}`,
+        status: comPraga ? 'critico' : (nL ? 'bom' : null), titulo: 'Percentual de levantamentos com alguma praga detectada ou suspeita em ao menos uma cultura' },
+      { chave: 'suspeitas', rotulo: 'Suspeitas', valor: susp, detalhe: 'culturas com resultado “suspeita” (já incluídas nas detecções)', status: susp ? 'atencao' : null },
+      { chave: 'negativos', rotulo: 'Levantamentos negativos', valor: neg, detalhe: `sem praga detectada nem suspeita · ${fmt.int(avalNeg)} avaliação(ões) “não detectada”`, status: nL && neg === nL ? 'bom' : null },
       { chave: 'amostras', rotulo: 'Amostras coletadas', valor: amostras, detalhe: 'culturas com coleta = Sim' },
       { chave: 'termos', rotulo: 'Termos de colheita', valor: termos.length, detalhe: `${fmt.int(amostrasTermos)} amostra(s) nos termos${d.colheitasCanceladas.length ? ` · ${d.colheitasCanceladas.length} cancelado(s)` : ''}${nConf ? ` · ${nConf} conflito(s) de nº` : ''}`,
         status: nConf ? 'critico' : null },
@@ -125,7 +129,9 @@
   function calculos(d, f) {
     const itens = itensCultura(d.levantamentos);
     const cob = cobertura(d, f), nSit = k => cob.linhas.filter(l => l.sit === k).length;
-    return { itens, pragas: P.contar(itens.filter(x => x.praga), 'praga'), cobertura: cob, focos: focos(d),
+    const pragas = P.contar(itens.filter(x => x.praga), 'praga');
+    const suspPorPraga = pragas.map(([pr]) => itens.filter(x => x.praga === pr && x.suspeita).length);
+    return { itens, pragas, suspPorPraga, cobertura: cob, focos: focos(d),
              cob: { cobertos: cob.linhas.filter(l => l.sit >= 1).length, total: cob.linhas.length, semVisita90: nSit(0), semVisitaAno: nSit(-1), noPeriodo: cob.linhas.filter(l => l.periodo).length } };
   }
 
@@ -153,28 +159,29 @@
     P.alertas(P.cartao(sa), al, { max: matchMedia('(max-width: 700px)').matches ? 3 : 5, vazio: 'Nenhum alerta do PCE no período.' });
 
     /* Mapa */
-    const sm = P.secao(c, 'Mapa do Amazonas', 'Levantamentos (laranja com anel = praga detectada, azul = sem praga), calor das detecções, termos de colheita e indicador por município. Use os filtros de praga e cultura do calor.');
+    const sm = P.secao(c, 'Mapa do Amazonas', 'Levantamentos (laranja com anel = praga detectada ou suspeita, azul = negativo), calor das detecções (detectada + suspeita), termos de colheita e indicador por município. Use os filtros de praga e cultura do calor.');
     sm.parentNode.classList.add('pn-pce-mapa');
     P.mapa(sm, { id: 'pce', titulo: 'PCE no estado', camadas: ['levantamentos', 'colheitas', 'calor', 'coropletico'], ativas: ['levantamentos', 'colheitas', 'calor'], indicador: 'deteccoes' });
 
     /* Atividade e detecção */
-    const g = P.grade(P.secao(c, 'Levantamentos e detecções', 'Cores fixas em todo o módulo, inclusive no mapa: azul = sem praga, laranja = com praga detectada, verde = termo de colheita.'));
+    const g = P.grade(P.secao(c, 'Levantamentos e detecções', 'Cores fixas em todo o módulo, inclusive no mapa: azul = negativo (sem praga), laranja = com praga detectada ou suspeita, amarelo = suspeita, verde = termo de colheita.'));
     const ex = eixoTempo(f);
     P.grafico(g, 'pce-tempo', { type: 'bar', titulo: ex.porSemana ? 'Levantamentos por semana' : 'Levantamentos por dia', subtitulo: 'Empilhado por resultado',
       tabelaRotulo: ex.porSemana ? 'Semana iniciada em' : 'Dia', options: pilhaX, vazio: 'Nenhum levantamento no período.',
-      data: { labels: ex.rot, datasets: serieDeteccao(ex.rot, ex.chave, levs, l => l.detectou, p) } });
+      data: { labels: ex.rot, datasets: serieDeteccao(ex.rot, ex.chave, levs, l => l.detectou, p, 'Negativo', 'Com praga') } });
     const pr = K.pragas;
-    P.grafico(g, 'pce-pragas', { type: 'bar', titulo: 'Detecções por praga', altura: altH(pr.length), subtitulo: 'Nº de culturas com a praga detectada', tabelaRotulo: 'Praga',
-      options: horiz(), vazio: 'Nenhuma praga detectada no período.',
-      data: { labels: pr.map(x => x[0]), datasets: [{ label: 'Detecções', data: pr.map(x => x[1]), cor: p.serie[1] }] } });
+    P.grafico(g, 'pce-pragas', { type: 'bar', titulo: 'Detecções por praga', altura: altH(pr.length), subtitulo: 'Nº de culturas com a praga detectada ou suspeita', tabelaRotulo: 'Praga',
+      options: pilhaY(), vazio: 'Nenhuma praga detectada no período.',
+      data: { labels: pr.map(x => x[0]), datasets: [{ label: 'Detectada', data: pr.map((x, i) => x[1] - K.suspPorPraga[i]), cor: p.serie[1] },
+        { label: 'Suspeita', data: K.suspPorPraga, cor: p.serie[3] }] } });
     const mun = P.contar(levs, l => l.municipio || 'Não informado').map(x => x[0]).slice(0, 15);
     P.grafico(g, 'pce-municipio', { type: 'bar', titulo: 'Levantamentos por município', altura: altH(mun.length), subtitulo: mun.length >= 15 ? 'Os 15 municípios com mais levantamentos' : null,
       tabelaRotulo: 'Município', options: pilhaY(), vazio: 'Nenhum levantamento no período.',
       data: { labels: mun, datasets: serieDeteccao(mun, l => l.municipio || 'Não informado', levs, l => l.detectou, p) } });
     const cul = P.contar(itens, 'cultura').map(x => x[0]).slice(0, 15);
-    P.grafico(g, 'pce-culturas', { type: 'bar', titulo: 'Culturas inspecionadas', altura: altH(cul.length), subtitulo: 'Nº de vezes que a cultura foi inspecionada, por resultado', tabelaRotulo: 'Cultura',
+    P.grafico(g, 'pce-culturas', { type: 'bar', titulo: 'Culturas inspecionadas', altura: altH(cul.length), subtitulo: 'Nº de avaliações da cultura (cultura × praga), por resultado', tabelaRotulo: 'Cultura',
       options: pilhaY(), vazio: 'Nenhuma cultura inspecionada no período.',
-      data: { labels: cul, datasets: serieDeteccao(cul, x => x.cultura, itens, x => !!x.praga, p) } });
+      data: { labels: cul, datasets: serieDeteccao(cul, x => x.cultura, itens, x => !!x.praga, p, 'Não detectada', 'Detectada ou suspeita') } });
     // culturas × pragas
     const pragasM = pr.map(x => x[0]), culM = P.contar(itens.filter(x => x.praga), 'cultura').map(x => x[0]);
     const M = culM.map(cu => pragasM.map(pg => itens.filter(x => x.cultura === cu && x.praga === pg).length));
@@ -201,7 +208,8 @@
     P.tabela(sf, [
       { chave: 'novo', rotulo: 'Situação', html: v => v ? selo('critico', 'Novo foco') : selo('atencao', 'Recorrente'), fmt: v => v ? 'Novo foco' : 'Recorrente', csv: v => v ? 'Novo foco' : 'Recorrente', ordem: l => l.novo ? 1 : 0 },
       { chave: 'praga', rotulo: 'Praga / doença' }, { chave: 'municipio', rotulo: 'Município' },
-      { chave: 'deteccoes', rotulo: 'Detecções', num: true, fmt: fmt.int }, { chave: 'levantamentos', rotulo: 'Levantam.', num: true, fmt: fmt.int },
+      { chave: 'deteccoes', rotulo: 'Detecções', num: true, fmt: fmt.int }, { chave: 'suspeitas', rotulo: 'Suspeitas', num: true, fmt: fmt.int },
+      { chave: 'levantamentos', rotulo: 'Levantam.', num: true, fmt: fmt.int },
       { chave: 'propriedades', rotulo: 'Propriedades', num: true, fmt: fmt.int }, { chave: 'amostras', rotulo: 'Amostras', num: true, fmt: fmt.int },
       { chave: 'culturasTxt', rotulo: 'Culturas' },
       { chave: 'primeira', rotulo: 'Primeira', fmt: fmt.data }, { chave: 'ultima', rotulo: 'Última', fmt: fmt.data }
@@ -233,9 +241,11 @@
       { chave: 'municipio', rotulo: 'Município' },
       { chave: 'propriedade', rotulo: 'Propriedade', fmt: (v, l) => [v, l.codigoPropriedade].filter(Boolean).join(' · ') || '—' },
       { chave: 'nome', rotulo: 'Produtor', fmt: (v, l) => [v, l.doc].filter(Boolean).join(' · ') || '—', html: (v, l) => `${esc(v || '—')}${l.doc ? `<br><span class="pn-sub">${esc(l.doc)}</span>` : ''}` },
-      { chave: 'culturasTxt', rotulo: 'Culturas', fmt: (v, l) => l.culturasLista.map(x => x.cultura + (x.area != null ? ` (${fmt.num(x.area, 1)} ha)` : '')).join(', ') || '—', ordem: l => (l.culturasLista[0] || {}).cultura || '' },
+      { chave: 'culturasTxt', rotulo: 'Culturas', fmt: (v, l) => l.culturasUnicas.map(cu => { const x = l.culturasLista.find(c => c.cultura === cu); return cu + (x && x.area != null ? ` (${fmt.num(x.area, 1)} ha)` : ''); }).join(', ') || '—', ordem: l => (l.culturasLista[0] || {}).cultura || '' },
       { chave: 'area', rotulo: 'Área (ha)', num: true, fmt: v => v ? fmt.num(v, 1) : '—' },
-      { chave: 'pragasTxt', rotulo: 'Pragas', fmt: (v, l) => l.pragas.join(', ') || 'Nenhuma', html: (v, l) => l.pragas.length ? `${selo('critico', l.pragas.length + ' praga(s)')}<br>${esc(l.pragas.join(', '))}` : selo('bom', 'Nenhuma'),
+      { chave: 'pragasTxt', rotulo: 'Pragas', fmt: (v, l) => P.pragasTexto(l) || 'Negativo' + (l.pragasAvaliadas.length ? ` (avaliadas: ${l.pragasAvaliadas.join(', ')})` : ''),
+        html: (v, l) => l.pragas.length ? `${selo(l.suspeitas === l.deteccoes ? 'atencao' : 'critico', l.pragas.length + ' praga(s)')}<br>${esc(P.pragasTexto(l))}`
+          : `${selo('bom', 'Negativo')}${l.pragasAvaliadas.length ? `<br><span class="pn-sub">avaliadas: ${esc(l.pragasAvaliadas.join(', '))}</span>` : ''}`,
         ordem: l => l.deteccoes },
       { chave: 'nAmostras', rotulo: 'Amostras', num: true, fmt: fmt.int },
       { chave: 'servidor', rotulo: 'Servidor' },

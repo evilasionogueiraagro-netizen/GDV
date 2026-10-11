@@ -70,13 +70,20 @@ const cult = (c, praga, area, coleta = 'Não') => ({ cultura: c, area: String(ar
 const LEV = (id, data, mun, servidor, culturas, extra = {}) => ({ id, data, hora: '09:30', servidor, cargo: 'Fiscal', matricula: 'M1', lotacao: 'IDAM', doc: CPF, nome: 'Produtor ' + id, telefone: '97 9', email: 'a@b.c',
   propriedade: 'Sítio ' + id, codigoPropriedade: 'P-' + id, situacaoFundiaria: 'Própria', municipio: mun, lat: P[mun] ? String(P[mun][0]) : '', lon: P[mun] ? String(P[mun][1]) : '', precisao: '6',
   culturas: JSON.stringify(culturas), fotos: JSON.stringify(['f1']), assinaturas: '{}', obs: '', excluido: 0, criadoEm: ts0, atualizadoEm: ts0, ...extra });
+// levantamento por praga, como o app grava: pragas + culturas derivadas (praga só se detectada/suspeita)
+const LEVP = (id, data, mun, servidor, pragas, extra = {}) => LEV(id, data, mun, servidor, pragas.flatMap(g => g.culturas.map(c => ({ cultura: c.cultura, area: c.area, espLinha: '', espPlanta: '',
+  praga: c.resultado === 'nao_detectada' ? '' : g.praga, pragaAvaliada: g.praga, resultado: c.resultado, coleta: c.coleta, tipoMaterial: '', codigoAmostra: '', destinoAmostra: '' }))), { pragas: JSON.stringify(pragas), ...extra });
 const LEVS = [
   LEV('l1', dia(-3), 'Tabatinga', 'Ana Pereira', [cult('Banana', 'Moko da bananeira', 2, 'Sim'), cult('Mandioca', '', 1.5)]),
   LEV('l2', dia(-2), 'Manaus', 'Bruno Costa', [cult('Cupuaçu', 'Vassoura-de-bruxa', 3)]),
   LEV('l3', dia(-10), 'Parintins', 'Bruno Costa', [cult('Açaí', '', 4)]),
   LEV('l4', dia(-15), 'Coari', 'Ana Pereira', [cult('Banana', 'Sigatoka-negra', 1, 'Sim')], { lat: '', lon: '' }),
   LEV('l5', dia(-100), 'Manaus', 'Bruno Costa', [cult('Cupuaçu', 'Vassoura-de-bruxa', 2)]),          // histórico: Vassoura em Manaus não é foco novo
-  LEV('l6', dia(-3), 'Manaus', 'Bruno Costa', [cult('Banana', 'Moko da bananeira', 9)], { excluido: 1 })   // excluído: fora de tudo
+  LEV('l6', dia(-3), 'Manaus', 'Bruno Costa', [cult('Banana', 'Moko da bananeira', 9)], { excluido: 1 }),   // excluído: fora de tudo
+  // formato novo (por praga): a mesma cultura em 2 pragas (suspeita + não detectada) e um levantamento negativo
+  LEVP('l7', dia(-4), 'Manaus', 'Ana Pereira', [{ praga: 'Vassoura-de-bruxa', culturas: [{ cultura: 'Cupuaçu', area: '3', resultado: 'suspeita', coleta: 'Não', fotos: [] }] },
+    { praga: 'Fusarium R4T', culturas: [{ cultura: 'Cupuaçu', area: '3', resultado: 'nao_detectada', coleta: 'Não', fotos: [] }] }]),
+  LEVP('l8', dia(-5), 'Parintins', 'Bruno Costa', [{ praga: 'Sigatoka-negra', culturas: [{ cultura: 'Banana', area: '1,5', resultado: 'nao_detectada', coleta: 'Não', fotos: [] }] }])
 ];
 const COL = (id, data, mun, numero, levId) => ({ id, unidade: 'IDAM TABATINGA', ano: +data.slice(0, 4), numero, numeroTxt: '', levantamentoId: levId, data, hora: '10:00', servidor: 'Ana Pereira', cargo: 'Fiscal',
   matricula: 'M1', lotacao: 'IDAM', municipio: mun, doc: CPF, nome: 'Produtor', endereco: 'Rua', lat: P[mun] ? String(P[mun][0] + 0.01) : '', lon: P[mun] ? String(P[mun][1]) : '', precisao: '5',
@@ -95,7 +102,10 @@ function esperado(de, ate, filtroT = () => true, filtroL = () => true) {
   const levs = LEVS.filter(l => !l.excluido && l.data >= de && l.data <= ate && filtroL(l)).map(l => ({ ...l, c: JSON.parse(l.culturas) }));
   return { turnos: ts.length, veiculos: vs.length, pessoas: vs.reduce((s, v) => s + v[2], 0), horas: ts.reduce((s, t) => s + durMin(t), 0) / 60, abertos: abertos.length,
     levs: levs.length, det: levs.reduce((s, l) => s + l.c.filter(c => c.praga).length, 0), comPraga: levs.filter(l => l.c.some(c => c.praga)).length,
-    area: levs.reduce((s, l) => s + l.c.reduce((a, c) => a + Number(c.area), 0), 0), culturas: levs.reduce((s, l) => s + l.c.length, 0),
+    // a mesma cultura avaliada para várias pragas conta uma vez (área e culturas inspecionadas)
+    area: levs.reduce((s, l) => s + Object.values(l.c.reduce((m, c) => ({ ...m, [c.cultura]: Math.max(m[c.cultura] || 0, Number(String(c.area).replace(',', '.'))) }), {})).reduce((a, b) => a + b, 0), 0),
+    culturas: levs.reduce((s, l) => s + new Set(l.c.map(c => c.cultura)).size, 0),
+    susp: levs.reduce((s, l) => s + l.c.filter(c => c.praga && c.resultado === 'suspeita').length, 0), negativos: levs.filter(l => !l.c.some(c => c.praga)).length,
     amostras: levs.reduce((s, l) => s + l.c.filter(c => c.coleta === 'Sim').length, 0),
     termos: COLS.filter(c => c.data >= de && c.data <= ate && filtroL(c)).length,
     tfs: TFS.filter(t => !t.cancelado && t.data >= de && t.data <= ate) };
@@ -211,7 +221,7 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   const coresLev = await p.evaluate(m => { const cs = getComputedStyle(document.documentElement), v = n => cs.getPropertyValue(n).trim().toLowerCase();
     const fills = [...document.querySelectorAll(m + ' .leaflet-overlay-pane path.leaflet-interactive')].map(x => (x.getAttribute('fill') || '').toLowerCase());
     return { praga: fills.filter(f => f === v('--s2')).length, sem: fills.filter(f => f === v('--s1')).length, critico: fills.filter(f => f === v('--critico') || f === v('--bom')).length, realiz: fills.filter(f => f === v('--s7')).length }; }, mp);
-  ok(coresLev.praga === 2 && coresLev.sem === 1 && coresLev.critico === 0, 'mapa: levantamentos com as cores dos gráficos do PCE (laranja = praga, azul = sem), sem vermelho/verde de status', coresLev);
+  ok(coresLev.praga === 3 && coresLev.sem === 2 && coresLev.critico === 0, 'mapa: levantamentos com as cores dos gráficos do PCE (laranja = praga, azul = sem), sem vermelho/verde de status', coresLev);
   ok(coresLev.realiz >= 3, 'mapa: barreiras realizadas em violeta (fora da rampa azul do coroplético)', coresLev.realiz);
   ok(await p.evaluate(() => !document.querySelector('.pn-duo-mapa .pn-mapa-dica') ? false : /roda do mouse/.test(document.querySelector('.pn-duo-mapa .pn-mapa-dica').textContent)), 'mapa: roda do mouse não dá zoom sem clicar (dica visível)');
   ok(await p.locator(mp + ' .leaflet-heatmap-layer').count() === 0, 'calor desligado por padrão na Visão geral');
@@ -291,7 +301,13 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   ok(propGeral && propGeral[1] === k['Propriedades visitadas'], 'propriedades: mesmo número na Visão geral e no PCE', [propGeral && propGeral[1], k['Propriedades visitadas']]);
   ok(k['Área inspecionada'] === `${br(E30.area)} ha`, `área = ${br(E30.area)} ha`, k['Área inspecionada']);
   ok(k['Culturas inspecionadas'] === String(E30.culturas), 'culturas inspecionadas', k['Culturas inspecionadas']);
-  ok(k['Taxa de detecção'] === `${Math.round(E30.comPraga / E30.levs * 100)}%`, 'taxa de detecção', k['Taxa de detecção']);
+  ok(k['Taxa de detecção'] === `${(E30.comPraga / E30.levs * 100).toFixed(1).replace('.', ',').replace(/,0$/, '')}%`, 'taxa de detecção', k['Taxa de detecção']);
+  ok(k['Suspeitas'] === String(E30.susp) && E30.susp === 1, 'suspeitas (contam como detecção e aparecem à parte)', k['Suspeitas']);
+  ok(k['Levantamentos negativos'] === String(E30.negativos) && E30.negativos >= 2, `levantamentos negativos = ${E30.negativos} (só "não detectada")`, k['Levantamentos negativos']);
+  { const cal = await p.evaluate(() => { const ls = Painel.dados.levantamentos, l7 = ls.find(l => l.id === 'l7'), l8 = ls.find(l => l.id === 'l8');
+      return { l7: l7 && [l7.detectou, l7.suspeitas, l7.deteccoes, l7.area, l7.culturasUnicas.length, l7.pragas.join()], l8: l8 && [l8.detectou, l8.negativo, l8.culturasLista.filter(c => c.praga).length],
+        pontos: ls.filter(l => l.lat != null).reduce((s, l) => s + l.culturasLista.filter(c => c.praga).length, 0) }; });
+    ok(JSON.stringify(cal.l7) === '[true,1,1,3,1,"Vassoura-de-bruxa"]' && JSON.stringify(cal.l8) === '[false,true,0]', 'normalização: suspeita = detecção; mesma cultura em 2 pragas conta 1 vez na área; não detectada = negativo (fora do calor)', cal); }
   ok(k['Amostras coletadas'] === String(E30.amostras) && k['Termos de colheita'] === String(E30.termos), 'amostras e termos');
   ok(k['Cobertura (90 dias)'] === '4 / 62', 'cobertura 90 dias = 4 / 62', k['Cobertura (90 dias)']);
   const pm = '.pn-pce-mapa';

@@ -85,7 +85,7 @@ function semPermissaoPara(view) {
 }
 function renderNav(view) {
   const ativo = ({ editar: 'lista', fechado: 'home', tfpronto: MODULO === 'tf' ? 'tf' : 'lista', tfnovo: MODULO === 'tf' ? 'tfnovo' : 'lista',
-    pcepronto: 'pcetermos', pceservidor: 'pce' })[view] || view;
+    pcepronto: 'pcetermos', pcelevpronto: 'pce', pceservidor: 'pce' })[view] || view;
   $('#nav').innerHTML = NAVS[MODULO].map(([v, i, t]) => `<button data-v="${v}" class="${v === ativo ? 'on' : ''}">${i}<span>${t}</span></button>`).join('');
 }
 function go(view, arg) {
@@ -102,7 +102,7 @@ function go(view, arg) {
   renderNav(view);
   ({ modulos, home, registrar, editar: registrar, lista, resumo, fechado, historico, config, tf: () => TFUI.lista(), tfnovo: () => TFUI.novo(EDIT), tfpronto: () => TFUI.pronto(EDIT),
     pce: () => PCEUI.lista(), pcelev: () => PCEUI.levantamento(EDIT), pcetermos: () => PCEUI.termos(), pcetermo: () => PCEUI.termo(EDIT),
-    pcepronto: () => PCEUI.pronto(EDIT), pceservidor: () => PCEUI.servidor(EDIT) }[view])();
+    pcepronto: () => PCEUI.pronto(EDIT), pcelevpronto: () => PCEUI.levPronto(EDIT), pceservidor: () => PCEUI.servidor(EDIT) }[view])();
   window.scrollTo(0, 0);
 }
 
@@ -578,7 +578,7 @@ window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'r
 window.addEventListener('gdv-permissoes', () => {
   if (semPermissaoPara(VIEW)) go(VIEW);                                   // go() avisa e leva para a tela de módulos
   else if (VIEW === 'modulos') go('modulos');
-  else if (['home', 'lista', 'pce', 'pcetermos', 'pcepronto'].includes(VIEW)) go(VIEW, EDIT);   // botões "Lavrar TF" / "do papel" aparecem/somem
+  else if (['home', 'lista', 'pce', 'pcetermos', 'pcepronto', 'pcelevpronto'].includes(VIEW)) go(VIEW, EDIT);   // botões "Lavrar TF" / "do papel" aparecem/somem
 });
 window.addEventListener('online', () => Sync.atualizarContagem());
 window.addEventListener('gdv-sync-fim', () => { atualizarStatusEnc().catch(() => {}); });

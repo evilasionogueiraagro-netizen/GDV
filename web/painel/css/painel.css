@@ -350,7 +350,7 @@ body.tv .pn-tfaviso { display: none !important; }
 .pn-ac-perm-st:empty { display: none; }
 .pn-ac-perm-st.ok { color: var(--bom-txt); } .pn-ac-perm-st.erro { color: var(--critico); }
 /* celular: só Servidor, Situação, Módulos, Código e Revogar (datas e "gerado por" ficam no computador e no CSV) */
-@media (max-width: 560px) { #pn-ac-tab th:nth-child(n+5):nth-child(-n+8), #pn-ac-tab td:nth-child(n+5):nth-child(-n+8) { display: none; }
+@media (max-width: 560px) { #pn-ac-tab th:nth-child(n+4):nth-child(-n+7), #pn-ac-tab td:nth-child(n+4):nth-child(-n+7), #pn-ac-tab th:nth-child(n+9):nth-child(-n+12), #pn-ac-tab td:nth-child(n+9):nth-child(-n+12) { display: none; }
   #pn-ac-tab .pn-ac-perm { flex-direction: column; align-items: flex-start; gap: 2px; } #pn-ac-tab .pn-ac-perm label { font-size: 12.5px; gap: 3px; }
   #pn-ac-tab .pn-ac-perm-r { display: none; } #pn-ac-tab .pn-ac-perm-m { display: inline; }
   #pn-ac-tab .pn-ac-cod { font-size: 12px; }
@@ -581,3 +581,19 @@ body.tv .pn-login-form label { font-size: 2.1vh; margin: 3vh 0 1vh; }
 body.tv .pn-login-form input { font-size: 6vh; letter-spacing: 1.8vh; padding: 1.4vh; border-radius: 1.4vh; }
 body.tv .pn-botao { font-size: 2.8vh; padding: 1.8vh; border-radius: 1.4vh; margin-top: 2.2vh; }
 body.tv .pn-erro { font-size: 2.1vh; padding: 1.4vh; }
+/* barreira encerrada no celular, aguardando envio (o aparelho avisou; a planilha ainda não recebeu) */
+.pn-selo.aguardando { color: #8a5a00; } .pn-selo.aguardando::before { content: "⏳"; background: none; width: auto; height: auto; font-size: 11px; }
+:root:not([data-theme="light"]) .pn-selo.aguardando { color: var(--atencao); }
+@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .pn-selo.aguardando { color: #8a5a00; } }
+:root[data-theme="light"] .pn-selo.aguardando { color: #8a5a00; }
+.pn-vivo-item small.pn-vivo-aviso { color: var(--ink); background: color-mix(in srgb, var(--atencao) 16%, var(--sf)); border-left: 3px solid var(--atencao); padding: 4px 8px; border-radius: 4px; margin: 4px 0; }
+.pn-vivo-item small.pn-vivo-erro { color: var(--ink); background: color-mix(in srgb, var(--critico) 12%, var(--sf)); border-left: 3px solid var(--critico); padding: 4px 8px; border-radius: 4px; margin: 4px 0; }
+.pn-pin.aguardando { background: var(--atencao); border-radius: 4px; }
+.pn-pin.aguardando::after { content: "⏳"; position: absolute; inset: 0; font: 9px/12px system-ui; text-align: center; }
+.tv-pin.aguardando { background: var(--atencao); border-radius: 18%; } .tv-pin.aguardando::before { content: "⏳"; }
+.tv-selo.aguardando i, .tv-dot.aguardando { background: var(--atencao); }
+.tv-vivo.aguardando { box-shadow: inset 0.6vh 0 0 var(--atencao); padding-left: calc(1.1vw + 0.6vh); }
+.tv-rotulo.aguardando { border-left: 0.7vh solid var(--atencao); }
+/* Servidores: sinal dos aparelhos */
+.pn-ac-velha { color: var(--critico); font-weight: 650; } .pn-ac-erro { color: var(--ink); font-size: 12px; display: block; max-width: 280px; overflow-wrap: anywhere; }
+.pn-ac-sinal-m { display: none; } @media (max-width: 560px) { .pn-ac-sinal-m { display: block; font-size: 11.5px; color: var(--ink2); margin-top: 2px; } .pn-ac-sinal-m b { color: var(--critico); font-weight: 650; } }

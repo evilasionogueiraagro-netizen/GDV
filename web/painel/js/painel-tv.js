@@ -17,7 +17,7 @@
   const OCIOSO_MS = 3000, DICA_MS = 15000, VERSAO_MS = 15 * 60 * 1000;
   const SS_RECARGA = 'gdv.painel.tv.recarga';                           // recarga automática (6 h / versão nova) feita por esta página
   const FONTE = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
-  const SITUACAO = { ok: 'Em andamento', semsinal: 'Sem sinal > 30 min', longa: 'Aberta > 14 h' };
+  const SITUACAO = { ok: 'Em andamento', semsinal: 'Sem sinal > 30 min', longa: 'Aberta > 14 h', aguardando: 'Encerrada no celular' };
   const sitTxt = t => t.tfAndamento ? P.rotuloTF(t) : SITUACAO[t.situacao];          // TF em preenchimento / apreensão em andamento na frente
 
   const TELAS = {
@@ -403,7 +403,7 @@
     const divMapa = el('div', 'tv-mapa-lugar'); cm.appendChild(divMapa);
     const n = s => vivos.filter(t => P.pinoDe(t) === s).length, comGPS = vivos.filter(t => t.lat != null && t.lon != null), semGPS = vivos.length - comGPS.length;
     legenda(cm, [{ marca: marcaPino('tf'), txt: `TF em preenchimento (${n('tf') + tfGPS.length})` }, { marca: marcaPino('ok'), txt: `Em andamento (${n('ok')})` }, { marca: marcaPino('semsinal'), txt: `Sem sinal > 30 min (${n('semsinal')})` },
-      { marca: marcaPino('longa'), txt: `Aberta > 14 h (${n('longa')})` }, { marca: `<i class="tv-lg-pto" style="background:${p.alfa(p.serie[6], 0.6)};box-shadow:0 0 0 1.5px ${p.ink}"></i>`, txt: `Encerrada hoje (${encHoje.length})` }]
+      { marca: marcaPino('longa'), txt: `Aberta > 14 h (${n('longa')})` }].concat(n('aguardando') ? [{ marca: marcaPino('aguardando'), txt: `Encerrada no celular (${n('aguardando')})` }] : []).concat([ { marca: `<i class="tv-lg-pto" style="background:${p.alfa(p.serie[6], 0.6)};box-shadow:0 0 0 1.5px ${p.ink}"></i>`, txt: `Encerrada hoje (${encHoje.length})` }])
       .concat(semGPS ? [{ marca: '', txt: `${plural(semGPS, 'barreira', 'barreiras')} sem GPS` }] : []));
 
     // lista: cartões; se não couberem, linhas compactas; o que ainda sobrar vira "+N"
@@ -424,7 +424,7 @@
       // linha compacta: a situação vai por extenso no texto (não só na cor do marcador, igual ao do mapa)
       const sub = t => { const dur = fmt.duracao(t.duracaoMin), sin = fmt.rel(t.ultimoSinal);
         if (t.tfAndamento) { const tf = t.tfAndamento[0]; return [P.rotuloTF(t).toUpperCase(), tf.placa && 'placa ' + tf.placa, tf.inicioMs && fmt.rel(tf.inicioMs), t.municipio].filter(Boolean).join(' · '); }
-        return [t.municipio].concat(t.situacao === 'semsinal' ? [`SEM SINAL ${sin}`, `${dur} aberta`] : t.situacao === 'longa' ? [`ABERTA HÁ ${dur}`, `sinal ${sin}`] : [`${dur} aberta`, `sinal ${sin}`]).filter(Boolean).join(' · '); };
+        return [t.municipio].concat(t.situacao === 'aguardando' ? ['ENCERRADA NO CELULAR, AGUARDANDO ENVIO', `sinal ${sin}`] : t.situacao === 'semsinal' ? [`SEM SINAL ${sin}`, `${dur} aberta`] : t.situacao === 'longa' ? [`ABERTA HÁ ${dur}`, `sinal ${sin}`] : [`${dur} aberta`, `sinal ${sin}`]).filter(Boolean).join(' · '); };
       const compacto = t => `<div class="tv-vivo-c ${P.pinoDe(t)}"><span class="tv-pin ${P.pinoDe(t)}" style="--pin:${px(PINO_LISTA)}px"></span><div class="tv-vivo-c-nome"><b>${esc(t.local || 'Sem local')}</b><span>${esc(sub(t))}</span></div><div class="tv-vivo-c-num"><b>${fmt.int(deHoje(t).n)}</b> veíc.</div></div>`;
       lista.innerHTML = semTurno.map(tfAvulso).join('') + vivos.map(completo).join('');
       if (transborda(lista)) { lista.innerHTML = semTurno.map(tfAvulso).join('') + vivos.map(compacto).join(''); lista.classList.add('compacta'); }
@@ -440,7 +440,7 @@
       tfGPS.forEach(a => L.marker([a.lat, a.lon], { icon: pino('tf', tam), interactive: false, keyboard: false, zIndexOffset: 1200 }).addTo(m.map));
       // a situação vai escrita no rótulo (barreiras juntas, como em Manaus, ficam identificadas sem depender do pino)
       // (curto, para caber no aglomerado; o detalhe completo está na lista ao lado)
-      const sitRot = t => t.tfAndamento ? `<em>${P.tfApreensao(t) ? 'APREENSÃO' : 'TF'}</em>` : t.situacao === 'longa' ? `<em>! ${fmt.int(Math.floor((t.duracaoMin || 0) / 60))} h</em>` : t.situacao === 'semsinal' ? '<em>? sem sinal</em>' : '';
+      const sitRot = t => t.tfAndamento ? `<em>${P.tfApreensao(t) ? 'APREENSÃO' : 'TF'}</em>` : t.situacao === 'longa' ? `<em>! ${fmt.int(Math.floor((t.duracaoMin || 0) / 60))} h</em>` : t.situacao === 'semsinal' ? '<em>? sem sinal</em>' : t.situacao === 'aguardando' ? '<em>⏳ enviando</em>' : '';
       rotular(m, comGPS.map(t => ({ lat: t.lat, lon: t.lon, cls: P.pinoDe(t), html: `${sitRot(t)}<b>${esc(curto(t.local) || 'Barreira')}</b><span>${fmt.int(deHoje(t).n)}</span>` }))
         .concat(tfGPS.map(a => ({ lat: a.lat, lon: a.lon, cls: 'tf', html: `<em>${a.apreensao ? 'APREENSÃO' : 'TF'}</em><b>${esc(curto(a.onde))}</b>` }))), tam / 2);
     }

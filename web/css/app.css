@@ -106,3 +106,12 @@ input:disabled { background:#eef1f6; color:#99a; }
 .pce-doc > span:first-child { min-width:0; overflow-wrap:anywhere; } .pce-doc small { color:var(--mut); white-space:nowrap; }
 .pce-doc-acoes { display:flex; gap:4px; flex-shrink:0; } .pce-doc-acoes .mini { margin:0; text-decoration:none; }
 @media (min-width:900px) { main:has(> form.pce-antigo) { max-width:820px; } }
+/* status do encerramento (tela "Turno encerrado" e cartão amarelo em Módulos) */
+.enc-st { margin-top:10px; padding:10px 12px; border-radius:10px; border:1px solid var(--linha); }
+.enc-st b { display:block; font-size:16px; } .enc-st small { display:block; color:var(--mut); font-size:13px; margin-top:4px; }
+.enc-st.ok { background:#e6f4ea; border-color:#9fd4ae; } .enc-st.ok b { color:var(--verde); font-size:18px; }
+.enc-st.pend { background:#fff4d6; border-color:#f0c040; } .enc-st.pend b { color:#7a5600; }
+.enc-st.erro { background:#fff4d6; border-color:#e0a000; } .enc-st.erro b { color:#8a3b00; }
+.enc-st .botao.mini { width:auto; display:inline-block; margin:8px 0 0; padding:10px 14px; font-size:15px; }
+.card.aviso.enc-st { margin:0 0 12px; }
+.enc-st .enc-qual { display:block; font-size:14px; color:var(--ink); margin-bottom:4px; } .enc-st .enc-qual b { display:inline; font-size:inherit; color:var(--azul); }

@@ -5,12 +5,12 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#0B3A82">
 <meta name="robots" content="noindex">
-<title>GDV Painel</title>
+<title>e-GDV Painel</title>
 <link rel="icon" href="img/icon-192.png">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="apple-touch-icon" href="img/icon-192.png">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="GDV Painel">
+<meta name="apple-mobile-web-app-title" content="e-GDV Painel">
 <link rel="stylesheet" href="vendor/leaflet/leaflet.css">
 <link rel="stylesheet" href="css/painel.css">
 <script>
@@ -23,7 +23,7 @@ try { var tvq = /[?&]tv=([01])/.exec(location.search), tvt = /[?&]tema=claro/.te
 <body>
 <header class="pn-topo">
   <img src="../img/logo-adaf.png" alt="ADAF">
-  <div class="pn-topo-txt"><h1>GDV · Painel gerencial</h1><div id="pn-status" class="pn-status" aria-live="polite"></div></div>
+  <div class="pn-topo-txt"><h1>e-GDV · Painel gerencial</h1><div id="pn-status" class="pn-status" aria-live="polite"></div></div>
   <div class="pn-usuario" id="pn-usuario" hidden><span id="pn-nome"></span><button type="button" id="pn-notif" class="pn-btn-topo pn-btn-notif" title="Avisar com uma notificação do sistema quando um fiscal começar a preencher um TF (apreensão em andamento)" hidden>Ativar notificações</button><button type="button" id="pn-tv" class="pn-btn-topo pn-so-grande" title="Tela cheia para a TV da sala: rotação automática das telas, atualização a cada 15 s">Modo TV</button><button type="button" id="pn-sair" class="pn-btn-topo">Sair</button></div>
 </header>
 <!-- Dica de instalação no celular (primeira abertura, fora do app instalado) -->
@@ -33,7 +33,7 @@ try { var tvq = /[?&]tv=([01])/.exec(location.search), tvt = /[?&]tema=claro/.te
 <main id="pn-login" class="pn-login" hidden>
   <form class="pn-cartao pn-login-form" id="pn-login-form" autocomplete="off">
     <h2 id="pn-login-tit">Acesso do administrador</h2>
-    <p class="pn-sub" id="pn-login-txt">Digite o código de administrador de 6 dígitos gerado na planilha (menu <b>GDV → Gerar código de administrador</b>). Cada código vale uma vez.</p>
+    <p class="pn-sub" id="pn-login-txt">Digite o código de administrador de 6 dígitos gerado na planilha (menu <b>e-GDV → Gerar código de administrador</b>). Cada código vale uma vez.</p>
     <label for="pn-codigo">Código de administrador</label>
     <input id="pn-codigo" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" required>
     <button type="submit" class="pn-botao" id="pn-entrar">Entrar</button>
@@ -58,7 +58,7 @@ try { var tvq = /[?&]tv=([01])/.exec(location.search), tvt = /[?&]tema=claro/.te
   </section>
   <nav class="pn-abas" id="pn-abas" role="tablist" aria-label="Módulos"></nav>
   <main id="pn-conteudo" class="pn-conteudo"></main>
-  <footer class="pn-rodape">Dados da planilha do GDV · CPF/CNPJ mascarados · sem telefone, e-mail, endereço ou fotos (LGPD). Mapa: © colaboradores do OpenStreetMap.<span id="pn-backup"></span></footer>
+  <footer class="pn-rodape">Dados da planilha do e-GDV · CPF/CNPJ mascarados · sem telefone, e-mail, endereço ou fotos (LGPD). Mapa: © colaboradores do OpenStreetMap.<span id="pn-backup"></span></footer>
 </div>
 
 <div id="pn-tip" class="pn-tip" role="tooltip" hidden></div>
@@ -75,7 +75,7 @@ try { var tvq = /[?&]tv=([01])/.exec(location.search), tvt = /[?&]tema=claro/.te
 <script src="js/painel-acessos.js"></script>
 <script src="js/painel-tv.js"></script>
 <script>
-// App separado (GDV Painel): instalável à parte do app de campo; sempre busca a versão nova quando online.
+// App separado (e-GDV Painel): instalável à parte do app de campo; sempre busca a versão nova quando online.
 if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
 </script>
 </body>

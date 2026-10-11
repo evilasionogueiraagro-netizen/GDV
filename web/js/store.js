@@ -15,12 +15,12 @@ const Store = (() => {
         if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'k' });
       };
       // outra janela/aba do app ainda aberta com a versão antiga do banco: a atualização espera ela fechar
-      rq.onblocked = () => aviso('Feche as outras janelas ou abas do GDV para concluir a atualização.');
+      rq.onblocked = () => aviso('Feche as outras janelas ou abas do e-GDV para concluir a atualização.');
       rq.onsuccess = () => {
         const d = rq.result;
         aviso('');
         // uma versão mais nova do app (em outra janela) precisa atualizar o banco: libera a conexão em vez de travá-la
-        d.onversionchange = () => { d.close(); dbp = null; aviso('O GDV foi atualizado em outra janela. Recarregue esta página.'); };
+        d.onversionchange = () => { d.close(); dbp = null; aviso('O e-GDV foi atualizado em outra janela. Recarregue esta página.'); };
         ok(d);
       };
       rq.onerror = () => no(rq.error);

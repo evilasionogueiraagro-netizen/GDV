@@ -46,7 +46,7 @@
 
   /** Texto pronto para mandar ao fiscal (WhatsApp, e-mail, SMS). */
   function mensagem(g) {
-    return `Olá, ${primeiroNome(g.nome)}! Sua chave de ativação do app GDV (ADAF):\n\n` +
+    return `Olá, ${primeiroNome(g.nome)}! Sua chave de ativação do app e-GDV (ADAF):\n\n` +
       `*${codigoFmt(g.codigo)}*\n\n` +
       `Uso único, válida até ${dataHora(g.expiraEm)} (horário de Manaus). Vinculada a: ${g.nome}.\n\n` +
       `1. No celular, abra o link: ${APP_URL}\n` +
@@ -69,7 +69,7 @@
     r.innerHTML = `
       <section class="pn-secao">
         <h2>Gerar chave de ativação</h2>
-        <p class="pn-sub">Código do app de campo para um fiscal/servidor: 6 dígitos, uso único, vale 7 dias. Chaves de administrador (painel e TV) continuam só na planilha (GDV → Gerar código de administrador).</p>
+        <p class="pn-sub">Código do app de campo para um fiscal/servidor: 6 dígitos, uso único, vale 7 dias. Chaves de administrador (painel e TV) continuam só na planilha (e-GDV → Gerar código de administrador).</p>
         <div class="pn-ac-grade">
           <form class="pn-cartao pn-ac-form" id="pn-ac-form" autocomplete="off" novalidate>
             <label for="pn-ac-nome">Nome completo do servidor</label>

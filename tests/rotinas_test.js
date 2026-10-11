@@ -209,7 +209,7 @@ const AUTO = 'Automático (12 h)';
   ok(n.pce && JSON.stringify(n.pce.pragas) === JSON.stringify([{ praga: 'Moko da bananeira', deteccoes: 3, suspeitas: 1, municipios: ['Coari', 'Manaus'] }, { praga: 'Vassoura-de-bruxa', deteccoes: 1, suspeitas: 0, municipios: ['Manaus'] }]),
     'detecções por praga: detectada + suspeita (suspeita à parte); "não detectada" de Fusarium/Sigatoka não conta; excluído e mês seguinte fora', n.pce && n.pce.pragas);
   const mails = await get('/__emails'), m = mails[mails.length - 1] || {};
-  ok(m.to === 'gerente@idam.am.gov.br,chefe@exemplo.com' && m.subject === 'GDV – Relatório mensal de ' + per.rotulo && m.name === 'GDV', 'e-mail: para, assunto e remetente', { to: m.to, s: m.subject });
+  ok(m.to === 'gerente@idam.am.gov.br,chefe@exemplo.com' && m.subject === 'e-GDV – Relatório mensal de ' + per.rotulo && m.name === 'e-GDV', 'e-mail: para, assunto e remetente', { to: m.to, s: m.subject });
   const html = m.htmlBody || '';
   ok(/Rel Barreira X/.test(html) && html.includes('>14,0<') && html.includes('>13,0<') && /Moko da bananeira/.test(html) && /BANANA - 10 Kg/.test(html) && html.includes('https://evilasionogueiraagro-netizen.github.io/GDV/painel/'),
     'HTML com barreiras, horas (14,0 / 13,0), pragas, apreensões e link do painel');

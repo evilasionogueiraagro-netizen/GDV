@@ -1,13 +1,13 @@
 /**
- * GDV – Controle de Veículos (Barreira Fitossanitária)
+ * e-GDV – Controle de Veículos (Barreira Fitossanitária)
  * API de sincronização: recebe registros do app (offline-first), grava na planilha
  * e devolve o que mudou desde a última sincronização.
  *
  * Acesso dos aparelhos (por fiscal):
- *   1. No menu "GDV" da planilha: "Gerar código de ativação" → informe o NOME COMPLETO do fiscal
+ *   1. No menu "e-GDV" da planilha: "Gerar código de ativação" → informe o NOME COMPLETO do fiscal
  *      (ou no painel do administrador, aba "Servidores" → Gerar chave de ativação).
  *   2. O fiscal digita o código de 6 dígitos no app (uma vez). O servidor devolve uma credencial
- *      própria daquele aparelho, vinculada ao nome. Revogue em "GDV → Revogar acesso" (ou na aba Servidores).
+ *      própria daquele aparelho, vinculada ao nome. Revogue em "e-GDV → Revogar acesso" (ou na aba Servidores).
  *
  * Módulos por servidor (aba "Permissoes", editada no painel → Servidores): Educação Sanitária/Fiscalização de Trânsito, TF de Barreira e PCE.
  *   Sem linha = tudo liberado. O sync não grava registros de módulo não liberado (devolve em "recusados"; o app os mantém
@@ -698,7 +698,7 @@ function arquivoEnviar_(req, usuario) {
 /* ---------- Painel do administrador (somente leitura) ---------- */
 
 /**
- * O painel é uma página do GitHub Pages (mesmo site do app): web/painel/ (app separado "GDV Painel"). Ela chama esta API (doPost) com:
+ * O painel é uma página do GitHub Pages (mesmo site do app): web/painel/ (app separado "e-GDV Painel"). Ela chama esta API (doPost) com:
  *   painelAtivar {codigo}            → troca um código de ADMINISTRADOR (6 dígitos, uso único) por {ok, token, nome}
  *   painelDados  {key, de, ate}      → dados do período, já sem dados pessoais desnecessários (documentos mascarados)
  *   painelDados  {key, aoVivo:true, ids:[...]} → só os turnos em andamento (e os de "ids", para saber se encerraram) com seus veículos
@@ -717,7 +717,7 @@ function arquivoEnviar_(req, usuario) {
  *   painelPermissoes {key, nome, veiculos, tf, pce, antigo} → módulos em que o FISCAL pode inserir dados (aba Permissoes; pelo menos um
  *                                       entre veiculos/tf/pce; antigo = "Digitar do papel", padrão 0, exige pce=1)
  *   painelGerarCodigo aceita também modulos:{veiculos, tf, pce, antigo} (gravados junto); painelAcessos devolve permissoes de cada fiscal.
- * O código é gerado no menu da planilha: GDV → Gerar código de administrador. Credenciais de fiscais não leem o painel,
+ * O código é gerado no menu da planilha: e-GDV → Gerar código de administrador. Credenciais de fiscais não leem o painel,
  * e códigos de administrador não ativam aparelhos de fiscais. A rota antiga "?p=painel" só mostra o novo endereço.
  */
 const PAINEL_URL_PADRAO = 'https://evilasionogueiraagro-netizen.github.io/GDV/painel/';
@@ -735,10 +735,10 @@ function painelHtml_() {
   const url = painelUrl_().replace(/[<>"'&]/g, '');
   const out = HtmlService.createHtmlOutput(
     '<div style="font-family:system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 16px;line-height:1.5">' +
-    '<h2>GDV – Painel gerencial</h2><p>O painel do administrador mudou de endereço:</p>' +
+    '<h2>e-GDV – Painel gerencial</h2><p>O painel do administrador mudou de endereço:</p>' +
     '<p><a href="' + url + '" target="_blank" rel="noopener" style="font-size:1.1rem">' + url + '</a></p>' +
-    '<p>Abra o link, digite o código de administrador (GDV → Gerar código de administrador, na planilha) e salve o endereço nos favoritos.</p></div>')
-    .setTitle('GDV – Painel gerencial');
+    '<p>Abra o link, digite o código de administrador (e-GDV → Gerar código de administrador, na planilha) e salve o endereço nos favoritos.</p></div>')
+    .setTitle('e-GDV – Painel gerencial');
   return out.addMetaTag ? out.addMetaTag('viewport', 'width=device-width, initial-scale=1') : out;
 }
 
@@ -755,7 +755,7 @@ function adminDoToken_(token) {
     for (let i = 0; i < t.length; i++) {
       if (t[i].token !== token || t[i].ativo !== 1) continue;
       if (t[i].perfil === 'admin') return t[i].nome;
-      throw new Error('Acesso restrito ao administrador. Entre com um código de administrador (GDV → Gerar código de administrador).');
+      throw new Error('Acesso restrito ao administrador. Entre com um código de administrador (e-GDV → Gerar código de administrador).');
     }
   }
   throw new Error('Sessão do painel inválida ou revogada. Entre com um código de administrador.');
@@ -988,7 +988,7 @@ function painelRevogar(token, nome) {
   if (!nome) throw new Error('Informe o nome do servidor.');
   const n = revogar_(nome, true);
   if (!n && lerLeitura_('Fiscais').some(function (f) { return f.perfil === 'admin' && f.ativo === 1 && nomeChave_(f.nome) === nomeChave_(nome); })) {
-    throw new Error('Acesso de administrador não é retirado pelo painel. Use o menu GDV da planilha.');
+    throw new Error('Acesso de administrador não é retirado pelo painel. Use o menu e-GDV da planilha.');
   }
   return { ok: true, nome: nome, revogados: n };
 }
@@ -1436,7 +1436,7 @@ function ativar_(req) {
       });
     }
     if (achada < 0) {
-      let motivo = 'Código incorreto ou já usado. Gere um novo código no menu GDV da planilha.';
+      let motivo = 'Código incorreto ou já usado. Gere um novo código no menu e-GDV da planilha.';
       if (cod.length !== 6) motivo = 'O código tem 6 dígitos.';
       else t.valores.forEach(function (l) {                        // explica o motivo quando o código existe, mas não pode ser usado aqui
         const f = paraObjeto_(t.cols, l);
@@ -1444,8 +1444,8 @@ function ativar_(req) {
         if (f.ativo !== 1) motivo = 'Este código foi revogado. Gere um novo código.';
         else if ((f.perfil === 'admin') !== (req.perfil === 'admin')) {
           motivo = req.perfil === 'admin'
-            ? 'Este é um código de FISCAL. Para o painel, gere o código em GDV → Gerar código de administrador (painel).'
-            : 'Este é um código de ADMINISTRADOR (painel). Para o app dos fiscais, gere o código em GDV → Gerar código de ativação.';
+            ? 'Este é um código de FISCAL. Para o painel, gere o código em e-GDV → Gerar código de administrador (painel).'
+            : 'Este é um código de ADMINISTRADOR (painel). Para o app dos fiscais, gere o código em e-GDV → Gerar código de ativação.';
         } else if (f.expiraEm <= agora) motivo = 'Código expirado. Gere um novo código.';
       });
       cache.put(chaveFalhas, String(falhas + 1), 900);
@@ -1514,7 +1514,7 @@ function revogar_(nome, soFiscais) {
 }
 
 /* ---------- Rotinas automáticas (gatilhos de tempo): turno esquecido, backup diário e relatório mensal ---------- */
-// Ativadas uma vez pelo dono da planilha: menu GDV → Ativar rotinas automáticas (pede autorização para gatilhos, Drive e e-mail).
+// Ativadas uma vez pelo dono da planilha: menu e-GDV → Ativar rotinas automáticas (pede autorização para gatilhos, Drive e e-mail).
 //   encerrarTurnosAutomatico  a cada 30 min   turno aberto há mais de 12 h é encerrado (encerradoPor = "Automático (12 h)")
 //   backupDiario              todo dia ~03h   cópia da planilha em "GDV - Backups" (mantém as 30 mais recentes)
 //   relatorioMensal           dia 1 ~07h      e-mail com os números do mês anterior (destinatários em RELATORIO_EMAILS)
@@ -1793,7 +1793,7 @@ function htmlRelatorio_(a, rotulo) {
   const h = function (t) { return '<h3 style="margin:18px 0 4px;color:#1f3b63">' + escHtml_(t) + '</h3>'; };
   const horas = function (m) { return numBR_(m / 60, 1); };
   let out = '<div style="font-family:Arial,Helvetica,sans-serif;color:#1d2433;max-width:760px">' +
-    '<h2 style="margin:0 0 4px">GDV – Relatório mensal: ' + escHtml_(rotulo) + '</h2>' +
+    '<h2 style="margin:0 0 4px">e-GDV – Relatório mensal: ' + escHtml_(rotulo) + '</h2>' +
     '<p style="margin:0;color:#5b6475">Período ' + diaBR_(a.de) + ' a ' + diaBR_(a.ate) + ' (horário de Manaus).</p>';
   out += h('Barreiras (Educação Sanitária/Fiscalização de Trânsito)');
   out += a.barreiras.length ? tabela(['Barreira', 'Turnos', 'Horas de barreira', 'Veículos', 'Pessoas'],
@@ -1823,7 +1823,7 @@ function htmlRelatorio_(a, rotulo) {
     : '<p>Nenhuma praga detectada no período.</p>';
   const url = painelUrl_();
   out += '<p style="margin-top:18px">Detalhes, gráficos e mapa no painel: <a href="' + escHtml_(url) + '">' + escHtml_(url) + '</a></p>' +
-    '<p style="color:#5b6475;font-size:12px">E-mail automático do GDV (menu GDV da planilha → Definir e-mails do relatório mensal).</p></div>';
+    '<p style="color:#5b6475;font-size:12px">E-mail automático do e-GDV (menu e-GDV da planilha → Definir e-mails do relatório mensal).</p></div>';
   return out;
 }
 
@@ -1835,15 +1835,15 @@ function relatorioMensal() {
 /** Monta e envia o relatório de um período {de, ate, rotulo}. Grava ULTIMO_RELATORIO. */
 function enviarRelatorio_(per) {
   const para = destinatariosRelatorio_();
-  if (!para.length) throw new Error('Sem destinatários: use GDV → Definir e-mails do relatório mensal.');
+  if (!para.length) throw new Error('Sem destinatários: use e-GDV → Definir e-mails do relatório mensal.');
   const d = dadosPainel_('Relatório mensal', { de: per.de, ate: per.ate });
   const a = agregarRelatorio_(d, per.de, per.ate, Date.now());
-  const assunto = 'GDV – Relatório mensal de ' + per.rotulo;
-  const texto = 'GDV – Relatório mensal de ' + per.rotulo + ' (' + diaBR_(per.de) + ' a ' + diaBR_(per.ate) + ')\n' +
+  const assunto = 'e-GDV – Relatório mensal de ' + per.rotulo;
+  const texto = 'e-GDV – Relatório mensal de ' + per.rotulo + ' (' + diaBR_(per.de) + ' a ' + diaBR_(per.ate) + ')\n' +
     'Turnos: ' + a.total.turnos + ' · horas de barreira: ' + numBR_(a.total.minutos / 60, 1) + ' · veículos: ' + a.total.veiculos + ' · pessoas: ' + a.total.pessoas + '\n' +
     'TFs: ' + a.tfs.total + ' (apreensões: ' + a.tfs.apreensao + ') · levantamentos: ' + a.pce.levantamentos + ' · termos de colheita: ' + a.pce.termos + '\n' +
     'Painel: ' + painelUrl_();
-  MailApp.sendEmail({ to: para.join(','), subject: assunto, htmlBody: htmlRelatorio_(a, per.rotulo), body: texto, name: 'GDV' });
+  MailApp.sendEmail({ to: para.join(','), subject: assunto, htmlBody: htmlRelatorio_(a, per.rotulo), body: texto, name: 'e-GDV' });
   PropertiesService.getScriptProperties().setProperty('ULTIMO_RELATORIO', JSON.stringify({ em: Date.now(), de: per.de, ate: per.ate, para: para }));
   return { ok: true, para: para, assunto: assunto, numeros: a };
 }
@@ -1851,7 +1851,7 @@ function enviarRelatorio_(per) {
 /* ---------- Menu da planilha (administrador) ---------- */
 
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu('GDV')
+  SpreadsheetApp.getUi().createMenu('e-GDV')
     .addItem('Gerar código de ativação', 'menuGerarCodigo')
     .addItem('Gerar código de administrador (painel)', 'menuGerarCodigoAdmin')
     .addItem('Definir último nº de TF usado (barreira)', 'menuDefinirSequencia')

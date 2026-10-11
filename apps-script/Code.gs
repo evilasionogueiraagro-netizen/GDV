@@ -26,7 +26,8 @@ const TABELAS = {
   Veiculos: ['id', 'turnoId', 'hora', 'placa', 'tipo', 'pessoas', 'obs',
              'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
   Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm', 'perfil',   // perfil: vazio = fiscal, 'admin' = administrador
-            'geradoPor'],                                                            // quem gerou o código: nome do administrador (painel) ou "planilha" (menu)
+            'geradoPor',                                                             // quem gerou o código: nome do administrador (painel) ou "planilha" (menu)
+            'oculto', 'ocultoPor', 'ocultoEm'],                                      // "Remover da lista" no painel: oculto=1 some da aba Servidores (a linha fica, para auditoria)
   // Termos de Fiscalização de Barreira (TF)
   TFs: ['id', 'barreira', 'ano', 'numero', 'numeroTxt', 'turnoId', 'veiculoId', 'data', 'hora', 'fiscal', 'local', 'placa', 'origem', 'destino',
         'doc', 'nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone', 'relacao', 'inspecao', 'coleta', 'amostras',
@@ -43,14 +44,17 @@ const TABELAS = {
   Levantamentos: ['id', 'data', 'hora', 'servidor', 'cargo', 'matricula', 'lotacao', 'doc', 'nome', 'telefone', 'email',
                   'propriedade', 'codigoPropriedade', 'situacaoFundiaria', 'municipio', 'lat', 'lon', 'precisao',
                   'culturas', 'fotos', 'assinaturas', 'obs', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
-                  'registroAntigo', 'documentos'],   // registroAntigo=1: digitado do papel (só para o app reabrir no formulário certo); documentos = PDFs (JSON de ids)
+                  'registroAntigo', 'documentos',   // registroAntigo=1: digitado do papel (só para o app reabrir no formulário certo); documentos = PDFs (JSON de ids)
+                  'pragas'],   // pragas = JSON [{praga, culturas:[{cultura, area, espLinha, espPlanta, resultado, coleta, tipoMaterial, codigoAmostra, destinoAmostra, fotos:[ids]}]}]
+                               // (levantamento por praga/doença). culturas/fotos continuam preenchidos (derivados) para registros e relatórios antigos.
   Colheitas: ['id', 'unidade', 'ano', 'numero', 'numeroTxt', 'numeroSugerido', 'numeroOrigem', 'conflito', 'emitidoEm', 'levantamentoId',
               'data', 'hora', 'servidor', 'cargo', 'matricula', 'lotacao', 'municipio', 'doc', 'nome', 'endereco', 'lat', 'lon', 'precisao',
               'cultura', 'quantidade', 'analise', 'partes', 'descricao', 'fotos', 'testemunha1Nome', 'testemunha1Doc', 'testemunha2Nome',
               'testemunha2Doc', 'assinaturas', 'local', 'cancelado', 'motivoCancel', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
               'registroAntigo', 'documentos'],
   Propriedades: ['id', 'codigo', 'nome', 'doc', 'municipio', 'situacaoFundiaria', 'lat', 'lon', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
-  Arquivos: ['id', 'dono', 'donoId', 'tipo', 'papel', 'nome', 'mime', 'tamanho', 'driveId', 'url', 'usuario', 'criadoEm'],  // fotos/assinaturas/PDFs no Drive
+  Arquivos: ['id', 'dono', 'donoId', 'tipo', 'papel', 'nome', 'mime', 'tamanho', 'driveId', 'url', 'usuario', 'criadoEm',  // fotos/assinaturas/PDFs no Drive
+             'rotulo'],   // rotulo = "praga – cultura" da foto do levantamento (vai também no nome do arquivo)
   // TF de Barreira em preenchimento no aparelho (alerta "apreensão em andamento" no painel). id = usuario|rascunhoId. Sem CPF/nome do fiscalizado.
   Andamento: ['id', 'usuario', 'fiscal', 'turnoId', 'placa', 'procedimento', 'local', 'barreira', 'lat', 'lon', 'estado', 'inicioTs', 'atualizadoTs'],
   // Módulos que cada servidor pode usar para INSERIR dados (por nome; vale para todos os aparelhos dele). 1 = liberado, 0 = sem autorização.
@@ -66,13 +70,13 @@ const TABELAS = {
               'turnosEncerradosPendentes', 'fimPendentes', 'ultimoErro', 'ultimoErroEm', 'origem', 'situacao', 'cred', 'primeiroSinal']
 };
 const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
-                          'expiraEm', 'ativo', 'ativadoEm',
+                          'expiraEm', 'ativo', 'ativadoEm', 'oculto', 'ocultoEm',
                           'ano', 'numero', 'ultimo', 'de', 'ate', 'em', 'numeroSugerido', 'emitidoEm', 'amostras', 'inspecao', 'coleta', 'fiel', 'auto',
                           'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito', 'tamanho',
                           'inicioTs', 'atualizadoTs', 'registroAntigo', 'encerradoEm',
                           'standalone', 'online', 'ultimoSinal', 'ultimoErroEm', 'primeiroSinal'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
-                        culturas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000 };   // demais colunas: 500
+                        culturas: 45000, pragas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000 };   // demais colunas: 500
 // culturas/fotos/assinaturas são JSON: cortar o texto invalidaria o JSON (e apagaria as referências no aparelho). Os limites acima
 // cabem numa célula (50.000 caracteres) e o app limita a quantidade de culturas/fotos e o tamanho dos campos para nunca chegar neles.
 const VALIDADE_CODIGO_MS = 7 * 24 * 3600 * 1000;      // código de ativação vale 7 dias
@@ -93,7 +97,9 @@ function doPost(e) {
     if (req.action === 'painelDados') return json_(painelDados(req.key, { de: req.de, ate: req.ate, aoVivo: req.aoVivo, ids: req.ids }));
     if (req.action === 'painelSair') return json_(painelSair(req.key));
     if (req.action === 'painelGerarCodigo') return json_(painelGerarCodigo(req.key, req.nome, req.modulos));
-    if (req.action === 'painelAcessos') return json_(painelAcessos(req.key));
+    if (req.action === 'painelAcessos') return json_(painelAcessos(req.key, req.ocultos));
+    if (req.action === 'painelOcultarAcesso') return json_(painelOcultarAcesso(req.key, req.nome, false));
+    if (req.action === 'painelRestaurarAcesso') return json_(painelOcultarAcesso(req.key, req.nome, true));
     if (req.action === 'painelRevogar') return json_(painelRevogar(req.key, req.nome));
     if (req.action === 'painelPermissoes') return json_(painelPermissoes(req.key, req.nome, req));
     if (req.action === 'painelEncerrarTurno') return json_(painelEncerrarTurno(req.key, req.turnoId, req.fim));
@@ -626,6 +632,8 @@ function arquivoEnviar_(req, usuario) {
   const a = req.arquivo || {};
   const id = String(a.id || ''), dono = String(a.dono || ''), donoId = String(a.donoId || ''), tipo = String(a.tipo || '');
   const papel = String(a.papel || ''), mime = String(a.mime || '');
+  // foto do levantamento por praga: "praga – cultura" a que a foto pertence (texto livre, só informativo: aba Arquivos e nome no Drive)
+  const rotulo = tipo === 'foto' ? String(a.rotulo || '').replace(/\s+/g, ' ').trim().slice(0, 120) : '';
   if (!ARQ_RE_UUID.test(id)) throw new Error('Identificador de arquivo inválido.');
   if (dono !== 'levantamentos' && dono !== 'colheitas') throw new Error('Arquivo sem registro de origem válido.');
   if (!donoId || donoId.length > 64) throw new Error('Arquivo sem registro de origem válido.');
@@ -664,7 +672,8 @@ function arquivoEnviar_(req, usuario) {
   } finally { lock.releaseLock(); }
 
   const seguro = function (v) { return String(v).replace(/[^A-Za-z0-9_-]/g, '-'); };
-  const nome = seguro(donoId) + '_' + tipo + '_' + (papel || n) + '_' + id + '.' + ARQ_MIMES[mime];
+  const rotSeguro = rotulo.normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^A-Za-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 60);
+  const nome = seguro(donoId) + '_' + tipo + '_' + (papel || n) + (rotSeguro ? '_' + rotSeguro : '') + '_' + id + '.' + ARQ_MIMES[mime];
   const arq = pasta.createFile(Utilities.newBlob(bytes, mime, nome));      // privado: herda o acesso da pasta (somente o dono da planilha)
 
   let gravado = false;
@@ -675,7 +684,7 @@ function arquivoEnviar_(req, usuario) {
       if (outro) return resposta(outro);
       const sh = aba_('Arquivos'), cols = TABELAS.Arquivos;
       const reg = { id: id, dono: dono, donoId: donoId, tipo: tipo, papel: papel, nome: nome, mime: mime, tamanho: bytes.length,
-                    driveId: arq.getId(), url: arq.getUrl(), usuario: usuario, criadoEm: Date.now() };
+                    driveId: arq.getId(), url: arq.getUrl(), usuario: usuario, criadoEm: Date.now(), rotulo: rotulo };
       sh.getRange(sh.getLastRow() + 1, 1, 1, cols.length).setValues([cols.map(function (c) { return reg[c]; })]);
       gravado = true;
       return { ok: true, id: id, url: reg.url, driveId: reg.driveId, existente: false };
@@ -699,7 +708,11 @@ function arquivoEnviar_(req, usuario) {
  *   traz rotinas: {ultimoBackup, backupFalhou, desativadas} (rodapé do painel).
  *   painelSair   {key}               → revoga a credencial do administrador (botão Sair)
  *   painelGerarCodigo {key, nome}    → gera um código de ativação de FISCAL (aba Servidores): {ok, nome, codigo, expiraEm}
- *   painelAcessos {key}              → lista dos acessos (situação, datas, quem gerou; sem credenciais; código só enquanto aguarda ativação)
+ *   painelAcessos {key, ocultos}     → lista dos acessos (situação, datas, quem gerou; sem credenciais; código só enquanto aguarda ativação);
+ *                                       sem as linhas "removidas da lista" (oculto=1), a não ser com ocultos:true (vêm com oculto:1)
+ *   painelOcultarAcesso {key, nome}  → "Remover da lista": marca oculto=1/ocultoPor/ocultoEm nas linhas de FISCAL desse nome (não apaga;
+ *                                       recusa se houver aparelho ativo ou código aguardando ativação). Nova chave para o nome = volta à lista.
+ *   painelRestaurarAcesso {key, nome} → desfaz o "Remover da lista" (oculto=0)
  *   painelRevogar {key, nome}        → revoga os acessos de FISCAL com esse nome (administradores só pelo menu da planilha)
  *   painelPermissoes {key, nome, veiculos, tf, pce, antigo} → módulos em que o FISCAL pode inserir dados (aba Permissoes; pelo menos um
  *                                       entre veiculos/tf/pce; antigo = "Digitar do papel", padrão 0, exige pce=1)
@@ -936,23 +949,25 @@ function situacaoAcesso_(f, agora) {
  * Lista dos acessos para o painel. Nunca devolve credencial (token). O código só vai para fiscal aguardando ativação (para reenviar).
  * Administradores entram só com nome e situação. "criadoEm" = validade − 7 dias (o código sempre nasce com 7 dias).
  */
-function painelAcessos(token) {
+function painelAcessos(token, ocultos) {
   adminDoToken_(token);
+  const comOcultos = ocultos === true || ocultos === 1 || ocultos === '1';
   const agora = Date.now(), mapa = mapaPermissoes_();
   // aparelhos por servidor (nome): o mais recente + quantos; vai na linha "ativo" mais recente do servidor
   const aps = {};
   lerAparelhos_().forEach(function (ap) { (aps[nomeChave_(ap.usuario)] = aps[nomeChave_(ap.usuario)] || []).push(ap); });
   const comAparelho = {};
-  const lista = lerLeitura_('Fiscais').filter(function (f) { return f.nome; }).map(function (f) {
+  const lista = lerLeitura_('Fiscais').filter(function (f) { return f.nome && (comOcultos || f.oculto !== 1 || f.perfil === 'admin'); }).map(function (f) {
     const situacao = situacaoAcesso_(f, agora);
     if (f.perfil === 'admin') return { nome: f.nome, perfil: 'admin', situacao: situacao };
     const o = { nome: f.nome, perfil: 'fiscal', situacao: situacao, criadoEm: f.expiraEm > VALIDADE_CODIGO_MS ? f.expiraEm - VALIDADE_CODIGO_MS : 0,
                 expiraEm: f.expiraEm > VALIDADE_CODIGO_MS ? f.expiraEm : 0, ativadoEm: f.ativadoEm > 1e12 ? f.ativadoEm : 0, geradoPor: f.geradoPor || '',
                 permissoes: permissoesDe_(f.nome, mapa) };                                     // módulos liberados (por nome; padrão: todos, "antigo" desligado)
     if (situacao === 'aguardando') o.codigo = f.codigo.padStart(6, '0');
+    if (f.oculto === 1) o.oculto = 1;                                                 // só com ocultos:true ("Mostrar removidos")
     return o;
   });
-  lista.filter(function (o) { return o.perfil === 'fiscal' && o.situacao === 'ativo'; })
+  lista.filter(function (o) { return o.perfil === 'fiscal' && o.situacao === 'ativo' && !o.oculto; })
     .sort(function (a, b) { return (b.ativadoEm || 0) - (a.ativadoEm || 0); })
     .forEach(function (o) {
       const k = nomeChave_(o.nome), l = aps[k];
@@ -976,6 +991,47 @@ function painelRevogar(token, nome) {
     throw new Error('Acesso de administrador não é retirado pelo painel. Use o menu GDV da planilha.');
   }
   return { ok: true, nome: nome, revogados: n };
+}
+
+/**
+ * Painel → "Remover da lista" (restaurar = false) ou "Restaurar" (true) um servidor revogado/com código vencido.
+ * Não apaga nada (auditoria): marca oculto = 1, ocultoPor (administrador) e ocultoEm nas linhas de FISCAL desse nome; restaurar volta
+ * oculto = 0 (ocultoPor/ocultoEm ficam como registro da última remoção). Recusa ocultar quem ainda tem aparelho ativo ou código
+ * aguardando ativação. Uma chave nova para o mesmo nome nasce sem oculto, e o servidor volta à lista normalmente.
+ */
+function painelOcultarAcesso(token, nome, restaurar) {
+  const admin = adminDoToken_(token);
+  nome = String(nome || '').trim().replace(/\s+/g, ' ').slice(0, NOME_SERVIDOR_MAX + 20);
+  if (!nome) throw new Error('Informe o nome do servidor.');
+  const chave = nomeChave_(nome), quem = String(admin || 'Administrador').replace(/^[=+\-@\s]+/, '').slice(0, 120) || 'Administrador';
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const t = lerTudo_('Fiscais'), agora = Date.now(), linhas = [];
+    t.valores.forEach(function (l, i) {
+      const f = paraObjeto_(t.cols, l);
+      if (f.perfil !== 'admin' && nomeChave_(f.nome) === chave) linhas.push({ i: i, f: f });
+    });
+    if (!linhas.length) throw new Error('Servidor não encontrado na lista: ' + nome + '.');
+    if (!restaurar) {
+      const vivos = linhas.filter(function (x) { const s = situacaoAcesso_(x.f, agora); return s === 'ativo' || s === 'aguardando'; });
+      if (vivos.length) {
+        throw new Error(linhas[0].f.nome + ' ainda tem ' + (vivos.some(function (x) { return situacaoAcesso_(x.f, agora) === 'ativo'; }) ? 'acesso ativo' : 'código aguardando ativação') +
+          '. Só sai da lista quem está revogado ou com código vencido: revogue o acesso antes.');
+      }
+    }
+    let n = 0;
+    linhas.forEach(function (x) {
+      const f = x.f;
+      if (restaurar ? f.oculto !== 1 : f.oculto === 1) return;
+      if (restaurar) f.oculto = 0; else { f.oculto = 1; f.ocultoPor = quem; f.ocultoEm = agora; }
+      t.sh.getRange(x.i + 2, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return f[c]; })]);
+      n++;
+    });
+    return restaurar ? { ok: true, nome: linhas[0].f.nome, restaurados: n } : { ok: true, nome: linhas[0].f.nome, ocultos: n };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 /* ---------- Painel → "Encerrar turno" (barreira esquecida aberta no aparelho) ---------- */
@@ -1100,13 +1156,52 @@ function contarAssinaturas_(v) {
   const o = lerJSONSeguro_(v, {});
   return o && typeof o === 'object' ? Object.keys(o).filter(function (k) { return o[k]; }).length : 0;
 }
-/** Culturas do levantamento (JSON [{cultura, area, espLinha, espPlanta, praga, coleta, tipoMaterial, codigoAmostra, destinoAmostra}]). */
-function culturasLev_(v) {
-  const a = lerJSONSeguro_(v, []);
-  return (Array.isArray(a) ? a : []).filter(function (c) { return c && typeof c === 'object' && String(c.cultura || '').trim(); }).map(function (c) {
-    return { cultura: String(c.cultura).trim(), area: numOuNulo_(c.area), espLinha: String(c.espLinha || ''), espPlanta: String(c.espPlanta || ''),
-             praga: String(c.praga || '').trim(), coleta: c.coleta === 'Sim' ? 'Sim' : 'Não', tipoMaterial: String(c.tipoMaterial || ''),
-             codigoAmostra: String(c.codigoAmostra || ''), destinoAmostra: String(c.destinoAmostra || '') };
+/* ---------- PCE: levantamento por praga/doença ----------
+ * Coluna "pragas" (JSON [{praga, culturas:[{cultura, area, espLinha, espPlanta, resultado, coleta, tipoMaterial, codigoAmostra, destinoAmostra, fotos}]}]),
+ * resultado = detectada | nao_detectada | suspeita. Registro anterior (sem "pragas"): cada cultura da coluna "culturas" vira um item da praga
+ * dela (resultado "detectada") ou da praga '' = "Sem praga informada" (resultado "nao_detectada"). Detectada e suspeita contam como detecção. */
+const RESULTADOS_PCE = ['detectada', 'nao_detectada', 'suspeita'];
+function culturaPce_(c, resultado) {
+  return { cultura: String(c.cultura).trim(), area: numOuNulo_(c.area), espLinha: String(c.espLinha || ''), espPlanta: String(c.espPlanta || ''),
+           resultado: resultado, coleta: c.coleta === 'Sim' ? 'Sim' : 'Não', tipoMaterial: String(c.tipoMaterial || ''),
+           codigoAmostra: String(c.codigoAmostra || ''), destinoAmostra: String(c.destinoAmostra || ''),
+           nFotos: Array.isArray(c.fotos) ? c.fotos.filter(Boolean).length : 0 };
+}
+const temCultura_ = function (c) { return c && typeof c === 'object' && String(c.cultura || '').trim(); };
+/** Pragas avaliadas no levantamento (registro inteiro), no formato novo; registros anteriores são convertidos. */
+function pragasLev_(r) {
+  const p = lerJSONSeguro_(r.pragas, null);
+  if (Array.isArray(p) && p.some(function (g) { return g && typeof g === 'object' && Array.isArray(g.culturas) && g.culturas.some(temCultura_); })) {
+    return p.filter(function (g) { return g && typeof g === 'object' && Array.isArray(g.culturas); }).map(function (g) {
+      return { praga: String(g.praga || '').trim(), culturas: g.culturas.filter(temCultura_).map(function (c) {
+        return culturaPce_(c, RESULTADOS_PCE.indexOf(c.resultado) >= 0 ? c.resultado : 'nao_detectada'); }) };
+    }).filter(function (g) { return g.culturas.length; });
+  }
+  const a = lerJSONSeguro_(r.culturas, []), grupos = {}, ordem = [];
+  (Array.isArray(a) ? a : []).filter(temCultura_).forEach(function (c) {
+    const praga = String(c.praga || c.pragaAvaliada || '').trim();
+    const res = RESULTADOS_PCE.indexOf(c.resultado) >= 0 ? c.resultado : (String(c.praga || '').trim() ? 'detectada' : 'nao_detectada');
+    if (!grupos[praga]) { grupos[praga] = { praga: praga, culturas: [] }; ordem.push(praga); }
+    grupos[praga].culturas.push(culturaPce_(c, res));
+  });
+  return ordem.map(function (k) { return grupos[k]; });
+}
+/** Culturas do levantamento, uma por cultura × praga: praga = nome só se detectada/suspeita ('' = não detectada); avaliada = praga do card. */
+function culturasLev_(r) {
+  const out = [];
+  pragasLev_(r).forEach(function (g) {
+    g.culturas.forEach(function (c) {
+      out.push({ cultura: c.cultura, area: c.area, espLinha: c.espLinha, espPlanta: c.espPlanta, praga: c.resultado === 'nao_detectada' ? '' : g.praga,
+                 avaliada: g.praga, resultado: c.resultado, coleta: c.coleta, tipoMaterial: c.tipoMaterial, codigoAmostra: c.codigoAmostra, destinoAmostra: c.destinoAmostra });
+    });
+  });
+  return out;
+}
+/** Resumo por praga para o painel (sem dados pessoais): [{praga, culturas:[{cultura, area, resultado, coleta}], nFotos}]. */
+function pragasPainel_(r) {
+  return pragasLev_(r).map(function (g) {
+    return { praga: g.praga, nFotos: g.culturas.reduce(function (s, c) { return s + c.nFotos; }, 0),
+             culturas: g.culturas.map(function (c) { return { cultura: c.cultura, area: c.area, resultado: c.resultado, coleta: c.coleta }; }) };
   });
 }
 function pragasDe_(culturas) {
@@ -1238,14 +1333,14 @@ function dadosPainel_(admin, filtro) {
   const levLidos = lerLeitura_('Levantamentos').filter(function (r) { return r.id && r.excluido !== 1; });
   const historicoPce = [], levantamentos = [];
   levLidos.forEach(function (r) {
-    if (r.data >= iniHist && r.data <= fimHist) { historicoPce.push({ municipio: r.municipio, data: r.data, pragas: pragasDe_(culturasLev_(r.culturas)) }); return; }
+    if (r.data >= iniHist && r.data <= fimHist) { historicoPce.push({ municipio: r.municipio, data: r.data, pragas: pragasDe_(culturasLev_(r)) }); return; }
     if (!noPeriodo(r)) return;
-    const cult = culturasLev_(r.culturas);
+    const cult = culturasLev_(r);
     levantamentos.push({ id: r.id, data: r.data, hora: r.hora, servidor: r.servidor, cargo: r.cargo, lotacao: r.lotacao,
                          doc: mascararDoc_(r.doc), tipoDoc: tipoDoc_(r.doc), nome: r.nome, propriedade: r.propriedade,
                          codigoPropriedade: r.codigoPropriedade, situacaoFundiaria: r.situacaoFundiaria, municipio: r.municipio,
                          lat: numOuNulo_(r.lat), lon: numOuNulo_(r.lon), precisao: numOuNulo_(r.precisao),
-                         culturas: cult, pragas: pragasDe_(cult), nFotos: contarFotos_(r.fotos), nAssinaturas: contarAssinaturas_(r.assinaturas),
+                         culturas: cult, pragas: pragasDe_(cult), pragasLev: pragasPainel_(r), nFotos: contarFotos_(r.fotos), nAssinaturas: contarAssinaturas_(r.assinaturas),
                          nDocumentos: contarFotos_(r.documentos),
                          criadoEm: r.criadoEm, srv_ts: r.srv_ts, usuario: r.usuario });
   });
@@ -1387,7 +1482,8 @@ function gerarCodigo_(nome, perfil, geradoPor) {
     } while (emUso[codigo]);
     const expiraEm = agora + VALIDADE_CODIGO_MS;
     const autor = String(geradoPor || 'planilha').replace(/^[=+\-@\s]+/, '').slice(0, 120) || 'planilha';   // texto, nunca fórmula
-    const linha = { nome: nome, codigo: codigo, expiraEm: expiraEm, ativo: 1, token: '', ativadoEm: 0, perfil: perfil === 'admin' ? 'admin' : '', geradoPor: autor };
+    const linha = { nome: nome, codigo: codigo, expiraEm: expiraEm, ativo: 1, token: '', ativadoEm: 0, perfil: perfil === 'admin' ? 'admin' : '', geradoPor: autor,
+                    oculto: '', ocultoPor: '', ocultoEm: '' };                                  // linha nova nunca nasce "removida da lista"
     t.sh.getRange(t.sh.getLastRow() + 1, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return linha[c]; })]);
     return { codigo: codigo, expiraEm: expiraEm, nome: nome, perfil: perfil === 'admin' ? 'admin' : 'fiscal' };
   } finally {
@@ -1653,12 +1749,13 @@ function agregarRelatorio_(d, de, ate, agora) {
   const pragas = {}, municipios = {};
   d.levantamentos.forEach(function (l) {
     if (l.municipio) municipios[l.municipio] = true;
-    l.culturas.forEach(function (c) {
+    l.culturas.forEach(function (c) {                                       // detectada e suspeita contam como detecção (suspeita também à parte)
       if (!c.praga) return;
-      const p = pragas[c.praga] = pragas[c.praga] || { praga: c.praga, deteccoes: 0, municipios: {} };
-      p.deteccoes++; if (l.municipio) p.municipios[l.municipio] = true;
+      const p = pragas[c.praga] = pragas[c.praga] || { praga: c.praga, deteccoes: 0, suspeitas: 0, municipios: {} };
+      p.deteccoes++; if (c.resultado === 'suspeita') p.suspeitas++; if (l.municipio) p.municipios[l.municipio] = true;
     });
   });
+  const suspeitas = d.levantamentos.reduce(function (s, l) { return s + l.culturas.filter(function (c) { return c.praga && c.resultado === 'suspeita'; }).length; }, 0);
   const termos = d.colheitas.filter(function (c) { return c.cancelado !== 1; });
   return {
     de: de, ate: ate,
@@ -1669,7 +1766,9 @@ function agregarRelatorio_(d, de, ate, agora) {
            cancelados: d.tfs.length - tfsVal.length, apreensoes: apreensoes },
     pce: { levantamentos: d.levantamentos.length, municipios: Object.keys(municipios).length,
            comPraga: d.levantamentos.filter(function (l) { return l.pragas.length; }).length,
-           pragas: Object.keys(pragas).map(function (k) { const p = pragas[k]; return { praga: p.praga, deteccoes: p.deteccoes, municipios: Object.keys(p.municipios).sort() }; })
+           negativos: d.levantamentos.filter(function (l) { return !l.pragas.length; }).length,   // nenhuma praga detectada nem suspeita
+           suspeitas: suspeitas,
+           pragas: Object.keys(pragas).map(function (k) { const p = pragas[k]; return { praga: p.praga, deteccoes: p.deteccoes, suspeitas: p.suspeitas, municipios: Object.keys(p.municipios).sort() }; })
              .sort(function (a, b) { return b.deteccoes - a.deteccoes || a.praga.localeCompare(b.praga); }),
            termos: termos.length, termosCancelados: d.colheitas.length - termos.length }
   };
@@ -1716,9 +1815,11 @@ function htmlRelatorio_(a, rotulo) {
   }
   out += h('PCE');
   out += '<p style="margin:0 0 4px">Levantamentos: <b>' + numBR_(a.pce.levantamentos) + '</b> em ' + numBR_(a.pce.municipios) + ' município(s) · ' +
-    'com praga detectada: <b>' + numBR_(a.pce.comPraga) + '</b> · Termos de Colheita: <b>' + numBR_(a.pce.termos) + '</b>' +
+    'com praga detectada ou suspeita: <b>' + numBR_(a.pce.comPraga) + '</b> · levantamentos negativos: <b>' + numBR_(a.pce.negativos || 0) + '</b>' +
+    (a.pce.suspeitas ? ' · suspeitas: <b>' + numBR_(a.pce.suspeitas) + '</b>' : '') + ' · Termos de Colheita: <b>' + numBR_(a.pce.termos) + '</b>' +
     (a.pce.termosCancelados ? ' (cancelados fora da contagem: ' + numBR_(a.pce.termosCancelados) + ')' : '') + '</p>';
-  out += a.pce.pragas.length ? tabela(['Praga', 'Detecções', 'Municípios'], a.pce.pragas.map(function (p) { return [p.praga, numBR_(p.deteccoes), p.municipios.join(', ')]; }), [1])
+  out += a.pce.pragas.length ? tabela(['Praga', 'Detecções', 'Suspeitas (incluídas)', 'Municípios'],
+    a.pce.pragas.map(function (p) { return [p.praga, numBR_(p.deteccoes), numBR_(p.suspeitas || 0), p.municipios.join(', ')]; }), [1, 2])
     : '<p>Nenhuma praga detectada no período.</p>';
   const url = painelUrl_();
   out += '<p style="margin-top:18px">Detalhes, gráficos e mapa no painel: <a href="' + escHtml_(url) + '">' + escHtml_(url) + '</a></p>' +

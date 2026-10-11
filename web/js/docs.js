@@ -223,31 +223,85 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
   }
   const listaIds = v => { const a = jsonPce(v, []); return Array.isArray(a) ? a.filter(x => typeof x === 'string' && x) : []; };
 
-  async function pceLevantamento(reg, arquivosPorId) {
+  /* Levantamento por praga/doença: cada card de praga vira um PDF (dados gerais + só as culturas e fotos daquela praga + assinaturas). */
+  const RES_PCE = { detectada: 'Detectada', nao_detectada: 'Não detectada', suspeita: 'Suspeita' };
+  const SEM_PRAGA = 'Sem praga informada';
+  const objeto = x => x && typeof x === 'object';
+  /**
+   * Pragas avaliadas no registro: {pragas:[{praga, culturas:[{cultura, area, espLinha, espPlanta, resultado, coleta, tipoMaterial,
+   * codigoAmostra, destinoAmostra, fotos:[ids]}]}], gerais:[ids], convertido}. Registro anterior (sem o campo "pragas"): cada cultura vira
+   * um card da praga dela (resultado "detectada") ou de "Sem praga informada" (praga '', "não detectada"); as fotos, que eram do
+   * levantamento inteiro, ficam em "gerais" (impressas em todos os PDFs). Fotos do registro fora de qualquer cultura também vão para "gerais".
+   */
+  function pceGrupos(reg) {
+    const p = jsonPce(reg && reg.pragas, null), todas = listaIds(reg && reg.fotos);
+    const novo = Array.isArray(p) && p.some(g => objeto(g) && Array.isArray(g.culturas) && g.culturas.length);
+    let pragas;
+    if (novo) {
+      pragas = p.filter(g => objeto(g) && Array.isArray(g.culturas)).map(g => ({ praga: String(g.praga || '').trim(),
+        culturas: g.culturas.filter(objeto).map(c => ({ ...c, cultura: String(c.cultura || ''), resultado: RES_PCE[c.resultado] ? c.resultado : 'nao_detectada',
+          coleta: c.coleta === 'Sim' ? 'Sim' : 'Não', fotos: listaIds(c.fotos) })) })).filter(g => g.culturas.length);
+    } else {
+      const c0 = jsonPce(reg && reg.culturas, []), ix = new Map();
+      pragas = [];
+      (Array.isArray(c0) ? c0 : []).filter(c => objeto(c) && String(c.cultura || '').trim()).forEach(c => {
+        const praga = String(c.praga || c.pragaAvaliada || '').trim();
+        if (!ix.has(praga)) { ix.set(praga, { praga, culturas: [] }); pragas.push(ix.get(praga)); }
+        const resultado = RES_PCE[c.resultado] ? c.resultado : (String(c.praga || '').trim() ? 'detectada' : 'nao_detectada');
+        ix.get(praga).culturas.push({ ...c, praga: undefined, pragaAvaliada: undefined, resultado, coleta: c.coleta === 'Sim' ? 'Sim' : 'Não', fotos: [] });
+      });
+    }
+    const usadas = new Set(pragas.flatMap(g => g.culturas.flatMap(c => c.fotos)));
+    return { pragas, gerais: todas.filter(id => !usadas.has(id)), convertido: !novo };
+  }
+  const nomePraga = p => String(p || '').trim() || SEM_PRAGA;
+  const resumoResultados = culturas => {
+    const n = k => culturas.filter(c => c.resultado === k).length;
+    return [['detectada', 'detectada(s)'], ['suspeita', 'suspeita(s)'], ['nao_detectada', 'não detectada(s)']].filter(([k]) => n(k)).map(([k, t]) => `${n(k)} ${t}`).join(', ');
+  };
+  /** Nome sugerido do PDF de uma praga: Levantamento_<produtor>_<praga>_<data>. */
+  const nomePdfPce = (reg, praga) => nomeArquivo(`Levantamento_${reg.nome || 'SEM_NOME'}_${nomePraga(praga)}_${dataPce(reg.data).replace(/\//g, '-')}`);
+
+  /** Imprime a ficha de UMA praga/doença (índice `qual` em pceGrupos(reg).pragas; padrão 0). */
+  async function pceLevantamento(reg, arquivosPorId, qual) {
     if (!reg) throw new Error('Levantamento não encontrado.');
-    const arquivos = arquivosPorId || {};
+    const arquivos = arquivosPorId || {}, G = pceGrupos(reg), total = G.pragas.length;
+    const i = Math.max(0, Math.min(total - 1, Number(qual) || 0));
+    const grupo = G.pragas[i] || { praga: '', culturas: [] };
     const f = await abrirModelo('pce-levantamento.html'), d = f.contentDocument;
-    const co = coordenadas(reg), fotos = listaIds(reg.fotos);
-    const culturas = (() => { const c = jsonPce(reg.culturas, []); return Array.isArray(c) ? c.filter(x => x && typeof x === 'object') : []; })();
+    const co = coordenadas(reg), culturas = grupo.culturas;
+    const fotosCult = culturas.map(c => c.fotos), nFotos = fotosCult.reduce((s, l) => s + l.length, 0) + G.gerais.length;
     preencherCampos(d, Object.assign({}, reg, {
       data: dataPce(reg.data), doc: fmtDoc(reg.doc), coordDec: co.dec || 'Não capturadas', coordGms: co.gms,
-      nFotos: fotos.length ? `(${fotos.length})` : ''
+      praga: nomePraga(grupo.praga), fichaN: total > 1 ? `${i + 1} de ${total} (uma ficha por praga/doença avaliada na visita)` : '1 de 1',
+      resumoPraga: culturas.length ? `${culturas.length} cultura(s) avaliada(s): ${resumoResultados(culturas)}.` : 'Nenhuma cultura informada.',
+      nFotos: nFotos ? `(${nFotos})` : ''
     }));
     const corpo = d.getElementById('culturasCorpo');
     if (!culturas.length) corpo.innerHTML = '<tr><td colspan="10" class="vazio">Nenhuma cultura informada.</td></tr>';
-    else corpo.innerHTML = culturas.map((c, i) => {
+    else corpo.innerHTML = culturas.map((c, k) => {
       const amostra = c.coleta === 'Sim';
       const td = v => `<td>${esc(v)}</td>`;
-      return `<tr><td class="n">${i + 1}</td>${td(c.cultura)}${td(c.area)}${td(c.espLinha)}${td(c.espPlanta)}${td(c.praga)}${td(c.coleta || 'Não')}`
+      return `<tr><td class="n">${k + 1}</td>${td(c.cultura)}${td(c.area)}${td(c.espLinha)}${td(c.espPlanta)}<td class="res ${esc(c.resultado)}">${esc(RES_PCE[c.resultado])}</td>${td(c.coleta)}`
         + `${td(amostra ? c.tipoMaterial : '–')}${td(amostra ? c.codigoAmostra : '–')}${td(amostra ? c.destinoAmostra : '–')}</tr>`;
     }).join('');
     if (!String(reg.obs || '').trim()) d.getElementById('quadroObs').remove();
-    const gradeFotos = d.getElementById('fotos');
-    if (fotos.length) montarFotos(d, gradeFotos, fotos, arquivos);
-    else { gradeFotos.className = 'vazio'; gradeFotos.textContent = 'Nenhuma foto registrada.'; }
+    // fotos agrupadas por cultura (legenda: cultura e nº da foto) + fotos gerais do registro anterior
+    const alvo = d.getElementById('fotos');
+    const grupoFotos = (titulo, sub, ids, legenda) => {
+      const g = d.createElement('div'); g.className = 'grupo-fotos';
+      const h = d.createElement('h4'); h.textContent = titulo; if (sub) { const s = d.createElement('small'); s.textContent = ' ' + sub; h.append(s); }
+      const grade = d.createElement('div'); grade.className = 'fotos';
+      montarFotos(d, grade, ids, arquivos);
+      grade.querySelectorAll('figcaption').forEach((fc, k) => { fc.textContent = `${legenda} – foto ${k + 1}`; });
+      g.append(h, grade); alvo.append(g);
+    };
+    culturas.forEach((c, k) => { if (c.fotos.length) grupoFotos(`Cultura ${k + 1}: ${c.cultura}`, `· ${RES_PCE[c.resultado]} · ${c.fotos.length} foto(s)`, c.fotos, c.cultura); });
+    if (G.gerais.length) grupoFotos('Fotos gerais (registro anterior)', '· do levantamento inteiro, antes da separação por praga', G.gerais, 'Geral');
+    if (!nFotos) { alvo.className = 'vazio'; alvo.textContent = 'Nenhuma foto registrada.'; }
     montarAssinaturas(d, jsonPce(reg.assinaturas, {}), arquivos);
-    await Promise.all([...d.images].map(i => (i.complete ? 0 : new Promise(r => { i.onload = i.onerror = r; }))));
-    imprimir(f, nomeArquivo(`Levantamento_${reg.nome || 'SEM_NOME'}_${dataPce(reg.data).replace(/\//g, '-')}`));
+    await Promise.all([...d.images].map(im => (im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; }))));
+    imprimir(f, nomePdfPce(reg, grupo.praga));
   }
 
   async function pceColheita(termo, arquivosPorId) {
@@ -280,5 +334,5 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     imprimir(f, nomeArquivo('Termo_Colheita_' + String(t.numeroTxt || t.numero || 'SEM_NUMERO').replace(/\//g, '_')));
   }
 
-  return { ficha, termo, tf, pceLevantamento, pceColheita, ordenar, esc };
+  return { ficha, termo, tf, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, ordenar, esc };
 })();

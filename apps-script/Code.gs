@@ -56,13 +56,21 @@ const TABELAS = {
   // Módulos que cada servidor pode usar para INSERIR dados (por nome; vale para todos os aparelhos dele). 1 = liberado, 0 = sem autorização.
   // Servidor sem linha aqui = os três módulos liberados (padrão). Editada pelo painel (aba Servidores) ou à mão na planilha.
   // antigo = "Digitar do papel" (registros antigos digitados do papel + PDF escaneado): 1 = autorizado; vazio/sem linha = NÃO autorizado.
-  Permissoes: ['nome', 'veiculos', 'tf', 'pce', 'atualizadoEm', 'atualizadoPor', 'antigo']
+  Permissoes: ['nome', 'veiculos', 'tf', 'pce', 'atualizadoEm', 'atualizadoPor', 'antigo'],
+  // Sinal de cada aparelho (heartbeat), atualizado a cada sincronização (inclusive sem nada a enviar) e pelo "ping" de erro.
+  // id = uuid fixo do aparelho (versão antiga do app, sem sinal: "legado-" + início da credencial). pendentes = JSON {turnos, veiculos, ...}
+  // (o que ainda está guardado sem enviar, já descontado o que chegou neste envio); turnosEncerradosPendentes = JSON [ids] (encerrados no
+  // celular sem chegar à planilha); fimPendentes = JSON {id: "HH:MM"}; situacao = 'ok' (último contato foi um envio bem-sucedido) ou
+  // 'erro' (último contato foi o aviso de uma falha); ultimoErro/ultimoErroEm = último erro relatado pelo aparelho (histórico).
+  Aparelhos: ['id', 'usuario', 'versao', 'plataforma', 'standalone', 'online', 'ultimoSinal', 'pendentes', 'turnoAtual',
+              'turnosEncerradosPendentes', 'fimPendentes', 'ultimoErro', 'ultimoErroEm', 'origem', 'situacao', 'cred', 'primeiroSinal']
 };
 const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
                           'expiraEm', 'ativo', 'ativadoEm',
                           'ano', 'numero', 'ultimo', 'de', 'ate', 'em', 'numeroSugerido', 'emitidoEm', 'amostras', 'inspecao', 'coleta', 'fiel', 'auto',
                           'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito', 'tamanho',
-                          'inicioTs', 'atualizadoTs', 'registroAntigo', 'encerradoEm'];   // lat/lon/precisao ficam como texto (como em Turnos)
+                          'inicioTs', 'atualizadoTs', 'registroAntigo', 'encerradoEm',
+                          'standalone', 'online', 'ultimoSinal', 'ultimoErroEm', 'primeiroSinal'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000 };   // demais colunas: 500
 // culturas/fotos/assinaturas são JSON: cortar o texto invalidaria o JSON (e apagaria as referências no aparelho). Os limites acima
@@ -92,7 +100,7 @@ function doPost(e) {
     const usuario = autenticar_(req.key);
     const modulo = MODULO_DA_ACAO[req.action];                                              // TF/PCE: o servidor confere a autorização do módulo
     if (modulo) exigirModulo_(usuario, modulo);
-    if (req.action === 'ping') return json_({ ok: true, nome: usuario });
+    if (req.action === 'ping') return json_(ping_(req, usuario));
     if (req.action === 'sync') return json_(sincronizar_(req, usuario));
     if (req.action === 'tfConsultar') return json_(consultar_(req, usuario));
     if (req.action === 'tfProximoNumero') return json_(proximoNumero_(req));
@@ -170,6 +178,13 @@ function sincronizar_(req, usuario) {
     gravar_('Colheitas', T.colheitas, agora, usuario);
     if (T.colheitas.length) marcarConflitos_('PCE', T.colheitas, agora);
     gravar_('Propriedades', T.propriedades, agora, usuario);
+    // sinal do aparelho (melhor esforço: nunca derruba o envio). Desconta o que acabou de chegar.
+    const encerrados = {};
+    T.turnos.forEach(function (t) { if (t && t.id && Number(t.encerrado) === 1) encerrados[String(t.id)] = true; });
+    try {
+      registrarAparelho_(req.aparelho, usuario, agora, req.key, 'ok', { turnos: T.turnos.length, veiculos: T.veiculos.length, tfs: T.tfs.length,
+        levantamentos: T.levantamentos.length, colheitas: T.colheitas.length, encerrados: encerrados });
+    } catch (e) { /* aba Aparelhos com problema: o envio dos registros continua valendo */ }
     return {
       ok: true,
       agora: agora,
@@ -187,6 +202,98 @@ function sincronizar_(req, usuario) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/* ---------- Sinal do aparelho (heartbeat) ---------- */
+
+const PLATAFORMAS_ = ['android', 'ios', 'outro'];
+const RE_ID_APARELHO_ = /^[A-Za-z0-9-]{8,64}$/;
+const PENDENTES_CHAVES_ = ['turnos', 'veiculos', 'tfs', 'levantamentos', 'colheitas', 'arquivos'];
+/** Texto de uma linha, curto e que nunca vira fórmula na planilha. */
+function textoCurto_(v, n) {
+  return String(v === null || v === undefined ? '' : v).replace(/[\r\n\t]+/g, ' ').trim().replace(/^[=+\-@\s]+/, '').slice(0, n);
+}
+
+/**
+ * "ping" autenticado. Com {aparelho}: só grava o sinal, marcando situacao = 'erro' quando o aparelho relata um erro (o app chama
+ * isto UMA vez quando o sync completo falha por erro do servidor, para o painel ver o motivo). Sem aparelho: teste de conexão.
+ */
+function ping_(req, usuario) {
+  const agora = Date.now();
+  if (req.aparelho && typeof req.aparelho === 'object') {
+    const lock = LockService.getScriptLock();
+    lock.waitLock(30000);
+    try { registrarAparelho_(req.aparelho, usuario, agora, req.key, req.aparelho.ultimoErro ? 'erro' : 'ok', null); }
+    finally { lock.releaseLock(); }
+  }
+  return { ok: true, nome: usuario, agora: agora };
+}
+
+/**
+ * Grava/atualiza a linha do aparelho na aba Aparelhos (chamar com o lock). a = sinal enviado pelo app (null = versão antiga do app:
+ * registra só "sincronizou agora" numa linha "legado-"). aceitos = quantos registros de cada tipo chegaram neste envio (descontados
+ * dos pendentes informados, que o app conta antes de enviar) e os ids dos turnos encerrados aceitos.
+ */
+function registrarAparelho_(a, usuario, agora, key, situacao, aceitos) {
+  const cred = String(key || '').slice(0, 8);
+  let o;
+  if (a && typeof a === 'object' && RE_ID_APARELHO_.test(String(a.id || ''))) {
+    const pend = {}, ac = aceitos || {}, encAceitos = ac.encerrados || {};
+    PENDENTES_CHAVES_.forEach(function (k) {
+      let n = Math.max(0, Math.floor(Number(a.pendentes && a.pendentes[k]) || 0));
+      if (ac[k]) n = Math.max(0, n - ac[k]);
+      if (n) pend[k] = Math.min(n, 999999);
+    });
+    const enc = (Array.isArray(a.turnosEncerradosPendentes) ? a.turnosEncerradosPendentes : []).map(function (id) { return String(id || '').slice(0, 64); })
+      .filter(function (id) { return id && !encAceitos[id]; }).slice(0, 20);
+    const fim = {};
+    enc.forEach(function (id) { const f = a.fimPendentes && a.fimPendentes[id]; if (f && RE_HM_.test(String(f))) fim[id] = String(f); });
+    const errEm = Number(a.ultimoErroEm) || 0;
+    o = { id: String(a.id), usuario: usuario, versao: textoCurto_(a.versao, 40), plataforma: PLATAFORMAS_.indexOf(a.plataforma) >= 0 ? a.plataforma : 'outro',
+          standalone: a.standalone ? 1 : 0, online: a.online === false ? 0 : 1, ultimoSinal: agora, pendentes: JSON.stringify(pend),
+          turnoAtual: textoCurto_(a.turnoAtual, 64), turnosEncerradosPendentes: JSON.stringify(enc), fimPendentes: JSON.stringify(fim),
+          ultimoErro: textoCurto_(a.ultimoErro, 200), ultimoErroEm: a.ultimoErro ? (errEm > 1e12 && errEm < agora + 864e5 ? errEm : agora) : 0,
+          origem: a.origem === 'segundo-plano' ? 'segundo-plano' : 'app', situacao: situacao === 'erro' ? 'erro' : 'ok', cred: cred };
+  } else {
+    if (!cred) return;
+    o = { id: 'legado-' + cred, usuario: usuario, versao: '', plataforma: '', standalone: 0, online: 1, ultimoSinal: agora, pendentes: '',
+          turnoAtual: '', turnosEncerradosPendentes: '[]', fimPendentes: '{}', ultimoErro: '', ultimoErroEm: 0, origem: 'app', situacao: 'ok', cred: cred };
+  }
+  const t = lerTudo_('Aparelhos'), cols = t.cols;
+  let idx = -1;
+  t.valores.forEach(function (l, i) { if (String(l[0]) === o.id) idx = i; });
+  if (idx >= 0) {
+    const atual = paraObjeto_(cols, t.valores[idx]);
+    o.primeiroSinal = atual.primeiroSinal || agora;
+    if (!o.ultimoErro) { o.ultimoErro = atual.ultimoErro; o.ultimoErroEm = atual.ultimoErroEm; }   // o último erro fica como histórico
+    t.sh.getRange(idx + 2, 1, 1, cols.length).setValues([cols.map(function (c) { return o[c]; })]);
+  } else {
+    o.primeiroSinal = agora;
+    t.sh.getRange(t.sh.getLastRow() + 1, 1, 1, cols.length).setValues([cols.map(function (c) { return o[c]; })]);
+  }
+}
+
+/** Aparelhos lidos da planilha (JSON já interpretado). A linha "legado-" some quando o mesmo acesso já manda o sinal novo. */
+function lerAparelhos_() {
+  const lst = lerLeitura_('Aparelhos').filter(function (a) { return a.id && a.usuario; }).map(function (a) {
+    const pend = lerJSONSeguro_(a.pendentes, {}), p = {};
+    let total = 0;
+    PENDENTES_CHAVES_.forEach(function (k) { const n = Math.max(0, Number(pend && pend[k]) || 0); if (n) { p[k] = n; total += n; } });
+    const enc = lerJSONSeguro_(a.turnosEncerradosPendentes, []), fim = lerJSONSeguro_(a.fimPendentes, {});
+    return { id: a.id, usuario: a.usuario, versao: a.versao, plataforma: a.plataforma, standalone: a.standalone, online: a.online, ultimoSinal: a.ultimoSinal,
+             pendentes: p, pendentesTotal: total, turnoAtual: a.turnoAtual, turnosEncerradosPendentes: Array.isArray(enc) ? enc.map(String) : [],
+             fimPendentes: fim && typeof fim === 'object' && !Array.isArray(fim) ? fim : {}, ultimoErro: a.ultimoErro, ultimoErroEm: a.ultimoErroEm || 0,
+             origem: a.origem, situacao: a.situacao || 'ok', cred: a.cred, legado: a.id.indexOf('legado-') === 0 };
+  });
+  const novos = {};
+  lst.forEach(function (a) { if (!a.legado && a.cred) novos[a.cred] = true; });
+  return lst.filter(function (a) { return !a.legado || !novos[a.cred]; });
+}
+/** Resumo de um aparelho para o painel (sem id nem credencial). */
+function resumoAparelho_(a) {
+  return { versao: a.versao, plataforma: a.plataforma, standalone: a.standalone, ultimoSinal: a.ultimoSinal, origem: a.origem, legado: a.legado,
+           pendentes: a.pendentes, pendentesTotal: a.pendentesTotal, encerradosPendentes: a.turnosEncerradosPendentes.length,
+           ultimoErro: a.ultimoErro, ultimoErroEm: a.ultimoErroEm, erroAtual: a.situacao === 'erro' };
 }
 
 /* ---------- Termos de Fiscalização (TF): numeração, conflitos e reincidência ---------- */
@@ -830,6 +937,10 @@ function situacaoAcesso_(f, agora) {
 function painelAcessos(token) {
   adminDoToken_(token);
   const agora = Date.now(), mapa = mapaPermissoes_();
+  // aparelhos por servidor (nome): o mais recente + quantos; vai na linha "ativo" mais recente do servidor
+  const aps = {};
+  lerAparelhos_().forEach(function (ap) { (aps[nomeChave_(ap.usuario)] = aps[nomeChave_(ap.usuario)] || []).push(ap); });
+  const comAparelho = {};
   const lista = lerLeitura_('Fiscais').filter(function (f) { return f.nome; }).map(function (f) {
     const situacao = situacaoAcesso_(f, agora);
     if (f.perfil === 'admin') return { nome: f.nome, perfil: 'admin', situacao: situacao };
@@ -839,6 +950,16 @@ function painelAcessos(token) {
     if (situacao === 'aguardando') o.codigo = f.codigo.padStart(6, '0');
     return o;
   });
+  lista.filter(function (o) { return o.perfil === 'fiscal' && o.situacao === 'ativo'; })
+    .sort(function (a, b) { return (b.ativadoEm || 0) - (a.ativadoEm || 0); })
+    .forEach(function (o) {
+      const k = nomeChave_(o.nome), l = aps[k];
+      if (!l || comAparelho[k]) return;
+      comAparelho[k] = true;
+      const ult = l.slice().sort(function (x, y) { return y.ultimoSinal - x.ultimoSinal; })[0];
+      o.aparelho = resumoAparelho_(ult); o.nAparelhos = l.length;
+      o.aparelhos = l.map(resumoAparelho_).sort(function (x, y) { return y.ultimoSinal - x.ultimoSinal; }).slice(0, 10);
+    });
   lista.sort(function (a, b) { return (b.criadoEm || 0) - (a.criadoEm || 0) || String(a.nome).localeCompare(String(b.nome)); });
   return { ok: true, agora: agora, acessos: lista };
 }
@@ -1052,8 +1173,27 @@ function painelDados(token, filtro) {
     if (String(v.hora) > a.hora) a.hora = String(v.hora);
     return { id: v.id, turnoId: v.turnoId, hora: v.hora, placa: v.placa, tipo: v.tipo, pessoas: v.pessoas, srv_ts: v.srv_ts, usuario: v.usuario };
   });
+  // sinal dos aparelhos: vale para o turno o aparelho do fiscal com este turno aberto (turnoAtual) ou encerrado sem enviar
+  // (aparelho de versão antiga, sem sinal próprio, não conta: não se sabe qual turno ele tem aberto)
+  const aparelhosPorUsuario = {};
+  lerAparelhos_().forEach(function (ap) { (aparelhosPorUsuario[ap.usuario] = aparelhosPorUsuario[ap.usuario] || []).push(ap); });
+  const sinalDoTurno = function (t) {
+    if (t.encerrado === 1) return null;
+    const lst = (aparelhosPorUsuario[t.usuario] || []).filter(function (ap) {
+      return !ap.legado && (ap.turnoAtual === t.id || ap.turnosEncerradosPendentes.indexOf(t.id) >= 0);
+    });
+    if (!lst.length) return null;
+    const enc = lst.filter(function (ap) { return ap.turnosEncerradosPendentes.indexOf(t.id) >= 0; });
+    const ap = (enc.length ? enc : lst).slice().sort(function (x, y) { return y.ultimoSinal - x.ultimoSinal; })[0];
+    const o = resumoAparelho_(ap);
+    o.ultimoSinal = Math.max.apply(null, lst.map(function (x) { return x.ultimoSinal || 0; }));
+    o.encerradoNoCelular = enc.length ? 1 : 0;
+    o.fimNoCelular = enc.length ? String(ap.fimPendentes[t.id] || '') : '';
+    o.n = lst.length;
+    return o;
+  };
   const turnos = turnosLidos.map(function (t) {
-    const a = porTurno[t.id], ini = tsManaus_(t.data, t.inicio);
+    const a = porTurno[t.id], ini = tsManaus_(t.data, t.inicio), sa = sinalDoTurno(t);
     let fim = t.fim ? tsManaus_(t.data, t.fim) : null;
     if (fim !== null && ini !== null && fim < ini) fim += 864e5;                       // turno que passou da meia-noite
     return { id: t.id, numeroTF: t.numeroTF, data: t.data, letra: t.letra, inicio: t.inicio, fim: t.fim, fiscal: t.fiscal, local: t.local,
@@ -1062,7 +1202,8 @@ function painelDados(token, filtro) {
              latIni: numOuNulo_(t.latIni), lngIni: numOuNulo_(t.lngIni), precIni: numOuNulo_(t.precIni),
              latFim: numOuNulo_(t.latFim), lngFim: numOuNulo_(t.lngFim), precFim: numOuNulo_(t.precFim),
              inicioTs: ini, fimTs: fim, nVeiculos: a.n, nPessoas: a.pessoas,
-             ultimoVeiculoHora: a.hora, ultimoVeiculoTs: a.ts || null, ultimoSinal: Math.max(t.srv_ts, a.ts) || null };
+             ultimoVeiculoHora: a.hora, ultimoVeiculoTs: a.ts || null, ultimoSinal: Math.max(t.srv_ts, a.ts, sa ? sa.ultimoSinal : 0) || null,
+             aparelho: sa, encerradoNoCelular: sa ? sa.encerradoNoCelular : 0, fimNoCelular: sa ? sa.fimNoCelular : '' };
   });
 
   const agoraMs = Date.now(), tfsAndamento = tfsAndamento_(agoraMs);                 // TF em preenchimento: vem sempre (normal e ao vivo)

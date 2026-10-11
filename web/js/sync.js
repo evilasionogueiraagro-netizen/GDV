@@ -214,15 +214,33 @@ const Sync = (() => {
     await Store.apagar('veiculos', veic.map(v => v.id));
   }
 
-  async function sincronizar() {
+  /**
+   * Sincroniza (envia pendentes + sinal do aparelho, recebe mudanças). Chamada durante outra sincronização: não é descartada —
+   * roda de novo assim que a atual terminar (ex.: o encerramento salvo no meio de uma sincronização automática sai logo em seguida).
+   * Devolve uma promessa que termina com tudo (inclusive a repetição); o resultado fica em Sync.estado().
+   */
+  let corrida = null, repetir = false;
+  function sincronizar() {
+    if (corrida) { repetir = true; return corrida; }
+    corrida = (async () => {
+      for (let i = 0; i < 3; i++) {
+        repetir = false;
+        await rodada();
+        if (!repetir) break;
+      }
+    })().finally(() => { corrida = null; window.dispatchEvent(new Event('gdv-sync-fim')); });   // a tela atualiza o status do encerramento
+    return corrida;
+  }
+  async function rodada() {
     const c = cfg();
     if (rodando || !c.url || !c.key) return;
+    try { await Store.setMeta('standalone', instaladoAgora()); } catch (e) { /* sem banco */ }
     if (!navigator.onLine) { await atualizarContagem(); return; }
     rodando = true;
     emitir({ tipo: 'sync', msg: 'Sincronizando…' });
     try {
       for (let volta = 0; volta < 20; volta++) {
-        const l = await Envio.enviarLote(chamar, PERM), r = l.r;           // pendentes permitidos → planilha; marca os enviados
+        const l = await Envio.enviarLote(chamar, PERM, 'app'), r = l.r;   // pendentes permitidos + sinal do aparelho → planilha; marca os enviados
         const mudou = await guardarPermissoes(r.permissoes);
         await aplicar('turnos', r.turnos);
         await conferirTurnoAtual(r.turnos);
@@ -234,6 +252,7 @@ const Sync = (() => {
         await lembrarUltimos(r.ultimos);
         await lembrarUltimosPce(r.ultimosPce);
         await Store.setMeta('lastSync', r.agora);
+        await Envio.guardarErro(null);                                     // o último erro já foi junto no sinal deste envio
         if (mudou && !l.recusouAlgo) continue;                               // módulo liberado agora: manda o que estava guardado
         if (!l.resta) break;
       }
@@ -251,23 +270,60 @@ const Sync = (() => {
         semPermissao: semPerm, aviso });
       window.dispatchEvent(new Event('gdv-dados'));
     } catch (e) {
+      const recusada = /revogado|inv[aá]lido/i.test(e.message);
+      if (!recusada) {
+        await Envio.guardarErro(e);                                          // vai no próximo sinal; a tela mostra o motivo
+        await Envio.avisarFalha(chamar, e, 'app');                           // erro do servidor: "ping" leve só com o sinal (uma vez)
+      }
       const p = await pendentes();
-      emitir({ tipo: 'erro', msg: e.message, pend: p.total });
-      if (/revogado|inv[aá]lido/i.test(e.message) && !localStorage.getItem('gdv.revogado')) {   // pede novo código (uma vez)
+      emitir({ tipo: 'erro', msg: Envio.motivoErro(e), pend: p.total });
+      if (recusada && !localStorage.getItem('gdv.revogado')) {             // pede novo código (uma vez)
         marcarRevogado(true); window.dispatchEvent(new Event('gdv-dados'));
       } else if (p.total) agendarEnvio();                                     // sem internet/servidor: o Android tenta de novo sozinho
     } finally {
       rodando = false;
+      prepararSaida();
     }
+  }
+  const instaladoAgora = () => { try { return matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true; } catch (e) { return false; } };
+
+  /* ---------- Saída do app com encerramento ainda não enviado ----------
+     Fiscal encerra e fecha o app logo em seguida (comum no iPhone, que não envia em segundo plano): ao esconder/fechar a página, um
+     sendBeacon leva o turno encerrado (e os veículos dele) à planilha sem esperar resposta. O corpo é montado antes (a saída não
+     espera o banco); os registros continuam pendentes no aparelho e sobem de novo na próxima sincronização (a planilha não duplica). */
+  let corpoSaida = null;
+  async function prepararSaida() {
+    try {
+      corpoSaida = null;
+      const c = cfg();
+      if (!c.url || !c.key || localStorage.getItem('gdv.revogado') || !pode('veiculos')) return;
+      const p = await pendentes(), enc = p.t.filter(t => Number(t.encerrado) === 1);
+      if (!enc.length) return;
+      const ids = new Set(enc.map(t => t.id));
+      const corpo = { action: 'sync', since: 9e15, key: c.key, turnos: p.t.slice(0, 50).map(limpo),
+        veiculos: p.v.filter(v => ids.has(v.turnoId)).slice(0, 300).map(limpo), aparelho: await Envio.sinal(p, 'app') };
+      let txt = JSON.stringify(corpo);
+      if (txt.length > 60000) { corpo.veiculos = []; txt = JSON.stringify(corpo); }
+      if (txt.length <= 60000) corpoSaida = { url: c.url, txt };
+    } catch (e) { corpoSaida = null; }
+  }
+  function enviarNaSaida() {
+    if (!corpoSaida || !navigator.onLine || rodando || typeof navigator.sendBeacon !== 'function') return false;
+    try { return navigator.sendBeacon(corpoSaida.url, new Blob([corpoSaida.txt], { type: 'text/plain;charset=utf-8' })); } catch (e) { return false; }
   }
 
   async function atualizarContagem() {
     const p = await pendentes(), semPerm = await bloqueadosComPendentes(p);
+    prepararSaida();
     if (p.total) agendarEnvio();
     emitir({ tipo: navigator.onLine ? 'idle' : 'offline', pend: p.total, msg: '', semPermissao: semPerm, aviso: avisoSemPermissao(semPerm) });
   }
 
   async function testar() { return chamar({ action: 'ping' }); }
+  /** Turnos encerrados neste aparelho que ainda não chegaram à planilha (mais recente primeiro). */
+  async function encerramentosPendentes() {
+    return (await Store.todos('turnos')).filter(t => t.pendente && Number(t.encerrado) === 1).sort((a, b) => (b.atualizadoEm || 0) - (a.atualizadoEm || 0));
+  }
 
   function iniciar() {
     // o service worker enviou pendentes em segundo plano: atualiza o selo e a tela
@@ -278,11 +334,12 @@ const Sync = (() => {
     window.addEventListener('online', sincronizar);
     window.addEventListener('offline', atualizarContagem);
     setInterval(sincronizar, 60000);                       // automático, a cada minuto
-    document.addEventListener('visibilitychange', () => { if (!document.hidden) sincronizar(); });
+    document.addEventListener('visibilitychange', () => { if (!document.hidden) sincronizar(); else enviarNaSaida(); });
+    window.addEventListener('pagehide', enviarNaSaida);
     sincronizar();
   }
 
-  return { prepararFundo, envioAutomatico, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, ativar, desativar, consultar, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
+  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, ativar, desativar, consultar, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
     pceProximoNumero, pceEmitir, pceConsultar, lembrarUltimosPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

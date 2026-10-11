@@ -48,8 +48,8 @@ const camposLocal = (g, sufixo) => g ? { ['lat' + sufixo]: g.lat, ['lng' + sufix
  *  Turno antigo com local digitado à mão (antes da lista de BVAs): ficha só se o local for a CEASA. */
 const temFicha = t => { const b = CONFIG.bvas.find(x => x.nome === t.local); return b ? !!b.ficha : /ceasa/i.test(t.local || ''); };
 /* ---------- módulos e navegação ---------- */
-// Depois de instalar e ativar o aparelho, o fiscal escolhe um módulo: Educação Sanitária/Fiscalização (turnos e veículos), TF ou PCE.
-// Dentro da Educação Sanitária/Fiscalização o TF também está embutido (botão "Lavrar TF"); o menu de baixo muda conforme o módulo.
+// Depois de instalar e ativar o aparelho, o fiscal escolhe um módulo: Educação Sanitária/Fiscalização de Trânsito (turnos e veículos), TF ou PCE.
+// Dentro da Educação Sanitária/Fiscalização de Trânsito o TF também está embutido (botão "Lavrar TF"); o menu de baixo muda conforme o módulo.
 let MODULO = 'hub';
 const NAVS = {
   hub: [['modulos', '🏠', 'Módulos'], ['config', '⚙️', 'Status']],
@@ -65,7 +65,7 @@ const SEM_AUT = 'Sem autorização — fale com a gerência';
 function semPermissaoPara(view) {
   const m = moduloDaView(view);
   if (m && !Sync.pode(m)) return m;
-  if (MODULO === 'veiculos' && m === 'tf' && view !== 'tf' && !Sync.pode('veiculos')) return 'veiculos';   // TF embutido na Educação Sanitária/Fiscalização
+  if (MODULO === 'veiculos' && m === 'tf' && view !== 'tf' && !Sync.pode('veiculos')) return 'veiculos';   // TF embutido na Educação Sanitária/Fiscalização de Trânsito
   return '';
 }
 function renderNav(view) {
@@ -103,10 +103,10 @@ async function modulos() {
   view(`<div class="card"><h3>Olá${nome ? ', ' + esc(nome) : ''}!</h3><p class="dica" style="text-align:left">Escolha o que deseja fazer.</p></div>
     ${aviso ? `<div class="card aviso" id="avisoPerm">⚠️ ${esc(aviso)}</div>` : ''}
     ${avisoTurnoEncerrado()}
-    ${cartao('veiculos', 'home', '🚛', 'Educação Sanitária/Fiscalização', `<small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)${Sync.pode('veiculos') ? '' : ' (guardado neste aparelho)'}` : 'Registro dos veículos abordados, por turno'}</small>`)}
+    ${cartao('veiculos', 'home', '🚛', 'Educação Sanitária/Fiscalização de Trânsito', `<small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)${Sync.pode('veiculos') ? '' : ' (guardado neste aparelho)'}` : 'Registro das informações, por ação'}</small>`)}
     ${cartao('tf', 'tf', '📄', 'Termo de Fiscalização de Barreira', `<small>${tfs.length} TF(s) neste aparelho${pend ? ` · ⏳ ${pend} aguardando envio` : ''}</small>`)}
     ${cartao('pce', 'pce', '🌱', 'PCE', `<small>Programa de Controle e Erradicação — levantamento fitossanitário e Termo de Colheita de Amostras</small><small class="pce-status">${esc(stPce)}</small>`)}
-    ${Sync.pode('veiculos') && Sync.pode('tf') ? '<p class="dica">Dentro da Educação Sanitária/Fiscalização também dá para lavrar o TF de um veículo (botão “Lavrar TF”).</p>' : ''}`);
+    ${Sync.pode('veiculos') && Sync.pode('tf') ? '<p class="dica">Dentro da Educação Sanitária/Fiscalização de Trânsito também dá para lavrar o TF de um veículo (botão “Lavrar TF”).</p>' : ''}`);
 }
 const view = html => { $('#view').innerHTML = bannerInstalar() + html; };
 
@@ -374,12 +374,15 @@ async function fechado() {
   view(`<div class="card"><h3>Turno encerrado</h3><p><b>${esc(t.numeroTF)}</b></p>
     <p>${dBR(t.data)} · das <b>${esc(t.inicio)}</b> às <b>${esc(t.fim)}</b></p>
     <p>${v.length} veículos · ${v.reduce((s, x) => s + (Number(x.pessoas) || 0), 0)} pessoas</p>
-    ${t.pendente ? '<p class="pend" id="encPend">⏳ Encerramento ainda não enviado à planilha. Mantenha o app aberto com internet até aparecer “Sincronizado”: enquanto não chegar, a gerência vê esta barreira como em andamento.</p>' : '<p id="encPend"><small>✅ Encerramento enviado à planilha.</small></p>'}</div>
+    ${t.pendente ? `<p class="pend" id="encPend">⏳ Encerramento ainda não enviado à planilha${avisoEnvio()}. Enquanto não chegar, a gerência vê esta barreira como em andamento.</p>` : '<p id="encPend"><small>✅ Encerramento enviado à planilha.</small></p>'}</div>
     <button class="botao" data-doc="termo" data-id="${t.id}">📄 Termo de Fiscalização (PDF)</button>
     ${temFicha(t) ? `<button class="botao" data-doc="ficha" data-id="${t.id}">📝 Ficha de Campo (PDF)</button>` : ''}
     <button class="botao" data-go="home">➕ Iniciar novo turno</button>
     <p class="dica">Os documentos deste turno também ficam no Histórico.</p>`);
 }
+/** Complemento dos avisos de pendência: no Android (Background Sync) o envio acontece sozinho; no iPhone, só com o app aberto. */
+const avisoEnvio = () => Sync.envioAutomatico() ? ' — será enviado automaticamente quando houver internet, mesmo com o app fechado'
+  : ' — abra o app com internet para enviar (e mantenha-o aberto até aparecer “Sincronizado”)';
 const contar = v => v.reduce((o, x) => (o[x.tipo] = (o[x.tipo] || 0) + 1, o), {});
 
 /* ---------- Histórico / dashboard ---------- */
@@ -444,7 +447,7 @@ async function config() {
     <p class="dica">A sincronização é automática (a cada minuto, quando há internet). Para forçar agora, toque no selo no topo da tela.</p>
     ${Sync.ativado() ? '<button class="botao sec" id="desativar">Desativar este aparelho / trocar de fiscal</button>' : ''}</div>`);
   const e = Sync.estado();
-  $('#cEst').textContent = (navigator.onLine ? 'Online' : 'Offline') + ' · pendentes de envio: ' + (e.pend || 0) + (e.tipo === 'erro' ? ' · erro: ' + e.msg : '');
+  $('#cEst').textContent = (navigator.onLine ? 'Online' : 'Offline') + ' · pendentes de envio: ' + (e.pend || 0) + (e.pend ? avisoEnvio() : '') + (e.tipo === 'erro' ? ' · erro: ' + e.msg : '');
   if ($('#desativar')) $('#desativar').onclick = () => {
     if (!confirm('Desativar este aparelho? Registros ainda não enviados ficam guardados aqui e só serão enviados após uma nova ativação.')) return;
     Sync.desativar(); toast('Aparelho desativado.'); config();
@@ -496,7 +499,7 @@ window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'r
 window.addEventListener('gdv-permissoes', () => {
   if (semPermissaoPara(VIEW)) go(VIEW);                                   // go() avisa e leva para a tela de módulos
   else if (VIEW === 'modulos') go('modulos');
-  else if (['home', 'lista'].includes(VIEW)) go(VIEW);                     // botões "Lavrar TF" aparecem/somem
+  else if (['home', 'lista', 'pce', 'pcetermos', 'pcepronto'].includes(VIEW)) go(VIEW, EDIT);   // botões "Lavrar TF" / "do papel" aparecem/somem
 });
 window.addEventListener('online', () => Sync.atualizarContagem());
 
@@ -515,6 +518,7 @@ if ('serviceWorker' in navigator) {
   $('#btnAtualizar').onclick = () => location.reload();
 }
 (async () => {
+  await Sync.prepararFundo();                                               // envio em segundo plano (credencial para o service worker)
   await Sync.carregarPermissoes();                                          // última permissão conhecida (sem internet também)
   go('modulos');
   await Sync.atualizarContagem();

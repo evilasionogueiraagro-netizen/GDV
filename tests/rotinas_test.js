@@ -179,7 +179,11 @@ const AUTO = 'Automático (12 h)';
     culturas: JSON.stringify(culturas), fotos: '[]', assinaturas: '{}', excluido: 0, criadoEm: AG, atualizadoEm: AG, ...extra });
   await post({ action: 'sync', key: FIS, since: 0, levantamentos: [LEV('rl1', d(3), 'Manaus', [cult('Banana', 'Moko da bananeira'), cult('Mandioca', '')]),
     LEV('rl2', d(8), 'Coari', [cult('Banana', 'Moko da bananeira')]), LEV('rl3', d(9), 'Manaus', [cult('Cupuaçu', 'Vassoura-de-bruxa')]),
-    LEV('rl4', d(9), 'Tefé', [cult('Banana', 'Sigatoka-negra')], { excluido: 1 }), LEV('rl5', proxMes, 'Manaus', [cult('Banana', 'Moko da bananeira')])],
+    LEV('rl4', d(9), 'Tefé', [cult('Banana', 'Sigatoka-negra')], { excluido: 1 }), LEV('rl5', proxMes, 'Manaus', [cult('Banana', 'Moko da bananeira')]),
+    // formato novo (por praga): suspeita conta como detecção (e à parte); só "não detectada" = levantamento negativo
+    LEV('rl6', d(10), 'Manaus', [], { pragas: JSON.stringify([{ praga: 'Moko da bananeira', culturas: [{ cultura: 'Banana', area: '2', resultado: 'suspeita', coleta: 'Sim', fotos: [] },
+      { cultura: 'Cacau', area: '1', resultado: 'nao_detectada', coleta: 'Não', fotos: [] }] }, { praga: 'Fusarium R4T', culturas: [{ cultura: 'Banana', area: '2', resultado: 'nao_detectada', coleta: 'Não', fotos: [] }] }]) }),
+    LEV('rl7', d(11), 'Tefé', [], { pragas: JSON.stringify([{ praga: 'Sigatoka-negra', culturas: [{ cultura: 'Banana', area: '1', resultado: 'nao_detectada', coleta: 'Não', fotos: [] }] }]) })],
     colheitas: [{ id: 'rc1', unidade: 'REL', ano: +d(1).slice(0, 4), numero: 1, data: d(3), hora: '10:00', servidor: 'x', municipio: 'Manaus', cultura: 'Banana', cancelado: 0, excluido: 0, criadoEm: AG, atualizadoEm: AG },
       { id: 'rc2', unidade: 'REL', ano: +d(1).slice(0, 4), numero: 2, data: d(4), hora: '10:00', servidor: 'x', municipio: 'Manaus', cultura: 'Banana', cancelado: 1, excluido: 0, criadoEm: AG, atualizadoEm: AG }] });
 
@@ -200,14 +204,16 @@ const AUTO = 'Automático (12 h)';
   ok(n.tfs && n.tfs.total === 4 && n.tfs.liberacao === 2 && n.tfs.apreensao === 1 && n.tfs.rechaco === 1 && n.tfs.cancelados === 1 && n.tfs.autos === 1 && n.tfs.advertencias === 1,
     'TFs por procedimento (cancelado e mês seguinte fora)', n.tfs && { t: n.tfs.total, l: n.tfs.liberacao, a: n.tfs.apreensao, r: n.tfs.rechaco, c: n.tfs.cancelados });
   ok(n.tfs && n.tfs.apreensoes.length === 1 && n.tfs.apreensoes[0].numeroTxt.startsWith('903/') && n.tfs.apreensoes[0].produtos === 'BANANA - 10 Kg; ACEROLA - 2 Caixas', 'lista de apreensões com produtos', n.tfs && n.tfs.apreensoes);
-  ok(n.pce && n.pce.levantamentos === 3 && n.pce.municipios === 2 && n.pce.comPraga === 3 && n.pce.termos === 1 && n.pce.termosCancelados === 1, 'PCE: 3 levantamentos em 2 municípios, 1 termo (cancelado à parte)', n.pce);
-  ok(n.pce && JSON.stringify(n.pce.pragas) === JSON.stringify([{ praga: 'Moko da bananeira', deteccoes: 2, municipios: ['Coari', 'Manaus'] }, { praga: 'Vassoura-de-bruxa', deteccoes: 1, municipios: ['Manaus'] }]),
-    'detecções por praga (excluído e mês seguinte fora)', n.pce && n.pce.pragas);
+  ok(n.pce && n.pce.levantamentos === 5 && n.pce.municipios === 3 && n.pce.comPraga === 4 && n.pce.negativos === 1 && n.pce.suspeitas === 1 && n.pce.termos === 1 && n.pce.termosCancelados === 1,
+    'PCE: 5 levantamentos em 3 municípios, 4 com praga (1 só suspeita), 1 negativo, 1 termo (cancelado à parte)', n.pce);
+  ok(n.pce && JSON.stringify(n.pce.pragas) === JSON.stringify([{ praga: 'Moko da bananeira', deteccoes: 3, suspeitas: 1, municipios: ['Coari', 'Manaus'] }, { praga: 'Vassoura-de-bruxa', deteccoes: 1, suspeitas: 0, municipios: ['Manaus'] }]),
+    'detecções por praga: detectada + suspeita (suspeita à parte); "não detectada" de Fusarium/Sigatoka não conta; excluído e mês seguinte fora', n.pce && n.pce.pragas);
   const mails = await get('/__emails'), m = mails[mails.length - 1] || {};
   ok(m.to === 'gerente@idam.am.gov.br,chefe@exemplo.com' && m.subject === 'GDV – Relatório mensal de ' + per.rotulo && m.name === 'GDV', 'e-mail: para, assunto e remetente', { to: m.to, s: m.subject });
   const html = m.htmlBody || '';
   ok(/Rel Barreira X/.test(html) && html.includes('>14,0<') && html.includes('>13,0<') && /Moko da bananeira/.test(html) && /BANANA - 10 Kg/.test(html) && html.includes('https://evilasionogueiraagro-netizen.github.io/GDV/painel/'),
     'HTML com barreiras, horas (14,0 / 13,0), pragas, apreensões e link do painel');
+  ok(/levantamentos negativos: <b>1<\/b>/.test(html) && /suspeitas: <b>1<\/b>/.test(html) && /Suspeitas \(incluídas\)/.test(html) && !/Fusarium/.test(html), 'HTML do PCE: negativos, suspeitas e coluna de suspeitas por praga');
   ok(/encerrados automaticamente/.test(html) && /pela gerência/.test(html) && (m.body || '').includes('Turnos:'), 'HTML com encerramentos automáticos/gerência e versão em texto');
   ok(!/52998224725|998\.224/.test(html), 'sem CPF no e-mail');
   require('fs').writeFileSync(DIR + 'relatorio_mensal.html', html);

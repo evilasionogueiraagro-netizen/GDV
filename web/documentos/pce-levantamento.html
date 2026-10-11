@@ -5,7 +5,7 @@
 <title>Ficha de Levantamento Fitossanitário</title>
 <link rel="stylesheet" href="pce.css">
 <style>
-/* 1 via; pode ocupar mais de uma folha (muitas culturas/fotos), com quebra limpa entre quadros e linhas */
+/* 1 via por praga/doença avaliada; pode ocupar mais de uma folha (muitas culturas/fotos), com quebra limpa entre quadros, linhas e fotos */
 @page{ size:A4 portrait; margin:8mm 7mm; }
 .quadro{ margin-top:2mm; }
 .quadro.inteiro{ break-inside:avoid; page-break-inside:avoid; }
@@ -13,7 +13,17 @@
 #culturas td, #culturas th{ font-size:11px; }
 #culturas th{ font-size:10.5px; }
 #culturas td.n{ text-align:center; width:5mm; }
+#culturas td.res{ font-weight:bold; white-space:nowrap; }
+#culturas td.res.detectada{ color:#a3000f; }
+#culturas td.res.suspeita{ color:#8a4b00; }
 .coord-gms{ font-size:11px; color:#333; }
+.praga-avaliada td{ font-size:13px; }
+.praga-avaliada .nome-praga{ font-size:16px; font-weight:bold; }
+.praga-avaliada .resumo{ font-size:11.5px; color:#222; }
+#quadroFotos tr{ break-inside:auto; page-break-inside:auto; }
+.grupo-fotos{ break-inside:auto; margin:1mm 0 2mm; }
+.grupo-fotos h4{ margin:1mm 0 1mm; font-size:11.5px; break-after:avoid; page-break-after:avoid; }
+.grupo-fotos h4 small{ font-weight:normal; color:#333; }
 </style>
 </head>
 <body>
@@ -29,6 +39,14 @@
       <td colspan="3" class="cabecalho">FICHA DE LEVANTAMENTO FITOSSANITÁRIO</td>
       <td class="centro negrito">Data <span data-campo="data"></span></td>
     </tr>
+  </table>
+
+  <table class="quadro inteiro praga-avaliada">
+    <tr>
+      <td style="width:70%"><span class="rot">Praga/doença avaliada</span><span class="nome-praga" data-campo="praga"></span></td>
+      <td style="width:30%"><span class="rot">Ficha</span><span class="val" data-campo="fichaN"></span></td>
+    </tr>
+    <tr><td colspan="2"><span class="resumo" data-campo="resumoPraga"></span></td></tr>
   </table>
 
   <table class="quadro inteiro">
@@ -71,10 +89,10 @@
 
   <table class="quadro" id="culturas">
     <thead>
-      <tr><td colspan="10" class="titulo">4. Culturas e pragas</td></tr>
+      <tr><td colspan="10" class="titulo">4. Culturas avaliadas para <span data-campo="praga"></span></td></tr>
       <tr>
         <th>#</th><th>Cultura</th><th>Área (ha)</th><th>Espaç. linha (m)</th><th>Espaç. planta (m)</th>
-        <th>Praga</th><th>Coleta</th><th>Material</th><th>Cód. amostra</th><th>Destino da amostra</th>
+        <th>Resultado</th><th>Coleta</th><th>Material</th><th>Cód. amostra</th><th>Destino da amostra</th>
       </tr>
     </thead>
     <tbody id="culturasCorpo"></tbody>
@@ -86,8 +104,8 @@
   </table>
 
   <table class="quadro" id="quadroFotos">
-    <thead><tr><td class="titulo">5. Fotos <span data-campo="nFotos" style="font-weight:normal;font-size:11px"></span></td></tr></thead>
-    <tbody><tr><td><div class="fotos" id="fotos"></div></td></tr></tbody>
+    <thead><tr><td class="titulo">5. Fotos por cultura <span data-campo="nFotos" style="font-weight:normal;font-size:11px"></span></td></tr></thead>
+    <tbody><tr><td><div id="fotos"></div></td></tr></tbody>
   </table>
 
   <table class="quadro inteiro">

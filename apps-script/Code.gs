@@ -808,7 +808,8 @@ function arquivoEnviar_(req, usuario) {
  *                                       (atualização automática de 1 em 1 minuto, sem reler TFs, levantamentos e termos)
  *   As duas formas de painelDados trazem também tfsAndamento: TFs sendo preenchidos agora nos aparelhos (aba Andamento).
  *   painelDados também roda o encerramento automático de turnos esquecidos (> 12 h, no máximo 1 vez a cada 10 min) e a forma completa
- *   traz rotinas: {ultimoBackup, backupFalhou, desativadas} (rodapé do painel).
+ *   traz rotinas: {ultimoBackup, backupFalhou, desativadas, ultimoArquivamento} (rodapé do painel) e, quando o período começa antes de
+ *   1º/jan do ano anterior e já há arquivo anual desses anos, avisoArquivo (texto) + arquivosAnuais [{ano, url}] (ver arquivamento anual).
  *   painelSair   {key}               → revoga a credencial do administrador (botão Sair)
  *   painelGerarCodigo {key, nome}    → gera um código de ativação de FISCAL (aba Servidores): {ok, nome, codigo, expiraEm}
  *   painelAcessos {key, ocultos}     → lista dos acessos (situação, datas, quem gerou; sem credenciais; código só enquanto aguarda ativação);
@@ -1357,7 +1358,11 @@ function painelDados(token, filtro) {
   const admin = adminDoToken_(token);
   encerrarTurnosAutomaticoBarato_();                 // turno esquecido aberto há mais de 12 h (antes do gatilho estar ativo, também)
   const r = dadosPainel_(admin, filtro);
-  if (!r.aoVivo) r.rotinas = situacaoRotinas_();     // último backup (rodapé do painel)
+  if (!r.aoVivo) {
+    r.rotinas = situacaoRotinas_();                  // último backup e último arquivamento (rodapé do painel)
+    const av = avisoArquivo_(r.periodo.de);          // período antes do ano anterior: parte dos turnos/veículos está no arquivo anual
+    if (av) { r.avisoArquivo = av.texto; r.arquivosAnuais = av.arquivos; }
+  }
   return r;
 }
 
@@ -1622,6 +1627,7 @@ function revogar_(nome, soFiscais) {
 //   encerrarTurnosAutomatico  a cada 30 min   turno aberto há mais de 12 h é encerrado (encerradoPor = "Automático (12 h)")
 //   backupDiario              todo dia ~03h   cópia da planilha em "GDV - Backups" (mantém as 30 mais recentes)
 //   relatorioMensal           dia 1 ~07h      e-mail com os números do mês anterior (destinatários em RELATORIO_EMAILS)
+//   arquivarAnosAntigos       todo dia ~04h   só age se houver linhas de anos anteriores ao ano passado (ver "Arquivamento anual")
 // "Desativar rotinas automáticas" apaga os gatilhos e grava ROTINAS_DESATIVADAS = 1 (o painel também deixa de encerrar turnos).
 
 const TURNO_MAX_MS = 12 * 3600 * 1000;             // plantão dura no máximo 12 h: aberto além disso = turno esquecido
@@ -1634,7 +1640,9 @@ const ROTINAS_ = [
   { fn: 'backupDiario', nome: 'Backup diário (por volta das 03h)',
     criar: function (b) { return b.timeBased().everyDays(1).atHour(3).inTimezone('America/Manaus'); } },
   { fn: 'relatorioMensal', nome: 'Relatório mensal por e-mail (dia 1, por volta das 07h)',
-    criar: function (b) { return b.timeBased().onMonthDay(1).atHour(7).inTimezone('America/Manaus'); } }
+    criar: function (b) { return b.timeBased().onMonthDay(1).atHour(7).inTimezone('America/Manaus'); } },
+  { fn: 'arquivarAnosAntigos', nome: 'Arquivamento anual (verificação diária leve, por volta das 04h)',
+    criar: function (b) { return b.timeBased().everyDays(1).atHour(4).inTimezone('America/Manaus'); } }
 ];
 
 /** "HH:MM" no horário de Manaus (UTC−4, como tsManaus_). */
@@ -1706,7 +1714,9 @@ function situacaoRotinas_() {
   const props = PropertiesService.getScriptProperties();
   const b = lerJSONSeguro_(props.getProperty('ULTIMO_BACKUP'), null), e = lerJSONSeguro_(props.getProperty('ULTIMO_BACKUP_ERRO'), null);
   const em = b && Number(b.em) || null;
-  return { ultimoBackup: em, backupFalhou: e && Number(e.em) > (em || 0) ? Number(e.em) : null, desativadas: rotinasDesativadas_() };
+  const a = lerJSONSeguro_(props.getProperty('ULTIMO_ARQUIVAMENTO'), null);
+  return { ultimoBackup: em, backupFalhou: e && Number(e.em) > (em || 0) ? Number(e.em) : null, desativadas: rotinasDesativadas_(),
+           ultimoArquivamento: a && Number(a.em) || null };
 }
 
 /** Cria os gatilhos que faltam (não duplica; repetidos de uma mesma rotina são apagados). Devolve os nomes das rotinas ativas. */
@@ -1786,6 +1796,238 @@ function limparBackups_(pasta, manterId) {
     try { f.setTrashed(true); n++; } catch (e) { /* sem permissão: segue */ }
   });
   return n;
+}
+
+/* --- arquivamento anual --- */
+// A planilha principal guarda só o ano atual e o anterior (pela data do registro, horário de Manaus). Linhas mais antigas das abas que
+// crescem sem parar vão para uma planilha "e-GDV – Arquivo AAAA" (uma por ano) na pasta "GDV - Arquivo anual" do Drive do dono.
+//   Veiculos   acompanham o turno (veículo de turno arquivado vai junto; sem turno na planilha: ano do criadoEm)
+//   Turnos     só encerrados (turno aberto nunca sai), pelo campo data
+//   Consultas  pelo campo em (sem id: a chave é a linha inteira)
+//   Andamento  só os finalizados (estado "fim" ou sem batimento há mais de 10 min), pelo atualizadoTs
+// Ficam sempre na principal: TFs, Pessoas, Placas, Levantamentos, Colheitas, Propriedades, Fiscais, Permissoes, Barreiras, Numeracao
+// (reincidência, histórico de pragas, numeração e credenciais), Arquivos (links das fotos pelo id) e Aparelhos (uma linha por aparelho).
+// Cada lote, sob o mesmo LockService do sync: copia → confere no arquivo (todas as chaves presentes) → apaga da principal com deleteRows em
+// blocos contíguos, de baixo para cima. Interrompido em qualquer ponto, a próxima execução refaz o lote sem duplicar (chave = id).
+
+const ARQ_PASTA = 'GDV - Arquivo anual', ARQ_PREFIXO = 'e-GDV – Arquivo ';
+const ARQ_ABAS = ['Veiculos', 'Turnos', 'Consultas', 'Andamento'];   // Veiculos antes de Turnos: o ano do veículo vem do turno ainda na principal
+const ARQ_LOTE = 5000;                                                 // linhas por lote (um lock por lote; os celulares sincronizam entre os lotes)
+const ARQ_TEMPO_MS = 4 * 60 * 1000;                                    // passou disso: guarda o progresso e continua na próxima execução (limite: 6 min)
+
+/** Ano (Manaus) de um instante em ms; 0 se vazio. */
+function anoMs_(ms) { ms = Number(ms) || 0; return ms > 0 ? new Date(ms - 4 * 3600 * 1000).getUTCFullYear() : 0; }
+/** Ano de um dia "aaaa-mm-dd"; 0 se inválido. */
+function anoDia_(d) { const m = /^(\d{4})-\d{2}-\d{2}/.exec(String(d || '')); return m ? Number(m[1]) : 0; }
+function anoAtualManaus_() { return Number(hojeManaus_().slice(0, 4)); }
+
+/** Chave de idempotência da linha: o id (1ª coluna); Consultas não têm id → a linha inteira. */
+function chaveArq_(nome, linha) {
+  return nome === 'Consultas' ? linha.slice(0, TABELAS.Consultas.length).map(function (v) { return String(v === null || v === undefined ? '' : v); }).join('|')
+    : String(linha[0] === null || linha[0] === undefined ? '' : linha[0]);
+}
+
+/**
+ * Ano em que a linha deve ser arquivada, ou 0 (fica na principal). ctx: {limite, agora, turnos: {id: ano de arquivamento ou 0}}.
+ * Só arquiva ano < limite (limite = ano anterior ao atual).
+ */
+function anoArquivo_(nome, o, ctx) {
+  let ano = 0;
+  if (nome === 'Turnos') ano = o.encerrado === 1 ? anoDia_(o.data) : 0;
+  else if (nome === 'Veiculos') {
+    if (Object.prototype.hasOwnProperty.call(ctx.turnos, o.turnoId)) return ctx.turnos[o.turnoId];   // acompanha o turno
+    ano = anoMs_(o.criadoEm) || anoMs_(o.srv_ts);                                                     // turno fora da principal
+  } else if (nome === 'Consultas') ano = anoMs_(o.em);
+  else if (nome === 'Andamento') {
+    if (o.estado === 'preenchendo' && ctx.agora - o.atualizadoTs <= ANDAMENTO_VALIDADE_MS) return 0;
+    ano = anoMs_(o.atualizadoTs) || anoMs_(o.inicioTs);
+  }
+  return ano && ano < ctx.limite ? ano : 0;
+}
+
+/** Pasta "GDV - Arquivo anual" no Drive do dono (id em PASTA_ARQUIVO_ANUAL; recriada se sumir). */
+function pastaArquivoAnual_() {
+  const props = PropertiesService.getScriptProperties(), id = props.getProperty('PASTA_ARQUIVO_ANUAL');
+  if (id) {
+    try { const f = DriveApp.getFolderById(id); if (!f.isTrashed()) return f; } catch (e) { /* pasta apagada ou sem acesso: cria outra */ }
+  }
+  const nova = DriveApp.createFolder(ARQ_PASTA);
+  props.setProperty('PASTA_ARQUIVO_ANUAL', nova.getId());
+  return nova;
+}
+
+/** {id, url} da planilha de arquivo do ano guardados em ARQUIVO_ANUAL_AAAA (sem abrir nada); null se não houver. */
+function infoArquivoAnual_(ano) {
+  const i = lerJSONSeguro_(PropertiesService.getScriptProperties().getProperty('ARQUIVO_ANUAL_' + ano), null);
+  return i && i.id ? i : null;
+}
+
+/** Planilha "e-GDV – Arquivo AAAA" (abre a guardada; senão procura na pasta; senão cria e move para a pasta). */
+function planilhaArquivoAnual_(ano) {
+  const props = PropertiesService.getScriptProperties(), info = infoArquivoAnual_(ano), nome = ARQ_PREFIXO + ano;
+  if (info) {
+    try { if (!DriveApp.getFileById(info.id).isTrashed()) return SpreadsheetApp.openById(info.id); } catch (e) { /* apagada: procura/cria */ }
+  }
+  const pasta = pastaArquivoAnual_(), it = pasta.getFilesByName(nome);
+  let ss = null;
+  while (!ss && it.hasNext()) { const f = it.next(); if (!f.isTrashed()) ss = SpreadsheetApp.openById(f.getId()); }
+  if (!ss) {
+    ss = SpreadsheetApp.create(nome);
+    DriveApp.getFileById(ss.getId()).moveTo(pasta);
+  }
+  props.setProperty('ARQUIVO_ANUAL_' + ano, JSON.stringify({ id: ss.getId(), url: ss.getUrl() }));
+  return ss;
+}
+
+/** Chaves já gravadas numa aba do arquivo → número da linha (lê só a coluna do id; Consultas: as 5 colunas). */
+function chavesArquivo_(sh, nome) {
+  const n = sh.getLastRow() - 1, m = {};
+  if (n < 1) return m;
+  const larg = nome === 'Consultas' ? TABELAS.Consultas.length : 1;
+  sh.getRange(2, 1, n, larg).getValues().forEach(function (l, i) { const k = chaveArq_(nome, l); if (k) m[k] = i + 2; });
+  return m;
+}
+
+/**
+ * Um lote de uma aba, sob lock: escolhe até "max" linhas antigas, grava cada uma no arquivo do seu ano (id que já está lá: atualiza a linha
+ * se mudou, nunca duplica), confere que todas as chaves estão no arquivo e só então apaga da principal (blocos contíguos, de baixo para cima).
+ * Devolve {movidas, porAno: {ano: n}, restam}.
+ */
+function arquivarLote_(nome, limite, agora, max) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const sh = planilha_().getSheetByName(nome);
+    if (!sh || sh.getLastRow() < 2) return { movidas: 0, porAno: {}, restam: false };
+    const t = lerTudo_(nome), cols = t.cols, ctx = { limite: limite, agora: agora, turnos: {} };
+    if (nome === 'Veiculos') lerLeitura_('Turnos').forEach(function (o) { if (o.id) ctx.turnos[o.id] = anoArquivo_('Turnos', o, ctx); });
+    const sel = [];
+    t.valores.forEach(function (l, i) {
+      const k = chaveArq_(nome, l);
+      if (!k || k === '||||') return;                                             // linha vazia
+      const ano = anoArquivo_(nome, paraObjeto_(cols, l), ctx);
+      if (ano) sel.push({ i: i, ano: ano, k: k, l: l });
+    });
+    const lote = sel.slice(0, max);
+    if (!lote.length) return { movidas: 0, porAno: {}, restam: false };
+    const porAno = {};
+    lote.forEach(function (x) { (porAno[x.ano] = porAno[x.ano] || []).push(x); });
+    Object.keys(porAno).forEach(function (ano) {
+      const shA = abaDe_(planilhaArquivoAnual_(ano), nome), ja = chavesArquivo_(shA, nome), novas = [], vistas = {};
+      porAno[ano].forEach(function (x) {
+        const linha = cols.map(function (c, j) { return x.l[j] === undefined || x.l[j] === null ? '' : x.l[j]; });
+        if (ja[x.k]) {                                                            // já arquivada (execução interrompida ou reenvio do aparelho)
+          const atual = shA.getRange(ja[x.k], 1, 1, cols.length).getValues()[0];
+          if (linha.some(function (v, j) { return String(v) !== String(atual[j] === undefined || atual[j] === null ? '' : atual[j]); })) {
+            shA.getRange(ja[x.k], 1, 1, cols.length).setValues([linha]);
+          }
+        } else if (vistas[x.k] === undefined) { vistas[x.k] = novas.length; novas.push(linha); }
+        else novas[vistas[x.k]] = linha;                                          // id repetido na principal: fica a última
+      });
+      if (novas.length) shA.getRange(shA.getLastRow() + 1, 1, novas.length, cols.length).setValues(novas);
+      SpreadsheetApp.flush();
+      const conferidas = chavesArquivo_(shA, nome), faltam = porAno[ano].filter(function (x) { return !conferidas[x.k]; }).length;
+      if (faltam) throw new Error('Conferência do arquivo ' + ano + ' (' + nome + ') falhou: ' + faltam + ' linha(s) não gravada(s). Nada foi apagado da planilha.');
+    });
+    // apaga da principal: blocos contíguos, de baixo para cima (cada deleteRows não mexe nas linhas de cima ainda por apagar)
+    const idx = lote.map(function (x) { return x.i + 2; }).sort(function (a, b) { return b - a; });
+    if (sh.getMaxRows() <= sh.getLastRow()) sh.insertRowsAfter(sh.getMaxRows(), 1);   // o Sheets não deixa apagar todas as linhas não congeladas
+    for (let j = 0; j < idx.length;) {
+      let fim = idx[j], ini = fim, k = j + 1;
+      while (k < idx.length && idx[k] === ini - 1) { ini--; k++; }
+      sh.deleteRows(ini, fim - ini + 1);
+      j = k;
+    }
+    SpreadsheetApp.flush();
+    const cont = {};
+    Object.keys(porAno).forEach(function (ano) { cont[ano] = porAno[ano].length; });
+    return { movidas: lote.length, porAno: cont, restam: sel.length > lote.length };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Há algo a arquivar? Verificação leve (Turnos, Consultas e Andamento; Veiculos seguem os turnos e não são lidos aqui). */
+function haLinhasAntigas_(limite, agora) {
+  const ctx = { limite: limite, agora: agora, turnos: {} };
+  return ['Turnos', 'Consultas', 'Andamento'].some(function (nome) {
+    return lerLeitura_(nome).some(function (o) { return anoArquivo_(nome, o, ctx) > 0; });
+  });
+}
+
+/** Gatilho diário (~04h). Sem nada antigo na planilha, só lê três abas pequenas e sai. */
+function arquivarAnosAntigos() { return arquivarAnosAntigos_({}); }
+
+/**
+ * Arquivamento anual. opcoes: {manual (menu; roda mesmo com as rotinas desativadas), lote, tempoMs (testes)}.
+ * Sessão nova: confere se há linhas antigas, faz o backup (sem backup não arquiva) e processa as abas na ordem de ARQ_ABAS, um lote por vez.
+ * Tempo esgotado: guarda ARQUIVO_PROGRESSO {aba, porAba, em} e a próxima execução continua de onde parou (sem novo backup).
+ * Fim: limpa caches, grava ULTIMO_ARQUIVAMENTO {em, porAba, arquivos}. Nunca lança erro (falha vai para ULTIMO_ARQUIVAMENTO_ERRO e para o retorno).
+ * Devolve {ok, nada?, incompleto?, porAba: {Aba: {ano: n}}, total, arquivos: [{ano, url}], backup?}.
+ */
+function arquivarAnosAntigos_(opcoes) {
+  opcoes = opcoes || {};
+  const props = PropertiesService.getScriptProperties();
+  if (!opcoes.manual && rotinasDesativadas_()) return { ok: true, desativado: true };
+  const max = Number(opcoes.lote) > 0 ? Number(opcoes.lote) : ARQ_LOTE, tempo = opcoes.tempoMs >= 0 ? Number(opcoes.tempoMs) : ARQ_TEMPO_MS;
+  try {
+    const t0 = Date.now(), limite = anoAtualManaus_() - 1;
+    const prog = lerJSONSeguro_(props.getProperty('ARQUIVO_PROGRESSO'), null);
+    let backup = null;
+    if (!prog) {
+      if (!haLinhasAntigas_(limite, t0)) return { ok: true, nada: true, porAba: {}, total: 0, arquivos: [] };
+      backup = backupDiario();
+      if (!backup.ok) throw new Error('Backup antes do arquivamento falhou (' + backup.erro + '). Nada foi arquivado.');
+    }
+    const porAba = (prog && prog.porAba) || {};
+    let i = prog ? Math.max(0, ARQ_ABAS.indexOf(prog.aba)) : 0;
+    for (; i < ARQ_ABAS.length; i++) {
+      const nome = ARQ_ABAS[i];
+      for (;;) {
+        const r = arquivarLote_(nome, limite, Date.now(), max);
+        Object.keys(r.porAno).forEach(function (ano) { const a = porAba[nome] = porAba[nome] || {}; a[ano] = (a[ano] || 0) + r.porAno[ano]; });
+        const resta = r.restam || i < ARQ_ABAS.length - 1;
+        if (Date.now() - t0 >= tempo && resta) {
+          props.setProperty('ARQUIVO_PROGRESSO', JSON.stringify({ aba: r.restam ? nome : ARQ_ABAS[i + 1], porAba: porAba, em: Date.now() }));
+          return resumoArquivamento_({ ok: true, incompleto: true, backup: backup }, porAba);
+        }
+        if (!r.restam) break;
+      }
+    }
+    props.deleteProperty('ARQUIVO_PROGRESSO');
+    const cache = CacheService.getScriptCache();                     // nenhum cache guarda linhas dessas abas; estes dois dependem de Turnos/consultas
+    ['auto_encerrar', 'indice_reinc'].forEach(function (k) { try { cache.remove(k); } catch (e) { /* segue */ } });
+    const r = resumoArquivamento_({ ok: true, backup: backup }, porAba);
+    props.setProperty('ULTIMO_ARQUIVAMENTO', JSON.stringify({ em: Date.now(), porAba: porAba, total: r.total, arquivos: r.arquivos }));
+    return r;
+  } catch (e) {
+    const erro = String((e && e.message) || e).slice(0, 300);
+    try { props.setProperty('ULTIMO_ARQUIVAMENTO_ERRO', JSON.stringify({ em: Date.now(), erro: erro })); } catch (e2) { /* nada a fazer */ }
+    return { ok: false, erro: erro };
+  }
+}
+
+function resumoArquivamento_(r, porAba) {
+  const anos = {};
+  let total = 0;
+  Object.keys(porAba).forEach(function (aba) { Object.keys(porAba[aba]).forEach(function (ano) { anos[ano] = true; total += porAba[aba][ano]; }); });
+  r.porAba = porAba; r.total = total;
+  r.arquivos = Object.keys(anos).sort().map(function (ano) { const i = infoArquivoAnual_(ano); return { ano: Number(ano), url: i ? i.url : '' }; });
+  return r;
+}
+
+/**
+ * Aviso do painel quando o período começa antes de 1º/jan do ano anterior e já existe arquivo anual de algum ano do período:
+ * {texto, arquivos: [{ano, url}]} (só lê as propriedades; não abre os arquivos). null = nada a avisar.
+ */
+function avisoArquivo_(de) {
+  const limite = anoAtualManaus_() - 1, ini = anoDia_(de);
+  if (!ini || ini >= limite) return null;
+  const arquivos = [];
+  for (let ano = ini; ano < limite; ano++) { const i = infoArquivoAnual_(ano); if (i && i.url) arquivos.push({ ano: ano, url: i.url }); }
+  if (!arquivos.length) return null;
+  return { texto: 'Dados de veículos e turnos de ' + arquivos.map(function (a) { return a.ano; }).join(' e ') + ' estão no arquivo anual: ' +
+                  arquivos.map(function (a) { return a.url; }).join(' · '), arquivos: arquivos };
 }
 
 /* --- relatório mensal --- */
@@ -1968,6 +2210,7 @@ function onOpen() {
     .addItem('Ativar rotinas automáticas', 'menuAtivarRotinas')
     .addItem('Desativar rotinas automáticas', 'menuDesativarRotinas')
     .addItem('Fazer backup agora', 'menuBackupAgora')
+    .addItem('Arquivar anos antigos agora', 'menuArquivarAgora')
     .addItem('Definir e-mails do relatório mensal', 'menuEmailsRelatorio')
     .addItem('Enviar relatório do mês passado agora', 'menuEnviarRelatorio')
     .addToUi();
@@ -1980,7 +2223,7 @@ function menuAtivarRotinas() {
     const r = ativarRotinasAutomaticas_();
     ui.alert('Rotinas automáticas ativas', r.ativas.map(function (n) { return '• ' + n; }).join('\n') +
       (r.criadas.length ? '' : '\n\n(Já estavam ativas: nada foi duplicado.)') +
-      '\n\nBackups na pasta "' + BACKUP_PASTA + '" do seu Drive. Relatório para: ' + (destinatariosRelatorio_().join(', ') || '(ninguém)') + '.', ui.ButtonSet.OK);
+      '\n\nBackups na pasta "' + BACKUP_PASTA + '" e arquivos anuais na pasta "' + ARQ_PASTA + '" do seu Drive. Relatório para: ' + (destinatariosRelatorio_().join(', ') || '(ninguém)') + '.', ui.ButtonSet.OK);
   } catch (e) { ui.alert('Não foi possível ativar', String(e.message || e), ui.ButtonSet.OK); }
 }
 
@@ -1988,7 +2231,7 @@ function menuDesativarRotinas() {
   const ui = SpreadsheetApp.getUi();
   try {
     const n = desativarRotinasAutomaticas_();
-    ui.alert('Rotinas automáticas desativadas', n + ' gatilho(s) removido(s). Turnos esquecidos abertos deixam de ser encerrados sozinhos e não há mais backup diário nem relatório mensal.', ui.ButtonSet.OK);
+    ui.alert('Rotinas automáticas desativadas', n + ' gatilho(s) removido(s). Turnos esquecidos abertos deixam de ser encerrados sozinhos e não há mais backup diário, relatório mensal nem arquivamento anual automático (o menu "Arquivar anos antigos agora" continua funcionando).', ui.ButtonSet.OK);
   } catch (e) { ui.alert('Não foi possível desativar', String(e.message || e), ui.ButtonSet.OK); }
 }
 
@@ -1996,6 +2239,21 @@ function menuBackupAgora() {
   const ui = SpreadsheetApp.getUi(), r = backupDiario();
   if (r.ok) ui.alert('Backup feito', r.nome + ' na pasta "' + BACKUP_PASTA + '" do seu Drive.' + (r.apagados ? '\n' + r.apagados + ' cópia(s) antiga(s) foram para a lixeira.' : ''), ui.ButtonSet.OK);
   else ui.alert('Não foi possível fazer o backup', r.erro, ui.ButtonSet.OK);
+}
+
+/** Arquivamento anual na hora (mesmo com as rotinas desativadas). Mostra quantas linhas saíram de cada aba e os links dos arquivos. */
+function menuArquivarAgora() {
+  const ui = SpreadsheetApp.getUi(), r = arquivarAnosAntigos_({ manual: true });
+  if (!r.ok) { ui.alert('Não foi possível arquivar', r.erro, ui.ButtonSet.OK); return; }
+  if (r.nada) { ui.alert('Nada a arquivar', 'A planilha só tem dados de ' + (anoAtualManaus_() - 1) + ' e ' + anoAtualManaus_() + ' (ou turnos ainda abertos).', ui.ButtonSet.OK); return; }
+  const linhas = Object.keys(r.porAba).map(function (aba) {
+    return '• ' + aba + ': ' + Object.keys(r.porAba[aba]).sort().map(function (ano) { return r.porAba[aba][ano] + ' linha(s) de ' + ano; }).join(', ');
+  });
+  ui.alert(r.incompleto ? 'Arquivamento em andamento' : 'Arquivamento concluído',
+    (linhas.join('\n') || 'Nenhuma linha movida.') + '\n\nArquivos (pasta "' + ARQ_PASTA + '" do seu Drive):\n' +
+    r.arquivos.map(function (a) { return ARQ_PREFIXO + a.ano + ': ' + a.url; }).join('\n') +
+    (r.incompleto ? '\n\nO tempo da execução acabou: rode de novo para continuar (o gatilho diário também continua sozinho).' : '') +
+    (r.backup && r.backup.ok ? '\n\nBackup feito antes: ' + r.backup.nome + '.' : ''), ui.ButtonSet.OK);
 }
 
 function menuEmailsRelatorio() {
@@ -2119,7 +2377,11 @@ function planilha_() {
 }
 
 function aba_(nome) {
-  const ss = planilha_();
+  return abaDe_(planilha_(), nome);
+}
+
+/** Aba "nome" na planilha ss (a principal ou um arquivo anual), criada com o cabeçalho de TABELAS se não existir. */
+function abaDe_(ss, nome) {
   let sh = ss.getSheetByName(nome);
   if (!sh) {
     const cols = TABELAS[nome];

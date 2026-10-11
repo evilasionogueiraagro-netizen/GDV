@@ -377,12 +377,12 @@ const PCEUI = (() => {
   }
 
   /* ---------- GPS ---------- */
-  async function capturarGPS(pref) {
+  async function capturarGPS(pref, automatico) {
     const st = $('#' + pref + 'gps-st'), form = st && st.closest('form'); if (!st) return;
     st.textContent = '📍 Obtendo localização…';
-    const g = await pegarLocal();
+    const g = automatico ? await pegarLocalSilencioso() : await pegarLocal();   // ao abrir o formulário, sem pedir permissão
     if (!form.isConnected) return;
-    if (!g) { st.textContent = '⚠️ GPS indisponível ou permissão negada. Toque em “Atualizar GPS” para tentar de novo.'; return; }
+    if (!g) { st.textContent = automatico ? 'Toque em “Atualizar GPS” para registrar a localização.' : '⚠️ GPS indisponível ou permissão negada. Toque em “Atualizar GPS” para tentar de novo.'; return; }
     $('#' + pref + 'lat').value = g.lat; $('#' + pref + 'lon').value = g.lng; $('#' + pref + 'precisao').value = g.prec;
     st.textContent = `✓ Localização obtida (precisão aproximada: ${g.prec} m).`;
     agendarRascunho();
@@ -612,7 +612,7 @@ const PCEUI = (() => {
     });
     f.onsubmit = ev => { ev.preventDefault(); salvarLev(); };
     if (F.antigo) { const p1 = $(D.sNome ? (D.data ? '#pce-hora' : '#pce-data') : '#pce-snome'); if (p1 && F.novo) p1.focus(); }
-    else if (F.novo && (D.lat === '' || D.lat == null)) capturarGPS('pce-');               // GPS automático ao abrir
+    else if (F.novo && (D.lat === '' || D.lat == null)) capturarGPS('pce-', true);         // GPS automático ao abrir (sem pedir permissão)
   }
 
   async function salvarLev(outro) {
@@ -880,7 +880,7 @@ const PCEUI = (() => {
     });
     f.onsubmit = ev => { ev.preventDefault(); gerarTermo(); };
     if (F.antigo) { const p1 = $(D.unidade ? '#pce-t-numpapel' : '#pce-t-unidade'); if (p1) p1.focus(); }
-    else if (D.lat === '' || D.lat == null) capturarGPS('pce-t-');
+    else if (D.lat === '' || D.lat == null) capturarGPS('pce-t-', true);
   }
 
   function pedirNumero(o) {                                                // popup: número vindo da planilha, editável antes do PDF

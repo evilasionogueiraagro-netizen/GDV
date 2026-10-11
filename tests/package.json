@@ -1,0 +1,15 @@
+{
+  "name": "gdv-testes",
+  "private": true,
+  "description": "Testes automáticos do GDV: Code.gs real no fakegas + app/painel no Chromium (Playwright)",
+  "scripts": {
+    "test": "node run.js",
+    "navegador": "playwright-core install --with-deps chromium"
+  },
+  "dependencies": {
+    "playwright-core": "1.54.2"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

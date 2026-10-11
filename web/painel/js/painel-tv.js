@@ -517,7 +517,8 @@
     const d = P.dados, f = P.filtros, p = P.paleta, K = M.calculos(d, f), cb = K.cob;
     // cobertura municipal: indicador com medidor (cobertos ÷ municípios do estado)
     kpisTV(palco, escolher(M.indicadores(d, f), ['levantamentos', 'taxa', 'negativos', 'termos', 'cobertura'],
-      { cobertura: { medidor: cb.total ? cb.cobertos / cb.total : 0, detalhe: `${fmt.int(cb.semVisitaAno)} sem nenhum no último ano` } }));
+      { negativos: { rotulo: 'Negativos' },                 // rótulo curto: cabe na TV com qualquer fonte
+        cobertura: { medidor: cb.total ? cb.cobertos / cb.total : 0, detalhe: `${fmt.int(cb.semVisitaAno)} sem nenhum no último ano` } }));
     const g = el('div', 'tv-grade tv-grade-pce'); palco.appendChild(g);
     const cm = cartao(g, 'Calor de pragas e levantamentos', 'Detecções de pragas/doenças e levantamentos com GPS', 'tv-cartao-mapa');
     const divMapa = el('div', 'tv-mapa-lugar'); cm.appendChild(divMapa);

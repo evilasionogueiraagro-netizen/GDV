@@ -92,7 +92,9 @@ const ctx = {
   LockService: { getScriptLock: () => ({ waitLock() { if (lockFalha && --lockFalha === 0) throw new Error('Lock timeout: another process was holding the lock for too long.'); }, releaseLock() {} }) },
   Utilities: { formatDate: d => d.toISOString().slice(0, 10), getUuid: () => require('crypto').randomUUID(),
     base64Decode: s => { if (!/^[A-Za-z0-9+/]*={0,2}$/.test(s)) throw new Error('Could not decode string.'); return Array.from(Buffer.from(s, 'base64')).map(b => (b > 127 ? b - 256 : b)); },
-    newBlob: (bytes, mime, nome) => ({ bytes, getName: () => nome, getContentType: () => mime, getBytes: () => bytes }) },
+    newBlob: (bytes, mime, nome) => ({ bytes, getName: () => nome, getContentType: () => mime, getBytes: () => bytes }),
+    DigestAlgorithm: { SHA_256: 'sha256' }, Charset: { UTF_8: 'utf8' },   // computeDigest devolve bytes com sinal (-128..127), como no Apps Script
+    computeDigest: (alg, txt) => Array.from(require('crypto').createHash(alg).update(String(txt), 'utf8').digest()).map(b => (b > 127 ? b - 256 : b)) },
   DriveApp,
   Session: { getActiveUser: () => ({ getEmail: () => emailAtual }), getEffectiveUser: () => ({ getEmail: () => emailDono }) },
   HtmlService: { createHtmlOutput: h => ({ kind: 'html', content: h, setTitle() { return this; } }), createHtmlOutputFromFile: n => ({ kind: 'arquivo', name: n, setTitle() { return this; }, addMetaTag() { return this; } }) },

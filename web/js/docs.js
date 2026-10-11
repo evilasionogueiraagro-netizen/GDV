@@ -142,9 +142,51 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     return r;
   }
 
+  /* QR code de autenticidade: verificar.html?t=<id do TF>, no mesmo endereço do app (GitHub Pages; nos testes, localhost). */
+  const urlVerificar = id => new URL('verificar.html?t=' + encodeURIComponent(id), location.href).href;
+  function qrSVG(txt) {
+    if (typeof qrcode !== 'function') return '';                     // vendor/qrcode.js (offline, no cache do service worker)
+    const q = qrcode(0, 'M'); q.addData(txt); q.make();
+    return q.createSvgTag({ cellSize: 2, margin: 4, scalable: true, alt: 'QR code de verificação de autenticidade' });
+  }
+  /** Assinaturas do TF (imagem no lugar da linha) e recusa do fiscalizado (texto no lugar da assinatura). */
+  function assinaturasTF(d, t, arquivos) {
+    const ass = jsonPce(t.assinaturas, {}), recusa = Number(t.recusaAssinatura) === 1;
+    d.querySelectorAll('[data-papel]').forEach(b => {
+      const papel = b.getAttribute('data-papel'), area = b.querySelector('.ass-img');
+      area.textContent = '';
+      if (papel === 'fiscalizado' && recusa) {
+        const r = d.createElement('div'); r.className = 'ass-recusa';
+        const bb = d.createElement('b'); bb.textContent = 'Recusou-se a assinar';
+        r.append(bb, d.createElement('br'), `Atestado por ${t.fiscal || 'servidor da ADAF'} em ${t.data ? dataBR(t.data) : ''} às ${t.hora || ''}`);
+        area.append(r); b.classList.add('assinada'); return;
+      }
+      const src = imgSegura(arquivos[ass[papel]]);
+      if (src) { const im = d.createElement('img'); im.src = src; im.alt = 'Assinatura'; area.append(im); b.classList.add('assinada'); }
+    });
+  }
+  /** Anexo fotográfico: folha(s) no fim, depois das vias, com as fotos em grade (2 por linha) e legenda nº/data. */
+  function anexoFotos(d, t, ids, arquivos, depoisDe) {
+    const pg = d.createElement('div'); pg.className = 'a4 anexo';
+    const via = d.createElement('div'); via.className = 'via'; via.textContent = 'Anexo';
+    const h = d.createElement('h2'); h.textContent = `Anexo fotográfico — TF nº ${t.numeroTxt}`;
+    const sub = d.createElement('p'); sub.className = 'anexo-sub'; sub.textContent = `${ids.length} foto(s) · ${t.data ? dataBR(t.data) : ''} ${t.hora || ''} · ${t.local || ''}`;
+    const grade = d.createElement('div'); grade.className = 'anexo-fotos';
+    ids.forEach((fid, i) => {
+      const fig = d.createElement('figure'), src = imgSegura(arquivos[fid]);
+      if (src) { const im = d.createElement('img'); im.src = src; im.alt = 'Foto ' + (i + 1); fig.append(im); }
+      else { const sm = d.createElement('div'); sm.className = 'sem-foto'; sm.textContent = 'foto arquivada no Drive'; fig.append(sm); }
+      const c = d.createElement('figcaption'); c.textContent = `Foto ${i + 1} de ${ids.length} — ${t.data ? dataBR(t.data) : ''}`; fig.append(c);
+      grade.append(fig);
+    });
+    pg.append(via, h, sub, grade); depoisDe.after(pg);
+    return pg;
+  }
+
   async function tf(id) {
     const t = await Store.obter('tfs', id);
     if (!t) throw new Error('TF não encontrado.');
+    const arquivos = typeof Anexos !== 'undefined' ? await Anexos.arquivosPorId(t) : {};
     const f = await abrirModelo('tf.html'), d = f.contentDocument;
     const set = (i, v) => { const e = d.getElementById(i); if (e) e.textContent = v == null ? '' : String(v); };
     const marca = b => (b ? '☑' : '☐');
@@ -164,6 +206,12 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     const dc = (rot, k) => ({ w: 25, t: `${marca(docs[k])} ${rot} ${docs[k] || '____________'}` });
     grade('documentos', [[dc('NF Nº', 'nf'), dc('SIF Nº', 'sif'), dc('PTV Nº', 'ptv'), dc('SIE Nº', 'sie')], [dc('SIM Nº', 'sim'), dc('GTA Nº', 'gta'), dc('LACRE', 'lacre'), dc('OUTROS', 'outros')]]);
     set('produtos', prods.join('\n')); set('constatacao', t.constatacao); set('enquadramento', t.enquadramento);
+    assinaturasTF(d, t, arquivos);
+    const url = urlVerificar(t.id), svg = qrSVG(url), vf = d.getElementById('verif');
+    if (svg && vf) {                                                // nas duas vias (clonadas abaixo)
+      d.getElementById('verif_qr').innerHTML = svg; vf.setAttribute('data-url', url); vf.hidden = false;
+      const u = new URL(url); set('verif_url', u.host + u.pathname); set('verif_cod', 'Código: ' + t.id);
+    }
 
     const pg = d.querySelector('.a4'), vias = CONFIG.TF.vias;
     await caberEmUmaPagina(d, pg);                                  // antes de duplicar: as 2 vias saem iguais
@@ -171,6 +219,9 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     const paginas = [pg];
     vias.slice(1).forEach(() => { const c = pg.cloneNode(true); paginas[paginas.length - 1].after(c); paginas.push(c); });
     paginas.forEach((p, i) => { p.querySelector('.via').textContent = vias[i] || ''; });
+    const fotos = listaIds(t.fotos);
+    if (fotos.length) anexoFotos(d, t, fotos, arquivos, paginas[paginas.length - 1]);   // uma vez só, depois das vias
+    await Promise.all([...d.images].map(im => (im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; }))));
     const nomeArq = `TF ${String(t.numeroTxt).replace(/\//g, '-')} ${prods.map(p => String(p).split(' - ')[0]).join('_') || 'SEM_PRODUTO'} ${PROC_TITULO[t.procedimento] || 'OUTRO'}`;
     imprimir(f, nomeArq);
   }

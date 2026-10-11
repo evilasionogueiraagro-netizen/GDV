@@ -129,8 +129,9 @@ const APP = 'https://evilasionogueiraagro-netizen.github.io/GDV/';
   /* ================= painel (Playwright) ================= */
   console.log('2. Painel');
   // dados mínimos para o painel abrir
-  const hoje = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10), ag = Date.now();
-  await post({ action: 'sync', key: 'segredo', since: 0, turnos: [{ id: 'ac1', numeroTF: 'X', data: hoje, letra: 'A', inicio: '06:00', fim: '', fiscal: 'Fiscal Menu Silva', local: 'Barreira Porto CEASA', unidade: 'MANAUS', posto: 'Fixa', encerrado: 0, criadoEm: ag, atualizadoEm: ag, latIni: '-3.1', lngIni: '-60.0' }] });
+  // turno aberto há 1 h (horário de Manaus): com início fixo (06:00) o teste falhava depois das 18:00, com o alerta "aberta há mais de 12 h" nas abas
+  const ini = new Date(Date.now() - 4 * 3600e3 - 3600e3).toISOString(), hoje = ini.slice(0, 10), ag = Date.now();
+  await post({ action: 'sync', key: 'segredo', since: 0, turnos: [{ id: 'ac1', numeroTF: 'X', data: hoje, letra: 'A', inicio: ini.slice(11, 16), fim: '', fiscal: 'Fiscal Menu Silva', local: 'Barreira Porto CEASA', unidade: 'MANAUS', posto: 'Fixa', encerrado: 0, criadoEm: ag, atualizadoEm: ag, latIni: '-3.1', lngIni: '-60.0' }] });
   const adm2 = await gerar('Gerente Web', 'admin');
   const b = await amb.lancar();
   const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');

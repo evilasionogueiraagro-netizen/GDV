@@ -1,14 +1,15 @@
 # Testes automáticos do GDV
 
-- `fakegas.js`: executa o `apps-script/Code.gs` **real** numa VM do Node, com SpreadsheetApp, Lock, Cache, Properties, Utilities, Drive, ScriptApp, MailApp, Session e HtmlService falsos (tudo em memória). Serve a API (`doPost` e as rotas de controle `/__*` usadas pelos testes) na porta **8082** e a pasta `web/` na **8081**.
+- `fakegas.js`: executa o `apps-script/Code.gs` **real** numa VM do Node, com SpreadsheetApp, Lock, Cache, Properties, Utilities, Drive, ScriptApp, MailApp, Session e HtmlService falsos (tudo em memória). `Utilities.computeDigest` (SHA-256) é o real do Node; o Cache falso ignora o prazo de validade (`put(k, v, segundos)` guarda para sempre). Serve a API (`doPost` e as rotas de controle `/__*` usadas pelos testes) na porta **8082** e a pasta `web/` na **8081**.
 - `*.js` (exceto `fakegas.js` e `run.js`): um teste cada. Os do app/painel/TV usam o Chromium via `playwright-core`; os `*_server_test.js` só falam HTTP com o fakegas.
+- `tf_anexos_test.js`: fotos e assinatura na tela no TF (Drive falso em `GDV - Arquivos/TF/<ano>`), recusa, anexo fotográfico e PDF (precisa do `pypdf`, como o `tf_paginas`), QR code e `verificar.html`, índice de reincidência sem internet e permissões.
 - `run.js`: executor. Roda os testes **um de cada vez**, cada um com um fakegas novo (planilha vazia).
 - `lib/amb.js`: portas, URLs, pasta de saída e abertura do navegador (comum a todos os testes). `lib/relogio.js`: relógio deslocado para testes que dependem da data.
 - `saida/` (fora do git): screenshots, PDFs, `logs/<teste>.log`, `logs/<teste>.fakegas.log` e `resumo.txt`.
 
 ## Rodar localmente
 
-Precisa de Node 20+ e, para o `tf_paginas`, de `python3` com `pypdf` (`pip install pypdf`).
+Precisa de Node 20+ e, para o `tf_paginas`, de `python3` com `pypdf` (`pip install pypdf`; o `tf_anexos_test` só pula a conferência das páginas do PDF sem ele).
 
 ```sh
 cd tests

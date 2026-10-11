@@ -33,7 +33,8 @@ const TABELAS = {
         'doc', 'nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone', 'relacao', 'inspecao', 'coleta', 'amostras',
         'procedimento', 'fiel', 'auto', 'advertencia', 'documentos', 'produtos', 'constatacao', 'enquadramento',
         'reincidente', 'tfsAnteriores', 'cancelado', 'motivoCancel', 'conflito', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
-        'numeroSugerido', 'numeroOrigem', 'emitidoEm'],   // auditoria da numeração (colunas novas ficam sempre no fim)
+        'numeroSugerido', 'numeroOrigem', 'emitidoEm',   // auditoria da numeração (colunas novas ficam sempre no fim)
+        'fotos', 'assinaturas', 'recusaAssinatura'],    // fotos = JSON [ids]; assinaturas = JSON {fiscalizado, servidor} (ids na aba Arquivos); recusaAssinatura = 1: fiscalizado se recusou
   Pessoas: ['id', 'tipo', 'nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
             'email'],                                                                                                              // id = CPF/CNPJ (só dígitos)
   Placas: ['id', 'doc', 'nome', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],                                                    // id = placa
@@ -74,7 +75,7 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criad
                           'ano', 'numero', 'ultimo', 'de', 'ate', 'em', 'numeroSugerido', 'emitidoEm', 'amostras', 'inspecao', 'coleta', 'fiel', 'auto',
                           'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito', 'tamanho',
                           'inicioTs', 'atualizadoTs', 'registroAntigo', 'encerradoEm',
-                          'standalone', 'online', 'ultimoSinal', 'ultimoErroEm', 'primeiroSinal'];   // lat/lon/precisao ficam como texto (como em Turnos)
+                          'standalone', 'online', 'ultimoSinal', 'ultimoErroEm', 'primeiroSinal', 'recusaAssinatura'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, pragas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000 };   // demais colunas: 500
 // culturas/fotos/assinaturas são JSON: cortar o texto invalidaria o JSON (e apagaria as referências no aparelho). Os limites acima
@@ -103,8 +104,10 @@ function doPost(e) {
     if (req.action === 'painelRevogar') return json_(painelRevogar(req.key, req.nome));
     if (req.action === 'painelPermissoes') return json_(painelPermissoes(req.key, req.nome, req));
     if (req.action === 'painelEncerrarTurno') return json_(painelEncerrarTurno(req.key, req.turnoId, req.fim));
+    if (req.action === 'tfVerificar') return json_(tfVerificar_(req));                      // página pública verificar.html: sem credencial
     const usuario = autenticar_(req.key);
-    const modulo = MODULO_DA_ACAO[req.action];                                              // TF/PCE: o servidor confere a autorização do módulo
+    // TF/PCE: o servidor confere a autorização do módulo (foto/assinatura de TF = módulo TF; as demais, PCE)
+    const modulo = req.action === 'arquivoEnviar' && req.arquivo && req.arquivo.dono === 'tfs' ? 'tf' : MODULO_DA_ACAO[req.action];
     if (modulo) exigirModulo_(usuario, modulo);
     if (req.action === 'ping') return json_(ping_(req, usuario));
     if (req.action === 'sync') return json_(sincronizar_(req, usuario));
@@ -116,6 +119,7 @@ function doPost(e) {
     if (req.action === 'pceConsultar') return json_(pceConsultar_(req, usuario));
     if (req.action === 'arquivoEnviar') return json_(arquivoEnviar_(req, usuario));
     if (req.action === 'tfAndamento') return json_(tfAndamento_(req, usuario));
+    if (req.action === 'tfIndiceReincidencia') return json_(tfIndiceReincidencia_(req));
     throw new Error('Ação inválida.');
   } catch (err) {
     const r = { ok: false, erro: String(err.message || err) };
@@ -467,6 +471,102 @@ function consultar_(req, usuario) {
   };
 }
 
+/* ---------- Verificação pública de autenticidade (verificar.html, sem credencial) ---------- */
+
+const VERIF_MAX_INVALIDAS = 30;                 // consultas a ids inexistentes/inválidos por minuto (todas as origens): freia varredura
+const RE_ID_TF_ = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;   // o id do TF é UUID v4 gerado no aparelho (não adivinhável)
+
+/** Placa parcialmente mascarada: "ABC1D23" → "ABC***3". */
+function placaMascarada_(v) {
+  const p = placaNorm_(v);
+  return p.length >= 5 ? p.slice(0, 3) + '***' + p.slice(-1) : (p ? '***' : '');
+}
+
+/**
+ * tfVerificar {id}: o QR code impresso no TF leva a verificar.html?t=<id>. Devolve só o necessário para conferir o documento —
+ * nº, data/hora, barreira, procedimento, servidor, situação (válido/cancelado e motivo) e placa mascarada. Nunca CPF/CNPJ, nome do
+ * fiscalizado, endereço, telefone ou produtos. Ids inválidos ou não encontrados contam num limite global por minuto (CacheService).
+ */
+function tfVerificar_(req) {
+  const cache = CacheService.getScriptCache(), chave = 'verif_inval_' + Math.floor(Date.now() / 60000);
+  const invalidas = Number(cache.get(chave) || 0);
+  if (invalidas >= VERIF_MAX_INVALIDAS) throw new Error('Muitas consultas em pouco tempo. Aguarde um minuto e tente de novo.');
+  const id = String(req.id || '').trim().toLowerCase();
+  const t = RE_ID_TF_.test(id) ? lerLeitura_('TFs').filter(function (r) { return String(r.id).toLowerCase() === id; })[0] : null;
+  if (!t) { cache.put(chave, String(invalidas + 1), 120); return { ok: true, encontrado: false }; }
+  const bar = lerLeitura_('Barreiras').filter(function (b) { return b.id === t.barreira; })[0];
+  const PROC = { liberacao: 'Liberação', apreensao: 'Apreensão p/ destruição', rechaco: 'Rechaço (retorno à origem)' };
+  return { ok: true, encontrado: true, tf: {
+    numeroTxt: t.numeroTxt, data: t.data, hora: t.hora, barreira: bar ? bar.nome : t.barreira,
+    procedimento: PROC[t.procedimento] || 'Não informado', servidor: t.fiscal || t.usuario,
+    situacao: t.cancelado === 1 ? 'cancelado' : 'valido', motivoCancel: t.cancelado === 1 ? t.motivoCancel : '',
+    placa: placaMascarada_(t.placa), emitidoEm: t.emitidoEm || null } };
+}
+
+/* ---------- Índice de reincidência (consulta sem internet no app) ---------- */
+
+const INDICE_CACHE_S = 600;                     // índice completo guardado por 10 min (CacheService)
+/** SHA-256 em hex (16 primeiros caracteres) de "doc:<dígitos>" ou "placa:<placa>". */
+function hashIndice_(txt) {
+  const b = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, txt, Utilities.Charset.UTF_8);
+  return b.slice(0, 8).map(function (x) { return ((x + 256) % 256).toString(16).padStart(2, '0'); }).join('');
+}
+/** Agrega os TFs (t._h = hashes das chaves) por chave: {h, n, ap, re, au, li, ad, ult}; cancelados não contam (mas a chave aparece, com n = 0). */
+function agregarIndice_(tfs) {
+  const m = {};
+  const somar = function (h, t) {
+    const a = m[h] = m[h] || { h: h, n: 0, ap: 0, re: 0, au: 0, li: 0, ad: 0, ult: '' };
+    if (t.cancelado === 1) return;
+    a.n++;
+    if (t.procedimento === 'apreensao') a.ap++; else if (t.procedimento === 'rechaco') a.re++; else if (t.procedimento === 'liberacao') a.li++;
+    if (t.auto === 1) a.au++; if (t.advertencia === 1) a.ad++;
+    if (String(t.data) > a.ult) a.ult = String(t.data);
+  };
+  tfs.forEach(function (t) { t._h.forEach(function (h) { somar(h, t); }); });
+  return Object.keys(m).map(function (k) { return m[k]; });
+}
+/** Hashes das chaves do TF (documento e placa); com filtro {docs, placas}, só as chaves que estão nele. */
+function chavesTF_(t, filtro) {
+  const h = [], d = digitos_(t.doc), p = placaNorm_(t.placa);
+  if ((d.length === 11 || d.length === 14) && (!filtro || filtro.docs[d])) h.push(hashIndice_('doc:' + d));
+  if (p.length >= 7 && (!filtro || filtro.placas[p])) h.push(hashIndice_('placa:' + p));
+  return h;
+}
+/**
+ * tfIndiceReincidencia {key, desde}: histórico de TODOS os TFs (todas as barreiras) resumido por hash do CPF/CNPJ e da placa, sem dados
+ * pessoais em claro. Com desde (ms do índice anterior): só as chaves com TF gravado/alterado depois, recalculadas por inteiro (n = 0 =
+ * apagar). Sem desde: índice completo (guardado 10 min no CacheService e completado com o que mudou desde então).
+ * Devolve {ok, agora, completo, itens: [{h, n, ap, re, au, li, ad, ult}]}.
+ */
+function tfIndiceReincidencia_(req) {
+  const desde = Number(req.desde) || 0, cache = CacheService.getScriptCache(), agora = Date.now();
+  const tfs = lerLeitura_('TFs').filter(function (t) { return t.id; });
+  let base = null;
+  if (!desde) { try { base = JSON.parse(cache.get('indice_reinc') || 'null'); } catch (e) { base = null; } }
+  if (!desde && !base) {
+    tfs.forEach(function (t) { t._h = chavesTF_(t, null); });
+    const r = { agora: agora, completo: true, itens: agregarIndice_(tfs).filter(function (a) { return a.n > 0; }) };
+    const txt = JSON.stringify(r);
+    if (txt.length < 90000) { try { cache.put('indice_reinc', txt, INDICE_CACHE_S); } catch (e) { /* grande demais para o cache */ } }
+    r.ok = true;
+    return r;
+  }
+  // só as chaves (documento/placa, comparados em claro aqui no servidor) com TF gravado ou alterado depois de "ref" (1 s de folga)
+  const ref = desde || base.agora, filtro = { docs: {}, placas: {} };
+  tfs.forEach(function (t) {
+    if (t.srv_ts < ref - 1000) return;
+    filtro.docs[digitos_(t.doc)] = true; filtro.placas[placaNorm_(t.placa)] = true;
+  });
+  const sel = tfs.filter(function (t) { return filtro.docs[digitos_(t.doc)] || filtro.placas[placaNorm_(t.placa)]; });
+  sel.forEach(function (t) { t._h = chavesTF_(t, filtro); });
+  const itens = agregarIndice_(sel);
+  if (!base) return { ok: true, agora: agora, completo: false, itens: itens };
+  const m = {};
+  base.itens.forEach(function (a) { m[a.h] = a; });
+  itens.forEach(function (a) { m[a.h] = a; });
+  return { ok: true, agora: agora, completo: true, itens: Object.keys(m).map(function (k) { return m[k]; }).filter(function (a) { return a.n > 0; }) };
+}
+
 /* ---------- TF em preenchimento (sinal ao vivo para o painel) ---------- */
 
 const ANDAMENTO_VALIDADE_MS = 10 * 60 * 1000;   // sem batimento (o app manda a cada 2 min) há mais de 10 min = encerrado
@@ -624,7 +724,8 @@ function pastaArquivos_() {
 }
 
 /**
- * Recebe UMA foto/assinatura/PDF (base64 sem o prefixo "data:") e grava no Drive, em GDV - Arquivos/PCE/<ano>/<dono>.
+ * Recebe UMA foto/assinatura/PDF (base64 sem o prefixo "data:") e grava no Drive, em GDV - Arquivos/PCE/<ano>/<dono> (levantamentos,
+ * colheitas) ou GDV - Arquivos/TF/<ano> (dono "tfs": fotos e assinaturas do TF de Barreira; sem PDF).
  * tipo "documento" = PDF escaneado (application/pdf, até 10 MB, conteúdo começando por "%PDF-"); foto/assinatura = JPEG/PNG até 4 MB.
  * Idempotente pelo id: reenvio do mesmo arquivo devolve o registro já gravado. Os arquivos NÃO são compartilhados.
  */
@@ -635,10 +736,11 @@ function arquivoEnviar_(req, usuario) {
   // foto do levantamento por praga: "praga – cultura" a que a foto pertence (texto livre, só informativo: aba Arquivos e nome no Drive)
   const rotulo = tipo === 'foto' ? String(a.rotulo || '').replace(/\s+/g, ' ').trim().slice(0, 120) : '';
   if (!ARQ_RE_UUID.test(id)) throw new Error('Identificador de arquivo inválido.');
-  if (dono !== 'levantamentos' && dono !== 'colheitas') throw new Error('Arquivo sem registro de origem válido.');
+  if (dono !== 'levantamentos' && dono !== 'colheitas' && dono !== 'tfs') throw new Error('Arquivo sem registro de origem válido.');
   if (!donoId || donoId.length > 64) throw new Error('Arquivo sem registro de origem válido.');
   if (tipo !== 'foto' && tipo !== 'assinatura' && tipo !== 'documento') throw new Error('Tipo de arquivo inválido.');
-  if (['', 'servidor', 'produtor', 'testemunha1', 'testemunha2'].indexOf(papel) < 0) throw new Error('Papel da assinatura inválido.');
+  if (['', 'servidor', 'produtor', 'testemunha1', 'testemunha2', 'fiscalizado'].indexOf(papel) < 0) throw new Error('Papel da assinatura inválido.');
+  if (dono === 'tfs' && tipo === 'documento') throw new Error('TF não aceita documento (PDF).');
   if (!ARQ_MIMES[mime]) throw new Error('Formato não aceito (somente JPEG, PNG ou PDF).');
   const pdf = mime === 'application/pdf';
   if (pdf !== (tipo === 'documento')) throw new Error(pdf ? 'PDF só pode ser enviado como documento.' : 'Documento só pode ser PDF.');
@@ -667,7 +769,8 @@ function arquivoEnviar_(req, usuario) {
   let pasta, n;
   lock.waitLock(30000);
   try {                                                                     // pastas e numeração do nome sob lock (sem duplicar pastas)
-    pasta = subpasta_(subpasta_(subpasta_(pastaArquivos_(), 'PCE'), ano), dono);
+    pasta = dono === 'tfs' ? subpasta_(subpasta_(pastaArquivos_(), 'TF'), ano)          // TF: GDV - Arquivos/TF/<ano>
+      : subpasta_(subpasta_(subpasta_(pastaArquivos_(), 'PCE'), ano), dono);
     n = lerLeitura_('Arquivos').filter(function (r) { return r.dono === dono && r.donoId === donoId && r.tipo === tipo; }).length + 1;
   } finally { lock.releaseLock(); }
 
@@ -818,7 +921,7 @@ function painelGerarCodigo(token, nome, modulos) {
 const MODULOS = ['veiculos', 'tf', 'pce'];
 const NOME_MODULO = { veiculos: 'Educação Sanitária/Fiscalização de Trânsito', tf: 'TF de Barreira', pce: 'PCE' };
 // actions do app que pertencem a um módulo (o servidor recusa se o módulo não estiver liberado para quem chama)
-const MODULO_DA_ACAO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf',
+const MODULO_DA_ACAO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf', tfIndiceReincidencia: 'tf',
                          pceProximoNumero: 'pce', pceEmitir: 'pce', pceConsultar: 'pce', arquivoEnviar: 'pce' };
 const tudoLiberado_ = function () { return { veiculos: 1, tf: 1, pce: 1, antigo: 0 }; };   // "antigo" (Digitar do papel): desligado por padrão
 const MSG_SEM_ANTIGO = 'Sem autorização para digitar registros antigos (do papel). Fale com a gerência.';
@@ -1325,6 +1428,7 @@ function dadosPainel_(admin, filtro) {
              inspecao: r.inspecao, coleta: r.coleta, amostras: r.amostras, procedimento: r.procedimento, fiel: r.fiel, auto: r.auto,
              advertencia: r.advertencia, documentos: documentosTF_(r.documentos), produtos: produtosTF_(r.produtos),
              reincidente: r.reincidente, tfsAnteriores: r.tfsAnteriores, cancelado: r.cancelado, motivoCancel: r.motivoCancel,
+             nFotos: contarFotos_(r.fotos), assinado: contarAssinaturas_(r.assinaturas) ? 1 : 0,   // só contagens: nunca os ids/imagens (LGPD)
              criadoEm: r.criadoEm, srv_ts: r.srv_ts, usuario: r.usuario };
   });
 

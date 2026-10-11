@@ -44,7 +44,8 @@ const TFUI = (() => {
   }
 
   /* ---------- estado do formulário ---------- */
-  let S = null;                                                                   // { numero, hist:{doc,placa}, tpl, turnoId, veiculoId, rid }
+  // { hist:{doc,placa}, tpl, turnoId, veiculoId, rid, id (do TF, já na abertura: as fotos ficam ligadas a ele), fotos:[ids], ass, assNovas, recusa }
+  let S = null;
   const vazio = () => ({ barreira: '', data: hojeISO(), hora: agoraHM(), doc: '', nome: '', rg: '', endereco: '', municipio: '', uf: '', telefone: '', relacao: T.relacoes[0],
     inspecao: false, coleta: false, amostras: '', procedimento: '', fiel: false, auto: false, advertencia: false, local: '', placa: '', origem: '', destino: '',
     docs: { nf: '', ptv: '', gta: '', sif: '', sie: '', sim: '', lacre: '', outros: '' }, produtos: [{ p: '', q: '', u: T.unidades[0] }], constatacao: '', enquadramento: '' });
@@ -60,7 +61,66 @@ const TFUI = (() => {
       constatacao: g('constatacao'), enquadramento: g('enquadramento') };
   }
   let tRasc = null;
-  const salvarRascunho = () => { clearTimeout(tRasc); const f = $('#tfForm'); tRasc = setTimeout(() => { if (S && f && $('#tfForm') === f) Store.setMeta('tfRascunho', { dados: coletar(), turnoId: S.turnoId, veiculoId: S.veiculoId, rid: S.rid, em: Date.now() }); }, 500); };   // só grava se o formulário ainda for o mesmo que originou a digitação
+  const salvarRascunho = (atraso = 500) => { clearTimeout(tRasc); const f = $('#tfForm'); tRasc = setTimeout(() => { if (S && f && $('#tfForm') === f) Store.setMeta('tfRascunho', { dados: coletar(), turnoId: S.turnoId, veiculoId: S.veiculoId, rid: S.rid,
+    id: S.id, fotos: S.fotos, assNovas: S.assNovas, recusa: S.recusa ? 1 : 0, em: Date.now() }); }, atraso); };   // só grava se o formulário ainda for o mesmo que originou a digitação
+  /** Descarta um rascunho: apaga as fotos que só existiam nele (ainda não foram para nenhum TF salvo). */
+  const descartarRascunho = async rasc => { if (rasc && rasc.fotos) await Anexos.apagarSeNaoEnviado(rasc.fotos); await Store.setMeta('tfRascunho', null); };
+
+  /* ---------- fotos e assinatura na tela (núcleo comum em anexos.js, o mesmo do PCE) ---------- */
+  const MAX_FOTOS = T.maxFotos || 10;
+  const PAPEIS = { fiscalizado: 'Fiscalizado', servidor: 'Servidor' };
+  async function adicionarFotos(input) {
+    const files = [...(input.files || [])], st = S; input.value = '';
+    for (const file of files) {
+      if (st.fotos.length >= MAX_FOTOS) { toast(`Limite de ${MAX_FOTOS} fotos por TF.`, true); break; }
+      if (!/^image\//.test(file.type || 'image/')) { toast(`"${file.name}" não é uma imagem.`, true); continue; }
+      let a; try { a = Anexos.novoArquivo('tfs', st.id, 'foto', '', 'image/jpeg', await Anexos.reduzirFoto(file, T.fotoLado || CONFIG.PCE.fotoLado, T.fotoQualidade || CONFIG.PCE.fotoQualidade)); }
+      catch (e) { toast(e.message, true); continue; }
+      if (S !== st) return;                                                      // o formulário foi fechado enquanto a foto era processada
+      await Store.gravar('arquivos', a); st.fotos.push(a.id);
+    }
+    await renderFotos(); salvarRascunho(0);                                       // grava já: as fotos novas ficam ligadas ao rascunho
+  }
+  const renderFotos = () => S && Anexos.miniaturas($('#tf-fotos-prev'), S.fotos, 'data-tf="delfoto"');
+  /** Imagem atual da assinatura (desenhada agora ou já salva). */
+  async function srcAss(st, papel) {
+    if (st.assNovas[papel]) return st.assNovas[papel];
+    const a = st.ass[papel] ? await Store.obter('arquivos', st.ass[papel]) : null;
+    return (a && a.dados) || '';
+  }
+  /** Cartão das assinaturas: no formulário (st = S) e na tela do TF gerado (st = estado do TF salvo). */
+  const assCardHTML = st => `<div class="card" id="tf-ass-card"><h3>✍️ Assinaturas (opcional)</h3>
+      <p class="dica" style="text-align:left">Assine na tela, se quiser. Sem assinatura na tela, o TF sai com a linha em branco para assinar no papel.</p>
+      ${Object.keys(PAPEIS).map(p => `<div class="tf-ass" id="tf-ass-${p}"></div>`).join('')}
+      <label class="chk"><input type="checkbox" id="tf-recusa" ${st.recusa ? 'checked' : ''}> Fiscalizado se recusou a assinar</label></div>`;
+  async function desenharAss(st) {
+    for (const p of Object.keys(PAPEIS)) {
+      const el = $('#tf-ass-' + p); if (!el) continue;
+      const src = await srcAss(st, p), recusou = p === 'fiscalizado' && st.recusa;
+      el.innerHTML = `<div class="pce-ass-topo"><span>${PAPEIS[p]}</span></div>
+        ${recusou ? '<div class="tf-novo">Recusou-se a assinar: o TF registra a recusa no lugar da assinatura.</div>'
+          : `${src ? `<img class="tf-ass-img" src="${esc(src)}" alt="Assinatura: ${PAPEIS[p]}">` : '<div class="dica" style="text-align:left">Sem assinatura na tela (linha em branco no papel).</div>'}
+        <div class="duas"><button type="button" class="botao sec" data-tf="assinar" data-papel="${p}">✍️ ${src ? 'Assinar de novo' : 'Assinar na tela'}</button>
+        ${src ? `<button type="button" class="botao sec" data-tf="delass" data-papel="${p}">Remover</button>` : ''}</div>`}`;
+    }
+  }
+  /** Janela com o canvas: devolve a assinatura (dataURL PNG) ou null (cancelado). */
+  function pedirAssinatura(papel) {
+    return new Promise(ok => {
+      const m = document.createElement('div'); m.className = 'tf-modal';
+      m.innerHTML = `<div class="tf-modal-box"><h3>✍️ Assinatura: ${esc(PAPEIS[papel])}</h3>
+        <canvas id="tf-canvas" class="pce-canvas tf-canvas" aria-label="Assinatura: ${esc(PAPEIS[papel])}"></canvas>
+        <p class="dica">Assine com o dedo dentro do quadro.</p>
+        <div class="duas"><button class="botao sec" id="tf-c-limpar" type="button">Limpar</button><button class="botao sec" id="tf-c-cancel" type="button">Cancelar</button></div>
+        <button class="botao" id="tf-c-ok" type="button">Salvar assinatura</button></div>`;
+      document.body.append(m);
+      let img = null; const cv = m.querySelector('canvas');
+      Anexos.ligarCanvas(cv, null, d => { img = d; });
+      m.querySelector('#tf-c-limpar').onclick = () => { Anexos.limparCanvas(cv); img = null; };
+      m.querySelector('#tf-c-cancel').onclick = () => { m.remove(); ok(null); };
+      m.querySelector('#tf-c-ok').onclick = () => { if (!img) { toast('Assine dentro do quadro (ou toque em Cancelar).', true); return; } m.remove(); ok(img); };
+    });
+  }
 
   /* ---------- sinal "TF em preenchimento" para o painel do gestor ----------
      Melhor esforço: avisa ao abrir o formulário, ao mudar procedimento ou placa e a cada 2 min ("batimento"); "fim" ao gerar,
@@ -157,6 +217,12 @@ const TFUI = (() => {
     <div class="card"><h3>Constatação</h3><label><textarea id="tf-constatacao" rows="5">${esc(D.constatacao)}</textarea></label>
       <h3>Enquadramento legal</h3><label><textarea id="tf-enquadramento" rows="5" placeholder="Leis, decretos, portarias, artigos, incisos e alíneas">${esc(D.enquadramento)}</textarea></label></div>
 
+    <div class="card"><h3>📷 Fotos (opcional)</h3>
+      <label class="pce-arquivo">📷 Tirar foto / escolher da galeria<input type="file" id="tf-fotos" accept="image/*" multiple></label>
+      <p class="dica" style="text-align:left">Até ${MAX_FOTOS} fotos. Saem num anexo fotográfico no fim do PDF e vão para o Drive ao sincronizar.</p>
+      <div id="tf-fotos-prev" class="pce-fotos"></div></div>
+    ${assCardHTML(S)}
+
     <button class="botao" type="submit">📄 Gerar TF</button>
     <button class="botao sec" type="button" data-tf="descartar">Descartar este TF</button></form>`;
   }
@@ -173,12 +239,15 @@ const TFUI = (() => {
     prefill = prefill || {}; clearTimeout(tRasc);
     const bars = await barreiras();
     if (!bars.length) { view('<div class="card aviso">⚠️ A lista de barreiras ainda não foi carregada. Conecte-se à internet e aguarde a sincronização.</div>'); Sync.sincronizar(); return; }
-    let D = vazio(); S = { hist: { doc: null, placa: null }, tpl: { constatacao: '', enquadramento: '' }, turnoId: '', veiculoId: '', rid: Store.novoId() };
+    let D = vazio(); S = { hist: { doc: null, placa: null }, tpl: { constatacao: '', enquadramento: '' }, turnoId: '', veiculoId: '', rid: Store.novoId(),
+      id: Store.novoId(), fotos: [], ass: {}, assNovas: {}, recusa: false };
     const rasc = await Store.meta('tfRascunho');
     if (rasc && rasc.dados && confirm(`Há um TF não gerado, iniciado em ${new Date(rasc.em).toLocaleString('pt-BR')}.\n\nContinuar de onde parou? (Cancelar descarta o rascunho.)`)) {
       D = { ...D, ...rasc.dados }; S.turnoId = rasc.turnoId || ''; S.veiculoId = rasc.veiculoId || ''; if (rasc.rid) S.rid = rasc.rid;   // mesmo rascunho = mesmo sinal no painel
+      if (rasc.id) S.id = rasc.id;                                                   // fotos do rascunho continuam ligadas ao mesmo TF
+      S.fotos = Array.isArray(rasc.fotos) ? rasc.fotos.slice() : []; S.assNovas = rasc.assNovas || {}; S.recusa = !!rasc.recusa;
     } else {
-      await Store.setMeta('tfRascunho', null);
+      await descartarRascunho(rasc);
       const turno = await turnoAtual(); let veic = null;
       if (prefill.veiculoId) { veic = await Store.obter('veiculos', prefill.veiculoId); S.veiculoId = prefill.veiculoId; }
       const tid = (veic && veic.turnoId) || (turno && turno.id) || ''; S.turnoId = tid;                  // TF fica ligado ao turno aberto
@@ -190,6 +259,7 @@ const TFUI = (() => {
     }
     if (!bars.some(b => b.id === D.barreira)) D.barreira = bars[0].id;
     view(formHTML(D, bars));
+    await renderFotos(); await desenharAss(S);
     $('#tf-uf').oninput = e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, ''); };
     await mostrarInfoNumero();
     if (digitos(D.doc).length >= 11) consultarDoc();
@@ -210,6 +280,8 @@ const TFUI = (() => {
       if (e.target.id === 'tf-barreira') { localStorage.setItem('gdv.barreira', e.target.value); await mostrarInfoNumero(); }
       if (e.target.name === 'tf-proc') { aplicarModelo(e.target.value); mudouAndamento(); }
       if (e.target.id === 'tf-doc') { e.target.value = fmtDoc(digitos(e.target.value)); }
+      if (e.target.id === 'tf-fotos') return adicionarFotos(e.target);
+      if (e.target.id === 'tf-recusa') { S.recusa = e.target.checked; if (S.recusa) delete S.assNovas.fiscalizado; await desenharAss(S); }
       salvarRascunho();
     });
     f.onsubmit = ev => { ev.preventDefault(); gerar(); };
@@ -241,17 +313,40 @@ const TFUI = (() => {
         return { ...r, parcial: false };
       } catch (e) { if (e.semPermissao || /revogado|inv[aá]lido/i.test(e.message)) throw e; }
     }
-    const meus = (await Store.todos('tfs')).filter(t => !t.cancelado);                // sem conexão: só o que este aparelho conhece
-    return { pessoa: doc ? await Store.obter('pessoas', doc) || null : null, placa: placa ? await Store.obter('placas', placa) || null : null, parcial: true,
-      historicoDoc: doc ? resumoLocal(meus.filter(t => digitos(t.doc) === doc)) : null, historicoPlaca: placa ? resumoLocal(meus.filter(t => placaNorm(t.placa) === placa)) : null };
+    // sem conexão: índice de reincidência baixado na sincronização (todas as barreiras, até a hora dele) + TFs deste aparelho que ainda não
+    // estavam nele; sem índice, só o que este aparelho conhece. Os últimos TFs detalhados (de outros aparelhos) só aparecem online.
+    const meus = (await Store.todos('tfs')).filter(t => !t.cancelado), idx = await Store.meta('tfIndice');
+    const temIdx = !!(idx && idx.itens && idx.agora) && !!(window.crypto && crypto.subtle);
+    const hist = async (chaveIdx, locais) => {
+      if (!temIdx) return resumoLocal(locais);
+      const e = idx.itens[await hashIndice(chaveIdx)];
+      const r = resumoLocal(locais.filter(t => !(Number(t.emitidoEm) > 0 && Number(t.emitidoEm) <= idx.agora)));   // os demais já estão no índice
+      if (e) { r.total += e.n || 0; r.apreensoes += e.ap || 0; r.rechacos += e.re || 0; r.autos += e.au || 0; r.liberacoes += e.li || 0; r.advertencias += e.ad || 0; }
+      r.ultimos = resumoLocal(locais).ultimos; r.reincidente = r.apreensoes + r.rechacos + r.autos >= 1;
+      return r;
+    };
+    return { pessoa: doc ? await Store.obter('pessoas', doc) || null : null, placa: placa ? await Store.obter('placas', placa) || null : null, parcial: true, indiceEm: temIdx ? idx.agora : 0,
+      historicoDoc: doc ? await hist('doc:' + doc, meus.filter(t => digitos(t.doc) === doc)) : null,
+      historicoPlaca: placa ? await hist('placa:' + placa, meus.filter(t => placaNorm(t.placa) === placa)) : null };
   }
-  function histHTML(h, rotulo, parcial) {
+  /** SHA-256 (hex, 16 primeiros caracteres), igual ao do servidor (índice de reincidência). */
+  async function hashIndice(txt) {
+    const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
+    return [...new Uint8Array(b)].slice(0, 8).map(x => x.toString(16).padStart(2, '0')).join('');
+  }
+  const doisD = n => String(n).padStart(2, '0');
+  /** Rodapé do histórico sem conexão: com índice, "histórico até HH:MM de DD/MM + este aparelho"; sem índice, só este aparelho. */
+  const notaParcial = (r, curta) => { if (!r.parcial) return '';
+    if (!r.indiceEm) return curta ? 'sem conexão: só este aparelho' : 'sem conexão: histórico parcial, só deste aparelho';
+    const d = new Date(r.indiceEm); return `sem conexão: histórico até ${doisD(d.getHours())}:${doisD(d.getMinutes())} de ${doisD(d.getDate())}/${doisD(d.getMonth() + 1)} + este aparelho`; };
+  function histHTML(h, rotulo, r) {
     if (!h) return '';
-    if (!h.total) return `<div class="tf-ok">✓ Sem TF anterior ${rotulo}.${parcial ? ' <small>(sem conexão: só este aparelho)</small>' : ''}</div>`;
+    const parcial = notaParcial(r, !h.total);
+    if (!h.total) return `<div class="tf-ok">✓ Sem TF anterior ${rotulo}.${parcial ? ` <small>(${parcial})</small>` : ''}</div>`;
     const partes = [h.apreensoes && `${h.apreensoes} apreensão(ões)`, h.rechacos && `${h.rechacos} rechaço(s)`, h.autos && `${h.autos} auto(s) de infração`, h.liberacoes && `${h.liberacoes} liberação(ões)`].filter(Boolean).join(', ');
     return `<div class="${h.reincidente ? 'tf-alerta' : 'tf-ok'}"><b>${h.reincidente ? '⚠️ REINCIDENTE' : 'ℹ️ Já fiscalizado'} ${rotulo}:</b> ${h.total} TF(s) anterior(es) — ${esc(partes)}.
       <ul>${h.ultimos.slice(0, 3).map(u => `<li>${esc(u.numeroTxt)} · ${dBR(u.data)} · ${esc(PROC[u.procedimento] || '—')}${u.placa ? ' · ' + esc(u.placa) : ''}</li>`).join('')}</ul>
-      ${parcial ? '<small>(sem conexão: histórico parcial, só deste aparelho)</small>' : ''}</div>`;
+      ${parcial ? `<small>(${parcial})</small>` : ''}</div>`;
   }
   async function consultarDoc() {
     if (!S || !$('#tf-doc')) return;
@@ -265,7 +360,7 @@ const TFUI = (() => {
       ['nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone'].forEach(k => { const el = $('#tf-' + k); if (el) el.value = r.pessoa[k] || ''; });
       html += '<div class="tf-ok">✓ Cadastro encontrado — dados preenchidos automaticamente.</div>';
     } else html += '<div class="tf-novo">Novo cadastro — os dados serão salvos na planilha ao gerar o TF.</div>';
-    st.innerHTML = html + histHTML(r.historicoDoc, 'para este documento', r.parcial); salvarRascunho();
+    st.innerHTML = html + histHTML(r.historicoDoc, 'para este documento', r); salvarRascunho();
   }
   async function consultarPlaca() {
     if (!S || !$('#tf-placa')) return;
@@ -273,7 +368,7 @@ const TFUI = (() => {
     const st = $('#tf-st-placa'); let r; try { r = await buscar('', p); } catch (e) { return; }
     if (!S || !$('#tf-placa')) return;
     S.hist.placa = r.historicoPlaca;
-    let html = histHTML(r.historicoPlaca, 'para esta placa', r.parcial);
+    let html = histHTML(r.historicoPlaca, 'para esta placa', r);
     if (r.placa && r.placa.doc && !digitos($('#tf-doc').value)) html += `<div class="tf-novo">Último fiscalizado com esta placa: <b>${esc(r.placa.nome)}</b> (${esc(fmtDoc(r.placa.doc))}) <button type="button" class="mini" data-tf="usardoc" data-doc="${esc(r.placa.doc)}">Usar</button></div>`;
     st.innerHTML = html;
   }
@@ -314,7 +409,10 @@ const TFUI = (() => {
     let sug; try { sug = await sugerirNumero(bar.id, a); } catch (e) { btn.disabled = false; btn.textContent = rot; return toast(e.message, true); }
     btn.disabled = false; btn.textContent = rot;
 
-    const turno = S.turnoId ? await Store.obter('turnos', S.turnoId) : null, hist = S.hist.doc, t0 = Date.now(), id = Store.novoId();
+    const turno = S.turnoId ? await Store.obter('turnos', S.turnoId) : null, hist = S.hist.doc, t0 = Date.now(), id = S.id;
+    // assinaturas desenhadas viram arquivos PNG (gravados só quando o TF for gravado); recusa: sem assinatura do fiscalizado
+    const assS = { dono: 'tfs', id, ass: {}, assNovas: { ...S.assNovas } }; if (S.recusa) delete assS.assNovas.fiscalizado;
+    const { mapa: assMapa, novos: assArqs } = Anexos.prepararAssinaturas(assS), fotos = S.fotos.slice(), recusa = S.recusa ? 1 : 0;
     const prods = D.produtos.filter(p => p.p && p.q).map(p => `${p.p} - ${p.q} ${p.u}`);
     const nome = D.nome.trim().toUpperCase();
     const pessoa = { id: doc, tipo: doc.length === 14 ? 'PJ' : 'PF', nome, rg: D.rg.trim(), endereco: D.endereco.trim(), municipio: D.municipio.trim(), uf: D.uf.trim().toUpperCase(), telefone: D.telefone.trim(), criadoEm: t0, atualizadoEm: t0 };
@@ -332,7 +430,8 @@ const TFUI = (() => {
         inspecao: D.inspecao ? 1 : 0, coleta: D.coleta ? 1 : 0, amostras: Number(D.amostras) || 0, procedimento: D.procedimento, fiel: D.fiel ? 1 : 0, auto: D.auto ? 1 : 0, advertencia: D.advertencia ? 1 : 0,
         documentos: JSON.stringify(D.docs), produtos: JSON.stringify(prods), constatacao: D.constatacao, enquadramento: D.enquadramento,
         reincidente: hist && hist.reincidente ? 1 : 0, tfsAnteriores: hist ? hist.total : 0, cancelado: 0, motivoCancel: '', conflito: 0,
-        numeroSugerido: sug.numero, numeroOrigem: sug.origem !== 'servidor' ? 'provisorio' : (n === sug.numero ? 'sistema' : 'editado')
+        numeroSugerido: sug.numero, numeroOrigem: sug.origem !== 'servidor' ? 'provisorio' : (n === sug.numero ? 'sistema' : 'editado'),
+        fotos: JSON.stringify(fotos), assinaturas: JSON.stringify(assMapa), recusaAssinatura: recusa
       };
       let emitido = null;
       if (sug.origem === 'servidor') {                                               // a planilha confirma que o número ainda está livre
@@ -347,6 +446,7 @@ const TFUI = (() => {
         } catch (e) { if (e.semPermissao || /revogado|inv[aá]lido/i.test(e.message)) return toast(e.message, true); }   // sem resposta: guarda e envia ao sincronizar
       }
       const est = emitido ? { pendente: 0, emitidoEm: emitido.emitidoEm } : { pendente: 1, provisorio: sug.origem !== 'servidor' ? 1 : 0 };
+      await Store.gravarVarios('arquivos', assArqs);                                 // fotos já estão no aparelho; sobem ao Drive na sincronização
       await Store.gravar('tfs', { ...rec, ...est });
       await Store.gravar('pessoas', { ...pessoa, pendente: est.pendente });
       if (placa) await Store.gravar('placas', { ...placa, pendente: est.pendente });
@@ -358,18 +458,41 @@ const TFUI = (() => {
     toast('Não foi possível definir o número do TF. Tente novamente.', true);
   }
 
-  /* ---------- telas: pronto e lista ---------- */
+  /* ---------- telas: pronto (detalhes do TF, antes de imprimir) e lista ---------- */
+  let PR = null;                                                                   // TF aberto na tela de detalhes: { id, ass, assNovas, recusa }
   async function pronto(id) {
     const t = await Store.obter('tfs', id); if (!t) return go('tf');
+    PR = { id: t.id, ass: lerJSON(t.assinaturas, {}) || {}, assNovas: {}, recusa: Number(t.recusaAssinatura) === 1 };
+    const nF = (lerJSON(t.fotos, []) || []).length;
     view(`<div class="card"><h3>✅ TF gerado</h3><div class="tf-num"><b>${esc(t.numeroTxt)}</b></div>
       <p>${esc(t.nome)} · ${esc(fmtDoc(t.doc))}</p><p>${dBR(t.data)} ${esc(t.hora)}${t.placa ? ' · ' + esc(t.placa) : ''}</p>
       ${t.pendente ? '<div class="tf-novo">⏳ Número provisório / aguardando envio: será conferido na planilha ao sincronizar. Se houver repetição, a coordenação é avisada.</div>' : '<div class="tf-ok">✓ Número confirmado na planilha.</div>'}
       ${t.numeroOrigem === 'editado' ? `<div class="tf-novo">✏️ Número alterado manualmente (o sistema sugeriu ${num4(t.numeroSugerido)}). Registrado para auditoria.</div>` : ''}
-      ${t.reincidente ? `<div class="tf-alerta">⚠️ Fiscalizado reincidente: ${t.tfsAnteriores} TF(s) anterior(es).</div>` : ''}</div>
+      ${t.reincidente ? `<div class="tf-alerta">⚠️ Fiscalizado reincidente: ${t.tfsAnteriores} TF(s) anterior(es).</div>` : ''}
+      ${t.cancelado ? `<div class="tf-alerta">⛔ CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
+      ${nF ? `<p class="dica" style="text-align:left">📷 ${nF} foto(s): saem no anexo fotográfico, no fim do PDF.</p>` : ''}</div>
+      ${t.cancelado ? '' : assCardHTML(PR)}
       <button class="botao" data-tf="imprimir" data-id="${esc(t.id)}">🖨️ Imprimir / PDF (2 vias)</button>
       <button class="botao sec" data-tf="novo">➕ Novo TF</button>
       ${MODULO === 'veiculos' ? '<button class="botao sec" data-go="lista">↩ Voltar à lista de veículos</button>' : '<button class="botao sec" data-go="tf">📋 Ver lista de TFs</button>'}
-      <p class="dica">Na janela de impressão, escolha “Salvar como PDF” ou imprima direto. As 2 vias saem em páginas separadas.</p>`);
+      <p class="dica">Na janela de impressão, escolha “Salvar como PDF” ou imprima direto. As 2 vias saem em páginas separadas${nF ? '; o anexo fotográfico vai uma vez, no fim' : ''}.</p>`);
+    await desenharAss(PR);
+    const rc = $('#tf-recusa');
+    if (rc) rc.onchange = async () => { const r = PR; await gravarAssinatura(r, 'fiscalizado', null, rc.checked); };
+  }
+  /** Tela de detalhes: grava na hora a assinatura (img = dataURL; null = remover) e/ou a recusa; o TF volta a ficar pendente e sobe. */
+  async function gravarAssinatura(st, papel, img, recusa) {
+    const t = await Store.obter('tfs', st.id); if (!t || t.cancelado) return;
+    const ass = lerJSON(t.assinaturas, {}) || {}, antigo = ass[papel];
+    if (img) { const a = Anexos.novoArquivo('tfs', t.id, 'assinatura', papel, 'image/png', img); await Store.gravar('arquivos', a); ass[papel] = a.id; }
+    else delete ass[papel];
+    if (antigo && antigo !== ass[papel]) await Anexos.apagarSeNaoEnviado([antigo]);   // já enviada: fica no Drive (auditoria)
+    const rec = recusa === undefined ? (img && papel === 'fiscalizado' ? 0 : Number(t.recusaAssinatura) || 0) : (recusa ? 1 : 0);
+    await Store.salvar('tfs', { ...t, assinaturas: JSON.stringify(ass), recusaAssinatura: rec });
+    if (PR !== st) return;
+    st.ass = ass; st.recusa = rec === 1;
+    await desenharAss(st); Sync.sincronizar();
+    toast(recusa !== undefined ? (rec ? 'Recusa registrada.' : 'Recusa desmarcada.') : img ? 'Assinatura salva.' : 'Assinatura removida.');
   }
   async function lista() {
     if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());
@@ -384,7 +507,7 @@ const TFUI = (() => {
         ${t.cancelado ? `<div class="info pend">⛔ CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
         ${t.conflito ? '<div class="info pend">⚠️ Número duplicado na planilha: confira com a coordenação.</div>' : ''}
         ${t.pendente ? `<div class="info pend">⏳ ${t.provisorio ? 'número provisório, será conferido ao sincronizar' : 'aguardando envio'}</div>` : ''}
-        <div class="botoes"><button class="editar" data-tf="imprimir" data-id="${esc(t.id)}">Imprimir</button>
+        <div class="botoes"><button class="editar" data-tf="abrir" data-id="${esc(t.id)}">Abrir</button><button class="editar" data-tf="imprimir" data-id="${esc(t.id)}">Imprimir</button>
         ${t.cancelado ? '' : `<button class="excluir" data-tf="cancelar" data-id="${esc(t.id)}">Cancelar TF</button>`}</div></div>`).join('') : '<div class="vazio">Nenhum TF neste aparelho.</div>';
     };
     desenhar(); $('#tfQ').oninput = desenhar;
@@ -396,6 +519,15 @@ const TFUI = (() => {
     const a = el.dataset.tf, id = el.dataset.id;
     try {
       if (a === 'novo') go('tfnovo');
+      else if (a === 'abrir') go('tfpronto', id);
+      else if (a === 'delfoto' && S && $('#tfForm')) { S.fotos = S.fotos.filter(x => x !== id); await Anexos.apagarSeNaoEnviado([id]); await renderFotos(); salvarRascunho(0); }
+      else if (a === 'assinar' || a === 'delass') {
+        const papel = el.dataset.papel; if (!PAPEIS[papel]) return;
+        const img = a === 'assinar' ? await pedirAssinatura(papel) : null;
+        if (a === 'assinar' && !img) return;
+        if (S && $('#tfForm')) { if (img) S.assNovas[papel] = img; else delete S.assNovas[papel]; await desenharAss(S); salvarRascunho(0); }
+        else if (PR && $('#tf-ass-card')) await gravarAssinatura(PR, papel, img);
+      }
       else if (a === 'imprimir') await Docs.tf(id);
       else if (a === 'cancelar') {
         const motivo = prompt('Motivo do cancelamento (o número do TF continua usado):'); if (motivo == null) return;
@@ -403,7 +535,7 @@ const TFUI = (() => {
         Sync.sincronizar(); toast('TF cancelado.'); lista();
       } else if (a === 'addprod') { const c = coletar(); c.produtos.push({ p: '', q: '', u: T.unidades[0] }); $('#tf-produtos').innerHTML = c.produtos.map(linhaProd).join(''); salvarRascunho(); }
       else if (a === 'delprod') { const c = coletar(); c.produtos.splice(+el.dataset.i, 1); if (!c.produtos.length) c.produtos.push({ p: '', q: '', u: T.unidades[0] }); $('#tf-produtos').innerHTML = c.produtos.map(linhaProd).join(''); salvarRascunho(); }
-      else if (a === 'descartar') { if (confirm('Descartar este TF? Os dados preenchidos serão perdidos.')) { clearTimeout(tRasc); encerrarAndamento(); S = null; await Store.setMeta('tfRascunho', null); go(MODULO === 'veiculos' ? 'lista' : 'tf'); } }
+      else if (a === 'descartar') { if (confirm('Descartar este TF? Os dados preenchidos serão perdidos.')) { clearTimeout(tRasc); encerrarAndamento(); const f = S ? S.fotos : []; S = null; await descartarRascunho({ fotos: f }); go(MODULO === 'veiculos' ? 'lista' : 'tf'); } }
       else if (a === 'usardoc') { $('#tf-doc').value = fmtDoc(el.dataset.doc); consultarDoc(); }
     } catch (err) { toast(err.message || String(err), true); }
   });

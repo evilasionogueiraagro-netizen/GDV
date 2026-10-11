@@ -351,11 +351,19 @@ body.tv .pn-tfaviso { display: none !important; }
 .pn-ac-perm-st.ok { color: var(--bom-txt); } .pn-ac-perm-st.erro { color: var(--critico); }
 /* celular: só Servidor, Situação, Módulos, Código e Revogar (datas e "gerado por" ficam no computador e no CSV) */
 @media (max-width: 560px) { #pn-ac-tab th:nth-child(n+4):nth-child(-n+7), #pn-ac-tab td:nth-child(n+4):nth-child(-n+7), #pn-ac-tab th:nth-child(n+9):nth-child(-n+12), #pn-ac-tab td:nth-child(n+9):nth-child(-n+12) { display: none; }
-  #pn-ac-tab .pn-ac-perm { flex-direction: column; align-items: flex-start; gap: 2px; } #pn-ac-tab .pn-ac-perm label { font-size: 12.5px; gap: 3px; }
+  /* As 5 colunas precisam caber em ~340 px com qualquer fonte do sistema (com DejaVu Sans, mais larga que a Inter,
+     a soma das larguras mínimas passava disso e a tabela ganhava rolagem). Letras um pouco menores; a sobra vai
+     primeiro para o nome (30%), para não partir palavras; e, como última válvula, o nome pode quebrar dentro da
+     palavra quando não houver outro jeito (em vez de a tabela ganhar rolagem). */
+  #pn-ac-tab > .pn-cartao { padding-left: 8px; padding-right: 8px; }
+  #pn-ac-tab .pn-ac-perm { flex-direction: column; align-items: flex-start; gap: 2px; } #pn-ac-tab .pn-ac-perm label { font-size: 11.5px; gap: 3px; }
+  #pn-ac-tab .pn-ac-perm input { width: 14px; height: 14px; }
   #pn-ac-tab .pn-ac-perm-r { display: none; } #pn-ac-tab .pn-ac-perm-m { display: inline; }
-  #pn-ac-tab .pn-ac-cod { font-size: 12px; }
-  #pn-ac-tab td, #pn-ac-tab th { padding-left: 2px; padding-right: 2px; font-size: 12.5px; } #pn-ac-tab .pn-selo { white-space: normal; align-items: baseline; }
-  #pn-ac-tab .pn-link { display: block; } #pn-ac-tab .pn-ac-revogar { padding: 3px 5px; font-size: 12px; } }
+  #pn-ac-tab .pn-ac-cod { font-size: 11px; }
+  #pn-ac-tab td, #pn-ac-tab th { padding-left: 2px; padding-right: 2px; font-size: 12px; }
+  #pn-ac-tab th:first-child { width: 30%; } #pn-ac-tab td:first-child { overflow-wrap: anywhere; }
+  #pn-ac-tab .pn-selo { white-space: normal; align-items: baseline; font-size: 11px; gap: 3px; } #pn-ac-tab .pn-selo::before { width: 7px; height: 7px; }
+  #pn-ac-tab .pn-link { display: block; font-size: 11.5px; } #pn-ac-tab .pn-ac-revogar { padding: 3px; font-size: 11px; } }
 @media (max-width: 560px) { .pn-ac-filtros label { flex: 1 1 100%; max-width: none; } .pn-ac-acoes .pn-btn { flex: 1 1 auto; justify-content: center; } }
 @media print { .pn-filtros, .pn-abas, .pn-topo button, .pn-mapa-ctl { display: none !important; } }
 
@@ -596,4 +604,4 @@ body.tv .pn-erro { font-size: 2.1vh; padding: 1.4vh; }
 .tv-rotulo.aguardando { border-left: 0.7vh solid var(--atencao); }
 /* Servidores: sinal dos aparelhos */
 .pn-ac-velha { color: var(--critico); font-weight: 650; } .pn-ac-erro { color: var(--ink); font-size: 12px; display: block; max-width: 280px; overflow-wrap: anywhere; }
-.pn-ac-sinal-m { display: none; } @media (max-width: 560px) { .pn-ac-sinal-m { display: block; font-size: 11.5px; color: var(--ink2); margin-top: 2px; } .pn-ac-sinal-m b { color: var(--critico); font-weight: 650; } }
+.pn-ac-sinal-m { display: none; } @media (max-width: 560px) { .pn-ac-sinal-m { display: block; font-size: 11px; color: var(--ink2); margin-top: 2px; } .pn-ac-sinal-m b { color: var(--critico); font-weight: 650; } }

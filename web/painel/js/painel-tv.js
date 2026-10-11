@@ -17,7 +17,7 @@
   const OCIOSO_MS = 3000, DICA_MS = 15000, VERSAO_MS = 15 * 60 * 1000;
   const SS_RECARGA = 'gdv.painel.tv.recarga';                           // recarga automática (6 h / versão nova) feita por esta página
   const FONTE = 'system-ui, -apple-system, "Segoe UI", Roboto, sans-serif';
-  const SITUACAO = { ok: 'Em andamento', semsinal: 'Sem sinal > 30 min', longa: 'Aberta > 14 h', aguardando: 'Encerrada no celular' };
+  const SITUACAO = { ok: 'Em andamento', semsinal: 'Sem sinal > 30 min', longa: 'Aberta > 12 h', aguardando: 'Encerrada no celular' };
   const sitTxt = t => t.tfAndamento ? P.rotuloTF(t) : SITUACAO[t.situacao];          // TF em preenchimento / apreensão em andamento na frente
 
   const TELAS = {
@@ -183,7 +183,7 @@
     if (trocou) { palco.classList.remove('tv-entra'); void palco.offsetWidth; palco.classList.add('tv-entra'); }
     if (!P.logado) return;                                                 // tela de "Sessão encerrada" por cima
     if (!P.todos || !P.dados) { aviso(palco); return; }
-    P.reavaliarAbertos();                                                   // sem conexão a barreira continua "envelhecendo" (sem sinal / > 14 h)
+    P.reavaliarAbertos();                                                   // sem conexão a barreira continua "envelhecendo" (sem sinal / > 12 h)
     try { TELAS[id].render(palco); }
     catch (err) { console.error(err); limpar(); palco.innerHTML = `<div class="tv-aviso"><b>Não foi possível montar esta tela.</b><span>${esc(err.message)}</span></div>`; }
   }
@@ -201,7 +201,7 @@
     itens.forEach(k => {
       const v = typeof k.valor === 'number' ? fmt.compacto(k.valor) : (k.valor == null ? '—' : k.valor);
       // detalhe longo (feito para a tela do computador): na TV fica só a primeira parte, sem cortar no meio da palavra
-    // número e unidade ("> 14 h", "30 min") não se separam na quebra de linha
+    // número e unidade ("> 12 h", "30 min") não se separam na quebra de linha
     const det = (k.detalhe && k.detalhe.length > 50 ? k.detalhe.split(' · ')[0] : k.detalhe || '').replace(/(\d) (h|min)\b/g, '$1\u00a0$2').replace(/([<>≥≤]) (?=\d)/g, '$1\u00a0');
       const d = el('div', 'tv-kpi' + (k.status ? ' st-' + k.status : '')); d.dataset.chave = k.chave || '';
       const med = k.medidor != null ? `<div class="tv-kpi-med" role="img" aria-label="${esc(fmt.pct(k.medidor))}"><i style="width:${(Math.min(1, Math.max(0, k.medidor)) * 100).toFixed(1)}%"></i></div>` : '';
@@ -364,7 +364,7 @@
     });
   }
   const pino = (sit, tam) => L.divIcon({ className: '', html: `<div class="tv-pin ${sit}" style="--pin:${tam}px"></div>`, iconSize: [tam, tam], iconAnchor: [tam / 2, tam / 2] });
-  // pinos: forma diferente por situação (círculo = em andamento, quadrado com "?" = sem sinal, losango com "!" = aberta > 14 h), não só a cor;
+  // pinos: forma diferente por situação (círculo = em andamento, quadrado com "?" = sem sinal, losango com "!" = aberta > 12 h), não só a cor;
   // tamanho para o glifo ficar com ≥ 1,6vh (glifo = metade do pino)
   const PINO_MAPA = 3.6, PINO_LISTA = 3.4;
   const marcaPino = sit => `<i class="tv-lg-pino"><span class="tv-pin ${sit}" style="--pin:${px(PINO_LISTA)}px"></span></i>`;
@@ -403,7 +403,7 @@
     const divMapa = el('div', 'tv-mapa-lugar'); cm.appendChild(divMapa);
     const n = s => vivos.filter(t => P.pinoDe(t) === s).length, comGPS = vivos.filter(t => t.lat != null && t.lon != null), semGPS = vivos.length - comGPS.length;
     legenda(cm, [{ marca: marcaPino('tf'), txt: `TF em preenchimento (${n('tf') + tfGPS.length})` }, { marca: marcaPino('ok'), txt: `Em andamento (${n('ok')})` }, { marca: marcaPino('semsinal'), txt: `Sem sinal > 30 min (${n('semsinal')})` },
-      { marca: marcaPino('longa'), txt: `Aberta > 14 h (${n('longa')})` }].concat(n('aguardando') ? [{ marca: marcaPino('aguardando'), txt: `Encerrada no celular (${n('aguardando')})` }] : []).concat([ { marca: `<i class="tv-lg-pto" style="background:${p.alfa(p.serie[6], 0.6)};box-shadow:0 0 0 1.5px ${p.ink}"></i>`, txt: `Encerrada hoje (${encHoje.length})` }])
+      { marca: marcaPino('longa'), txt: `Aberta > 12 h (${n('longa')})` }].concat(n('aguardando') ? [{ marca: marcaPino('aguardando'), txt: `Encerrada no celular (${n('aguardando')})` }] : []).concat([ { marca: `<i class="tv-lg-pto" style="background:${p.alfa(p.serie[6], 0.6)};box-shadow:0 0 0 1.5px ${p.ink}"></i>`, txt: `Encerrada hoje (${encHoje.length})` }])
       .concat(semGPS ? [{ marca: '', txt: `${plural(semGPS, 'barreira', 'barreiras')} sem GPS` }] : []));
 
     // lista: cartões; se não couberem, linhas compactas; o que ainda sobrar vira "+N"

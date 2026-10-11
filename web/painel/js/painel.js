@@ -200,8 +200,22 @@ const Painel = (() => {
     t.abertaLonga = t.emAndamento && t.duracaoMin != null && t.duracaoMin > ABERTA_LONGA_H * 60;
     // turno esquecido aberto: nas horas de barreira (KPIs, tabelas, taxas) conta no máximo 14 h; a duração real fica em duracaoMin
     t.horasLimitadas = t.abertaLonga; t.duracaoContabilMin = t.abertaLonga ? ABERTA_LONGA_H * 60 : t.duracaoMin;
-    t.situacao = !t.emAndamento ? 'encerrada' : t.abertaLonga ? 'longa' : t.semSinal ? 'semsinal' : 'ok';
+    // o celular do fiscal avisou que encerrou este turno, mas o encerramento ainda não chegou à planilha
+    t.situacao = !t.emAndamento ? 'encerrada' : t.encerradoNoCelular ? 'aguardando' : t.abertaLonga ? 'longa' : t.semSinal ? 'semsinal' : 'ok';
   }
+  /**
+   * Linhas de diagnóstico do cartão de uma barreira aberta (Visão geral e aba Barreiras): encerrado no celular aguardando envio,
+   * erro relatado pelo aparelho e "celular sem sincronizar há X". HTML (texto já escapado).
+   */
+  function linhasSinal(t) {
+    if (!t || !t.emAndamento) return '';
+    const ap = t.aparelho || null, out = [];
+    if (t.situacao === 'aguardando') out.push(`<small class="pn-vivo-aviso">📱 O fiscal encerrou este turno no celular${t.fimNoCelular ? ' às ' + esc(t.fimNoCelular) : ''}, mas o encerramento ainda não chegou à planilha (último sinal do celular ${esc(fmt.rel(t.ultimoSinal))}). Peça para abrir o app com internet e tocar em “Tentar enviar agora”; se não der, use Encerrar turno.</small>`);
+    if (ap && ap.erroAtual && ap.ultimoErro) out.push(`<small class="pn-vivo-erro">⚠️ Erro ao enviar: ${esc(ap.ultimoErro)}${ap.ultimoErroEm ? ' (' + esc(fmt.rel(ap.ultimoErroEm)) + ')' : ''}</small>`);
+    if (t.semSinal && t.situacao !== 'aguardando') out.push(`<small class="pn-vivo-aviso">${esc(textoSemSinal(t))}</small>`);
+    return out.join('');
+  }
+  const textoSemSinal = t => `Celular sem sincronizar ${t.ultimoSinal ? fmt.rel(t.ultimoSinal) : 'desde o início'} (sem internet ou app fechado)`;
   /**
    * Recalcula duração e situação dos turnos em andamento com o relógio de agora (sem nova carga). O modo TV chama a cada desenho:
    * sem conexão, uma barreira continua "envelhecendo" (passa a sem sinal / aberta > 14 h) em vez de ficar congelada na última carga.
@@ -254,6 +268,10 @@ const Painel = (() => {
       t.veiculosLista = vs; t.nVeiculos = vs.length; t.nPessoas = vs.reduce((s, v) => s + v.pessoas, 0);
       t.ultimoVeiculo = vs.length ? vs[vs.length - 1] : null;
       t.ultimoSinal = Math.max(num(t.ultimoSinal) || 0, num(t.srv_ts) || 0, num(t.atualizadoEm) || 0, num(t.criadoEm) || 0, ...vs.map(v => v.sinal || 0)) || null;
+      // sinal do aparelho do fiscal (heartbeat a cada sincronização, mesmo sem veículo novo) e "encerrado no celular, aguardando envio"
+      t.aparelho = t0.aparelho && typeof t0.aparelho === 'object' ? t0.aparelho : null;
+      t.encerradoNoCelular = t.emAndamento && Number(t0.encerradoNoCelular) === 1;
+      t.fimNoCelular = t.encerradoNoCelular ? String(t0.fimNoCelular || '') : '';
       situar(t, tAgora);
       t.fiscais = separarNomes(t.fiscal); t.barreirasTF = [];
       t.municipio = municipioDe(t.lat, t.lon) || municipioNome(t.unidade) || null;
@@ -845,7 +863,7 @@ const Painel = (() => {
   /* ---------------- alertas ---------------- */
   const NIVEIS = { critico: ['!', 'Crítico'], serio: ['!', 'Sério'], atencao: ['i', 'Atenção'], info: ['i', 'Info'] };
   const ORDEM_NIVEL = { critico: 0, serio: 1, atencao: 2, info: 3 };
-  const ORDEM_SITUACAO = { longa: 0, semsinal: 1, ok: 2 };              // barreiras em andamento: as com alerta primeiro
+  const ORDEM_SITUACAO = { aguardando: 0, longa: 0.5, semsinal: 1, ok: 2 };              // barreiras em andamento: as com alerta primeiro
   function alertas(container, lista, opts) {
     opts = opts || {};
     const l = lista.slice().sort((a, b) => ORDEM_NIVEL[a.nivel] - ORDEM_NIVEL[b.nivel]);
@@ -936,7 +954,7 @@ const Painel = (() => {
   let tilesFalharamEm = 0;
   const TILES_PAUSA_MS = 10 * 60 * 1000;
   const popup = (titulo, linhas, extra) => `<div class="pn-pop"><h4>${esc(titulo)}</h4>${extra || ''}<dl>${linhas.filter(l => l && l[1] != null && l[1] !== '').map(([k, v]) => `<dt>${esc(k)}</dt><dd>${esc(v)}</dd>`).join('')}</dl></div>`;
-  const seloSituacao = t => t.tfAndamento ? `<span class="pn-selo tf">${rotuloTF(t)}</span>` : t.situacao === 'longa' ? '<span class="pn-selo critico">Aberta há mais de 14 h</span>' : t.situacao === 'semsinal' ? '<span class="pn-selo info">Sem sinal há mais de 30 min</span>' : t.situacao === 'ok' ? '<span class="pn-selo bom">Em andamento</span>' : '<span class="pn-selo info">Encerrada</span>';
+  const seloSituacao = t => t.tfAndamento ? `<span class="pn-selo tf">${rotuloTF(t)}</span>` : t.situacao === 'aguardando' ? '<span class="pn-selo aguardando">Encerrado no celular, aguardando envio</span>' : t.situacao === 'longa' ? '<span class="pn-selo critico">Aberta há mais de 14 h</span>' : t.situacao === 'semsinal' ? '<span class="pn-selo info">Sem sinal há mais de 30 min</span>' : t.situacao === 'ok' ? '<span class="pn-selo bom">Em andamento</span>' : '<span class="pn-selo info">Encerrada</span>';
 
   /**
    * Painel.mapa(container, {id, titulo, subtitulo, camadas, ativas, indicador, altura, dados})
@@ -1018,7 +1036,9 @@ const Painel = (() => {
         L.marker([t.lat, t.lon], { icon: ic, zIndexOffset: t.tfAndamento ? 2000 : 1000, title: (t.local || 'Barreira em andamento') + (t.tfAndamento ? ' — ' + rotuloTF(t) : ''), keyboard: true })
           .bindPopup(() => popup(t.local || 'Barreira', linhasTF(t.tfAndamento).concat([['Posto', t.posto], ['Unidade', t.unidade], ['Município', t.municipio], ['Fiscais', t.fiscal], ['Início', `${fmt.data(t.data)} ${t.inicio || ''}`],
             ['Duração até agora', fmt.duracao(t.duracaoMin)], ['Veículos', fmt.int(t.nVeiculos)], ['Pessoas', fmt.int(t.nPessoas)],
-            ['Último veículo', t.ultimoVeiculo ? `${t.ultimoVeiculo.hora} (${t.ultimoVeiculo.placa || 's/ placa'})` : 'nenhum ainda'], ['Último sinal', t.ultimoSinal ? `${fmt.dataHora(t.ultimoSinal)} (${fmt.rel(t.ultimoSinal)})` : '—']]),
+            ['Último veículo', t.ultimoVeiculo ? `${t.ultimoVeiculo.hora} (${t.ultimoVeiculo.placa || 's/ placa'})` : 'nenhum ainda'], ['Último sinal', t.ultimoSinal ? `${fmt.dataHora(t.ultimoSinal)} (${fmt.rel(t.ultimoSinal)})` : '—'],
+            t.situacao === 'aguardando' ? ['Celular', `encerrado${t.fimNoCelular ? ' às ' + t.fimNoCelular : ''}, aguardando envio`] : t.semSinal ? ['Celular', textoSemSinal(t)] : null,
+            t.aparelho && t.aparelho.erroAtual && t.aparelho.ultimoErro ? ['Erro ao enviar', t.aparelho.ultimoErro] : null]),
             seloSituacao(t))).addTo(g);
       });
       // TF em preenchimento sem turno aberto: marcador próprio na coordenada do aparelho (sem coordenada: só no aviso e nos alertas)
@@ -1089,6 +1109,7 @@ const Painel = (() => {
       // a legenda desenha o mesmo marcador do mapa (pino com anel, "?" ou "!" para barreiras; círculos para levantamentos)
       const pino = sit => `<i class="pn-lg-pino"><span class="pn-pin ${sit}"></span></i>`;
       if (ativas.has('andamento')) it.push(`<span>${pino('tf')}TF em preenchimento / apreensão em andamento (${fmt.int(d.emAndamento.filter(t => t.tfAndamento).length + (d.tfsSemTurno || []).filter(a => a.lat != null && a.lon != null).length)})</span>`,
+        ...(d.emAndamento.some(t => pinoDe(t) === 'aguardando') ? [`<span>${pino('aguardando')}Encerrada no celular, aguardando envio (${fmt.int(d.emAndamento.filter(t => pinoDe(t) === 'aguardando').length)})</span>`] : []),
         `<span>${pino('ok')}Barreira em andamento (${fmt.int(d.emAndamento.filter(t => pinoDe(t) === 'ok').length)})</span>`,
         `<span>${pino('semsinal')}Barreira sem sinal &gt; 30 min (${fmt.int(d.emAndamento.filter(t => pinoDe(t) === 'semsinal').length)})</span>`,
         `<span>${pino('longa')}Barreira aberta &gt; 14 h (${fmt.int(d.emAndamento.filter(t => pinoDe(t) === 'longa').length)})</span>`);
@@ -1138,8 +1159,10 @@ const Painel = (() => {
         (fs.some(f => f.novoMun) ? ` Sem nenhuma detecção anterior: ${fs.filter(f => f.novoMun).map(f => f.mun).join(', ')}.` : '') }));
     // 2. barreiras abertas há mais de 14 h / sem sinal
     d.emAndamento.forEach(t => {
-      if (t.abertaLonga) A.push({ nivel: 'critico', aba: 'barreiras', titulo: `Barreira aberta há ${fmt.duracao(t.duracaoMin)}: ${t.local || 'sem local'}`, detalhe: `Início ${fmt.data(t.data)} ${t.inicio || ''} · ${t.fiscal || ''}. Verificar se o turno não foi encerrado no aparelho.` });
-      else if (t.semSinal) A.push({ nivel: 'serio', aba: 'barreiras', titulo: `Barreira sem sinal ${fmt.rel(t.ultimoSinal)}: ${t.local || 'sem local'}`, detalhe: `Último dado recebido ${fmt.dataHora(t.ultimoSinal)} · ${t.fiscal || ''}. O aparelho pode estar sem internet.` });
+      if (t.situacao === 'aguardando') A.push({ nivel: 'serio', aba: 'barreiras', titulo: `Encerrado no celular, aguardando envio: ${t.local || 'sem local'}`,
+        detalhe: `${t.fiscal || 'O fiscal'} encerrou o turno no celular${t.fimNoCelular ? ' às ' + t.fimNoCelular : ''}, mas o encerramento ainda não chegou à planilha${t.aparelho && t.aparelho.erroAtual && t.aparelho.ultimoErro ? ' (erro ao enviar: ' + t.aparelho.ultimoErro + ')' : ''}. Peça para abrir o app com internet; se não der, use Encerrar turno.` });
+      else if (t.abertaLonga) A.push({ nivel: 'critico', aba: 'barreiras', titulo: `Barreira aberta há ${fmt.duracao(t.duracaoMin)}: ${t.local || 'sem local'}`, detalhe: `Início ${fmt.data(t.data)} ${t.inicio || ''} · ${t.fiscal || ''}. Verificar se o turno não foi encerrado no aparelho.` });
+      else if (t.semSinal) A.push({ nivel: 'serio', aba: 'barreiras', titulo: `Barreira sem sinal ${fmt.rel(t.ultimoSinal)}: ${t.local || 'sem local'}`, detalhe: `Último dado recebido ${fmt.dataHora(t.ultimoSinal)} · ${t.fiscal || ''}. ${textoSemSinal(t)}.` });
     });
     // 3. numeração de TFs e termos (agrupado por módulo)
     const audit = (au, nome, aba) => {
@@ -1210,7 +1233,7 @@ const Painel = (() => {
     vivos.slice().sort((a, b) => ordemVivo(a) - ordemVivo(b)).forEach(t => {
       const it = el('div', 'pn-vivo-item' + (t.tfAndamento ? ' tf' : '')); it.dataset.turno = t.id;
       it.innerHTML = `${seloSituacao(t)}<b>${esc(t.local || 'Sem local')}</b><small>${esc(t.fiscal || '')}${t.municipio ? ' · ' + esc(t.municipio) : ''}</small>${linhaTFVivo(t.tfAndamento)}
-        <small>Início ${esc(fmt.dataCurta(t.data))} ${esc(t.inicio || '')} · ${esc(fmt.duracao(t.duracaoMin))} · último sinal ${esc(fmt.rel(t.ultimoSinal))}</small>
+        <small>Início ${esc(fmt.dataCurta(t.data))} ${esc(t.inicio || '')} · ${esc(fmt.duracao(t.duracaoMin))} · último sinal ${esc(fmt.rel(t.ultimoSinal))}</small>${linhasSinal(t)}
         <div class="pn-vivo-num"><span><strong>${fmt.int(t.nVeiculos)}</strong>veículos</span><span><strong>${fmt.int(t.nPessoas)}</strong>pessoas</span>${t.ultimoVeiculo ? `<span>último ${esc(t.ultimoVeiculo.hora)}</span>` : ''}</div>`;
       const be = botaoEncerrar(t); if (be) { const ac = el('div', 'pn-vivo-acoes'); ac.appendChild(be); it.appendChild(ac); }
       g.appendChild(it);
@@ -1238,13 +1261,14 @@ const Painel = (() => {
   function dialogoEncerrar(t) {
     const velho = $('#pn-encerrar'); if (velho) velho.remove();
     const hAgora = horaManaus(agora()), hUlt = t.ultimoVeiculo && RE_HM.test(String(t.ultimoVeiculo.hora || '')) ? String(t.ultimoVeiculo.hora) : '';
+    const hCel = t.encerradoNoCelular && RE_HM.test(String(t.fimNoCelular || '')) ? String(t.fimNoCelular) : '';   // horário em que o fiscal encerrou no celular
     const dlg = el('dialog', 'pn-dlg'); dlg.id = 'pn-encerrar'; dlg.setAttribute('aria-labelledby', 'pn-enc-tit');
     dlg.innerHTML = `<form method="dialog" class="pn-dlg-form" novalidate>
       <h3 id="pn-enc-tit">Encerrar turno</h3>
       <div class="pn-dlg-info"><b>${esc(t.local || 'Sem local')}</b><span>${esc(t.fiscal || 'Fiscal não informado')}</span>
         <span>Início ${esc(fmt.dataCurta(t.data))} às ${esc(t.inicio || '—')} · ${fmt.int(t.nVeiculos)} veículo(s)${hUlt ? ` · último às ${esc(hUlt)}` : ' · nenhum veículo registrado'}</span></div>
-      <label class="pn-dlg-campo">Horário de encerramento<input type="time" id="pn-enc-fim" required value="${esc(hUlt || hAgora)}"></label>
-      <div class="pn-dlg-rapidos">${hUlt ? `<button type="button" class="pn-btn pn-btn-mini" data-hora="${esc(hUlt)}">Último veículo (${esc(hUlt)})</button>` : ''}
+      <label class="pn-dlg-campo">Horário de encerramento<input type="time" id="pn-enc-fim" required value="${esc(hCel || hUlt || hAgora)}"></label>
+      <div class="pn-dlg-rapidos">${hCel ? `<button type="button" class="pn-btn pn-btn-mini" data-hora="${esc(hCel)}">Encerrado no celular (${esc(hCel)})</button>` : ''}${hUlt ? `<button type="button" class="pn-btn pn-btn-mini" data-hora="${esc(hUlt)}">Último veículo (${esc(hUlt)})</button>` : ''}
         <button type="button" class="pn-btn pn-btn-mini" data-hora="${esc(hAgora)}">Agora (${esc(hAgora)})</button></div>
       <p class="pn-dlg-prev" id="pn-enc-prev"></p>
       <p class="pn-dlg-aviso">O turno sai das barreiras em andamento e o aparelho do fiscal será avisado na próxima sincronização.</p>
@@ -1455,12 +1479,14 @@ const Painel = (() => {
     agora, recarregar: () => carregar(), DIAS_SEMANA, PROC, somaDias, diasEntre, isoDia,
     TIPOS: (typeof CONFIG !== 'undefined' && CONFIG.tipos) || {},
     // usados pelo modo TV (js/painel-tv.js): mesmos dados e cálculos das abas, sem duplicar regras
-    indicadoresGerais, NIVEIS, ORDEM_NIVEL, ORDEM_SITUACAO, diaManaus, horaManaus, temaEscuro, carregarGeo, ls,
+    linhasSinal, textoSemSinal, indicadoresGerais, NIVEIS, ORDEM_NIVEL, ORDEM_SITUACAO, diaManaus, horaManaus, temaEscuro, carregarGeo, ls,
     // TF em preenchimento (apreensão em andamento): estado do marcador, ordem nas listas, rótulo e ganchos de teste
     pinoDe, ordemVivo, rotuloTF, tfApreensao, textoTF,
     alertaTF: () => ({ ativos: S.todos ? S.todos.tfsAndamento.map(a => ({ id: a.id, titulo: a.titulo, onde: a.onde, turnoId: a.turno ? a.turno.id : '' })) : [],
                        sons: TFA.sons, notificacoes: TFA.notificacoes, avisos: TFA.avisos, rapido: !!S.tfRapido, proximaMs: S.proxima ? S.proxima - Date.now() : null }),
     hoje: () => diaManaus(agora()), reavaliarAbertos,
+    /** Consulta leve das barreiras ao vivo agora (a mesma da atualização automática; usada pelos testes). */
+    aoVivo: () => carregarAoVivo(),
     aba: id => S.abas[id] || null,
     /** Dados (já normalizados, sem filtros) recortados em [de, ate] dentro da carga atual; null sem dados. */
     recorte: (de, ate) => S.todos ? aplicarFiltros(S.todos, { fiscal: '', local: null }, { de, ate }) : null,

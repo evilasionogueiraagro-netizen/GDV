@@ -89,6 +89,7 @@ function renderNav(view) {
   $('#nav').innerHTML = NAVS[MODULO].map(([v, i, t]) => `<button data-v="${v}" class="${v === ativo ? 'on' : ''}">${i}<span>${t}</span></button>`).join('');
 }
 function go(view, arg) {
+  if (VIEW === 'fechado' && view !== 'fechado' && EDIT) avisarSaidaPendente(EDIT);   // aviso não bloqueante: encerramento ainda não chegou
   const bloq = semPermissaoPara(view);
   if (bloq) { toast(`${SEM_AUT}: ${Sync.MODULOS[bloq]}.`, true); view = 'modulos'; arg = null; }
   if (VIEW === 'tfnovo' && view !== 'tfnovo' && typeof TFUI !== 'undefined') TFUI.saiu();   // saiu do formulário de TF sem gerar
@@ -115,7 +116,8 @@ async function modulos() {
     ? `<button class="modulo" data-v="${v}"><span class="ic">${ic}</span><span><b>${titulo}</b>${linhas}</span></button>`
     : `<button class="modulo bloqueado" data-bloq="${mod}" aria-disabled="true"><span class="ic">${ic}</span><span><b>${titulo}</b><small class="sem-aut">🔒 ${SEM_AUT}</small>${linhas}</span></button>`;
   const aviso = (Sync.estado() || {}).aviso || Sync.avisoSemPermissao(await Sync.bloqueadosComPendentes());
-  view(`<div class="card"><h3>Olá${nome ? ', ' + esc(nome) : ''}!</h3><p class="dica" style="text-align:left">Escolha o que deseja fazer.</p></div>
+  const encPend = await cartaoEncerramento();                       // turno encerrado aqui que ainda não chegou à planilha: no topo
+  view(`${encPend}<div class="card"><h3>Olá${nome ? ', ' + esc(nome) : ''}!</h3><p class="dica" style="text-align:left">Escolha o que deseja fazer.</p></div>
     ${aviso ? `<div class="card aviso" id="avisoPerm">⚠️ ${esc(aviso)}</div>` : ''}
     ${avisoTurnoEncerrado()}
     ${cartao('veiculos', 'home', '🚛', 'Educação Sanitária/Fiscalização de Trânsito', `<small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)${Sync.pode('veiculos') ? '' : ' (guardado neste aparelho)'}` : 'Registro das informações, por ação'}</small>`)}
@@ -375,6 +377,7 @@ async function resumo() {
     // o turno já está encerrado e nada se perde. A coordenada final é acrescentada depois, quando o GPS responder.
     const f = await Store.salvar('turnos', { ...t, encerrado: 1, fim });
     await Store.setMeta('turnoAtual', '');
+    Sync.sincronizar();                                    // envia já (não espera o GPS: o fiscal pode fechar o app logo em seguida)
     go('fechado', f.id);
     const gps = await pegarLocal();
     if (gps) { const atual = await Store.obter('turnos', f.id); if (atual) await Store.salvar('turnos', { ...atual, ...camposLocal(gps, 'Fim') }); }
@@ -389,7 +392,7 @@ async function fechado() {
   view(`<div class="card"><h3>Turno encerrado</h3><p><b>${esc(t.numeroTF)}</b></p>
     <p>${dBR(t.data)} · das <b>${esc(t.inicio)}</b> às <b>${esc(t.fim)}</b></p>
     <p>${v.length} veículos · ${v.reduce((s, x) => s + (Number(x.pessoas) || 0), 0)} pessoas</p>
-    ${t.pendente ? `<p class="pend" id="encPend">⏳ Encerramento ainda não enviado à planilha${avisoEnvio()}. Enquanto não chegar, a gerência vê esta barreira como em andamento.</p>` : '<p id="encPend"><small>✅ Encerramento enviado à planilha.</small></p>'}</div>
+    ${htmlStatusEnc(t)}</div>
     <button class="botao" data-doc="termo" data-id="${t.id}">📄 Termo de Fiscalização (PDF)</button>
     ${temFicha(t) ? `<button class="botao" data-doc="ficha" data-id="${t.id}">📝 Ficha de Campo (PDF)</button>` : ''}
     <button class="botao" data-go="home">➕ Iniciar novo turno</button>
@@ -398,6 +401,58 @@ async function fechado() {
 /** Complemento dos avisos de pendência: no Android (Background Sync) o envio acontece sozinho; no iPhone, só com o app aberto. */
 const avisoEnvio = () => Sync.envioAutomatico() ? ' — será enviado automaticamente quando houver internet, mesmo com o app fechado'
   : ' — abra o app com internet para enviar (e mantenha-o aberto até aparecer “Sincronizado”)';
+
+/* ---------- status do encerramento (feito neste aparelho) até a planilha confirmar ----------
+   ⏳ enviando / ⚠️ não enviado (motivo + Tentar enviar agora) / ✅ só quando o servidor confirmou (o sync marca pendente: 0).
+   Aparece na tela "Turno encerrado" e, enquanto houver encerramento pendente, num cartão amarelo no topo de Módulos. */
+const AVISO_SAIDA = 'O encerramento ainda não chegou à planilha. Mantenha o app aberto com internet por alguns segundos.';
+const hhmm = ms => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
+function estadoEnvio() {
+  const e = Sync.estado() || {};
+  if (!navigator.onLine) return { tipo: 'falha', motivo: 'sem internet' };
+  if (Sync.emAndamento() || e.tipo === 'sync') return { tipo: 'enviando' };
+  if (e.tipo === 'erro') return { tipo: 'falha', motivo: e.msg || 'erro ao enviar' };
+  if (e.tipo === 'ok') return { tipo: 'falha', motivo: e.aviso || 'ainda não confirmado pela planilha' };
+  return { tipo: 'aguardando' };
+}
+function htmlStatusEnc(t, cartao) {
+  const attrs = `id="${cartao ? 'encCartao' : 'encPend'}" data-id="${esc(t.id)}" role="status" aria-live="polite"`;
+  if (!t.pendente) {
+    if (cartao) return '';
+    return `<div ${attrs} class="enc-st ok"><b>✅ Turno encerrado, bom descanso!</b><small>${t.srv_ts ? `Recebido pela planilha às ${hhmm(Number(t.srv_ts))}.` : 'Recebido pela planilha.'}</small></div>`;
+  }
+  const st = estadoEnvio(), qual = cartao ? `<span class="enc-qual">⏹ Turno <b>${esc(t.numeroTF || '')}</b> encerrado às ${esc(t.fim || '')}</span>` : '';
+  const pend = `Encerramento ainda não enviado à planilha${avisoEnvio()}. Enquanto não chegar, a gerência vê esta barreira como em andamento.`;
+  const botao = `<button type="button" class="botao sec mini" data-reenviar="${esc(t.id)}">🔄 Tentar enviar agora</button>`;
+  if (st.tipo === 'enviando') return `<div ${attrs} class="enc-st pend${cartao ? ' card aviso' : ''}">${qual}<b>⏳ Enviando…</b><small>${esc(pend)} Mantenha o app aberto com internet por alguns segundos.</small></div>`;
+  if (st.tipo === 'aguardando') return `<div ${attrs} class="enc-st pend${cartao ? ' card aviso' : ''}">${qual}<b>⏳ Aguardando envio…</b><small>${esc(pend)}</small>${botao}</div>`;
+  return `<div ${attrs} class="enc-st erro${cartao ? ' card aviso' : ''}">${qual}<b>⚠️ Não enviado: ${esc(st.motivo)}</b><small>${esc(pend)}</small>${botao}</div>`;
+}
+/** Cartão amarelo no topo de Módulos enquanto houver turno encerrado neste aparelho sem chegar à planilha. */
+async function cartaoEncerramento() {
+  const l = await Sync.encerramentosPendentes();
+  if (!l.length) return '';
+  const h = htmlStatusEnc(l[0], true);
+  return l.length > 1 ? h.replace('</div>', `<small>${l.length} turnos encerrados aguardando envio.</small></div>`) : h;
+}
+/** Redesenha só o status (sem refazer a tela) a cada mudança da sincronização. */
+async function atualizarStatusEnc() {
+  const el = $('#encPend');
+  if (el) { const t = await Store.obter('turnos', el.dataset.id); if (t && el.isConnected) el.outerHTML = htmlStatusEnc(t); }
+  const c = $('#encCartao');
+  if (c) { const h = await cartaoEncerramento(); if (c.isConnected) { if (h) c.outerHTML = h; else c.remove(); } }
+}
+function avisarSaidaPendente(id) {
+  Store.obter('turnos', id).then(t => { if (t && t.pendente && Number(t.encerrado) === 1) toast(AVISO_SAIDA, true); }).catch(() => {});
+}
+async function tentarEnviarAgora(id, botao) {
+  if (botao) { botao.disabled = true; botao.textContent = '⏳ Enviando…'; }
+  await Sync.sincronizar();
+  const t = await Store.obter('turnos', id);
+  if (t && !t.pendente) toast('✅ Turno encerrado, bom descanso!');
+  else { const st = estadoEnvio(); toast(`⚠️ Não enviado: ${st.motivo || 'tente de novo em instantes'}`, true); }
+  await atualizarStatusEnc();
+}
 const contar = v => v.reduce((o, x) => (o[x.tipo] = (o[x.tipo] || 0) + 1, o), {});
 
 /* ---------- Histórico / dashboard ---------- */
@@ -482,10 +537,11 @@ document.addEventListener('submit', async e => {            // ativação por c�
 
 /* ---------- eventos globais ---------- */
 document.addEventListener('click', async e => {
-  const el = e.target.closest('[data-v],[data-go],[data-edit],[data-del],[data-doc],[data-instalar],[data-tfveic],[data-bloq],[data-avisook]');
+  const el = e.target.closest('[data-v],[data-go],[data-edit],[data-del],[data-doc],[data-instalar],[data-tfveic],[data-bloq],[data-avisook],[data-reenviar]');
   if (!el) return;
   const d = el.dataset;
-  if (d.avisook) { try { localStorage.removeItem(LS_AVISO_ENC); } catch (e2) { /* idem */ } const a = $('#avisoEncerrado'); if (a) a.remove(); }
+  if (d.reenviar) tentarEnviarAgora(d.reenviar, el);
+  else if (d.avisook) { try { localStorage.removeItem(LS_AVISO_ENC); } catch (e2) { /* idem */ } const a = $('#avisoEncerrado'); if (a) a.remove(); }
   else if (d.bloq) toast(`${SEM_AUT}: ${Sync.MODULOS[d.bloq] || d.bloq}.`, true);
   else if (d.instalar) acaoInstalar(d.instalar);
   else if (d.tfveic) go('tfnovo', { veiculoId: d.tfveic });
@@ -508,6 +564,7 @@ Sync.onEstado(e => {
   const b = $('#sync');
   const pend = e.pend ? ` · ${e.pend} a enviar` : '';
   b.textContent = (e.tipo === 'sync' ? '🔄 Sincronizando…' : e.tipo === 'erro' ? '⚠️ Falha ao sincronizar' : (navigator.onLine ? '🟢 Online' : '🔴 Offline')) + (e.tipo === 'sync' ? '' : pend);
+  atualizarStatusEnc().catch(() => {});
 });
 window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'resumo', 'historico', 'tf', 'pce', 'pcetermos', 'fechado'].includes(VIEW)) go(VIEW, EDIT); });
 // permissões mudaram no sync: se a tela aberta é de um módulo que deixou de ser autorizado, volta para os módulos (nada é apagado);
@@ -518,6 +575,7 @@ window.addEventListener('gdv-permissoes', () => {
   else if (['home', 'lista', 'pce', 'pcetermos', 'pcepronto'].includes(VIEW)) go(VIEW, EDIT);   // botões "Lavrar TF" / "do papel" aparecem/somem
 });
 window.addEventListener('online', () => Sync.atualizarContagem());
+window.addEventListener('gdv-sync-fim', () => { atualizarStatusEnc().catch(() => {}); });
 
 $('#sync').onclick = () => Sync.sincronizar();
 if ('serviceWorker' in navigator) {

@@ -87,17 +87,78 @@ const Envio = (() => {
    * não mudou: uma edição feita durante o envio (nesta página, em outra aba ou no service worker) continua pendente.
    * Recusados pelo servidor (módulo sem autorização) continuam pendentes.
    */
-  async function marcarEnviados(store, enviados, recusados) {
+  async function marcarEnviados(store, enviados, recusados, recebidoEm) {
     const fora = new Set((recusados || []).map(String));
     const env = (enviados || []).filter(e => !fora.has(String(e.id)));
-    await Store.mesclar(store, env, (atual, e) => atual && atual.pendente && atual.atualizadoEm === e.atualizadoEm ? { ...atual, pendente: 0 } : null);
+    // turno: srv_ts = momento em que a planilha recebeu (a tela "Turno encerrado" mostra "recebido pela planilha às HH:MM")
+    const extra = store === 'turnos' && recebidoEm ? { srv_ts: recebidoEm } : {};
+    await Store.mesclar(store, env, (atual, e) => atual && atual.pendente && atual.atualizadoEm === e.atualizadoEm ? { ...atual, ...extra, pendente: 0 } : null);
+  }
+
+  /* ---------- Sinal do aparelho (heartbeat) ----------
+     Toda sincronização (página ou service worker) leva o estado do aparelho: id fixo (meta "aparelhoId"), versão do app, plataforma,
+     o que ainda está guardado sem enviar, os turnos encerrados que ainda não chegaram à planilha e o último erro de envio.
+     A planilha grava na aba Aparelhos; o painel usa para o "último sinal" das barreiras e para avisar "encerrado no celular,
+     aguardando envio". O último erro fica na meta "ultimoErro" até um envio dar certo (vai junto no sync seguinte). */
+  async function idAparelho() {
+    let id = await Store.meta('aparelhoId');
+    if (!id) { id = Store.novoId(); await Store.setMeta('aparelhoId', id); }
+    return id;
+  }
+  const versaoApp = () => (typeof VERSAO_APP !== 'undefined' ? VERSAO_APP : '');
+  function plataforma() {
+    const n = typeof navigator !== 'undefined' ? navigator : {}, ua = String(n.userAgent || '');
+    if (/iPad|iPhone|iPod/.test(ua) || (n.platform === 'MacIntel' && n.maxTouchPoints > 1)) return 'ios';
+    return /Android/i.test(ua) ? 'android' : 'outro';
+  }
+  async function instalado() {
+    try {
+      if (typeof matchMedia === 'function') return matchMedia('(display-mode: standalone)').matches || matchMedia('(display-mode: fullscreen)').matches || navigator.standalone === true;
+    } catch (e) { /* segue */ }
+    return !!(await Store.meta('standalone'));                               // service worker: o que a página viu
+  }
+  /** Texto curto do erro para o fiscal e para o painel (falhas de rede em português). */
+  function motivoErro(e) {
+    if (!e) return '';
+    if (e.name === 'AbortError') return 'tempo esgotado (internet lenta ou servidor demorando)';
+    if (erroDeRede(e)) return 'sem conexão com o servidor (sem internet ou sinal fraco)';
+    if (e instanceof SyntaxError) return 'resposta inválida do servidor';
+    return String(e.message || e).replace(/\s+/g, ' ').trim().slice(0, 200) || 'erro desconhecido';
+  }
+  /** Guarda o último erro de envio (vai no próximo sinal); sem erro = apaga. */
+  async function guardarErro(e) {
+    try {
+      if (e) await Store.setMeta('ultimoErro', { msg: motivoErro(e), em: Date.now() });
+      else await Store.apagar('meta', ['ultimoErro']);
+    } catch (e2) { /* sem banco */ }
+  }
+  /** Estado do aparelho para o sinal. p = pendentes() já lidos (opcional); origem: 'app' | 'segundo-plano'. */
+  async function sinal(p, origem) {
+    p = p || await pendentes();
+    const enc = (p.t || []).filter(t => Number(t.encerrado) === 1).slice(0, 20), fim = {};
+    enc.forEach(t => { if (t.fim) fim[t.id] = String(t.fim).slice(0, 5); });
+    const err = (await Store.meta('ultimoErro')) || null;
+    return { id: await idAparelho(), versao: versaoApp(), plataforma: plataforma(), standalone: await instalado(),
+      online: typeof navigator === 'undefined' || navigator.onLine !== false,
+      pendentes: { turnos: (p.t || []).length, veiculos: (p.v || []).length, tfs: (p.f || []).length, levantamentos: (p.g || []).length,
+        colheitas: (p.c || []).length, arquivos: (p.a || []).length },
+      turnosEncerradosPendentes: enc.map(t => t.id), fimPendentes: fim, turnoAtual: (await Store.meta('turnoAtual')) || '',
+      ultimoErro: err ? String(err.msg || '') : '', ultimoErroEm: err ? Number(err.em) || 0 : 0, origem: origem === 'segundo-plano' ? 'segundo-plano' : 'app' };
+  }
+  /**
+   * O envio falhou por erro do servidor (não de rede nem credencial): uma chamada leve "ping" só com o sinal, para o painel ao menos
+   * ver o erro e o que está guardado. Melhor esforço, uma vez por falha (nunca repete nem chama a si mesma).
+   */
+  async function avisarFalha(chamar, e, origem) {
+    if (!e || erroDeRede(e) || credencialRecusada(e) || e.semPermissao) return false;
+    try { await chamar({ action: 'ping', aparelho: await sinal(null, origem) }, 10000); return true; } catch (e2) { return false; }
   }
 
   /**
    * Uma rodada de envio: lê os pendentes, monta o lote (só módulos permitidos, até LIMITES por store), chama action "sync" e marca
    * os enviados. Devolve {r: resposta do servidor, rec: recusados, recusouAlgo, resta: ainda há pendentes permitidos além do lote}.
    */
-  async function enviarLote(chamar, perm) {
+  async function enviarLote(chamar, perm, origem) {
     const p = await pendentes();
     // módulo sem autorização (última permissão conhecida): os registros nem sobem; ficam pendentes até a gerência liberar
     const vai = {}; NOMES.forEach(n => { vai[n] = storePermitido(n, perm) ? p[n] : []; });
@@ -105,10 +166,10 @@ const Envio = (() => {
     if (!podeAntigo(perm)) ANTIGO_NOS.forEach(n => { vai[n] = vai[n].filter(r => !ehAntigo(r)); });
     const env = {}; NOMES.forEach(n => { env[n] = vai[n].slice(0, LIMITES[n]); });
     const since = (await Store.meta('lastSync')) || 0;
-    const corpo = { action: 'sync', since }; NOMES.forEach(n => { corpo[CAMPOS[n]] = env[n].map(limpo); });
+    const corpo = { action: 'sync', since, aparelho: await sinal(p, origem) }; NOMES.forEach(n => { corpo[CAMPOS[n]] = env[n].map(limpo); });
     const r = await chamar(corpo);
     const rec = r.recusados || {};
-    for (const n of NOMES) await marcarEnviados(STORES[n], env[n], rec[CAMPOS[n]]);
+    for (const n of NOMES) await marcarEnviados(STORES[n], env[n], rec[CAMPOS[n]], Number(r.agora) || 0);
     return { r, rec, recusouAlgo: Object.keys(rec).some(k => (rec[k] || []).length),
       resta: NOMES.some(n => vai[n].length > env[n].length), enviados: NOMES.reduce((s, n) => s + env[n].length, 0) };
   }
@@ -172,7 +233,7 @@ const Envio = (() => {
     try {
       for (let volta = 0; volta < 20; volta++) {
         let l;
-        try { l = await enviarLote(chamar, perm); }
+        try { l = await enviarLote(chamar, perm, 'segundo-plano'); }
         catch (e) { if (e.semPermissao) continue; throw e; }               // gerência tirou um módulo: a próxima rodada já o deixa de fora
         enviados += l.enviados;
         const mudou = l.r.permissoes ? await guardarPerm(l.r.permissoes) : false;
@@ -196,11 +257,15 @@ const Envio = (() => {
         if (atual && atual.key === c.key) await Store.setMeta('cred', { ...atual, revogado: 1 });
         return { enviados, arquivos, motivo: 'credencial revogada' };
       }
+      await guardarErro(e);                                                  // vai no próximo sinal (a página mostra o motivo)
+      await avisarFalha(chamar, e, 'segundo-plano');
       throw e;
     }
+    await guardarErro(null);                                                 // o erro anterior já foi junto no sinal deste envio
     return { enviados, arquivos, resta };
   }
 
   return { NOMES, STORES, CAMPOS, LIMITES, MODULO_DO_STORE, TAG, TAG_PERIODICO, normPerm, storePermitido, ehAntigo, podeAntigo, limpo, lerJSON,
-    erroDeRede, credencialRecusada, post, arquivosPendentes, pendentes, marcarEnviados, enviarLote, enviarArquivos, subir };
+    erroDeRede, credencialRecusada, post, arquivosPendentes, pendentes, marcarEnviados, enviarLote, enviarArquivos, subir,
+    sinal, idAparelho, versaoApp, plataforma, motivoErro, guardarErro, avisarFalha };
 })();

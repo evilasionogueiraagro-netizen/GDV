@@ -226,35 +226,10 @@ const PCEUI = (() => {
     };
   }
 
-  /* ---------- arquivos (fotos e assinaturas) ---------- */
-  const idsArquivos = rec => new Set(rec ? [...lerJSON(rec.fotos, []), ...lerJSON(rec.documentos, []), ...Object.values(lerJSON(rec.assinaturas, {}))].filter(Boolean) : []);
-  /** Apaga do aparelho os arquivos ainda não enviados (os já enviados ficam: o Drive guarda para auditoria). */
-  async function apagarSeNaoEnviado(ids) {
-    const fora = [];
-    for (const id of ids) { const a = await Store.obter('arquivos', id); if (a && !a.enviado) fora.push(id); }
-    await Store.apagar('arquivos', fora);
-  }
-  async function arquivosPorId(rec) {
-    const m = {};
-    for (const id of idsArquivos(rec)) { const a = await Store.obter('arquivos', id); if (a) m[id] = a; }
-    return m;
-  }
-  const tamanhoDataURL = d => Math.round((String(d).length - String(d).indexOf(',') - 1) * 3 / 4);
-  const novoArquivo = (dono, donoId, tipo, papel, mime, dados) => ({ id: Store.novoId(), dono, donoId, tipo, papel: papel || '', mime, dados,
-    tamanho: tamanhoDataURL(dados), criadoEm: Date.now(), enviado: 0, url: '', driveId: '' });
-
+  /* ---------- arquivos (fotos e assinaturas): núcleo comum em anexos.js (o TF usa o mesmo) ---------- */
+  const { idsArquivos, apagarSeNaoEnviado, arquivosPorId, novoArquivo } = Anexos;
   /** Reduz a foto no aparelho: lado maior até 1600 px, JPEG ~0,7. */
-  async function reduzirFoto(file) {
-    const url = URL.createObjectURL(file);
-    try {
-      const img = await new Promise((ok, no) => { const i = new Image(); i.onload = () => ok(i); i.onerror = () => no(new Error('Não foi possível ler a imagem ' + (file.name || ''))); i.src = url; });
-      const lado = P.fotoLado || 1600, f = Math.min(1, lado / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
-      const cv = document.createElement('canvas');
-      cv.width = Math.max(1, Math.round(img.naturalWidth * f)); cv.height = Math.max(1, Math.round(img.naturalHeight * f));
-      const ctx = cv.getContext('2d'); ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, cv.width, cv.height); ctx.drawImage(img, 0, 0, cv.width, cv.height);
-      return cv.toDataURL('image/jpeg', P.fotoQualidade || 0.7);
-    } finally { URL.revokeObjectURL(url); }
-  }
+  const reduzirFoto = file => Anexos.reduzirFoto(file, P.fotoLado, P.fotoQualidade);
   const MAX_FOTOS = P.maxFotos || 60, MAX_CULTURAS = P.maxCulturas || 40, MAX_PRAGAS = P.maxPragas || 20;
   /* Listas de fotos: no Termo, F.fotos; no levantamento, uma lista por cultura (chave = uid da cultura no formulário) e "gerais"
      (fotos de registro anterior, do levantamento inteiro). No levantamento F.fotos é calculado (todas as fotos do formulário). */
@@ -281,14 +256,8 @@ const PCEUI = (() => {
     agendarRascunho(0);                                                  // grava já: os arquivos novos ficam ligados ao rascunho
   }
   async function renderFotos(F, prev, chave) {
-    const el = $(prev); if (!el) return;
-    const ids = listaFotos(F, chave), itens = await Promise.all(ids.map(id => Store.obter('arquivos', id)));
-    if ($(prev) !== el) return;
     const ch = chave == null ? '' : ` data-chave="${esc(chave)}"`;
-    el.innerHTML = ids.length ? ids.map((id, i) => { const a = itens[i];
-      return `<div class="pce-foto" data-id="${esc(id)}">${a && a.dados ? `<img src="${esc(a.dados)}" alt="Foto ${i + 1}">` : '<span>☁️ foto arquivada no Drive</span>'}
-        <button type="button" class="pce-foto-del" data-pce="delfoto" data-id="${esc(id)}"${ch} aria-label="Remover foto ${i + 1}">✕</button></div>`; }).join('')
-      : '<div class="dica" style="grid-column:1/-1">Nenhuma foto.</div>';
+    await Anexos.miniaturas($(prev), listaFotos(F, chave), 'data-pce="delfoto"' + ch);
   }
   async function removerFoto(F, id, prev, chave) {
     setListaFotos(F, chave, listaFotos(F, chave).filter(x => x !== id));
@@ -353,40 +322,16 @@ const PCEUI = (() => {
     <canvas id="pce-ass-${papel}" class="pce-canvas" data-papel="${papel}" aria-label="Assinatura: ${esc(rotulo)}"></canvas></div>`;
   async function ligarAssinatura(F, papel) {
     const cv = $('#pce-ass-' + papel); if (!cv) return;
-    const dpr = window.devicePixelRatio || 1, w = cv.clientWidth || 300, h = cv.clientHeight || 140;
-    cv.width = Math.round(w * dpr); cv.height = Math.round(h * dpr);
-    const ctx = cv.getContext('2d');
-    ctx.scale(dpr, dpr); ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = ctx.fillStyle = '#0b1f4a';
     const salva = F.ass[papel] ? await Store.obter('arquivos', F.ass[papel]) : null;
-    const src = F.assNovas[papel] || (salva && salva.dados);
-    if (src) { const img = new Image(); img.onload = () => ctx.drawImage(img, 0, 0, w, h); img.src = src; }
-    let ativo = false, ult = null, idAtivo = null;
-    // o bitmap foi criado com w×h (px CSS); se a tela muda de tamanho (girar o celular), converte o toque para essa escala
-    const pos = e => { const r = cv.getBoundingClientRect(); return { x: (e.clientX - r.left) * w / (r.width || w), y: (e.clientY - r.top) * h / (r.height || h) }; };
-    cv.addEventListener('pointerdown', e => {
-      e.preventDefault(); if (ativo) return;                              // segundo dedo/palma durante o traço: ignorado
-      ativo = true; idAtivo = e.pointerId; try { cv.setPointerCapture(e.pointerId); } catch (x) { /* sem captura */ }
-      ult = pos(e); ctx.beginPath(); ctx.arc(ult.x, ult.y, ctx.lineWidth / 2, 0, Math.PI * 2); ctx.fill();
-    });
-    cv.addEventListener('pointermove', e => {
-      if (!ativo || e.pointerId !== idAtivo) return; e.preventDefault();
-      const p = pos(e); ctx.beginPath(); ctx.moveTo(ult.x, ult.y); ctx.lineTo(p.x, p.y); ctx.stroke(); ult = p;
-    });
-    const fim = e => { if (!ativo || (e && e.pointerId !== idAtivo)) return; ativo = false; idAtivo = null; F.assNovas[papel] = cv.toDataURL('image/png'); agendarRascunho(); };
-    cv.addEventListener('pointerup', fim); cv.addEventListener('pointercancel', fim); cv.addEventListener('lostpointercapture', fim);
+    Anexos.ligarCanvas(cv, F.assNovas[papel] || (salva && salva.dados), d => { F.assNovas[papel] = d; agendarRascunho(); });
   }
   function limparAssinatura(F, papel) {
-    const cv = $('#pce-ass-' + papel); if (cv) cv.getContext('2d').clearRect(0, 0, cv.width, cv.height);
+    Anexos.limparCanvas($('#pce-ass-' + papel));
     delete F.assNovas[papel]; F.ass[papel] = '';
     agendarRascunho();
   }
   /** Assinaturas desenhadas viram arquivos PNG (só as que foram desenhadas). Devolve o mapa final papel→id e os arquivos a gravar. */
-  function prepararAssinaturas(F) {
-    const mapa = {}, novos = [];
-    Object.keys(F.ass).forEach(p => { if (F.ass[p]) mapa[p] = F.ass[p]; });
-    Object.keys(F.assNovas).forEach(p => { const a = novoArquivo(F.dono, F.id, 'assinatura', p, 'image/png', F.assNovas[p]); novos.push(a); mapa[p] = a.id; });
-    return { mapa, novos };
-  }
+  const prepararAssinaturas = F => Anexos.prepararAssinaturas(F);
 
   /* ---------- GPS ---------- */
   async function capturarGPS(pref, automatico) {
@@ -1299,7 +1244,7 @@ const PCEUI = (() => {
   /** Resumo para o cartão do módulo no hub. */
   async function status() {
     const levs = (await Store.todos('levantamentos')).filter(x => !x.excluido), cols = (await Store.todos('colheitas')).filter(x => !x.excluido);
-    const pend = levs.filter(x => x.pendente).length + cols.filter(x => x.pendente).length + (await Sync.arquivosPendentes()).length;
+    const pend = levs.filter(x => x.pendente).length + cols.filter(x => x.pendente).length + (await Sync.arquivosPendentes(null, null, [])).length;   // só os do PCE
     if (!levs.length && !cols.length) return 'Nenhum registro';
     return `${levs.length} levantamento(s) · ${cols.length} termo(s)${pend ? ` · ⏳ ${pend} aguardando envio` : ''}`;
   }

@@ -23,13 +23,28 @@ async function veiculosDe(turnoId) {
 }
 
 /* ---------- localização (GPS funciona sem internet) ---------- */
+/* Localização. O pedido de permissão do celular só deve aparecer quando o fiscal faz algo que precisa dela
+   (ativar o aparelho, iniciar/encerrar turno, posto volante, botão "Atualizar GPS"). Leituras automáticas
+   (TF em preenchimento, GPS ao abrir o levantamento) usam pegarLocalSilencioso, que nunca abre o pedido. */
+let ultimaLocal = null;                                         // reaproveita uma leitura recente (evita pedidos seguidos)
 function pegarLocal() {
+  if (ultimaLocal && Date.now() - ultimaLocal.em < 2 * 60 * 1000) return Promise.resolve(ultimaLocal.g);
   return new Promise(ok => {
     if (!navigator.geolocation) return ok(null);
     navigator.geolocation.getCurrentPosition(
-      p => ok({ lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6), prec: Math.round(p.coords.accuracy) }),
-      () => ok(null), { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 });
+      p => { const g = { lat: +p.coords.latitude.toFixed(6), lng: +p.coords.longitude.toFixed(6), prec: Math.round(p.coords.accuracy) };
+        ultimaLocal = { g, em: Date.now() }; ok(g); },
+      () => ok(null), { enableHighAccuracy: true, timeout: 15000, maximumAge: 60000 });
   });
+}
+async function permissaoLocal() {
+  try { return navigator.permissions ? (await navigator.permissions.query({ name: 'geolocation' })).state : 'desconhecido'; }
+  catch (e) { return 'desconhecido'; }
+}
+/** Só lê o GPS se a permissão já foi dada; nunca mostra o pedido ao fiscal. */
+async function pegarLocalSilencioso() {
+  if (ultimaLocal && Date.now() - ultimaLocal.em < 2 * 60 * 1000) return ultimaLocal.g;
+  return (await permissaoLocal()) === 'granted' ? pegarLocal() : null;
 }
 /** Endereço aproximado da coordenada (OpenStreetMap/Nominatim). Sem internet ou em erro: ''. */
 async function enderecoDe(g) {
@@ -461,6 +476,7 @@ document.addEventListener('submit', async e => {            // ativação por c�
   try {
     const nome = await Sync.ativar($('#aCod').value, $('#aUrl') ? $('#aUrl').value : '');
     toast(`Aparelho ativado para ${nome}.`); Sync.sincronizar(); go(VIEW === 'editar' ? 'home' : VIEW);
+    pegarLocal();                                                   // pede a permissão de localização uma vez, logo na ativação
   } catch (err) { toast(err.message, true); btn.disabled = false; btn.textContent = 'Ativar'; }
 });
 

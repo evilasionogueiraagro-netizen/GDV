@@ -86,7 +86,12 @@ const TFUI = (() => {
     sinal('preenchendo');
     AND.timer = setInterval(() => { if (AND.rid === rid && $('#tfForm')) sinal('preenchendo'); else if (AND.rid === rid) encerrarAndamento(); }, BATIMENTO_MS);
     if (!AND.gps && typeof pegarLocal === 'function') {                             // GPS uma vez, em segundo plano (não trava o formulário)
-      pegarLocal().then(g => { if (g && AND.rid === rid && $('#tfForm')) { AND.gps = g; sinal('preenchendo'); } }).catch(() => {});
+      // sem abrir o pedido de permissão: se não houver leitura liberada, usa a coordenada do turno aberto
+      const gpsTurno = async () => { const t = S && S.turnoId ? await Store.obter('turnos', S.turnoId) : null;
+        return t && t.latIni ? { lat: +t.latIni, lng: +t.lngIni } : null; };
+      (typeof pegarLocalSilencioso === 'function' ? pegarLocalSilencioso() : Promise.resolve(null))
+        .then(g => g || gpsTurno())
+        .then(g => { if (g && AND.rid === rid && $('#tfForm')) { AND.gps = g; sinal('preenchendo'); } }).catch(() => {});
     }
   }
   function encerrarAndamento() {

@@ -93,7 +93,7 @@
       } else falha(e.rede ? 'Não foi possível falar com o servidor agora. Verifique a internet; a página tenta de novo sozinha.' : e.message);
     } finally { S.carregando = false; }
   }
-  function limparGraficos() { S.graficos.forEach(g => { try { g.destroy(); } catch (e) { /* ok */ } }); S.graficos = []; if (S.mapa) { try { S.mapa.remove(); } catch (e) { /* ok */ } S.mapa = null; } }
+  function limparGraficos() { S.graficos.forEach(g => { try { g.destroy(); } catch (e) { /* ok */ } }); S.graficos = []; if (S.obsMapa) { S.obsMapa.disconnect(); S.obsMapa = null; } if (S.mapa) { try { S.mapa.remove(); } catch (e) { /* ok */ } S.mapa = null; } }
   function indisponivel() {
     limparGraficos();
     $('#db-controles').hidden = true; $('#db-status').textContent = ''; $('#db-texto').textContent = ''; faixas();
@@ -355,8 +355,9 @@
     if (M.calor && L.heatLayer) camadas.push(['calor', 'Calor de detecções']);
     if (r.aoVivo) camadas.push(['aoVivo', 'Barreiras em andamento agora']);
     if (!S.camadas) S.camadas = new Set(camadas.map(x => x[0]).filter(k => k !== 'calor'));
-    if (inds.length > 1) card.insertAdjacentHTML('beforeend', `<div class="db-ind" role="group" aria-label="Indicador dos municípios">${inds.map(k => `<button type="button" class="pn-chip" data-ind="${k}" aria-pressed="${k === S.indicador}">${esc(INDICADORES[k])}</button>`).join('')}</div>`);
-    if (camadas.length) card.insertAdjacentHTML('beforeend', `<div class="db-camadas" role="group" aria-label="Camadas do mapa">${camadas.map(([k, t]) => `<label class="pn-chip"><input type="checkbox" data-camada="${k}" ${S.camadas.has(k) ? 'checked' : ''}> ${esc(t)}</label>`).join('')}</div>`);
+    const ctrl = el('div', 'db-mapa-ctrl'); card.appendChild(ctrl);              // indicadores + camadas (no computador, numa faixa só)
+    if (inds.length > 1) ctrl.insertAdjacentHTML('beforeend', `<div class="db-ind" role="group" aria-label="Indicador dos municípios">${inds.map(k => `<button type="button" class="pn-chip" data-ind="${k}" aria-pressed="${k === S.indicador}">${esc(INDICADORES[k])}</button>`).join('')}</div>`);
+    if (camadas.length) ctrl.insertAdjacentHTML('beforeend', `<div class="db-camadas" role="group" aria-label="Camadas do mapa">${camadas.map(([k, t]) => `<label class="pn-chip"><input type="checkbox" data-camada="${k}" ${S.camadas.has(k) ? 'checked' : ''}> ${esc(t)}</label>`).join('')}</div>`);
     const div = el('div', 'pn-mapa-div pn-tiles-escuro'); div.id = 'db-mapa'; div.setAttribute('role', 'region'); div.setAttribute('aria-label', 'Mapa interativo do Amazonas'); card.appendChild(div);
     const leg = el('div', 'pn-legenda'); leg.id = 'db-legenda'; card.appendChild(leg);
     card.appendChild(el('p', 'db-fonte', `Fonte: e-GDV/ADAF · ${esc(r.periodo.rotulo)} · atualizado em ${esc(fmt.dataHora(r.atualizadoEm))}.` +
@@ -433,6 +434,9 @@
     card.addEventListener('click', e => { const b = e.target.closest('[data-ind]'); if (!b) return; S.indicador = b.dataset.ind; card.querySelectorAll('[data-ind]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); calcMax(); aplicar(); });
     aplicar();
     setTimeout(() => map.invalidateSize(), 0);
+    // girou o celular / mudou o tamanho da janela: o mapa acompanha (um observador só, o da tela atual)
+    if (S.obsMapa) S.obsMapa.disconnect();
+    if (window.ResizeObserver) { S.obsMapa = new ResizeObserver(() => { if (S.mapa === map && div.isConnected) map.invalidateSize(); }); S.obsMapa.observe(div); }
 
     // lado: cartão do município, lista de barreiras em andamento e tabela por município (alternativa acessível ao mapa)
     const cm = el('div', 'pn-cartao db-mun'); cm.id = 'db-municipio'; cm.setAttribute('aria-live', 'polite'); lado.appendChild(cm);

@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B3A82">
+<meta name="robots" content="index, follow">
+<meta name="description" content="Dashboard público da ADAF/AM: números agregados de barreiras fitossanitárias, Termos de Fiscalização e vigilância fitossanitária (PCE) no Amazonas. Sem dados pessoais.">
+<title>Dashboard público — ADAF/AM</title>
+<link rel="icon" href="../img/icon-192.png">
+<link rel="stylesheet" href="../painel/vendor/leaflet/leaflet.css">
+<link rel="stylesheet" href="../painel/css/painel.css">
+<link rel="stylesheet" href="css/dashboard.css">
+</head>
+<body class="db">
+<a class="db-pular" href="#db-conteudo">Pular para o conteúdo</a>
+<header class="db-topo">
+  <img src="../img/logo-adaf.png" alt="ADAF — Agência de Defesa Agropecuária e Florestal do Amazonas">
+  <div class="db-topo-txt">
+    <p class="db-org">ADAF · Governo do Amazonas</p>
+    <h1 id="db-titulo">Dashboard público</h1>
+  </div>
+</header>
+<div id="db-previa" class="db-faixa db-faixa-previa" role="note" hidden></div>
+<div id="db-offline" class="db-faixa db-faixa-offline" role="status" aria-live="polite" hidden></div>
+<main id="db-conteudo" class="db-conteudo" tabindex="-1">
+  <p id="db-texto" class="db-texto"></p>
+  <div id="db-controles" class="db-controles" hidden>
+    <div class="db-modos" role="tablist" aria-label="Modo de exibição" id="db-modos"></div>
+    <div class="db-periodo"><span class="db-periodo-rot" id="db-periodo-rot">Período</span><div class="db-periodos" role="group" aria-labelledby="db-periodo-rot" id="db-periodos"></div></div>
+  </div>
+  <p id="db-status" class="db-status" aria-live="polite"></p>
+  <div id="db-corpo" role="tabpanel" aria-live="off"><div class="pn-cartao db-carregando">Carregando os números…</div></div>
+</main>
+<footer class="db-rodape">
+  <p>Dados agregados do e-GDV · ADAF/AM. Não contém dados pessoais.</p>
+  <p>Mapa: limites municipais do IBGE; fundo © colaboradores do <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>.</p>
+</footer>
+<div id="pn-tip" class="pn-tip" role="tooltip" hidden></div>
+<script src="../js/config.js"></script>
+<script src="../painel/vendor/leaflet/leaflet.js"></script>
+<script src="../painel/vendor/leaflet-heat.js"></script>
+<script src="../painel/vendor/chart.umd.js"></script>
+<script src="js/dashboard.js"></script>
+</body>
+</html>

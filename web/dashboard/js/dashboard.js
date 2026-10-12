@@ -44,7 +44,7 @@
   const alfa = (hex, a) => { const h = String(hex).replace('#', ''); const n = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16); return `rgba(${n >> 16 & 255},${n >> 8 & 255},${n & 255},${a})`; };
 
   /* ---------- API ---------- */
-  const urlApi = () => ls.get('gdv.url') || (CFG.sync && CFG.sync.url) || '';
+  const urlApi = () => { const o = (CFG.sync && CFG.sync.url) || ''; return (o && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? o : ls.get('gdv.url') || o) || ''; };   // oficial primeiro (ver painel.js)
   async function api(corpo) {
     const url = urlApi(); if (!url) throw Object.assign(new Error('Endereço do servidor não configurado.'), { rede: true });
     const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), API_TEMPO_MS);

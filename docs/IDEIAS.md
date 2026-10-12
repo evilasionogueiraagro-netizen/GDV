@@ -44,3 +44,24 @@ Ideias discutidas com a gerência que ainda **não** foram implementadas. Cada u
 1. Gerências, textos por produto, fiel depositário e importação dos cadastros.
 2. Página da BVA: QR dinâmico, check-in e abertura do turno, lista de TFs com imprimir/baixar.
 3. Salvar automaticamente na pasta do PC e check-out pelo QR.
+
+---
+
+## 2. PCE em campo: propriedade cadastrada + vários levantamentos por visita, sem papel repetido
+
+*Contexto passado pelo gestor em 12/10/2026. Situação: **aguardando** a ficha de levantamento impressa e o cadastro de propriedade usados hoje (o gestor vai mostrar).*
+
+- **Na visita**, o fiscal vai a uma **propriedade já cadastrada** e só faz o levantamento, ou **cadastra uma nova** e faz o levantamento.
+- **Na mesma viagem**, levanta **várias pragas/doenças da lista**. As principais hoje:
+  - mosca-da-carambola;
+  - monilíase;
+  - vassoura-de-bruxa da mandioca;
+  - todas as doenças dos **citros**.
+- **Problema hoje:**
+  - preenchem **à mão uma folha por praga**, repetindo os mesmos dados (produtor, propriedade…);
+  - tudo em **duas vias**, porque uma fica com o produtor;
+  - não há **impressora em campo**.
+- **A pensar quando chegarem os modelos:**
+  - escolher a propriedade cadastrada sem redigitar nada;
+  - registrar várias pragas numa só visita (o módulo já tem um cartão por praga);
+  - a **via do produtor sem impressora**: PDF por WhatsApp ou e-mail, link ou QR do documento, impressão depois no escritório.

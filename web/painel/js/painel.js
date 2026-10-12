@@ -121,7 +121,10 @@ const Painel = (() => {
   }
 
   /* ---------------- API ---------------- */
-  const urlApi = () => ls.get('gdv.url') || (typeof CONFIG !== 'undefined' && CONFIG.sync && CONFIG.sync.url) || '';
+  // endereço oficial (js/config.js) primeiro: o app de campo guarda no navegador o endereço usado na ativação, e um endereço
+  // antigo ali prendia o painel numa implantação velha ("Ação inválida"). O guardado só vale sem oficial ou nos testes (localhost).
+  const urlOficial = () => (typeof CONFIG !== 'undefined' && CONFIG.sync && CONFIG.sync.url) || '';
+  const urlApi = () => (urlOficial() && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? urlOficial() : ls.get('gdv.url') || urlOficial()) || '';
   async function api(corpo) {
     const url = urlApi(); if (!url) throw new Error('Endereço do servidor não configurado (js/config.js).');
     let r, j;

@@ -6,7 +6,9 @@ const Sync = (() => {
   let estado = { tipo: 'idle', msg: '' };
 
   const cfg = () => ({
-    url: localStorage.getItem('gdv.url') || CONFIG.sync.url || '',
+    // o endereço oficial (config.js) manda: um endereço antigo guardado na ativação não pode prender o aparelho numa
+    // implantação velha. O guardado só vale sem endereço oficial ou nos testes (localhost).
+    url: (CONFIG.sync.url && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? CONFIG.sync.url : localStorage.getItem('gdv.url') || CONFIG.sync.url) || '',
     key: localStorage.getItem('gdv.key') || ''
   });
   const ativado = () => { const c = cfg(); return !!(c.url && c.key); };

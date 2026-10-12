@@ -496,7 +496,9 @@ const TFUI = (() => {
   }
   async function lista() {
     if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());
+    const mostrar = tela();
     const todos = (await Store.todos('tfs')).sort((a, b) => b.criadoEm - a.criadoEm);
+    if (!mostrar.viva()) return;
     view(`<button class="botao" data-tf="novo">➕ Novo TF</button><div class="card"><label>Pesquisar (nº, nome, CPF/CNPJ, placa)<input id="tfQ"></label></div><div id="tfItens"></div>`);
     const desenhar = () => {
       const q = $('#tfQ').value.trim().toUpperCase(), qd = digitos(q);

@@ -6,6 +6,11 @@ const hojeISO = () => { const d = new Date(); return `${d.getFullYear()}-${pad(d
 const agoraHM = () => { const d = new Date(); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
 
 let VIEW = 'home', EDIT = null;
+/* Cada go() abre uma nova "geração" de tela. Telas que esperam o banco (await) antes de desenhar pegam a geração no início
+   (tela()) e só desenham se ninguém navegou nesse meio-tempo: senão a sincronização que termina junto com um toque
+   redesenhava a tela antiga (ex.: módulos) por cima da nova. */
+let GER = 0;
+const tela = () => { const g = GER; const f = html => { if (g === GER) view(html); }; f.viva = () => g === GER; return f; };
 
 function toast(t, erro) {
   const m = $('#toast'); m.textContent = t; m.className = erro ? 'erro on' : 'on';
@@ -99,7 +104,7 @@ function go(view, arg) {
   else if (VIEWS_VEICULOS.includes(view)) MODULO = 'veiculos';
   else if (/^pce/.test(view)) MODULO = 'pce';
   else if (/^tf/.test(view) && MODULO === 'hub') MODULO = 'tf';          // TF aberto a partir do veículo continua no módulo de veículos (embutido)
-  renderNav(view);
+  renderNav(view); GER++;
   ({ modulos, home, registrar, editar: registrar, lista, resumo, fechado, historico, config, tf: () => TFUI.lista(), tfnovo: () => TFUI.novo(EDIT), tfpronto: () => TFUI.pronto(EDIT),
     pce: () => PCEUI.lista(), pcelev: () => PCEUI.levantamento(EDIT), pcetermos: () => PCEUI.termos(), pcetermo: () => PCEUI.termo(EDIT),
     pcepronto: () => PCEUI.pronto(EDIT), pcelevpronto: () => PCEUI.levPronto(EDIT), pceservidor: () => PCEUI.servidor(EDIT) }[view])();
@@ -108,6 +113,7 @@ function go(view, arg) {
 
 async function modulos() {
   if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());      // 1º instalar, 2º ativar, 3º módulos
+  const mostrar = tela();
   const t = await turnoAtual(), v = t ? await veiculosDe(t.id) : [];
   const tfs = await Store.todos('tfs'), pend = tfs.filter(x => x.pendente).length, nome = Sync.nome().split(' ')[0];
   const stPce = await PCEUI.status();
@@ -117,7 +123,7 @@ async function modulos() {
     : `<button class="modulo bloqueado" data-bloq="${mod}" aria-disabled="true"><span class="ic">${ic}</span><span><b>${titulo}</b><small class="sem-aut">🔒 ${SEM_AUT}</small>${linhas}</span></button>`;
   const aviso = (Sync.estado() || {}).aviso || Sync.avisoSemPermissao(await Sync.bloqueadosComPendentes());
   const encPend = await cartaoEncerramento();                       // turno encerrado aqui que ainda não chegou à planilha: no topo
-  view(`${encPend}<div class="card"><h3>Olá${nome ? ', ' + esc(nome) : ''}!</h3><p class="dica" style="text-align:left">Escolha o que deseja fazer.</p></div>
+  mostrar(`${encPend}<div class="card"><h3>Olá${nome ? ', ' + esc(nome) : ''}!</h3><p class="dica" style="text-align:left">Escolha o que deseja fazer.</p></div>
     ${aviso ? `<div class="card aviso" id="avisoPerm">⚠️ ${esc(aviso)}</div>` : ''}
     ${avisoTurnoEncerrado()}
     ${cartao('veiculos', 'home', '🚛', 'Educação Sanitária/Fiscalização de Trânsito', `<small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)${Sync.pode('veiculos') ? '' : ' (guardado neste aparelho)'}` : 'Registro das informações, por ação'}</small>`)}
@@ -220,10 +226,12 @@ const avisoAtivacao = () => {
     <button class="botao">Ativar</button></form>`;
 };
 async function home() {
+  const mostrar = tela();
   const t = await turnoAtual();
+  if (!mostrar.viva()) return;
   if (!t) return novoTurno();
   const v = await veiculosDe(t.id);
-  view(`${avisoAtivacao()}
+  mostrar(`${avisoAtivacao()}
     <div class="card"><h3>Turno atual</h3>
       <p><b>${esc(t.numeroTF)}</b></p>
       <p><b>Fiscal:</b> ${esc(t.fiscal)}</p><p><b>Local:</b> ${esc(t.local)}</p>
@@ -340,9 +348,12 @@ async function registrar() {
 
 /* ---------- Lista ---------- */
 async function lista() {
+  const mostrar = tela();
   const t = await turnoAtual();
+  if (!mostrar.viva()) return;
   if (!t) return novoTurno();
   const todos = (await veiculosDe(t.id)).reverse();
+  if (!mostrar.viva()) return;
   view(`<div class="card"><label>Pesquisar placa<input id="q" autocapitalize="characters"></label></div><div id="itens"></div>`);
   const desenhar = () => {
     const q = $('#q').value.toUpperCase();
@@ -364,10 +375,13 @@ async function lista() {
 
 /* ---------- Resumo / documentos ---------- */
 async function resumo() {
+  const mostrar = tela();
   const t = await turnoAtual();
+  if (!mostrar.viva()) return;
   if (!t) return novoTurno();
   const v = await veiculosDe(t.id);
   const por = contar(v);
+  if (!mostrar.viva()) return;
   view(`<div class="card"><h3>${esc(t.numeroTF)} — total por tipo</h3>
     ${Object.entries(CONFIG.tipos).map(([c, x]) => `<div class="resumo-item"><span>${x.icone} ${x.nome}</span><strong>${por[c] || 0}</strong></div>`).join('')}
     <div class="total">TOTAL DE VEÍCULOS<br>${v.length}<small>${v.reduce((s, x) => s + (Number(x.pessoas) || 0), 0)} pessoas fiscalizadas</small></div></div>
@@ -393,9 +407,12 @@ async function encerrarTurno(t) {
   Sync.sincronizar();
 }
 async function fechado() {
+  const mostrar = tela();
   const t = await Store.obter('turnos', EDIT);
+  if (!mostrar.viva()) return;
   if (!t) return go('home');
   const v = await veiculosDe(t.id);
+  if (!mostrar.viva()) return;
   view(`<div class="card"><h3>Turno encerrado</h3><p><b>${esc(t.numeroTF)}</b></p>
     <p>${dBR(t.data)} · das <b>${esc(t.inicio)}</b> às <b>${esc(t.fim)}</b></p>
     <p>${v.length} veículos · ${v.reduce((s, x) => s + (Number(x.pessoas) || 0), 0)} pessoas</p>
@@ -516,7 +533,9 @@ function barras(pares) {
 
 /* ---------- Status da sincronização ---------- */
 async function config() {
+  const mostrar = tela();
   const ult = await Store.meta('ultimaSync');
+  if (!mostrar.viva()) return;
   view(`${avisoAtivacao()}<div class="card"><h3>Sincronização</h3>
     <p>Aparelho: ${Sync.ativado() ? '✅ ativado' : '⚠️ não ativado'}</p>
     ${Sync.nome() ? `<p>Fiscal vinculado: <b>${esc(Sync.nome())}</b></p>` : ''}<p id="cEst"></p>

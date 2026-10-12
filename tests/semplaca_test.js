@@ -10,7 +10,10 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) proce
   await c.route('https://nominatim.openstreetmap.org/**', rt => rt.fulfill({ contentType: 'application/json', body: JSON.stringify({ address: { road: 'BR-174', village: 'Vila do Pitinga', town: 'Presidente Figueiredo', 'ISO3166-2-lvl4': 'BR-AM' } }) }));
   await c.addInitScript(([t]) => { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', 'Luciana Ferreira'); localStorage.setItem('gdv.semInstalar', '1'); } }, [r.token]);
   const p = await c.newPage(); const err = []; p.on('pageerror', e => err.push(e.message)); p.on('dialog', d => d.accept());
-  await p.goto(APP); await p.waitForSelector('.modulo[data-v=home]'); await p.click('.modulo[data-v=home]'); await p.waitForSelector('#fTurno');
+  await p.goto(APP); await p.waitForSelector('.modulo[data-v=home]'); await p.click('.modulo[data-v=home]');
+  // a 1ª sincronização pode redesenhar a tela logo depois do clique: espera o campo do local existir (e mostra a tela se não aparecer)
+  try { await p.waitForSelector('#fTurno #nLocal', { timeout: 15000 }); }
+  catch (e) { console.log('tela atual:', (await p.textContent('#view')).slice(0, 400), '| erros:', err.join(' ; ')); throw e; }
   const opcoes = await p.$$eval('#nLocal option', o => o.map(x => x.textContent));
   ok(await p.evaluate(() => document.querySelector('#nLocal').tagName) === 'SELECT' && opcoes.join('|') === 'BVA - CEASA|BVA - JUNDIÁ|BVA - AEROPORTO', 'posto Fixa: lista das BVAs ' + opcoes.join(', '));
   ok(/obrigatória/.test(await p.textContent('#nPlacaInfo')), 'CEASA: placa obrigatória');

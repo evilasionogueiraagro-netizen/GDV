@@ -741,12 +741,14 @@ const PCEUI = (() => {
 
   async function lista() {
     if (bloqueado()) return view(avisoAtivacao());
-    const s = await exigirServidor('pce', null, true); if (!s) return;
+    const mostrar = tela();
+    const s = await exigirServidor('pce', null, true); if (!s || !mostrar.viva()) return;
     fechar(L); fechar(T);
     const podeAnt = podeAntigo(), dig = soDigitador(s) && podeAnt, digSemAut = soDigitador(s) && !podeAnt;
     const todos = (await Store.todos('levantamentos')).filter(x => !x.excluido)
       .sort((a, b) => ((b.data || '') + (b.hora || '')).localeCompare((a.data || '') + (a.hora || '')) || b.criadoEm - a.criadoEm);
     const pendArq = new Set(await Store.chaves('arquivos', 'enviado', 0));
+    if (!mostrar.viva()) return;
     view(`<div class="card pce-serv"><div><b>${esc(s.nome)}</b><small>${dig ? 'Digitação de registros do papel' : esc(s.cargo) + ' · ' + esc(s.lotacao)}${s.matricula ? ' · Mat. ' + esc(s.matricula) : ''}</small></div>
         <button class="mini" data-pce="servidor" id="pce-meusdados">👤 Meus dados</button></div>
       ${digSemAut ? avisoSemAntigoHTML() : ''}
@@ -1184,10 +1186,12 @@ const PCEUI = (() => {
 
   async function termos() {
     if (bloqueado()) return view(avisoAtivacao());
-    const s = await exigirServidor('pcetermos', null, true); if (!s) return;
+    const mostrar = tela();
+    const s = await exigirServidor('pcetermos', null, true); if (!s || !mostrar.viva()) return;
     fechar(L); fechar(T);
     const podeAnt = podeAntigo(), dig = soDigitador(s) && podeAnt, digSemAut = soDigitador(s) && !podeAnt;
     const todos = (await Store.todos('colheitas')).filter(x => !x.excluido).sort((a, b) => b.criadoEm - a.criadoEm);
+    if (!mostrar.viva()) return;
     view(`${digSemAut ? avisoSemAntigoHTML() : ''}
       ${dig ? '' : '<button class="botao" data-pce="novotermo" id="pce-novotermo">➕ Novo termo de colheita</button>'}
       ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-pce="novotermoantigo" id="pce-novotermoantigo">📄 Termo antigo (digitar do papel)</button>` : ''}

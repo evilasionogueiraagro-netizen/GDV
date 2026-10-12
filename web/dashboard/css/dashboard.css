@@ -47,7 +47,7 @@
 .db-sec { margin-top: 22px; }
 .db-sec > h2 { font-size: 18px; margin: 0 0 4px; font-weight: 700; }
 .db-sec > .pn-sub { margin: 0 0 10px; }
-.db .pn-kpis { grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); }
+.db .pn-kpis { grid-template-columns: repeat(auto-fit, minmax(min(100%, 170px), 1fr)); }   /* auto-fit: os cartões ocupam a linha toda */
 @media (max-width: 520px) { .db .pn-kpis { grid-template-columns: 1fr 1fr; } }
 .db .pn-kpi-val { font-size: clamp(24px, 3vw, 32px); font-variant-numeric: tabular-nums; }
 .db-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 12px; margin-top: 12px; }
@@ -58,9 +58,27 @@
 /* Mapa */
 .db-mapa-lay { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 14px; align-items: start; }
 @media (min-width: 1000px) { .db-mapa-lay { grid-template-columns: minmax(0, 1fr) 320px; } }
-.db .pn-mapa-div { height: min(68vh, 640px); min-height: 360px; }
-@media (max-width: 700px) { .db .pn-mapa-div { height: 440px; min-height: 0; } }
+.db .pn-mapa-div { height: clamp(340px, calc(100vh - 150px), 760px); height: clamp(340px, calc(100svh - 150px), 760px); }   /* cabe na tela ao rolar até o mapa */
+@media (max-width: 700px) { .db .pn-mapa-div { height: clamp(300px, calc(100svh - 190px), 560px); } }
 .db-ind { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+/* celular: indicadores e camadas numa linha só, deslizando para o lado (o mapa sobe na tela) */
+@media (max-width: 700px) {
+  .db .db-ind, .db .db-camadas { flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch;
+    margin-left: -16px; margin-right: -16px; padding: 2px 16px; scroll-padding: 0 16px; }
+  .db-ind::-webkit-scrollbar, .db-camadas::-webkit-scrollbar { display: none; }
+  .db .db-ind .pn-chip, .db .db-camadas .pn-chip { flex: none; white-space: nowrap; }
+  .db-topo { padding: 10px 16px; gap: 10px; } .db-topo img { height: 38px; }
+  .db-texto { font-size: 14px; }
+  .db-modo { min-height: 46px; font-size: 15px; }
+}
+/* tela baixa (celular deitado, notebook com zoom): topo enxuto, sem o texto de apresentação, mapa quase na tela inteira */
+@media (max-height: 520px) and (orientation: landscape) {
+  .db-topo { padding: 6px 16px; } .db-topo img { height: 30px; } .db-org { display: none; }
+  .db-topo h1 { font-size: 18px; }
+  .db-texto { display: none; }
+  .db-modo { min-height: 40px; }
+  .db .pn-mapa-div { height: calc(100vh - 24px); height: calc(100svh - 24px); min-height: 260px; }
+}
 .db-ind .pn-chip { min-height: 36px; font-size: 13.5px; }
 .db-camadas { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 8px 0 10px; }
 .db-camadas label.pn-chip { user-select: none; min-height: 34px; }

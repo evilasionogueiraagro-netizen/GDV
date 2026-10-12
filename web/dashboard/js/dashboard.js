@@ -433,6 +433,9 @@
     card.addEventListener('click', e => { const b = e.target.closest('[data-ind]'); if (!b) return; S.indicador = b.dataset.ind; card.querySelectorAll('[data-ind]').forEach(x => x.setAttribute('aria-pressed', String(x === b))); calcMax(); aplicar(); });
     aplicar();
     setTimeout(() => map.invalidateSize(), 0);
+    // girou o celular / mudou o tamanho da janela: o mapa acompanha (um observador só, o da tela atual)
+    if (S.obsMapa) S.obsMapa.disconnect();
+    if (window.ResizeObserver) { S.obsMapa = new ResizeObserver(() => map.invalidateSize()); S.obsMapa.observe(div); }
 
     // lado: cartão do município, lista de barreiras em andamento e tabela por município (alternativa acessível ao mapa)
     const cm = el('div', 'pn-cartao db-mun'); cm.id = 'db-municipio'; cm.setAttribute('aria-live', 'polite'); lado.appendChild(cm);

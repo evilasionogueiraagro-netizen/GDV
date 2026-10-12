@@ -86,7 +86,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-12';
+const VERSAO_CODIGO = '2026-10-12b';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -2765,15 +2765,20 @@ function abaDe_(ss, nome) {
   return sh;
 }
 
-/** Planilhas criadas por versões anteriores ganham as colunas novas (no fim), sem mexer nos dados. */
+/** Planilhas criadas por versões anteriores ganham as colunas novas (no fim), sem mexer nos dados.
+ *  Coluna acrescentada à mão no lugar de uma coluna nova do sistema (ex.: uma anotação na coluna AD de Levantamentos):
+ *  ela é empurrada para a direita com os dados dela, e a coluna do sistema entra no lugar (antes isso travava todos os envios). */
 function garantirColunas_(sh, nome) {
   const cols = TABELAS[nome];
   if (sh.getMaxColumns() < cols.length) sh.insertColumnsAfter(sh.getMaxColumns(), cols.length - sh.getMaxColumns());
-  const atual = sh.getRange(1, 1, 1, cols.length).getValues()[0];
+  let atual = sh.getRange(1, 1, 1, cols.length).getValues()[0];
   cols.forEach(function (c, i) {
     if (atual[i] === c) return;
     if (atual[i] !== '' && atual[i] !== undefined && atual[i] !== null) {
-      throw new Error('Cabeçalho da aba ' + nome + ' diferente do esperado na coluna ' + (i + 1) + '.');
+      // a mesma coluna do sistema já está antes: planilha embaralhada à mão; não dá para adivinhar, para por segurança
+      if (cols.slice(0, i).indexOf(String(atual[i])) >= 0) throw new Error('Cabeçalho da aba ' + nome + ' diferente do esperado na coluna ' + (i + 1) + ' (coluna "' + atual[i] + '" repetida).');
+      sh.insertColumnBefore(i + 1);                                   // a coluna de fora (e o que vem depois) anda uma posição
+      atual = sh.getRange(1, 1, 1, cols.length).getValues()[0];
     }
     sh.getRange(1, i + 1).setValue(c).setFontWeight('bold').setBackground('#dbe6f7');
     sh.getRange(1, i + 1, sh.getMaxRows(), 1).setNumberFormat('@');

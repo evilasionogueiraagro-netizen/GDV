@@ -70,7 +70,7 @@
 
   function desenhar() {
     const r = E.raiz; if (!r) return;
-    if (!E.cfg) { r.innerHTML = `<div class="pn-cartao">${E.erro ? `<p class="pn-erro">Não foi possível ler a configuração: ${esc(E.erro)}</p><button type="button" class="pn-btn" data-pub="recarregar">Tentar de novo</button>` : '<div class="pn-vazio">Carregando a configuração…</div>'}</div>`; return; }
+    if (!E.cfg) { r.innerHTML = `<div class="pn-cartao">${E.erro ? `<p class="pn-erro">Não foi possível ler a configuração: ${esc(E.erro)}</p>${/a[çc][ãa]o inv[áa]lida/i.test(E.erro) ? '<p class="pn-sub">O servidor ainda está com o <b>Code.gs antigo</b>. No Apps Script: cole o <code>Code.gs</code> novo, salve e crie uma <b>nova versão</b> da implantação (Implantar → Gerenciar implantações → lápis → Versão: Nova versão → Implantar).</p>' : ''}<button type="button" class="pn-btn" data-pub="recarregar">Tentar de novo</button>` : '<div class="pn-vazio">Carregando a configuração…</div>'}</div>`; return; }
     const c = E.cfg, B = c.blocos || {}, u = urlPublica();
     const caixa = (k, rot, desc, attr) => `<label class="pn-pub-op${k === 'aoVivo' ? ' pn-pub-op-vivo' : ''}"><input type="checkbox" ${attr}="${k}" ${(attr === 'data-bloco' ? B[k] : attr === 'data-modo' ? c.modos[k] : c.periodos.includes(k)) ? 'checked' : ''}><span><b>${esc(rot)}</b>${desc ? `<small>${esc(desc)}</small>` : ''}</span></label>`;
     r.innerHTML = `<p class="pn-sub" style="margin-top:4px">Página pública (sem login) com números agregados do e-GDV: nunca nomes, CPF/CNPJ, placas, propriedades, servidores ou coordenadas de levantamentos.</p>

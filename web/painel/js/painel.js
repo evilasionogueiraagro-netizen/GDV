@@ -495,7 +495,7 @@ const Painel = (() => {
       B.tfsAndamento = j.tfsAndamento || [];
       S.todos = normalizar(B); S.ultimaCarga = Date.now(); S.erro = ''; S.falhas = 0;
       preencherOpcoes(); recalcular(true); processarTF();
-      status(`Atualizado às ${fmt.hora(Date.now())} · barreiras ao vivo a cada ${S.tfRapido ? '25 s (TF em preenchimento)' : 'minuto'}; demais dados às ${fmt.hora(S.ultimaCompleta)} (a cada 10 min)`);
+      status(`Atualizado às ${fmt.hora(Date.now())} · barreiras ao vivo a cada 15 s; demais dados às ${fmt.hora(S.ultimaCompleta)} (a cada ${filtrosAtuais().dias <= DIAS_COMPLETA_SEMPRE ? 'minuto' : '10 min'})`);
     } catch (e) {
       if (S.token === tok && !falhou(e) && emTV()) S.tv.atualizar();
     } finally {

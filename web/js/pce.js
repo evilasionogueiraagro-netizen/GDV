@@ -360,9 +360,11 @@ const PCEUI = (() => {
         return { pessoa: r.pessoa || null, propriedades: r.propriedades || [], levantamentos: qtd(r.levantamentos), colheitas: qtd(r.colheitas), parcial: false };
       } catch (e) { if (e.semPermissao || /revogado|inv[aá]lido/i.test(e.message)) throw e; }          // sem resposta: segue offline
     }
-    const doDoc = x => !x.excluido && digitos(x.doc) === doc;
-    return { pessoa: (await Store.obter('pessoas', doc)) || null, propriedades: (await Store.todos('propriedades')).filter(doDoc), parcial: true,
-      levantamentos: (await Store.todos('levantamentos')).filter(doDoc).length, colheitas: (await Store.todos('colheitas')).filter(doDoc).length };
+    // sem internet: dados deste aparelho, inclusive os baixados para o campo (📥 Dados para o campo); o histórico do servidor vem no resumo de cada propriedade
+    const doDoc = x => !x.excluido && digitos(x.doc) === doc, props = (await Store.todos('propriedades')).filter(doDoc);
+    const doServidor = props.reduce((n, p) => n + (Number(p.resumoLev && p.resumoLev.n) || 0), 0);
+    return { pessoa: (await Store.obter('pessoas', doc)) || null, propriedades: props, parcial: true, offline: await Campo.textoOffline(doc),
+      levantamentos: Math.max(doServidor, (await Store.todos('levantamentos')).filter(doDoc).length), colheitas: (await Store.todos('colheitas')).filter(doDoc).length };
   }
   async function consultarDoc(pref) {
     const F = pref === 'pce-t-' ? T : L, inp = $('#' + pref + 'doc'), st = $('#' + pref + 'st-doc');
@@ -379,7 +381,8 @@ const PCEUI = (() => {
       if (pref === 'pce-t-') set('endereco', r.pessoa.endereco, true);
       html += '<div class="tf-ok">✓ Cadastro encontrado — dados preenchidos automaticamente.</div>';
     } else html += '<div class="tf-novo">Novo cadastro — os dados do produtor serão salvos na planilha.</div>';
-    if (r.levantamentos || r.colheitas) html += `<div class="tf-ok">ℹ️ ${r.levantamentos} levantamento(s) e ${r.colheitas} termo(s) de colheita anteriores${r.parcial ? ' <small>(sem conexão: só este aparelho)</small>' : ''}.</div>`;
+    if (r.parcial) html += `<div class="tf-novo pce-offline">📴 Sem conexão: ${esc(r.offline || 'só os dados deste aparelho')}.</div>`;
+    if (r.levantamentos || r.colheitas) html += `<div class="tf-ok">ℹ️ ${r.levantamentos} levantamento(s) e ${r.colheitas} termo(s) de colheita anteriores${r.parcial ? ' <small>(sem conexão)</small>' : ''}.</div>`;
     if (r.propriedades.length) {
       html += `<div class="tf-novo"><b>Propriedade(s) cadastrada(s):</b><ul>${r.propriedades.map((p, i) => `<li>${esc(p.nome || p.codigo || p.id)}${p.codigo ? ' · cód. ' + esc(p.codigo) : ''}${p.municipio ? ' · ' + esc(p.municipio) : ''}
         <button type="button" class="mini" data-pce="usarprop" data-pref="${pref}" data-i="${i}">Usar</button></li>`).join('')}</ul></div>`;
@@ -389,11 +392,46 @@ const PCEUI = (() => {
   }
   function usarPropriedade(pref, i) {
     const F = pref === 'pce-t-' ? T : L, p = F && F.props && F.props[i]; if (!p) return;
-    const set = (id, v) => { const el = $('#' + pref + id); if (el && v != null && v !== '') el.value = v; };
+    const set = (id, v) => { const el = $('#' + pref + id); if (el && v != null && v !== '') el.value = valorSelect(el, v); };
     if (pref === 'pce-') { set('propriedade', p.nome); set('codigo', p.codigo); set('situacao', p.situacaoFundiaria); set('municipio', p.municipio); }
     else { set('endereco', p.nome); set('municipio', p.municipio); }
     agendarRascunho();
   }
+  /** Valor para um campo: num select, a opção equivalente (sem acento/maiúsculas) ou uma opção nova (cadastro fora da lista). */
+  function valorSelect(el, v) {
+    if (el.tagName !== 'SELECT') return v;
+    const k = semAcento(v).toUpperCase().trim(), o = [...el.options].find(x => semAcento(x.value).toUpperCase().trim() === k);
+    if (o) return o.value;
+    el.add(new Option(v, v)); return v;
+  }
+
+  /* ---------- escolher produtor/propriedade pelo nome ou código (dados do aparelho, inclusive os baixados para o campo; sem internet) ---------- */
+  async function buscarPropForm() {
+    const inp = $('#pce-busca-prop'), out = $('#pce-busca-res'); if (!inp || !out || !L) return;
+    const q = inp.value.trim();
+    if (q.length < 2) { out.replaceChildren(); return; }
+    const r = await Campo.buscar(q, 15);
+    if ($('#pce-busca-prop') !== inp || inp.value.trim() !== q || !L) return;
+    L.busca = r;
+    out.innerHTML = r.length ? `<ul class="campo-res">${r.map((x, i) => { const p = x.prop, doc = digitos(p ? p.doc : x.pessoa.id);
+      return `<li><button type="button" class="campo-res-item" data-pce="escolherprop" data-i="${i}"><b>${esc((x.pessoa && x.pessoa.nome) || 'Produtor sem cadastro')}</b>
+        <small>${esc([p ? p.nome || 'Propriedade sem nome' : 'sem propriedade cadastrada', p && p.codigo && 'cód. ' + p.codigo, p && p.municipio, fmtDoc(doc)].filter(Boolean).join(' · '))}</small></button></li>`; }).join('')}</ul>`
+      : '<div class="tf-novo">Nada encontrado neste aparelho. Baixe os dados do município em “📥 Dados para o campo” ou consulte pelo CPF/CNPJ com internet.</div>';
+  }
+  /** Preenche produtor e propriedade no formulário do levantamento. */
+  function preencherProdutor(x, origem) {
+    const p = x.prop, pe = x.pessoa, doc = digitos(p ? p.doc : pe && pe.id);
+    const set = (id, v) => { const el = $('#pce-' + id); if (el && v != null && v !== '') el.value = valorSelect(el, String(v)); };
+    if (doc) set('doc', fmtDoc(doc));
+    if (pe) { set('nome', pe.nome); set('telefone', pe.telefone); set('email', pe.email); }
+    if (p) { set('propriedade', p.nome); set('codigo', p.codigo); set('situacao', p.situacaoFundiaria); set('municipio', p.municipio); L.props = [p]; }
+    const st = $('#pce-st-doc');
+    if (st) st.innerHTML = `<div class="tf-ok">✓ ${esc(origem)}: ${esc((pe && pe.nome) || 'produtor')}${p ? ' · ' + esc(p.nome || p.codigo || '') : ''}. Confira os dados.</div>`
+      + (doc && !docOk(doc) ? `<div class="tf-alerta">⚠️ ${doc.length === 11 ? 'CPF' : 'CNPJ'} com dígitos inválidos: confira.</div>` : '');
+    const b = $('#pce-busca-prop'), r = $('#pce-busca-res'); if (b) b.value = ''; if (r) r.replaceChildren();
+    agendarRascunho();
+  }
+
   const tm = {};
   function aoDigitarDoc(pref, el) {
     const d = digitos(el.value); clearTimeout(tm[pref]);
@@ -543,6 +581,8 @@ const PCEUI = (() => {
       : `<div class="card"><h3>${F.novo ? '🌱 Novo levantamento fitossanitário' : '🌱 Editar levantamento'}</h3>
       <p class="dica" style="text-align:left">Servidor: <b>${esc(F.serv.servidor)}</b> · ${esc(F.serv.cargo)} · ${esc(F.serv.lotacao)}</p></div>`}
     <div class="card"><h3>Dados do produtor</h3>
+      <div class="campo-busca"><label>Buscar produtor ou propriedade (nome, propriedade ou código)<input id="pce-busca-prop" type="search" autocomplete="off" placeholder="ex.: Sítio Boa Vista ou PRP-001"></label>
+        <div id="pce-busca-res" aria-live="polite"></div></div>
       <div class="pce-busca">${campo('doc', 'CPF / CNPJ *', D.doc, 'inputmode="numeric" placeholder="000.000.000-00"')}
         <button type="button" class="mini" data-pce="consultar" data-pref="pce-" aria-label="Consultar cadastro">🔍</button></div>
       <div id="pce-st-doc" class="tf-status" aria-live="polite"></div>
@@ -580,7 +620,7 @@ const PCEUI = (() => {
     if (querAntigo && !podeAntigo()) { toast(SEM_ANTIGO, true); return go('pce'); }   // registro do papel: só com a permissão "antigo"
     const s = await exigirServidor('pcelev', arg, querAntigo); if (!s) return;
     fechar(L); fechar(T); L = null;
-    let F = null, D = null, cards = null;
+    let F = null, D = null, cards = null, prefill = null;
     let rasc = await Store.meta('pceLevRascunho');
     if (!(await rascunhoAntigoSemPermissao('lev', rasc, 'pce'))) return;
     if (rasc && rasc.antigo && !podeAntigo()) rasc = null;                 // rascunho do papel sem permissão: já descartado acima
@@ -599,12 +639,14 @@ const PCEUI = (() => {
         }
       } else await descartarRascunho('lev', rasc);
     }
+    const retomou = !!F;
     if (!F) {
       const rec = id ? await Store.obter('levantamentos', id) : null;
       if (id && (!rec || rec.excluido)) { toast('Levantamento não encontrado.', true); return go('pce'); }
       F = rec ? { id: rec.id, novo: false, rec, docs: lerJSON(rec.documentos, []), antigo: Number(rec.registroAntigo) === 1, ass: lerJSON(rec.assinaturas, {}), assNovas: {} }
         : { id: Store.novoId(), novo: true, rec: null, docs: [], antigo: querAntigo, ass: {}, assNovas: {} };
       D = rec ? levDeRegistro(rec) : F.antigo ? levVazioAntigo(s, o.manter) : levVazio(s);
+      if (!rec && o.propId) prefill = await Campo.dadosPara(o.propId);      // "Fazer levantamento aqui" (mapa): produtor e propriedade já preenchidos
       if (rec) { const G = Docs.pceGrupos(rec); cards = pragasParaForm(F, G.pragas, G.gerais, true); }   // registro anterior: convertido para cards
       else cards = pragasParaForm(F, [], [], false);
     }
@@ -618,7 +660,9 @@ const PCEUI = (() => {
     if (F.antigo) { mostrarCoord('pce-'); await renderDocs(F, '#pce-pdfs-lista'); }
     else { await ligarAssinatura(F, 'servidor'); await ligarAssinatura(F, 'produtor'); }
     const f = $('#pceLevForm');
-    f.addEventListener('input', e => { if (e.target.id === 'pce-doc') aoDigitarDoc('pce-', e.target); if (e.target.id === 'pce-coord') mostrarCoord('pce-'); agendarRascunho(); });
+    f.addEventListener('input', e => {
+      if (e.target.id === 'pce-busca-prop') { clearTimeout(tm.busca); tm.busca = setTimeout(() => buscarPropForm().catch(() => {}), 250); return; }
+      if (e.target.id === 'pce-doc') aoDigitarDoc('pce-', e.target); if (e.target.id === 'pce-coord') mostrarCoord('pce-'); agendarRascunho(); });
     f.addEventListener('change', async e => {
       const t = e.target;
       if (t.classList.contains('c-fotos')) return adicionarFotos(F, t, '#pce-fotos-' + t.dataset.uid, t.dataset.uid);
@@ -635,6 +679,8 @@ const PCEUI = (() => {
     f.onsubmit = ev => { ev.preventDefault(); salvarLev(); };
     if (F.antigo) { const p1 = $(D.sNome ? (D.data ? '#pce-hora' : '#pce-data') : '#pce-snome'); if (p1 && F.novo) p1.focus(); }
     else if (F.novo && (D.lat === '' || D.lat == null)) capturarGPS('pce-', true);         // GPS automático ao abrir (sem pedir permissão)
+    if (prefill) preencherProdutor(prefill, 'Propriedade escolhida no mapa');
+    else if (o.propId && retomou) toast('Rascunho retomado: a propriedade escolhida no mapa não foi aplicada.', true);
   }
 
   /** Cards de praga do formulário → pragas a gravar (só culturas preenchidas). null = parar (mensagem já mostrada). */
@@ -734,6 +780,7 @@ const PCEUI = (() => {
       <ul class="pce-res-lista">${G.pragas.map(g => `<li><b>${esc(nomePraga(g.praga))}</b> ${seloRes(resultadoPraga(g))}<br><small>${g.culturas.map(c => `${esc(c.cultura)} (${esc(RES[c.resultado])}${c.fotos.length ? `, ${c.fotos.length} foto(s)` : ''})`).join(' · ')}</small></li>`).join('')}</ul>
       ${G.gerais.length ? `<p class="dica" style="text-align:left">${G.gerais.length} foto(s) gerais (registro anterior) saem em todos os PDFs.</p>` : ''}</div>
       <div class="pce-pdfs">${botoesPdf(r.id, G, true)}</div>
+      <button class="botao sec" data-pce="enviarlev" data-id="${esc(r.id)}" id="pce-enviar">📤 Enviar ao produtor (WhatsApp, e-mail…)</button>
       <p class="dica">Um PDF por praga/doença: cada um traz os dados da visita, só as culturas e as fotos daquela praga e as assinaturas. Na janela de impressão, escolha “Salvar como PDF”.${G.pragas.length > 1 ? ' “Imprimir todos” gera um PDF de cada vez (no celular, cada um abre a sua janela de impressão).' : ''}</p>
       ${amostras.length && Sync.pode('pce') && !(Number(r.registroAntigo) === 1 && !podeAntigo()) ? `<button class="botao sec" data-pce="termodelev" data-id="${esc(r.id)}" id="pce-pronto-termo">🧪 Termo de colheita (${amostras.length} amostra(s))</button>` : ''}
       <button class="botao sec" data-v="pce" id="pce-pronto-lista">📋 Ver levantamentos</button>`);
@@ -747,12 +794,14 @@ const PCEUI = (() => {
     const podeAnt = podeAntigo(), dig = soDigitador(s) && podeAnt, digSemAut = soDigitador(s) && !podeAnt;
     const todos = (await Store.todos('levantamentos')).filter(x => !x.excluido)
       .sort((a, b) => ((b.data || '') + (b.hora || '')).localeCompare((a.data || '') + (a.hora || '')) || b.criadoEm - a.criadoEm);
-    const pendArq = new Set(await Store.chaves('arquivos', 'enviado', 0));
+    const pendArq = new Set(await Store.chaves('arquivos', 'enviado', 0)), campoRes = await Campo.resumo();
     if (!mostrar.viva()) return;
     view(`<div class="card pce-serv"><div><b>${esc(s.nome)}</b><small>${dig ? 'Digitação de registros do papel' : esc(s.cargo) + ' · ' + esc(s.lotacao)}${s.matricula ? ' · Mat. ' + esc(s.matricula) : ''}</small></div>
         <button class="mini" data-pce="servidor" id="pce-meusdados">👤 Meus dados</button></div>
       ${digSemAut ? avisoSemAntigoHTML() : ''}
-      ${dig ? '' : '<button class="botao" data-pce="novolev" id="pce-novolev">➕ Novo levantamento</button>'}
+      ${dig ? '' : `<button class="botao" data-pce="novolev" id="pce-novolev">➕ Novo levantamento</button>
+      <div class="duas campo-atalhos"><button class="botao sec" data-v="pcecampo" id="pce-campo">📥 Dados para o campo</button><button class="botao sec" data-v="pcemapa" id="pce-mapa">🗺️ Perto de mim</button></div>
+      ${campoRes ? `<p class="dica" id="pce-campo-res">No aparelho: ${esc(campoRes)}</p>` : ''}`}
       ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-pce="novolevantigo" id="pce-novolevantigo">📄 Registro antigo (digitar do papel)</button>` : ''}
       <div class="card"><label>Pesquisar (produtor, CPF/CNPJ, propriedade, município, praga)<input id="pceQ"></label></div><div id="pceItens"></div>`);
     const G = new Map(todos.map(x => [x.id, Docs.pceGrupos(x)]));
@@ -1179,6 +1228,7 @@ const PCEUI = (() => {
       ${t.pendente ? '<div class="tf-novo">⏳ Número provisório / aguardando envio: será conferido na planilha ao sincronizar. Se houver repetição, a coordenação é avisada.</div>' : '<div class="tf-ok">✓ Número confirmado na planilha.</div>'}
       ${t.numeroOrigem === 'editado' && Number(t.registroAntigo) !== 1 ? `<div class="tf-novo">✏️ Número alterado manualmente (o sistema sugeriu ${num3(t.numeroSugerido)}). Registrado para auditoria.</div>` : ''}</div>
       <button class="botao" data-pce="imprimirtermo" data-id="${esc(t.id)}" id="pce-imprimir">🖨️ Imprimir / PDF (${P.vias || 2} vias)</button>
+      <button class="botao sec" data-pce="enviartermo" data-id="${esc(t.id)}" id="pce-t-enviar">📤 Enviar via do produtor (WhatsApp, e-mail…)</button>
       ${Number(t.registroAntigo) === 1 && podeAntigo() ? '<button class="botao sec" data-pce="novotermoantigo">📄 Digitar outro termo do papel</button>' : '<button class="botao sec" data-pce="novotermo">➕ Novo termo</button>'}
       <button class="botao sec" data-v="pcetermos">📋 Ver termos de colheita</button>
       <p class="dica">Na janela de impressão, escolha “Salvar como PDF” ou imprima direto. As vias saem em páginas separadas.</p>`);
@@ -1245,6 +1295,63 @@ const PCEUI = (() => {
     await passo(0);
   }
 
+  /**
+   * Via do produtor sem impressora: gera o(s) PDF(s) no aparelho (pdf.js, sem internet) e abre o compartilhamento do celular
+   * (WhatsApp, e-mail…) com os arquivos. Em dois toques: gerar leva alguns segundos e o navegador só abre o compartilhamento a partir
+   * de um toque recente. Sem compartilhamento de arquivos (computador, navegador antigo): baixa o PDF e explica como enviar.
+   */
+  async function enviarProdutor(qual, id) {
+    const lev = qual === 'lev', r = await Store.obter(lev ? 'levantamentos' : 'colheitas', id); if (!r) throw new Error('Registro não encontrado.');
+    const G = lev ? Docs.pceGrupos(r) : null, itens = lev ? (G.pragas.length ? G.pragas.map((g, i) => ({ i, rot: nomePraga(g.praga) })) : [{ i: 0, rot: 'Ficha' }])
+      : [{ i: 0, rot: 'Termo de Colheita ' + (r.numeroTxt || '') + ' — via do produtor' }];
+    const fecharM = () => { const m = $('#pce-modal-enviar'); if (m) m.remove(); };
+    fecharM();
+    const m = document.createElement('div'); m.className = 'tf-modal'; m.id = 'pce-modal-enviar';
+    m.innerHTML = `<div class="tf-modal-box pce-enviar"><h3>📤 Enviar ao produtor</h3>
+      <p class="dica">${esc(r.nome || '')}${r.telefone ? ' · ☎ ' + esc(r.telefone) : ''}</p>
+      ${itens.length > 1 ? `<div class="pce-enviar-lista">${itens.map(x => `<label class="chk"><input type="checkbox" name="pce-env" value="${x.i}" checked> PDF: ${esc(x.rot)}</label>`).join('')}</div>`
+        : `<p><b>${esc(lev ? 'PDF: ' + itens[0].rot : itens[0].rot)}</b></p>`}
+      <div id="pce-env-st" class="tf-status" aria-live="polite"></div>
+      <button class="botao" type="button" id="pce-env-gerar">📄 Gerar PDF${itens.length > 1 ? '(s)' : ''}</button>
+      <button class="botao sec" type="button" id="pce-env-fechar">Fechar</button></div>`;
+    document.body.append(m);
+    const st = m.querySelector('#pce-env-st');
+    m.querySelector('#pce-env-fechar').onclick = fecharM;
+    m.querySelector('#pce-env-gerar').onclick = async ev => {
+      const btn = ev.currentTarget, marcados = [...m.querySelectorAll('input[name=pce-env]:checked')].map(c => Number(c.value));
+      const sel = itens.length > 1 ? itens.filter(x => marcados.includes(x.i)) : itens;
+      if (!sel.length) return toast('Marque pelo menos um PDF.', true);
+      btn.disabled = true;
+      const files = [];
+      try {
+        const arqs = await arquivosPorId(r);
+        for (const [k, x] of sel.entries()) {
+          st.innerHTML = `<small>Gerando PDF ${k + 1} de ${sel.length}: ${esc(x.rot)}…</small>`;
+          files.push(lev ? await Docs.pceLevantamento(r, arqs, x.i, 'arquivo') : await Docs.pceColheita(r, arqs, 'arquivo'));
+        }
+      } catch (e) { btn.disabled = false; st.innerHTML = `<div class="tf-alerta">⚠️ Não foi possível gerar o PDF: ${esc(e.message || e)}. Use “Imprimir” → “Salvar como PDF” e envie o arquivo salvo.</div>`; return; }
+      if (!m.isConnected) return;
+      const kb = f => Math.max(1, Math.round(f.size / 1024)).toLocaleString('pt-BR') + ' KB';
+      const juntos = PDF.podeCompartilhar(files), umAUm = !juntos && files.length > 1 && PDF.podeCompartilhar(files.slice(0, 1));
+      const titulo = lev ? 'Levantamento fitossanitário — ADAF' : 'Termo de Colheita de Amostras — ADAF';
+      const texto = `${titulo}: ${r.nome || ''}, ${dBR(r.data)}. Documento gerado pelo e-GDV.`;
+      st.innerHTML = `<div class="tf-ok">✓ ${files.length} PDF(s) prontos: ${files.map(f => `${esc(f.name)} (${kb(f)})`).join(', ')}</div>`;
+      btn.remove();
+      const box = m.querySelector('.tf-modal-box'), fim = m.querySelector('#pce-env-fechar');
+      const add = html => { fim.insertAdjacentHTML('beforebegin', html); return fim.previousElementSibling; };
+      if (juntos || umAUm) {
+        (juntos ? [files] : files.map(f => [f])).forEach((fs, k) => {
+          const b = add(`<button class="botao" type="button" id="pce-env-share${juntos ? '' : '-' + k}">📤 Compartilhar${juntos ? (files.length > 1 ? ` (${files.length} PDFs)` : '') : ': ' + esc(sel[k].rot)}</button>`);
+          b.onclick = async () => { try { if (await PDF.compartilhar(fs, titulo, texto)) toast('Enviado para o compartilhamento.'); } catch (e) { toast(e.message, true); } };
+        });
+        add('<p class="dica">Escolha o WhatsApp (ou o e-mail) e o contato do produtor.</p>');
+      } else add('<p class="dica pce-env-semshare">Este aparelho não compartilha arquivos direto do app. Toque em “Baixar”: o PDF vai para a pasta <b>Downloads</b>. Depois, no WhatsApp, anexe (📎) → <b>Documento</b> e escolha o arquivo.</p>');
+      const bx = add(`<button class="botao ${juntos || umAUm ? 'sec' : ''}" type="button" id="pce-env-baixar">⬇️ Baixar PDF${files.length > 1 ? 's' : ''}</button>`);
+      bx.onclick = () => files.forEach((f, k) => setTimeout(() => PDF.baixar(f), k * 400));
+      box.scrollTop = 0;
+    };
+  }
+
   /** Resumo para o cartão do módulo no hub. */
   async function status() {
     const levs = (await Store.todos('levantamentos')).filter(x => !x.excluido), cols = (await Store.todos('colheitas')).filter(x => !x.excluido);
@@ -1266,6 +1373,8 @@ const PCEUI = (() => {
       else if (a === 'abrirlev') go('pcelev', id);
       else if (a === 'imprimirlev') await imprimir('lev', id, el.dataset.g);
       else if (a === 'imprimirtodos') await imprimirTodos(id);
+      else if (a === 'enviarlev') await enviarProdutor('lev', id);
+      else if (a === 'enviartermo') await enviarProdutor('termo', id);
       else if (a === 'termodelev') go('pcetermo', { levantamentoId: id });
       else if (a === 'excluirlev') await excluirLev(id);
       else if (a === 'novotermo') go('pcetermo');
@@ -1317,6 +1426,7 @@ const PCEUI = (() => {
       else if (a === 'gps') await capturarGPS(el.dataset.pref);
       else if (a === 'consultar') await consultarDoc(el.dataset.pref);
       else if (a === 'usarprop') usarPropriedade(el.dataset.pref, +el.dataset.i);
+      else if (a === 'escolherprop') { const x = F.busca && F.busca[+el.dataset.i]; if (x) preencherProdutor(x, 'Escolhido na busca'); }
       else if (a === 'gerartexto') { autoTexto(true); agendarRascunho(); }
       else if (a === 'descartarlev') {
         if (!confirm(F.novo ? 'Descartar este levantamento? Os dados preenchidos serão perdidos.' : 'Descartar as alterações deste levantamento?')) return;

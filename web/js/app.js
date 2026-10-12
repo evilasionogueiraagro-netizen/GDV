@@ -75,7 +75,7 @@ const NAVS = {
   hub: [['modulos', '🏠', 'Módulos'], ['config', '⚙️', 'Status']],
   veiculos: [['modulos', '🏠', 'Módulos'], ['home', '🚛', 'Turno'], ['registrar', '➕', 'Registrar'], ['lista', '📋', 'Lista'], ['resumo', '📊', 'Resumo'], ['historico', '📈', 'Histórico']],
   tf: [['modulos', '🏠', 'Módulos'], ['tf', '📄', 'Meus TFs'], ['tfnovo', '➕', 'Novo TF']],
-  pce: [['modulos', '🏠', 'Módulos'], ['pce', '🌱', 'Levantamentos'], ['pcelev', '➕', 'Novo levantamento'], ['pcetermos', '🧪', 'Termos de colheita'], ['pcetermo', '📝', 'Novo termo']]
+  pce: [['modulos', '🏠', 'Módulos'], ['pce', '🌱', 'Levantamentos'], ['pcelev', '➕', 'Novo levantamento'], ['pcemapa', '🗺️', 'Perto de mim'], ['pcetermos', '🧪', 'Termos de colheita'], ['pcetermo', '📝', 'Novo termo']]
 };
 const VIEWS_VEICULOS = ['home', 'registrar', 'editar', 'lista', 'resumo', 'fechado', 'historico'];
 /** Módulo (permissão) de cada tela: veiculos, tf ou pce; '' = livre (módulos, status). */
@@ -90,7 +90,7 @@ function semPermissaoPara(view) {
 }
 function renderNav(view) {
   const ativo = ({ editar: 'lista', fechado: 'home', tfpronto: MODULO === 'tf' ? 'tf' : 'lista', tfnovo: MODULO === 'tf' ? 'tfnovo' : 'lista',
-    pcepronto: 'pcetermos', pcelevpronto: 'pce', pceservidor: 'pce' })[view] || view;
+    pcepronto: 'pcetermos', pcelevpronto: 'pce', pceservidor: 'pce', pcecampo: 'pce', pcerota: 'pcemapa' })[view] || view;
   $('#nav').innerHTML = NAVS[MODULO].map(([v, i, t]) => `<button data-v="${v}" class="${v === ativo ? 'on' : ''}">${i}<span>${t}</span></button>`).join('');
 }
 function go(view, arg) {
@@ -107,7 +107,8 @@ function go(view, arg) {
   renderNav(view); GER++;
   ({ modulos, home, registrar, editar: registrar, lista, resumo, fechado, historico, config, tf: () => TFUI.lista(), tfnovo: () => TFUI.novo(EDIT), tfpronto: () => TFUI.pronto(EDIT),
     pce: () => PCEUI.lista(), pcelev: () => PCEUI.levantamento(EDIT), pcetermos: () => PCEUI.termos(), pcetermo: () => PCEUI.termo(EDIT),
-    pcepronto: () => PCEUI.pronto(EDIT), pcelevpronto: () => PCEUI.levPronto(EDIT), pceservidor: () => PCEUI.servidor(EDIT) }[view])();
+    pcepronto: () => PCEUI.pronto(EDIT), pcelevpronto: () => PCEUI.levPronto(EDIT), pceservidor: () => PCEUI.servidor(EDIT),
+    pcecampo: () => Campo.telaBaixar(), pcemapa: () => Campo.telaMapa(), pcerota: () => Campo.telaRota() }[view])();
   window.scrollTo(0, 0);
 }
 

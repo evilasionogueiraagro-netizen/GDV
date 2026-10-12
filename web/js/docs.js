@@ -313,8 +313,11 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
   /** Nome sugerido do PDF de uma praga: Levantamento_<produtor>_<praga>_<data>. */
   const nomePdfPce = (reg, praga) => nomeArquivo(`Levantamento_${reg.nome || 'SEM_NOME'}_${nomePraga(praga)}_${dataPce(reg.data).replace(/\//g, '-')}`);
 
-  /** Imprime a ficha de UMA praga/doença (índice `qual` em pceGrupos(reg).pragas; padrão 0). */
-  async function pceLevantamento(reg, arquivosPorId, qual) {
+  /**
+   * Imprime a ficha de UMA praga/doença (índice `qual` em pceGrupos(reg).pragas; padrão 0).
+   * modo 'arquivo': em vez de abrir a impressão, devolve o arquivo PDF gerado no aparelho (pdf.js), para enviar ao produtor.
+   */
+  async function pceLevantamento(reg, arquivosPorId, qual, modo) {
     if (!reg) throw new Error('Levantamento não encontrado.');
     const arquivos = arquivosPorId || {}, G = pceGrupos(reg), total = G.pragas.length;
     const i = Math.max(0, Math.min(total - 1, Number(qual) || 0));
@@ -352,10 +355,12 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     if (!nFotos) { alvo.className = 'vazio'; alvo.textContent = 'Nenhuma foto registrada.'; }
     montarAssinaturas(d, jsonPce(reg.assinaturas, {}), arquivos);
     await Promise.all([...d.images].map(im => (im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; }))));
+    if (modo === 'arquivo') return PDF.deFrame(f, nomePdfPce(reg, grupo.praga));
     imprimir(f, nomePdfPce(reg, grupo.praga));
   }
 
-  async function pceColheita(termo, arquivosPorId) {
+  /** Termo de Colheita (2 vias). modo 'arquivo': PDF gerado no aparelho só com a via do produtor (a última). */
+  async function pceColheita(termo, arquivosPorId, modo) {
     const t = termo;
     if (!t) throw new Error('Termo de colheita não encontrado.');
     const arquivos = arquivosPorId || {};
@@ -382,7 +387,9 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     const paginas = [pg];
     vias.slice(1).forEach(() => { const c = pg.cloneNode(true); paginas[paginas.length - 1].after(c); paginas.push(c); });
     paginas.forEach((p, i) => { p.querySelector('.via').textContent = vias[i] || ''; });
-    imprimir(f, nomeArquivo('Termo_Colheita_' + String(t.numeroTxt || t.numero || 'SEM_NUMERO').replace(/\//g, '_')));
+    const nomeT = nomeArquivo('Termo_Colheita_' + String(t.numeroTxt || t.numero || 'SEM_NUMERO').replace(/\//g, '_'));
+    if (modo === 'arquivo') { paginas.slice(0, -1).forEach(p => p.remove()); return PDF.deFrame(f, nomeT + (paginas.length > 1 ? '_via_do_produtor' : '')); }
+    imprimir(f, nomeT);
   }
 
   return { ficha, termo, tf, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, ordenar, esc };

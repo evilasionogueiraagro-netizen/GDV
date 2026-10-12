@@ -355,8 +355,9 @@
     if (M.calor && L.heatLayer) camadas.push(['calor', 'Calor de detecções']);
     if (r.aoVivo) camadas.push(['aoVivo', 'Barreiras em andamento agora']);
     if (!S.camadas) S.camadas = new Set(camadas.map(x => x[0]).filter(k => k !== 'calor'));
-    if (inds.length > 1) card.insertAdjacentHTML('beforeend', `<div class="db-ind" role="group" aria-label="Indicador dos municípios">${inds.map(k => `<button type="button" class="pn-chip" data-ind="${k}" aria-pressed="${k === S.indicador}">${esc(INDICADORES[k])}</button>`).join('')}</div>`);
-    if (camadas.length) card.insertAdjacentHTML('beforeend', `<div class="db-camadas" role="group" aria-label="Camadas do mapa">${camadas.map(([k, t]) => `<label class="pn-chip"><input type="checkbox" data-camada="${k}" ${S.camadas.has(k) ? 'checked' : ''}> ${esc(t)}</label>`).join('')}</div>`);
+    const ctrl = el('div', 'db-mapa-ctrl'); card.appendChild(ctrl);              // indicadores + camadas (no computador, numa faixa só)
+    if (inds.length > 1) ctrl.insertAdjacentHTML('beforeend', `<div class="db-ind" role="group" aria-label="Indicador dos municípios">${inds.map(k => `<button type="button" class="pn-chip" data-ind="${k}" aria-pressed="${k === S.indicador}">${esc(INDICADORES[k])}</button>`).join('')}</div>`);
+    if (camadas.length) ctrl.insertAdjacentHTML('beforeend', `<div class="db-camadas" role="group" aria-label="Camadas do mapa">${camadas.map(([k, t]) => `<label class="pn-chip"><input type="checkbox" data-camada="${k}" ${S.camadas.has(k) ? 'checked' : ''}> ${esc(t)}</label>`).join('')}</div>`);
     const div = el('div', 'pn-mapa-div pn-tiles-escuro'); div.id = 'db-mapa'; div.setAttribute('role', 'region'); div.setAttribute('aria-label', 'Mapa interativo do Amazonas'); card.appendChild(div);
     const leg = el('div', 'pn-legenda'); leg.id = 'db-legenda'; card.appendChild(leg);
     card.appendChild(el('p', 'db-fonte', `Fonte: e-GDV/ADAF · ${esc(r.periodo.rotulo)} · atualizado em ${esc(fmt.dataHora(r.atualizadoEm))}.` +

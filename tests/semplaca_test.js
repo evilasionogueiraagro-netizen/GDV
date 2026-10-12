@@ -18,9 +18,12 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) proce
   ok(await p.evaluate(() => document.querySelector('#nLocal').tagName) === 'SELECT' && opcoes.join('|') === 'BVA - CEASA|BVA - JUNDIÁ|BVA - AEROPORTO', 'posto Fixa: lista das BVAs ' + opcoes.join(', '));
   ok(/obrigatória/.test(await p.textContent('#nPlacaInfo')), 'CEASA: placa obrigatória');
   await p.selectOption('#nLocal', 'BVA - JUNDIÁ'); ok(/opcional/.test(await p.textContent('#nPlacaInfo')), 'JUNDIÁ: placa opcional');
+  ok(await p.inputValue('#nUnidade') === 'BVA - JUNDIÁ' && await p.$eval('#nUnidade', e => e.readOnly), 'fixa: Unidade (Termo) = a BVA escolhida, sem edição');
   await p.selectOption('#nPosto', 'Móvel'); await p.waitForFunction(() => document.querySelector('#nLocal').value);
   ok((await p.inputValue('#nLocal')) === 'BR-174 – Vila do Pitinga – Presidente Figueiredo/AM', 'volante: endereço pela coordenada → ' + await p.inputValue('#nLocal'));
   ok(/opcional/.test(await p.textContent('#nPlacaInfo')), 'volante: placa opcional');
+  await p.waitForFunction(() => document.querySelector('#nUnidade').value);
+  ok(await p.inputValue('#nUnidade') === 'PRESIDENTE FIGUEIREDO' && !(await p.$eval('#nUnidade', e => e.readOnly)), 'volante: Unidade (Termo) = município da localização, editável → ' + await p.inputValue('#nUnidade'));
   ok(await p.textContent('#nPosto option[value="Móvel"]') === 'Volante (móvel)', 'rótulo "Volante (móvel)"');
   await p.fill('#nLocal', 'BR-174 km 120 – Presidente Figueiredo'); await p.click('#nLocalGps'); await p.waitForTimeout(800);
   ok((await p.inputValue('#nLocal')).startsWith('BR-174 – Vila'), 'botão "Atualizar pela localização" refaz o endereço');

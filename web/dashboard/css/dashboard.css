@@ -1,0 +1,91 @@
+/* Dashboard público do e-GDV. Usa os tokens e componentes do painel (../painel/css/painel.css: cores claro/escuro validadas,
+   cartões, KPIs, gráficos, mapa e tabelas); aqui só o que é próprio da página pública: topo institucional, abas grandes de modo,
+   seletor de período, faixas de aviso, cartão do município e o layout responsivo (360 px a 1920 px sem rolagem horizontal). */
+.db { min-height: 100vh; display: flex; flex-direction: column; }
+.db-pular { position: absolute; left: -9999px; top: 0; background: var(--sf); color: var(--ink); padding: 8px 12px; z-index: 2000; border-radius: 0 0 8px 0; }
+.db-pular:focus { left: 0; }
+.db :focus-visible { outline: 3px solid var(--marca2); outline-offset: 2px; }
+:root:not([data-theme="light"]) .db :focus-visible { outline-color: var(--s1); }
+
+/* Topo institucional */
+.db-topo { background: var(--marca); color: #fff; display: flex; align-items: center; gap: 14px; padding: 12px 16px; }
+.db-topo img { height: 44px; background: #fff; border-radius: 8px; padding: 4px; flex: none; }
+.db-topo-txt { min-width: 0; }
+.db-org { margin: 0; font-size: 12.5px; opacity: .9; letter-spacing: .02em; }
+.db-topo h1 { margin: 2px 0 0; font-size: clamp(18px, 2.6vw, 26px); line-height: 1.2; font-weight: 700; overflow-wrap: anywhere; }
+
+/* Faixas: pré-visualização e sem conexão */
+.db-faixa { padding: 9px 16px; font-size: 13.5px; border-bottom: 1px solid var(--borda); overflow-wrap: anywhere; }
+.db-faixa-previa { background: color-mix(in srgb, var(--atencao) 22%, var(--sf)); color: var(--ink); }
+.db-faixa-offline { background: color-mix(in srgb, var(--serio) 18%, var(--sf)); color: var(--ink); }
+
+.db-conteudo { width: 100%; max-width: 1400px; margin: 0 auto; padding: 14px 16px 24px; flex: 1; outline: none; }
+.db-texto { margin: 0 0 12px; color: var(--ink2); font-size: 15px; max-width: 80ch; overflow-wrap: anywhere; }
+.db-texto:empty { display: none; }
+
+/* Controles: modos (abas grandes) e período */
+.db-controles { display: flex; flex-wrap: wrap; gap: 12px 24px; align-items: flex-end; justify-content: space-between; }
+.db-modos { display: flex; gap: 8px; flex: 1 1 320px; max-width: 560px; }
+.db-modo { flex: 1; display: flex; align-items: center; justify-content: center; gap: 8px; min-height: 52px; padding: 10px 14px; border-radius: 12px;
+  border: 2px solid var(--base); background: var(--sf); color: var(--ink); font-size: 16px; font-weight: 650; cursor: pointer; }
+.db-modo:hover { background: var(--sf2); }
+.db-modo[aria-selected="true"] { border-color: var(--marca2); background: var(--sel); }
+:root:not([data-theme="light"]) .db-modo[aria-selected="true"] { border-color: var(--s1); }
+.db-modo svg { width: 22px; height: 22px; flex: none; }
+.db-periodo { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.db-periodo-rot { font-size: 12.5px; color: var(--ink2); }
+.db-periodos { display: flex; flex-wrap: wrap; gap: 6px; }
+.db-periodos .pn-chip { min-height: 36px; font-size: 14px; }
+.db-status { margin: 12px 0 0; font-size: 13px; color: var(--ink2); }
+.db-status b { color: var(--ink); }
+
+/* Conteúdo */
+.db-carregando { margin-top: 14px; color: var(--ink2); text-align: center; padding: 28px; }
+.db-indisp { max-width: 640px; margin: 24px auto; text-align: center; padding: 28px 20px; }
+.db-indisp h2 { margin: 0 0 8px; font-size: 22px; }
+.db-indisp p { color: var(--ink2); margin: 6px 0 0; }
+.db-sec { margin-top: 22px; }
+.db-sec > h2 { font-size: 18px; margin: 0 0 4px; font-weight: 700; }
+.db-sec > .pn-sub { margin: 0 0 10px; }
+.db .pn-kpis { grid-template-columns: repeat(auto-fill, minmax(min(100%, 170px), 1fr)); }
+@media (max-width: 520px) { .db .pn-kpis { grid-template-columns: 1fr 1fr; } }
+.db .pn-kpi-val { font-size: clamp(24px, 3vw, 32px); font-variant-numeric: tabular-nums; }
+.db-grade { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 420px), 1fr)); gap: 12px; margin-top: 12px; }
+.db-grade > * { min-width: 0; }
+.db-mini { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 300px), 1fr)); gap: 12px; margin-top: 12px; }
+.db-mini > * { min-width: 0; }
+
+/* Mapa */
+.db-mapa-lay { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 14px; align-items: start; }
+@media (min-width: 1000px) { .db-mapa-lay { grid-template-columns: minmax(0, 1fr) 320px; } }
+.db .pn-mapa-div { height: min(68vh, 640px); min-height: 360px; }
+@media (max-width: 700px) { .db .pn-mapa-div { height: 440px; min-height: 0; } }
+.db-ind { display: flex; flex-wrap: wrap; gap: 6px; margin: 10px 0 0; }
+.db-ind .pn-chip { min-height: 36px; font-size: 13.5px; }
+.db-camadas { display: flex; flex-wrap: wrap; gap: 6px 8px; margin: 8px 0 10px; }
+.db-camadas label.pn-chip { user-select: none; min-height: 34px; }
+.db-camadas input { margin: 0; accent-color: var(--marca2); }
+.db-mun h3 { margin: 0; font-size: 17px; }
+.db-mun dl { display: grid; grid-template-columns: 1fr auto; gap: 6px 12px; margin: 12px 0 0; font-size: 14px; }
+.db-mun dt { color: var(--ink2); }
+.db-mun dd { margin: 0; font-weight: 650; text-align: right; font-variant-numeric: tabular-nums; }
+.db-mun-sel { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink2); margin-top: 12px; }
+.db-mun-sel select { border: 1px solid var(--base); border-radius: 8px; background: var(--sf); padding: 8px; font-size: 14px; width: 100%; }
+.db-fonte { font-size: 12px; color: var(--mut); margin: 8px 0 0; }
+.db-bva { width: 16px; height: 16px; border-radius: 4px; background: var(--s7); border: 2px solid var(--sf); box-shadow: 0 0 0 1.5px var(--ink); transform: rotate(45deg); }
+.db-vivo { width: 22px; height: 22px; border-radius: 50%; background: var(--bom); border: 3px solid var(--sf); box-shadow: 0 0 0 2px var(--ink); position: relative; }
+.db-vivo::after { content: ""; position: absolute; inset: -9px; border-radius: 50%; border: 3px solid var(--bom); opacity: .5; animation: db-pulso 2s ease-out infinite; }
+@keyframes db-pulso { from { transform: scale(.6); opacity: .7; } to { transform: scale(1.3); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .db-vivo::after { animation: none; } }
+.db-vivo-lista { list-style: none; padding: 0; margin: 10px 0 0; font-size: 14px; }
+.db-vivo-lista li { display: flex; justify-content: space-between; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--grade); }
+.db-lg-bva { display: inline-block; width: 11px; height: 11px; background: var(--s7); transform: rotate(45deg); border-radius: 2px; box-shadow: 0 0 0 1px var(--ink); }
+.db-lg-vivo { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--bom); box-shadow: 0 0 0 1.5px var(--ink); }
+
+.db-rodape { width: 100%; max-width: 1400px; margin: 0 auto; padding: 12px 16px 28px; color: var(--mut); font-size: 12.5px; border-top: 1px solid var(--grade); }
+.db-rodape p { margin: 2px 0; }
+@media print { .db-controles, .db-camadas, .db-ind, .db-pular { display: none !important; } }
+.db-h3 { margin: 0; font-size: 16px; font-weight: 650; }
+.db-lado { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.db-lado details summary { cursor: pointer; }
+.db-lado details[open] summary { margin-bottom: 8px; }

@@ -93,7 +93,7 @@
       } else falha(e.rede ? 'Não foi possível falar com o servidor agora. Verifique a internet; a página tenta de novo sozinha.' : e.message);
     } finally { S.carregando = false; }
   }
-  function limparGraficos() { S.graficos.forEach(g => { try { g.destroy(); } catch (e) { /* ok */ } }); S.graficos = []; if (S.mapa) { try { S.mapa.remove(); } catch (e) { /* ok */ } S.mapa = null; } }
+  function limparGraficos() { S.graficos.forEach(g => { try { g.destroy(); } catch (e) { /* ok */ } }); S.graficos = []; if (S.obsMapa) { S.obsMapa.disconnect(); S.obsMapa = null; } if (S.mapa) { try { S.mapa.remove(); } catch (e) { /* ok */ } S.mapa = null; } }
   function indisponivel() {
     limparGraficos();
     $('#db-controles').hidden = true; $('#db-status').textContent = ''; $('#db-texto').textContent = ''; faixas();
@@ -435,7 +435,7 @@
     setTimeout(() => map.invalidateSize(), 0);
     // girou o celular / mudou o tamanho da janela: o mapa acompanha (um observador só, o da tela atual)
     if (S.obsMapa) S.obsMapa.disconnect();
-    if (window.ResizeObserver) { S.obsMapa = new ResizeObserver(() => map.invalidateSize()); S.obsMapa.observe(div); }
+    if (window.ResizeObserver) { S.obsMapa = new ResizeObserver(() => { if (S.mapa === map && div.isConnected) map.invalidateSize(); }); S.obsMapa.observe(div); }
 
     // lado: cartão do município, lista de barreiras em andamento e tabela por município (alternativa acessível ao mapa)
     const cm = el('div', 'pn-cartao db-mun'); cm.id = 'db-municipio'; cm.setAttribute('aria-live', 'polite'); lado.appendChild(cm);

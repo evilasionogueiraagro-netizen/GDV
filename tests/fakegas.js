@@ -15,6 +15,7 @@ function mkSheet(name) {
     getMaxRows: () => Math.max(1000, rows.length) + extraLinhas,
     getMaxColumns: () => 13,
     insertColumnsAfter() {},
+    insertColumnBefore(c) { rows.forEach(r => { if (r.length >= c) r.splice(c - 1, 0, ''); }); },
     insertRowsAfter(_, n) { extraLinhas += n; },
     deleteRows(r, n) { if (r < 2 || r + n - 1 > rows.length) throw new Error('deleteRows fora da faixa (' + r + ', ' + n + ')'); rows.splice(r - 1, n); },
     setFrozenRows() {},

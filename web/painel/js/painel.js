@@ -431,8 +431,19 @@ const Painel = (() => {
   function rodapeBackup(r) {
     const el = $('#pn-backup'); if (!el) return;
     if (!r) { el.textContent = ''; return; }
-    el.textContent = (r.ultimoBackup ? ` · Último backup: ${fmt.dataHora(num(r.ultimoBackup))}` : ' · Backup automático ainda não feito (GDV → Ativar rotinas automáticas)') +
-      (r.backupFalhou ? ` · falha no backup de ${fmt.dataHora(num(r.backupFalhou))}` : '');
+    el.textContent = (r.ultimoBackup ? ` · Último backup: ${fmt.dataHora(num(r.ultimoBackup))}` : ' · Backup automático ainda não feito (e-GDV → Ativar rotinas automáticas)') +
+      (r.backupFalhou ? ` · falha no backup de ${fmt.dataHora(num(r.backupFalhou))}` : '') +
+      (r.ultimoArquivamento ? ` · Último arquivamento: ${fmt.dataHora(num(r.ultimoArquivamento))}` : '');
+  }
+  /** Faixa do arquivo anual: o período pedido começa num ano que já saiu da planilha principal (servidor manda avisoArquivo/arquivosAnuais). */
+  function avisoArquivo(j) {
+    const el = $('#pn-arquivo'); if (!el) return;
+    const arqs = Array.isArray(j && j.arquivosAnuais) ? j.arquivosAnuais.filter(a => a && /^https:\/\//.test(String(a.url || ''))) : [];
+    if (!j || !j.avisoArquivo) { el.hidden = true; el.innerHTML = ''; return; }
+    el.innerHTML = arqs.length
+      ? `<div>Dados de veículos e turnos de ${esc(arqs.map(a => a.ano).join(' e '))} estão no arquivo anual: ${arqs.map(a => `<a href="${esc(a.url)}" target="_blank" rel="noopener">e-GDV – Arquivo ${esc(a.ano)}</a>`).join(' · ')}. Este período mostra só o que continua na planilha principal.</div>`
+      : `<div>${esc(j.avisoArquivo)}</div>`;
+    el.hidden = false;
   }
   /** Falha numa atualização: sessão revogada → login; qualquer outra (rede, cota, servidor fora) → mantém os dados e tenta de novo. */
   function falhou(e) {
@@ -456,7 +467,7 @@ const Painel = (() => {
       if (num(j.agora)) relogio = num(j.agora) - Math.round((t0 + Date.now()) / 2);
       j.de = (j.periodo && j.periodo.de) || j.de || p.de; j.ate = (j.periodo && j.periodo.ate) || j.ate || p.ate;
       S.bruto = j; S.todos = normalizar(j); S.ultimaCarga = S.ultimaCompleta = S.ultimaRegular = Date.now(); S.erro = ''; S.falhas = 0;
-      preencherOpcoes(); recalcular(auto); processarTF(); rodapeBackup(j.rotinas);
+      preencherOpcoes(); recalcular(auto); processarTF(); rodapeBackup(j.rotinas); avisoArquivo(j);
       status(`Atualizado às ${fmt.hora(Date.now())} · barreiras ao vivo a cada 15 s`);
     } catch (e) {
       if (S.token !== tok || falhou(e)) return;
@@ -1183,7 +1194,7 @@ const Painel = (() => {
     d.emAndamento.forEach(t => {
       if (t.situacao === 'aguardando') A.push({ nivel: 'serio', aba: 'barreiras', titulo: `Encerrado no celular, aguardando envio: ${t.local || 'sem local'}`,
         detalhe: `${t.fiscal || 'O fiscal'} encerrou o turno no celular${t.fimNoCelular ? ' às ' + t.fimNoCelular : ''}, mas o encerramento ainda não chegou à planilha${t.aparelho && t.aparelho.erroAtual && t.aparelho.ultimoErro ? ' (erro ao enviar: ' + t.aparelho.ultimoErro + ')' : ''}. Peça para abrir o app com internet; se não der, use Encerrar turno.` });
-      else if (t.abertaLonga) A.push({ nivel: 'critico', aba: 'barreiras', titulo: `Barreira aberta há ${fmt.duracao(t.duracaoMin)}: ${t.local || 'sem local'}`, detalhe: `Início ${fmt.data(t.data)} ${t.inicio || ''} · ${t.fiscal || ''}. Verificar se o turno não foi encerrado no aparelho. Plantão vai até 12 h: o GDV encerra este turno sozinho (rotina automática).` });
+      else if (t.abertaLonga) A.push({ nivel: 'critico', aba: 'barreiras', titulo: `Barreira aberta há ${fmt.duracao(t.duracaoMin)}: ${t.local || 'sem local'}`, detalhe: `Início ${fmt.data(t.data)} ${t.inicio || ''} · ${t.fiscal || ''}. Verificar se o turno não foi encerrado no aparelho. Plantão vai até 12 h: o e-GDV encerra este turno sozinho (rotina automática).` });
       else if (t.semSinal) A.push({ nivel: 'serio', aba: 'barreiras', titulo: `Barreira sem sinal ${fmt.rel(t.ultimoSinal)}: ${t.local || 'sem local'}`, detalhe: `Último dado recebido ${fmt.dataHora(t.ultimoSinal)} · ${t.fiscal || ''}. ${textoSemSinal(t)}.` });
     });
     // 3. numeração de TFs e termos (agrupado por módulo)
@@ -1384,7 +1395,7 @@ const Painel = (() => {
     const como = ehIOS
       ? 'No Safari, toque em <b>Compartilhar</b> <span aria-hidden="true">⬆︎</span> e depois em <b>Adicionar à Tela de Início</b>. Abra pelo ícone' + (S.token ? '' : ' e entre por lá: o app instalado não aproveita o acesso feito no Safari') + '.'
       : eventoInstalar ? 'Toque em <b>Instalar app</b> para abrir o painel pelo ícone, em tela cheia.' : 'No Chrome, toque no menu <b>⋮</b> e em <b>Instalar app</b> (ou <b>Adicionar à tela inicial</b>).';
-    el.innerHTML = `<div class="pn-instalar-txt"><b>Instale o GDV Painel no celular</b> para consultar de qualquer lugar. ${como}</div>
+    el.innerHTML = `<div class="pn-instalar-txt"><b>Instale o e-GDV Painel no celular</b> para consultar de qualquer lugar. ${como}</div>
       <div class="pn-instalar-acoes">${!ehIOS && eventoInstalar ? '<button type="button" class="pn-btn pn-btn-prim pn-btn-mini" data-instalar="agora">Instalar app</button>' : ''}
       <button type="button" class="pn-instalar-x" data-instalar="fechar" aria-label="Fechar a dica de instalação">✕</button></div>`;
     el.hidden = false;
@@ -1408,8 +1419,8 @@ const Painel = (() => {
     const tv = emTV(), encerrada = tv && (S.encerrada || !!ls.get(LS_ENCERRADA));
     $('#pn-login-tit').textContent = encerrada ? 'Sessão encerrada' : tv ? 'Modo TV — acesso do administrador' : 'Acesso do administrador';
     $('#pn-login-txt').innerHTML = tv ? (encerrada ? 'Gere um novo código de administrador e digite aqui' : 'Digite um código de administrador próprio para esta TV')
-        + ' (planilha: menu <b>GDV → Gerar código de administrador</b>, ex.: nome “TV Sala da Gerência”).'
-      : 'Digite o código de administrador de 6 dígitos gerado na planilha (menu <b>GDV → Gerar código de administrador</b>). Cada código vale uma vez.';
+        + ' (planilha: menu <b>e-GDV → Gerar código de administrador</b>, ex.: nome “TV Sala da Gerência”).'
+      : 'Digite o código de administrador de 6 dígitos gerado na planilha (menu <b>e-GDV → Gerar código de administrador</b>). Cada código vale uma vez.';
     desenharDicaInstalar();
   }
   function sair(msg) {

@@ -9,11 +9,14 @@ const diaManaus = n => new Date(Date.now() - 4 * 3600e3 - n * 864e5).toISOString
 const sheets = {};
 function mkSheet(name) {
   const rows = []; // rows[0] = header
+  let extraLinhas = 0;
   const sh = {
     getLastRow: () => rows.length,
-    getMaxRows: () => 1000,
+    getMaxRows: () => Math.max(1000, rows.length) + extraLinhas,
     getMaxColumns: () => 13,
     insertColumnsAfter() {},
+    insertRowsAfter(_, n) { extraLinhas += n; },
+    deleteRows(r, n) { if (r < 2 || r + n - 1 > rows.length) throw new Error('deleteRows fora da faixa (' + r + ', ' + n + ')'); rows.splice(r - 1, n); },
     setFrozenRows() {},
     getRange(r, c, nr, nc) {
       const rg = {
@@ -34,7 +37,15 @@ sheets.Turnos._rows.push(['antigo-1','TF-001-A-' + diaManaus(3).slice(0, 4),diaM
 sheets.Fiscais = mkSheet('Fiscais');
 sheets.Fiscais._rows.push(['nome','codigo','expiraEm','ativo','token','ativadoEm']);
 sheets.Fiscais._rows.push(['Antigo Fiscal','',1,1,'tok-antigo',1]);
-const ss = { getId: () => 'fake', getSheetByName: n => sheets[n] || null, insertSheet: n => (sheets[n] = mkSheet(n)) };
+// Planilhas (a principal "fake" e as criadas com SpreadsheetApp.create, ex.: arquivo anual). id → {nome, sheets, api}
+const planilhas = {};
+function mkSS(id, nome, shs) {
+  const api = { getId: () => id, getName: () => nome, getUrl: () => 'https://docs.google.com/spreadsheets/d/' + id + '/edit',
+    getSheetByName: n => shs[n] || null, insertSheet: n => (shs[n] = mkSheet(n)), getSheets: () => Object.values(shs) };
+  planilhas[id] = { nome, sheets: shs, api };
+  return api;
+}
+const ss = mkSS('fake', 'GDV planilha', sheets);
 const props = { ACCESS_KEY: 'segredo' };
 const cache = new Map();
 let emailAtual = '', emailDono = 'dono@exemplo.gov.br';
@@ -55,7 +66,8 @@ function mkFolder(nome, pai) {
       drive.itens[fid] = a;
       return mkArqApi(a);
     },
-    getFiles: () => iter(Object.values(drive.itens).filter(x => x.kind === 'arquivo' && x.pai === id).map(x => x.api))
+    getFiles: () => iter(Object.values(drive.itens).filter(x => x.kind === 'arquivo' && x.pai === id).map(x => x.api)),
+    getFilesByName: n => iter(Object.values(drive.itens).filter(x => x.kind === 'arquivo' && x.pai === id && x.nome === n).map(x => x.api))
   };
   return f;
 }
@@ -64,6 +76,7 @@ function mkArqApi(a) {
   a.criado = a.criado || (Date.now() + (++relogioDrive));
   a.api = { getId: () => a.id, getUrl: () => 'https://drive.google.com/file/d/' + a.id + '/view', getName: () => a.nome, setTrashed: v => { a.trashed = !!v; },
     isTrashed: () => a.trashed, getDateCreated: () => new Date(a.criado), setSharing: () => { a.compartilhado = true; },
+    moveTo: pasta => { a.pai = pasta.getId(); return a.api; },
     makeCopy: (nome, pasta) => { if (driveFalha) throw new Error('Drive indisponível (teste)'); const fid = 'arq-' + (++drive.seq), c = { kind: 'arquivo', id: fid, nome, mime: a.mime, bytes: [], pai: pasta.getId(), trashed: false, compartilhado: false, copiaDe: a.id };
       drive.itens[fid] = c; return mkArqApi(c); } };
   return a.api;
@@ -79,7 +92,11 @@ const DriveApp = {
 };
 const ctx = {
   console, Date, JSON, Number, String, Object, Array,
-  SpreadsheetApp: { getActiveSpreadsheet: () => ss, create: () => ss, openById: () => ss },
+  SpreadsheetApp: { getActiveSpreadsheet: () => ss, flush() {},
+    create: nome => { const id = 'planilha-' + (++drive.seq);   // planilha nova: arquivo no Drive (raiz) com a aba padrão "Página1"
+      drive.itens[id] = { kind: 'arquivo', id, nome, mime: 'application/vnd.google-apps.spreadsheet', bytes: [], pai: null, trashed: false, compartilhado: false };
+      mkArqApi(drive.itens[id]); return mkSS(id, nome, { 'Página1': mkSheet('Página1') }); },
+    openById: id => { const p = planilhas[id]; if (!p) throw new Error('Unexpected error while getting the method or property openById on object SpreadsheetApp.'); return p.api; } },
   PropertiesService: { getScriptProperties: () => ({ getProperty: k => props[k] || null, setProperty: (k, v) => props[k] = String(v), deleteProperty: k => { delete props[k]; } }) },
   ScriptApp: {
     newTrigger: fn => { const cfg = { fn }; const b = { timeBased: () => b, everyMinutes: n => (cfg.everyMinutes = n, b), everyHours: n => (cfg.everyHours = n, b), everyDays: n => (cfg.everyDays = n, b),
@@ -92,7 +109,9 @@ const ctx = {
   LockService: { getScriptLock: () => ({ waitLock() { if (lockFalha && --lockFalha === 0) throw new Error('Lock timeout: another process was holding the lock for too long.'); }, releaseLock() {} }) },
   Utilities: { formatDate: d => d.toISOString().slice(0, 10), getUuid: () => require('crypto').randomUUID(),
     base64Decode: s => { if (!/^[A-Za-z0-9+/]*={0,2}$/.test(s)) throw new Error('Could not decode string.'); return Array.from(Buffer.from(s, 'base64')).map(b => (b > 127 ? b - 256 : b)); },
-    newBlob: (bytes, mime, nome) => ({ bytes, getName: () => nome, getContentType: () => mime, getBytes: () => bytes }) },
+    newBlob: (bytes, mime, nome) => ({ bytes, getName: () => nome, getContentType: () => mime, getBytes: () => bytes }),
+    DigestAlgorithm: { SHA_256: 'sha256' }, Charset: { UTF_8: 'utf8' },   // computeDigest devolve bytes com sinal (-128..127), como no Apps Script
+    computeDigest: (alg, txt) => Array.from(require('crypto').createHash(alg).update(String(txt), 'utf8').digest()).map(b => (b > 127 ? b - 256 : b)) },
   DriveApp,
   Session: { getActiveUser: () => ({ getEmail: () => emailAtual }), getEffectiveUser: () => ({ getEmail: () => emailDono }) },
   HtmlService: { createHtmlOutput: h => ({ kind: 'html', content: h, setTitle() { return this; } }), createHtmlOutputFromFile: n => ({ kind: 'arquivo', name: n, setTitle() { return this; }, addMetaTag() { return this; } }) },
@@ -130,6 +149,10 @@ http.createServer((req, res) => {
   if (req.url === '/__drive') { res.setHeader('content-type', 'application/json');
     return res.end(JSON.stringify({ pastaRaiz: props.PASTA_ARQUIVOS || null, arquivos: Object.values(drive.itens).filter(x => x.kind === 'arquivo').map(a => ({ id: a.id, nome: a.nome, caminho: caminho(drive.itens[a.pai]), mime: a.mime, tamanho: a.bytes.length, lixeira: a.trashed, compartilhado: a.compartilhado })),
       pastas: Object.values(drive.itens).filter(x => x.kind === 'pasta' && !x.trashed).map(caminho) })); }
+  if (req.url === '/__planilhas') { res.setHeader('content-type', 'application/json');   // planilhas criadas pelo script (arquivo anual): nome, pasta, abas
+    return res.end(JSON.stringify(Object.fromEntries(Object.entries(planilhas).filter(([id]) => id !== 'fake').map(([id, p]) => [id, { nome: p.nome,
+      pasta: drive.itens[id] && drive.itens[id].pai ? caminho(drive.itens[drive.itens[id].pai]) : '', lixeira: !!(drive.itens[id] && drive.itens[id].trashed),
+      url: p.api.getUrl(), abas: Object.fromEntries(Object.entries(p.sheets).map(([n, sh]) => [n, sh._rows])) }])))); }
   if (req.url === '/__apagarPasta') { const f = drive.itens[props.PASTA_ARQUIVOS]; if (f) f.trashed = true; return res.end('ok'); }
   if (req.url.startsWith('/__aba')) { const n = new URL(req.url, 'http://x').searchParams.get('nome'); res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify(sheets[n] ? sheets[n]._rows : null)); }
   if (req.url === '/__dump') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ T: sheets.Turnos && sheets.Turnos._rows, V: sheets.Veiculos && sheets.Veiculos._rows, F: sheets.Fiscais && sheets.Fiscais._rows })); }

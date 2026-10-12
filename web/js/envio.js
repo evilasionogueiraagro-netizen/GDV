@@ -8,7 +8,7 @@ const Envio = (() => {
   const CAMPOS = { t: 'turnos', v: 'veiculos', f: 'tfs', p: 'pessoas', l: 'placas', g: 'levantamentos', c: 'colheitas', r: 'propriedades' };   // nome no corpo da requisição
   const LIMITES = { t: 500, v: 1000, f: 100, p: 300, l: 300, g: 100, c: 100, r: 300 };                                                         // registros por rodada
   // stores de cada módulo (pessoas servem ao TF e ao PCE: sobem se qualquer um dos dois estiver liberado)
-  const MODULO_DO_STORE = { t: ['veiculos'], v: ['veiculos'], f: ['tf'], l: ['tf'], p: ['tf', 'pce'], g: ['pce'], c: ['pce'], r: ['pce'], a: ['pce'] };
+  const MODULO_DO_STORE = { t: ['veiculos'], v: ['veiculos'], f: ['tf'], l: ['tf'], p: ['tf', 'pce'], g: ['pce'], c: ['pce'], r: ['pce'], a: ['tf', 'pce'] };   // a = arquivos (fotos/assinaturas do TF e do PCE)
   /** Permissões por módulo (padrão: tudo liberado — aparelho que nunca sincronizou ou servidor antigo que não manda permissões).
    *  "antigo" (Digitar do papel: registros antigos e PDFs escaneados) é o contrário: só vale se o servidor mandar antigo=1. */
   const normPerm = o => {
@@ -53,31 +53,44 @@ const Envio = (() => {
     } finally { if (t) clearTimeout(t); }
   }
 
-  /* Fotos, assinaturas e PDFs (PCE): ficam no aparelho (store "arquivos") e sobem ao Drive depois do sync principal.
-     Só contam/sobem as que estão ligadas a um levantamento ou termo salvo (não excluído): rascunhos não sobem. */
+  /* Fotos, assinaturas e PDFs (PCE e TF): ficam no aparelho (store "arquivos") e sobem ao Drive depois do sync principal.
+     Só contam/sobem as que estão ligadas a um registro salvo (levantamento, termo ou TF; não excluído): rascunhos não sobem. */
   function idsReferenciados(regs) {
     const s = new Set();
     regs.forEach(r => {
       if (!r || r.excluido) return;
       lerJSON(r.fotos, []).forEach(id => id && s.add(id));
-      lerJSON(r.documentos, []).forEach(id => id && s.add(id));                 // PDFs escaneados (registro digitado do papel)
+      const docs = lerJSON(r.documentos, []);                                  // PDFs escaneados (registro digitado do papel); no TF é outro campo (objeto)
+      if (Array.isArray(docs)) docs.forEach(id => id && s.add(id));
       Object.values(lerJSON(r.assinaturas, {})).forEach(id => id && s.add(id));
     });
     return s;
   }
-  /** perm (opcional): sem a permissão "antigo", os arquivos dos registros do papel (e qualquer PDF) ficam fora da lista de envio. */
-  async function arquivosPendentes(regs, perm) {
+  /**
+   * Arquivos não enviados ligados a registros salvos. perm (opcional): só os dos módulos liberados (TF → TFs; PCE → levantamentos e
+   * termos) e, sem a permissão "antigo", nada dos registros do papel (nem PDF). regs/tfs: listas já lidas (opcional).
+   */
+  async function arquivosPendentes(regs, perm, tfs) {
     if (!regs) regs = [...await Store.todos('levantamentos'), ...await Store.todos('colheitas')];
+    if (!tfs) tfs = await Store.todos('tfs');
+    if (perm && perm.pce === 0) regs = [];
+    if (perm && perm.tf === 0) tfs = [];
     if (perm && !podeAntigo(perm)) regs = regs.filter(r => !ehAntigo(r)).map(r => ({ ...r, documentos: '[]' }));
-    const ref = idsReferenciados(regs);
+    const ref = idsReferenciados([...regs, ...tfs]);
+    return (await Store.chaves('arquivos', 'enviado', 0)).filter(id => ref.has(id));
+  }
+  /** Ids dos arquivos não enviados que pertencem a TFs (o resto é do PCE). */
+  async function arquivosPendentesTF(tfs) {
+    const ref = idsReferenciados(tfs || await Store.todos('tfs'));
     return (await Store.chaves('arquivos', 'enviado', 0)).filter(id => ref.has(id));
   }
 
-  /** Tudo o que ainda não foi enviado, por store (letras de NOMES) + a = ids de arquivos; total = soma. */
+  /** Tudo o que ainda não foi enviado, por store (letras de NOMES) + a = ids de arquivos (aTF = os dos TFs); total = soma. */
   async function pendentes() {
     const lst = await Promise.all(NOMES.map(n => Store.todos(STORES[n])));
     const o = {}; NOMES.forEach((n, i) => { o[n] = lst[i].filter(x => x.pendente); });
-    o.a = await arquivosPendentes([...lst[NOMES.indexOf('g')], ...lst[NOMES.indexOf('c')]]);
+    o.a = await arquivosPendentes([...lst[NOMES.indexOf('g')], ...lst[NOMES.indexOf('c')]], null, lst[NOMES.indexOf('f')]);
+    o.aTF = await arquivosPendentesTF(lst[NOMES.indexOf('f')]);
     o.total = NOMES.reduce((s, n) => s + o[n].length, 0) + o.a.length;
     return o;
   }
@@ -240,8 +253,8 @@ const Envio = (() => {
         if (mudou && !l.recusouAlgo) continue;                               // módulo liberado agora: manda o que estava guardado
         if (!l.resta) break;
       }
-      // fotos/assinaturas/PDFs: algumas rodadas, até ~2 min (o navegador limita o tempo do evento); o resto fica para depois
-      while (perm.pce !== 0 && Date.now() - inicio < 120000) {
+      // fotos/assinaturas/PDFs (PCE e TF): algumas rodadas, até ~2 min (o navegador limita o tempo do evento); o resto fica para depois
+      while ((perm.pce !== 0 || perm.tf !== 0) && Date.now() - inicio < 120000) {
         const ids = await arquivosPendentes(null, perm);
         if (!ids.length) break;
         let n = 0;
@@ -250,7 +263,7 @@ const Envio = (() => {
         arquivos += n;
         if (!n) break;
       }
-      resta = perm.pce !== 0 && (await arquivosPendentes(null, perm)).length > 0 && Date.now() - inicio >= 120000;
+      resta = (perm.pce !== 0 || perm.tf !== 0) && (await arquivosPendentes(null, perm)).length > 0 && Date.now() - inicio >= 120000;
     } catch (e) {
       if (credencialRecusada(e)) {
         const atual = await Store.meta('cred');                              // só marca se ainda for a mesma credencial (sem corrida com nova ativação)
@@ -266,6 +279,6 @@ const Envio = (() => {
   }
 
   return { NOMES, STORES, CAMPOS, LIMITES, MODULO_DO_STORE, TAG, TAG_PERIODICO, normPerm, storePermitido, ehAntigo, podeAntigo, limpo, lerJSON,
-    erroDeRede, credencialRecusada, post, arquivosPendentes, pendentes, marcarEnviados, enviarLote, enviarArquivos, subir,
+    erroDeRede, credencialRecusada, post, arquivosPendentes, arquivosPendentesTF, pendentes, marcarEnviados, enviarLote, enviarArquivos, subir,
     sinal, idAparelho, versaoApp, plataforma, motivoErro, guardarErro, avisarFalha };
 })();

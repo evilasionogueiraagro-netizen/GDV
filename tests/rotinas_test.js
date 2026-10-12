@@ -97,22 +97,23 @@ const AUTO = 'Automático (12 h)';
   console.log('2. Gatilhos (Ativar / Desativar rotinas automáticas)');
   r = await fn('ativarRotinasAutomaticas_');
   let g = await get('/__gatilhos');
-  ok(r.r && r.r.criadas.length === 3 && g.length === 3, 'ativar cria 3 gatilhos', g.map(x => x.fn));
+  ok(r.r && r.r.criadas.length === 4 && g.length === 4, 'ativar cria 4 gatilhos', g.map(x => x.fn));
   const porFn = Object.fromEntries(g.map(x => [x.fn, x]));
   ok(porFn.encerrarTurnosAutomatico && porFn.encerrarTurnosAutomatico.everyMinutes === 30, 'encerrarTurnosAutomatico a cada 30 min');
   ok(porFn.backupDiario && porFn.backupDiario.everyDays === 1 && porFn.backupDiario.atHour === 3 && porFn.backupDiario.tz === 'America/Manaus', 'backupDiario todo dia às 03h (Manaus)');
   ok(porFn.relatorioMensal && porFn.relatorioMensal.onMonthDay === 1 && porFn.relatorioMensal.atHour === 7 && porFn.relatorioMensal.tz === 'America/Manaus', 'relatorioMensal dia 1 às 07h (Manaus)');
+  ok(porFn.arquivarAnosAntigos && porFn.arquivarAnosAntigos.everyDays === 1 && porFn.arquivarAnosAntigos.atHour === 4 && porFn.arquivarAnosAntigos.tz === 'America/Manaus', 'arquivarAnosAntigos todo dia às 04h (Manaus)');
   r = await fn('ativarRotinasAutomaticas_'); g = await get('/__gatilhos');
-  ok(r.r.criadas.length === 0 && g.length === 3, 'ativar de novo não duplica', g.length);
+  ok(r.r.criadas.length === 0 && g.length === 4, 'ativar de novo não duplica', g.length);
   r = await fn('desativarRotinasAutomaticas_'); g = await get('/__gatilhos');
   let props = await get('/__props');
-  ok(r.r === 3 && g.length === 0 && props.ROTINAS_DESATIVADAS === '1', 'desativar remove os 3 gatilhos e marca ROTINAS_DESATIVADAS', { n: r.r, g: g.length });
+  ok(r.r === 4 && g.length === 0 && props.ROTINAS_DESATIVADAS === '1', 'desativar remove os 4 gatilhos e marca ROTINAS_DESATIVADAS', { n: r.r, g: g.length });
   await post({ action: 'sync', key: FIS, since: 0, turnos: [T('b3', AG - 13 * H)], veiculos: [] });
   await limparCache();
   r = await fn('encerrarTurnosAutomatico'); await post({ action: 'painelDados', key: ADM, aoVivo: true, ids: ['b3'] });
   ok(r.r.desativado && (await linhaTurno('b3')).encerrado === 0, 'desativadas: nem o gatilho nem o painel encerram turnos');
   r = await fn('ativarRotinasAutomaticas_'); g = await get('/__gatilhos'); props = await get('/__props');
-  ok(g.length === 3 && !props.ROTINAS_DESATIVADAS, 'ativar de novo: 3 gatilhos e o encerramento volta');
+  ok(g.length === 4 && !props.ROTINAS_DESATIVADAS, 'ativar de novo: 4 gatilhos e o encerramento volta');
   await fn('encerrarTurnosAutomatico');
   ok((await linhaTurno('b3')).encerradoPor === AUTO, 'b3 encerrado depois de reativar');
 
@@ -209,7 +210,7 @@ const AUTO = 'Automático (12 h)';
   ok(n.pce && JSON.stringify(n.pce.pragas) === JSON.stringify([{ praga: 'Moko da bananeira', deteccoes: 3, suspeitas: 1, municipios: ['Coari', 'Manaus'] }, { praga: 'Vassoura-de-bruxa', deteccoes: 1, suspeitas: 0, municipios: ['Manaus'] }]),
     'detecções por praga: detectada + suspeita (suspeita à parte); "não detectada" de Fusarium/Sigatoka não conta; excluído e mês seguinte fora', n.pce && n.pce.pragas);
   const mails = await get('/__emails'), m = mails[mails.length - 1] || {};
-  ok(m.to === 'gerente@idam.am.gov.br,chefe@exemplo.com' && m.subject === 'GDV – Relatório mensal de ' + per.rotulo && m.name === 'GDV', 'e-mail: para, assunto e remetente', { to: m.to, s: m.subject });
+  ok(m.to === 'gerente@idam.am.gov.br,chefe@exemplo.com' && m.subject === 'e-GDV – Relatório mensal de ' + per.rotulo && m.name === 'e-GDV', 'e-mail: para, assunto e remetente', { to: m.to, s: m.subject });
   const html = m.htmlBody || '';
   ok(/Rel Barreira X/.test(html) && html.includes('>14,0<') && html.includes('>13,0<') && /Moko da bananeira/.test(html) && /BANANA - 10 Kg/.test(html) && html.includes('https://evilasionogueiraagro-netizen.github.io/GDV/painel/'),
     'HTML com barreiras, horas (14,0 / 13,0), pragas, apreensões e link do painel');

@@ -85,6 +85,10 @@ a { color: var(--marca2); }
 .pn-grade > * { min-width: 0; }
 .pn-vazio { color: var(--mut); font-size: 14px; text-align: center; padding: 22px 8px; }
 .pn-falha { color: var(--critico); border-color: color-mix(in srgb, var(--critico) 40%, transparent); }
+/* aviso do arquivo anual: período com anos que já saíram da planilha principal (discreto, no topo do conteúdo) */
+.pn-arquivo { max-width: 1400px; margin: 10px auto 0; padding: 0 16px; font-size: 13px; color: var(--ink2); }
+.pn-arquivo > div { background: var(--sf2); border: 1px solid var(--borda); border-left: 3px solid var(--eixo); border-radius: 8px; padding: 8px 12px; overflow-wrap: anywhere; }
+.pn-arquivo a { color: inherit; font-weight: 600; }
 .pn-rodape { max-width: 1400px; margin: 0 auto; padding: 8px 16px 28px; color: var(--mut); font-size: 12px; }
 
 /* Filtros */
@@ -624,3 +628,29 @@ body.tv .pn-erro { font-size: 2.1vh; padding: 1.4vh; }
 /* Servidores: sinal dos aparelhos */
 .pn-ac-velha { color: var(--critico); font-weight: 650; } .pn-ac-erro { color: var(--ink); font-size: 12px; display: block; max-width: 280px; overflow-wrap: anywhere; }
 .pn-ac-sinal-m { display: none; } @media (max-width: 560px) { .pn-ac-sinal-m { display: block; font-size: 11px; color: var(--ink2); margin-top: 2px; } .pn-ac-sinal-m b { color: var(--critico); font-weight: 650; } }
+
+/* Aba "Dashboard público" (js/painel-publico.js) */
+.pn-pub-grade { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 10px; align-items: start; }
+@media (min-width: 900px) { .pn-pub-grade { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }
+.pn-pub-cartao h3 { margin: 0 0 8px; font-size: 16px; }
+.pn-pub-chave { display: flex; align-items: center; gap: 10px; font-size: 17px; font-weight: 650; padding: 10px 12px; border: 2px solid var(--base); border-radius: 12px; cursor: pointer; }
+.pn-pub-chave input { width: 22px; height: 22px; accent-color: var(--marca2); margin: 0; flex: none; }
+.pn-pub-sit { margin: 6px 0 0; font-size: 13px; }
+.pn-pub-sit.on { color: var(--bom-txt); font-weight: 600; } .pn-pub-sit.off { color: var(--ink2); }
+.pn-pub-campo { display: flex; flex-direction: column; gap: 4px; font-size: 13px; color: var(--ink2); font-weight: 600; margin-top: 12px; }
+.pn-pub-campo input, .pn-pub-campo textarea { font: inherit; font-weight: 400; font-size: 15px; color: var(--ink); width: 100%; padding: 8px 10px; border: 1px solid var(--base); border-radius: 10px; background: var(--sf); resize: vertical; min-width: 0; }
+.pn-pub-acoes { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.pn-pub-acoes .pn-btn { min-height: 36px; }
+.pn-pub-fs { border: 1px solid var(--grade); border-radius: 10px; padding: 6px 12px 10px; margin: 14px 0 0; min-width: 0; }
+.pn-pub-fs legend { font-weight: 650; font-size: 14px; padding: 0 4px; }
+.pn-pub-op { display: flex; align-items: flex-start; gap: 10px; padding: 7px 0; cursor: pointer; border-bottom: 1px solid var(--grade); }
+.pn-pub-op:last-of-type { border-bottom: 0; }
+.pn-pub-op input { width: 18px; height: 18px; margin: 2px 0 0; flex: none; accent-color: var(--marca2); }
+.pn-pub-op span { min-width: 0; font-size: 14px; }
+.pn-pub-op small { display: block; color: var(--ink2); font-size: 12.5px; line-height: 1.35; }
+.pn-pub-vivo { margin: 2px 0 6px 28px; font-size: 12.5px; line-height: 1.4; color: var(--ink); background: color-mix(in srgb, var(--atencao) 18%, transparent); border-left: 3px solid var(--atencao); border-radius: 6px; padding: 6px 8px; }
+.pn-pub-vivo.ligado { background: color-mix(in srgb, var(--critico) 14%, transparent); border-left-color: var(--critico); font-weight: 600; }
+.pn-pub-rodape { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin-top: 12px; position: sticky; bottom: 8px; z-index: 5; }
+.pn-pub-rodape .pn-btn-prim { min-height: 42px; padding: 8px 22px; font-weight: 650; }
+.pn-pub-msg { font-size: 13.5px; } .pn-pub-msg.ok { color: var(--bom-txt); font-weight: 600; } .pn-pub-msg.erro { color: var(--critico); font-weight: 600; }
+.pn-pub-msg:empty { display: none; }

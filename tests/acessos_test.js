@@ -129,8 +129,9 @@ const APP = 'https://evilasionogueiraagro-netizen.github.io/GDV/';
   /* ================= painel (Playwright) ================= */
   console.log('2. Painel');
   // dados mínimos para o painel abrir
-  const hoje = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10), ag = Date.now();
-  await post({ action: 'sync', key: 'segredo', since: 0, turnos: [{ id: 'ac1', numeroTF: 'X', data: hoje, letra: 'A', inicio: '06:00', fim: '', fiscal: 'Fiscal Menu Silva', local: 'Barreira Porto CEASA', unidade: 'MANAUS', posto: 'Fixa', encerrado: 0, criadoEm: ag, atualizadoEm: ag, latIni: '-3.1', lngIni: '-60.0' }] });
+  // turno aberto há 1 h (horário de Manaus): com início fixo (06:00) o teste falhava depois das 18:00, com o alerta "aberta há mais de 12 h" nas abas
+  const ini = new Date(Date.now() - 4 * 3600e3 - 3600e3).toISOString(), hoje = ini.slice(0, 10), ag = Date.now();
+  await post({ action: 'sync', key: 'segredo', since: 0, turnos: [{ id: 'ac1', numeroTF: 'X', data: hoje, letra: 'A', inicio: ini.slice(11, 16), fim: '', fiscal: 'Fiscal Menu Silva', local: 'Barreira Porto CEASA', unidade: 'MANAUS', posto: 'Fixa', encerrado: 0, criadoEm: ag, atualizadoEm: ag, latIni: '-3.1', lngIni: '-60.0' }] });
   const adm2 = await gerar('Gerente Web', 'admin');
   const b = await amb.lancar();
   const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
@@ -161,7 +162,7 @@ const APP = 'https://evilasionogueiraagro-netizen.github.io/GDV/';
   let p = await abrir();
   await p.fill('#pn-codigo', adm2.codigo); await p.click('#pn-entrar'); await esperarDados(p);
   const abas = await p.$$eval('.pn-aba', a => a.map(x => x.dataset.aba + ':' + x.textContent.trim()));
-  ok(abas.join() === 'geral:Visão geral,barreiras:Barreiras,tf:TF de Barreira,pce:PCE,acessos:Servidores', 'aba "Servidores" depois do PCE', abas);
+  ok(abas.join() === 'geral:Visão geral,barreiras:Barreiras,tf:TF de Barreira,pce:PCE,acessos:Servidores,publico:Dashboard público', 'aba "Servidores" depois do PCE (e "Dashboard público" no fim)', abas);
   await irAba(p, 'acessos'); await esperarLista(p);
   ok(await p.isHidden('.pn-filtros'), 'filtros de período escondidos na aba Servidores');
   ok(await p.isVisible('#pn-ac-form') && await p.isHidden('#pn-ac-res'), 'formulário visível; sem código ainda');
@@ -297,7 +298,7 @@ const APP = 'https://evilasionogueiraagro-netizen.github.io/GDV/';
   const pc = await abrir({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, { 'gdv.painel.token': tok, 'gdv.painel.nome': 'Gerente Web' });
   await esperarDados(pc);
   const abasCel = await pc.$$eval('.pn-aba', a => a.map(x => { const r = x.getBoundingClientRect(); return r.right <= innerWidth + 0.5 && r.left >= 0; }));
-  ok(abasCel.length === 5 && abasCel.every(Boolean), '390 px: cinco abas inteiras', abasCel);
+  ok(abasCel.length === 6 && abasCel.every(Boolean), '390 px: seis abas inteiras', abasCel);
   await irAba(pc, 'acessos'); await esperarLista(pc);
   ok(await semRolagem(pc), '390 px sem rolagem horizontal (antes de gerar)');
   await pc.fill('#pn-ac-nome', 'Celular Teste Souza'); await pc.click('#pn-ac-gerar'); await pc.waitForSelector('#pn-ac-res:not([hidden])'); await pc.waitForTimeout(600);

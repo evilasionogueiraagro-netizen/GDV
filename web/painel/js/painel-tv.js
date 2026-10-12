@@ -60,7 +60,7 @@
     r.innerHTML = `
       <header class="tv-topo">
         <img class="tv-logo" src="../img/logo-adaf.png" alt="ADAF">
-        <div class="tv-titulo"><h1>Sala de Situação — GDV</h1><div class="tv-sub">Defesa agropecuária no Amazonas · barreiras, TF e PCE</div></div>
+        <div class="tv-titulo"><h1>Sala de Situação — e-GDV</h1><div class="tv-sub">Defesa agropecuária no Amazonas · barreiras, TF e PCE</div></div>
         <div class="tv-atual" id="tv-atual" role="status" aria-live="polite"><span class="tv-ponto"></span><span id="tv-atual-txt">Conectando…</span></div>
         <div class="tv-relogio"><div class="tv-hora" id="tv-hora"></div><div class="tv-data" id="tv-data"></div></div>
       </header>

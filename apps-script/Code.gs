@@ -1,13 +1,13 @@
 /**
- * GDV – Controle de Veículos (Barreira Fitossanitária)
+ * e-GDV – Controle de Veículos (Barreira Fitossanitária)
  * API de sincronização: recebe registros do app (offline-first), grava na planilha
  * e devolve o que mudou desde a última sincronização.
  *
  * Acesso dos aparelhos (por fiscal):
- *   1. No menu "GDV" da planilha: "Gerar código de ativação" → informe o NOME COMPLETO do fiscal
+ *   1. No menu "e-GDV" da planilha: "Gerar código de ativação" → informe o NOME COMPLETO do fiscal
  *      (ou no painel do administrador, aba "Servidores" → Gerar chave de ativação).
  *   2. O fiscal digita o código de 6 dígitos no app (uma vez). O servidor devolve uma credencial
- *      própria daquele aparelho, vinculada ao nome. Revogue em "GDV → Revogar acesso" (ou na aba Servidores).
+ *      própria daquele aparelho, vinculada ao nome. Revogue em "e-GDV → Revogar acesso" (ou na aba Servidores).
  *
  * Módulos por servidor (aba "Permissoes", editada no painel → Servidores): Educação Sanitária/Fiscalização de Trânsito, TF de Barreira e PCE.
  *   Sem linha = tudo liberado. O sync não grava registros de módulo não liberado (devolve em "recusados"; o app os mantém
@@ -33,7 +33,8 @@ const TABELAS = {
         'doc', 'nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone', 'relacao', 'inspecao', 'coleta', 'amostras',
         'procedimento', 'fiel', 'auto', 'advertencia', 'documentos', 'produtos', 'constatacao', 'enquadramento',
         'reincidente', 'tfsAnteriores', 'cancelado', 'motivoCancel', 'conflito', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
-        'numeroSugerido', 'numeroOrigem', 'emitidoEm'],   // auditoria da numeração (colunas novas ficam sempre no fim)
+        'numeroSugerido', 'numeroOrigem', 'emitidoEm',   // auditoria da numeração (colunas novas ficam sempre no fim)
+        'fotos', 'assinaturas', 'recusaAssinatura'],    // fotos = JSON [ids]; assinaturas = JSON {fiscalizado, servidor} (ids na aba Arquivos); recusaAssinatura = 1: fiscalizado se recusou
   Pessoas: ['id', 'tipo', 'nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
             'email'],                                                                                                              // id = CPF/CNPJ (só dígitos)
   Placas: ['id', 'doc', 'nome', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],                                                    // id = placa
@@ -74,7 +75,7 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criad
                           'ano', 'numero', 'ultimo', 'de', 'ate', 'em', 'numeroSugerido', 'emitidoEm', 'amostras', 'inspecao', 'coleta', 'fiel', 'auto',
                           'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito', 'tamanho',
                           'inicioTs', 'atualizadoTs', 'registroAntigo', 'encerradoEm',
-                          'standalone', 'online', 'ultimoSinal', 'ultimoErroEm', 'primeiroSinal'];   // lat/lon/precisao ficam como texto (como em Turnos)
+                          'standalone', 'online', 'ultimoSinal', 'ultimoErroEm', 'primeiroSinal', 'recusaAssinatura'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, pragas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000 };   // demais colunas: 500
 // culturas/fotos/assinaturas são JSON: cortar o texto invalidaria o JSON (e apagaria as referências no aparelho). Os limites acima
@@ -103,8 +104,13 @@ function doPost(e) {
     if (req.action === 'painelRevogar') return json_(painelRevogar(req.key, req.nome));
     if (req.action === 'painelPermissoes') return json_(painelPermissoes(req.key, req.nome, req));
     if (req.action === 'painelEncerrarTurno') return json_(painelEncerrarTurno(req.key, req.turnoId, req.fim));
+    if (req.action === 'tfVerificar') return json_(tfVerificar_(req));                      // página pública verificar.html: sem credencial
+    if (req.action === 'publicoDados') return json_(publicoDados_(req));                    // dashboard público (web/dashboard/): sem credencial, só agregados
+    if (req.action === 'painelPublicoConfig') return json_(painelPublicoConfig(req.key));
+    if (req.action === 'painelPublicoSalvar') return json_(painelPublicoSalvar(req.key, req.config));
     const usuario = autenticar_(req.key);
-    const modulo = MODULO_DA_ACAO[req.action];                                              // TF/PCE: o servidor confere a autorização do módulo
+    // TF/PCE: o servidor confere a autorização do módulo (foto/assinatura de TF = módulo TF; as demais, PCE)
+    const modulo = req.action === 'arquivoEnviar' && req.arquivo && req.arquivo.dono === 'tfs' ? 'tf' : MODULO_DA_ACAO[req.action];
     if (modulo) exigirModulo_(usuario, modulo);
     if (req.action === 'ping') return json_(ping_(req, usuario));
     if (req.action === 'sync') return json_(sincronizar_(req, usuario));
@@ -116,6 +122,7 @@ function doPost(e) {
     if (req.action === 'pceConsultar') return json_(pceConsultar_(req, usuario));
     if (req.action === 'arquivoEnviar') return json_(arquivoEnviar_(req, usuario));
     if (req.action === 'tfAndamento') return json_(tfAndamento_(req, usuario));
+    if (req.action === 'tfIndiceReincidencia') return json_(tfIndiceReincidencia_(req));
     throw new Error('Ação inválida.');
   } catch (err) {
     const r = { ok: false, erro: String(err.message || err) };
@@ -467,6 +474,102 @@ function consultar_(req, usuario) {
   };
 }
 
+/* ---------- Verificação pública de autenticidade (verificar.html, sem credencial) ---------- */
+
+const VERIF_MAX_INVALIDAS = 30;                 // consultas a ids inexistentes/inválidos por minuto (todas as origens): freia varredura
+const RE_ID_TF_ = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;   // o id do TF é UUID v4 gerado no aparelho (não adivinhável)
+
+/** Placa parcialmente mascarada: "ABC1D23" → "ABC***3". */
+function placaMascarada_(v) {
+  const p = placaNorm_(v);
+  return p.length >= 5 ? p.slice(0, 3) + '***' + p.slice(-1) : (p ? '***' : '');
+}
+
+/**
+ * tfVerificar {id}: o QR code impresso no TF leva a verificar.html?t=<id>. Devolve só o necessário para conferir o documento —
+ * nº, data/hora, barreira, procedimento, servidor, situação (válido/cancelado e motivo) e placa mascarada. Nunca CPF/CNPJ, nome do
+ * fiscalizado, endereço, telefone ou produtos. Ids inválidos ou não encontrados contam num limite global por minuto (CacheService).
+ */
+function tfVerificar_(req) {
+  const cache = CacheService.getScriptCache(), chave = 'verif_inval_' + Math.floor(Date.now() / 60000);
+  const invalidas = Number(cache.get(chave) || 0);
+  if (invalidas >= VERIF_MAX_INVALIDAS) throw new Error('Muitas consultas em pouco tempo. Aguarde um minuto e tente de novo.');
+  const id = String(req.id || '').trim().toLowerCase();
+  const t = RE_ID_TF_.test(id) ? lerLeitura_('TFs').filter(function (r) { return String(r.id).toLowerCase() === id; })[0] : null;
+  if (!t) { cache.put(chave, String(invalidas + 1), 120); return { ok: true, encontrado: false }; }
+  const bar = lerLeitura_('Barreiras').filter(function (b) { return b.id === t.barreira; })[0];
+  const PROC = { liberacao: 'Liberação', apreensao: 'Apreensão p/ destruição', rechaco: 'Rechaço (retorno à origem)' };
+  return { ok: true, encontrado: true, tf: {
+    numeroTxt: t.numeroTxt, data: t.data, hora: t.hora, barreira: bar ? bar.nome : t.barreira,
+    procedimento: PROC[t.procedimento] || 'Não informado', servidor: t.fiscal || t.usuario,
+    situacao: t.cancelado === 1 ? 'cancelado' : 'valido', motivoCancel: t.cancelado === 1 ? t.motivoCancel : '',
+    placa: placaMascarada_(t.placa), emitidoEm: t.emitidoEm || null } };
+}
+
+/* ---------- Índice de reincidência (consulta sem internet no app) ---------- */
+
+const INDICE_CACHE_S = 600;                     // índice completo guardado por 10 min (CacheService)
+/** SHA-256 em hex (16 primeiros caracteres) de "doc:<dígitos>" ou "placa:<placa>". */
+function hashIndice_(txt) {
+  const b = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, txt, Utilities.Charset.UTF_8);
+  return b.slice(0, 8).map(function (x) { return ((x + 256) % 256).toString(16).padStart(2, '0'); }).join('');
+}
+/** Agrega os TFs (t._h = hashes das chaves) por chave: {h, n, ap, re, au, li, ad, ult}; cancelados não contam (mas a chave aparece, com n = 0). */
+function agregarIndice_(tfs) {
+  const m = {};
+  const somar = function (h, t) {
+    const a = m[h] = m[h] || { h: h, n: 0, ap: 0, re: 0, au: 0, li: 0, ad: 0, ult: '' };
+    if (t.cancelado === 1) return;
+    a.n++;
+    if (t.procedimento === 'apreensao') a.ap++; else if (t.procedimento === 'rechaco') a.re++; else if (t.procedimento === 'liberacao') a.li++;
+    if (t.auto === 1) a.au++; if (t.advertencia === 1) a.ad++;
+    if (String(t.data) > a.ult) a.ult = String(t.data);
+  };
+  tfs.forEach(function (t) { t._h.forEach(function (h) { somar(h, t); }); });
+  return Object.keys(m).map(function (k) { return m[k]; });
+}
+/** Hashes das chaves do TF (documento e placa); com filtro {docs, placas}, só as chaves que estão nele. */
+function chavesTF_(t, filtro) {
+  const h = [], d = digitos_(t.doc), p = placaNorm_(t.placa);
+  if ((d.length === 11 || d.length === 14) && (!filtro || filtro.docs[d])) h.push(hashIndice_('doc:' + d));
+  if (p.length >= 7 && (!filtro || filtro.placas[p])) h.push(hashIndice_('placa:' + p));
+  return h;
+}
+/**
+ * tfIndiceReincidencia {key, desde}: histórico de TODOS os TFs (todas as barreiras) resumido por hash do CPF/CNPJ e da placa, sem dados
+ * pessoais em claro. Com desde (ms do índice anterior): só as chaves com TF gravado/alterado depois, recalculadas por inteiro (n = 0 =
+ * apagar). Sem desde: índice completo (guardado 10 min no CacheService e completado com o que mudou desde então).
+ * Devolve {ok, agora, completo, itens: [{h, n, ap, re, au, li, ad, ult}]}.
+ */
+function tfIndiceReincidencia_(req) {
+  const desde = Number(req.desde) || 0, cache = CacheService.getScriptCache(), agora = Date.now();
+  const tfs = lerLeitura_('TFs').filter(function (t) { return t.id; });
+  let base = null;
+  if (!desde) { try { base = JSON.parse(cache.get('indice_reinc') || 'null'); } catch (e) { base = null; } }
+  if (!desde && !base) {
+    tfs.forEach(function (t) { t._h = chavesTF_(t, null); });
+    const r = { agora: agora, completo: true, itens: agregarIndice_(tfs).filter(function (a) { return a.n > 0; }) };
+    const txt = JSON.stringify(r);
+    if (txt.length < 90000) { try { cache.put('indice_reinc', txt, INDICE_CACHE_S); } catch (e) { /* grande demais para o cache */ } }
+    r.ok = true;
+    return r;
+  }
+  // só as chaves (documento/placa, comparados em claro aqui no servidor) com TF gravado ou alterado depois de "ref" (1 s de folga)
+  const ref = desde || base.agora, filtro = { docs: {}, placas: {} };
+  tfs.forEach(function (t) {
+    if (t.srv_ts < ref - 1000) return;
+    filtro.docs[digitos_(t.doc)] = true; filtro.placas[placaNorm_(t.placa)] = true;
+  });
+  const sel = tfs.filter(function (t) { return filtro.docs[digitos_(t.doc)] || filtro.placas[placaNorm_(t.placa)]; });
+  sel.forEach(function (t) { t._h = chavesTF_(t, filtro); });
+  const itens = agregarIndice_(sel);
+  if (!base) return { ok: true, agora: agora, completo: false, itens: itens };
+  const m = {};
+  base.itens.forEach(function (a) { m[a.h] = a; });
+  itens.forEach(function (a) { m[a.h] = a; });
+  return { ok: true, agora: agora, completo: true, itens: Object.keys(m).map(function (k) { return m[k]; }).filter(function (a) { return a.n > 0; }) };
+}
+
 /* ---------- TF em preenchimento (sinal ao vivo para o painel) ---------- */
 
 const ANDAMENTO_VALIDADE_MS = 10 * 60 * 1000;   // sem batimento (o app manda a cada 2 min) há mais de 10 min = encerrado
@@ -624,7 +727,8 @@ function pastaArquivos_() {
 }
 
 /**
- * Recebe UMA foto/assinatura/PDF (base64 sem o prefixo "data:") e grava no Drive, em GDV - Arquivos/PCE/<ano>/<dono>.
+ * Recebe UMA foto/assinatura/PDF (base64 sem o prefixo "data:") e grava no Drive, em GDV - Arquivos/PCE/<ano>/<dono> (levantamentos,
+ * colheitas) ou GDV - Arquivos/TF/<ano> (dono "tfs": fotos e assinaturas do TF de Barreira; sem PDF).
  * tipo "documento" = PDF escaneado (application/pdf, até 10 MB, conteúdo começando por "%PDF-"); foto/assinatura = JPEG/PNG até 4 MB.
  * Idempotente pelo id: reenvio do mesmo arquivo devolve o registro já gravado. Os arquivos NÃO são compartilhados.
  */
@@ -635,10 +739,11 @@ function arquivoEnviar_(req, usuario) {
   // foto do levantamento por praga: "praga – cultura" a que a foto pertence (texto livre, só informativo: aba Arquivos e nome no Drive)
   const rotulo = tipo === 'foto' ? String(a.rotulo || '').replace(/\s+/g, ' ').trim().slice(0, 120) : '';
   if (!ARQ_RE_UUID.test(id)) throw new Error('Identificador de arquivo inválido.');
-  if (dono !== 'levantamentos' && dono !== 'colheitas') throw new Error('Arquivo sem registro de origem válido.');
+  if (dono !== 'levantamentos' && dono !== 'colheitas' && dono !== 'tfs') throw new Error('Arquivo sem registro de origem válido.');
   if (!donoId || donoId.length > 64) throw new Error('Arquivo sem registro de origem válido.');
   if (tipo !== 'foto' && tipo !== 'assinatura' && tipo !== 'documento') throw new Error('Tipo de arquivo inválido.');
-  if (['', 'servidor', 'produtor', 'testemunha1', 'testemunha2'].indexOf(papel) < 0) throw new Error('Papel da assinatura inválido.');
+  if (['', 'servidor', 'produtor', 'testemunha1', 'testemunha2', 'fiscalizado'].indexOf(papel) < 0) throw new Error('Papel da assinatura inválido.');
+  if (dono === 'tfs' && tipo === 'documento') throw new Error('TF não aceita documento (PDF).');
   if (!ARQ_MIMES[mime]) throw new Error('Formato não aceito (somente JPEG, PNG ou PDF).');
   const pdf = mime === 'application/pdf';
   if (pdf !== (tipo === 'documento')) throw new Error(pdf ? 'PDF só pode ser enviado como documento.' : 'Documento só pode ser PDF.');
@@ -667,7 +772,8 @@ function arquivoEnviar_(req, usuario) {
   let pasta, n;
   lock.waitLock(30000);
   try {                                                                     // pastas e numeração do nome sob lock (sem duplicar pastas)
-    pasta = subpasta_(subpasta_(subpasta_(pastaArquivos_(), 'PCE'), ano), dono);
+    pasta = dono === 'tfs' ? subpasta_(subpasta_(pastaArquivos_(), 'TF'), ano)          // TF: GDV - Arquivos/TF/<ano>
+      : subpasta_(subpasta_(subpasta_(pastaArquivos_(), 'PCE'), ano), dono);
     n = lerLeitura_('Arquivos').filter(function (r) { return r.dono === dono && r.donoId === donoId && r.tipo === tipo; }).length + 1;
   } finally { lock.releaseLock(); }
 
@@ -698,14 +804,15 @@ function arquivoEnviar_(req, usuario) {
 /* ---------- Painel do administrador (somente leitura) ---------- */
 
 /**
- * O painel é uma página do GitHub Pages (mesmo site do app): web/painel/ (app separado "GDV Painel"). Ela chama esta API (doPost) com:
+ * O painel é uma página do GitHub Pages (mesmo site do app): web/painel/ (app separado "e-GDV Painel"). Ela chama esta API (doPost) com:
  *   painelAtivar {codigo}            → troca um código de ADMINISTRADOR (6 dígitos, uso único) por {ok, token, nome}
  *   painelDados  {key, de, ate}      → dados do período, já sem dados pessoais desnecessários (documentos mascarados)
  *   painelDados  {key, aoVivo:true, ids:[...]} → só os turnos em andamento (e os de "ids", para saber se encerraram) com seus veículos
  *                                       (atualização automática de 1 em 1 minuto, sem reler TFs, levantamentos e termos)
  *   As duas formas de painelDados trazem também tfsAndamento: TFs sendo preenchidos agora nos aparelhos (aba Andamento).
  *   painelDados também roda o encerramento automático de turnos esquecidos (> 12 h, no máximo 1 vez a cada 10 min) e a forma completa
- *   traz rotinas: {ultimoBackup, backupFalhou, desativadas} (rodapé do painel).
+ *   traz rotinas: {ultimoBackup, backupFalhou, desativadas, ultimoArquivamento} (rodapé do painel) e, quando o período começa antes de
+ *   1º/jan do ano anterior e já há arquivo anual desses anos, avisoArquivo (texto) + arquivosAnuais [{ano, url}] (ver arquivamento anual).
  *   painelSair   {key}               → revoga a credencial do administrador (botão Sair)
  *   painelGerarCodigo {key, nome}    → gera um código de ativação de FISCAL (aba Servidores): {ok, nome, codigo, expiraEm}
  *   painelAcessos {key, ocultos}     → lista dos acessos (situação, datas, quem gerou; sem credenciais; código só enquanto aguarda ativação);
@@ -717,7 +824,7 @@ function arquivoEnviar_(req, usuario) {
  *   painelPermissoes {key, nome, veiculos, tf, pce, antigo} → módulos em que o FISCAL pode inserir dados (aba Permissoes; pelo menos um
  *                                       entre veiculos/tf/pce; antigo = "Digitar do papel", padrão 0, exige pce=1)
  *   painelGerarCodigo aceita também modulos:{veiculos, tf, pce, antigo} (gravados junto); painelAcessos devolve permissoes de cada fiscal.
- * O código é gerado no menu da planilha: GDV → Gerar código de administrador. Credenciais de fiscais não leem o painel,
+ * O código é gerado no menu da planilha: e-GDV → Gerar código de administrador. Credenciais de fiscais não leem o painel,
  * e códigos de administrador não ativam aparelhos de fiscais. A rota antiga "?p=painel" só mostra o novo endereço.
  */
 const PAINEL_URL_PADRAO = 'https://evilasionogueiraagro-netizen.github.io/GDV/painel/';
@@ -735,10 +842,10 @@ function painelHtml_() {
   const url = painelUrl_().replace(/[<>"'&]/g, '');
   const out = HtmlService.createHtmlOutput(
     '<div style="font-family:system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 16px;line-height:1.5">' +
-    '<h2>GDV – Painel gerencial</h2><p>O painel do administrador mudou de endereço:</p>' +
+    '<h2>e-GDV – Painel gerencial</h2><p>O painel do administrador mudou de endereço:</p>' +
     '<p><a href="' + url + '" target="_blank" rel="noopener" style="font-size:1.1rem">' + url + '</a></p>' +
-    '<p>Abra o link, digite o código de administrador (GDV → Gerar código de administrador, na planilha) e salve o endereço nos favoritos.</p></div>')
-    .setTitle('GDV – Painel gerencial');
+    '<p>Abra o link, digite o código de administrador (e-GDV → Gerar código de administrador, na planilha) e salve o endereço nos favoritos.</p></div>')
+    .setTitle('e-GDV – Painel gerencial');
   return out.addMetaTag ? out.addMetaTag('viewport', 'width=device-width, initial-scale=1') : out;
 }
 
@@ -755,7 +862,7 @@ function adminDoToken_(token) {
     for (let i = 0; i < t.length; i++) {
       if (t[i].token !== token || t[i].ativo !== 1) continue;
       if (t[i].perfil === 'admin') return t[i].nome;
-      throw new Error('Acesso restrito ao administrador. Entre com um código de administrador (GDV → Gerar código de administrador).');
+      throw new Error('Acesso restrito ao administrador. Entre com um código de administrador (e-GDV → Gerar código de administrador).');
     }
   }
   throw new Error('Sessão do painel inválida ou revogada. Entre com um código de administrador.');
@@ -818,7 +925,7 @@ function painelGerarCodigo(token, nome, modulos) {
 const MODULOS = ['veiculos', 'tf', 'pce'];
 const NOME_MODULO = { veiculos: 'Educação Sanitária/Fiscalização de Trânsito', tf: 'TF de Barreira', pce: 'PCE' };
 // actions do app que pertencem a um módulo (o servidor recusa se o módulo não estiver liberado para quem chama)
-const MODULO_DA_ACAO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf',
+const MODULO_DA_ACAO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf', tfIndiceReincidencia: 'tf',
                          pceProximoNumero: 'pce', pceEmitir: 'pce', pceConsultar: 'pce', arquivoEnviar: 'pce' };
 const tudoLiberado_ = function () { return { veiculos: 1, tf: 1, pce: 1, antigo: 0 }; };   // "antigo" (Digitar do papel): desligado por padrão
 const MSG_SEM_ANTIGO = 'Sem autorização para digitar registros antigos (do papel). Fale com a gerência.';
@@ -988,7 +1095,7 @@ function painelRevogar(token, nome) {
   if (!nome) throw new Error('Informe o nome do servidor.');
   const n = revogar_(nome, true);
   if (!n && lerLeitura_('Fiscais').some(function (f) { return f.perfil === 'admin' && f.ativo === 1 && nomeChave_(f.nome) === nomeChave_(nome); })) {
-    throw new Error('Acesso de administrador não é retirado pelo painel. Use o menu GDV da planilha.');
+    throw new Error('Acesso de administrador não é retirado pelo painel. Use o menu e-GDV da planilha.');
   }
   return { ok: true, nome: nome, revogados: n };
 }
@@ -1254,7 +1361,11 @@ function painelDados(token, filtro) {
   const admin = adminDoToken_(token);
   encerrarTurnosAutomaticoBarato_();                 // turno esquecido aberto há mais de 12 h (antes do gatilho estar ativo, também)
   const r = dadosPainel_(admin, filtro);
-  if (!r.aoVivo) r.rotinas = situacaoRotinas_();     // último backup (rodapé do painel)
+  if (!r.aoVivo) {
+    r.rotinas = situacaoRotinas_();                  // último backup e último arquivamento (rodapé do painel)
+    const av = avisoArquivo_(r.periodo.de);          // período antes do ano anterior: parte dos turnos/veículos está no arquivo anual
+    if (av) { r.avisoArquivo = av.texto; r.arquivosAnuais = av.arquivos; }
+  }
   return r;
 }
 
@@ -1325,6 +1436,7 @@ function dadosPainel_(admin, filtro) {
              inspecao: r.inspecao, coleta: r.coleta, amostras: r.amostras, procedimento: r.procedimento, fiel: r.fiel, auto: r.auto,
              advertencia: r.advertencia, documentos: documentosTF_(r.documentos), produtos: produtosTF_(r.produtos),
              reincidente: r.reincidente, tfsAnteriores: r.tfsAnteriores, cancelado: r.cancelado, motivoCancel: r.motivoCancel,
+             nFotos: contarFotos_(r.fotos), assinado: contarAssinaturas_(r.assinaturas) ? 1 : 0,   // só contagens: nunca os ids/imagens (LGPD)
              criadoEm: r.criadoEm, srv_ts: r.srv_ts, usuario: r.usuario };
   });
 
@@ -1393,6 +1505,369 @@ function dadosPainel_(admin, filtro) {
   };
 }
 
+/* ---------- Dashboard público (web/dashboard/, sem credencial) ----------
+ * publicoDados {periodo, previa?, key?}: SÓ AGREGADOS dos blocos que o gerente ligou no painel (aba "Dashboard público"),
+ * nunca nomes, CPF/CNPJ, placas, propriedades, servidores, fotos nem coordenadas de levantamentos/propriedades.
+ * Mapa: municípios do PCE pelo nome digitado no levantamento (contagens pequenas viram "<3" com a supressão ligada);
+ * barreiras em células de 0,1° (~11 km, só para o navegador somar por município) ou pela unidade; BVAs fixas na média das
+ * coordenadas de início dos turnos (3 casas); calor em células de 0,1° com contagem (células abaixo do limite somem com a
+ * supressão). Volantes nunca aparecem como ponto. Configuração na propriedade PUBLICO_CONFIG (JSON); padrão: desligado.
+ * Cache por (versão da configuração, período) por 5 min + cópia "velha" (6 h) servida quando o limitador global de
+ * recálculos por minuto estoura. "Barreiras em andamento agora" (desligado por padrão): só BVAs fixas, cache de 1 min. */
+const PUBLICO_URL_PADRAO = 'https://evilasionogueiraagro-netizen.github.io/GDV/dashboard/';
+const PUBLICO_CACHE_MS = 5 * 60 * 1000;        // números de um período ficam 5 min no CacheService
+const PUBLICO_VIVO_MS = 60 * 1000;             // barreiras fixas em andamento: 1 min
+const PUBLICO_VELHO_S = 6 * 3600;              // cópia servida quando o limitador estoura
+const PUBLICO_MAX_RECALCULOS = 12;             // recálculos por minuto (todas as origens); acima disso, serve o cache
+const PUBLICO_MIN_PEQUENO = 3;                 // supressão de números pequenos: 1 e 2 viram "<3"
+const PUBLICO_GRADE = 10;                      // células de 1/10 de grau (≈ 11 km)
+const PUBLICO_TITULO = 'Defesa Agropecuária em números';
+const PUBLICO_TEXTO = 'Ações de educação sanitária, fiscalização do trânsito de vegetais e vigilância fitossanitária da ADAF no Amazonas, a partir dos registros do e-GDV.';
+const PUBLICO_PERIODOS = { '30d': 'Últimos 30 dias', ano: 'Ano atual', anoAnterior: 'Ano anterior', tudo: 'Desde o início' };
+const PUBLICO_PERIODOS_PADRAO = ['30d', 'ano', 'anoAnterior'];
+// blocos (KPIs, gráficos e camadas) e o padrão de cada um
+const PUBLICO_BLOCOS = {
+  acoes: true, horas: true, veiculos: true, pessoas: true, porBarreira: true, tiposVeiculo: true,   // Barreiras
+  tfs: true, procedimentos: true, autos: true, produtos: true,                                       // TF de Barreira
+  levantamentos: true, municipios: true, deteccoes: true, amostras: true,                            // PCE
+  mensal: true,                                                                                       // evolução no tempo
+  coropletico: true, bvas: true, calor: false, aoVivo: false,                                         // mapa
+  supressaoPequenos: true                                                                             // privacidade
+};
+
+function publicoUrl_() { return PropertiesService.getScriptProperties().getProperty('PUBLICO_URL') || PUBLICO_URL_PADRAO; }
+function normPub_(s) { return String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim(); }
+function publicoPadrao_() {
+  const b = {}; Object.keys(PUBLICO_BLOCOS).forEach(function (k) { b[k] = PUBLICO_BLOCOS[k]; });
+  return { ativo: false, titulo: PUBLICO_TITULO, texto: PUBLICO_TEXTO, periodos: PUBLICO_PERIODOS_PADRAO.slice(), modos: { mapa: true, numeros: true },
+           blocos: b, versao: 0, atualizadoPor: '', atualizadoEm: 0 };
+}
+
+/**
+ * Aplica "o" (pedido do painel ou o JSON guardado) sobre "base". estrito = true (salvar pelo painel): chave desconhecida,
+ * período desconhecido, nenhum período ou nenhum modo → erro. estrito = false (ler a propriedade): ignora o que não conhece.
+ */
+function publicoAplicar_(base, o, estrito) {
+  const c = JSON.parse(JSON.stringify(base));
+  if (!o || typeof o !== 'object') return c;
+  const erro = function (m) { if (estrito) throw new Error(m); };
+  if ('ativo' in o) c.ativo = o.ativo === true || o.ativo === 1 || o.ativo === '1';
+  if ('titulo' in o) c.titulo = String(o.titulo || '').replace(/\s+/g, ' ').trim().slice(0, 120) || PUBLICO_TITULO;
+  if ('texto' in o) c.texto = String(o.texto || '').replace(/[ \t]+/g, ' ').trim().slice(0, 600);
+  if ('periodos' in o) {
+    const lst = Array.isArray(o.periodos) ? o.periodos.map(String) : [];
+    lst.forEach(function (p) { if (!PUBLICO_PERIODOS.hasOwnProperty(p)) erro('Período desconhecido: ' + p + '.'); });
+    const ok = Object.keys(PUBLICO_PERIODOS).filter(function (p) { return lst.indexOf(p) >= 0; });
+    if (ok.length) c.periodos = ok; else erro('Libere pelo menos um período.');
+  }
+  if ('modos' in o && o.modos && typeof o.modos === 'object') {
+    const m = { mapa: c.modos.mapa, numeros: c.modos.numeros };
+    Object.keys(o.modos).forEach(function (k) { if (k !== 'mapa' && k !== 'numeros') return erro('Modo desconhecido: ' + k + '.'); m[k] = o.modos[k] === true || o.modos[k] === 1; });
+    if (m.mapa || m.numeros) c.modos = m; else erro('Deixe pelo menos um modo (mapa ou números) ligado.');
+  }
+  if ('blocos' in o && o.blocos && typeof o.blocos === 'object') {
+    Object.keys(o.blocos).forEach(function (k) {
+      if (!PUBLICO_BLOCOS.hasOwnProperty(k)) return erro('Bloco desconhecido: ' + k + '.');
+      c.blocos[k] = o.blocos[k] === true || o.blocos[k] === 1;
+    });
+  }
+  return c;
+}
+function publicoConfig_() {
+  const txt = PropertiesService.getScriptProperties().getProperty('PUBLICO_CONFIG');
+  const o = lerJSONSeguro_(txt, null), c = publicoAplicar_(publicoPadrao_(), o, false);
+  if (o && typeof o === 'object') { c.versao = Number(o.versao) || 0; c.atualizadoPor = String(o.atualizadoPor || ''); c.atualizadoEm = Number(o.atualizadoEm) || 0; }
+  return c;
+}
+
+/** Painel → aba "Dashboard público": lê a configuração (só administrador). */
+function painelPublicoConfig(token) {
+  adminDoToken_(token);
+  return { ok: true, config: publicoConfig_(), url: publicoUrl_(), padrao: publicoPadrao_(), periodos: PUBLICO_PERIODOS };
+}
+/** Painel → grava a configuração (valida as chaves; registra quem/quando; troca a versão = o cache público antigo deixa de valer). */
+function painelPublicoSalvar(token, config) {
+  const admin = adminDoToken_(token);
+  if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('Configuração inválida.');
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const atual = publicoConfig_(), c = publicoAplicar_(atual, config, true);
+    c.versao = (atual.versao || 0) + 1; c.atualizadoPor = admin; c.atualizadoEm = Date.now();
+    PropertiesService.getScriptProperties().setProperty('PUBLICO_CONFIG', JSON.stringify(c));
+    publicoLimparCache_(atual.versao);
+    return { ok: true, config: c, url: publicoUrl_() };
+  } finally { lock.releaseLock(); }
+}
+function publicoLimparCache_(versao) {
+  const cache = CacheService.getScriptCache(), b = 'publico_' + versao + '_';
+  Object.keys(PUBLICO_PERIODOS).forEach(function (p) { cache.remove(b + p); cache.remove(b + p + '_velho'); });
+  cache.remove(b + 'vivo'); cache.remove(b + 'vivo_velho');
+}
+
+/** Período público (horário de Manaus). */
+function publicoPeriodo_(chave) {
+  const hoje = hojeManaus_(), ano = Number(hoje.slice(0, 4));
+  let de = somarDias_(hoje, -29), ate = hoje;
+  if (chave === 'ano') de = ano + '-01-01';
+  else if (chave === 'anoAnterior') { de = (ano - 1) + '-01-01'; ate = (ano - 1) + '-12-31'; }
+  else if (chave === 'tudo') de = '2000-01-01';
+  const dias = Math.round((Date.parse(ate + 'T00:00:00Z') - Date.parse(de + 'T00:00:00Z')) / 864e5) + 1;
+  return { chave: chave, rotulo: PUBLICO_PERIODOS[chave], de: de, ate: ate, dias: dias };
+}
+
+/** Limitador global: no máximo PUBLICO_MAX_RECALCULOS recálculos por minuto (todas as origens). */
+function publicoPodeRecalcular_(cache) {
+  const k = 'publico_recalc_' + Math.floor(Date.now() / 60000), n = Number(cache.get(k) || 0);
+  if (n >= PUBLICO_MAX_RECALCULOS) return false;
+  cache.put(k, String(n + 1), 120);
+  return true;
+}
+/** Valor do cache com validade própria ({em, dados}); vencido → recalcula se o limitador deixar, senão serve o último guardado. */
+function publicoDoCache_(cache, chave, validadeMs, calcular) {
+  const ler = function (k) { const v = cache.get(k); if (!v) return null; try { return JSON.parse(v); } catch (e) { return null; } };
+  const atual = ler(chave);
+  if (atual && Date.now() - atual.em < validadeMs) return atual;
+  if (!publicoPodeRecalcular_(cache)) {
+    const velho = atual || ler(chave + '_velho');
+    if (velho) { velho.limitado = true; return velho; }
+    throw new Error('Muitos acessos ao mesmo tempo. Tente de novo em um minuto.');
+  }
+  const o = { em: Date.now(), dados: calcular() }, s = JSON.stringify(o);
+  if (s.length < 95000) { cache.put(chave, s, Math.ceil(validadeMs / 1000) + 60); cache.put(chave + '_velho', s, PUBLICO_VELHO_S); }
+  return o;
+}
+
+const ehFixa_ = function (t) { return normPub_(t.posto) === 'fixa'; };
+const celulaPub_ = function (v) { return Math.round(v * PUBLICO_GRADE) / PUBLICO_GRADE; };
+/** Coordenada de início do turno (ou a do fim, se faltar), como números; null sem coordenada. */
+function coordTurnoPub_(t) {
+  let la = numOuNulo_(t.latIni), lo = numOuNulo_(t.lngIni);
+  if (la === null || lo === null) { la = numOuNulo_(t.latFim); lo = numOuNulo_(t.lngFim); }
+  return la === null || lo === null || (la === 0 && lo === 0) ? null : [la, lo];
+}
+/** Ponto de cada BVA fixa: média das coordenadas de início de TODOS os turnos fixos daquele local (3 casas decimais ≈ 100 m). */
+/** Nome público da BVA: turnos antigos com o local digitado à mão ("CEASA", "bva ceasa") somam com "BVA - CEASA". */
+function nomeBvaPub_(local) {
+  const l = String(local || '').trim().replace(/\s+/g, ' ');
+  if (!l) return '';
+  const base = l.toUpperCase().replace(/^BVA\b\s*[-–]?\s*/, '');
+  return base ? 'BVA - ' + base : l;
+}
+
+function coordsBVA_(turnos) {
+  const s = {};
+  turnos.forEach(function (t) {
+    const nome = nomeBvaPub_(t.local), c = coordTurnoPub_(t);
+    if (!nome || !ehFixa_(t) || !c) return;
+    const x = s[nome] = s[nome] || { la: 0, lo: 0, n: 0 }; x.la += c[0]; x.lo += c[1]; x.n++;
+  });
+  const out = {};
+  Object.keys(s).forEach(function (k) { out[k] = [Math.round(s[k].la / s[k].n * 1000) / 1000, Math.round(s[k].lo / s[k].n * 1000) / 1000]; });
+  return out;
+}
+
+/** Agregados do período (só os blocos ligados). */
+function publicoCalcular_(cfg, per) {
+  const B = cfg.blocos, de = per.de, ate = per.ate, agora = Date.now();
+  const noPer = function (r) { return r.data >= de && r.data <= ate; };
+  const lim = B.supressaoPequenos ? PUBLICO_MIN_PEQUENO : 0;
+  const sup = function (n) { return lim && n > 0 && n < lim ? '<' + lim : n; };
+  const passo = per.dias <= 31 ? 'dia' : 'mes', serie = {};
+  let primeiro = '';
+  const ponto = function (d) {
+    if (!primeiro || d < primeiro) primeiro = d;
+    const k = passo === 'dia' ? d : d.slice(0, 7);
+    return serie[k] = serie[k] || { veiculos: 0, tfs: 0, levantamentos: 0 };
+  };
+
+  // ---- Barreiras ----
+  const todosTurnos = lerLeitura_('Turnos').filter(function (t) { return t.id; });
+  const turnoPorId = {}, locDe = {}, porLoc = {}, porBar = {}, volante = { local: 'Postos volantes', fixa: false, acoes: 0, veiculos: 0 };
+  let acoes = 0, minutos = 0;
+  const locKey = function (t) {
+    const c = coordTurnoPub_(t);
+    if (c) return 'c:' + celulaPub_(c[0]) + ',' + celulaPub_(c[1]);
+    const u = String(t.unidade || '').trim().toUpperCase();
+    return u ? 'u:' + u : '';
+  };
+  const loc = function (k) {
+    if (!k) return null;
+    if (!porLoc[k]) {
+      const o = porLoc[k] = { acoes: 0, veiculos: 0, tfs: 0 };
+      if (k.slice(0, 2) === 'c:') { const p = k.slice(2).split(','); o.lat = Number(p[0]); o.lon = Number(p[1]); } else o.unidade = k.slice(2);
+    }
+    return porLoc[k];
+  };
+  todosTurnos.forEach(function (t) {
+    turnoPorId[t.id] = t; locDe[t.id] = locKey(t);
+    if (!noPer(t)) return;
+    t._per = true; acoes++;
+    const ini = tsManaus_(t.data, t.inicio);
+    if (ini !== null) {
+      let f = t.encerrado === 1 ? (t.fim ? tsManaus_(t.data, t.fim) : null) : Math.min(agora, ini + TURNO_MAX_MS);
+      if (f !== null && t.encerrado === 1 && f < ini) f += 864e5;
+      if (f !== null && f > ini) minutos += Math.min(f - ini, 24 * 3600 * 1000) / 60000;
+    }
+    const l = loc(locDe[t.id]); if (l) l.acoes++;
+    const nb = ehFixa_(t) ? nomeBvaPub_(t.local) : '';
+    const b = nb ? (porBar[nb] = porBar[nb] || { local: nb, fixa: true, acoes: 0, veiculos: 0 }) : volante;
+    b.acoes++; t._bar = b;
+  });
+  let veiculos = 0, pessoas = 0; const tipos = {};
+  lerLeitura_('Veiculos').forEach(function (v) {
+    const t = turnoPorId[v.turnoId];
+    if (!v.id || v.excluido === 1 || !t || !t._per) return;
+    veiculos++; pessoas += v.pessoas || 0;
+    const tp = String(v.tipo || '').trim().toUpperCase().slice(0, 4) || 'OUTRO'; tipos[tp] = (tipos[tp] || 0) + 1;
+    const l = loc(locDe[t.id]); if (l) l.veiculos++;
+    t._bar.veiculos++;
+    ponto(t.data).veiculos++;
+  });
+
+  // ---- TF de Barreira (válidos = não cancelados) ----
+  const tfs = lerLeitura_('TFs').filter(function (r) { return r.id && r.cancelado !== 1 && noPer(r); });
+  const proc = { liberacao: 0, apreensao: 0, rechaco: 0, outro: 0 }, prod = {};
+  let autos = 0;
+  tfs.forEach(function (r) {
+    proc[proc.hasOwnProperty(r.procedimento) && r.procedimento !== 'outro' ? r.procedimento : 'outro']++;
+    if (r.auto === 1) autos++;
+    ponto(r.data).tfs++;
+    const l = turnoPorId[r.turnoId] ? loc(locDe[r.turnoId]) : null; if (l) l.tfs++;
+    if (r.procedimento !== 'apreensao') return;
+    produtosTF_(r.produtos).forEach(function (p) {
+      const nome = String(p.produto).toUpperCase().slice(0, 60), un = String(p.unidade || '').slice(0, 20), k = nome + '|' + un.toLowerCase();
+      const x = prod[k] = prod[k] || { produto: nome, unidade: un, quantidade: 0, tfs: 0 };
+      x.tfs++; if (p.quantidade !== null) x.quantidade += p.quantidade;
+    });
+  });
+
+  // ---- PCE ----
+  const levs = lerLeitura_('Levantamentos').filter(function (r) { return r.id && r.excluido !== 1 && noPer(r); });
+  const porMun = {}, pragas = {}, calor = {};
+  let det = 0, susp = 0, comDet = 0, amostras = 0;
+  levs.forEach(function (r) {
+    const cult = culturasLev_(r), d = cult.filter(function (c) { return c.praga; });
+    ponto(r.data).levantamentos++;
+    det += d.length; if (d.length) comDet++;
+    d.forEach(function (c) {
+      const p = pragas[c.praga] = pragas[c.praga] || { praga: String(c.praga).slice(0, 80), deteccoes: 0, suspeitas: 0, mun: {} };
+      p.deteccoes++; if (c.resultado === 'suspeita') { p.suspeitas++; susp++; }
+      if (r.municipio) p.mun[normPub_(r.municipio)] = true;
+    });
+    amostras += cult.filter(function (c) { return c.coleta === 'Sim'; }).length;
+    const km = normPub_(r.municipio);
+    if (km) { const m = porMun[km] = porMun[km] || { municipio: String(r.municipio).trim().slice(0, 60), levantamentos: 0, deteccoes: 0 }; m.levantamentos++; m.deteccoes += d.length; }
+    const la = numOuNulo_(r.lat), lo = numOuNulo_(r.lon);
+    if (d.length && la !== null && lo !== null) { const k = celulaPub_(la) + ',' + celulaPub_(lo); calor[k] = (calor[k] || 0) + d.length; }
+  });
+  const termos = (B.amostras ? lerLeitura_('Colheitas') : []).filter(function (r) { return r.id && r.excluido !== 1 && r.cancelado !== 1 && noPer(r); }).length;
+
+  const out = {};
+  if (cfg.modos.numeros) {
+    const N = out.numeros = {};
+    if (B.acoes) N.acoes = acoes;
+    if (B.horas) N.horas = Math.round(minutos / 60);
+    if (B.veiculos) N.veiculos = veiculos;
+    if (B.pessoas) N.pessoas = pessoas;
+    if (B.porBarreira) N.porBarreira = Object.keys(porBar).map(function (k) { return porBar[k]; }).sort(function (a, b) { return b.veiculos - a.veiculos || a.local.localeCompare(b.local); })
+      .concat(volante.acoes ? [volante] : []).map(function (b) { return { local: b.local, fixa: b.fixa, acoes: B.acoes ? b.acoes : undefined, veiculos: B.veiculos ? b.veiculos : undefined }; });
+    if (B.tiposVeiculo) N.tiposVeiculo = Object.keys(tipos).map(function (k) { return { tipo: k, n: tipos[k] }; }).sort(function (a, b) { return b.n - a.n; });
+    if (B.tfs) N.tfs = tfs.length;
+    if (B.procedimentos) N.procedimentos = proc;
+    if (B.autos) N.autos = autos;
+    if (B.produtos) N.produtos = Object.keys(prod).map(function (k) { const p = prod[k]; p.quantidade = Math.round(p.quantidade * 100) / 100; return p; })
+      .sort(function (a, b) { return b.tfs - a.tfs || b.quantidade - a.quantidade; }).slice(0, 15);
+    if (B.levantamentos) N.levantamentos = levs.length;
+    if (B.municipios) { N.municipiosCobertos = Object.keys(porMun).length; N.municipiosTotal = 62; }
+    if (B.deteccoes) {
+      N.deteccoes = det; N.suspeitas = susp; N.levComDeteccao = comDet; N.levNegativos = levs.length - comDet;
+      N.pragas = Object.keys(pragas).map(function (k) { const p = pragas[k]; return { praga: p.praga, deteccoes: p.deteccoes, suspeitas: p.suspeitas, municipios: Object.keys(p.mun).length }; })
+        .sort(function (a, b) { return b.deteccoes - a.deteccoes || a.praga.localeCompare(b.praga); }).slice(0, 20);
+    }
+    if (B.amostras) { N.amostras = amostras; N.termos = termos; }
+    const campos = ['veiculos', 'tfs', 'levantamentos'].filter(function (k) { return B[k]; });
+    if (B.mensal && campos.length) {
+      const pontos = [];
+      let d = per.chave === 'tudo' && primeiro > de ? primeiro : de;            // "desde o início": a partir do primeiro registro
+      if (passo === 'mes') d = d.slice(0, 7) + '-01';
+      for (let i = 0; d <= ate && i < 800; i++) {
+        const k = passo === 'dia' ? d : d.slice(0, 7), s = serie[k] || {}, p = { chave: k };
+        campos.forEach(function (c) { p[c] = s[c] || 0; });
+        pontos.push(p);
+        if (passo === 'dia') d = somarDias_(d, 1);
+        else { const a = Number(d.slice(0, 4)), m = Number(d.slice(5, 7)); d = (m === 12 ? (a + 1) + '-01' : a + '-' + String(m + 1).padStart(2, '0')) + '-01'; }
+      }
+      N.serie = { passo: passo, campos: campos, pontos: pontos };
+    }
+  }
+  if (cfg.modos.mapa) {
+    const M = out.mapa = {};
+    if (B.coropletico && (B.levantamentos || B.deteccoes)) M.pce = Object.keys(porMun).map(function (k) {
+      const m = porMun[k], o = { municipio: m.municipio };
+      if (B.levantamentos) o.levantamentos = sup(m.levantamentos);
+      if (B.deteccoes) o.deteccoes = sup(m.deteccoes);
+      return o;
+    });
+    if (B.coropletico && (B.acoes || B.veiculos || B.tfs)) M.barreiras = Object.keys(porLoc).map(function (k) {
+      const l = porLoc[k], o = l.unidade ? { unidade: l.unidade } : { lat: l.lat, lon: l.lon };
+      if (B.acoes) o.acoes = l.acoes; if (B.veiculos) o.veiculos = l.veiculos; if (B.tfs) o.tfs = l.tfs;
+      return o;
+    });
+    if (B.bvas) {
+      const co = coordsBVA_(todosTurnos);
+      M.bvas = Object.keys(co).sort().map(function (k) {
+        const b = porBar[k] || { acoes: 0, veiculos: 0 }, o = { nome: k, lat: co[k][0], lon: co[k][1] };
+        if (B.acoes) o.acoes = b.acoes; if (B.veiculos) o.veiculos = b.veiculos;
+        return o;
+      });
+    }
+    if (B.calor) M.calor = Object.keys(calor).filter(function (k) { return calor[k] >= (lim || 1); })
+      .map(function (k) { const p = k.split(','); return [Number(p[0]), Number(p[1]), calor[k]]; });
+  }
+  return out;
+}
+
+/** BVAs fixas com turno aberto agora (início nas últimas 12 h): nome, quantos em andamento e o ponto da BVA. Volantes nunca. */
+function publicoAoVivo_() {
+  const agora = Date.now(), turnos = lerLeitura_('Turnos').filter(function (t) { return t.id; }), por = {};
+  turnos.forEach(function (t) {
+    if (t.encerrado === 1 || !ehFixa_(t)) return;
+    const nome = nomeBvaPub_(t.local), ini = tsManaus_(t.data, t.inicio);
+    if (!nome || ini === null || agora - ini > TURNO_MAX_MS || ini - agora > ENCERRAR_TOLERANCIA_MS) return;
+    por[nome] = (por[nome] || 0) + 1;
+  });
+  const co = coordsBVA_(turnos);
+  return Object.keys(por).sort().map(function (k) { const o = { nome: k, emAndamento: por[k] }; if (co[k]) { o.lat = co[k][0]; o.lon = co[k][1]; } return o; });
+}
+
+/**
+ * publicoDados {periodo?, previa?, key?}: página pública (sem credencial). Desligado → {ok, ativo: false}.
+ * previa = true com credencial de administrador: mostra a configuração salva mesmo com o dashboard desligado (pré-visualização do painel).
+ */
+function publicoDados_(req) {
+  const cfg = publicoConfig_();
+  const previa = req.previa === true;
+  if (previa) adminDoToken_(req.key);
+  if (!cfg.ativo && !previa) return { ok: true, ativo: false };
+  const periodos = cfg.periodos.map(function (k) { return { chave: k, rotulo: PUBLICO_PERIODOS[k] }; });
+  const chave = req.periodo ? String(req.periodo) : cfg.periodos[0];
+  if (cfg.periodos.indexOf(chave) < 0) return { ok: false, erro: 'Este período não está disponível no dashboard. Escolha outro.', periodos: periodos };
+  const cache = CacheService.getScriptCache(), base = 'publico_' + cfg.versao + '_';
+  const per = publicoPeriodo_(chave);
+  const c = publicoDoCache_(cache, base + chave, PUBLICO_CACHE_MS, function () { return publicoCalcular_(cfg, per); });
+  const r = { ok: true, ativo: cfg.ativo, previa: previa, titulo: cfg.titulo, texto: cfg.texto, modos: cfg.modos, blocos: cfg.blocos,
+              periodos: periodos, periodo: { chave: chave, rotulo: per.rotulo, de: per.de, ate: per.ate },
+              atualizadoEm: c.em, agora: Date.now(), supressao: cfg.blocos.supressaoPequenos ? PUBLICO_MIN_PEQUENO : 0 };
+  if (c.limitado) r.doCache = true;
+  if (c.dados.numeros) r.numeros = c.dados.numeros;
+  if (c.dados.mapa) r.mapa = c.dados.mapa;
+  if (cfg.modos.mapa && cfg.blocos.aoVivo) {
+    const v = publicoDoCache_(cache, base + 'vivo', PUBLICO_VIVO_MS, publicoAoVivo_);
+    r.aoVivo = { em: v.em, locais: v.dados };
+  }
+  return r;
+}
+
 /* ---------- Segurança ---------- */
 
 /** Valida a credencial e devolve o nome do usuário (fiscal ou "Administrador"). */
@@ -1436,7 +1911,7 @@ function ativar_(req) {
       });
     }
     if (achada < 0) {
-      let motivo = 'Código incorreto ou já usado. Gere um novo código no menu GDV da planilha.';
+      let motivo = 'Código incorreto ou já usado. Gere um novo código no menu e-GDV da planilha.';
       if (cod.length !== 6) motivo = 'O código tem 6 dígitos.';
       else t.valores.forEach(function (l) {                        // explica o motivo quando o código existe, mas não pode ser usado aqui
         const f = paraObjeto_(t.cols, l);
@@ -1444,8 +1919,8 @@ function ativar_(req) {
         if (f.ativo !== 1) motivo = 'Este código foi revogado. Gere um novo código.';
         else if ((f.perfil === 'admin') !== (req.perfil === 'admin')) {
           motivo = req.perfil === 'admin'
-            ? 'Este é um código de FISCAL. Para o painel, gere o código em GDV → Gerar código de administrador (painel).'
-            : 'Este é um código de ADMINISTRADOR (painel). Para o app dos fiscais, gere o código em GDV → Gerar código de ativação.';
+            ? 'Este é um código de FISCAL. Para o painel, gere o código em e-GDV → Gerar código de administrador (painel).'
+            : 'Este é um código de ADMINISTRADOR (painel). Para o app dos fiscais, gere o código em e-GDV → Gerar código de ativação.';
         } else if (f.expiraEm <= agora) motivo = 'Código expirado. Gere um novo código.';
       });
       cache.put(chaveFalhas, String(falhas + 1), 900);
@@ -1514,10 +1989,11 @@ function revogar_(nome, soFiscais) {
 }
 
 /* ---------- Rotinas automáticas (gatilhos de tempo): turno esquecido, backup diário e relatório mensal ---------- */
-// Ativadas uma vez pelo dono da planilha: menu GDV → Ativar rotinas automáticas (pede autorização para gatilhos, Drive e e-mail).
+// Ativadas uma vez pelo dono da planilha: menu e-GDV → Ativar rotinas automáticas (pede autorização para gatilhos, Drive e e-mail).
 //   encerrarTurnosAutomatico  a cada 30 min   turno aberto há mais de 12 h é encerrado (encerradoPor = "Automático (12 h)")
 //   backupDiario              todo dia ~03h   cópia da planilha em "GDV - Backups" (mantém as 30 mais recentes)
 //   relatorioMensal           dia 1 ~07h      e-mail com os números do mês anterior (destinatários em RELATORIO_EMAILS)
+//   arquivarAnosAntigos       todo dia ~04h   só age se houver linhas de anos anteriores ao ano passado (ver "Arquivamento anual")
 // "Desativar rotinas automáticas" apaga os gatilhos e grava ROTINAS_DESATIVADAS = 1 (o painel também deixa de encerrar turnos).
 
 const TURNO_MAX_MS = 12 * 3600 * 1000;             // plantão dura no máximo 12 h: aberto além disso = turno esquecido
@@ -1530,7 +2006,9 @@ const ROTINAS_ = [
   { fn: 'backupDiario', nome: 'Backup diário (por volta das 03h)',
     criar: function (b) { return b.timeBased().everyDays(1).atHour(3).inTimezone('America/Manaus'); } },
   { fn: 'relatorioMensal', nome: 'Relatório mensal por e-mail (dia 1, por volta das 07h)',
-    criar: function (b) { return b.timeBased().onMonthDay(1).atHour(7).inTimezone('America/Manaus'); } }
+    criar: function (b) { return b.timeBased().onMonthDay(1).atHour(7).inTimezone('America/Manaus'); } },
+  { fn: 'arquivarAnosAntigos', nome: 'Arquivamento anual (verificação diária leve, por volta das 04h)',
+    criar: function (b) { return b.timeBased().everyDays(1).atHour(4).inTimezone('America/Manaus'); } }
 ];
 
 /** "HH:MM" no horário de Manaus (UTC−4, como tsManaus_). */
@@ -1602,7 +2080,9 @@ function situacaoRotinas_() {
   const props = PropertiesService.getScriptProperties();
   const b = lerJSONSeguro_(props.getProperty('ULTIMO_BACKUP'), null), e = lerJSONSeguro_(props.getProperty('ULTIMO_BACKUP_ERRO'), null);
   const em = b && Number(b.em) || null;
-  return { ultimoBackup: em, backupFalhou: e && Number(e.em) > (em || 0) ? Number(e.em) : null, desativadas: rotinasDesativadas_() };
+  const a = lerJSONSeguro_(props.getProperty('ULTIMO_ARQUIVAMENTO'), null);
+  return { ultimoBackup: em, backupFalhou: e && Number(e.em) > (em || 0) ? Number(e.em) : null, desativadas: rotinasDesativadas_(),
+           ultimoArquivamento: a && Number(a.em) || null };
 }
 
 /** Cria os gatilhos que faltam (não duplica; repetidos de uma mesma rotina são apagados). Devolve os nomes das rotinas ativas. */
@@ -1682,6 +2162,238 @@ function limparBackups_(pasta, manterId) {
     try { f.setTrashed(true); n++; } catch (e) { /* sem permissão: segue */ }
   });
   return n;
+}
+
+/* --- arquivamento anual --- */
+// A planilha principal guarda só o ano atual e o anterior (pela data do registro, horário de Manaus). Linhas mais antigas das abas que
+// crescem sem parar vão para uma planilha "e-GDV – Arquivo AAAA" (uma por ano) na pasta "GDV - Arquivo anual" do Drive do dono.
+//   Veiculos   acompanham o turno (veículo de turno arquivado vai junto; sem turno na planilha: ano do criadoEm)
+//   Turnos     só encerrados (turno aberto nunca sai), pelo campo data
+//   Consultas  pelo campo em (sem id: a chave é a linha inteira)
+//   Andamento  só os finalizados (estado "fim" ou sem batimento há mais de 10 min), pelo atualizadoTs
+// Ficam sempre na principal: TFs, Pessoas, Placas, Levantamentos, Colheitas, Propriedades, Fiscais, Permissoes, Barreiras, Numeracao
+// (reincidência, histórico de pragas, numeração e credenciais), Arquivos (links das fotos pelo id) e Aparelhos (uma linha por aparelho).
+// Cada lote, sob o mesmo LockService do sync: copia → confere no arquivo (todas as chaves presentes) → apaga da principal com deleteRows em
+// blocos contíguos, de baixo para cima. Interrompido em qualquer ponto, a próxima execução refaz o lote sem duplicar (chave = id).
+
+const ARQ_PASTA = 'GDV - Arquivo anual', ARQ_PREFIXO = 'e-GDV – Arquivo ';
+const ARQ_ABAS = ['Veiculos', 'Turnos', 'Consultas', 'Andamento'];   // Veiculos antes de Turnos: o ano do veículo vem do turno ainda na principal
+const ARQ_LOTE = 5000;                                                 // linhas por lote (um lock por lote; os celulares sincronizam entre os lotes)
+const ARQ_TEMPO_MS = 4 * 60 * 1000;                                    // passou disso: guarda o progresso e continua na próxima execução (limite: 6 min)
+
+/** Ano (Manaus) de um instante em ms; 0 se vazio. */
+function anoMs_(ms) { ms = Number(ms) || 0; return ms > 0 ? new Date(ms - 4 * 3600 * 1000).getUTCFullYear() : 0; }
+/** Ano de um dia "aaaa-mm-dd"; 0 se inválido. */
+function anoDia_(d) { const m = /^(\d{4})-\d{2}-\d{2}/.exec(String(d || '')); return m ? Number(m[1]) : 0; }
+function anoAtualManaus_() { return Number(hojeManaus_().slice(0, 4)); }
+
+/** Chave de idempotência da linha: o id (1ª coluna); Consultas não têm id → a linha inteira. */
+function chaveArq_(nome, linha) {
+  return nome === 'Consultas' ? linha.slice(0, TABELAS.Consultas.length).map(function (v) { return String(v === null || v === undefined ? '' : v); }).join('|')
+    : String(linha[0] === null || linha[0] === undefined ? '' : linha[0]);
+}
+
+/**
+ * Ano em que a linha deve ser arquivada, ou 0 (fica na principal). ctx: {limite, agora, turnos: {id: ano de arquivamento ou 0}}.
+ * Só arquiva ano < limite (limite = ano anterior ao atual).
+ */
+function anoArquivo_(nome, o, ctx) {
+  let ano = 0;
+  if (nome === 'Turnos') ano = o.encerrado === 1 ? anoDia_(o.data) : 0;
+  else if (nome === 'Veiculos') {
+    if (Object.prototype.hasOwnProperty.call(ctx.turnos, o.turnoId)) return ctx.turnos[o.turnoId];   // acompanha o turno
+    ano = anoMs_(o.criadoEm) || anoMs_(o.srv_ts);                                                     // turno fora da principal
+  } else if (nome === 'Consultas') ano = anoMs_(o.em);
+  else if (nome === 'Andamento') {
+    if (o.estado === 'preenchendo' && ctx.agora - o.atualizadoTs <= ANDAMENTO_VALIDADE_MS) return 0;
+    ano = anoMs_(o.atualizadoTs) || anoMs_(o.inicioTs);
+  }
+  return ano && ano < ctx.limite ? ano : 0;
+}
+
+/** Pasta "GDV - Arquivo anual" no Drive do dono (id em PASTA_ARQUIVO_ANUAL; recriada se sumir). */
+function pastaArquivoAnual_() {
+  const props = PropertiesService.getScriptProperties(), id = props.getProperty('PASTA_ARQUIVO_ANUAL');
+  if (id) {
+    try { const f = DriveApp.getFolderById(id); if (!f.isTrashed()) return f; } catch (e) { /* pasta apagada ou sem acesso: cria outra */ }
+  }
+  const nova = DriveApp.createFolder(ARQ_PASTA);
+  props.setProperty('PASTA_ARQUIVO_ANUAL', nova.getId());
+  return nova;
+}
+
+/** {id, url} da planilha de arquivo do ano guardados em ARQUIVO_ANUAL_AAAA (sem abrir nada); null se não houver. */
+function infoArquivoAnual_(ano) {
+  const i = lerJSONSeguro_(PropertiesService.getScriptProperties().getProperty('ARQUIVO_ANUAL_' + ano), null);
+  return i && i.id ? i : null;
+}
+
+/** Planilha "e-GDV – Arquivo AAAA" (abre a guardada; senão procura na pasta; senão cria e move para a pasta). */
+function planilhaArquivoAnual_(ano) {
+  const props = PropertiesService.getScriptProperties(), info = infoArquivoAnual_(ano), nome = ARQ_PREFIXO + ano;
+  if (info) {
+    try { if (!DriveApp.getFileById(info.id).isTrashed()) return SpreadsheetApp.openById(info.id); } catch (e) { /* apagada: procura/cria */ }
+  }
+  const pasta = pastaArquivoAnual_(), it = pasta.getFilesByName(nome);
+  let ss = null;
+  while (!ss && it.hasNext()) { const f = it.next(); if (!f.isTrashed()) ss = SpreadsheetApp.openById(f.getId()); }
+  if (!ss) {
+    ss = SpreadsheetApp.create(nome);
+    DriveApp.getFileById(ss.getId()).moveTo(pasta);
+  }
+  props.setProperty('ARQUIVO_ANUAL_' + ano, JSON.stringify({ id: ss.getId(), url: ss.getUrl() }));
+  return ss;
+}
+
+/** Chaves já gravadas numa aba do arquivo → número da linha (lê só a coluna do id; Consultas: as 5 colunas). */
+function chavesArquivo_(sh, nome) {
+  const n = sh.getLastRow() - 1, m = {};
+  if (n < 1) return m;
+  const larg = nome === 'Consultas' ? TABELAS.Consultas.length : 1;
+  sh.getRange(2, 1, n, larg).getValues().forEach(function (l, i) { const k = chaveArq_(nome, l); if (k) m[k] = i + 2; });
+  return m;
+}
+
+/**
+ * Um lote de uma aba, sob lock: escolhe até "max" linhas antigas, grava cada uma no arquivo do seu ano (id que já está lá: atualiza a linha
+ * se mudou, nunca duplica), confere que todas as chaves estão no arquivo e só então apaga da principal (blocos contíguos, de baixo para cima).
+ * Devolve {movidas, porAno: {ano: n}, restam}.
+ */
+function arquivarLote_(nome, limite, agora, max) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const sh = planilha_().getSheetByName(nome);
+    if (!sh || sh.getLastRow() < 2) return { movidas: 0, porAno: {}, restam: false };
+    const t = lerTudo_(nome), cols = t.cols, ctx = { limite: limite, agora: agora, turnos: {} };
+    if (nome === 'Veiculos') lerLeitura_('Turnos').forEach(function (o) { if (o.id) ctx.turnos[o.id] = anoArquivo_('Turnos', o, ctx); });
+    const sel = [];
+    t.valores.forEach(function (l, i) {
+      const k = chaveArq_(nome, l);
+      if (!k || k === '||||') return;                                             // linha vazia
+      const ano = anoArquivo_(nome, paraObjeto_(cols, l), ctx);
+      if (ano) sel.push({ i: i, ano: ano, k: k, l: l });
+    });
+    const lote = sel.slice(0, max);
+    if (!lote.length) return { movidas: 0, porAno: {}, restam: false };
+    const porAno = {};
+    lote.forEach(function (x) { (porAno[x.ano] = porAno[x.ano] || []).push(x); });
+    Object.keys(porAno).forEach(function (ano) {
+      const shA = abaDe_(planilhaArquivoAnual_(ano), nome), ja = chavesArquivo_(shA, nome), novas = [], vistas = {};
+      porAno[ano].forEach(function (x) {
+        const linha = cols.map(function (c, j) { return x.l[j] === undefined || x.l[j] === null ? '' : x.l[j]; });
+        if (ja[x.k]) {                                                            // já arquivada (execução interrompida ou reenvio do aparelho)
+          const atual = shA.getRange(ja[x.k], 1, 1, cols.length).getValues()[0];
+          if (linha.some(function (v, j) { return String(v) !== String(atual[j] === undefined || atual[j] === null ? '' : atual[j]); })) {
+            shA.getRange(ja[x.k], 1, 1, cols.length).setValues([linha]);
+          }
+        } else if (vistas[x.k] === undefined) { vistas[x.k] = novas.length; novas.push(linha); }
+        else novas[vistas[x.k]] = linha;                                          // id repetido na principal: fica a última
+      });
+      if (novas.length) shA.getRange(shA.getLastRow() + 1, 1, novas.length, cols.length).setValues(novas);
+      SpreadsheetApp.flush();
+      const conferidas = chavesArquivo_(shA, nome), faltam = porAno[ano].filter(function (x) { return !conferidas[x.k]; }).length;
+      if (faltam) throw new Error('Conferência do arquivo ' + ano + ' (' + nome + ') falhou: ' + faltam + ' linha(s) não gravada(s). Nada foi apagado da planilha.');
+    });
+    // apaga da principal: blocos contíguos, de baixo para cima (cada deleteRows não mexe nas linhas de cima ainda por apagar)
+    const idx = lote.map(function (x) { return x.i + 2; }).sort(function (a, b) { return b - a; });
+    if (sh.getMaxRows() <= sh.getLastRow()) sh.insertRowsAfter(sh.getMaxRows(), 1);   // o Sheets não deixa apagar todas as linhas não congeladas
+    for (let j = 0; j < idx.length;) {
+      let fim = idx[j], ini = fim, k = j + 1;
+      while (k < idx.length && idx[k] === ini - 1) { ini--; k++; }
+      sh.deleteRows(ini, fim - ini + 1);
+      j = k;
+    }
+    SpreadsheetApp.flush();
+    const cont = {};
+    Object.keys(porAno).forEach(function (ano) { cont[ano] = porAno[ano].length; });
+    return { movidas: lote.length, porAno: cont, restam: sel.length > lote.length };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+/** Há algo a arquivar? Verificação leve (Turnos, Consultas e Andamento; Veiculos seguem os turnos e não são lidos aqui). */
+function haLinhasAntigas_(limite, agora) {
+  const ctx = { limite: limite, agora: agora, turnos: {} };
+  return ['Turnos', 'Consultas', 'Andamento'].some(function (nome) {
+    return lerLeitura_(nome).some(function (o) { return anoArquivo_(nome, o, ctx) > 0; });
+  });
+}
+
+/** Gatilho diário (~04h). Sem nada antigo na planilha, só lê três abas pequenas e sai. */
+function arquivarAnosAntigos() { return arquivarAnosAntigos_({}); }
+
+/**
+ * Arquivamento anual. opcoes: {manual (menu; roda mesmo com as rotinas desativadas), lote, tempoMs (testes)}.
+ * Sessão nova: confere se há linhas antigas, faz o backup (sem backup não arquiva) e processa as abas na ordem de ARQ_ABAS, um lote por vez.
+ * Tempo esgotado: guarda ARQUIVO_PROGRESSO {aba, porAba, em} e a próxima execução continua de onde parou (sem novo backup).
+ * Fim: limpa caches, grava ULTIMO_ARQUIVAMENTO {em, porAba, arquivos}. Nunca lança erro (falha vai para ULTIMO_ARQUIVAMENTO_ERRO e para o retorno).
+ * Devolve {ok, nada?, incompleto?, porAba: {Aba: {ano: n}}, total, arquivos: [{ano, url}], backup?}.
+ */
+function arquivarAnosAntigos_(opcoes) {
+  opcoes = opcoes || {};
+  const props = PropertiesService.getScriptProperties();
+  if (!opcoes.manual && rotinasDesativadas_()) return { ok: true, desativado: true };
+  const max = Number(opcoes.lote) > 0 ? Number(opcoes.lote) : ARQ_LOTE, tempo = opcoes.tempoMs >= 0 ? Number(opcoes.tempoMs) : ARQ_TEMPO_MS;
+  try {
+    const t0 = Date.now(), limite = anoAtualManaus_() - 1;
+    const prog = lerJSONSeguro_(props.getProperty('ARQUIVO_PROGRESSO'), null);
+    let backup = null;
+    if (!prog) {
+      if (!haLinhasAntigas_(limite, t0)) return { ok: true, nada: true, porAba: {}, total: 0, arquivos: [] };
+      backup = backupDiario();
+      if (!backup.ok) throw new Error('Backup antes do arquivamento falhou (' + backup.erro + '). Nada foi arquivado.');
+    }
+    const porAba = (prog && prog.porAba) || {};
+    let i = prog ? Math.max(0, ARQ_ABAS.indexOf(prog.aba)) : 0;
+    for (; i < ARQ_ABAS.length; i++) {
+      const nome = ARQ_ABAS[i];
+      for (;;) {
+        const r = arquivarLote_(nome, limite, Date.now(), max);
+        Object.keys(r.porAno).forEach(function (ano) { const a = porAba[nome] = porAba[nome] || {}; a[ano] = (a[ano] || 0) + r.porAno[ano]; });
+        const resta = r.restam || i < ARQ_ABAS.length - 1;
+        if (Date.now() - t0 >= tempo && resta) {
+          props.setProperty('ARQUIVO_PROGRESSO', JSON.stringify({ aba: r.restam ? nome : ARQ_ABAS[i + 1], porAba: porAba, em: Date.now() }));
+          return resumoArquivamento_({ ok: true, incompleto: true, backup: backup }, porAba);
+        }
+        if (!r.restam) break;
+      }
+    }
+    props.deleteProperty('ARQUIVO_PROGRESSO');
+    const cache = CacheService.getScriptCache();                     // nenhum cache guarda linhas dessas abas; estes dois dependem de Turnos/consultas
+    ['auto_encerrar', 'indice_reinc'].forEach(function (k) { try { cache.remove(k); } catch (e) { /* segue */ } });
+    const r = resumoArquivamento_({ ok: true, backup: backup }, porAba);
+    props.setProperty('ULTIMO_ARQUIVAMENTO', JSON.stringify({ em: Date.now(), porAba: porAba, total: r.total, arquivos: r.arquivos }));
+    return r;
+  } catch (e) {
+    const erro = String((e && e.message) || e).slice(0, 300);
+    try { props.setProperty('ULTIMO_ARQUIVAMENTO_ERRO', JSON.stringify({ em: Date.now(), erro: erro })); } catch (e2) { /* nada a fazer */ }
+    return { ok: false, erro: erro };
+  }
+}
+
+function resumoArquivamento_(r, porAba) {
+  const anos = {};
+  let total = 0;
+  Object.keys(porAba).forEach(function (aba) { Object.keys(porAba[aba]).forEach(function (ano) { anos[ano] = true; total += porAba[aba][ano]; }); });
+  r.porAba = porAba; r.total = total;
+  r.arquivos = Object.keys(anos).sort().map(function (ano) { const i = infoArquivoAnual_(ano); return { ano: Number(ano), url: i ? i.url : '' }; });
+  return r;
+}
+
+/**
+ * Aviso do painel quando o período começa antes de 1º/jan do ano anterior e já existe arquivo anual de algum ano do período:
+ * {texto, arquivos: [{ano, url}]} (só lê as propriedades; não abre os arquivos). null = nada a avisar.
+ */
+function avisoArquivo_(de) {
+  const limite = anoAtualManaus_() - 1, ini = anoDia_(de);
+  if (!ini || ini >= limite) return null;
+  const arquivos = [];
+  for (let ano = ini; ano < limite; ano++) { const i = infoArquivoAnual_(ano); if (i && i.url) arquivos.push({ ano: ano, url: i.url }); }
+  if (!arquivos.length) return null;
+  return { texto: 'Dados de veículos e turnos de ' + arquivos.map(function (a) { return a.ano; }).join(' e ') + ' estão no arquivo anual: ' +
+                  arquivos.map(function (a) { return a.url; }).join(' · '), arquivos: arquivos };
 }
 
 /* --- relatório mensal --- */
@@ -1793,7 +2505,7 @@ function htmlRelatorio_(a, rotulo) {
   const h = function (t) { return '<h3 style="margin:18px 0 4px;color:#1f3b63">' + escHtml_(t) + '</h3>'; };
   const horas = function (m) { return numBR_(m / 60, 1); };
   let out = '<div style="font-family:Arial,Helvetica,sans-serif;color:#1d2433;max-width:760px">' +
-    '<h2 style="margin:0 0 4px">GDV – Relatório mensal: ' + escHtml_(rotulo) + '</h2>' +
+    '<h2 style="margin:0 0 4px">e-GDV – Relatório mensal: ' + escHtml_(rotulo) + '</h2>' +
     '<p style="margin:0;color:#5b6475">Período ' + diaBR_(a.de) + ' a ' + diaBR_(a.ate) + ' (horário de Manaus).</p>';
   out += h('Barreiras (Educação Sanitária/Fiscalização de Trânsito)');
   out += a.barreiras.length ? tabela(['Barreira', 'Turnos', 'Horas de barreira', 'Veículos', 'Pessoas'],
@@ -1823,7 +2535,7 @@ function htmlRelatorio_(a, rotulo) {
     : '<p>Nenhuma praga detectada no período.</p>';
   const url = painelUrl_();
   out += '<p style="margin-top:18px">Detalhes, gráficos e mapa no painel: <a href="' + escHtml_(url) + '">' + escHtml_(url) + '</a></p>' +
-    '<p style="color:#5b6475;font-size:12px">E-mail automático do GDV (menu GDV da planilha → Definir e-mails do relatório mensal).</p></div>';
+    '<p style="color:#5b6475;font-size:12px">E-mail automático do e-GDV (menu e-GDV da planilha → Definir e-mails do relatório mensal).</p></div>';
   return out;
 }
 
@@ -1835,15 +2547,15 @@ function relatorioMensal() {
 /** Monta e envia o relatório de um período {de, ate, rotulo}. Grava ULTIMO_RELATORIO. */
 function enviarRelatorio_(per) {
   const para = destinatariosRelatorio_();
-  if (!para.length) throw new Error('Sem destinatários: use GDV → Definir e-mails do relatório mensal.');
+  if (!para.length) throw new Error('Sem destinatários: use e-GDV → Definir e-mails do relatório mensal.');
   const d = dadosPainel_('Relatório mensal', { de: per.de, ate: per.ate });
   const a = agregarRelatorio_(d, per.de, per.ate, Date.now());
-  const assunto = 'GDV – Relatório mensal de ' + per.rotulo;
-  const texto = 'GDV – Relatório mensal de ' + per.rotulo + ' (' + diaBR_(per.de) + ' a ' + diaBR_(per.ate) + ')\n' +
+  const assunto = 'e-GDV – Relatório mensal de ' + per.rotulo;
+  const texto = 'e-GDV – Relatório mensal de ' + per.rotulo + ' (' + diaBR_(per.de) + ' a ' + diaBR_(per.ate) + ')\n' +
     'Turnos: ' + a.total.turnos + ' · horas de barreira: ' + numBR_(a.total.minutos / 60, 1) + ' · veículos: ' + a.total.veiculos + ' · pessoas: ' + a.total.pessoas + '\n' +
     'TFs: ' + a.tfs.total + ' (apreensões: ' + a.tfs.apreensao + ') · levantamentos: ' + a.pce.levantamentos + ' · termos de colheita: ' + a.pce.termos + '\n' +
     'Painel: ' + painelUrl_();
-  MailApp.sendEmail({ to: para.join(','), subject: assunto, htmlBody: htmlRelatorio_(a, per.rotulo), body: texto, name: 'GDV' });
+  MailApp.sendEmail({ to: para.join(','), subject: assunto, htmlBody: htmlRelatorio_(a, per.rotulo), body: texto, name: 'e-GDV' });
   PropertiesService.getScriptProperties().setProperty('ULTIMO_RELATORIO', JSON.stringify({ em: Date.now(), de: per.de, ate: per.ate, para: para }));
   return { ok: true, para: para, assunto: assunto, numeros: a };
 }
@@ -1851,7 +2563,7 @@ function enviarRelatorio_(per) {
 /* ---------- Menu da planilha (administrador) ---------- */
 
 function onOpen() {
-  SpreadsheetApp.getUi().createMenu('GDV')
+  SpreadsheetApp.getUi().createMenu('e-GDV')
     .addItem('Gerar código de ativação', 'menuGerarCodigo')
     .addItem('Gerar código de administrador (painel)', 'menuGerarCodigoAdmin')
     .addItem('Definir último nº de TF usado (barreira)', 'menuDefinirSequencia')
@@ -1864,6 +2576,7 @@ function onOpen() {
     .addItem('Ativar rotinas automáticas', 'menuAtivarRotinas')
     .addItem('Desativar rotinas automáticas', 'menuDesativarRotinas')
     .addItem('Fazer backup agora', 'menuBackupAgora')
+    .addItem('Arquivar anos antigos agora', 'menuArquivarAgora')
     .addItem('Definir e-mails do relatório mensal', 'menuEmailsRelatorio')
     .addItem('Enviar relatório do mês passado agora', 'menuEnviarRelatorio')
     .addToUi();
@@ -1876,7 +2589,7 @@ function menuAtivarRotinas() {
     const r = ativarRotinasAutomaticas_();
     ui.alert('Rotinas automáticas ativas', r.ativas.map(function (n) { return '• ' + n; }).join('\n') +
       (r.criadas.length ? '' : '\n\n(Já estavam ativas: nada foi duplicado.)') +
-      '\n\nBackups na pasta "' + BACKUP_PASTA + '" do seu Drive. Relatório para: ' + (destinatariosRelatorio_().join(', ') || '(ninguém)') + '.', ui.ButtonSet.OK);
+      '\n\nBackups na pasta "' + BACKUP_PASTA + '" e arquivos anuais na pasta "' + ARQ_PASTA + '" do seu Drive. Relatório para: ' + (destinatariosRelatorio_().join(', ') || '(ninguém)') + '.', ui.ButtonSet.OK);
   } catch (e) { ui.alert('Não foi possível ativar', String(e.message || e), ui.ButtonSet.OK); }
 }
 
@@ -1884,7 +2597,7 @@ function menuDesativarRotinas() {
   const ui = SpreadsheetApp.getUi();
   try {
     const n = desativarRotinasAutomaticas_();
-    ui.alert('Rotinas automáticas desativadas', n + ' gatilho(s) removido(s). Turnos esquecidos abertos deixam de ser encerrados sozinhos e não há mais backup diário nem relatório mensal.', ui.ButtonSet.OK);
+    ui.alert('Rotinas automáticas desativadas', n + ' gatilho(s) removido(s). Turnos esquecidos abertos deixam de ser encerrados sozinhos e não há mais backup diário, relatório mensal nem arquivamento anual automático (o menu "Arquivar anos antigos agora" continua funcionando).', ui.ButtonSet.OK);
   } catch (e) { ui.alert('Não foi possível desativar', String(e.message || e), ui.ButtonSet.OK); }
 }
 
@@ -1892,6 +2605,21 @@ function menuBackupAgora() {
   const ui = SpreadsheetApp.getUi(), r = backupDiario();
   if (r.ok) ui.alert('Backup feito', r.nome + ' na pasta "' + BACKUP_PASTA + '" do seu Drive.' + (r.apagados ? '\n' + r.apagados + ' cópia(s) antiga(s) foram para a lixeira.' : ''), ui.ButtonSet.OK);
   else ui.alert('Não foi possível fazer o backup', r.erro, ui.ButtonSet.OK);
+}
+
+/** Arquivamento anual na hora (mesmo com as rotinas desativadas). Mostra quantas linhas saíram de cada aba e os links dos arquivos. */
+function menuArquivarAgora() {
+  const ui = SpreadsheetApp.getUi(), r = arquivarAnosAntigos_({ manual: true });
+  if (!r.ok) { ui.alert('Não foi possível arquivar', r.erro, ui.ButtonSet.OK); return; }
+  if (r.nada) { ui.alert('Nada a arquivar', 'A planilha só tem dados de ' + (anoAtualManaus_() - 1) + ' e ' + anoAtualManaus_() + ' (ou turnos ainda abertos).', ui.ButtonSet.OK); return; }
+  const linhas = Object.keys(r.porAba).map(function (aba) {
+    return '• ' + aba + ': ' + Object.keys(r.porAba[aba]).sort().map(function (ano) { return r.porAba[aba][ano] + ' linha(s) de ' + ano; }).join(', ');
+  });
+  ui.alert(r.incompleto ? 'Arquivamento em andamento' : 'Arquivamento concluído',
+    (linhas.join('\n') || 'Nenhuma linha movida.') + '\n\nArquivos (pasta "' + ARQ_PASTA + '" do seu Drive):\n' +
+    r.arquivos.map(function (a) { return ARQ_PREFIXO + a.ano + ': ' + a.url; }).join('\n') +
+    (r.incompleto ? '\n\nO tempo da execução acabou: rode de novo para continuar (o gatilho diário também continua sozinho).' : '') +
+    (r.backup && r.backup.ok ? '\n\nBackup feito antes: ' + r.backup.nome + '.' : ''), ui.ButtonSet.OK);
 }
 
 function menuEmailsRelatorio() {
@@ -2015,7 +2743,11 @@ function planilha_() {
 }
 
 function aba_(nome) {
-  const ss = planilha_();
+  return abaDe_(planilha_(), nome);
+}
+
+/** Aba "nome" na planilha ss (a principal ou um arquivo anual), criada com o cabeçalho de TABELAS se não existir. */
+function abaDe_(ss, nome) {
   let sh = ss.getSheetByName(nome);
   if (!sh) {
     const cols = TABELAS[nome];

@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0B3A82">
+<title>Manual do fiscal – e-GDV</title>
+<link rel="icon" href="img/icon-192.png">
+<style>
+:root { --azul:#0B3A82; --azul2:#0B5ED7; --bg:#eef3fa; --ink:#1c2733; --mut:#5b6475; --linha:#d6deea; --card:#fff; --alerta:#fff8e1; --alerta-borda:#ffd54f; }
+* { box-sizing:border-box; }
+body { margin:0; font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); }
+header { background:var(--azul); color:#fff; display:flex; align-items:center; gap:12px; padding:10px 16px; position:sticky; top:0; z-index:2; }
+header img { height:40px; background:#fff; border-radius:6px; padding:3px; }
+header h1 { font-size:17px; margin:0; } header small { opacity:.85; font-size:12px; }
+header a { margin-left:auto; color:#fff; font-size:14px; white-space:nowrap; }
+main { max-width:640px; margin:0 auto; padding:16px; }
+nav.indice { background:var(--card); border-radius:12px; padding:12px 16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+nav.indice ol { margin:6px 0 0; padding-left:22px; } nav.indice a { color:var(--azul2); }
+details { scroll-margin-top:72px; background:var(--card); border-radius:12px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+summary { padding:14px 16px; font-weight:700; cursor:pointer; list-style:none; display:flex; justify-content:space-between; gap:8px; }
+summary::-webkit-details-marker { display:none; }
+summary::after { content:'▾'; color:var(--mut); } details[open] summary::after { content:'▴'; }
+.corpo { padding:0 16px 14px; }
+.corpo ol, .corpo ul { padding-left:22px; margin:6px 0; } .corpo li { margin:4px 0; }
+.corpo p { margin:8px 0; }
+.dica { background:var(--alerta); border:1px solid var(--alerta-borda); border-radius:8px; padding:8px 10px; font-size:14px; }
+b.bt { background:#e7eefb; color:var(--azul); border-radius:6px; padding:0 5px; font-weight:600; white-space:nowrap; }
+footer { text-align:center; color:var(--mut); font-size:12px; padding:8px 16px 24px; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) { --bg:#0f1520; --ink:#e6ebf2; --mut:#a3adbd; --linha:#2a3445; --card:#18202d; --alerta:#3a3010; --alerta-borda:#8a6d10; }
+  :root:not([data-theme="light"]) b.bt { background:#22324d; color:#cfe0ff; }
+  :root:not([data-theme="light"]) nav.indice a { color:#8fb6ff; }
+}
+@media print { header { position:static; } details { break-inside:avoid; } details:not([open]) .corpo { display:block; } }
+</style>
+</head>
+<body>
+<header>
+  <img src="img/logo-adaf.png" alt="ADAF">
+  <div><h1>Manual do fiscal</h1><small>e-GDV – Fiscalização · ADAF/AM</small></div>
+  <a href="./">← Voltar ao app</a>
+</header>
+<main>
+  <nav class="indice"><b>Toque num assunto para abrir</b>
+    <ol>
+      <li><a href="#instalar">Instalar e ativar o app</a></li>
+      <li><a href="#turno">Turno na barreira (Educação Sanitária/Fiscalização de Trânsito)</a></li>
+      <li><a href="#tf">Termo de Fiscalização (TF)</a></li>
+      <li><a href="#pce">PCE – levantamento e Termo de Colheita</a></li>
+      <li><a href="#internet">Sem internet e envio dos dados</a></li>
+      <li><a href="#problemas">Problemas comuns</a></li>
+    </ol>
+  </nav>
+
+  <details id="instalar" open><summary>1. Instalar e ativar o app</summary><div class="corpo">
+    <ol>
+      <li>Abra o link do app no <b>Chrome</b> (Android) ou no <b>Safari</b> (iPhone).</li>
+      <li>Toque em <b class="bt">Instalar agora</b>. No iPhone: <b>Compartilhar → Adicionar à Tela de Início</b>.</li>
+      <li>Feche o navegador e abra o app pelo <b>ícone</b> na tela do celular.</li>
+      <li>Digite o <b>código de ativação</b> de 6 dígitos que a gerência mandou e toque em <b class="bt">Ativar</b>. O código vale uma vez só, por 7 dias.</li>
+      <li>Quando o app perguntar, <b>permita a localização</b>. Ela é pedida só na primeira vez.</li>
+    </ol>
+    <p class="dica">O aparelho fica ligado ao seu nome. Trocou de celular? Peça um código novo à gerência.</p>
+  </div></details>
+
+  <details id="turno"><summary>2. Turno na barreira</summary><div class="corpo">
+    <p>Na tela de módulos, toque em <b>Educação Sanitária/Fiscalização de Trânsito</b>.</p>
+    <p><b>Iniciar</b></p>
+    <ol>
+      <li>Escolha o <b>tipo de posto</b>:
+        <ul>
+          <li><b>Fixa</b>: escolha a BVA na lista.</li>
+          <li><b>Volante (móvel)</b>: o endereço é preenchido pela localização. Dá para corrigir à mão.</li>
+        </ul>
+      </li>
+      <li>Se tiver colega, informe o <b>Fiscal 2</b>. Toque em <b class="bt">Iniciar turno</b>.</li>
+    </ol>
+    <p><b>Durante o turno</b></p>
+    <ul>
+      <li><b class="bt">➕ Registrar veículo</b>: placa, tipo, pessoas a bordo e observação. A placa é obrigatória só na BVA CEASA.</li>
+      <li><b class="bt">📋 Lista de veículos</b>: para corrigir (<b>Editar</b>), excluir ou <b>Lavrar TF</b> de um veículo.</li>
+      <li><b class="bt">📊 Resumo e documentos</b>: totais do turno e a <b>Ficha de Campo</b> (só na BVA CEASA).</li>
+    </ul>
+    <p><b>Encerrar</b></p>
+    <ol>
+      <li>Toque em <b class="bt">⏹ Encerrar turno</b>.</li>
+      <li>Espere aparecer <b>“✅ Turno encerrado, bom descanso!”</b>.</li>
+      <li>Se aparecer <b>“⏳ Aguardando envio”</b>, o encerramento está guardado no celular. Abra o app de novo quando tiver internet para enviar.</li>
+    </ol>
+    <p class="dica">Turno esquecido aberto é encerrado sozinho depois de <b>12 horas</b>. A gerência também pode encerrar pelo painel.</p>
+  </div></details>
+
+  <details id="tf"><summary>3. Termo de Fiscalização (TF)</summary><div class="corpo">
+    <p><b>Onde abrir</b></p>
+    <ul>
+      <li>Pelo módulo <b>Termo de Fiscalização de Barreira</b>, em <b class="bt">➕ Novo TF</b>;</li>
+      <li>ou, durante o turno, em <b class="bt">Lavrar TF</b> ao lado do veículo.</li>
+    </ul>
+    <p><b>Preencher</b></p>
+    <ol>
+      <li><b>CPF/CNPJ</b> e <b>placa</b>: o app busca o cadastro e o <b>histórico</b> sozinho. Se aparecer <b>⚠️ REINCIDENTE</b>, o fiscalizado já teve apreensão, rechaço ou auto de infração.</li>
+      <li>Marque o procedimento (liberação, apreensão ou rechaço). O texto da constatação e o enquadramento legal são sugeridos, e você pode editar.</li>
+      <li>Adicione os <b>produtos</b> e, se quiser, <b>📷 fotos</b> (até 10).</li>
+      <li><b>✍️ Assinaturas</b> (opcional): toque em <b class="bt">Assinar na tela</b> para o fiscalizado e para você e assine com o dedo. Se o fiscalizado se recusar, marque <b>“Fiscalizado se recusou a assinar”</b>. Sem assinatura na tela, o PDF sai com a linha para assinar no papel.</li>
+      <li>Toque em <b class="bt">📄 Gerar TF</b>, confira o <b>número</b> e confirme. Na janela de impressão, escolha <b>Salvar como PDF</b> ou imprima. Saem 2 vias e, se houver fotos, o anexo fotográfico.</li>
+    </ol>
+    <p><b>Depois de gerar</b></p>
+    <ul>
+      <li>Cada via tem um <b>QR code</b>. Quem apontar a câmera para ele confere na página da ADAF se o TF é verdadeiro.</li>
+      <li>A página mostra o número, a data, a barreira, o procedimento e a situação, sem dados pessoais.</li>
+    </ul>
+    <p class="dica">Sem internet, o número do TF é <b>provisório</b> e é conferido na planilha quando o celular enviar. A consulta de reincidência usa a última lista baixada e mostra “sem conexão”.</p>
+  </div></details>
+
+  <details id="pce"><summary>4. PCE – levantamento e Termo de Colheita</summary><div class="corpo">
+    <p><b>Levantamento fitossanitário</b></p>
+    <ol>
+      <li>No módulo <b>PCE</b>, toque em <b class="bt">➕ Novo levantamento</b>.</li>
+      <li>Preencha os dados do produtor e da propriedade. A localização é pega pelo GPS.</li>
+      <li>Para cada <b>praga/doença</b> avaliada, adicione as <b>culturas</b> com área e resultado: <b>detectada</b>, <b>não detectada</b> ou <b>suspeita</b>. As <b>fotos</b> ficam junto da cultura.</li>
+      <li>Salve. Sai <b>um PDF por praga</b>, em <b>PDF: nome da praga</b> ou <b class="bt">🖨️ Imprimir todos</b>.</li>
+    </ol>
+    <p><b>Termo de Colheita de Amostras</b></p>
+    <ul>
+      <li>Abra pelo próprio levantamento (botão <b>Termo de colheita</b>) ou em <b class="bt">➕ Novo termo de colheita</b>.</li>
+      <li>O número é gerado como no TF.</li>
+    </ul>
+  </div></details>
+
+  <details id="internet"><summary>5. Sem internet e envio dos dados</summary><div class="corpo">
+    <ul>
+      <li>O app funciona <b>sem internet</b>: tudo fica guardado no celular e é enviado sozinho quando a conexão voltar.</li>
+      <li>O selo no topo mostra a situação. Toque nele para <b>enviar agora</b>.</li>
+      <li>Registros com <b>⏳ aguardando envio</b> ainda não chegaram à planilha.</li>
+      <li><b>Não desinstale o app</b> e não limpe os dados do navegador enquanto houver algo aguardando envio. É assim que se perdem dados.</li>
+      <li>No Android, o envio continua mesmo com o app fechado. No iPhone, abra o app com internet para enviar.</li>
+      <li>Com turno aberto, o app envia a cada 20 segundos. Assim a gerência acompanha a barreira quase ao vivo.</li>
+    </ul>
+  </div></details>
+
+  <details id="problemas"><summary>6. Problemas comuns</summary><div class="corpo">
+    <ul>
+      <li><b>“Sem autorização — fale com a gerência”</b>: aquele módulo não está liberado para você. A gerência libera pelo painel (aba Servidores).</li>
+      <li><b>“Acesso revogado” ou “código inválido”</b>: peça um código de ativação novo.</li>
+      <li><b>“🔄 Nova versão do app disponível”</b>: toque em <b>Atualizar agora</b>, de preferência com tudo já enviado.</li>
+      <li><b>A localização não aparece</b>: ligue o GPS e permita a localização para o app nas configurações do celular.</li>
+      <li><b>O turno continua contando depois de encerrar</b>: abra o app com internet para o encerramento chegar. Se não resolver, avise a gerência, que encerra pelo painel.</li>
+      <li><b>Os totais do app parecem baixos</b>: o app mostra só o que foi lançado neste aparelho. Os números gerais ficam no painel da gerência.</li>
+    </ul>
+  </div></details>
+</main>
+<footer>e-GDV · Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM</footer>
+<script>
+// abre o assunto do link do índice (ou do #endereço) e rola até ele
+function abrir(id) { const d = document.getElementById(id); if (d && d.tagName === 'DETAILS') { d.open = true; d.scrollIntoView({ block: 'start' }); } }
+document.querySelectorAll('nav.indice a').forEach(a => a.addEventListener('click', e => { e.preventDefault(); abrir(a.getAttribute('href').slice(1)); history.replaceState(null, '', a.getAttribute('href')); }));
+if (location.hash) abrir(location.hash.slice(1));
+</script>
+</body>
+</html>

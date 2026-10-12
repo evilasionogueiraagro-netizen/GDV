@@ -141,3 +141,37 @@ input:disabled { background:#eef1f6; color:#99a; }
 .tf-ass { margin:8px 0 12px; } .tf-ass .duas .botao { margin:6px 0; padding:11px; font-size:14px; }
 .tf-ass-img { display:block; max-width:100%; max-height:110px; background:#fff; border:1px solid var(--linha); border-radius:8px; margin:4px 0; }
 .tf-canvas { height:180px; margin:8px 0; }
+
+/* ---------- PCE em campo: dados baixados, busca por nome/código, mapa "Perto de mim", rota e envio ao produtor ---------- */
+.campo-atalhos .botao { margin:0 0 10px; padding:12px 6px; font-size:14px; }
+.campo-mun { display:flex; justify-content:space-between; align-items:center; gap:8px; padding:9px 0; border-bottom:1px solid var(--linha); font-size:14px; }
+.campo-mun small { color:var(--mut); } .campo-mun-acoes { display:flex; flex-direction:column; gap:6px; flex-shrink:0; } .campo-mun-acoes .mini { margin:0; }
+.campo-apagar { border-color:var(--verm) !important; color:var(--verm) !important; }
+.campo-muns { max-height:260px; overflow:auto; border:1px solid var(--linha); border-radius:8px; padding:4px 10px; display:grid; grid-template-columns:1fr 1fr; column-gap:8px; }
+.campo-muns label { margin:6px 0; flex-direction:row; align-items:center; gap:6px; color:var(--ink); } .campo-muns label[hidden] { display:none; }
+.campo-muns input, .pce-enviar-lista input { width:auto; }
+.campo-lgpd { color:#5a4300 !important; }
+.campo-busca { border:1px dashed var(--linha); border-radius:10px; padding:0 10px 4px; margin-bottom:6px; background:#f7f9fd; }
+.campo-res { list-style:none; margin:0 0 8px; padding:0; max-height:300px; overflow:auto; }
+.campo-res-item { display:block; width:100%; text-align:left; background:#fff; border:1px solid var(--linha); border-radius:8px; padding:8px 10px; margin:4px 0; font:inherit; cursor:pointer; color:var(--ink); }
+.campo-res-item small { display:block; color:var(--mut); font-size:12.5px; }
+.campo-mapa { height:min(52vh,420px); border-radius:10px; overflow:hidden; background:#dfe8f1; z-index:0; }
+.campo-mapa.campo-sem-tiles { background:#cfdde9; }
+.campo-legenda { display:flex; flex-wrap:wrap; gap:4px 12px; font-size:12px; color:var(--mut); margin-top:8px; } .campo-legenda span { display:flex; align-items:center; gap:5px; }
+.campo-selo { display:inline-block; width:12px; height:12px; border-radius:50%; border:2px solid #fff; box-shadow:0 0 0 1px rgba(0,0,0,.25); flex-shrink:0; }
+.campo-nunca, .campo-antigo { background:#d32f2f; } .campo-deteccao { background:#e0a800; } .campo-ok { background:#2e7d32; } .campo-eu { background:#0B5ED7; }
+.campo-pos { display:flex; justify-content:space-between; align-items:center; gap:6px; margin-top:6px; } .campo-pos .dica { text-align:left; padding:0; }
+.campo-item { display:block; width:100%; text-align:left; border:0; font:inherit; color:var(--ink); cursor:pointer; }
+.campo-item.sel { outline:2px solid var(--azul2); }
+.campo-item-topo { display:flex; align-items:center; gap:8px; } .campo-item-topo b { flex:1; min-width:0; overflow-wrap:anywhere; }
+.campo-dist { color:var(--azul2); font-weight:700; font-size:14px; white-space:nowrap; }
+.campo-item-sub, .campo-item-hist { display:block; color:var(--mut); font-size:13.5px; margin-top:2px; }
+.campo-det { color:#8a4b00; } .campo-narota { color:var(--azul2); }
+.campo-sep { font-size:12px; font-weight:700; color:var(--mut); text-transform:uppercase; letter-spacing:.5px; margin:12px 4px 6px; }
+.campo-cartao { border:2px solid var(--azul2); } .campo-cartao-topo { display:flex; align-items:center; gap:8px; } .campo-cartao-topo b { flex:1; font-size:17px; color:var(--azul); }
+.campo-cartao .botao { margin:8px 0 0; }
+.campo-rota-lista { margin:0; padding-left:22px; } .campo-rota-lista li { padding:8px 0; border-bottom:1px solid var(--linha); }
+.campo-rota-lista li > div:first-child { display:inline-block; width:calc(100% - 120px); vertical-align:middle; overflow-wrap:anywhere; } .campo-rota-lista small { color:var(--mut); }
+.campo-rota-acoes { display:inline-flex; gap:4px; vertical-align:middle; float:right; } .campo-rota-acoes .mini { margin:0; padding:6px 9px; } .campo-rota-acoes .mini:disabled { opacity:.35; }
+.pce-enviar { max-height:90vh; overflow:auto; text-align:left; } .pce-enviar .tf-status { overflow-wrap:anywhere; } .pce-enviar h3 { text-align:center; }
+.pce-enviar-lista label { flex-direction:row; align-items:center; gap:8px; color:var(--ink); margin:6px 0; }

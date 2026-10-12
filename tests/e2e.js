@@ -17,7 +17,7 @@ const assert = require('assert');
   // configura sync (servidor fora do ar) – só salva
   await page.evaluate(() => { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', 'segredo'); });
   await page.fill('#nTF', '7'); let t0; await page.selectOption('#nPosto', 'Fixa'); 
-  await page.selectOption('#nLocal', 'BVA - CEASA'); await page.fill('#nUnidade', 'MANAUS'); 
+  await page.selectOption('#nLocal', 'BVA - CEASA'); 
   await page.click('#fTurno button[type=submit]');
   console.log('sem fiscal ->', await page.textContent('#toast'));
   await page.fill('#nFiscal1', 'Joao'); await page.click('#fTurno button[type=submit]');

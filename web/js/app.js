@@ -59,8 +59,8 @@ async function enderecoDe(g) {
     const a = (await r.json()).address || {};
     const via = a.road || a.pedestrian || a.path || '', bairro = a.suburb || a.neighbourhood || a.village || a.hamlet || '';
     const cidade = a.city || a.town || a.municipality || a.county || '';
-    return [via, bairro, cidade && cidade + (a['ISO3166-2-lvl4'] ? '/' + a['ISO3166-2-lvl4'].split('-')[1] : '')].filter(Boolean).join(' – ');
-  } catch (e) { return ''; } finally { clearTimeout(t); }
+    return { texto: [via, bairro, cidade && cidade + (a['ISO3166-2-lvl4'] ? '/' + a['ISO3166-2-lvl4'].split('-')[1] : '')].filter(Boolean).join(' – '), cidade };
+  } catch (e) { return { texto: '', cidade: '' }; } finally { clearTimeout(t); }
 }
 const camposLocal = (g, sufixo) => g ? { ['lat' + sufixo]: g.lat, ['lng' + sufixo]: g.lng, ['prec' + sufixo]: g.prec } : {};
 
@@ -253,7 +253,7 @@ function novoTurno() {
     <label>Nº do Termo de Fiscalização<input id="nTF" type="number" min="1" inputmode="numeric" required placeholder="ex.: 12"></label>
     <label>Tipo de posto<select id="nPosto">${CONFIG.postos.map(p => `<option value="${p}" ${localStorage.getItem('gdv.posto') === p ? 'selected' : ''}>${p === 'Móvel' ? 'Volante (móvel)' : p}</option>`).join('')}</select></label>
     <div id="nLocalBox"></div>
-    <label>Unidade (Termo)<input id="nUnidade" required value="${localStorage.getItem('gdv.unidade') ? ls('unidade') : esc(CONFIG.unidadePadrao)}"></label>
+    <label>Unidade (Termo) <small id="nUnidadeInfo"></small><input id="nUnidade" required autocomplete="off"></label>
     <label>Fiscal 1 — nome completo *${Sync.nome() ? ' <small>(vinculado a este aparelho)</small>' : ''}<input id="nFiscal1" autocomplete="off" ${Sync.nome() ? 'readonly' : ''} value="${Sync.nome() ? esc(Sync.nome()) : ls('fiscal1')}" placeholder="Nome e sobrenome"></label>
     <label>Fiscal 2 — nome completo (opcional)<input id="nFiscal2" autocomplete="off" value="${ls('fiscal2')}" placeholder="Nome e sobrenome"></label>
     <button class="botao" type="submit">Iniciar turno</button></form>`);
@@ -268,11 +268,12 @@ function novoTurno() {
     const volante = () => $('#nPosto') && $('#nPosto').value === 'Móvel' && $('#nLocal');   // o formulário pode ter sido fechado
     if (!volante()) return;
     if (!gpsVolante) { st.textContent = 'GPS indisponível: digite o local.'; return; }
-    const end = await enderecoDe(gpsVolante);
+    const { texto: end, cidade } = await enderecoDe(gpsVolante);
     if (!volante()) return;
-    const campo = $('#nLocal');
+    const campo = $('#nLocal'), un = $('#nUnidade');
     if (!campo.dataset.editado) campo.value = end || `Volante – ${gpsVolante.lat.toFixed(5)}, ${gpsVolante.lng.toFixed(5)}`;
-    st.textContent = end ? 'Endereço obtido pela localização (pode editar).' : 'Sem endereço (sem internet?): ajuste o local se quiser.';
+    if (cidade && !un.dataset.editado) un.value = cidade.toUpperCase();          // volante: unidade = município onde a barreira está
+    st.textContent = end ? 'Endereço obtido pela localização (pode editar).' : 'Sem endereço (sem internet?): ajuste o local e a unidade se quiser.';
   }
   function montarLocal() {
     const fixa = $('#nPosto').value === 'Fixa', ult = localStorage.getItem('gdv.local') || '';
@@ -282,10 +283,18 @@ function novoTurno() {
       : `<label>Local / Posto (volante)<input id="nLocal" required autocomplete="off" placeholder="endereço do posto volante"></label>
          <div class="linha-acoes"><small id="nLocalSt"></small><button type="button" class="botao sec mini" id="nLocalGps">📍 Atualizar pela localização</button></div>
          <p class="dica" id="nPlacaInfo"></p>`;
-    $('#nLocal').addEventListener(fixa ? 'change' : 'input', () => { if (!fixa) $('#nLocal').dataset.editado = '1'; avisoPlaca(); });
+    $('#nLocal').addEventListener(fixa ? 'change' : 'input', () => { if (!fixa) $('#nLocal').dataset.editado = '1'; avisoPlaca(); unidadeDoLocal(); });
+    // Unidade (Termo): na BVA fixa é a própria BVA escolhida (não edita); no volante, o município da barreira (vem da localização, editável)
+    const un = $('#nUnidade'); delete un.dataset.editado;
+    un.readOnly = fixa; un.placeholder = fixa ? '' : 'município da barreira volante';
+    if (!fixa) un.value = localStorage.getItem('gdv.unidadeVolante') || '';     // sem GPS/internet: o último município de volante (a localização substitui)
+    $('#nUnidadeInfo').textContent = fixa ? '(a mesma da BVA)' : '(município da barreira volante)';
+    unidadeDoLocal();
     if (!fixa) { $('#nLocalGps').onclick = () => { delete $('#nLocal').dataset.editado; preencherEndereco(); }; preencherEndereco(); }
     avisoPlaca();
   }
+  function unidadeDoLocal() { if ($('#nPosto').value === 'Fixa') $('#nUnidade').value = $('#nLocal').value; }
+  $('#nUnidade').addEventListener('input', e => { e.target.dataset.editado = '1'; });
   $('#nPosto').onchange = montarLocal; montarLocal();
   $('#fTurno').onsubmit = async e => {
     e.preventDefault();
@@ -305,6 +314,7 @@ function novoTurno() {
       unidade: $('#nUnidade').value.trim(), semPlaca: placaObrigatoria() ? 0 : 1, encerrado: 0
     });
     ['local', 'unidade', 'posto'].forEach(k => localStorage.setItem('gdv.' + k, t[k]));
+    if (t.posto === 'Móvel') localStorage.setItem('gdv.unidadeVolante', t.unidade);
     localStorage.setItem('gdv.fiscal1', $('#nFiscal1').value.trim()); localStorage.setItem('gdv.fiscal2', $('#nFiscal2').value.trim());
     await Store.setMeta('turnoAtual', t.id);
     try { localStorage.removeItem(LS_AVISO_ENC); } catch (e2) { /* sem armazenamento */ }

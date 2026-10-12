@@ -275,7 +275,7 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   await esperarTV(p); await p.waitForFunction(() => document.body.classList.contains('tv-ocioso'), null, { timeout: 8000 }); await p.waitForTimeout(400);
   ok(await p.evaluate(() => document.body.classList.contains('tv') && localStorage.getItem('gdv.painel.tv') === '1'), '?tv=1 liga o modo TV e lembra no aparelho (gdv.painel.tv=1)');
   ok(await p.isHidden('#pn-sair') && await p.isHidden('#pn-app') && await p.isHidden('#pn-login'), 'no modo TV: botão Sair (logout) escondido, sem filtros nem login');
-  ok(/Sala de Situação — GDV/.test(await p.textContent('.tv-topo h1')) && await p.isVisible('.tv-logo'), 'topo: logo ADAF e "Sala de Situação — GDV"');
+  ok(/Sala de Situação — e-GDV/.test(await p.textContent('.tv-topo h1')) && await p.isVisible('.tv-logo'), 'topo: logo ADAF e "Sala de Situação — e-GDV"');
   ok(/^Atualizado às \d{2}:\d{2}$/.test((await p.textContent('#tv-atual-txt')).trim()) && await p.isHidden('#tv-faixa'), 'topo: "Atualizado às HH:MM", sem faixa de sem conexão', (await p.textContent('#tv-atual-txt')).trim());
   ok((await tela(p)).tela === 'aovivo', 'começa na tela Ao vivo');
   ok(/Ao vivo — Barreiras \(hoje\)/.test(await p.textContent('#tv-nome')) && await p.locator('#tv-pontos i').count() === 8, 'rodapé: nome da tela e 8 pontos de navegação', await p.textContent('#tv-nome'));
@@ -561,7 +561,7 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   const TVR = await credencial('TV Revogar');
   p = await abrir({ nome: 'tvrev', relogio: true, url: WEB + '?tv=1&rotacao=300&rotacaoAoVivo=300', ls: sessao(TVR) });
   await esperarTV(p);
-  ok(await get('/__revogar?nome=' + encodeURIComponent('TV Revogar')) >= 1, 'revogada no servidor (menu GDV revoga pelo nome)');
+  ok(await get('/__revogar?nome=' + encodeURIComponent('TV Revogar')) >= 1, 'revogada no servidor (menu e-GDV revoga pelo nome)');
   await avanca(p, 61000);
   ok(await ate(p, () => !document.getElementById('pn-login').hidden), 'próxima atualização: servidor recusa a credencial');
   ok((await p.textContent('#pn-login-tit')).trim() === 'Sessão encerrada' && /Gere um novo código de administrador e digite aqui/.test(await p.textContent('#pn-login-txt')) && await p.isVisible('#pn-codigo'),

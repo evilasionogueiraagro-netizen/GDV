@@ -1,6 +1,6 @@
 const amb = require('./lib/amb');
 // E2E do alerta "TF em preenchimento / Apreensão em andamento": aparelho do fiscal (app em 8081) → Code.gs real (fakegas, 8082)
-// → GDV Painel (normal e modo TV, outros contextos). Rode com ./rodar.sh tf_alerta_test.js (um fakegas novo).
+// → e-GDV Painel (normal e modo TV, outros contextos). Rode com ./rodar.sh tf_alerta_test.js (um fakegas novo).
 const { chromium } = require('playwright-core'); const fs = require('fs');
 const { API, APP, PAINEL: WEB } = amb;
 const get = p => fetch(API + p).then(r => r.json());

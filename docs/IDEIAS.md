@@ -67,7 +67,7 @@ Ideias discutidas com a gerência que ainda **não** foram implementadas. Cada u
   - a **via do produtor sem impressora**: PDF por WhatsApp ou e-mail, link ou QR do documento, impressão depois no escritório.
 
 ### 2a. Dados do município no celular (sem internet) + mapa e rota das propriedades
-*Ideia do gestor (12/10/2026). Fazer junto com o item 2, depois de ver a ficha e o cadastro de propriedade.*
+*Ideia do gestor (12/10/2026). **Implementado** em 12/10/2026 (README → "PCE em campo"): dados do município no aparelho, busca por CPF/nome/código sem internet, mapa "Perto de mim", rota no Google Maps e "📤 Enviar ao produtor" (PDF gerado no aparelho). Os campos novos da ficha e do cadastro de propriedade, quando chegarem, já vêm no download (todas as colunas da planilha).*
 - **"Baixar dados para o campo"**: antes de sair, com internet, o servidor escolhe o(s) **município(s)** e o app baixa os **produtores e propriedades** cadastrados neles: nome, CPF, código, coordenadas, situação fundiária e último levantamento.
   - Sem internet, a pesquisa por CPF, nome ou código funciona e completa a ficha.
   - O app mostra a data dos dados e atualiza sozinho quando houver internet.

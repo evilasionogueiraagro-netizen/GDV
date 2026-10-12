@@ -293,7 +293,7 @@ const temId = async (aba, id) => (await linhas(aba)).some((r, i) => i > 0 && r[0
   ok(await a.evaluate(() => Sync.pode('antigo') === false), 'app: Digitar do papel desligado por padrão');
   // turno + veículo
   await a.click('.modulo[data-v=home]'); await a.waitForSelector('#fTurno');
-  await a.fill('#nTF', '5'); await a.selectOption('#nPosto', 'Móvel'); await a.fill('#nLocal', 'BR-174 km 10'); await a.click('#fTurno button[type=submit]');
+  await a.fill('#nTF', '5'); await a.selectOption('#nPosto', 'Móvel'); await a.fill('#nLocal', 'BR-174 km 10'); await a.fill('#nUnidade', 'MANAUS'); await a.click('#fTurno button[type=submit]');
   await a.waitForSelector('.contador');
   ok(await a.locator('[data-go=tfnovo]').count() === 1, 'TF liberado: "Lavrar TF neste turno" aparece');
   await a.click('[data-go=registrar]'); await a.waitForSelector('#fVeic'); await a.fill('#placa', 'AAA1B22'); await a.click('#fVeic button');

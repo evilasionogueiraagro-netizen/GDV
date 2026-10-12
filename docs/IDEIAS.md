@@ -65,3 +65,13 @@ Ideias discutidas com a gerência que ainda **não** foram implementadas. Cada u
   - escolher a propriedade cadastrada sem redigitar nada;
   - registrar várias pragas numa só visita (o módulo já tem um cartão por praga);
   - a **via do produtor sem impressora**: PDF por WhatsApp ou e-mail, link ou QR do documento, impressão depois no escritório.
+
+### 2a. Dados do município no celular (sem internet) + mapa e rota das propriedades
+*Ideia do gestor (12/10/2026). Fazer junto com o item 2, depois de ver a ficha e o cadastro de propriedade.*
+- **"Baixar dados para o campo"**: antes de sair, com internet, o servidor escolhe o(s) **município(s)** e o app baixa os **produtores e propriedades** cadastrados neles: nome, CPF, código, coordenadas, situação fundiária e último levantamento.
+  - Sem internet, a pesquisa por CPF, nome ou código funciona e completa a ficha.
+  - O app mostra a data dos dados e atualiza sozinho quando houver internet.
+  - Só para quem tem o módulo PCE (LGPD). Opção de apagar os dados do celular ao voltar.
+- **Mapa "propriedades perto de mim"**: GPS do servidor e propriedades baixadas, coloridas pelo último levantamento ou pendência. Lista por distância e botão "Fazer levantamento aqui", que abre a ficha preenchida.
+  - Sem internet: contornos dos municípios e os pontos, sem o fundo de ruas.
+- **Rota**: o servidor marca as propriedades, o app sugere a ordem pela menor distância e abre o trajeto no **Google Maps** com as paradas. O Google Maps funciona sem internet se o mapa da região tiver sido baixado nele antes; colocar isso no manual.

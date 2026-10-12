@@ -85,9 +85,12 @@ const MAX_FALHAS_ATIVACAO = 10;                        // tentativas erradas ant
 const MAX_FALHAS_ADMIN = 5;                            // idem para o código de administrador do painel (contador próprio)
 const MAX_LINHAS_POR_ENVIO = 2000;
 
+/** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
+const VERSAO_CODIGO = '2026-10-12';
+
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
-  return json_({ ok: true, servico: 'GDV Controle de Veículos' });
+  return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
 }
 
 function doPost(e) {

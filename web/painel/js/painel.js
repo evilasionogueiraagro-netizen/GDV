@@ -1227,12 +1227,12 @@ const Painel = (() => {
     };
     audit(d.auditoria.tf, 'TF', 'tf');
     audit(d.auditoria.pce, 'Termo de colheita', 'pce');
-    // 4. cobertura PCE: municípios sem levantamento nos últimos 90 dias (até o fim do período)
-    const lim = somaDias(d.ate, -89), cobertos = new Set();
+    // 4. cobertura PCE (anual): municípios sem levantamento no ano, de 1º de janeiro até o fim do período
+    const anoCob = String(d.ate).slice(0, 4), lim = anoCob + '-01-01', cobertos = new Set();
     d.historicoPce.forEach(h => { if (h.data >= lim && h.data <= d.ate) cobertos.add(norm(h.municipio)); });
     N.levantamentos.forEach(l => { if (l.data >= lim && l.data <= d.ate) cobertos.add(norm(l.municipio)); });
     const desc = MUN.filter(m => !cobertos.has(m.chave)).map(m => m.nome);
-    if (desc.length) A.push({ nivel: desc.length > 40 ? 'serio' : 'atencao', aba: 'pce', titulo: `${desc.length} de ${MUN.length} municípios sem levantamento PCE nos últimos 90 dias`,
+    if (desc.length) A.push({ nivel: desc.length > 40 ? 'serio' : 'atencao', aba: 'pce', titulo: `${desc.length} de ${MUN.length} municípios sem levantamento PCE em ${anoCob}`,
       detalhe: `Período de ${fmt.data(lim)} a ${fmt.data(d.ate)}: ${desc.slice(0, 25).join(', ')}${desc.length > 25 ? ` e mais ${desc.length - 25}` : ''}.` });
     // 5. reincidentes com nova apreensão
     const reinc = d.tfs.filter(t => t.reincidente && t.procedimento === 'apreensao');

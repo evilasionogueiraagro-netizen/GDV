@@ -131,9 +131,9 @@ async function modulos() {
   mostrar(`${encPend}<div class="card"><h3>Olá${nome ? ', ' + esc(nome) : ''}!</h3><p class="dica" style="text-align:left">Escolha o que deseja fazer.</p></div>
     ${aviso ? `<div class="card aviso" id="avisoPerm">⚠️ ${esc(aviso)}</div>` : ''}
     ${avisoTurnoEncerrado()}
-    ${cartao('veiculos', 'home', '🚛', 'Educação Sanitária/Fiscalização de Trânsito', `<small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)${Sync.pode('veiculos') ? '' : ' (guardado neste aparelho)'}` : 'Registro das informações, por ação'}</small>`)}
+    <div class="modulos">${cartao('veiculos', 'home', '🚛', 'Educação Sanitária/Fiscalização de Trânsito', `<small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)${Sync.pode('veiculos') ? '' : ' (guardado neste aparelho)'}` : 'Registro das informações, por ação'}</small>`)}
     ${cartao('tf', 'tf', '📄', 'Termo de Fiscalização de Barreira', `<small>${tfs.length} TF(s) neste aparelho${pend ? ` · ⏳ ${pend} aguardando envio` : ''}</small>`)}
-    ${cartao('pce', 'pce', '🌱', 'PCE', `<small>Programa de Controle e Erradicação — levantamento fitossanitário e Termo de Colheita de Amostras</small><small class="pce-status">${esc(stPce)}</small>`)}
+    ${cartao('pce', 'pce', '🌱', 'PCE', `<small>Programa de Controle e Erradicação — levantamento fitossanitário e Termo de Colheita de Amostras</small><small class="pce-status">${esc(stPce)}</small>`)}</div>
     ${Sync.pode('veiculos') && Sync.pode('tf') ? '<p class="dica">Dentro da Educação Sanitária/Fiscalização de Trânsito também dá para lavrar o TF de um veículo (botão “Lavrar TF”).</p>' : ''}
     <a class="botao sec" href="manual.html">📖 Manual do fiscal</a>`);
 }

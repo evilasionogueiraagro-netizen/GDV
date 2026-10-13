@@ -197,3 +197,24 @@ input:disabled { background:#eef1f6; color:#99a; }
 .cargo-outro { margin-top:6px; } .cargo-outro[hidden] { display:none; }
 /* PCE: produtor que não assina — foto com documento de identificação no lugar da assinatura */
 .pce-naoassina { margin:4px 0 8px; } .pce-docprod .pce-fotos { margin:6px 0; } .pce-ass[hidden], .pce-docprod[hidden] { display:none; }
+
+/* ---------- Tablet e computador: mais largura, módulos em grade e, no PC, menu na lateral ---------- */
+@media (min-width:700px) {
+  main { max-width:760px; padding:18px 20px; }
+  .modulos { display:grid; grid-template-columns:repeat(auto-fit, minmax(300px, 1fr)); gap:12px; } .modulos .modulo { margin:0; height:100%; }
+  nav { justify-content:center; } nav button { flex:0 1 130px; padding:10px 0; font-size:22px; } nav button span { font-size:12px; }
+  .card { padding:18px; } .card h3 { font-size:17px; }
+}
+@media (min-width:1024px) {
+  body { padding-bottom:0; padding-left:216px; }
+  header { margin-left:-216px; z-index:7; padding:10px 20px; }
+  nav { top:58px; bottom:0; right:auto; width:216px; flex-direction:column; justify-content:flex-start; gap:2px; padding:12px 8px; border-top:0; border-right:1px solid var(--linha); overflow-y:auto; }
+  nav button { flex:0 0 auto; flex-direction:row; gap:10px; padding:10px 12px; border-radius:10px; font-size:20px; text-align:left; }
+  nav button span { font-size:14.5px; } nav button:hover { background:#f2f6fc; } nav button.on { background:#e7f0ff; }
+  main { max-width:980px; padding:22px 28px; }
+  main:has(> form) { max-width:880px; }                        /* formulários: linhas de leitura confortáveis */
+  #toast { bottom:28px; left:calc(50% + 108px); }
+  #pceItens, #lista, .lista-itens { display:grid; grid-template-columns:repeat(auto-fill, minmax(420px, 1fr)); gap:12px; align-items:start; }
+  #pceItens > .item, #pceItens > .card { margin:0; } #pceItens > .dica, #pceItens > .vazio { grid-column:1 / -1; }
+}
+@media (min-width:1400px) { main { max-width:1120px; } main:has(> form) { max-width:940px; } }

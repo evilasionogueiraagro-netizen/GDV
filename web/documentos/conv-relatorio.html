@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Relatório Circunstancial Técnico (Convênio)</title>
+<style>
+/* Relatório Circunstancial Técnico de Execução Física das Metas (mensal) — modelo do relatório parcial do Convênio SUASA nº 991272/2025.
+   O conteúdo vem de ConvDocs.blocos (o mesmo do Word); o painel preenche #corpo e imprime ou gera o PDF (js/pdf.js). Prefixo .doc-conv. */
+@page{ size:A4 portrait; margin:8mm 7mm; }
+body{ font-family:Calibri, Carlito, Arial, sans-serif; margin:0; padding:0; background:#fff; color:#000; }
+.a4{ width:196mm; margin:0 auto; box-sizing:border-box; background:#fff; }
+.doc-conv{ font-size:12.5px; line-height:1.4; padding:0 6mm; }
+.doc-conv .cab{ text-align:center; margin:3mm 0 2mm; } .doc-conv .cab img{ height:64px; }
+.doc-conv .cab .gov{ font-weight:bold; font-size:12px; } .doc-conv .cab .ag{ font-size:11px; }
+.doc-conv h1.titulo{ font-size:14px; text-align:center; margin:4mm 0 1mm; line-height:1.35; break-after:avoid; page-break-after:avoid; }
+.doc-conv h2.titulo2{ font-size:13px; text-align:center; margin:0 0 3mm; font-weight:bold; }
+.doc-conv h3.sec{ font-size:13px; margin:5mm 0 1.5mm; break-after:avoid; page-break-after:avoid; }
+.doc-conv h4.sub{ font-size:12.5px; margin:3.5mm 0 1mm; break-after:avoid; page-break-after:avoid; }
+.doc-conv p{ margin:0 0 1.6mm; text-align:justify; break-inside:avoid; page-break-inside:avoid; }
+.doc-conv p.neg{ font-weight:bold; } .doc-conv p.peq{ font-size:11px; } .doc-conv p.dir{ text-align:right; } .doc-conv p.esp{ margin-top:6mm; }
+.doc-conv ul{ margin:0 0 2mm 5mm; padding-left:4mm; } .doc-conv li{ margin:0 0 .8mm; break-inside:avoid; page-break-inside:avoid; }
+.doc-conv .tab{ margin:2mm 0 3mm; }
+.doc-conv .tab-tit{ font-weight:bold; text-align:center; font-size:12px; border:1px solid #000; border-bottom:0; padding:2px 4px; background:#eef1f6; break-after:avoid; page-break-after:avoid; }
+.doc-conv table{ width:100%; border-collapse:collapse; table-layout:fixed; }
+.doc-conv table.peq{ font-size:10.5px; }
+.doc-conv th, .doc-conv td{ border:1px solid #000; padding:2px 4px; vertical-align:middle; overflow-wrap:anywhere; }
+.doc-conv th{ background:#d9d9d9; font-weight:bold; text-align:center; }
+.doc-conv td.dir{ text-align:right; font-variant-numeric:tabular-nums; } .doc-conv td.cen{ text-align:center; } .doc-conv td.neg{ font-weight:bold; }
+.doc-conv tr{ break-inside:avoid; page-break-inside:avoid; }
+.doc-conv .assins{ display:flex; flex-direction:column; align-items:center; gap:9mm; margin-top:12mm; break-inside:avoid; page-break-inside:avoid; }
+.doc-conv .assin{ width:95mm; text-align:center; } .doc-conv .assin .linha{ border-top:1px solid #000; margin-bottom:1mm; }
+.doc-conv .assin b{ display:block; } .doc-conv .assin small{ display:block; font-size:11.5px; }
+.doc-conv .rodape{ display:flex; justify-content:center; align-items:center; gap:10mm; margin-top:10mm; padding-top:2mm; border-top:1px solid #9aa5b8; break-inside:avoid; page-break-inside:avoid; }
+.doc-conv .rodape img{ max-height:40px; }
+</style>
+</head>
+<body>
+<div class="a4 doc-conv">
+  <div class="cab"><img src="../img/brasao.png" alt=""><div class="gov">GOVERNO DO ESTADO DO AMAZONAS</div><div class="ag">Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF</div></div>
+  <div id="corpo"></div>
+  <div class="rodape"><img src="../img/logo-adaf.png" alt="ADAF"><img src="../img/sepror.png" alt="SEPROR"></div>
+</div>
+<script src="conv-docs.js"></script>
+</body>
+</html>

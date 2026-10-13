@@ -14,6 +14,7 @@ function mkSheet(name) {
     getLastRow: () => rows.length,
     getMaxRows: () => Math.max(1000, rows.length) + extraLinhas,
     getMaxColumns: () => 13,
+    getLastColumn: () => rows.reduce((m, r) => Math.max(m, r.length), 0),
     insertColumnsAfter() {},
     insertColumnBefore(c) { rows.forEach(r => { if (r.length >= c) r.splice(c - 1, 0, ''); }); },
     insertRowsAfter(_, n) { extraLinhas += n; },

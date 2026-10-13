@@ -152,6 +152,8 @@ const Sync = (() => {
     pessoa: pessoa ? limpo(pessoa) : undefined, propriedade: propriedade ? limpo(propriedade) : undefined }, 20000);
   /** Cadastro do produtor (pessoa + propriedades) e nº de levantamentos/termos, consultados no servidor. */
   const pceConsultar = doc => chamar({ action: 'pceConsultar', doc }, 15000);
+  /** PCE em campo: propriedades e produtores do(s) município(s), para consultar sem internet (campo.js grava no aparelho). */
+  const pceBaixarMunicipio = municipios => chamar({ action: 'pceBaixarMunicipio', municipios }, 90000);
 
   /** Envia ao Drive até N fotos/assinaturas pendentes (PCE e TF), uma por requisição (envio.js). */
   const enviarPendentesArquivos = ids => Envio.enviarArquivos(ids, chamar);
@@ -288,6 +290,8 @@ const Sync = (() => {
       }
       await limparDeOutros();
       try { await atualizarIndice(); } catch (e) { /* índice de reincidência: melhor esforço (tenta de novo na próxima sincronização) */ }
+      // dados do PCE em campo (municípios baixados): atualiza sozinho no máximo 1x a cada 6 h, sem segurar a sincronização
+      if (typeof Campo !== 'undefined') Campo.atualizarSozinho().catch(() => {});
       await Store.setMeta('ultimaSync', Date.now());
       marcarRevogado(false);
       const resta = await pendentes(), semPerm = await bloqueadosComPendentes(resta);
@@ -372,5 +376,5 @@ const Sync = (() => {
 
   return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, ativar, desativar, consultar, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
-    pceProximoNumero, pceEmitir, pceConsultar, lembrarUltimosPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
+    pceProximoNumero, pceEmitir, pceConsultar, pceBaixarMunicipio, lembrarUltimosPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

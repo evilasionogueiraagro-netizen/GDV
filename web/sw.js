@@ -3,9 +3,10 @@
 const VERSAO = 'gdv-v13';
 const ARQUIVOS = [
   './', 'index.html', 'manifest.webmanifest', 'css/app.css',
-  'js/versao.js', 'js/config.js', 'js/store.js', 'js/envio.js', 'js/sync.js', 'js/anexos.js', 'vendor/qrcode.js', 'js/docs.js', 'js/tf.js', 'js/pce.js', 'js/pdf.js', 'js/campo.js', 'js/app.js', 'vendor/html2canvas.min.js',
+  'js/versao.js', 'js/config.js', 'js/store.js', 'js/envio.js', 'js/sync.js', 'js/anexos.js', 'vendor/qrcode.js', 'js/docs.js', 'js/tf.js', 'js/pce.js', 'js/pdf.js', 'js/campo.js', 'js/moniliase.js', 'js/app.js', 'vendor/html2canvas.min.js',
   'documentos/ficha.html', 'documentos/termo.html', 'documentos/tf.html', 'documentos/ficha-campo.css', 'documentos/termo.css',
   'documentos/pce-levantamento.html', 'documentos/pce-colheita.html', 'documentos/pce.css', 'manual.html',
+  'documentos/pce-docs.js', 'documentos/pce-termo.html', 'documentos/pce-cadastro-moniliase.html', 'documentos/pce-relatorio.html',
   'img/logo-adaf.png', 'img/brasao.png', 'img/sepror.png', 'img/icon-192.png', 'img/icon-512.png',
   // mapa do PCE em campo ("Perto de mim"): a biblioteca e os contornos dos municípios do painel, guardados aqui para abrir sem internet
   'painel/vendor/leaflet/leaflet.js', 'painel/vendor/leaflet/leaflet.css', 'painel/dados/am-municipios.json'

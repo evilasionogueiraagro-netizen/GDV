@@ -426,7 +426,7 @@ const ANO = new Date().getFullYear();
   await velha.evaluate(() => window.__velha.close());
   await nova.waitForSelector('#gdv-aviso-db', { state: 'detached', timeout: 8000 }); await nova.waitForSelector('#view *', { state: 'attached' });
   ok(true, 'fechada a janela antiga, a atualização conclui e o aviso some');
-  await velha.evaluate(() => new Promise(ok => { const rq = indexedDB.open('gdv', 4); rq.onupgradeneeded = () => {}; rq.onsuccess = () => { rq.result.close(); ok(); }; rq.onblocked = () => {}; }));
+  await velha.evaluate(() => new Promise(ok => { const rq = indexedDB.open('gdv', 5); rq.onupgradeneeded = () => {}; rq.onsuccess = () => { rq.result.close(); ok(); }; rq.onblocked = () => {}; }));
   await nova.waitForSelector('#gdv-aviso-db', { timeout: 8000 });
   ok(/atualizado em outra janela/.test(await nova.textContent('#gdv-aviso-db')), 'versão mais nova em outra janela: esta libera o banco (sem travar a outra) e pede para recarregar');
   await ctxM.close();

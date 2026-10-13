@@ -109,7 +109,7 @@ const Sync = (() => {
     const aTF = p.aTF || [], aPCE = (p.a || []).filter(id => !aTF.includes(id));                                // arquivos: fotos/assinaturas do TF ou do PCE
     if (aTF.length && !pode('tf')) m.add('tf');
     if (aPCE.length && !pode('pce')) m.add('pce');
-    if (!pode('antigo') && pode('pce') && ([...(p.g || []), ...(p.c || [])].some(Envio.ehAntigo)               // registro do papel guardado
+    if (!pode('antigo') && pode('pce') && ([...(p.g || []), ...(p.c || []), ...(p.k || []), ...(p.m || [])].some(Envio.ehAntigo)               // registro do papel guardado
       || (await arquivosPendentes(null, { ...PERM, antigo: 1 })).length > (await arquivosPendentes(null, PERM)).length)) m.add('antigo');   // ou PDF/foto dele ainda não enviado
     return [...m];
   }
@@ -146,6 +146,17 @@ const Sync = (() => {
     Object.keys(ultimos).forEach(k => { const kk = k.toUpperCase(); uv[kk] = Math.max(uv[kk] || 0, Number(ultimos[k]) || 0); });
     await Store.setMeta('ultimoVistoPce', uv);
   }
+  /* Termo de Fiscalização do PCE ("T|UNIDADE|ano") e Cadastro de imóvel ("C|PROGRAMA|UNIDADE|ano"): último nº conhecido, para o provisório sem internet. */
+  async function lembrarUltimosDocPce(ultimos) {
+    if (!ultimos) return;
+    const uv = (await Store.meta('ultimoVistoDocPce')) || {};
+    Object.keys(ultimos).forEach(k => { const kk = k.toUpperCase(); uv[kk] = Math.max(uv[kk] || 0, Number(ultimos[k]) || 0); });
+    await Store.setMeta('ultimoVistoDocPce', uv);
+  }
+  const pceDocNumero = (tipo, unidade, ano, programa) => chamar({ action: 'pceDocNumero', tipo, unidade: unidadePce(unidade), ano, programa }, 9000);
+  /** Grava o Termo de Fiscalização / Cadastro do PCE só se o número ainda estiver livre (como o Termo de Colheita). */
+  const pceDocRegistrar = (tipo, registro, pessoa, propriedade) => chamar({ action: 'pceDocRegistrar', tipo, registro: limpo(registro),
+    pessoa: pessoa ? limpo(pessoa) : undefined, propriedade: propriedade ? limpo(propriedade) : undefined }, 20000);
   const pceProximoNumero = (unidade, ano) => chamar({ action: 'pceProximoNumero', unidade: unidadePce(unidade), ano }, 9000);
   /** Emissão do Termo de Colheita: a planilha só grava se o número ainda estiver livre (como o TF). */
   const pceEmitir = (colheita, pessoa, propriedade) => chamar({ action: 'pceEmitir', colheita: limpo(colheita),
@@ -275,6 +286,9 @@ const Sync = (() => {
         await aplicar('tfs', r.tfs || []);
         await aplicar('levantamentos', r.levantamentos || []);
         await aplicar('colheitas', r.colheitas || []);
+        await aplicar('cadastrosPce', r.cadastrosPce || []);
+        await aplicar('termosPce', r.termosPce || []);
+        await lembrarUltimosDocPce(r.ultimosDocPce);
         if (r.barreiras) await Store.setMeta('barreiras', r.barreiras);
         await lembrarUltimos(r.ultimos);
         await lembrarUltimosPce(r.ultimosPce);
@@ -376,5 +390,5 @@ const Sync = (() => {
 
   return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, ativar, desativar, consultar, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
-    pceProximoNumero, pceEmitir, pceConsultar, pceBaixarMunicipio, lembrarUltimosPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
+    pceProximoNumero, pceEmitir, pceConsultar, pceBaixarMunicipio, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

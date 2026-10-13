@@ -66,6 +66,10 @@ Ideias discutidas com a gerência que ainda **não** foram implementadas. Cada u
   - registrar várias pragas numa só visita (o módulo já tem um cartão por praga);
   - a **via do produtor sem impressora**: PDF por WhatsApp ou e-mail, link ou QR do documento, impressão depois no escritório.
 
+### 2b. Cadastro de imóvel (monilíase), Termo de Fiscalização do PCE e Relatório de atividades
+*Modelos enviados pelo gestor (cadastros .docx e o relatório real de Autazes, jul/2026). **Implementado** em 13/10/2026 (README → "Monilíase"): cadastro 1x por propriedade, termo por visita ligado ao cadastro, digitação do papel, numeração própria e relatório de prestação de contas (app e painel).*
+- **Ainda a fazer:** cadastros dos outros programas (banana, citros, mandioca, soja, propriedade geral) — a aba `CadastrosPCE` já tem `programa` e `dados` (JSON) para isso; fotos no termo/cadastro (a coluna `fotos` existe, sem tela); relatório no app com os termos de outros servidores (hoje usa os do aparelho; o painel usa todos).
+
 ### 2a. Dados do município no celular (sem internet) + mapa e rota das propriedades
 *Ideia do gestor (12/10/2026). **Implementado** em 12/10/2026 (README → "PCE em campo"): dados do município no aparelho, busca por CPF/nome/código sem internet, mapa "Perto de mim", rota no Google Maps e "📤 Enviar ao produtor" (PDF gerado no aparelho). Os campos novos da ficha e do cadastro de propriedade, quando chegarem, já vêm no download (todas as colunas da planilha).*
 - **"Baixar dados para o campo"**: antes de sair, com internet, o servidor escolhe o(s) **município(s)** e o app baixa os **produtores e propriedades** cadastrados neles: nome, CPF, código, coordenadas, situação fundiária e último levantamento.

@@ -4,7 +4,7 @@
 const VERSAO = 'painel-v1';
 const ARQUIVOS = [
   './', 'index.html', 'manifest.webmanifest', 'css/painel.css', '../js/config.js', '../js/versao.js',
-  'js/painel.js', 'js/painel-barreiras.js', 'js/painel-tf.js', 'js/painel-pce.js', 'js/painel-acessos.js', 'js/painel-publico.js', 'js/painel-tv.js',
+  '../documentos/pce-docs.js', 'js/painel.js', 'js/painel-barreiras.js', 'js/painel-tf.js', 'js/painel-pce.js', 'js/painel-acessos.js', 'js/painel-publico.js', 'js/painel-tv.js',
   'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css', 'vendor/leaflet-heat.js', 'vendor/chart.umd.js',
   'dados/am-municipios.json', '../img/logo-adaf.png', 'img/icon-192.png', 'img/icon-512.png'
 ];

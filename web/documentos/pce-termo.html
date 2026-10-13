@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Termo de Fiscalização (PCE)</title>
+<link rel="stylesheet" href="pce.css">
+<style>
+/* Termo de Fiscalização do PCE — layout do modelo de papel da ADAF (1 folha A4). Estilos com prefixo .doc-termo (o relatório anexa esta página). */
+@page{ size:A4 portrait; margin:8mm 7mm; }
+.doc-termo{ font-family:Arial, Helvetica, sans-serif; }
+.doc-termo .cab{ text-align:center; line-height:1.2; margin-bottom:2px; }
+.doc-termo .cab img{ height:62px; }
+.doc-termo .cab .gov{ font-size:12.5px; font-weight:bold; }
+.doc-termo .cab .ag{ font-size:11.5px; font-weight:bold; }
+.doc-termo table.tq{ width:100%; border-collapse:collapse; border:1.5px solid #000; }
+.doc-termo table.tq td{ border:1px solid #000; padding:2px 5px; font-size:12.5px; vertical-align:top; }
+.doc-termo .tit{ font-size:23px; font-weight:bold; padding:4px 6px; white-space:nowrap; }
+.doc-termo .tit .num{ display:inline-block; min-width:62mm; border-bottom:1px solid #000; font-size:19px; text-align:center; margin-left:4mm; font-weight:bold; }
+.doc-termo .tit .leg{ font-size:9.5px; font-weight:bold; text-align:right; padding-right:8mm; letter-spacing:.3px; }
+.doc-termo .sec{ font-size:14px; font-weight:bold; padding-top:3px; }
+.doc-termo .sec small{ font-size:9.5px; font-weight:normal; }
+.doc-termo .r{ font-size:11.5px; }
+.doc-termo .v{ font-size:13px; font-weight:bold; font-family:'Courier New', monospace; }
+.doc-termo .cxs{ font-size:12.5px; line-height:1.75; }
+.doc-termo .cx{ display:inline-block; width:10px; height:10px; border:1px solid #000; position:relative; vertical-align:-1px; margin:0 3px 0 0; }
+.doc-termo .cx.on::after{ content:'X'; position:absolute; left:1px; top:-2px; font-size:11px; font-weight:bold; line-height:13px; }
+.doc-termo .item{ margin-right:6px; white-space:nowrap; }
+.doc-termo .em u{ text-decoration:none; border-bottom:1px dotted #000; padding:0 6px; font-family:'Courier New', monospace; font-weight:bold; font-size:13px; }
+.doc-termo .linhas{ background-image:linear-gradient(to bottom, transparent 17px, #777 17px, #777 18px); background-size:100% 18px; line-height:18px;
+  font-family:'Courier New', monospace; font-weight:bold; font-size:12.5px; white-space:pre-wrap; overflow-wrap:anywhere; padding:0 2px; }
+.doc-termo .linhas.l6{ min-height:108px; } .doc-termo .linhas.l3{ min-height:54px; }
+.doc-termo .desc{ font-size:9px; text-align:center; }
+.doc-termo .tst td{ vertical-align:top; }
+.doc-termo .tst .lin{ font-size:12.5px; margin-top:6px; }
+.doc-termo .tst .lin u{ text-decoration:none; display:inline-block; min-width:56mm; border-bottom:1px solid #000; font-family:'Courier New', monospace; font-weight:bold; font-size:12px; }
+.doc-termo .ass{ text-align:center; font-size:12.5px; font-weight:bold; margin-top:2px; }
+.doc-termo .ass .ass-img{ height:15mm; display:flex; align-items:flex-end; justify-content:center; }
+.doc-termo .ass .ass-img img{ max-height:15mm; max-width:90%; }
+.doc-termo .ass .linha{ border-top:1px solid #000; margin:0 5mm; padding-top:1px; }
+.doc-termo .ass .ident{ font-size:9.5px; font-weight:normal; }
+.doc-termo .rec{ font-size:9.5px; }
+.doc-termo .vias{ display:flex; justify-content:space-around; font-size:12px; border-top:1px solid #000; margin-top:4mm; padding-top:1mm; }
+.doc-termo .extras{ font-size:8.5px; color:#666; text-align:right; margin-top:1mm; }
+.doc-termo .cancelado-faixa{ margin:2mm 0; }
+</style>
+</head>
+<body>
+<div class="a4 doc-termo">
+  <div class="via"></div>
+  <div class="cab"><img src="../img/brasao.png" alt="">
+    <div class="gov">GOVERNO DO ESTADO DO AMAZONAS</div>
+    <div class="ag">Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM</div></div>
+  <div class="cancelado-faixa" data-c="cancelado"></div>
+  <table class="tq">
+    <tr><td colspan="3" class="tit">TERMO DE FISCALIZAÇÃO Nº <span class="num" data-c="numeroTxt"></span>
+      <div class="leg">Nº sequencial &nbsp;&nbsp; Ano &nbsp;&nbsp;&nbsp; Unidade</div></td></tr>
+    <tr><td colspan="3" class="sec">1- Identificação</td></tr>
+    <tr><td style="width:46%"><span class="r">Nome:</span><br><span class="v" data-c="nome"></span></td>
+      <td style="width:26%"><span class="r">CPF:</span><br><span class="v" data-c="cpf"></span></td>
+      <td><span class="r">Atividade:</span><br><span class="v" data-c="atividade"></span></td></tr>
+    <tr><td><span class="r">Empresa / Fantasia:</span> <span class="v" data-c="empresa"></span></td>
+      <td><span class="r">CNPJ:</span> <span class="v" data-c="cnpjTxt"></span></td>
+      <td><span class="r">Atividade:</span> <span class="v" data-c="atividadeEmpresa"></span></td></tr>
+    <tr><td colspan="3"><span class="r">Endereço:</span> <span class="v" data-c="endereco"></span></td></tr>
+    <tr><td><span class="r">Município:</span> <span class="v" data-c="municipio"></span></td>
+      <td><span class="r">UF:</span> <span class="v" data-c="uf"></span></td>
+      <td><span class="r">Telefone:</span> <span class="v" data-c="telefone"></span></td></tr>
+    <tr><td colspan="3"><span class="r">Coordenadas Geográficas:</span> <span class="v" data-c="coordTxt"></span></td></tr>
+    <tr><td colspan="3" class="sec">2 – Descrição da Ação</td></tr>
+    <tr><td colspan="3" class="cxs">
+      <span class="item"><span class="cx" data-x="pragas=Ácaro Hindustânico"></span>Ácaro Hindustânico</span>
+      <span class="item"><span class="cx" data-x="pragas=Cancro Cítrico"></span>Cancro Cítrico</span>
+      <span class="item"><span class="cx" data-x="pragas=HLB"></span>HLB</span>
+      <span class="item"><span class="cx" data-x="pragas=Ferrugem Asiática da soja"></span>Ferrugem Asiática da soja</span><br>
+      <span class="item"><span class="cx" data-x="pragas=Fusariose FOC R4T"></span>Fusariose FOC R4T</span>
+      <span class="item"><span class="cx" data-x="pragas=Monilíase"></span>Monilíase</span>
+      <span class="item"><span class="cx" data-x="pragas=Mosca-da-Carambola"></span>Mosca-da-Carambola</span>
+      <span class="item"><span class="cx" data-x="pragas=Vassoura-de-bruxa da Mandioca"></span>Vassoura-de-bruxa da Mandioca</span><br>
+      <span class="item"><span class="cx" data-x="tipoLocal=Evento Agropecuário"></span>Evento Agropecuário</span>
+      <span class="item"><span class="cx" data-x="tipoLocal=Unidade de Produção (UP)"></span>Unidade de Produção (UP)</span>
+      <span class="item"><span class="cx" data-x="tipoLocal=Unidade de Consolidação (UC)"></span>Unidade de Consolidação (UC)</span><br>
+      <span class="em">Em <u data-c="dataTxt"></u> às <u data-c="hora"></u> hora(s) ao realizar ações de:</span><br>
+      <span class="item"><span class="cx" data-x="acoes=Controle/Erradicação"></span>Controle/Erradicação</span>
+      <span class="item"><span class="cx" data-x="acoes=Levantamento"></span>Levantamento</span>
+      <span class="item"><span class="cx" data-x="acoes=Monitoramento"></span>Monitoramento</span>
+      <span class="item"><span class="cx" data-x="acoes=Educação Sanitária"></span>Educação Sanitária</span><br>
+      <span class="item"><span class="cx" data-x="acoes=Fiscalização"></span>Fiscalização</span>
+      <div class="linhas l6" data-c="constatacao"></div>
+      <div class="desc">(descrever a situação constatada)</div></td></tr>
+    <tr><td colspan="3" class="sec">3 – Enquadramento Legal <small>(citar leis, decretos, resoluções, portarias, instruções normativas, artigos, incisos e alíneas)</small></td></tr>
+    <tr><td colspan="3"><div class="linhas l3" data-c="enquadramento"></div></td></tr>
+    <tr class="tst">
+      <td colspan="2" style="width:52%"><div class="sec" style="padding:0">4 – Testemunhas</div>
+        <div class="rec">(necessário apenas quando o autuado se negar em assinar o documento ou quando estiver ausente).</div>
+        <div class="lin">Nome: <u data-c="t1nome"></u></div><div class="lin">CPF/RG: <u data-c="t1doc"></u></div>
+        <div class="ass" data-ass="testemunha1"><div class="ass-img"></div><div class="linha">Assinatura</div></div>
+        <div class="lin">Nome: <u data-c="t2nome"></u></div><div class="lin">CPF/RG: <u data-c="t2doc"></u></div>
+        <div class="ass" data-ass="testemunha2"><div class="ass-img"></div><div class="linha">Assinatura</div></div></td>
+      <td><div class="sec" style="padding:0">Recebi a 2ª via deste Termo em:</div><div class="rec">(Data, hora e local).</div>
+        <div class="v" style="font-size:11.5px" data-c="recebidoEm"></div>
+        <div class="ass" data-ass="produtor"><div class="ass-img"></div><div class="linha">Assinatura</div></div>
+        <div class="ass" data-ass="servidor" style="margin-top:4mm"><div class="ass-img"></div><div class="linha">Assinatura e Identificação do Servidor da ADAF</div>
+          <div class="ident" data-c="servidorIdent"></div></div></td></tr>
+  </table>
+  <div class="vias"><span>1ª via: Interessado</span><span>2ª via: ADAF Central</span><span>3ª via: Unidade Local</span></div>
+  <div class="rodape">
+    <div class="rodape-esquerda" style="font-size:10px">Avenida Carlos Drummond de Andrade, 1460 Japiim<br>Conj. Atílio Andreazza, ULBRA, Bloco G, 1º andar<br>
+      Fone: (92) 99192-3067 / 99983-1176<br>Manaus-AM-CEP 69077-730<br>E-mail: gabinete@adaf.am.gov.br</div>
+    <div class="rodape-centro"><img src="../img/logo-adaf.png" alt="ADAF"></div>
+    <div class="rodape-direita" style="font-size:11px">Secretaria de Produção Rural do Estado do Amazonas – SEPROR/AM</div>
+  </div>
+  <div class="extras">e-GDV · <span data-c="extras"></span></div>
+</div>
+<script src="pce-docs.js"></script>
+</body>
+</html>

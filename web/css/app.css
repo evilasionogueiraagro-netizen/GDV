@@ -195,3 +195,5 @@ input:disabled { background:#eef1f6; color:#99a; }
 .mon-previa { background:#f8fafd; box-shadow:none; border:1px solid var(--linha); } .mon-rel-lista { margin:6px 0; padding-left:18px; } .mon-rel-lista li { margin:4px 0; }
 .campo-mon { margin:6px 0 0; color:var(--mut); }
 .cargo-outro { margin-top:6px; } .cargo-outro[hidden] { display:none; }
+/* PCE: produtor que não assina — foto com documento de identificação no lugar da assinatura */
+.pce-naoassina { margin:4px 0 8px; } .pce-docprod .pce-fotos { margin:6px 0; } .pce-ass[hidden], .pce-docprod[hidden] { display:none; }

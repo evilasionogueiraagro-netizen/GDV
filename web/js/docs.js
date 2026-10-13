@@ -264,11 +264,21 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
       alvo.append(fig);
     });
   }
-  // Coloca a imagem da assinatura (se colhida na tela) sobre a linha correspondente.
+  // Coloca a imagem da assinatura (se colhida na tela) sobre a linha correspondente. Quem não assina (ass[papel + 'Doc']):
+  // a foto da pessoa segurando o documento de identificação vai no lugar da assinatura, com o aviso na linha.
   function montarAssinaturas(d, ass, arquivos) {
     d.querySelectorAll('.assinatura[data-papel]').forEach(b => {
-      const src = imgSegura(arquivos[ass[b.getAttribute('data-papel')]]), area = b.querySelector('.area');
+      const papel = b.getAttribute('data-papel'), area = b.querySelector('.area'), docId = ass[papel + 'Doc'];
       area.textContent = '';
+      if (docId) {
+        area.classList.add('doc');
+        const src = imgSegura(arquivos[docId]);
+        if (src) { const im = d.createElement('img'); im.src = src; im.alt = 'Foto com documento de identificação'; area.append(im); }
+        else area.textContent = '(foto arquivada no Drive)';
+        b.querySelector('.linha').textContent = 'Não assina: identificado(a) por foto com documento de identificação oficial';
+        return;
+      }
+      const src = imgSegura(arquivos[ass[papel]]);
       if (src) { const im = d.createElement('img'); im.src = src; im.alt = ''; area.append(im); }
     });
   }
@@ -392,5 +402,26 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     imprimir(f, nomeT);
   }
 
-  return { ficha, termo, tf, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, ordenar, esc };
+  /* ---------- PCE: Cadastro de imóvel (monilíase), Termo de Fiscalização do PCE e Relatório de atividades ----------
+     Modelos declarativos (documentos/pce-termo.html, pce-cadastro-moniliase.html, pce-relatorio.html) preenchidos por documentos/pce-docs.js
+     (o mesmo script do painel). modo 'arquivo': devolve o PDF gerado no aparelho (pdf.js) em vez de abrir a impressão. */
+  const MODELO_MON = { termo: 'pce-termo.html', cadastro: 'pce-cadastro-moniliase.html', relatorio: 'pce-relatorio.html' };
+  function nomePdfMon(tipo, r) {
+    if (tipo === 'termo') return nomeArquivo('Termo_Fiscalizacao_' + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));
+    if (tipo === 'cadastro') return nomeArquivo('Cadastro_Moniliase_' + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));
+    return nomeArquivo(`Relatorio_Atividades_${r.localArq || r.local || ''}_${dataPce(r.de).replace(/\//g, '-')}_a_${dataPce(r.ate).replace(/\//g, '-')}`);
+  }
+  async function pceMon(tipo, dados, opcoes, modo) {
+    if (!dados) throw new Error('Registro não encontrado.');
+    const f = await abrirModelo(MODELO_MON[tipo]), w = f.contentWindow;
+    for (let i = 0; i < 50 && !w.PCEDocs; i++) await new Promise(r => setTimeout(r, 50));   // script do modelo ainda carregando
+    if (!w.PCEDocs) { f.remove(); throw new Error('Modelo de impressão indisponível nesta versão do app.'); }
+    await w.PCEDocs.montar(f.contentDocument, tipo, dados, opcoes || {});
+    const nome = nomePdfMon(tipo, dados);
+    if (modo === 'arquivo') return PDF.deFrame(f, nome);
+    imprimir(f, nome);
+    return f.contentDocument.querySelectorAll('.a4').length;
+  }
+
+  return { ficha, termo, tf, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, nomePdfMon, ordenar, esc };
 })();

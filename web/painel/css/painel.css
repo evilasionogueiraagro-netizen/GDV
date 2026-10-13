@@ -654,3 +654,8 @@ body.tv .pn-erro { font-size: 2.1vh; padding: 1.4vh; }
 .pn-pub-rodape .pn-btn-prim { min-height: 42px; padding: 8px 22px; font-weight: 650; }
 .pn-pub-msg { font-size: 13.5px; } .pn-pub-msg.ok { color: var(--bom-txt); font-weight: 600; } .pn-pub-msg.erro { color: var(--critico); font-weight: 600; }
 .pn-pub-msg:empty { display: none; }
+/* PCE monilíase: botão do relatório de atividades e diálogo */
+.pn-mon-acoes { display: flex; flex-wrap: wrap; gap: 8px; margin: 0 0 10px; }
+.pn-dlg-rel { width: min(560px, calc(100vw - 32px)); }
+.pn-dlg-rel .pn-dlg-campo input, .pn-dlg-rel .pn-dlg-campo textarea, .pn-dlg-rel .pn-dlg-campo select { font: inherit; font-size: 14px; font-weight: normal; padding: 7px 9px; border: 1px solid var(--base);
+  border-radius: 8px; background: var(--pg); color: var(--ink); max-width: none; width: 100%; box-sizing: border-box; }

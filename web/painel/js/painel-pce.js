@@ -3,7 +3,7 @@
   'use strict';
   if (typeof Painel === 'undefined') return;
   const P = Painel, fmt = P.fmt, esc = P.esc, norm = P.norm;
-  const COBERTURA_DIAS = 90;
+  // Cobertura municipal: anual (de 1º de janeiro até o fim do período), como a meta do programa
 
   /* ---------- auxiliares ---------- */
   const selo = (cls, txt) => `<span class="pn-selo ${cls}">${esc(txt)}</span>`;
@@ -40,9 +40,9 @@
 
   /* ---------- cobertura municipal ---------- */
   function cobertura(d, f) {
-    const N = d.semFiltro || {}, lim = P.somaDias(f.ate, -(COBERTURA_DIAS - 1));
-    const ultimo = {}, no90 = {};
-    const marca = (mun, data) => { const k = norm(mun); if (!k || !data || data > f.ate) return; if (!ultimo[k] || data > ultimo[k]) ultimo[k] = data; if (data >= lim) no90[k] = (no90[k] || 0) + 1; };
+    const N = d.semFiltro || {}, ano = String(f.ate).slice(0, 4), lim = ano + '-01-01';
+    const ultimo = {}, noAno = {};
+    const marca = (mun, data) => { const k = norm(mun); if (!k || !data || data > f.ate) return; if (!ultimo[k] || data > ultimo[k]) ultimo[k] = data; if (data >= lim) noAno[k] = (noAno[k] || 0) + 1; };
     (d.historicoPce || []).forEach(h => marca(h.municipio, h.data));
     (N.levantamentos || d.levantamentos).forEach(l => marca(l.municipio, l.data));
     const noPer = {}, det = {}; d.levantamentos.forEach(l => { const k = norm(l.municipio); noPer[k] = (noPer[k] || 0) + 1; det[k] = (det[k] || 0) + l.deteccoes; });
@@ -50,12 +50,12 @@
     if (f.local && f.local.tipo === 'municipio') muns = muns.filter(m => norm(m) === norm(f.local.valor));
     const linhas = muns.map(m => {
       const k = norm(m), u = ultimo[k] || null;
-      const sit = no90[k] ? (noPer[k] ? 2 : 1) : (u ? 0 : -1);
-      return { municipio: m, periodo: noPer[k] || 0, deteccoes: det[k] || 0, ult90: no90[k] || 0, ultimo: u, dias: u ? P.diasEntre(u, f.ate) : null, sit };
+      const sit = noAno[k] ? (noPer[k] ? 2 : 1) : (u ? 0 : -1);
+      return { municipio: m, periodo: noPer[k] || 0, deteccoes: det[k] || 0, ultAno: noAno[k] || 0, ultimo: u, dias: u ? P.diasEntre(u, f.ate) : null, sit };
     });
-    return { linhas, lim };
+    return { linhas, lim, ano };
   }
-  const SIT_COB = { 2: ['bom', 'Coberto no período'], 1: ['bom', `Coberto (${COBERTURA_DIAS} dias)`], 0: ['atencao', `Sem levantamento há + de ${COBERTURA_DIAS} dias`], '-1': ['serio', 'Sem levantamento no último ano'] };
+  const SIT_COB = { 2: ['bom', 'Coberto no período'], 1: ['bom', 'Coberto no ano'], 0: ['atencao', 'Sem levantamento no ano'], '-1': ['serio', 'Sem levantamento em 365 dias'] };
 
   /* ---------- focos de pragas (praga × município) ---------- */
   function focos(d) {
@@ -106,7 +106,7 @@
     const tipos = new Set(itens.map(x => x.cultura)).size;
     const termos = d.colheitas, amostrasTermos = termos.reduce((s, t) => s + qtdAmostras(t), 0);
     const cob = cobertura(d, f), nMun = cob.linhas.length;
-    const cob90 = cob.linhas.filter(l => l.sit >= 1).length, munPer = cob.linhas.filter(l => l.periodo).length;
+    const cobAno = cob.linhas.filter(l => l.sit >= 1).length, munPer = cob.linhas.filter(l => l.periodo).length;
     const nConf = auditoriaFiltrada(d, f).reduce((s, a) => s + (a.conflitos || 0) + a.duplicados.length, 0);
     return [
       { chave: 'levantamentos', rotulo: 'Levantamentos', valor: nL, detalhe: `${fmt.int(munPer)} município(s) no período` },
@@ -120,8 +120,12 @@
       { chave: 'amostras', rotulo: 'Amostras coletadas', valor: amostras, detalhe: 'culturas com coleta = Sim' },
       { chave: 'termos', rotulo: 'Termos de colheita', valor: termos.length, detalhe: `${fmt.int(amostrasTermos)} amostra(s) nos termos${d.colheitasCanceladas.length ? ` · ${d.colheitasCanceladas.length} cancelado(s)` : ''}${nConf ? ` · ${nConf} conflito(s) de nº` : ''}`,
         status: nConf ? 'critico' : null },
-      { chave: 'cobertura', rotulo: `Cobertura (${COBERTURA_DIAS} dias)`, valor: `${fmt.int(cob90)} / ${fmt.int(nMun)}`, detalhe: `municípios com levantamento de ${fmt.dataCurta(cob.lim)} a ${fmt.dataCurta(f.ate)}`,
-        status: nMun && cob90 / nMun < 0.5 ? 'atencao' : null, cobertos: cob90, total: nMun }
+      { chave: 'termosPce', rotulo: 'Termos de fiscalização', valor: (d.termosPce || []).length,
+        detalhe: `${fmt.int((d.termosPce || []).reduce((s, t) => s + (t.plantasInspecionadas || 0), 0))} plantas inspecionadas` },
+      { chave: 'cadastrosPce', rotulo: 'Cadastros monilíase', valor: (d.cadastrosPce || []).filter(c => c.data >= f.de && c.data <= f.ate).length,
+        detalhe: 'imóveis com hospedeiros cadastrados no período' },
+      { chave: 'cobertura', rotulo: `Cobertura (${cob.ano})`, valor: `${fmt.int(cobAno)} / ${fmt.int(nMun)}`, detalhe: `municípios com levantamento de ${fmt.dataCurta(cob.lim)} a ${fmt.dataCurta(f.ate)}`,
+        status: nMun && cobAno / nMun < 0.5 ? 'atencao' : null, cobertos: cobAno, total: nMun }
     ];
   }
 
@@ -132,7 +136,7 @@
     const pragas = P.contar(itens.filter(x => x.praga), 'praga');
     const suspPorPraga = pragas.map(([pr]) => itens.filter(x => x.praga === pr && x.suspeita).length);
     return { itens, pragas, suspPorPraga, cobertura: cob, focos: focos(d),
-             cob: { cobertos: cob.linhas.filter(l => l.sit >= 1).length, total: cob.linhas.length, semVisita90: nSit(0), semVisitaAno: nSit(-1), noPeriodo: cob.linhas.filter(l => l.periodo).length } };
+             cob: { cobertos: cob.linhas.filter(l => l.sit >= 1).length, total: cob.linhas.length, semVisitaNoAno: nSit(0), semVisitaAno: nSit(-1), noPeriodo: cob.linhas.filter(l => l.periodo).length } };
   }
 
   /* ---------- render ---------- */
@@ -140,7 +144,7 @@
     const p = P.paleta;
     const levs = d.levantamentos, termos = d.colheitas;
     const K = calculos(d, f), itens = K.itens, cob = K.cobertura, nMun = cob.linhas.length;
-    const cob90 = K.cob.cobertos, munPer = K.cob.noPeriodo;
+    const cobAno = K.cob.cobertos, munPer = K.cob.noPeriodo;
     const audit = auditoriaFiltrada(d, f);
 
     const s0 = P.el('p', 'pn-sub', `Período: ${esc(f.rotuloPeriodo)}${f.fiscal ? ' · Servidor: ' + esc(f.fiscal) : ''}${f.local && f.local.tipo === 'municipio' ? ' · Município: ' + esc(f.local.valor) : ''}` +
@@ -216,20 +220,20 @@
     ], fc, { id: 'pce-focos', csv: 'pce-focos-de-pragas.csv', ordenar: 'novo', limite: 15, vazio: 'Nenhuma praga detectada no período.' });
 
     /* Cobertura */
-    const sc = P.secao(c, 'Cobertura municipal', `Municípios com e sem levantamento no período e nos últimos ${COBERTURA_DIAS} dias (até ${fmt.data(f.ate)}). Considera todos os servidores e o histórico de 365 dias.`);
+    const sc = P.secao(c, 'Cobertura municipal', `Municípios com e sem levantamento no período e no ano de ${cob.ano} (de ${fmt.data(cob.lim)} a ${fmt.data(f.ate)}). Considera todos os servidores e o histórico de 365 dias.`);
     sc.parentNode.classList.add('pn-pce-cobertura');
     const nSit = k => cob.linhas.filter(l => l.sit === k).length;
     P.kpis(sc, [
       { rotulo: 'Com levantamento no período', valor: munPer, detalhe: `de ${fmt.int(nMun)} município(s)` },
-      { rotulo: `Cobertos nos últimos ${COBERTURA_DIAS} dias`, valor: cob90, detalhe: nMun ? fmt.pct(cob90 / nMun) + ' do estado' : null, status: nMun && cob90 === nMun ? 'bom' : null },
-      { rotulo: `Sem levantamento há + de ${COBERTURA_DIAS} dias`, valor: nSit(0), detalhe: 'tiveram levantamento no último ano', status: nSit(0) ? 'atencao' : null },
-      { rotulo: 'Sem levantamento no último ano', valor: nSit(-1), detalhe: 'nenhum registro em 365 dias', status: nSit(-1) ? 'serio' : null }
+      { rotulo: `Cobertos em ${cob.ano}`, valor: cobAno, detalhe: nMun ? fmt.pct(cobAno / nMun) + ' do estado' : null, status: nMun && cobAno === nMun ? 'bom' : null },
+      { rotulo: `Sem levantamento em ${cob.ano}`, valor: nSit(0), detalhe: 'tiveram levantamento nos últimos 365 dias', status: nSit(0) ? 'atencao' : null },
+      { rotulo: 'Sem levantamento em 365 dias', valor: nSit(-1), detalhe: 'nenhum registro em 365 dias', status: nSit(-1) ? 'serio' : null }
     ]);
     P.tabela(sc, [
       { chave: 'sit', rotulo: 'Situação', html: v => selo(SIT_COB[v][0], SIT_COB[v][1]), fmt: v => SIT_COB[v][1], csv: v => SIT_COB[v][1] },
       { chave: 'municipio', rotulo: 'Município' },
       { chave: 'periodo', rotulo: 'Levantam. no período', num: true, fmt: fmt.int }, { chave: 'deteccoes', rotulo: 'Detecções no período', num: true, fmt: fmt.int },
-      { chave: 'ult90', rotulo: `Levantam. em ${COBERTURA_DIAS} dias`, num: true, fmt: fmt.int },
+      { chave: 'ultAno', rotulo: `Levantam. em ${cob.ano}`, num: true, fmt: fmt.int },
       { chave: 'ultimo', rotulo: 'Último levantamento', fmt: v => v ? fmt.data(v) : 'há mais de 1 ano', ordem: l => l.ultimo || '' },
       { chave: 'dias', rotulo: 'Dias sem visita', num: true, fmt: v => v == null ? '> 365' : fmt.int(v), csv: v => v == null ? '' : v, ordem: l => l.dias == null ? 9999 : l.dias }
     ], cob.linhas, { id: 'pce-cobertura', csv: 'pce-cobertura-municipal.csv', ordenar: 'dias', limite: 15, vazio: 'Nenhum município.' });
@@ -295,6 +299,7 @@
       { chave: 'conflitos', rotulo: 'Conflitos', num: true, fmt: fmt.int }, { chave: 'cancelados', rotulo: 'Cancelados', num: true, fmt: fmt.int }
     ], linA, { id: 'pce-auditoria', titulo: 'Auditoria da numeração', subtitulo: 'Por unidade e ano. Lacuna = número sem termo; duplicado = mesmo número em dois termos.',
       csv: 'pce-auditoria-numeracao.csv', ordenar: 'sit', desc: false, vazio: 'Nenhum termo numerado no período.' });
+    secaoMoniliase(c, d, f);
     if (d.colheitasCanceladas.length) {
       P.tabela(st, [
         { chave: 'numeroTxt', rotulo: 'Nº', fmt: (v, l) => numTermo(l), ordem: l => (l.ano || 0) * 1e6 + (l.numero || 0) },
@@ -304,6 +309,91 @@
     }
   }
 
-  P.registrarAba({ id: 'pce', titulo: 'PCE', render, indicadores, calculos, COBERTURA_DIAS,
+  /* ---------- Monilíase: Termos de Fiscalização do PCE, Cadastros de imóvel e Relatório de atividades ---------- */
+  function secaoMoniliase(c, d, f) {
+    const termos = d.termosPceTodos || [], cads = d.cadastrosPce || [];
+    const sm = P.secao(c, 'Monilíase: termos e cadastros', 'Termos de Fiscalização do PCE (um por visita) e Cadastros de imóvel com hospedeiros. O relatório de atividades usa os filtros de período, município e servidor.');
+    sm.parentNode.classList.add('pn-pce-mon');
+    const bar = P.el('div', 'pn-mon-acoes');
+    const b = P.el('button', 'pn-btn pn-btn-prim', '📊 Relatório de atividades'); b.type = 'button'; b.id = 'pn-pce-relatorio';
+    b.onclick = () => dialogoRelatorio(d, f); bar.appendChild(b); sm.appendChild(bar);
+    const sit = t => [t.cancelado ? 'Cancelado' : '', t.conflito ? 'Conflito de nº' : '', t.numeroOrigem === 'papel' ? 'Do papel' : '', t.numeroOrigem === 'provisorio' ? 'Nº provisório' : ''].filter(Boolean).join(', ') || 'Regular';
+    P.tabela(sm, [
+      { chave: 'numeroTxt', rotulo: 'Nº', ordem: l => (l.ano || 0) * 1e6 + (l.numero || 0) },
+      { chave: 'data', rotulo: 'Data', fmt: (v, l) => `${fmt.data(v)}${l.hora ? ' ' + l.hora : ''}`, csv: v => fmt.data(v), ordem: l => (l.data || '') + (l.hora || '') },
+      { chave: 'municipio', rotulo: 'Município' }, { chave: 'nome', rotulo: 'Interessado', fmt: (v, l) => [v, l.doc].filter(Boolean).join(' · ') || '—' },
+      { chave: 'plantasInspecionadas', rotulo: 'Plantas', num: true, fmt: fmt.int },
+      { chave: 'acoes', rotulo: 'Ações', fmt: v => (Array.isArray(v) ? v : []).join(', ') || '—' },
+      { chave: 'amostra', rotulo: 'Amostra', fmt: v => v === 'sim' ? 'Sim' : 'Não' }, { chave: 'servidor', rotulo: 'Servidor' },
+      { chave: 'cadastroId', rotulo: 'Cadastro', fmt: v => v ? 'Ligado' : '—' }, { chave: 'sit', rotulo: 'Situação', fmt: (v, l) => sit(l) }
+    ], termos, { id: 'pce-termos-fisc', titulo: 'Termos de Fiscalização', csv: 'pce-termos-fiscalizacao.csv', ordenar: 'numeroTxt', limite: 15, vazio: 'Nenhum Termo de Fiscalização no período.' });
+    P.tabela(sm, [
+      { chave: 'numeroTxt', rotulo: 'Nº', ordem: l => (l.ano || 0) * 1e6 + (l.numero || 0) }, { chave: 'data', rotulo: 'Data', fmt: fmt.data },
+      { chave: 'municipio', rotulo: 'Município' }, { chave: 'nome', rotulo: 'Produtor', fmt: (v, l) => [v, l.doc].filter(Boolean).join(' · ') || '—' },
+      { chave: 'propriedade', rotulo: 'Propriedade', fmt: v => v || '—' }, { chave: 'totalPlantas', rotulo: 'Plantas', num: true, fmt: fmt.int },
+      { chave: 'sintomas', rotulo: 'Sintomas', fmt: (v, l) => (l.dados && l.dados.sintomas === 'sim') ? 'Sim' : 'Não' }, { chave: 'servidor', rotulo: 'Servidor' }
+    ], cads, { id: 'pce-cadastros-mon', titulo: 'Cadastros de imóvel (monilíase)', csv: 'pce-cadastros-moniliase.csv', ordenar: 'numeroTxt', limite: 15, vazio: 'Nenhum cadastro no período.' });
+  }
+  const REL_LS = 'gdv.painel.relatorioPce';
+  function dialogoRelatorio(d, f) {
+    if (typeof PCEDocs === 'undefined') return alert('Atualize o painel (falta o gerador do relatório).');
+    const velho = document.getElementById('pn-relatorio'); if (velho) velho.remove();
+    let m = {}; try { m = JSON.parse(localStorage.getItem(REL_LS) || '{}') || {}; } catch (e) { m = {}; }
+    const mun = f.local && f.local.tipo === 'municipio' ? f.local.valor : '';
+    const pragas = (CONFIG.PCE.termo && CONFIG.PCE.termo.pragas) || ['Monilíase'];
+    const calc = (praga, folders) => PCEDocs.calcularRelatorio(d.termosPceTodos || [], d.cadastrosPce || [], { de: f.de, ate: f.ate, municipio: mun, praga, servidores: f.fiscal ? [f.fiscal] : [], folders });
+    let R = calc(m.praga || 'Monilíase');
+    const servTxt = R => R.servidores.map(x => [x.nome, x.funcao].filter(Boolean).join(' - ')).join('\n');
+    const objetivo = pr => ((CONFIG.PCE.termo || {}).objetivos || {})[pr] || `Executar Ações de Levantamento Fitossanitário de detecção da praga ${pr}, visando a prevenção e ação imediata de contingência.`;
+    const dlg = P.el('dialog', 'pn-dlg pn-dlg-rel'); dlg.id = 'pn-relatorio';
+    const campo = (id, rot, v, tag) => `<label class="pn-dlg-campo">${esc(rot)}${tag === 'ta' ? `<textarea id="${id}" rows="3">${esc(v)}</textarea>` : `<input id="${id}" value="${esc(v)}">`}</label>`;
+    dlg.innerHTML = `<form method="dialog" class="pn-dlg-form" novalidate><h3>Relatório de atividades</h3>
+      <div class="pn-dlg-info"><b>${esc(f.rotuloPeriodo)}${mun ? ' · ' + esc(mun) : ''}${f.fiscal ? ' · ' + esc(f.fiscal) : ''}</b><span id="pn-rel-resumo"></span></div>
+      <label class="pn-dlg-campo">Praga/programa<select id="pn-rel-praga">${pragas.map(x => `<option ${x === (m.praga || 'Monilíase') ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+      ${campo('pn-rel-conv', 'Convênio nº', m.convenio || '')}${campo('pn-rel-etapa', 'Etapa', m.etapa || '')}
+      ${campo('pn-rel-servs', 'Nome dos servidores (Nome - Função, um por linha; inclua o motorista)', servTxt(R), 'ta')}
+      ${campo('pn-rel-resp', 'Responsável pela equipe', R.servidores[0] ? [R.servidores[0].nome, R.servidores[0].funcao].filter(Boolean).join(' - ') : '')}
+      ${campo('pn-rel-local', 'Local', mun ? mun + '/AM' : R.municipios.map(x => x + '/AM').join(', '))}
+      ${campo('pn-rel-obj', 'Objetivo', objetivo(m.praga || 'Monilíase'), 'ta')}${campo('pn-rel-desl', 'Deslocamento', m.deslocamento || '')}
+      ${campo('pn-rel-folders', 'Educação Sanitária: nº de folders e flyers distribuídos', '')}
+      ${campo('pn-rel-obs', 'OBS', m.obs != null ? m.obs : 'Anexo Termo de Fiscalização e Cadastro de imóveis', 'ta')}
+      <label><input type="checkbox" id="pn-rel-anexos" ${m.anexos === false ? '' : 'checked'}> Anexar os Termos de Fiscalização e os Cadastros ligados (CPF mascarado)</label>
+      <div class="pn-dlg-botoes"><button type="button" class="pn-btn" id="pn-rel-cancelar">Cancelar</button><button type="submit" class="pn-btn pn-btn-prim" id="pn-rel-ok">🖨️ Imprimir / PDF</button></div></form>`;
+    document.body.appendChild(dlg);
+    const q = id => dlg.querySelector('#' + id);
+    const resumo = () => { q('pn-rel-resumo').textContent = `${R.nTermos} termo(s) · ${R.textos.plantas} · Educação Sanitária: ${R.textos.educacao} · ${R.cadastros.length} cadastro(s)`; };
+    const recalc = () => { R = calc(q('pn-rel-praga').value, Number(String(q('pn-rel-folders').value).replace(/\D/g, '')) || 0); resumo(); };
+    resumo();
+    q('pn-rel-praga').onchange = () => { recalc(); q('pn-rel-obj').value = objetivo(q('pn-rel-praga').value); };
+    q('pn-rel-folders').oninput = recalc;
+    q('pn-rel-cancelar').onclick = () => dlg.close();
+    dlg.addEventListener('close', () => dlg.remove());
+    dlg.querySelector('form').addEventListener('submit', async ev => {
+      ev.preventDefault(); recalc();
+      const v = id => q(id).value.trim(), anexar = q('pn-rel-anexos').checked;
+      const rel = { convenio: v('pn-rel-conv'), etapa: v('pn-rel-etapa'), responsavel: v('pn-rel-resp'), de: f.de, ate: f.ate, local: v('pn-rel-local'), objetivo: v('pn-rel-obj'),
+        deslocamento: v('pn-rel-desl'), praga: q('pn-rel-praga').value, obs: v('pn-rel-obs'), calc: R,
+        servidores: v('pn-rel-servs').split('\n').map(l => l.trim()).filter(Boolean).map(l => { const [nome, ...r] = l.split(/\s+-\s+/); return { nome, funcao: r.join(' - ') }; }) };
+      try { localStorage.setItem(REL_LS, JSON.stringify({ praga: rel.praga, convenio: rel.convenio, etapa: rel.etapa, deslocamento: rel.deslocamento, obs: rel.obs, anexos: anexar })); } catch (e) { /* sem armazenamento */ }
+      dlg.close();
+      await imprimirRelatorio(rel, anexar ? { termos: R.termos, cadastros: R.cadastros } : null);
+    });
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
+  }
+  /** Imprime o relatório (modelo ../documentos/pce-relatorio.html num iframe, como no app). */
+  async function imprimirRelatorio(rel, anexos) {
+    const fr = document.createElement('iframe');
+    fr.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:0';
+    await new Promise((ok, no) => { fr.onload = ok; fr.onerror = no; fr.src = '../documentos/pce-relatorio.html'; document.body.appendChild(fr); });
+    const w = fr.contentWindow;
+    for (let i = 0; i < 50 && !w.PCEDocs; i++) await new Promise(r => setTimeout(r, 50));
+    await w.PCEDocs.montar(fr.contentDocument, 'relatorio', rel, { anexos });
+    const titulo = document.title, nome = `Relatorio_Atividades_${String(rel.local || '').replace(/[^\w]+/g, '_')}_${rel.de}_a_${rel.ate}`;
+    document.title = nome; fr.contentDocument.title = nome;
+    w.addEventListener('afterprint', () => { document.title = titulo; fr.remove(); });
+    w.focus(); w.print();
+  }
+
+  P.registrarAba({ id: 'pce', titulo: 'PCE', render, indicadores, calculos,
     contador: d => alertasPce(d).filter(a => a.nivel === 'critico').length });
 })();

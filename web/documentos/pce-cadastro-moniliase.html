@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Cadastro de imóveis com hospedeiros da monilíase</title>
+<link rel="stylesheet" href="pce.css">
+<style>
+/* Cadastro de imóveis com hospedeiros da monilíase — layout do modelo da ADAF/GDV (1 folha A4). Prefixo .doc-cad (o relatório anexa esta página). */
+@page{ size:A4 portrait; margin:8mm 7mm; }
+.doc-cad{ font-family:Arial, Helvetica, sans-serif; }
+.doc-cad .cab{ text-align:center; line-height:1.35; margin-bottom:2px; }
+.doc-cad .cab img{ height:58px; }
+.doc-cad .cab div{ font-size:12px; }
+.doc-cad table.cq{ width:100%; border-collapse:collapse; border:1.2px solid #000; }
+.doc-cad table.cq td{ border:1px solid #000; padding:2px 4px; font-size:11.5px; vertical-align:middle; }
+.doc-cad .tit{ font-size:16.5px; font-weight:bold; padding:3px 6px 1px; }
+.doc-cad .tit .num{ display:inline-block; min-width:52mm; border-bottom:1px solid #000; font-size:14px; text-align:center; font-family:'Courier New', monospace; }
+.doc-cad .tit .leg{ font-size:8.5px; text-align:right; padding-right:12mm; font-weight:bold; }
+.doc-cad .sec{ text-align:center; font-weight:bold; font-size:12px; }
+.doc-cad .b{ font-weight:bold; }
+.doc-cad .peq td{ font-size:9.5px; }
+.doc-cad .m{ font-family:'Courier New', monospace; font-weight:bold; white-space:nowrap; }
+.doc-cad .v{ font-family:'Courier New', monospace; font-weight:bold; font-size:12px; border-bottom:1px solid #000; display:inline-block; min-width:18mm; padding:0 2px; }
+.doc-cad .v.l{ min-width:70mm; } .doc-cad .v.m2{ min-width:34mm; } .doc-cad .v.s{ min-width:12mm; }
+.doc-cad .dados td{ font-size:9.5px; line-height:1.9; }
+.doc-cad .dados .v{ font-size:11px; }
+.doc-cad .cult td{ font-size:12px; }
+.doc-cad .cult .v.s{ min-width:9mm; }
+.doc-cad .cult .h{ font-weight:bold; }
+.doc-cad .fito td{ font-size:11.5px; padding:1px 4px; }
+.doc-cad .fito td.x{ width:10mm; text-align:center; font-weight:bold; }
+.doc-cad .det td{ font-size:10px; font-weight:bold; padding:5px 4px; }
+.doc-cad .det .m{ font-weight:bold; }
+.doc-cad .assin td{ padding:2mm 3mm; }
+.doc-cad .assin .col{ width:33%; vertical-align:bottom; text-align:center; font-size:9.5px; font-weight:bold; }
+.doc-cad .assin .ass-img{ height:14mm; display:flex; align-items:flex-end; justify-content:center; }
+.doc-cad .assin .ass-img img{ max-height:14mm; max-width:95%; }
+.doc-cad .assin .linha{ border-top:1px solid #000; padding-top:1px; }
+.doc-cad .assin .serv{ font-weight:normal; font-size:9.5px; line-height:1.25; }
+.doc-cad .assin .meio{ text-align:left; font-size:9.5px; line-height:2.2; vertical-align:middle; }
+.doc-cad .vias{ display:flex; justify-content:space-around; font-size:9px; margin-top:1px; }
+.doc-cad .rodape{ margin-top:2mm; }
+</style>
+</head>
+<body>
+<div class="a4 doc-cad">
+  <div class="via"></div>
+  <div class="cab"><img src="../img/brasao.png" alt="">
+    <div>GOVERNO DO ESTADO DO AMAZONAS</div>
+    <div>Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM</div>
+    <div>Gerência de Defesa Vegetal – GDV</div></div>
+  <table class="cq">
+    <tr><td colspan="6" class="tit">CADASTRO DE IMÓVEIS COM HOSPEDEIROS DA MONILÍASE Nº <span class="num" data-c="numeroTxt"></span>
+      <div class="leg">Nº sequencial &nbsp; Ano &nbsp;&nbsp; Unidade</div></td></tr>
+    <tr><td colspan="2" class="b" style="width:38%">PROPRIEDADE COMERCIAL?</td>
+      <td colspan="4"><span class="m" data-m="d.comercial=sim"></span> SIM &nbsp; <span class="m" data-m="d.comercial=nao"></span> NÃO</td></tr>
+    <tr class="peq"><td colspan="6">Propriedade não comercial: <span class="m" data-m="d.tipoNaoComercial=sitio"></span> sítio; <span class="m" data-m="d.tipoNaoComercial=residencia"></span> residência;
+      <span class="m" data-m="d.tipoNaoComercial=vegetacao"></span> vegetação espontânea; <span class="m" data-m="d.tipoNaoComercial=publica"></span> área pública;
+      <span class="m" data-m="d.tipoNaoComercial=outros"></span> outros: <span data-c="d.tipoOutros"></span></td></tr>
+    <tr><td colspan="6" class="sec">1. &nbsp; DADOS DO PRODUTOR/PROPRIETÁRIO</td></tr>
+    <tr class="dados"><td colspan="6">
+      NOME DO PRODUTOR <span class="v l" data-c="nome"></span> CPF: <span class="v m2" data-c="cpf"></span><br>
+      NOME DA PROPRIEDADE: <span class="v l" data-c="propriedade"></span> CNPJ: <span class="v m2" data-c="cnpjTxt"></span><br>
+      GEORREFERENCIAMENTO: &nbsp; Lat.: <span class="v m2" data-c="latTxt"></span> &nbsp; Lon.: <span class="v m2" data-c="lonTxt"></span><br>
+      Principal via de acesso à propriedade: <span class="m" data-m="d.viaAcesso=fluvial"></span> Fluvial <span class="m" data-m="d.viaAcesso=terrestre"></span> Terrestre
+      <span class="m" data-m="d.viaAcesso=outra"></span> Outra: <span class="v m2" data-c="d.viaOutra"></span><br>
+      ENDEREÇO: <span class="v l" data-c="d.endereco"></span> MUNICÍPIO: <span class="v m2" data-c="municipio"></span> UF: <span class="v s" data-c="uf"></span></td></tr>
+    <tr><td colspan="6" class="sec">2. &nbsp; TIPO DE ATIVIDADE</td></tr>
+    <tr class="cult"><td colspan="6">Cultura (Nº de plantas) : <span class="h">Cupuaçú</span> <span class="v s" data-c="d.plantas.cupuacu"></span>
+      <span class="h">Cacau</span> <span class="v s" data-c="d.plantas.cacau"></span> <span class="h">Herrania</span> <span class="v s" data-c="d.plantas.herrania"></span>
+      <span class="h">Cacauí</span> <span class="v s" data-c="d.plantas.cacaui"></span> <span class="h">Cupuí</span> <span class="v s" data-c="d.plantas.cupui"></span>
+      <span class="h">Macambo</span> <span class="v s" data-c="d.plantas.macambo"></span> <span class="h">Total</span> <span class="v s" data-c="d.total"></span></td></tr>
+    <tr class="cult"><td colspan="3">Existe área abandonada com as culturas: <span class="m" data-m="d.areaAbandonada=sim"></span>Sim <span class="m" data-m="d.areaAbandonada=nao"></span>Não</td>
+      <td colspan="3">Área total plantada(ha): <span class="v s" data-c="d.areaTotal"></span> Idade do Plantio: <span class="v s" data-c="d.idadePlantioTxt"></span></td></tr>
+    <tr class="cult"><td colspan="3">Área em produção(ha): <span class="v s" data-c="d.areaProducao"></span> Idade do Plantio: <span class="v s" data-c="d.idadeProducaoTxt"></span></td>
+      <td colspan="3">Retirada de frutos mumificados: <span class="m" data-m="d.mumificados=sim"></span>Sim <span class="m" data-m="d.mumificados=nao"></span>Não</td></tr>
+    <tr class="cult"><td colspan="6">Origem das sementes/mudas : <span class="m" data-m="d.origem=proprias"></span> próprias <span class="m" data-m="d.origem=terceiros"></span> terceiros – informar fonte: <span class="v m2" data-c="d.origemFonte"></span></td></tr>
+    <tr class="cult"><td colspan="3">Produção (sacas ou kg): <span class="v m2" data-c="d.producaoTxt"></span></td>
+      <td colspan="3">Destino da produção: <span class="v m2" data-c="d.destino"></span></td></tr>
+    <tr class="cult"><td colspan="3">Sacaria utilizada: <span class="m" data-m="d.sacaria=nova"></span> nova <span class="m" data-m="d.sacaria=reutilizada"></span> reutilizada</td>
+      <td colspan="3">Utiliza algum controle de Praga: <span class="m" data-m="d.controlePraga=sim"></span> Sim <span class="m" data-m="d.controlePraga=nao"></span> Não</td></tr>
+    <tr class="cult"><td colspan="6">Assistência Técnica: <span class="m" data-m="d.assistencia=nao"></span> Não possui <span class="m" data-m="d.assistencia=privada"></span> privada
+      <span class="m" data-m="d.assistencia=publica"></span> pública/ orgão: <span class="v m2" data-c="d.assistenciaOrgao"></span></td></tr>
+    <tr class="cult"><td colspan="6">Frutos Inteiros saem da propriedade? <span class="m" data-m="d.frutosSaem=nao"></span> Não <span class="m" data-m="d.frutosSaem=sim"></span> Sim: Qual o destino? <span class="v m2" data-c="d.frutosDestino"></span></td></tr>
+    <tr><td colspan="6" class="sec">3. &nbsp; INFORMAÇÕES FITOSSANITÁRIAS</td></tr>
+    <tr class="fito"><td class="b" style="width:27%">Vassoura de Bruxa</td><td class="x"><span class="m" data-m="d.fito.vassoura.tem=sim"></span></td><td style="width:8%">sim</td>
+      <td class="x"><span class="m" data-m="d.fito.vassoura.tem=nao"></span></td><td style="width:8%">não</td><td>Há quanto tempo: <b data-c="d.fito.vassoura.tempo"></b></td></tr>
+    <tr class="fito"><td>Utiliza met. controle:</td><td class="x"><span class="m" data-m="d.fito.vassoura.controle=sim"></span></td><td>sim</td>
+      <td class="x"><span class="m" data-m="d.fito.vassoura.controle=nao"></span></td><td>não</td><td>Qual: <b data-c="d.fito.vassoura.qual"></b></td></tr>
+    <tr class="fito"><td class="b">Podridão Parda</td><td class="x"><span class="m" data-m="d.fito.podridao.tem=sim"></span></td><td>sim</td>
+      <td class="x"><span class="m" data-m="d.fito.podridao.tem=nao"></span></td><td>não</td><td>Há quanto tempo: <b data-c="d.fito.podridao.tempo"></b></td></tr>
+    <tr class="fito"><td>Utiliza met. controle:</td><td class="x"><span class="m" data-m="d.fito.podridao.controle=sim"></span></td><td>sim</td>
+      <td class="x"><span class="m" data-m="d.fito.podridao.controle=nao"></span></td><td>não</td><td>Qual: <b data-c="d.fito.podridao.qual"></b></td></tr>
+    <tr class="fito"><td class="b">Lazio</td><td class="x"><span class="m" data-m="d.fito.lazio.tem=sim"></span></td><td>sim</td>
+      <td class="x"><span class="m" data-m="d.fito.lazio.tem=nao"></span></td><td>não</td><td>Há quanto tempo: <b data-c="d.fito.lazio.tempo"></b></td></tr>
+    <tr class="fito"><td>Utiliza met. controle:</td><td class="x"><span class="m" data-m="d.fito.lazio.controle=sim"></span></td><td>sim</td>
+      <td class="x"><span class="m" data-m="d.fito.lazio.controle=nao"></span></td><td>não</td><td>Qual: <b data-c="d.fito.lazio.qual"></b></td></tr>
+    <tr><td colspan="6" class="sec">4. &nbsp; LEVANTAMENTO DE DETECÇÃO</td></tr>
+    <tr class="det"><td colspan="6">FRUTO COM SINTOMAS VISUAIS DE <i>Moniliophthora roreri</i>: <span class="m" data-m="d.sintomas=sim"></span> Sim &nbsp; <span class="m" data-m="d.sintomas=nao"></span> Não</td></tr>
+    <tr class="det"><td colspan="6">Em caso de planta com sintoma visual, informar coordenada da planta: <span class="v m2" data-c="d.sintomaLatTxt"></span> / <span class="v m2" data-c="d.sintomaLonTxt"></span></td></tr>
+    <tr class="det"><td colspan="2">Realizada Câmara Úmida <span class="m" data-m="d.camaraUmida=sim"></span> Sim <span class="m" data-m="d.camaraUmida=nao"></span> Não</td>
+      <td colspan="4">Câmara Úmida apresenta comportamento de <i>Moniliophthora roreri</i> <span class="m" data-m="d.camaraMr=sim"></span> Sim <span class="m" data-m="d.camaraMr=nao"></span> Não</td></tr>
+    <tr class="det"><td colspan="6">HOSPEDEIRO SUSPEITO: <span class="m" data-m="d.suspeitos=cupuacu"></span> Cupuaçu <span class="m" data-m="d.suspeitos=cacau"></span> Cacau
+      <span class="m" data-m="d.suspeitos=herrania"></span> Herrania <span class="m" data-m="d.suspeitos=cupui"></span> Cupuí <span class="m" data-m="d.suspeitos=cacaui"></span> Cacauí
+      <span class="m" data-m="d.suspeitos=macambo"></span> Macambo</td></tr>
+    <tr class="det"><td colspan="2">COLHEITA DE AMOSTRA: <span class="m" data-m="d.amostra=sim"></span> Sim <span class="m" data-m="d.amostra=nao"></span> Não</td>
+      <td colspan="4">DIAGNÓSTICO: <span class="m" data-m="d.diagnostico=positivo"></span> Positivo para <i>M. roreri</i> &nbsp; <span class="m" data-m="d.diagnostico=negativo"></span> Negativo para <i>M. roreri</i></td></tr>
+    <tr class="assin"><td colspan="6"><table style="width:100%;border-collapse:collapse"><tr>
+      <td class="col" style="border:0" data-ass="servidor"><div class="ass-img"></div><div class="linha">SERVIDOR DA ADAF-AM</div>
+        <div class="serv"><b data-c="servidor"></b><br><span data-c="servCargo"></span><br><span data-c="servMat"></span><br><span data-c="servLot"></span></div></td>
+      <td class="meio" style="border:0">DATA: <span class="v m2" data-c="dataTxt"></span><br>Local: <span class="v m2" data-c="local"></span></td>
+      <td class="col" style="border:0" data-ass="produtor"><div class="ass-img"></div><div class="linha">PRODUTOR/PROPRIETÁRIO</div><div class="serv" data-c="nome"></div></td>
+    </tr></table></td></tr>
+  </table>
+  <div class="vias"><span>1ª via: Unidade Local</span><span>2ª via: ADAF Central (E-mail)</span></div>
+  <div class="rodape">
+    <div class="rodape-esquerda" style="font-size:10px">Avenida Carlos Drummond de Andrade, 1460 Japiim<br>Conj. Atilio Andreazza. ULBRA, Bloco G, 1º andar<br>
+      Fone: (92) 99192-3067 / 99983-1176<br>Manaus-AM-CEP 69077-730</div>
+    <div class="rodape-centro"><img src="../img/logo-adaf.png" alt="ADAF"></div>
+    <div class="rodape-direita" style="font-size:11px">Secretaria de Produção Rural do Estado do Amazonas – SEPROR/AM</div>
+  </div>
+</div>
+<script src="pce-docs.js"></script>
+</body>
+</html>

@@ -3,12 +3,13 @@
 // e faz o envio "só de subida" que o service worker executa quando o Android devolve a conexão (Background Sync).
 // Não usa window/document/localStorage: roda também dentro do service worker. Depende de Store (store.js) e CONFIG (config.js).
 const Envio = (() => {
-  const NOMES = ['t', 'v', 'f', 'p', 'l', 'g', 'c', 'r'];
-  const STORES = { t: 'turnos', v: 'veiculos', f: 'tfs', p: 'pessoas', l: 'placas', g: 'levantamentos', c: 'colheitas', r: 'propriedades' };
-  const CAMPOS = { t: 'turnos', v: 'veiculos', f: 'tfs', p: 'pessoas', l: 'placas', g: 'levantamentos', c: 'colheitas', r: 'propriedades' };   // nome no corpo da requisição
-  const LIMITES = { t: 500, v: 1000, f: 100, p: 300, l: 300, g: 100, c: 100, r: 300 };                                                         // registros por rodada
+  // k = Cadastro de imóvel do PCE (monilíase…), m = Termo de Fiscalização do PCE
+  const NOMES = ['t', 'v', 'f', 'p', 'l', 'g', 'c', 'r', 'k', 'm'];
+  const STORES = { t: 'turnos', v: 'veiculos', f: 'tfs', p: 'pessoas', l: 'placas', g: 'levantamentos', c: 'colheitas', r: 'propriedades', k: 'cadastrosPce', m: 'termosPce' };
+  const CAMPOS = { t: 'turnos', v: 'veiculos', f: 'tfs', p: 'pessoas', l: 'placas', g: 'levantamentos', c: 'colheitas', r: 'propriedades', k: 'cadastrosPce', m: 'termosPce' };   // nome no corpo da requisição
+  const LIMITES = { t: 500, v: 1000, f: 100, p: 300, l: 300, g: 100, c: 100, r: 300, k: 100, m: 100 };                                                         // registros por rodada
   // stores de cada módulo (pessoas servem ao TF e ao PCE: sobem se qualquer um dos dois estiver liberado)
-  const MODULO_DO_STORE = { t: ['veiculos'], v: ['veiculos'], f: ['tf'], l: ['tf'], p: ['tf', 'pce'], g: ['pce'], c: ['pce'], r: ['pce'], a: ['tf', 'pce'] };   // a = arquivos (fotos/assinaturas do TF e do PCE)
+  const MODULO_DO_STORE = { t: ['veiculos'], v: ['veiculos'], f: ['tf'], l: ['tf'], p: ['tf', 'pce'], g: ['pce'], c: ['pce'], r: ['pce'], k: ['pce'], m: ['pce'], a: ['tf', 'pce'] };   // a = arquivos (fotos/assinaturas do TF e do PCE)
   /** Permissões por módulo (padrão: tudo liberado — aparelho que nunca sincronizou ou servidor antigo que não manda permissões).
    *  "antigo" (Digitar do papel: registros antigos e PDFs escaneados) é o contrário: só vale se o servidor mandar antigo=1. */
   const normPerm = o => {
@@ -21,7 +22,7 @@ const Envio = (() => {
   /** Registro digitado do papel (levantamento/termo com registroAntigo=1): só sobe com a permissão "antigo". */
   const ehAntigo = r => !!r && Number(r.registroAntigo) === 1;
   const podeAntigo = perm => !!perm && Number(perm.antigo) === 1;
-  const ANTIGO_NOS = ['g', 'c'];                                              // stores que podem ter registros antigos
+  const ANTIGO_NOS = ['g', 'c', 'k', 'm'];                                    // stores que podem ter registros antigos
   const TAG = 'gdv-enviar', TAG_PERIODICO = 'gdv-enviar-periodico';
 
   const limpo = ({ pendente, provisorio, ...r }) => r;
@@ -71,7 +72,7 @@ const Envio = (() => {
    * termos) e, sem a permissão "antigo", nada dos registros do papel (nem PDF). regs/tfs: listas já lidas (opcional).
    */
   async function arquivosPendentes(regs, perm, tfs) {
-    if (!regs) regs = [...await Store.todos('levantamentos'), ...await Store.todos('colheitas')];
+    if (!regs) regs = [...await Store.todos('levantamentos'), ...await Store.todos('colheitas'), ...await Store.todos('cadastrosPce'), ...await Store.todos('termosPce')];
     if (!tfs) tfs = await Store.todos('tfs');
     if (perm && perm.pce === 0) regs = [];
     if (perm && perm.tf === 0) tfs = [];
@@ -89,7 +90,7 @@ const Envio = (() => {
   async function pendentes() {
     const lst = await Promise.all(NOMES.map(n => Store.todos(STORES[n])));
     const o = {}; NOMES.forEach((n, i) => { o[n] = lst[i].filter(x => x.pendente); });
-    o.a = await arquivosPendentes([...lst[NOMES.indexOf('g')], ...lst[NOMES.indexOf('c')]], null, lst[NOMES.indexOf('f')]);
+    o.a = await arquivosPendentes(['g', 'c', 'k', 'm'].flatMap(n => lst[NOMES.indexOf(n)]), null, lst[NOMES.indexOf('f')]);
     o.aTF = await arquivosPendentesTF(lst[NOMES.indexOf('f')]);
     o.total = NOMES.reduce((s, n) => s + o[n].length, 0) + o.a.length;
     return o;

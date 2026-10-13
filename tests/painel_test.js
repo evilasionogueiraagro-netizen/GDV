@@ -196,7 +196,7 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   ok(alertas.some(a => a.n === 'critico' && /Barreira aberta há .*Itacoatiara/.test(a.t)), 'alerta crítico: barreira aberta há mais de 12 h');
   ok(alertas.some(a => a.n === 'serio' && /sem sinal .*Manacapuru/.test(a.t)), 'alerta sério: barreira sem sinal > 30 min');
   ok(alertas.some(a => /TF: 1 lacuna/.test(a.t)), 'alerta de lacuna na numeração de TF (nº 3)');
-  ok(alertas.some(a => /municípios sem levantamento PCE nos últimos 90 dias/.test(a.t)), 'alerta de cobertura PCE');
+  ok(alertas.some(a => new RegExp('municípios sem levantamento PCE em ' + HOJE.slice(0, 4)).test(a.t)), 'alerta de cobertura PCE (anual)');
   ok(alertas.some(a => a.n === 'serio' && /reincidente/.test(a.t)), 'alerta: reincidente com nova apreensão');
   const ordem = alertas.map(a => ({ critico: 0, serio: 1, atencao: 2, info: 3 }[a.n])); ok(ordem.every((v, i) => !i || ordem[i - 1] <= v), 'alertas ordenados crítico → sério → atenção');
   const nCrit = alertas.filter(a => a.n === 'critico').length;
@@ -309,7 +309,7 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
         pontos: ls.filter(l => l.lat != null).reduce((s, l) => s + l.culturasLista.filter(c => c.praga).length, 0) }; });
     ok(JSON.stringify(cal.l7) === '[true,1,1,3,1,"Vassoura-de-bruxa"]' && JSON.stringify(cal.l8) === '[false,true,0]', 'normalização: suspeita = detecção; mesma cultura em 2 pragas conta 1 vez na área; não detectada = negativo (fora do calor)', cal); }
   ok(k['Amostras coletadas'] === String(E30.amostras) && k['Termos de colheita'] === String(E30.termos), 'amostras e termos');
-  ok(k['Cobertura (90 dias)'] === '4 / 62', 'cobertura 90 dias = 4 / 62', k['Cobertura (90 dias)']);
+  { const kc = `Cobertura (${HOJE.slice(0, 4)})`; ok(k[kc] === '4 / 62', 'cobertura anual = 4 / 62', k[kc]); }
   const pm = '.pn-pce-mapa';
   ok(await p.locator(pm + ' .leaflet-pn-mun-pane path').count() === 62, 'mapa PCE com os 62 municípios');
   const pontosLev = await p.locator(pm + ' .leaflet-overlay-pane path.leaflet-interactive').count();

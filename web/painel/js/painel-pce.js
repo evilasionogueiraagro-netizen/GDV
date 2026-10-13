@@ -3,7 +3,7 @@
   'use strict';
   if (typeof Painel === 'undefined') return;
   const P = Painel, fmt = P.fmt, esc = P.esc, norm = P.norm;
-  const COBERTURA_DIAS = 90;
+  // Cobertura municipal: anual (de 1º de janeiro até o fim do período), como a meta do programa
 
   /* ---------- auxiliares ---------- */
   const selo = (cls, txt) => `<span class="pn-selo ${cls}">${esc(txt)}</span>`;
@@ -40,9 +40,9 @@
 
   /* ---------- cobertura municipal ---------- */
   function cobertura(d, f) {
-    const N = d.semFiltro || {}, lim = P.somaDias(f.ate, -(COBERTURA_DIAS - 1));
-    const ultimo = {}, no90 = {};
-    const marca = (mun, data) => { const k = norm(mun); if (!k || !data || data > f.ate) return; if (!ultimo[k] || data > ultimo[k]) ultimo[k] = data; if (data >= lim) no90[k] = (no90[k] || 0) + 1; };
+    const N = d.semFiltro || {}, ano = String(f.ate).slice(0, 4), lim = ano + '-01-01';
+    const ultimo = {}, noAno = {};
+    const marca = (mun, data) => { const k = norm(mun); if (!k || !data || data > f.ate) return; if (!ultimo[k] || data > ultimo[k]) ultimo[k] = data; if (data >= lim) noAno[k] = (noAno[k] || 0) + 1; };
     (d.historicoPce || []).forEach(h => marca(h.municipio, h.data));
     (N.levantamentos || d.levantamentos).forEach(l => marca(l.municipio, l.data));
     const noPer = {}, det = {}; d.levantamentos.forEach(l => { const k = norm(l.municipio); noPer[k] = (noPer[k] || 0) + 1; det[k] = (det[k] || 0) + l.deteccoes; });
@@ -50,12 +50,12 @@
     if (f.local && f.local.tipo === 'municipio') muns = muns.filter(m => norm(m) === norm(f.local.valor));
     const linhas = muns.map(m => {
       const k = norm(m), u = ultimo[k] || null;
-      const sit = no90[k] ? (noPer[k] ? 2 : 1) : (u ? 0 : -1);
-      return { municipio: m, periodo: noPer[k] || 0, deteccoes: det[k] || 0, ult90: no90[k] || 0, ultimo: u, dias: u ? P.diasEntre(u, f.ate) : null, sit };
+      const sit = noAno[k] ? (noPer[k] ? 2 : 1) : (u ? 0 : -1);
+      return { municipio: m, periodo: noPer[k] || 0, deteccoes: det[k] || 0, ultAno: noAno[k] || 0, ultimo: u, dias: u ? P.diasEntre(u, f.ate) : null, sit };
     });
-    return { linhas, lim };
+    return { linhas, lim, ano };
   }
-  const SIT_COB = { 2: ['bom', 'Coberto no período'], 1: ['bom', `Coberto (${COBERTURA_DIAS} dias)`], 0: ['atencao', `Sem levantamento há + de ${COBERTURA_DIAS} dias`], '-1': ['serio', 'Sem levantamento no último ano'] };
+  const SIT_COB = { 2: ['bom', 'Coberto no período'], 1: ['bom', 'Coberto no ano'], 0: ['atencao', 'Sem levantamento no ano'], '-1': ['serio', 'Sem levantamento em 365 dias'] };
 
   /* ---------- focos de pragas (praga × município) ---------- */
   function focos(d) {
@@ -106,7 +106,7 @@
     const tipos = new Set(itens.map(x => x.cultura)).size;
     const termos = d.colheitas, amostrasTermos = termos.reduce((s, t) => s + qtdAmostras(t), 0);
     const cob = cobertura(d, f), nMun = cob.linhas.length;
-    const cob90 = cob.linhas.filter(l => l.sit >= 1).length, munPer = cob.linhas.filter(l => l.periodo).length;
+    const cobAno = cob.linhas.filter(l => l.sit >= 1).length, munPer = cob.linhas.filter(l => l.periodo).length;
     const nConf = auditoriaFiltrada(d, f).reduce((s, a) => s + (a.conflitos || 0) + a.duplicados.length, 0);
     return [
       { chave: 'levantamentos', rotulo: 'Levantamentos', valor: nL, detalhe: `${fmt.int(munPer)} município(s) no período` },
@@ -124,8 +124,8 @@
         detalhe: `${fmt.int((d.termosPce || []).reduce((s, t) => s + (t.plantasInspecionadas || 0), 0))} plantas inspecionadas` },
       { chave: 'cadastrosPce', rotulo: 'Cadastros monilíase', valor: (d.cadastrosPce || []).filter(c => c.data >= f.de && c.data <= f.ate).length,
         detalhe: 'imóveis com hospedeiros cadastrados no período' },
-      { chave: 'cobertura', rotulo: `Cobertura (${COBERTURA_DIAS} dias)`, valor: `${fmt.int(cob90)} / ${fmt.int(nMun)}`, detalhe: `municípios com levantamento de ${fmt.dataCurta(cob.lim)} a ${fmt.dataCurta(f.ate)}`,
-        status: nMun && cob90 / nMun < 0.5 ? 'atencao' : null, cobertos: cob90, total: nMun }
+      { chave: 'cobertura', rotulo: `Cobertura (${cob.ano})`, valor: `${fmt.int(cobAno)} / ${fmt.int(nMun)}`, detalhe: `municípios com levantamento de ${fmt.dataCurta(cob.lim)} a ${fmt.dataCurta(f.ate)}`,
+        status: nMun && cobAno / nMun < 0.5 ? 'atencao' : null, cobertos: cobAno, total: nMun }
     ];
   }
 
@@ -136,7 +136,7 @@
     const pragas = P.contar(itens.filter(x => x.praga), 'praga');
     const suspPorPraga = pragas.map(([pr]) => itens.filter(x => x.praga === pr && x.suspeita).length);
     return { itens, pragas, suspPorPraga, cobertura: cob, focos: focos(d),
-             cob: { cobertos: cob.linhas.filter(l => l.sit >= 1).length, total: cob.linhas.length, semVisita90: nSit(0), semVisitaAno: nSit(-1), noPeriodo: cob.linhas.filter(l => l.periodo).length } };
+             cob: { cobertos: cob.linhas.filter(l => l.sit >= 1).length, total: cob.linhas.length, semVisitaNoAno: nSit(0), semVisitaAno: nSit(-1), noPeriodo: cob.linhas.filter(l => l.periodo).length } };
   }
 
   /* ---------- render ---------- */
@@ -144,7 +144,7 @@
     const p = P.paleta;
     const levs = d.levantamentos, termos = d.colheitas;
     const K = calculos(d, f), itens = K.itens, cob = K.cobertura, nMun = cob.linhas.length;
-    const cob90 = K.cob.cobertos, munPer = K.cob.noPeriodo;
+    const cobAno = K.cob.cobertos, munPer = K.cob.noPeriodo;
     const audit = auditoriaFiltrada(d, f);
 
     const s0 = P.el('p', 'pn-sub', `Período: ${esc(f.rotuloPeriodo)}${f.fiscal ? ' · Servidor: ' + esc(f.fiscal) : ''}${f.local && f.local.tipo === 'municipio' ? ' · Município: ' + esc(f.local.valor) : ''}` +
@@ -220,20 +220,20 @@
     ], fc, { id: 'pce-focos', csv: 'pce-focos-de-pragas.csv', ordenar: 'novo', limite: 15, vazio: 'Nenhuma praga detectada no período.' });
 
     /* Cobertura */
-    const sc = P.secao(c, 'Cobertura municipal', `Municípios com e sem levantamento no período e nos últimos ${COBERTURA_DIAS} dias (até ${fmt.data(f.ate)}). Considera todos os servidores e o histórico de 365 dias.`);
+    const sc = P.secao(c, 'Cobertura municipal', `Municípios com e sem levantamento no período e no ano de ${cob.ano} (de ${fmt.data(cob.lim)} a ${fmt.data(f.ate)}). Considera todos os servidores e o histórico de 365 dias.`);
     sc.parentNode.classList.add('pn-pce-cobertura');
     const nSit = k => cob.linhas.filter(l => l.sit === k).length;
     P.kpis(sc, [
       { rotulo: 'Com levantamento no período', valor: munPer, detalhe: `de ${fmt.int(nMun)} município(s)` },
-      { rotulo: `Cobertos nos últimos ${COBERTURA_DIAS} dias`, valor: cob90, detalhe: nMun ? fmt.pct(cob90 / nMun) + ' do estado' : null, status: nMun && cob90 === nMun ? 'bom' : null },
-      { rotulo: `Sem levantamento há + de ${COBERTURA_DIAS} dias`, valor: nSit(0), detalhe: 'tiveram levantamento no último ano', status: nSit(0) ? 'atencao' : null },
-      { rotulo: 'Sem levantamento no último ano', valor: nSit(-1), detalhe: 'nenhum registro em 365 dias', status: nSit(-1) ? 'serio' : null }
+      { rotulo: `Cobertos em ${cob.ano}`, valor: cobAno, detalhe: nMun ? fmt.pct(cobAno / nMun) + ' do estado' : null, status: nMun && cobAno === nMun ? 'bom' : null },
+      { rotulo: `Sem levantamento em ${cob.ano}`, valor: nSit(0), detalhe: 'tiveram levantamento nos últimos 365 dias', status: nSit(0) ? 'atencao' : null },
+      { rotulo: 'Sem levantamento em 365 dias', valor: nSit(-1), detalhe: 'nenhum registro em 365 dias', status: nSit(-1) ? 'serio' : null }
     ]);
     P.tabela(sc, [
       { chave: 'sit', rotulo: 'Situação', html: v => selo(SIT_COB[v][0], SIT_COB[v][1]), fmt: v => SIT_COB[v][1], csv: v => SIT_COB[v][1] },
       { chave: 'municipio', rotulo: 'Município' },
       { chave: 'periodo', rotulo: 'Levantam. no período', num: true, fmt: fmt.int }, { chave: 'deteccoes', rotulo: 'Detecções no período', num: true, fmt: fmt.int },
-      { chave: 'ult90', rotulo: `Levantam. em ${COBERTURA_DIAS} dias`, num: true, fmt: fmt.int },
+      { chave: 'ultAno', rotulo: `Levantam. em ${cob.ano}`, num: true, fmt: fmt.int },
       { chave: 'ultimo', rotulo: 'Último levantamento', fmt: v => v ? fmt.data(v) : 'há mais de 1 ano', ordem: l => l.ultimo || '' },
       { chave: 'dias', rotulo: 'Dias sem visita', num: true, fmt: v => v == null ? '> 365' : fmt.int(v), csv: v => v == null ? '' : v, ordem: l => l.dias == null ? 9999 : l.dias }
     ], cob.linhas, { id: 'pce-cobertura', csv: 'pce-cobertura-municipal.csv', ordenar: 'dias', limite: 15, vazio: 'Nenhum município.' });
@@ -394,6 +394,6 @@
     w.focus(); w.print();
   }
 
-  P.registrarAba({ id: 'pce', titulo: 'PCE', render, indicadores, calculos, COBERTURA_DIAS,
+  P.registrarAba({ id: 'pce', titulo: 'PCE', render, indicadores, calculos,
     contador: d => alertasPce(d).filter(a => a.nivel === 'critico').length });
 })();

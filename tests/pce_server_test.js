@@ -119,7 +119,7 @@ const uuid = () => require('crypto').randomUUID();
   ok(pes.length === 2 && pes[1][0] === '52998224725', 'linha antiga continua na mesma posição (sem duplicar)');
   const cab = async n => (await aba(n))[0];
   ok((await cab('Levantamentos')).join() === 'id,data,hora,servidor,cargo,matricula,lotacao,doc,nome,telefone,email,propriedade,codigoPropriedade,situacaoFundiaria,municipio,lat,lon,precisao,culturas,fotos,assinaturas,obs,excluido,criadoEm,atualizadoEm,srv_ts,usuario,registroAntigo,documentos,pragas', 'aba Levantamentos criada com as colunas da especificação (pragas no fim)');
-  ok((await cab('Colheitas')).length === 44 && (await cab('Colheitas')).slice(-2).join() === 'registroAntigo,documentos' && (await cab('Propriedades')).join() === 'id,codigo,nome,doc,municipio,situacaoFundiaria,lat,lon,criadoEm,atualizadoEm,srv_ts,usuario', 'abas Colheitas (44 colunas, as 2 novas no fim) e Propriedades criadas');
+  ok((await cab('Colheitas')).length === 44 && (await cab('Colheitas')).slice(-2).join() === 'registroAntigo,documentos' && (await cab('Propriedades')).join() === 'id,codigo,nome,doc,municipio,situacaoFundiaria,lat,lon,criadoEm,atualizadoEm,srv_ts,usuario,cnpj,viaAcesso,comercial,tipoPropriedade,endereco,uf', 'abas Colheitas (44 colunas, as 2 novas no fim) e Propriedades criadas (campos do Cadastro de imóvel no fim)');
 
   console.log('9) consulta do produtor (pceConsultar)');
   let c = await post({ action: 'pceConsultar', key: Bk, doc: '529.982.247-25' });

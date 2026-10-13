@@ -803,6 +803,10 @@ const PCEUI = (() => {
       <div class="duas campo-atalhos"><button class="botao sec" data-v="pcecampo" id="pce-campo">📥 Dados para o campo</button><button class="botao sec" data-v="pcemapa" id="pce-mapa">🗺️ Perto de mim</button></div>
       ${campoRes ? `<p class="dica" id="pce-campo-res">No aparelho: ${esc(campoRes)}</p>` : ''}`}
       ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-pce="novolevantigo" id="pce-novolevantigo">📄 Registro antigo (digitar do papel)</button>` : ''}
+      ${digSemAut ? '' : `<div class="card pce-mon-atalhos"><h3>🍫 Monilíase</h3><div class="duas">
+        <button class="botao sec" data-v="pcecads" id="pce-cads">🏡 Cadastro de imóvel (monilíase)</button>
+        <button class="botao sec" data-v="pcetfs" id="pce-tfs">📋 Termo de Fiscalização</button></div>
+        <button class="botao sec" data-v="pcerel" id="pce-rel">📊 Relatório de atividades</button></div>`}
       <div class="card"><label>Pesquisar (produtor, CPF/CNPJ, propriedade, município, praga)<input id="pceQ"></label></div><div id="pceItens"></div>`);
     const G = new Map(todos.map(x => [x.id, Docs.pceGrupos(x)]));
     const desenhar = () => {
@@ -1442,5 +1446,8 @@ const PCEUI = (() => {
     } catch (err) { toast(err.message || String(err), true); }
   });
 
-  return { lista, levantamento, levPronto, termos, termo, pronto, servidor, status, textoOficial, lerCoordenadas, lerNumeroPapel };
+  return { lista, levantamento, levPronto, termos, termo, pronto, servidor, status, textoOficial, lerCoordenadas, lerNumeroPapel,
+    // usados pelo moniliase.js (Cadastro de imóvel e Termo de Fiscalização do PCE)
+    docOk, fmtDoc, validarCoord, gms, servidorAtual, servidorOk, soDigitador, podeAntigo, exigirServidor, dadosServidor, servAntigoHTML, servidorDigitado,
+    lembrarServidor, completarServidor, servidoresLembrados, dataHoraPassadaOk, montarPessoa, opts, SEM_ANTIGO };
 })();

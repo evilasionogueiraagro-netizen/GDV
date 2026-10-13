@@ -90,7 +90,8 @@ function semPermissaoPara(view) {
 }
 function renderNav(view) {
   const ativo = ({ editar: 'lista', fechado: 'home', tfpronto: MODULO === 'tf' ? 'tf' : 'lista', tfnovo: MODULO === 'tf' ? 'tfnovo' : 'lista',
-    pcepronto: 'pcetermos', pcelevpronto: 'pce', pceservidor: 'pce', pcecampo: 'pce', pcerota: 'pcemapa' })[view] || view;
+    pcepronto: 'pcetermos', pcelevpronto: 'pce', pceservidor: 'pce', pcecampo: 'pce', pcerota: 'pcemapa',
+    pcecads: 'pce', pcecad: 'pce', pcecadpronto: 'pce', pcetfs: 'pce', pcetf: 'pce', pcetfpronto: 'pce', pcerel: 'pce' })[view] || view;
   $('#nav').innerHTML = NAVS[MODULO].map(([v, i, t]) => `<button data-v="${v}" class="${v === ativo ? 'on' : ''}">${i}<span>${t}</span></button>`).join('');
 }
 function go(view, arg) {
@@ -108,7 +109,10 @@ function go(view, arg) {
   ({ modulos, home, registrar, editar: registrar, lista, resumo, fechado, historico, config, tf: () => TFUI.lista(), tfnovo: () => TFUI.novo(EDIT), tfpronto: () => TFUI.pronto(EDIT),
     pce: () => PCEUI.lista(), pcelev: () => PCEUI.levantamento(EDIT), pcetermos: () => PCEUI.termos(), pcetermo: () => PCEUI.termo(EDIT),
     pcepronto: () => PCEUI.pronto(EDIT), pcelevpronto: () => PCEUI.levPronto(EDIT), pceservidor: () => PCEUI.servidor(EDIT),
-    pcecampo: () => Campo.telaBaixar(), pcemapa: () => Campo.telaMapa(), pcerota: () => Campo.telaRota() }[view])();
+    pcecampo: () => Campo.telaBaixar(), pcemapa: () => Campo.telaMapa(), pcerota: () => Campo.telaRota(),
+    // PCE monilíase: Cadastro de imóvel, Termo de Fiscalização do PCE e Relatório de atividades (moniliase.js)
+    pcecads: () => PCEMon.lista('cadastro'), pcecad: () => PCEMon.cadastro(EDIT), pcecadpronto: () => PCEMon.pronto('cadastro', EDIT),
+    pcetfs: () => PCEMon.lista('termo'), pcetf: () => PCEMon.termo(EDIT), pcetfpronto: () => PCEMon.pronto('termo', EDIT), pcerel: () => PCEMon.relatorio() }[view])();
   window.scrollTo(0, 0);
 }
 
@@ -604,7 +608,7 @@ Sync.onEstado(e => {
   b.textContent = (e.tipo === 'sync' ? '🔄 Sincronizando…' : e.tipo === 'erro' ? '⚠️ Falha ao sincronizar' : (navigator.onLine ? '🟢 Online' : '🔴 Offline')) + (e.tipo === 'sync' ? '' : pend);
   atualizarStatusEnc().catch(() => {});
 });
-window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'resumo', 'historico', 'tf', 'pce', 'pcetermos', 'fechado'].includes(VIEW)) go(VIEW, EDIT); });
+window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'resumo', 'historico', 'tf', 'pce', 'pcetermos', 'pcecads', 'pcetfs', 'fechado'].includes(VIEW)) go(VIEW, EDIT); });
 // permissões mudaram no sync: se a tela aberta é de um módulo que deixou de ser autorizado, volta para os módulos (nada é apagado);
 // na tela de módulos (ou em telas livres) só redesenha
 window.addEventListener('gdv-permissoes', () => {

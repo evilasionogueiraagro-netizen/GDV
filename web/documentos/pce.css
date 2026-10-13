@@ -39,6 +39,7 @@ tr{ break-inside:avoid; page-break-inside:avoid; }
 .assinatura{ width:46%; text-align:center; font-size:11.5px; break-inside:avoid; page-break-inside:avoid; }
 .assinatura .area{ height:18mm; display:flex; align-items:flex-end; justify-content:center; }
 .assinatura .area img{ max-height:18mm; max-width:100%; }
+.assinatura .area.doc{ height:auto; min-height:18mm; padding-bottom:1mm; font-size:10px; color:#555; } .assinatura .area.doc img{ max-height:48mm; border:1px solid #999; }
 .assinatura .linha{ border-top:1px solid #000; margin:0 4mm; padding-top:1px; }
 .assinatura .nome{ font-weight:bold; font-size:11px; min-height:13px; }
 

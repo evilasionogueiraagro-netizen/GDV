@@ -75,7 +75,7 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
     'plano de aplicação fecha: custeio 1.200.000 e investimento 1.068.042', [C.etapas.filter(e => e.id !== '1.1').reduce((s, e) => s + totItens(e), 0), totItens(C.etapas[0])]);
   ok(C.etapas.every(e => Math.round(totItens(e)) === e.valor), 'soma dos itens = valor de cada etapa');
   ok(C.assinaturas.map(a => a.nome).join('|') === 'FRANCISCO DANIEL DE OLIVEIRA SENA|STEFANO SAMUEL BERNARDO DA COSTA|SIVANDRO CAMPOS DE FREITAS', 'assinaturas da semente = nomes do relatório');
-  ok(!/\d{3}\.\d{3}\.\d{3}-\d{2}|Jurunas|Omena/.test(JSON.stringify(C)), 'semente sem CPF/endereço de dirigentes do plano de trabalho');
+  ok(!/\d{3}\.\d{3}\.\d{3}-\d{2}|Residencial|CEP/i.test(JSON.stringify(C)), 'semente sem CPF/endereço de dirigentes do plano de trabalho');
   const L = (l, k = TOK) => post({ action: 'painelConvLancar', key: k, lancamento: { convenio: '991272-2025', ...l } });
   const erros = [
     [{ etapa: '9.9', data: '2026-09-01', quantidade: 1 }, /Etapa inexistente/],

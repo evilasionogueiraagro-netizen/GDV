@@ -163,7 +163,7 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   await p.fill('#pn-codigo', adm.codigo); await p.click('#pn-entrar'); await esperarDados(p);
   ok((await p.textContent('#pn-nome')).trim() === 'Evilasio Admin', 'código de admin entra; nome no topo');
   ok((await p.evaluate(() => localStorage.getItem('gdv.painel.token') || '')).length >= 32, 'credencial guardada em gdv.painel.token');
-  const abas = await p.$$eval('.pn-aba', a => a.map(x => x.dataset.aba)); ok(abas.join() === 'geral,barreiras,tf,pce,acessos,publico', 'abas na ordem Visão geral | Barreiras | TF | PCE | Servidores | Dashboard público', abas);
+  const abas = await p.$$eval('.pn-aba', a => a.map(x => x.dataset.aba)); ok(abas.join() === 'geral,barreiras,tf,pce,convenios,acessos,publico', 'abas na ordem Visão geral | Barreiras | TF | PCE | Convênios | Servidores | Dashboard público', abas);
   await p.reload(); await esperarDados(p); ok(await p.isVisible('#pn-app'), 'recarregar mantém a sessão');
   ok(/Atualizado às \d{2}:\d{2}/.test(await p.textContent('#pn-status')), 'indicador "Atualizado às HH:MM"', (await p.textContent('#pn-status')).trim());
 
@@ -375,7 +375,7 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   const pc = await abrir({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, sess); await esperarDados(pc);
   for (const id of ['geral', 'barreiras', 'tf', 'pce']) { await aba(pc, id); ok(await semRolagem(pc), `390 px sem rolagem horizontal: ${id}`); }
   const abasCel = await pc.$$eval('.pn-aba', a => a.map(x => { const r = x.getBoundingClientRect(); return r.right <= innerWidth + 0.5 && r.left >= 0; }));
-  ok(abasCel.length === 6 && abasCel.every(Boolean), '390 px: as seis abas inteiras na tela (sem aba cortada)', abasCel);
+  ok(abasCel.length === 7 && abasCel.every(Boolean), '390 px: as sete abas inteiras na tela (sem aba cortada)', abasCel);
   await aba(pc, 'barreiras'); ok(await pc.evaluate(() => window.__pnBarMapa && !window.__pnBarMapa.map.dragging.enabled()), 'celular: um dedo rola a página (arraste do mapa só com dois dedos)');
   await aba(pc, 'geral'); await pc.screenshot({ path: amb.saida('painel_celular.png'), fullPage: true });
   // gestor com o aparelho em outro fuso (Brasília): "hoje" e horas continuam de Manaus

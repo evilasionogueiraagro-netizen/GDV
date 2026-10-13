@@ -162,6 +162,25 @@ const PCEUI = (() => {
     return null;
   }
 
+  /* Cargo: lista do CONFIG + "Outro (digitar)" — cargo fora da lista aparece já como "Outro" com o texto preenchido */
+  const OUTRO_CARGO = '__outro__';
+  const cargoHTML = (id, atual) => {
+    const naLista = !atual || P.cargos.includes(atual);
+    return `<select id="${id}" data-cargo>${opts(P.cargos, naLista ? atual : '', 'Selecione')}<option value="${OUTRO_CARGO}" ${naLista ? '' : 'selected'}>Outro (digitar)</option></select>
+      <input id="${id}-outro" class="cargo-outro" placeholder="Digite o cargo" autocomplete="off" value="${naLista ? '' : esc(atual)}" ${naLista ? 'hidden' : ''}>`;
+  };
+  const cargoValor = id => { const s = $('#' + id); if (!s) return ''; return s.value === OUTRO_CARGO ? ($('#' + id + '-outro').value || '').trim().replace(/\s+/g, ' ') : s.value; };
+  function cargoDefinir(id, v) {
+    const s = $('#' + id), t = $('#' + id + '-outro'); if (!s || !v) return;
+    if (P.cargos.includes(v)) { s.value = v; t.hidden = true; } else { s.value = OUTRO_CARGO; t.value = v; t.hidden = false; }
+  }
+  // mostra/esconde o campo de texto ao escolher "Outro (digitar)" (vale para todas as telas do PCE)
+  document.addEventListener('change', e => {
+    if (!e.target.matches || !e.target.matches('select[data-cargo]')) return;
+    const t = $('#' + e.target.id + '-outro'); if (!t) return;
+    t.hidden = e.target.value !== OUTRO_CARGO; if (!t.hidden) t.focus();
+  });
+
   /* ---------- servidor que fez a vistoria (registro antigo): digitado do papel; os últimos nomes ficam lembrados ---------- */
   const servidoresLembrados = async () => (await Store.meta('pceServidoresDigitados')) || [];
   async function lembrarServidor(sv) {
@@ -173,7 +192,7 @@ const PCEUI = (() => {
       <p class="dica" style="text-align:left">Como está no papel (não são os seus dados).</p>
       <label>Nome do servidor *<input id="${pref}snome" list="${pref}servs" value="${esc(D.sNome)}" placeholder="Nome completo" autocomplete="off"></label>
       <datalist id="${pref}servs">${lembrados.map(x => `<option value="${esc(x.nome)}">`).join('')}</datalist>
-      <div class="duas"><label>Cargo *<select id="${pref}scargo">${opts(P.cargos, D.sCargo, 'Selecione')}</select></label>
+      <div class="duas"><label>Cargo *${cargoHTML(pref + 'scargo', D.sCargo)}</label>
         <label>Matrícula<input id="${pref}smatricula" value="${esc(D.sMatricula)}" inputmode="numeric"></label></div>
       <label>Lotação *<select id="${pref}slotacao">${opts(P.municipios, D.sLotacao, 'Selecione')}</select></label></div>`;
   /** Nome escolhido da lista dos já digitados: completa cargo, matrícula e lotação. */
@@ -181,14 +200,14 @@ const PCEUI = (() => {
     const n = ($('#' + pref + 'snome') || {}).value || '', x = (await servidoresLembrados()).find(y => y.nome.toLowerCase() === n.trim().toLowerCase());
     if (!x) return;
     const set = (id, v) => { const el = $('#' + pref + id); if (el && v) { if (el.tagName === 'SELECT' && ![...el.options].some(o => o.value === v)) el.add(new Option(v, v)); el.value = v; } };
-    set('scargo', x.cargo); set('smatricula', x.matricula); set('slotacao', x.lotacao);
+    cargoDefinir(pref + 'scargo', x.cargo); set('smatricula', x.matricula); set('slotacao', x.lotacao);
   }
   /** Servidor digitado, validado. null = parar (mensagem já mostrada). */
   function servidorDigitado(pref) {
     const g = id => ($('#' + pref + id) || {}).value || '';
-    const sv = { servidor: g('snome').trim().replace(/\s+/g, ' '), cargo: g('scargo'), matricula: g('smatricula').trim(), lotacao: g('slotacao') };
+    const sv = { servidor: g('snome').trim().replace(/\s+/g, ' '), cargo: cargoValor(pref + 'scargo'), matricula: g('smatricula').trim(), lotacao: g('slotacao') };
     if (sv.servidor.split(' ').length < 2) { toast('Informe o nome completo do servidor que fez a vistoria (como no papel).', true); return null; }
-    if (!sv.cargo) { toast('Escolha o cargo do servidor que fez a vistoria.', true); return null; }
+    if (!sv.cargo) { toast('Escolha o cargo do servidor que fez a vistoria (ou "Outro" e digite).', true); return null; }
     if (!sv.lotacao) { toast('Escolha a lotação do servidor que fez a vistoria.', true); return null; }
     return sv;
   }
@@ -206,7 +225,7 @@ const PCEUI = (() => {
     view(`<form class="card" id="pceServForm" autocomplete="off"><h3>👤 Identificação do servidor</h3>
       <p class="dica" style="text-align:left">${primeira ? 'Antes de começar, informe seus dados. ' : ''}Eles ficam neste aparelho e são copiados para cada levantamento e termo no momento em que é criado.</p>
       <label>Nome do servidor *<input id="pce-s-nome" value="${esc(s.nome || Sync.nome())}" placeholder="Nome completo"></label>
-      <label>Cargo *<select id="pce-s-cargo">${opts(P.cargos, s.cargo, 'Selecione')}</select></label>
+      <label>Cargo *${cargoHTML('pce-s-cargo', s.cargo)}</label>
       <label>Matrícula<input id="pce-s-matricula" value="${esc(s.matricula || '')}" inputmode="numeric"></label>
       <label>Lotação (município) *<select id="pce-s-lotacao">${opts(P.municipios, s.lotacao, 'Selecione')}</select></label>
       ${podeAntigo() ? `<label class="chk"><input type="checkbox" id="pce-s-digitacao" ${s.soDigitacao ? 'checked' : ''}> Só vou digitar registros antigos do papel (não faço vistorias)</label>
@@ -215,10 +234,10 @@ const PCEUI = (() => {
       ${primeira ? '' : '<button class="botao sec" type="button" data-v="pce">Voltar</button>'}</form>`);
     $('#pceServForm').onsubmit = async e => {
       e.preventDefault();
-      const d = { nome: $('#pce-s-nome').value.trim().replace(/\s+/g, ' '), cargo: $('#pce-s-cargo').value, matricula: $('#pce-s-matricula').value.trim(), lotacao: $('#pce-s-lotacao').value };
+      const d = { nome: $('#pce-s-nome').value.trim().replace(/\s+/g, ' '), cargo: cargoValor('pce-s-cargo'), matricula: $('#pce-s-matricula').value.trim(), lotacao: $('#pce-s-lotacao').value };
       if ($('#pce-s-digitacao') && $('#pce-s-digitacao').checked) d.soDigitacao = 1;   // a opção só aparece com a permissão "antigo"
       if (d.nome.split(' ').length < 2) return toast('Informe o nome completo (nome e sobrenome).', true);
-      if (!d.cargo && !d.soDigitacao) return toast('Escolha o cargo.', true);
+      if (!d.cargo && !d.soDigitacao) return toast('Escolha o cargo (ou "Outro" e digite).', true);
       if (!d.lotacao && !d.soDigitacao) return toast('Escolha a lotação.', true);
       await Store.setMeta('pceServidor', d);
       toast('Dados do servidor salvos.');
@@ -527,7 +546,7 @@ const PCEUI = (() => {
     const g = id => { const e = $('#pce-' + id); return e ? e.value : ''; };
     return { doc: g('doc'), nome: g('nome'), telefone: g('telefone'), email: g('email'), propriedade: g('propriedade'), codigoPropriedade: g('codigo'),
       situacaoFundiaria: g('situacao'), municipio: g('municipio'), lat: g('lat'), lon: g('lon'), precisao: g('precisao'), data: g('data'), hora: g('hora'), obs: g('obs'),
-      coordTxt: g('coord'), sNome: g('snome'), sCargo: g('scargo'), sMatricula: g('smatricula'), sLotacao: g('slotacao'),
+      coordTxt: g('coord'), sNome: g('snome'), sCargo: cargoValor('pce-scargo'), sMatricula: g('smatricula'), sLotacao: g('slotacao'),
       pragas: [...document.querySelectorAll('#pce-pragas .pce-praga')].map(card => ({ praga: nomePragaCard(card), outra: card.querySelector('.p-praga').value === OUTRA,
         legado: card.dataset.legado === '1',
         culturas: [...card.querySelectorAll('.pce-cult')].map(b => {
@@ -846,7 +865,7 @@ const PCEUI = (() => {
       data: g('data'), hora: g('hora'), cultura: g('cultura'), quantidade: g('quantidade'), analise: g('analise'),
       partes: [...document.querySelectorAll('input[name=pce-t-parte]:checked')].map(c => c.value), descricao: g('descricao'),
       testemunha1Nome: g('t1nome'), testemunha1Doc: g('t1doc'), testemunha2Nome: g('t2nome'), testemunha2Doc: g('t2doc'), local: g('local'),
-      numPapel: g('numpapel'), coordTxt: g('coord'), sNome: g('snome'), sCargo: g('scargo'), sMatricula: g('smatricula'), sLotacao: g('slotacao') };
+      numPapel: g('numpapel'), coordTxt: g('coord'), sNome: g('snome'), sCargo: cargoValor('pce-t-scargo'), sMatricula: g('smatricula'), sLotacao: g('slotacao') };
   }
   /**
    * Nº do termo como está no papel: "7", "007", "007/2026", "007/2026/MANAUS", "Nº 7/2026/Manaus". O ano deve ser o da data do termo

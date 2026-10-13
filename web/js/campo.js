@@ -23,7 +23,8 @@ const Campo = (() => {
   /** Produtores com levantamento/termo ainda não enviado: os dados deles não saem do aparelho ao apagar. */
   async function docsEmUso() {
     const s = new Set();
-    [...await Store.todos('levantamentos'), ...await Store.todos('colheitas')].forEach(r => { if (r.pendente && !r.excluido) s.add(digitos(r.doc)); });
+    [...await Store.todos('levantamentos'), ...await Store.todos('colheitas'), ...await Store.todos('cadastrosPce'), ...await Store.todos('termosPce')]
+      .forEach(r => { if (r.pendente && !r.excluido) s.add(digitos(r.doc)); });
     return s;
   }
   /** campoMun das pessoas = municípios baixados das propriedades delas. Sem nenhum: some do aparelho (se não estiver pendente nem em uso). */
@@ -54,6 +55,11 @@ const Campo = (() => {
       const mun = [...new Set([...((local && Array.isArray(local.campoMun) && local.campoMun) || []), ...(row.campoMun || [])])];
       return local && local.pendente ? { ...local, campoMun: mun } : { ...(local || {}), ...row, campoMun: mun, pendente: 0, baixadoEm: agora };
     });
+    // Cadastros de imóvel do PCE (monilíase…) dessas propriedades: para o mapa e para preencher o Termo de Fiscalização sem internet
+    const cads = (r.cadastrosPce || []).filter(c => c && c.id), novosC = new Set(cads.map(c => c.id));
+    const velhosC = (await Store.todos('cadastrosPce')).filter(c => c.campoMun && chaves.has(norm(c.campoMun)) && !novosC.has(c.id) && !c.pendente);
+    await Store.apagar('cadastrosPce', velhosC.map(c => c.id));
+    await Store.mesclar('cadastrosPce', cads, (local, row) => (local && local.pendente ? null : { ...(local || {}), ...row, pendente: 0, baixadoEm: agora }));
     await ajustarPessoas(await docsEmUso());
     const m = await lerMeta();
     (r.municipios || []).forEach(x => { m[norm(x.municipio)] = { municipio: x.municipio, baixadoEm: agora, nProps: x.nProps, nPessoas: x.nPessoas }; });
@@ -83,6 +89,8 @@ const Campo = (() => {
     const fora = props.filter(p => !p.pendente && !uso.has(digitos(p.doc))), ficam = props.filter(p => !fora.includes(p));
     await Store.apagar('propriedades', fora.map(p => p.id));
     await Store.gravarVarios('propriedades', ficam.map(p => { const o = { ...p }; delete o.campoMun; return o; }));
+    const cads = (await Store.todos('cadastrosPce')).filter(c => c.campoMun && norm(c.campoMun) === K);
+    await Store.apagar('cadastrosPce', cads.filter(c => !c.pendente && !uso.has(digitos(c.doc))).map(c => c.id));
     await ajustarPessoas(uso);
     const m = await lerMeta(); delete m[K]; await Store.setMeta('pceCampo', m);
     const r = await lerRota(), sai = new Set(fora.map(p => p.id));
@@ -167,9 +175,14 @@ const Campo = (() => {
   async function carregar() {
     const pes = new Map((await Store.todos('pessoas')).map(p => [digitos(p.id), p]));
     const levs = (await Store.todos('levantamentos')).filter(l => !l.excluido);
+    const cadPorProp = new Map(); (await Store.todos('cadastrosPce')).filter(c => !Number(c.excluido)).forEach(c => { if (c.propriedadeId) cadPorProp.set(c.propriedadeId, c); });
+    const termoPorProp = new Map(); (await Store.todos('termosPce')).filter(t => !Number(t.excluido) && !Number(t.cancelado)).forEach(t => {
+      const a = termoPorProp.get(t.propriedadeId); if (t.propriedadeId && (!a || String(t.data + t.hora) > String(a.data + a.hora))) termoPorProp.set(t.propriedadeId, t); });
     const itens = (await Store.todos('propriedades')).filter(p => !p.excluido).map(p => {
       const lat = coord(p.lat), lon = coord(p.lon), ok = lat != null && lon != null && Math.abs(lat) <= 90 && Math.abs(lon) <= 180 && !(lat === 0 && lon === 0);
-      return { id: p.id, p, pe: pes.get(digitos(p.doc)) || null, h: historico(p, levs), lat: ok ? lat : null, lon: ok ? lon : null, dist: null };
+      const tl = termoPorProp.get(p.id), ts = p.ultimoTermoPce, termo = tl && (!ts || String(tl.data) >= String(ts.data)) ? tl : ts || null;
+      return { id: p.id, p, pe: pes.get(digitos(p.doc)) || null, h: historico(p, levs), lat: ok ? lat : null, lon: ok ? lon : null, dist: null,
+        cad: cadPorProp.get(p.id) || (Array.isArray(p.cadastrosPce) && p.cadastrosPce[0]) || null, termo };
     });
     return { itens, porId: new Map(itens.map(x => [x.id, x])), meta: await lerMeta() };
   }
@@ -411,7 +424,10 @@ const Campo = (() => {
       <p><small>${esc(doc ? fmtDoc(doc) : '')}${x.pe && x.pe.telefone ? ' · ☎ ' + esc(x.pe.telefone) : ''}${x.p.situacaoFundiaria ? ' · ' + esc(x.p.situacaoFundiaria) : ''}</small></p>
       <p class="campo-hist">${textoHist(x.h)}</p>
       <p><small>${esc(ROTULO[x.h.st])}${x.dist != null ? ' · a ' + esc(fmtKm(x.dist)) + ' em linha reta' : x.lat == null ? ' · sem localização' : ''}</small></p>
+      <p class="campo-mon"><small>🍫 Monilíase: ${x.cad ? `cadastro <b>${esc(x.cad.numeroTxt || '')}</b>` : 'sem cadastro de imóvel'}${x.termo ? ` · último Termo de Fiscalização ${esc(x.termo.numeroTxt || '')} em ${esc(dBR(x.termo.data))}` : ''}</small></p>
       <button class="botao" data-campo="levantar" data-id="${esc(x.id)}" id="campo-levantar">🌱 Fazer levantamento aqui</button>
+      <div class="duas"><button class="botao sec" data-campo="termo" data-id="${esc(x.id)}" id="campo-termo">📋 Termo de Fiscalização aqui</button>
+        ${x.cad ? '' : `<button class="botao sec" data-campo="cadastro" data-id="${esc(x.id)}" id="campo-cadastro">🏡 Criar cadastro (monilíase)</button>`}</div>
       ${x.lat == null ? '<p class="dica">Sem coordenadas: não entra na rota. Ao fazer o levantamento, o GPS da visita fica registrado.</p>'
         : `<button class="botao sec" data-campo="rota" data-id="${esc(x.id)}" id="campo-incluir">${naRota ? '✓ Na rota — remover' : '➕ Incluir na rota'}</button>`}</div>`;
   }
@@ -467,6 +483,8 @@ const Campo = (() => {
       else if (a === 'fechar') { S.sel = ''; desenhar(); }
       else if (a === 'rota') { S.rota = await alternarRota(id); desenhar(); toast(S.rota.ids.includes(id) ? 'Incluída na rota.' : 'Retirada da rota.'); }
       else if (a === 'levantar') go('pcelev', { propId: id });
+      else if (a === 'termo') go('pcetf', { propId: id });
+      else if (a === 'cadastro') go('pcecad', { propId: id });
       else if (a === 'subir' || a === 'descer' || a === 'tirar') await mexerRota(a, Number(el.dataset.i));
       else if (a === 'sugerir') { const r = await lerRota(); r.manual = false; await gravarRota(r); telaRota(); }
       else if (a === 'limparrota') { if (!confirm('Limpar a rota?')) return; await gravarRota({ ids: [], manual: false }); telaRota(); }

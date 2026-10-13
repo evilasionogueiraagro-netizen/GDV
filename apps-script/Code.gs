@@ -53,7 +53,21 @@ const TABELAS = {
               'cultura', 'quantidade', 'analise', 'partes', 'descricao', 'fotos', 'testemunha1Nome', 'testemunha1Doc', 'testemunha2Nome',
               'testemunha2Doc', 'assinaturas', 'local', 'cancelado', 'motivoCancel', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
               'registroAntigo', 'documentos'],
-  Propriedades: ['id', 'codigo', 'nome', 'doc', 'municipio', 'situacaoFundiaria', 'lat', 'lon', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
+  Propriedades: ['id', 'codigo', 'nome', 'doc', 'municipio', 'situacaoFundiaria', 'lat', 'lon', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
+                 'cnpj', 'viaAcesso', 'comercial', 'tipoPropriedade', 'endereco', 'uf'],   // campos comuns do Cadastro de imóvel (PCE): CNPJ, via de acesso, propriedade comercial (sim/nao) e tipo
+  // Cadastro de imóvel do PCE (1x por propriedade e programa; hoje: monilíase). Numeração por programa + unidade + ano ("001-2026-AUTAZES").
+  // dados = JSON com os campos do programa (culturas/plantas, informações fitossanitárias, levantamento de detecção…); totalPlantas = soma das plantas.
+  CadastrosPCE: ['id', 'programa', 'unidade', 'ano', 'numero', 'numeroTxt', 'numeroSugerido', 'numeroOrigem', 'conflito', 'emitidoEm', 'propriedadeId',
+                 'doc', 'nome', 'propriedade', 'cnpj', 'data', 'hora', 'municipio', 'uf', 'lat', 'lon', 'servidor', 'cargo', 'matricula', 'lotacao', 'local',
+                 'dados', 'totalPlantas', 'fotos', 'assinaturas', 'documentos', 'registroAntigo', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
+  // Termo de Fiscalização do PCE (1 por visita; NÃO é o TF de Barreira). Numeração por unidade + ano ("001.2026.AUTAZES").
+  // pragas/acoes/tipoLocal/testemunhas = JSON; plantasInspecionadas, amostra e sintomas (sim/nao) alimentam o Relatório de atividades
+  // (folders/flyers da Educação Sanitária não são anotados por visita: são digitados na geração do relatório); hospedeiros = JSON das culturas do cadastro com plantas (copiado ao salvar).
+  TermosPCE: ['id', 'unidade', 'ano', 'numero', 'numeroTxt', 'numeroSugerido', 'numeroOrigem', 'conflito', 'emitidoEm', 'propriedadeId', 'cadastroId', 'programa',
+              'doc', 'nome', 'atividade', 'empresa', 'cnpj', 'atividadeEmpresa', 'endereco', 'municipio', 'uf', 'telefone', 'lat', 'lon', 'data', 'hora',
+              'servidor', 'cargo', 'matricula', 'lotacao', 'pragas', 'tipoLocal', 'acoes', 'constatacao', 'enquadramento', 'testemunhas', 'recebidoEm',
+              'plantasInspecionadas', 'amostra', 'sintomas', 'hospedeiros', 'fotos', 'assinaturas', 'documentos', 'registroAntigo',
+              'cancelado', 'motivoCancel', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
   Arquivos: ['id', 'dono', 'donoId', 'tipo', 'papel', 'nome', 'mime', 'tamanho', 'driveId', 'url', 'usuario', 'criadoEm',  // fotos/assinaturas/PDFs no Drive
              'rotulo'],   // rotulo = "praga – cultura" da foto do levantamento (vai também no nome do arquivo)
   // TF de Barreira em preenchimento no aparelho (alerta "apreensão em andamento" no painel). id = usuario|rascunhoId. Sem CPF/nome do fiscalizado.
@@ -75,9 +89,11 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criad
                           'ano', 'numero', 'ultimo', 'de', 'ate', 'em', 'numeroSugerido', 'emitidoEm', 'amostras', 'inspecao', 'coleta', 'fiel', 'auto',
                           'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito', 'tamanho',
                           'inicioTs', 'atualizadoTs', 'registroAntigo', 'encerradoEm',
-                          'standalone', 'online', 'ultimoSinal', 'ultimoErroEm', 'primeiroSinal', 'recusaAssinatura'];   // lat/lon/precisao ficam como texto (como em Turnos)
+                          'standalone', 'online', 'ultimoSinal', 'ultimoErroEm', 'primeiroSinal', 'recusaAssinatura',
+                          'totalPlantas', 'plantasInspecionadas'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
-                        culturas: 45000, pragas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000 };   // demais colunas: 500
+                        culturas: 45000, pragas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000,
+                        dados: 20000, testemunhas: 1000, hospedeiros: 1000 };   // demais colunas: 500
 // culturas/fotos/assinaturas são JSON: cortar o texto invalidaria o JSON (e apagaria as referências no aparelho). Os limites acima
 // cabem numa célula (50.000 caracteres) e o app limita a quantidade de culturas/fotos e o tamanho dos campos para nunca chegar neles.
 const VALIDADE_CODIGO_MS = 7 * 24 * 3600 * 1000;      // código de ativação vale 7 dias
@@ -86,7 +102,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-12c';
+const VERSAO_CODIGO = '2026-10-13a';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -123,6 +139,8 @@ function doPost(e) {
     if (req.action === 'pceProximoNumero') return json_(pceProximoNumero_(req));
     if (req.action === 'pceEmitir') return json_(pceEmitir_(req, usuario));
     if (req.action === 'pceConsultar') return json_(pceConsultar_(req, usuario));
+    if (req.action === 'pceDocNumero') return json_(pceDocNumero_(req));
+    if (req.action === 'pceDocRegistrar') return json_(pceDocRegistrar_(req, usuario));
     if (req.action === 'pceBaixarMunicipio') return json_(pceBaixarMunicipio_(req, usuario));
     if (req.action === 'arquivoEnviar') return json_(arquivoEnviar_(req, usuario));
     if (req.action === 'tfAndamento') return json_(tfAndamento_(req, usuario));
@@ -144,6 +162,8 @@ function sincronizar_(req, usuario) {
   const levantamentos = lista_(req.levantamentos);
   const colheitas = lista_(req.colheitas);
   const propriedades = lista_(req.propriedades);
+  const cadastrosPce = lista_(req.cadastrosPce);
+  const termosPce = lista_(req.termosPce);
   const since = Number(req.since) || 0;
   // Módulos sem autorização: os registros NÃO são gravados e voltam em "recusados" (o app os mantém pendentes no aparelho).
   // Pessoas (cadastro do fiscalizado/produtor) servem ao TF e ao PCE: entram se qualquer um dos dois estiver liberado.
@@ -157,11 +177,12 @@ function sincronizar_(req, usuario) {
     turnos: filtrar('turnos', turnos, perm.veiculos), veiculos: filtrar('veiculos', veiculos, perm.veiculos),
     tfs: filtrar('tfs', tfs, perm.tf), placas: filtrar('placas', placas, perm.tf), pessoas: filtrar('pessoas', pessoas, perm.tf || perm.pce),
     levantamentos: filtrar('levantamentos', levantamentos, perm.pce), colheitas: filtrar('colheitas', colheitas, perm.pce),
-    propriedades: filtrar('propriedades', propriedades, perm.pce)
+    propriedades: filtrar('propriedades', propriedades, perm.pce),
+    cadastrosPce: filtrar('cadastrosPce', cadastrosPce, perm.pce), termosPce: filtrar('termosPce', termosPce, perm.pce)
   };
   // registros antigos (digitados do papel) só com a permissão "antigo": os demais do mesmo lote entram normalmente
   if (!perm.antigo) {
-    ['levantamentos', 'colheitas'].forEach(function (campo) {
+    ['levantamentos', 'colheitas', 'cadastrosPce', 'termosPce'].forEach(function (campo) {
       const fora = T[campo].filter(function (r) { return r && Number(r.registroAntigo) === 1; });
       if (!fora.length) return;
       T[campo] = T[campo].filter(function (r) { return !(r && Number(r.registroAntigo) === 1); });
@@ -195,6 +216,19 @@ function sincronizar_(req, usuario) {
     gravar_('Colheitas', T.colheitas, agora, usuario);
     if (T.colheitas.length) marcarConflitos_('PCE', T.colheitas, agora);
     gravar_('Propriedades', T.propriedades, agora, usuario);
+    // Cadastro de imóvel e Termo de Fiscalização do PCE: nº em texto no formato do papel; número repetido = conflito (o mais antigo vale)
+    [['cadastro', 'cadastrosPce'], ['termo', 'termosPce']].forEach(function (x) {
+      const regs = T[x[1]], D = DOCS_PCE[x[0]];
+      if (!regs.length) return;
+      const ja = {}; lerLeitura_(D.aba).forEach(function (l) { ja[l.id] = true; });
+      regs.forEach(function (r) {
+        if (!r) return;
+        normalizarDocPce_(x[0], r);
+        if (!r.emitidoEm) { if (ja[r.id]) delete r.emitidoEm; else r.emitidoEm = agora; }
+      });
+      gravar_(D.aba, regs, agora, usuario);
+      marcarConflitos_(D.seq, regs, agora);
+    });
     // sinal do aparelho (melhor esforço: nunca derruba o envio). Desconta o que acabou de chegar.
     const encerrados = {};
     T.turnos.forEach(function (t) { if (t && t.id && Number(t.encerrado) === 1) encerrados[String(t.id)] = true; });
@@ -213,6 +247,9 @@ function sincronizar_(req, usuario) {
       levantamentos: lerMudancas_('Levantamentos', since, usuario),   // PCE: cada servidor recebe só os próprios registros
       colheitas: lerMudancas_('Colheitas', since, usuario),
       ultimosPce: ultimosPce_(),                        // último nº de Termo de Colheita por "UNIDADE|ano"
+      cadastrosPce: lerMudancas_('CadastrosPCE', since, usuario),   // Cadastro de imóvel e Termo de Fiscalização do PCE (só os do próprio servidor)
+      termosPce: lerMudancas_('TermosPCE', since, usuario),
+      ultimosDocPce: ultimosDocPce_(),                  // último nº de Termo de Fiscalização ("T|UNIDADE|ano") e de Cadastro ("C|PROGRAMA|UNIDADE|ano")
       permissoes: perm,                                 // módulos liberados para este servidor (o app guarda e esconde o que não pode)
       recusados: recusados                              // ids NÃO gravados por falta de autorização no módulo ou para registro antigo (ficam pendentes no aparelho)
     };
@@ -331,9 +368,15 @@ function listarBarreiras_() {
  */
 const SEQUENCIAS = {
   TF: { aba: 'TFs', grupo: 'barreira', prefixo: '', nome: 'TF' },
-  PCE: { aba: 'Colheitas', grupo: 'unidade', prefixo: 'PCE|', nome: 'Termo de Colheita' }
+  PCE: { aba: 'Colheitas', grupo: 'unidade', prefixo: 'PCE|', nome: 'Termo de Colheita' },
+  // PCE: Termo de Fiscalização (uma sequência por unidade/ano) e Cadastro de imóvel (por programa + unidade + ano: grupo "MONILIASE|AUTAZES")
+  TPCE: { aba: 'TermosPCE', grupo: 'unidade', prefixo: 'TPCE|', nome: 'Termo de Fiscalização (PCE)' },
+  CPCE: { aba: 'CadastrosPCE', grupo: 'unidade', prefixo: 'CPCE|', nome: 'Cadastro de imóvel (PCE)',
+          grupoDe: function (r) { return String(r.programa || 'moniliase').toUpperCase() + '|' + r.unidade; } }
 };
 function chaveSeq_(tipo, grupo, ano) { return SEQUENCIAS[tipo].prefixo + grupo + '|' + ano; }
+/** Grupo da sequência de um registro (barreira, unidade ou "PROGRAMA|UNIDADE"). */
+function grupoSeq_(tipo, r) { const s = SEQUENCIAS[tipo]; return s.grupoDe ? s.grupoDe(r) : r[s.grupo]; }
 
 /**
  * Numeração: UMA sequência por grupo (barreira ou unidade) e por ano, sem faixas reservadas. O "último usado" é o maior
@@ -344,7 +387,7 @@ function ultimoSeq_(tipo, grupo, ano, regs) {
   let ultimo = 0, ref = null;
   const base = lerLeitura_('Numeracao').filter(function (r) { return r.id === chaveSeq_(tipo, grupo, ano); })[0];
   if (base) ultimo = base.ultimo;
-  (regs || lerLeitura_(s.aba)).forEach(function (r) { if (r[s.grupo] === grupo && r.ano === ano && r.numero > ultimo) { ultimo = r.numero; ref = r; } });
+  (regs || lerLeitura_(s.aba)).forEach(function (r) { if (grupoSeq_(tipo, r) === grupo && r.ano === ano && r.numero > ultimo) { ultimo = r.numero; ref = r; } });
   return { ultimo: ultimo, ref: ref };
 }
 
@@ -398,7 +441,7 @@ function emitir_(req, usuario) {
 /** Auditoria da sequência de uma barreira (TF) ou unidade (PCE) / ano: lacunas e números usados mais de uma vez. */
 function auditarSequencia_(barreira, ano, tipo) {
   tipo = tipo || 'TF';
-  if (tipo === 'PCE') barreira = unidadePce_(barreira);
+  if (tipo !== 'TF') barreira = unidadePce_(barreira);
   return auditarRegs_(tipo, barreira, ano, lerLeitura_(SEQUENCIAS[tipo].aba), lerLeitura_('Numeracao'));
 }
 
@@ -410,7 +453,8 @@ function marcarConflitos_(tipo, recebidos, agora) {
   t.valores.forEach(function (l, i) {
     const o = paraObjeto_(t.cols, l);
     if (tipo !== 'TF' && !(o.numero > 0)) return;                       // termo sem número não entra em conflito (TF: comportamento original)
-    const k = o[s.grupo] + '|' + o.ano + '|' + o.numero;
+    if ((tipo === 'TPCE' || tipo === 'CPCE') && o.excluido === 1) return;   // cadastro excluído não disputa o número
+    const k = grupoSeq_(tipo, o) + '|' + o.ano + '|' + o.numero;
     (grupos[k] = grupos[k] || []).push({ i: i, o: o });
   });
   Object.keys(grupos).forEach(function (k) {
@@ -429,11 +473,11 @@ function marcarConflitosTFs_(recebidos, agora) { marcarConflitos_('TF', recebido
 /** Define o ponto de partida (último nº já usado) de uma barreira (TF) ou unidade (PCE) / ano, ex.: ao começar no meio do ano. */
 function definirSequencia_(barreira, ano, ultimo, tipo) {
   tipo = tipo || 'TF';
-  if (tipo === 'PCE' && (!(Number(ano) > 2000) || !(Number(ultimo) >= 0))) throw new Error('Ano ou número inválido.');
+  if (tipo !== 'TF' && (!(Number(ano) > 2000) || !(Number(ultimo) >= 0))) throw new Error('Ano ou número inválido.');
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
-    if (tipo === 'PCE') {
+    if (tipo !== 'TF') {
       barreira = unidadePce_(barreira);
       if (!barreira) throw new Error('Informe a unidade.');
     } else if (!listarBarreiras_().some(function (b) { return b.id === barreira; })) throw new Error('Barreira desconhecida: ' + barreira);
@@ -688,6 +732,85 @@ function pceEmitir_(req, usuario) {
   }
 }
 
+/* ---------- PCE: Cadastro de imóvel (por programa; hoje "moniliase") e Termo de Fiscalização do PCE ----------
+ * Numeração como no Termo de Colheita: online o app pergunta o próximo (pceDocNumero) e grava com pceDocRegistrar (só se o número estiver
+ * livre, sob lock); sem internet o número é provisório e sobe no sync (número repetido = conflito = 1, como no TF). Registro digitado do
+ * papel (registroAntigo = 1, só com a permissão "Digitar do papel"): o número é o do papel (numeroOrigem "papel"); a planilha aceita
+ * qualquer número livre e recusa número já usado; o próximo sugerido continua sendo "maior número usado + 1" (padrão do Termo de Colheita). */
+const PROGRAMAS_PCE = ['moniliase', 'banana', 'citros', 'mandioca', 'soja', 'propriedade'];
+const DOCS_PCE = {
+  termo: { aba: 'TermosPCE', seq: 'TPCE', nome: 'Termo de Fiscalização' },
+  cadastro: { aba: 'CadastrosPCE', seq: 'CPCE', nome: 'Cadastro de imóvel' }
+};
+function programaPce_(v) { const s = normPub_(v).replace(/ /g, ''); return PROGRAMAS_PCE.indexOf(s) >= 0 ? s : 'moniliase'; }
+function tipoDocPce_(v) { if (v !== 'termo' && v !== 'cadastro') throw new Error('Tipo de documento do PCE inválido.'); return v; }
+/** Termo "001.2026.AUTAZES"; Cadastro "001-2026-AUTAZES". */
+function numeroTxtDocPce_(tipo, numero, ano, unidade) {
+  const n = String(numero).padStart(3, '0');
+  return tipo === 'termo' ? n + '.' + ano + '.' + unidade : n + '-' + ano + '-' + unidade;
+}
+function grupoDocPce_(tipo, unidade, programa) { return tipo === 'termo' ? unidade : String(programa || 'moniliase').toUpperCase() + '|' + unidade; }
+/** Último nº usado por chave (base para o número provisório sem internet): "T|UNIDADE|ano" (termo) e "C|PROGRAMA|UNIDADE|ano" (cadastro). */
+function ultimosDocPce_() {
+  const o = {}, num = lerLeitura_('Numeracao');
+  [['termo', 'T|'], ['cadastro', 'C|']].forEach(function (x) {
+    const D = DOCS_PCE[x[0]], seq = SEQUENCIAS[D.seq];
+    lerLeitura_(D.aba).forEach(function (r) {
+      if (!r.unidade || !r.ano) return;
+      const k = x[1] + grupoSeq_(D.seq, r) + '|' + r.ano;
+      o[k] = Math.max(o[k] || 0, r.numero);
+    });
+    num.forEach(function (r) {
+      if (String(r.id).indexOf(seq.prefixo) !== 0 || !r.barreira || !r.ano) return;
+      const k = x[1] + r.barreira + '|' + r.ano;
+      o[k] = Math.max(o[k] || 0, r.ultimo);
+    });
+  });
+  return o;
+}
+/** "Qual é o próximo número?" do Termo de Fiscalização (unidade/ano) ou do Cadastro (programa/unidade/ano). Não reserva nada. */
+function pceDocNumero_(req) {
+  const tipo = tipoDocPce_(req.tipo), unidade = unidadePce_(req.unidade), ano = Number(req.ano) || new Date().getFullYear(), programa = programaPce_(req.programa);
+  if (!unidade) throw new Error('Informe a unidade.');
+  const u = ultimoSeq_(DOCS_PCE[tipo].seq, grupoDocPce_(tipo, unidade, programa), ano);
+  return { ok: true, tipo: tipo, unidade: unidade, ano: ano, programa: programa, ultimo: u.ultimo, proximo: u.ultimo + 1,
+           ultimoReg: u.ref ? { numeroTxt: u.ref.numeroTxt, data: u.ref.data, hora: u.ref.hora, usuario: u.ref.usuario } : null };
+}
+/** Prepara o registro recebido do app: unidade em maiúsculas, programa válido e nº em texto no formato do papel. */
+function normalizarDocPce_(tipo, r) {
+  r.unidade = unidadePce_(r.unidade);
+  if (tipo === 'cadastro') r.programa = programaPce_(r.programa);
+  else r.programa = r.programa ? programaPce_(r.programa) : '';
+  if (Number(r.numero) > 0 && Number(r.ano) > 0) r.numeroTxt = numeroTxtDocPce_(tipo, Number(r.numero), Number(r.ano), r.unidade);
+  return r;
+}
+/** Grava o Termo/Cadastro só se o número ainda estiver livre (sob lock). Também grava o produtor e a propriedade. */
+function pceDocRegistrar_(req, usuario) {
+  const tipo = tipoDocPce_(req.tipo), D = DOCS_PCE[tipo], r = normalizarDocPce_(tipo, req.registro || {});
+  if (Number(r.registroAntigo) === 1) exigirAntigo_(usuario);                     // digitado do papel: só com a permissão "Digitar do papel"
+  const unidade = r.unidade, ano = Number(r.ano) || 0, numero = Number(r.numero) || 0, grupo = grupoDocPce_(tipo, unidade, r.programa);
+  if (!r.id || !unidade || !ano || numero < 1) throw new Error('Dados do ' + D.nome + ' incompletos.');
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try {
+    const todos = lerLeitura_(D.aba);
+    const ocupante = todos.filter(function (x) { return grupoSeq_(D.seq, x) === grupo && x.ano === ano && x.numero === numero && x.id !== r.id && x.excluido !== 1; })[0];
+    if (ocupante) {
+      const u = ultimoSeq_(D.seq, grupo, ano, todos);
+      return { ok: true, emitido: false, ocupadoPor: { numeroTxt: ocupante.numeroTxt, data: ocupante.data, hora: ocupante.hora, usuario: ocupante.usuario, nome: ocupante.nome },
+               ultimo: u.ultimo, proximo: u.ultimo + 1 };
+    }
+    const agora = Date.now(), antes = todos.filter(function (x) { return x.id === r.id; })[0];
+    r.emitidoEm = (antes && antes.emitidoEm) || agora;
+    gravar_(D.aba, [r], agora, usuario);
+    if (req.pessoa) gravar_('Pessoas', [req.pessoa], agora, usuario);
+    if (req.propriedade) gravar_('Propriedades', [req.propriedade], agora, usuario);
+    return { ok: true, emitido: true, numero: numero, numeroTxt: r.numeroTxt, emitidoEm: r.emitidoEm, srv_ts: agora };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 /** Cadastro do produtor (pessoa + propriedades) e quantos levantamentos/termos já existem para o CPF/CNPJ. */
 function pceConsultar_(req, usuario) {
   const doc = digitos_(req.doc);
@@ -697,21 +820,23 @@ function pceConsultar_(req, usuario) {
     .map(function (p) { return { id: p.id, codigo: p.codigo, nome: p.nome, doc: p.doc, municipio: p.municipio, situacaoFundiaria: p.situacaoFundiaria, lat: p.lat, lon: p.lon }; });
   const levantamentos = lerLeitura_('Levantamentos').filter(function (r) { return digitos_(r.doc) === doc && r.excluido !== 1; }).length;
   const colheitas = lerLeitura_('Colheitas').filter(function (r) { return digitos_(r.doc) === doc && r.excluido !== 1 && r.cancelado !== 1; }).length;
-  const achou = pessoa || propriedades.length || levantamentos || colheitas;
+  const cadastros = lerLeitura_('CadastrosPCE').filter(function (r) { return digitos_(r.doc) === doc && r.excluido !== 1; })
+    .map(function (r) { const o = {}; TABELAS.CadastrosPCE.forEach(function (c) { if (c !== 'srv_ts' && c !== 'usuario') o[c] = r[c]; }); o.pendente = 0; return o; });
+  const achou = pessoa || propriedades.length || levantamentos || colheitas || cadastros.length;
   const c = aba_('Consultas');
   c.getRange(c.getLastRow() + 1, 1, 1, 5).setValues([[Date.now(), usuario, doc.slice(0, 3) + '***' + doc.slice(-2), '', achou ? 'PCE: encontrado' : 'PCE: novo']]);
   return {
     ok: true,
     pessoa: pessoa ? { id: pessoa.id, tipo: pessoa.tipo, nome: pessoa.nome, rg: pessoa.rg, endereco: pessoa.endereco, municipio: pessoa.municipio,
                        uf: pessoa.uf, telefone: pessoa.telefone, email: pessoa.email } : null,
-    propriedades: propriedades, levantamentos: levantamentos, colheitas: colheitas
+    propriedades: propriedades, levantamentos: levantamentos, colheitas: colheitas, cadastrosPce: cadastros
   };
 }
 
 /* ---------- PCE em campo: dados do(s) município(s) para consultar sem internet ---------- */
 const CAMPO_MAX_PROPS = 5000;                   // propriedades por chamada (resposta de ~1,5 MB)
 // campos que não vão para o aparelho: técnicos da planilha e nomes que o app usa para controle local
-const CAMPO_FORA = ['srv_ts', 'usuario', 'pendente', 'campoMun', 'resumoLev', 'baixadoEm', 'excluido'];
+const CAMPO_FORA = ['srv_ts', 'usuario', 'pendente', 'campoMun', 'resumoLev', 'baixadoEm', 'excluido', 'cadastrosPce', 'ultimoTermoPce'];
 
 /**
  * Todas as colunas da aba (as do sistema e as acrescentadas à mão, pelo cabeçalho), sem as técnicas: colunas novas da ficha ou do
@@ -799,6 +924,19 @@ function pceBaixarMunicipio_(req, usuario) {
   });
   const pessoas = lerTodasColunas_('Pessoas').filter(function (x) { return x.id && docs[digitos_(x.id)]; })
     .map(function (x) { x.campoMun = Object.keys(docs[digitos_(x.id)]); return x; });
+  // Cadastros de imóvel do PCE dessas propriedades (para o mapa e para preencher o Termo) e o último Termo de Fiscalização de cada uma
+  const porProp = {}; props.forEach(function (p) { porProp[p.id] = p; });
+  const excluidos = {}; lerLeitura_('CadastrosPCE').forEach(function (c) { if (c.excluido === 1) excluidos[c.id] = 1; });
+  const cadastrosPce = lerTodasColunas_('CadastrosPCE').filter(function (c) { return c.id && !excluidos[c.id] && porProp[c.propriedadeId]; })
+    .map(function (c) { c.campoMun = porProp[c.propriedadeId].campoMun; return c; });
+  cadastrosPce.forEach(function (c) { const p = porProp[c.propriedadeId]; (p.cadastrosPce = p.cadastrosPce || []).push({ id: c.id, programa: c.programa, numeroTxt: c.numeroTxt, data: c.data }); });
+  lerLeitura_('TermosPCE').forEach(function (t) {
+    const p = porProp[t.propriedadeId];
+    if (!p || t.excluido === 1 || t.cancelado === 1) return;
+    if (!p.ultimoTermoPce || String(t.data + ' ' + t.hora) > String(p.ultimoTermoPce.data + ' ' + p.ultimoTermoPce.hora)) {
+      p.ultimoTermoPce = { id: t.id, numeroTxt: t.numeroTxt, data: t.data, hora: t.hora, plantasInspecionadas: t.plantasInspecionadas, amostra: t.amostra, sintomas: t.sintomas };
+    }
+  });
   const municipios = Object.keys(alvo).map(function (k) {
     const m = porMun[alvo[k]] || { props: 0, docs: {} };
     return { municipio: alvo[k], nProps: m.props, nPessoas: Object.keys(m.docs).length };
@@ -806,7 +944,7 @@ function pceBaixarMunicipio_(req, usuario) {
   const c = aba_('Consultas');
   c.getRange(c.getLastRow() + 1, 1, 1, 5).setValues([[Date.now(), usuario, '', '',
     ('PCE campo: ' + municipios.map(function (m) { return m.municipio + ' (' + m.nProps + ')'; }).join(', ')).slice(0, 480)]]);
-  return { ok: true, agora: Date.now(), municipios: municipios, propriedades: props, pessoas: pessoas };
+  return { ok: true, agora: Date.now(), municipios: municipios, propriedades: props, pessoas: pessoas, cadastrosPce: cadastrosPce };
 }
 
 const ARQ_MIMES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'application/pdf': 'pdf' };
@@ -844,7 +982,7 @@ function arquivoEnviar_(req, usuario) {
   // foto do levantamento por praga: "praga – cultura" a que a foto pertence (texto livre, só informativo: aba Arquivos e nome no Drive)
   const rotulo = tipo === 'foto' ? String(a.rotulo || '').replace(/\s+/g, ' ').trim().slice(0, 120) : '';
   if (!ARQ_RE_UUID.test(id)) throw new Error('Identificador de arquivo inválido.');
-  if (dono !== 'levantamentos' && dono !== 'colheitas' && dono !== 'tfs') throw new Error('Arquivo sem registro de origem válido.');
+  if (['levantamentos', 'colheitas', 'tfs', 'cadastrosPce', 'termosPce'].indexOf(dono) < 0) throw new Error('Arquivo sem registro de origem válido.');
   if (!donoId || donoId.length > 64) throw new Error('Arquivo sem registro de origem válido.');
   if (tipo !== 'foto' && tipo !== 'assinatura' && tipo !== 'documento') throw new Error('Tipo de arquivo inválido.');
   if (['', 'servidor', 'produtor', 'testemunha1', 'testemunha2', 'fiscalizado'].indexOf(papel) < 0) throw new Error('Papel da assinatura inválido.');
@@ -1031,7 +1169,8 @@ const MODULOS = ['veiculos', 'tf', 'pce'];
 const NOME_MODULO = { veiculos: 'Educação Sanitária/Fiscalização de Trânsito', tf: 'TF de Barreira', pce: 'PCE' };
 // actions do app que pertencem a um módulo (o servidor recusa se o módulo não estiver liberado para quem chama)
 const MODULO_DA_ACAO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf', tfIndiceReincidencia: 'tf',
-                         pceProximoNumero: 'pce', pceEmitir: 'pce', pceConsultar: 'pce', pceBaixarMunicipio: 'pce', arquivoEnviar: 'pce' };
+                         pceProximoNumero: 'pce', pceEmitir: 'pce', pceConsultar: 'pce', pceBaixarMunicipio: 'pce', arquivoEnviar: 'pce',
+                         pceDocNumero: 'pce', pceDocRegistrar: 'pce' };
 const tudoLiberado_ = function () { return { veiculos: 1, tf: 1, pce: 1, antigo: 0 }; };   // "antigo" (Digitar do papel): desligado por padrão
 const MSG_SEM_ANTIGO = 'Sem autorização para digitar registros antigos (do papel). Fale com a gerência.';
 
@@ -1442,7 +1581,7 @@ function periodoPainel_(filtro) {
 function auditarRegs_(tipo, grupo, ano, todos, numeracao) {
   const s = SEQUENCIAS[tipo];
   ano = Number(ano);
-  const regs = todos.filter(function (r) { return r[s.grupo] === grupo && r.ano === ano && (tipo === 'TF' || r.numero > 0); });
+  const regs = todos.filter(function (r) { return grupoSeq_(tipo, r) === grupo && r.ano === ano && (tipo === 'TF' || r.numero > 0) && r.excluido !== 1; });
   const usos = {};
   regs.forEach(function (r) { (usos[r.numero] = usos[r.numero] || []).push(r); });
   const nums = Object.keys(usos).map(Number).sort(function (a, b) { return a - b; });
@@ -1451,7 +1590,7 @@ function auditarRegs_(tipo, grupo, ano, todos, numeracao) {
   const maior = nums.length ? nums[nums.length - 1] : inicio - 1;
   for (let n = inicio; n <= maior; n++) if (!usos[n]) lacunas.push(n);
   nums.forEach(function (n) { if (usos[n].length > 1) duplicados.push({ numero: n, ids: usos[n].map(function (r) { return r.usuario + ' ' + r.data + ' ' + r.hora; }) }); });
-  const editados = regs.filter(function (r) { return r.numeroOrigem === 'editado' || r.numeroOrigem === 'provisorio'; }).map(function (r) { return { numero: r.numero, origem: r.numeroOrigem, sugerido: r.numeroSugerido, usuario: r.usuario }; });
+  const editados = regs.filter(function (r) { return r.numeroOrigem === 'editado' || r.numeroOrigem === 'provisorio' || r.numeroOrigem === 'papel'; }).map(function (r) { return { numero: r.numero, origem: r.numeroOrigem, sugerido: r.numeroSugerido, usuario: r.usuario }; });
   return { total: regs.length, primeiro: nums[0] || null, ultimo: maior || null, inicioEsperado: inicio, lacunas: lacunas, duplicados: duplicados, editados: editados,
            conflitos: regs.filter(function (r) { return r.conflito === 1; }).length, cancelados: regs.filter(function (r) { return r.cancelado === 1; }).length };
 }
@@ -1574,19 +1713,44 @@ function dadosPainel_(admin, filtro) {
              criadoEm: r.criadoEm, srv_ts: r.srv_ts, usuario: r.usuario };
   });
 
-  const total = turnos.length + veiculos.length + tfs.length + levantamentos.length + colheitas.length + historicoPce.length;
+  // PCE: Termos de Fiscalização e Cadastros de imóvel (monilíase…) do período, sem testemunhas, assinaturas nem ids de arquivos
+  const todosTermosPce = lerLeitura_('TermosPCE').filter(function (r) { return r.id && r.excluido !== 1; });
+  const termosPcePer = todosTermosPce.filter(noPeriodo);
+  const termosPce = termosPcePer.map(function (r) {
+    return { id: r.id, unidade: r.unidade, ano: r.ano, numero: r.numero, numeroTxt: r.numeroTxt, numeroSugerido: r.numeroSugerido, numeroOrigem: r.numeroOrigem,
+             conflito: r.conflito, emitidoEm: r.emitidoEm, propriedadeId: r.propriedadeId, cadastroId: r.cadastroId, programa: r.programa,
+             doc: mascararDoc_(r.doc), tipoDoc: tipoDoc_(r.doc), nome: r.nome, atividade: r.atividade, empresa: r.empresa, endereco: r.endereco,
+             municipio: r.municipio, uf: r.uf, lat: numOuNulo_(r.lat), lon: numOuNulo_(r.lon), data: r.data, hora: r.hora,
+             servidor: r.servidor, cargo: r.cargo, matricula: r.matricula, lotacao: r.lotacao,
+             pragas: lerJSONSeguro_(r.pragas, []), tipoLocal: lerJSONSeguro_(r.tipoLocal, []), acoes: lerJSONSeguro_(r.acoes, []),
+             constatacao: r.constatacao, enquadramento: r.enquadramento, plantasInspecionadas: r.plantasInspecionadas,
+             amostra: r.amostra, sintomas: r.sintomas, hospedeiros: lerJSONSeguro_(r.hospedeiros, []), cancelado: r.cancelado, motivoCancel: r.motivoCancel,
+             nDocumentos: contarFotos_(r.documentos), criadoEm: r.criadoEm, srv_ts: r.srv_ts, usuario: r.usuario };
+  });
+  const todosCadastrosPce = lerLeitura_('CadastrosPCE').filter(function (r) { return r.id && r.excluido !== 1; });
+  const ligados = {}; termosPce.forEach(function (t) { if (t.cadastroId) ligados[t.cadastroId] = true; });
+  const cadPer = todosCadastrosPce.filter(function (r) { return noPeriodo(r) || ligados[r.id]; });
+  const cadastrosPce = cadPer.map(function (r) {
+    return { id: r.id, programa: r.programa, unidade: r.unidade, ano: r.ano, numero: r.numero, numeroTxt: r.numeroTxt, numeroSugerido: r.numeroSugerido,
+             numeroOrigem: r.numeroOrigem, conflito: r.conflito, propriedadeId: r.propriedadeId, doc: mascararDoc_(r.doc), tipoDoc: tipoDoc_(r.doc), nome: r.nome,
+             propriedade: r.propriedade, municipio: r.municipio, uf: r.uf, lat: numOuNulo_(r.lat), lon: numOuNulo_(r.lon), data: r.data, hora: r.hora,
+             servidor: r.servidor, cargo: r.cargo, matricula: r.matricula, lotacao: r.lotacao, local: r.local, dados: lerJSONSeguro_(r.dados, {}),
+             totalPlantas: r.totalPlantas, noPeriodo: noPeriodo(r) ? 1 : 0, nDocumentos: contarFotos_(r.documentos), criadoEm: r.criadoEm, srv_ts: r.srv_ts, usuario: r.usuario };
+  });
+
+  const total = turnos.length + veiculos.length + tfs.length + levantamentos.length + colheitas.length + historicoPce.length + termosPce.length + cadastrosPce.length;
   if (total > PAINEL_MAX_REGISTROS) throw new Error('O período escolhido tem registros demais (' + total + '). Escolha um período menor.');
 
   // Auditoria da numeração: cada barreira/ano (TF) e unidade/ano (Termo de Colheita) presente no período, sobre TODOS os registros do ano
   const numeracao = lerLeitura_('Numeracao');
   const auditar = function (tipo, todos, doPeriodo) {
-    const s = SEQUENCIAS[tipo], vistos = {}, out = [];
+    const vistos = {}, out = [];
     doPeriodo.forEach(function (r) {
-      const k = r[s.grupo] + '|' + r.ano;
-      if (!r[s.grupo] || !r.ano || vistos[k]) return;
+      const g = grupoSeq_(tipo, r), k = g + '|' + r.ano;
+      if (!r.unidade && !r.barreira || !r.ano || vistos[k]) return;
       vistos[k] = true;
-      const a = auditarRegs_(tipo, r[s.grupo], r.ano, todos, numeracao);
-      a.grupo = r[s.grupo]; a.ano = r.ano; a.lacunasTotal = a.lacunas.length; a.lacunas = a.lacunas.slice(0, PAINEL_MAX_LACUNAS);
+      const a = auditarRegs_(tipo, g, r.ano, todos, numeracao);
+      a.grupo = g; a.ano = r.ano; a.lacunasTotal = a.lacunas.length; a.lacunas = a.lacunas.slice(0, PAINEL_MAX_LACUNAS);
       out.push(a);
     });
     return out;
@@ -1604,9 +1768,12 @@ function dadosPainel_(admin, filtro) {
     levantamentos: levantamentos,
     colheitas: colheitas,
     historicoPce: historicoPce,
+    termosPce: termosPce,
+    cadastrosPce: cadastrosPce,
     barreiras: lerLeitura_('Barreiras').filter(function (b) { return b.id; })
       .map(function (b) { return { id: b.id, nome: b.nome, sufixo: b.sufixo, local: b.local, ativo: b.ativo === 1 }; }),
-    auditoria: { tf: auditar('TF', todosTFs, tfsPer), pce: auditar('PCE', todasColheitas, colPer) }
+    auditoria: { tf: auditar('TF', todosTFs, tfsPer), pce: auditar('PCE', todasColheitas, colPer),
+                 termosPce: auditar('TPCE', todosTermosPce, termosPcePer), cadastrosPce: auditar('CPCE', todosCadastrosPce, todosCadastrosPce.filter(noPeriodo)) }
   };
 }
 
@@ -2675,6 +2842,8 @@ function onOpen() {
     .addItem('Auditar numeração de TF (lacunas e duplicidades)', 'menuAuditarNumeracao')
     .addItem('Definir último nº de Termo de Colheita (PCE)', 'menuDefinirSequenciaPce')
     .addItem('Auditar numeração de Termo de Colheita (PCE)', 'menuAuditarNumeracaoPce')
+    .addItem('Definir último nº de Termo de Fiscalização (PCE)', 'menuDefinirSequenciaTermoPce')
+    .addItem('Auditar numeração de Termo de Fiscalização e Cadastro (PCE)', 'menuAuditarNumeracaoDocPce')
     .addItem('Revogar acesso de um fiscal ou administrador', 'menuRevogar')
     .addItem('Autorizar acesso ao Drive (fotos do PCE)', 'menuAutorizarDrive')
     .addSeparator()
@@ -2825,6 +2994,39 @@ function menuAuditarNumeracaoPce() {
   ui.alert('Auditoria da numeração (Termo de Colheita)', r.total + ' termo(s), do nº ' + r.primeiro + ' ao nº ' + r.ultimo + '.\n\nLacunas (números sem termo): ' + f(r.lacunas) +
     '\nNúmeros repetidos: ' + (r.duplicados.length ? r.duplicados.map(function (d) { return d.numero; }).join(', ') : 'nenhum') +
     '\nNúmeros alterados à mão ou provisórios: ' + (r.editados.length ? r.editados.map(function (e) { return e.numero + ' (' + e.origem + ', ' + e.usuario + ')'; }).join('; ') : 'nenhum'), ui.ButtonSet.OK);
+}
+
+function menuDefinirSequenciaTermoPce() {
+  const ui = SpreadsheetApp.getUi();
+  const b = ui.prompt('Unidade', 'Unidade da numeração do Termo de Fiscalização do PCE, ex.: AUTAZES', ui.ButtonSet.OK_CANCEL);
+  if (b.getSelectedButton() !== ui.Button.OK) return;
+  const a = ui.prompt('Ano', 'Ano da numeração (ex.: ' + new Date().getFullYear() + ')', ui.ButtonSet.OK_CANCEL);
+  if (a.getSelectedButton() !== ui.Button.OK) return;
+  const u = ui.prompt('Último número usado', 'Último nº de Termo de Fiscalização JÁ usado nessa unidade/ano (o próximo será este + 1). Use 0 para começar do 001.', ui.ButtonSet.OK_CANCEL);
+  if (u.getSelectedButton() !== ui.Button.OK) return;
+  try {
+    const un = unidadePce_(b.getResponseText()), ano = Number(a.getResponseText());
+    const n = definirSequencia_(un, ano, Number(u.getResponseText()), 'TPCE');
+    ui.alert('Pronto', 'O próximo Termo de Fiscalização será o nº ' + numeroTxtDocPce_('termo', n + 1, ano, un) + '.', ui.ButtonSet.OK);
+  } catch (e) { ui.alert('Não foi possível definir', String(e.message || e), ui.ButtonSet.OK); }
+}
+
+function menuAuditarNumeracaoDocPce() {
+  const ui = SpreadsheetApp.getUi();
+  const b = ui.prompt('Unidade', 'Unidade da numeração, ex.: AUTAZES', ui.ButtonSet.OK_CANCEL);
+  if (b.getSelectedButton() !== ui.Button.OK) return;
+  const a = ui.prompt('Ano', 'Ano da numeração (ex.: ' + new Date().getFullYear() + ')', ui.ButtonSet.OK_CANCEL);
+  if (a.getSelectedButton() !== ui.Button.OK) return;
+  const un = unidadePce_(b.getResponseText()), ano = Number(a.getResponseText());
+  const f = function (l) { return l.length ? l.join(', ') : 'nenhuma'; };
+  const txt = function (r, nome) {
+    return nome + ': ' + r.total + ' registro(s), do nº ' + r.primeiro + ' ao nº ' + r.ultimo + '.\nLacunas: ' + f(r.lacunas) +
+      '\nNúmeros repetidos: ' + (r.duplicados.length ? r.duplicados.map(function (d) { return d.numero; }).join(', ') : 'nenhum') +
+      '\nDo papel, editados ou provisórios: ' + (r.editados.length ? r.editados.map(function (e) { return e.numero + ' (' + e.origem + ', ' + e.usuario + ')'; }).join('; ') : 'nenhum');
+  };
+  const t = auditarRegs_('TPCE', un, ano, lerLeitura_('TermosPCE'), lerLeitura_('Numeracao'));
+  const c = auditarRegs_('CPCE', 'MONILIASE|' + un, ano, lerLeitura_('CadastrosPCE'), lerLeitura_('Numeracao'));
+  ui.alert('Auditoria da numeração (PCE)', txt(t, 'Termos de Fiscalização') + '\n\n' + txt(c, 'Cadastros de imóvel (monilíase)'), ui.ButtonSet.OK);
 }
 
 function menuRevogar() {

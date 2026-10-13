@@ -79,3 +79,9 @@ Ideias discutidas com a gerência que ainda **não** foram implementadas. Cada u
 - **Mapa "propriedades perto de mim"**: GPS do servidor e propriedades baixadas, coloridas pelo último levantamento ou pendência. Lista por distância e botão "Fazer levantamento aqui", que abre a ficha preenchida.
   - Sem internet: contornos dos municípios e os pontos, sem o fundo de ruas.
 - **Rota**: o servidor marca as propriedades, o app sugere a ordem pela menor distância e abre o trajeto no **Google Maps** com as paradas. O Google Maps funciona sem internet se o mapa da região tiver sido baixado nele antes; colocar isso no manual.
+
+## 3. Convênios no painel (metas físicas, execução financeira e relatório mensal)
+*Pedido do gestor (13/10/2026) para o Convênio SUASA nº 991272/2025 – MAPA/ADAF. **Implementado** em 14/10/2026 (README → "Convênios"): aba Convênios do painel com as metas por etapa (apuração automática das etapas 1.4, 1.9 e 1.10 a partir do e-GDV; lançamento manual das demais e ajustes com justificativa), esperado pelo tempo e alertas, execução financeira (plano de aplicação × executado) e relatório circunstancial mensal em Word (.docx) e PDF.*
+- **Decisões do gestor:** 1.4 conta municípios levantados e, em cada um, as propriedades; meta da 1.10 = 18.000 veículos (as 1.800 do plano são diárias); relatórios mensais; financeiro incluído.
+- **Ainda a fazer (por decisão do gestor, "não agora"):** registros de **armadilhas** (monitoramento de mosca-da-carambola, etapa 1.3) e de **ações de controle** (supressão de monilíase, etapa 1.5) no app de campo — hoje essas etapas entram por lançamento manual no painel. Quando existirem, a apuração delas pode passar a automática como a 1.4.
+- Outros convênios: a aba `Convenios` já guarda um JSON por convênio (o seletor existe), mas criar um convênio novo ainda é à mão (copiar a linha e ajustar).

@@ -31,7 +31,7 @@ const PESO = {
   acessos_test: 12, arquivo_test: 4, bgsync_test: 47, e2e: 89, encerrar_test: 23, gps_pedidos_test: 5, install_check: 6,
   migra_db: 4, painel_test: 88, pce_antigo_test: 36, pce_campo_test: 14, pce_e2e: 24, pce_moniliase_test: 25, pce_naoassina_test: 9, pce_server_test: 1, permissoes_test: 11, publico_test: 17, responsivo_test: 3,
   proprio_test: 39, rotinas_test: 8, semplaca_test: 8, server_painel_test: 1, sinal_test: 13, tf_alerta_test: 25,
-  cargo_outro_test: 7, colunas_test: 1, tf_anexos_test: 14, tf_e2e: 16, tf_paginas: 5, tf_server_test: 1, tv_test: 83
+  cargo_outro_test: 7, colunas_test: 1, convenio_test: 25, tf_anexos_test: 14, tf_e2e: 16, tf_paginas: 5, tf_server_test: 1, tv_test: 83
 };
 
 // ---------- argumentos ----------

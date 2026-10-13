@@ -892,14 +892,13 @@ const PCEUI = (() => {
         <button class="mini" data-v="pcecads" id="pce-cads">🏡 Cadastros de propriedades</button>
         <button class="mini" data-v="pcetfs" id="pce-tfs">📋 Termos de Fiscalização</button>
         <button class="mini" data-v="pcerel" id="pce-rel">📊 Relatório de atividades</button></div>`}
-      <div class="card"><label>Pesquisar (produtor, CPF/CNPJ, propriedade, município, praga)<input id="pceQ"></label></div><div id="pceItens"></div>`);
+      <div id="pceItens"></div>`);
     const G = new Map(todos.map(x => [x.id, Docs.pceGrupos(x)]));
     const cads = (await Store.todos('cadastrosPce')).filter(c => !Number(c.excluido)), tfsPce = (await Store.todos('termosPce')).filter(t => !Number(t.excluido));
     const V = new Map(await Promise.all(todos.map(async x => [x.id, await docsDaVisita(x, cads, tfsPce)])));
     if (!mostrar.viva()) return;
     const desenhar = () => {
-      const q = semAcento($('#pceQ').value.trim()).toUpperCase(), qd = digitos(q);
-      const v = todos.filter(x => !q || semAcento([x.nome, x.propriedade, x.municipio, x.codigoPropriedade, ...G.get(x.id).pragas.map(g => g.praga)].join(' ')).toUpperCase().includes(q) || (qd && digitos(x.doc).includes(qd)));
+      const v = todos;
       $('#pceItens').innerHTML = v.length ? v.map(x => {
         const g = G.get(x.id), cult = g.pragas.flatMap(p => p.culturas), fotos = lerJSON(x.fotos, []), col = cult.filter(c => c.coleta === 'Sim').length;
         const pend = x.pendente || [...idsArquivos(x)].some(id => pendArq.has(id)), papelSemAut = Number(x.registroAntigo) === 1 && !podeAnt;
@@ -915,7 +914,7 @@ const PCEUI = (() => {
           <button class="excluir" data-pce="excluirlev" data-id="${esc(x.id)}">Excluir</button></div></div>`;
       }).join('') : '<div class="vazio">Nenhum levantamento neste aparelho.</div>';
     };
-    desenhar(); $('#pceQ').oninput = desenhar;
+    desenhar();
   }
 
   async function excluirLev(id) {

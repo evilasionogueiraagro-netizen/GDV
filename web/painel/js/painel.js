@@ -16,7 +16,7 @@ const Painel = (() => {
   // TF em preenchimento (apreensão em andamento): enquanto houver um, as barreiras ao vivo são consultadas a cada 25 s;
   // sem batimento do aparelho há mais de 10 min o TF é considerado encerrado (o servidor já filtra; aqui vale também sem conexão)
   const TF_RAPIDO_MS = 15 * 1000, TF_VALIDADE_MS = 10 * 60 * 1000;
-  const ORDEM_ABAS = ['geral', 'barreiras', 'tf', 'pce', 'acessos'];
+  const ORDEM_ABAS = ['geral', 'barreiras', 'tf', 'pce', 'convenios', 'acessos'];
 
   /* ---------------- utilidades ---------------- */
   const $ = s => document.querySelector(s);

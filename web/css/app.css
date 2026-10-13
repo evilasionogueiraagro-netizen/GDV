@@ -175,3 +175,4 @@ input:disabled { background:#eef1f6; color:#99a; }
 .campo-rota-acoes { display:inline-flex; gap:4px; vertical-align:middle; float:right; } .campo-rota-acoes .mini { margin:0; padding:6px 9px; } .campo-rota-acoes .mini:disabled { opacity:.35; }
 .pce-enviar { max-height:90vh; overflow:auto; text-align:left; } .pce-enviar .tf-status { overflow-wrap:anywhere; } .pce-enviar h3 { text-align:center; }
 .pce-enviar-lista label { flex-direction:row; align-items:center; gap:8px; color:var(--ink); margin:6px 0; }
+.cargo-outro { margin-top:6px; } .cargo-outro[hidden] { display:none; }

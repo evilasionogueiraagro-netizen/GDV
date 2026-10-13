@@ -326,7 +326,7 @@ const PCEMon = (() => {
     const p = PC, fito = {};
     (MO.doencas || []).forEach(([k]) => { fito[k] = { tem: rv(p, 'f-' + k + '-tem'), tempo: g(p, 'f-' + k + '-tempo'), controle: rv(p, 'f-' + k + '-controle'), qual: g(p, 'f-' + k + '-qual') }; });
     const plantas = {}; HOSP.forEach(([k]) => { plantas[k] = g(p, 'pl-' + k); });
-    return { unidade: g(p, 'unidade'), numPapel: g(p, 'numpapel'), data: g(p, 'data'), local: g(p, 'local'), sNome: g(p, 'snome'), sCargo: g(p, 'scargo'), sMatricula: g(p, 'smatricula'),
+    return { unidade: g(p, 'unidade'), numPapel: g(p, 'numpapel'), data: g(p, 'data'), local: g(p, 'local'), sNome: g(p, 'snome'), sCargo: U().cargoValor(p + 'scargo'), sMatricula: g(p, 'smatricula'),
       sLotacao: g(p, 'slotacao'), comercial: rv(p, 'comercial'), tipoNaoComercial: rv(p, 'tipoNaoComercial'), tipoOutros: g(p, 'tipoOutros'), nome: g(p, 'nome'), doc: g(p, 'doc'),
       propriedade: g(p, 'propriedade'), cnpj: g(p, 'cnpj'), lat: g(p, 'lat'), lon: g(p, 'lon'), viaAcesso: rv(p, 'viaAcesso'), viaOutra: g(p, 'viaOutra'), endereco: g(p, 'endereco'),
       municipio: g(p, 'municipio'), uf: g(p, 'uf'), plantas, areaAbandonada: rv(p, 'areaAbandonada'), areaTotal: g(p, 'areaTotal'), idadePlantio: g(p, 'idadePlantio'),
@@ -575,7 +575,7 @@ const PCEMon = (() => {
       amostra: r.amostra || '', sintomas: r.sintomas || '' }; };
   function coletarTf() {
     const p = PT;
-    return { unidade: g(p, 'unidade'), numPapel: g(p, 'numpapel'), sNome: g(p, 'snome'), sCargo: g(p, 'scargo'), sMatricula: g(p, 'smatricula'), sLotacao: g(p, 'slotacao'),
+    return { unidade: g(p, 'unidade'), numPapel: g(p, 'numpapel'), sNome: g(p, 'snome'), sCargo: U().cargoValor(p + 'scargo'), sMatricula: g(p, 'smatricula'), sLotacao: g(p, 'slotacao'),
       nome: g(p, 'nome'), doc: g(p, 'doc'), atividade: g(p, 'atividade'), empresa: g(p, 'empresa'), cnpj: g(p, 'cnpj'), atividadeEmpresa: g(p, 'atividadeEmpresa'),
       endereco: g(p, 'endereco'), municipio: g(p, 'municipio'), uf: g(p, 'uf'), telefone: g(p, 'telefone'), lat: g(p, 'lat'), lon: g(p, 'lon'),
       pragas: cv(p, 'pragas'), tipoLocal: cv(p, 'tipoLocal'), data: g(p, 'data'), hora: g(p, 'hora'), acoes: cv(p, 'acoes'), constatacao: g(p, 'constatacao'),

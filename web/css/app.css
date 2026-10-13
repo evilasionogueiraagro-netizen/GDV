@@ -194,3 +194,4 @@ input:disabled { background:#eef1f6; color:#99a; }
 .mon-extras { border:1px dashed var(--linha); box-shadow:none; background:#f8fafd; }
 .mon-previa { background:#f8fafd; box-shadow:none; border:1px solid var(--linha); } .mon-rel-lista { margin:6px 0; padding-left:18px; } .mon-rel-lista li { margin:4px 0; }
 .campo-mon { margin:6px 0 0; color:var(--mut); }
+.cargo-outro { margin-top:6px; } .cargo-outro[hidden] { display:none; }

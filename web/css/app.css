@@ -218,3 +218,6 @@ input:disabled { background:#eef1f6; color:#99a; }
   #pceItens > .item, #pceItens > .card { margin:0; } #pceItens > .dica, #pceItens > .vazio { grid-column:1 / -1; }
 }
 @media (min-width:1400px) { main { max-width:1120px; } main:has(> form) { max-width:940px; } }
+/* PCE: atalhos para cadastros, termos de fiscalização e relatório (o fluxo principal é a visita: levantamento → termo) */
+.pce-docs-atalhos { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 12px; } .pce-docs-atalhos .mini { margin:0; padding:8px 10px; }
+.pce-visita .botao { margin:8px 0; }

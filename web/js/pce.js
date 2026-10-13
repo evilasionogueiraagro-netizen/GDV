@@ -836,14 +836,34 @@ const PCEUI = (() => {
   }
   const amostrasDe = G => G.pragas.flatMap(g => g.culturas.filter(c => c.coleta === 'Sim').map(c => ({ praga: g.praga, cultura: c.cultura, tipoMaterial: c.tipoMaterial || '', codigoAmostra: c.codigoAmostra || '' })));
 
+  /** Documentos da visita: cadastro da propriedade (1x) e Termo de Fiscalização do mesmo dia na mesma propriedade. */
+  async function docsDaVisita(r, cads, tfs) {
+    const pid = propId(r.codigoPropriedade, r.doc, r.propriedade);
+    cads = cads || (await Store.todos('cadastrosPce')).filter(c => !Number(c.excluido));
+    tfs = tfs || (await Store.todos('termosPce')).filter(t => !Number(t.excluido));
+    const doc = digitos(r.doc), nomeP = semAcento(r.propriedade || '').toUpperCase().trim();
+    const daProp = x => (pid && x.propriedadeId === pid) || (doc && digitos(x.doc) === doc && (!nomeP || semAcento(x.propriedade || '').toUpperCase().trim() === nomeP));
+    return { pid, cadastro: cads.find(daProp) || null, termo: tfs.find(t => daProp(t) && t.data === r.data) || null };
+  }
+  function botoesVisita(r, v, grande) {
+    if (!Sync.pode('pce') || (Number(r.registroAntigo) === 1 && !podeAntigo())) return '';
+    const id = x => (grande ? `id="${x}"` : '');
+    const cad = v.cadastro ? '' : `<button class="${grande ? 'botao' : 'editar'}" data-pce="cadvisita" data-id="${esc(r.id)}" ${id('pce-pronto-cad')}>🏡 Cadastrar a propriedade${grande ? ' e fazer o Termo' : ''}</button>`;
+    const tf = v.termo ? `<button class="${grande ? 'botao sec' : 'editar'}" data-pce="abrirtfvisita" data-id="${esc(v.termo.id)}" ${id('pce-pronto-tf')}>📋 Termo de Fiscalização ${esc(v.termo.numeroTxt || '')}</button>`
+      : `<button class="${grande ? (cad ? 'botao sec' : 'botao') : 'tfbtn'}" data-pce="tfvisita" data-id="${esc(r.id)}" ${id('pce-pronto-tf')}>📋 ${grande ? (cad ? 'Só o Termo de Fiscalização (sem cadastro)' : 'Fazer o Termo de Fiscalização da visita') : 'Termo de Fiscalização'}</button>`;
+    return cad + tf;
+  }
   /** Tela depois de salvar: resumo por praga e os PDFs (um por praga). */
   async function levPronto(id) {
     const r = id ? await Store.obter('levantamentos', id) : null; if (!r || r.excluido) return go('pce');
-    const G = Docs.pceGrupos(r), amostras = amostrasDe(G);
+    const G = Docs.pceGrupos(r), amostras = amostrasDe(G), visita = await docsDaVisita(r);
     view(`<div class="card" id="pce-lev-pronto"><h3>✅ Levantamento salvo</h3>
       <p><b>${esc(r.nome)}</b> · ${esc(r.propriedade || 'Propriedade não informada')}</p><p>${esc(dBR(r.data))} ${esc(r.hora)} · ${esc(r.municipio)}</p>
       <ul class="pce-res-lista">${G.pragas.map(g => `<li><b>${esc(nomePraga(g.praga))}</b> ${seloRes(resultadoPraga(g))}<br><small>${g.culturas.map(c => `${esc(c.cultura)} (${esc(RES[c.resultado])}${c.fotos.length ? `, ${c.fotos.length} foto(s)` : ''})`).join(' · ')}</small></li>`).join('')}</ul>
       ${G.gerais.length ? `<p class="dica" style="text-align:left">${G.gerais.length} foto(s) gerais (registro anterior) saem em todos os PDFs.</p>` : ''}</div>
+      ${botoesVisita(r, visita, true) ? `<div class="card pce-visita"><h3>Próximo passo da visita</h3>
+        <p class="dica" style="text-align:left">${visita.cadastro ? 'Propriedade já cadastrada' + (visita.cadastro.numeroTxt ? ` (cadastro ${esc(visita.cadastro.numeroTxt)})` : '') + '.' : 'Propriedade nova: cadastre a propriedade e, ao salvar, o Termo de Fiscalização da visita abre já preenchido.'}</p>
+        ${botoesVisita(r, visita, true)}</div>` : ''}
       <div class="pce-pdfs">${botoesPdf(r.id, G, true)}</div>
       <button class="botao sec" data-pce="enviarlev" data-id="${esc(r.id)}" id="pce-enviar">📤 Enviar ao produtor (WhatsApp, e-mail…)</button>
       <p class="dica">Um PDF por praga/doença: cada um traz os dados da visita, só as culturas e as fotos daquela praga e as assinaturas. Na janela de impressão, escolha “Salvar como PDF”.${G.pragas.length > 1 ? ' “Imprimir todos” gera um PDF de cada vez (no celular, cada um abre a sua janela de impressão).' : ''}</p>
@@ -868,12 +888,15 @@ const PCEUI = (() => {
       <div class="duas campo-atalhos"><button class="botao sec" data-v="pcecampo" id="pce-campo">📥 Dados para o campo</button><button class="botao sec" data-v="pcemapa" id="pce-mapa">🗺️ Perto de mim</button></div>
       ${campoRes ? `<p class="dica" id="pce-campo-res">No aparelho: ${esc(campoRes)}</p>` : ''}`}
       ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-pce="novolevantigo" id="pce-novolevantigo">📄 Registro antigo (digitar do papel)</button>` : ''}
-      ${digSemAut ? '' : `<div class="card pce-mon-atalhos"><h3>🍫 Monilíase</h3><div class="duas">
-        <button class="botao sec" data-v="pcecads" id="pce-cads">🏡 Cadastro de imóvel (monilíase)</button>
-        <button class="botao sec" data-v="pcetfs" id="pce-tfs">📋 Termo de Fiscalização</button></div>
-        <button class="botao sec" data-v="pcerel" id="pce-rel">📊 Relatório de atividades</button></div>`}
+      ${digSemAut ? '' : `<div class="pce-docs-atalhos" aria-label="Outros documentos do PCE">
+        <button class="mini" data-v="pcecads" id="pce-cads">🏡 Cadastros de propriedades</button>
+        <button class="mini" data-v="pcetfs" id="pce-tfs">📋 Termos de Fiscalização</button>
+        <button class="mini" data-v="pcerel" id="pce-rel">📊 Relatório de atividades</button></div>`}
       <div class="card"><label>Pesquisar (produtor, CPF/CNPJ, propriedade, município, praga)<input id="pceQ"></label></div><div id="pceItens"></div>`);
     const G = new Map(todos.map(x => [x.id, Docs.pceGrupos(x)]));
+    const cads = (await Store.todos('cadastrosPce')).filter(c => !Number(c.excluido)), tfsPce = (await Store.todos('termosPce')).filter(t => !Number(t.excluido));
+    const V = new Map(await Promise.all(todos.map(async x => [x.id, await docsDaVisita(x, cads, tfsPce)])));
+    if (!mostrar.viva()) return;
     const desenhar = () => {
       const q = semAcento($('#pceQ').value.trim()).toUpperCase(), qd = digitos(q);
       const v = todos.filter(x => !q || semAcento([x.nome, x.propriedade, x.municipio, x.codigoPropriedade, ...G.get(x.id).pragas.map(g => g.praga)].join(' ')).toUpperCase().includes(q) || (qd && digitos(x.doc).includes(qd)));
@@ -887,6 +910,7 @@ const PCEUI = (() => {
           ${pend ? `<div class="info pend">⏳ aguardando envio${papelSemAut ? ' — registro do papel: sem autorização, fica guardado neste aparelho' : ''}</div>` : ''}
           <div class="botoes pce-acoes">${papelSemAut ? '' : `<button class="editar" data-pce="abrirlev" data-id="${esc(x.id)}">Abrir</button>`}
           ${botoesPdf(x.id, g, false)}
+          ${botoesVisita(x, V.get(x.id), false)}
           ${Sync.pode('pce') && !papelSemAut ? `<button class="tfbtn" data-pce="termodelev" data-id="${esc(x.id)}">Termo de colheita</button>` : ''}
           <button class="excluir" data-pce="excluirlev" data-id="${esc(x.id)}">Excluir</button></div></div>`;
       }).join('') : '<div class="vazio">Nenhum levantamento neste aparelho.</div>';
@@ -1445,6 +1469,13 @@ const PCEUI = (() => {
       else if (a === 'enviarlev') await enviarProdutor('lev', id);
       else if (a === 'enviartermo') await enviarProdutor('termo', id);
       else if (a === 'termodelev') go('pcetermo', { levantamentoId: id });
+      else if (a === 'abrirtfvisita') go('pcetf', id);
+      else if (a === 'tfvisita' || a === 'cadvisita') {                    // Termo de Fiscalização / cadastro da propriedade a partir do levantamento
+        const r = await Store.obter('levantamentos', id); if (!r) return;
+        const v = await docsDaVisita(r), antigo = Number(r.registroAntigo) === 1;
+        if (a === 'cadvisita') go('pcecad', { propId: v.pid, levId: r.id, antigo });
+        else go('pcetf', v.cadastro ? { cadastroId: v.cadastro.id, levId: r.id, antigo } : { propId: v.pid, levId: r.id, antigo });
+      }
       else if (a === 'excluirlev') await excluirLev(id);
       else if (a === 'novotermo') go('pcetermo');
       else if (a === 'imprimirtermo') await imprimir('termo', id);

@@ -424,10 +424,10 @@ const Campo = (() => {
       <p><small>${esc(doc ? fmtDoc(doc) : '')}${x.pe && x.pe.telefone ? ' · ☎ ' + esc(x.pe.telefone) : ''}${x.p.situacaoFundiaria ? ' · ' + esc(x.p.situacaoFundiaria) : ''}</small></p>
       <p class="campo-hist">${textoHist(x.h)}</p>
       <p><small>${esc(ROTULO[x.h.st])}${x.dist != null ? ' · a ' + esc(fmtKm(x.dist)) + ' em linha reta' : x.lat == null ? ' · sem localização' : ''}</small></p>
-      <p class="campo-mon"><small>🍫 Monilíase: ${x.cad ? `cadastro <b>${esc(x.cad.numeroTxt || '')}</b>` : 'sem cadastro de imóvel'}${x.termo ? ` · último Termo de Fiscalização ${esc(x.termo.numeroTxt || '')} em ${esc(dBR(x.termo.data))}` : ''}</small></p>
+      <p class="campo-mon"><small>🏡 ${x.cad ? `Cadastro <b>${esc(x.cad.numeroTxt || '')}</b>` : 'Propriedade sem cadastro'}${x.termo ? ` · último Termo de Fiscalização ${esc(x.termo.numeroTxt || '')} em ${esc(dBR(x.termo.data))}` : ''}</small></p>
       <button class="botao" data-campo="levantar" data-id="${esc(x.id)}" id="campo-levantar">🌱 Fazer levantamento aqui</button>
       <div class="duas"><button class="botao sec" data-campo="termo" data-id="${esc(x.id)}" id="campo-termo">📋 Termo de Fiscalização aqui</button>
-        ${x.cad ? '' : `<button class="botao sec" data-campo="cadastro" data-id="${esc(x.id)}" id="campo-cadastro">🏡 Criar cadastro (monilíase)</button>`}</div>
+        ${x.cad ? '' : `<button class="botao sec" data-campo="cadastro" data-id="${esc(x.id)}" id="campo-cadastro">🏡 Cadastrar a propriedade</button>`}</div>
       ${x.lat == null ? '<p class="dica">Sem coordenadas: não entra na rota. Ao fazer o levantamento, o GPS da visita fica registrado.</p>'
         : `<button class="botao sec" data-campo="rota" data-id="${esc(x.id)}" id="campo-incluir">${naRota ? '✓ Na rota — remover' : '➕ Incluir na rota'}</button>`}</div>`;
   }

@@ -88,6 +88,10 @@ const CONFIG = {
     termo: {
       // pragas do quadro "2 – Descrição da Ação" (ordem do papel); a do programa vem marcada
       pragas: ['Ácaro Hindustânico', 'Cancro Cítrico', 'HLB', 'Ferrugem Asiática da soja', 'Fusariose FOC R4T', 'Monilíase', 'Mosca-da-Carambola', 'Vassoura-de-bruxa da Mandioca'],
+      // praga escolhida no levantamento → nome no quadro do Termo (Termo de Fiscalização da visita já sai com as pragas marcadas)
+      pragaDoLevantamento: { 'Bactrocera carambolae': 'Mosca-da-Carambola', 'Schizotetranychus hindustanicus': 'Ácaro Hindustânico',
+        'Phakopsora pachyrhizi': 'Ferrugem Asiática da soja', 'HLB / Greening': 'HLB', 'Cancro Cítrico': 'Cancro Cítrico', 'Fusarium R4T': 'Fusariose FOC R4T',
+        'Monilíase do Cacaueiro': 'Monilíase', 'Vassoura de Bruxa da Mandioca': 'Vassoura-de-bruxa da Mandioca' },
       locais: ['Evento Agropecuário', 'Unidade de Produção (UP)', 'Unidade de Consolidação (UC)'],
       acoes: ['Controle/Erradicação', 'Levantamento', 'Monitoramento', 'Educação Sanitária', 'Fiscalização'],
       vias: ['1ª via: Interessado', '2ª via: ADAF Central', '3ª via: Unidade Local'],

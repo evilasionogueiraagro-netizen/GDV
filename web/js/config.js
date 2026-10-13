@@ -78,7 +78,25 @@ const CONFIG = {
     maxDocumentos: 10,                             // PDFs escaneados por registro antigo (até 10 MB cada)
     // Levantamento por praga/doença: um card por praga, com as culturas avaliadas (resultado e fotos de cada cultura). Um PDF por praga.
     resultados: [['detectada', 'Detectada'], ['nao_detectada', 'Não detectada'], ['suspeita', 'Suspeita']],
-    maxPragas: 20, maxCulturas: 40, maxFotos: 60     // por levantamento (cards de praga, culturas somadas e fotos somadas)
+    maxPragas: 20, maxCulturas: 40, maxFotos: 60,    // por levantamento (cards de praga, culturas somadas e fotos somadas)
+    // Cadastro de imóvel (1x por propriedade e programa) e Termo de Fiscalização do PCE (1 por visita; não é o TF de Barreira), dos modelos de papel
+    moniliase: {
+      hospedeiros: [['cupuacu', 'Cupuaçu'], ['cacau', 'Cacau'], ['herrania', 'Herrania'], ['cacaui', 'Cacauí'], ['cupui', 'Cupuí'], ['macambo', 'Macambo']],
+      tiposNaoComercial: [['sitio', 'Sítio'], ['residencia', 'Residência'], ['vegetacao', 'Vegetação espontânea'], ['publica', 'Área pública'], ['outros', 'Outros']],
+      doencas: [['vassoura', 'Vassoura de Bruxa'], ['podridao', 'Podridão Parda'], ['lazio', 'Lazio']]
+    },
+    termo: {
+      // pragas do quadro "2 – Descrição da Ação" (ordem do papel); a do programa vem marcada
+      pragas: ['Ácaro Hindustânico', 'Cancro Cítrico', 'HLB', 'Ferrugem Asiática da soja', 'Fusariose FOC R4T', 'Monilíase', 'Mosca-da-Carambola', 'Vassoura-de-bruxa da Mandioca'],
+      locais: ['Evento Agropecuário', 'Unidade de Produção (UP)', 'Unidade de Consolidação (UC)'],
+      acoes: ['Controle/Erradicação', 'Levantamento', 'Monitoramento', 'Educação Sanitária', 'Fiscalização'],
+      vias: ['1ª via: Interessado', '2ª via: ADAF Central', '3ª via: Unidade Local'],
+      constatacaoNegativa: 'Não constatei a presença da monilíase do cacau e do cupuaçu.',
+      // Relatório de atividades (prestação de contas do convênio): objetivo sugerido por praga (editável)
+      objetivos: {
+        'Monilíase': 'Executar Ações de Levantamento Fitossanitário de detecção da praga Monilíase, visando a prevenção e ação imediata de contingência.'
+      }
+    }
   }
 };
 

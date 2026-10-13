@@ -349,6 +349,44 @@ const PCEUI = (() => {
     delete F.assNovas[papel]; F.ass[papel] = '';
     agendarRascunho();
   }
+  /* Produtor que não assina (não sabe ou não pode): no lugar da assinatura, foto dele segurando um documento de identificação oficial.
+     A foto fica em assinaturas.produtorDoc (id na aba Arquivos, tipo "foto", papel "produtor"); a ficha imprime a foto no lugar da linha. */
+  const ROT_DOC_PROD = 'Produtor com documento de identificação (não assina)';
+  const naoAssinaHTML = F => `<label class="chk pce-naoassina"><input type="checkbox" id="pce-naoassina" ${F.naoAssina ? 'checked' : ''}> Produtor não assina (não sabe ou não pode assinar)</label>
+      <div id="pce-docprod" class="pce-docprod" ${F.naoAssina ? '' : 'hidden'}>
+        <p class="dica" style="text-align:left">Tire uma foto do produtor segurando um documento de identificação oficial com foto (RG, CNH, carteira de trabalho…), com o rosto e o documento visíveis. A foto vai na ficha no lugar da assinatura.</p>
+        <div id="pce-docprod-prev" class="pce-fotos"></div>
+        <label class="pce-arquivo" id="pce-docprod-btn">📷 Foto do produtor com o documento<input type="file" id="pce-docprod-in" accept="image/*" capture="environment"></label></div>`;
+  async function renderDocProdutor(F) {
+    const el = $('#pce-docprod-prev'); if (!el) return;
+    await Anexos.miniaturas(el, F.ass.produtorDoc ? [F.ass.produtorDoc] : [], 'data-pce="deldocprod"');
+    if (!F.ass.produtorDoc && el.isConnected) el.innerHTML = '';
+    const b = $('#pce-docprod-btn'); if (b) b.firstChild.textContent = F.ass.produtorDoc ? '📷 Trocar a foto' : '📷 Foto do produtor com o documento';
+  }
+  async function soltarDocProdutor(F) {                                  // foto nova deste formulário some já; a já salva no registro, ao salvar
+    const id = F.ass.produtorDoc; delete F.ass.produtorDoc;
+    if (id && !idsArquivos(F.rec).has(id)) await apagarSeNaoEnviado([id]);
+  }
+  async function fotoDocProdutor(F, input) {
+    const file = (input.files || [])[0]; input.value = ''; if (!file) return;
+    if (!/^image\//.test(file.type || 'image/')) return toast(`"${file.name}" não é uma imagem.`, true);
+    let a; try { a = { ...novoArquivo(F.dono, F.id, 'foto', 'produtor', 'image/jpeg', await reduzirFoto(file)), rotulo: ROT_DOC_PROD }; } catch (e) { return toast(e.message, true); }
+    if (!F.vivo) return;
+    await Store.gravar('arquivos', a);
+    await soltarDocProdutor(F); F.ass.produtorDoc = a.id;
+    await renderDocProdutor(F); agendarRascunho(0);
+  }
+  async function naoAssina(F, sim) {
+    F.naoAssina = sim;
+    $('#pce-docprod').hidden = !sim;
+    const ass = $('#pce-ass-produtor').closest('.pce-ass');
+    if (sim) { limparAssinatura(F, 'produtor'); ass.hidden = true; await renderDocProdutor(F); }
+    else {                                                               // volta a assinatura na tela (canvas novo: o escondido não tinha tamanho)
+      await soltarDocProdutor(F); await renderDocProdutor(F);
+      ass.outerHTML = assHTML('produtor', 'Produtor'); await ligarAssinatura(F, 'produtor');
+    }
+    agendarRascunho(0);
+  }
   /** Assinaturas desenhadas viram arquivos PNG (só as que foram desenhadas). Devolve o mapa final papel→id e os arquivos a gravar. */
   const prepararAssinaturas = F => Anexos.prepararAssinaturas(F);
 
@@ -485,7 +523,7 @@ const PCEUI = (() => {
     if (!f || !st) return;
     tRasc = setTimeout(() => {
       if (f.id === 'pceLevForm' && L === st && $('#pceLevForm') === f)                      // só grava se ainda é o mesmo formulário
-        Store.setMeta('pceLevRascunho', { dados: coletarLev(), id: st.id, novo: st.novo, fotos: st.fotos, gerais: st.gerais, docs: st.docs, antigo: st.antigo ? 1 : 0, ass: st.ass, assNovas: st.assNovas, em: Date.now() });
+        Store.setMeta('pceLevRascunho', { dados: coletarLev(), id: st.id, novo: st.novo, fotos: st.fotos, gerais: st.gerais, docs: st.docs, antigo: st.antigo ? 1 : 0, ass: st.ass, assNovas: st.assNovas, naoAssina: !!st.naoAssina, em: Date.now() });
       else if (f.id === 'pceTermoForm' && T === st && $('#pceTermoForm') === f)
         Store.setMeta('pceTermoRascunho', { dados: coletarTermo(), id: st.id, fotos: st.fotos, docs: st.docs, antigo: st.antigo ? 1 : 0, assNovas: st.assNovas, levantamentoId: st.levantamentoId, tplDesc: st.tplDesc, em: Date.now() });
     }, atraso);
@@ -494,7 +532,8 @@ const PCEUI = (() => {
   async function descartarRascunho(qual, rasc) {
     if (rasc) {
       const rec = await Store.obter(qual === 'lev' ? 'levantamentos' : 'colheitas', rasc.id), salvo = idsArquivos(rec);
-      await apagarSeNaoEnviado([...(rasc.fotos || []), ...(rasc.docs || [])].filter(id => !salvo.has(id)));
+      const docProd = rasc.ass && rasc.ass.produtorDoc ? [rasc.ass.produtorDoc] : [];   // foto do produtor com documento (não assina)
+      await apagarSeNaoEnviado([...(rasc.fotos || []), ...(rasc.docs || []), ...docProd].filter(id => !salvo.has(id)));
     }
     await Store.setMeta(qual === 'lev' ? 'pceLevRascunho' : 'pceTermoRascunho', null);
   }
@@ -624,7 +663,7 @@ const PCEUI = (() => {
     ${A ? pdfHTML('pce-') : ''}
     ${A ? '' : `<div class="card"><h3>Assinaturas (opcional)</h3>
       <p class="dica" style="text-align:left">Assine com o dedo, se quiser. As fichas impressas sempre trazem as linhas para assinar no papel.</p>
-      ${assHTML('servidor', 'Servidor')}${assHTML('produtor', 'Produtor')}</div>`}
+      ${assHTML('servidor', 'Servidor')}${assHTML('produtor', 'Produtor')}${naoAssinaHTML(F)}</div>`}
     <div class="card"><h3>Observações</h3><label><textarea id="pce-obs" rows="3" aria-label="Observações">${esc(D.obs)}</textarea></label></div>
     <button class="botao" type="submit" id="pce-salvar">💾 Salvar levantamento</button>
     ${A && F.novo ? '<button class="botao" type="button" data-pce="salvaroutro" id="pce-salvar-outro">💾 Salvar e digitar outro</button>' : ''}
@@ -649,7 +688,7 @@ const PCEUI = (() => {
     } else if (rasc && rasc.dados) {
       if (confirm(`Há ${rasc.novo ? 'um levantamento novo' : 'uma edição de levantamento'} não salvo, iniciado em ${new Date(rasc.em).toLocaleString('pt-BR')}.\n\nContinuar de onde parou? (Cancelar descarta o rascunho.)`)) {
         const rec = await Store.obter('levantamentos', rasc.id);
-        F = { id: rasc.id, novo: !rec, rec: rec || null, docs: rasc.docs || [], antigo: !!rasc.antigo, ass: rasc.ass || {}, assNovas: rasc.assNovas || {} };
+        F = { id: rasc.id, novo: !rec, rec: rec || null, docs: rasc.docs || [], antigo: !!rasc.antigo, ass: rasc.ass || {}, assNovas: rasc.assNovas || {}, naoAssina: !!rasc.naoAssina };
         D = { ...(F.antigo ? levVazioAntigo(s) : levVazio(s)), ...rasc.dados };
         if (Array.isArray(rasc.dados.pragas)) cards = pragasParaForm(F, rasc.dados.pragas, rasc.gerais, false);
         else {                                                             // rascunho da versão anterior (culturas + fotos do levantamento inteiro)
@@ -670,6 +709,7 @@ const PCEUI = (() => {
       else cards = pragasParaForm(F, [], [], false);
     }
     ligarFotosLev(F);
+    if (F.naoAssina == null) F.naoAssina = !!F.ass.produtorDoc;
     F.dono = 'levantamentos'; F.vivo = true; F.serv = F.rec ? { servidor: F.rec.servidor, cargo: F.rec.cargo, matricula: F.rec.matricula, lotacao: F.rec.lotacao } : dadosServidor(s);
     if (F.antigo) F.lembrados = await servidoresLembrados();
     L = F;
@@ -677,7 +717,10 @@ const PCEUI = (() => {
     await desenharPragas(cards);
     if (F.gerais.length) await renderFotos(F, '#pce-fotos-gerais', 'gerais');
     if (F.antigo) { mostrarCoord('pce-'); await renderDocs(F, '#pce-pdfs-lista'); }
-    else { await ligarAssinatura(F, 'servidor'); await ligarAssinatura(F, 'produtor'); }
+    else {
+      await ligarAssinatura(F, 'servidor'); await ligarAssinatura(F, 'produtor');
+      if (F.naoAssina) { $('#pce-ass-produtor').closest('.pce-ass').hidden = true; await renderDocProdutor(F); }
+    }
     const f = $('#pceLevForm');
     f.addEventListener('input', e => {
       if (e.target.id === 'pce-busca-prop') { clearTimeout(tm.busca); tm.busca = setTimeout(() => buscarPropForm().catch(() => {}), 250); return; }
@@ -686,6 +729,8 @@ const PCEUI = (() => {
       const t = e.target;
       if (t.classList.contains('c-fotos')) return adicionarFotos(F, t, '#pce-fotos-' + t.dataset.uid, t.dataset.uid);
       if (t.id === 'pce-pdfs') return adicionarPDFs(F, t, '#pce-pdfs-lista');
+      if (t.id === 'pce-naoassina') return naoAssina(F, t.checked);
+      if (t.id === 'pce-docprod-in') return fotoDocProdutor(F, t);
       if (t.id === 'pce-snome') await completarServidor('pce-');
       if (t.id === 'pce-doc') t.value = fmtDoc(digitos(t.value));
       if (t.classList.contains('c-coleta')) t.closest('.pce-cult').querySelectorAll('.pce-amostra input').forEach(i => { i.disabled = t.value !== 'Sim'; });
@@ -746,6 +791,7 @@ const PCEUI = (() => {
     if (!D.municipio) return toast('Escolha o município.', true);
     const pragas = pragasValidadas(D); if (!pragas) return;
     if (F.antigo ? !dataHoraPassadaOk(D) : !dataHoraOk(D)) return;
+    if (!F.antigo && F.naoAssina && !F.ass.produtorDoc) { toast('Produtor não assina: tire a foto dele segurando o documento de identificação (ou desmarque a opção).', true); return $('#pce-docprod-btn').scrollIntoView({ block: 'center' }); }
     if (F.antigo) { if (!coordOk(D.coordTxt)) return; mostrarCoord('pce-'); Object.assign(D, { lat: $('#pce-lat').value, lon: $('#pce-lon').value, precisao: '' }); }
     const btn = $('#pce-salvar'), btn2 = $('#pce-salvar-outro'); btn.disabled = true; if (btn2) btn2.disabled = true; F.salvando = true;
     try {
@@ -822,6 +868,10 @@ const PCEUI = (() => {
       <div class="duas campo-atalhos"><button class="botao sec" data-v="pcecampo" id="pce-campo">📥 Dados para o campo</button><button class="botao sec" data-v="pcemapa" id="pce-mapa">🗺️ Perto de mim</button></div>
       ${campoRes ? `<p class="dica" id="pce-campo-res">No aparelho: ${esc(campoRes)}</p>` : ''}`}
       ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-pce="novolevantigo" id="pce-novolevantigo">📄 Registro antigo (digitar do papel)</button>` : ''}
+      ${digSemAut ? '' : `<div class="card pce-mon-atalhos"><h3>🍫 Monilíase</h3><div class="duas">
+        <button class="botao sec" data-v="pcecads" id="pce-cads">🏡 Cadastro de imóvel (monilíase)</button>
+        <button class="botao sec" data-v="pcetfs" id="pce-tfs">📋 Termo de Fiscalização</button></div>
+        <button class="botao sec" data-v="pcerel" id="pce-rel">📊 Relatório de atividades</button></div>`}
       <div class="card"><label>Pesquisar (produtor, CPF/CNPJ, propriedade, município, praga)<input id="pceQ"></label></div><div id="pceItens"></div>`);
     const G = new Map(todos.map(x => [x.id, Docs.pceGrupos(x)]));
     const desenhar = () => {
@@ -1442,6 +1492,7 @@ const PCEUI = (() => {
       else if (a === 'salvaroutro') await salvarLev(true);
       else if (a === 'gravaroutro') await gerarTermo(true);
       else if (a === 'limparass') limparAssinatura(F, el.dataset.papel);
+      else if (a === 'deldocprod') { await soltarDocProdutor(F); await renderDocProdutor(F); agendarRascunho(0); }
       else if (a === 'gps') await capturarGPS(el.dataset.pref);
       else if (a === 'consultar') await consultarDoc(el.dataset.pref);
       else if (a === 'usarprop') usarPropriedade(el.dataset.pref, +el.dataset.i);
@@ -1461,5 +1512,8 @@ const PCEUI = (() => {
     } catch (err) { toast(err.message || String(err), true); }
   });
 
-  return { lista, levantamento, levPronto, termos, termo, pronto, servidor, status, textoOficial, lerCoordenadas, lerNumeroPapel };
+  return { lista, levantamento, levPronto, termos, termo, pronto, servidor, status, textoOficial, lerCoordenadas, lerNumeroPapel,
+    // usados pelo moniliase.js (Cadastro de imóvel e Termo de Fiscalização do PCE)
+    docOk, fmtDoc, validarCoord, gms, servidorAtual, servidorOk, soDigitador, podeAntigo, exigirServidor, dadosServidor, servAntigoHTML, servidorDigitado, cargoValor,
+    lembrarServidor, completarServidor, servidoresLembrados, dataHoraPassadaOk, montarPessoa, opts, SEM_ANTIGO };
 })();

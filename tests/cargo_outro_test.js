@@ -25,6 +25,10 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== und
   ok(await p.inputValue('#pce-s-cargo') === '__outro__' && await p.inputValue('#pce-s-cargo-outro') === 'Estagiária de Agronomia' && await p.isVisible('#pce-s-cargo-outro'), 'reabre com "Outro" e o texto preenchido');
   await p.selectOption('#pce-s-cargo', { index: 1 });
   ok(await p.isHidden('#pce-s-cargo-outro'), 'voltar para um cargo da lista esconde o texto');
+  // Cadastro/Termo da monilíase (digitação do papel) usam o mesmo bloco do servidor: o cargo digitado vem do texto, não "__outro__".
+  const mon = await p.evaluate(() => { const d = document.createElement('div'); d.innerHTML = PCEUI.servAntigoHTML('mt-', { sCargo: 'Técnico de Campo Terceirizado' }, []); document.body.appendChild(d);
+    const v = PCEUI.cargoValor('mt-scargo'); d.remove(); return v; });
+  ok(mon === 'Técnico de Campo Terceirizado', 'formulário do papel (monilíase): cargo fora da lista lido do texto', mon);
   ok(err.length === 0, 'sem erros de JavaScript', err);
   await b.close(); process.exit(falhas ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

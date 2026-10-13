@@ -13,7 +13,7 @@ const PCEMon = (() => {
   const unid = u => Sync.unidadePce(u);
   const num3 = n => String(n).padStart(3, '0');
   const numTxt = (tipo, n, a, u) => (tipo === 'termo' ? `${num3(n)}.${a}.${unid(u)}` : `${num3(n)}-${a}-${unid(u)}`);
-  const NOME = { termo: 'Termo de Fiscalização', cadastro: 'Cadastro de imóvel (monilíase)' };
+  const NOME = { termo: 'Termo de Fiscalização', cadastro: 'Cadastro de propriedade' };
   const STORE = { termo: 'termosPce', cadastro: 'cadastrosPce' };
   const bloqueado = () => !Sync.ativado() || localStorage.getItem('gdv.revogado');
   const U = () => PCEUI;
@@ -126,7 +126,7 @@ const PCEMon = (() => {
     tR = setTimeout(() => {
       if (F !== st || !f.isConnected) return;
       Store.setMeta(RASC[st.tipo], { dados: st.tipo === 'cadastro' ? coletarCad() : coletarTf(), id: st.id, novo: st.novo, antigo: st.antigo ? 1 : 0, docs: st.docs,
-        assNovas: st.assNovas, cadastroId: st.cadastroId || '', propriedadeId: st.propriedadeId || '', hospedeiros: st.hospedeiros || [], deTermo: st.deTermo ? 1 : 0, em: Date.now() });
+        assNovas: st.assNovas, cadastroId: st.cadastroId || '', propriedadeId: st.propriedadeId || '', hospedeiros: st.hospedeiros || [], deTermo: st.deTermo ? 1 : 0, levId: st.levId || '', em: Date.now() });
     }, atraso);
   }
   function fechar() { if (F) F.vivo = false; clearTimeout(tR); F = null; }
@@ -343,8 +343,8 @@ const PCEMon = (() => {
       return `<div class="mon-fito"><b>${esc(nm)}</b>${sn(p, 'f-' + k + '-tem', 'Presença', f.tem || '')}${inp(p, 'f-' + k + '-tempo', 'Há quanto tempo', f.tempo || '')}
         ${sn(p, 'f-' + k + '-controle', 'Utiliza método de controle', f.controle || '')}${inp(p, 'f-' + k + '-qual', 'Qual', f.qual || '')}</div>`; };
     return `<form id="monCadForm" class="${A ? 'pce-antigo' : ''}" autocomplete="off" novalidate>
-      ${A ? topoPapel(st.novo ? 'Cadastro de imóvel (monilíase) — digitar do papel' : 'Editar cadastro (do papel)', st.novo) + U().servAntigoHTML(p, D, st.lembrados)
-        : `<div class="card mon-topo"><h3>🏡 ${st.novo ? 'Cadastro de imóvel com hospedeiros da monilíase' : 'Editar cadastro de imóvel'}</h3>
+      ${A ? topoPapel(st.novo ? 'Cadastro de propriedade — digitar do papel' : 'Editar cadastro (do papel)', st.novo) + U().servAntigoHTML(p, D, st.lembrados)
+        : `<div class="card mon-topo"><h3>🏡 ${st.novo ? 'Cadastro de propriedade (imóvel com hospedeiros)' : 'Editar cadastro da propriedade'}</h3>
           <p class="dica" style="text-align:left">Servidor: <b>${esc(st.serv.servidor)}</b> · ${esc(st.serv.cargo)} · ${esc(st.serv.lotacao)}</p></div>`}
       <div class="card"><h3>Nº do cadastro</h3>
         <label>Unidade (numeração) *<select id="${p}unidade">${opts(P.municipios, D.unidade, 'Selecione')}</select></label>
@@ -428,13 +428,13 @@ const PCEMon = (() => {
     let st, D;
     if (t.rasc) {
       const r = t.rasc, rec = r.id ? await Store.obter('cadastrosPce', r.id) : null;
-      st = { tipo: 'cadastro', id: r.id, novo: !rec, rec, antigo: !!r.antigo, docs: r.docs || [], ass: rec ? lerJSON(rec.assinaturas, {}) : {}, assNovas: r.assNovas || {}, deTermo: !!r.deTermo, propriedadeId: r.propriedadeId || '' };
+      st = { tipo: 'cadastro', id: r.id, novo: !rec, rec, antigo: !!r.antigo, docs: r.docs || [], ass: rec ? lerJSON(rec.assinaturas, {}) : {}, assNovas: r.assNovas || {}, deTermo: !!r.deTermo, propriedadeId: r.propriedadeId || '', levId: r.levId || '' };
       D = { ...cadVazio(s), ...r.dados };
     } else if (rec0) {
       st = { tipo: 'cadastro', id: rec0.id, novo: false, rec: rec0, antigo: Number(rec0.registroAntigo) === 1, docs: lerJSON(rec0.documentos, []), ass: lerJSON(rec0.assinaturas, {}), assNovas: {} };
       D = cadDeRegistro(rec0);
     } else {
-      st = { tipo: 'cadastro', id: Store.novoId(), novo: true, rec: null, antigo: querAntigo, docs: [], ass: {}, assNovas: {}, deTermo: !!o.deTermo, propriedadeId: o.propId || o.propIdLig || '' };
+      st = { tipo: 'cadastro', id: Store.novoId(), novo: true, rec: null, antigo: querAntigo, docs: [], ass: {}, assNovas: {}, deTermo: !!o.deTermo, propriedadeId: o.propId || o.propIdLig || '', levId: o.levId || '' };
       D = cadVazio(querAntigo ? null : s, o.manter || {});
       if (!querAntigo) Object.assign(D, { data: hojeISO(), municipio: s.lotacao || '', local: s.lotacao || '' });
       if (o.prefill) Object.assign(D, Object.fromEntries(Object.entries(o.prefill).filter(([, v]) => v !== '' && v != null)));
@@ -549,9 +549,10 @@ const PCEMon = (() => {
       if (sv) await U().lembrarServidor(sv);
       const antes = Anexos.idsArquivos(st.rec), depois = new Set([...st.docs, ...Object.values(mapa)]);
       await Anexos.apagarSeNaoEnviado([...antes].filter(x => !depois.has(x)));
-      const deTermo = st.deTermo; fechar(); await Store.setMeta(RASC.cadastro, null);
+      const deTermo = st.deTermo, levId = st.levId; fechar(); await Store.setMeta(RASC.cadastro, null);
       Sync.sincronizar();
       if (deTermo) { toast('Cadastro salvo. Voltando ao Termo de Fiscalização.'); return go('pcetf', { retomar: true, cadastroId: rec.id }); }
+      if (levId) { toast('Cadastro salvo. Agora o Termo de Fiscalização da visita.'); return go('pcetf', { cadastroId: rec.id, levId, antigo: st.antigo }); }
       if (outro) { toast(`Cadastro ${rec.numeroTxt || ''} salvo. Digite o próximo.`); return go('pcecad', { antigo: true, manter: { sNome: sv.servidor, sCargo: sv.cargo, sMatricula: sv.matricula, sLotacao: sv.lotacao, unidade: D.unidade, municipio: D.municipio, data: D.data, local: D.local.trim() } }); }
       go('pcecadpronto', rec.id);
     } catch (e) { toast('Erro ao salvar: ' + e.message, true); }
@@ -585,7 +586,7 @@ const PCEMon = (() => {
   const lst = l => l.map(x => [x, x]);
   function cadLigadoHTML(st) {
     const c = st.cad;
-    if (!c) return `<div class="tf-novo" id="mt-semcad">${st.propriedadeId ? 'Esta propriedade ainda não tem Cadastro de imóvel (monilíase).' : 'Nenhum cadastro ligado.'}
+    if (!c) return `<div class="tf-novo" id="mt-semcad">${st.propriedadeId ? 'Esta propriedade ainda não tem cadastro.' : 'Nenhum cadastro ligado.'}
       <button type="button" class="mini" data-mon="criarcad" id="mt-criarcad">➕ Criar cadastro desta propriedade</button></div>`;
     return `<div class="tf-ok" id="mt-cadinfo">📎 Cadastro <b>${esc(c.numeroTxt || '(sem nº)')}</b> — ${esc(c.nome || '')}${c.propriedade ? ' · ' + esc(c.propriedade) : ''} · ${esc(c.totalPlantas || 0)} planta(s)
       <button type="button" class="mini" data-mon="desligarcad">Trocar</button></div>`;
@@ -662,6 +663,17 @@ const PCEMon = (() => {
     mostrarCoord(PT); avisoDoc(PT); agendar(0);
   }
 
+  /** Pragas do levantamento (nomes da lista do levantamento) → nomes do quadro do Termo (config PCE.termo.pragaDoLevantamento). */
+  function pragasDoLevantamento(lev) {
+    const mapa = TC.pragaDoLevantamento || {}, quadro = TC.pragas || [], n = x => semAcento(String(x || '')).toLowerCase();
+    const out = [];
+    Docs.pceGrupos(lev).pragas.forEach(g => {
+      const nome = String(g.praga || '').trim(); if (!nome) return;
+      const alvo = mapa[nome] || quadro.find(q => n(q) === n(nome)) || '';
+      if (alvo && !out.includes(alvo)) out.push(alvo);
+    });
+    return out;
+  }
   async function termoForm(arg) {
     if (bloqueado()) return view(avisoAtivacao());
     const id = typeof arg === 'string' ? arg : '', o = arg && typeof arg === 'object' ? arg : {};
@@ -676,16 +688,21 @@ const PCEMon = (() => {
     if (t.rasc) {
       const r = t.rasc, rec = r.id ? await Store.obter('termosPce', r.id) : null;
       st = { tipo: 'termo', id: r.id, novo: !rec, rec, antigo: !!r.antigo, docs: r.docs || [], ass: rec ? lerJSON(rec.assinaturas, {}) : {}, assNovas: r.assNovas || {},
-        cadastroId: r.cadastroId || '', propriedadeId: r.propriedadeId || '', hospedeiros: r.hospedeiros || [] };
+        cadastroId: r.cadastroId || '', propriedadeId: r.propriedadeId || '', hospedeiros: r.hospedeiros || [], levId: r.levId || '' };
       D = { ...tfVazio(s), ...r.dados };
     } else if (rec0) {
       st = { tipo: 'termo', id: rec0.id, novo: false, rec: rec0, antigo: Number(rec0.registroAntigo) === 1, docs: lerJSON(rec0.documentos, []), ass: lerJSON(rec0.assinaturas, {}), assNovas: {},
         cadastroId: rec0.cadastroId || '', propriedadeId: rec0.propriedadeId || '', hospedeiros: lerJSON(rec0.hospedeiros, []) };
       D = tfDeRegistro(rec0);
     } else {
-      st = { tipo: 'termo', id: Store.novoId(), novo: true, rec: null, antigo: querAntigo, docs: [], ass: {}, assNovas: {}, cadastroId: '', propriedadeId: o.propId || '', hospedeiros: [] };
+      st = { tipo: 'termo', id: Store.novoId(), novo: true, rec: null, antigo: querAntigo, docs: [], ass: {}, assNovas: {}, cadastroId: '', propriedadeId: o.propId || '', hospedeiros: [], levId: '' };
       D = tfVazio(querAntigo ? null : s, o.manter || {});
       if (!querAntigo) Object.assign(D, { data: hojeISO(), hora: agoraHM(), acoes: ['Fiscalização'] });
+      const lev = o.levId ? await Store.obter('levantamentos', o.levId) : null;   // Termo da visita: pragas do levantamento já marcadas
+      if (lev) {
+        st.levId = lev.id; D.pragas = pragasDoLevantamento(lev);
+        if (querAntigo) Object.assign(D, { data: lev.data || D.data, hora: lev.hora || D.hora });
+      }
     }
     st.cad = st.cadastroId ? await Store.obter('cadastrosPce', st.cadastroId) : null;
     st.vivo = true; st.serv = st.rec && !st.antigo ? { servidor: st.rec.servidor, cargo: st.rec.cargo, matricula: st.rec.matricula, lotacao: st.rec.lotacao } : U().dadosServidor(s);
@@ -802,7 +819,7 @@ const PCEMon = (() => {
       .sort((a, b) => (Number(b.ano) - Number(a.ano)) || (Number(b.numero) - Number(a.numero)) || (b.criadoEm || 0) - (a.criadoEm || 0));
     if (!mostrar.viva()) return;
     const T = tipo === 'termo';
-    mostrar(`<div class="card"><h3>${T ? '📋 Termos de Fiscalização (PCE)' : '🏡 Cadastros de imóvel (monilíase)'}</h3>
+    mostrar(`<div class="card"><h3>${T ? '📋 Termos de Fiscalização (PCE)' : '🏡 Cadastros de propriedades'}</h3>
         <p class="dica" style="text-align:left">${T ? 'Um termo por visita; ligado ao cadastro da propriedade. Não é o TF de Barreira.' : 'Um cadastro por propriedade com hospedeiros da monilíase (cacau, cupuaçu…).'}</p></div>
       ${dig ? '' : `<button class="botao" data-mon="novo" data-tipo="${tipo}" id="mon-novo">➕ ${T ? 'Novo termo' : 'Novo cadastro'}</button>`}
       ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-mon="novo" data-tipo="${tipo}" data-antigo="1" id="mon-novo-papel">📄 Digitar do papel</button>` : ''}

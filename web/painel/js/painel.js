@@ -344,7 +344,15 @@ const Painel = (() => {
       pragas: (Array.isArray(h.pragas) ? h.pragas : lerJSON(h.pragas, [])).filter(Boolean) }));
     const auditoria = r.auditoria ? { tf: auditoriaDoServidor(r.auditoria.tf, g => nomeBarreira[g] || g), pce: auditoriaDoServidor(r.auditoria.pce, g => g) }
       : { tf: auditarNumeracao(tfsTodos, t => t.barreiraNome || t.barreira), pce: auditarNumeracao(colheitasTodas, 'unidade') };
-    return { agora: num(r.agora) || tAgora, de, ate, barreiras, auditoria, turnosTodos: turnos, veiculosTodos: veiculos, tfsTodos, levantamentos, colheitasTodas, historicoPce, tfsAndamento };
+    // PCE monilíase: Termos de Fiscalização do PCE e Cadastros de imóvel (servidor antigo sem essas listas: vazias)
+    const termosPceTodos = (r.termosPce || []).filter(vivos).map(x => ({ ...x, data: isoDe(x.data), lat: num(x.lat), lon: num(x.lon), cancelado: Number(x.cancelado) === 1,
+      conflito: Number(x.conflito) === 1, numero: num(x.numero), plantasInspecionadas: num(x.plantasInspecionadas) || 0,
+      municipio: municipioNome(x.municipio) || x.municipio || '' }));
+    const cadastrosPce = (r.cadastrosPce || []).filter(vivos).map(x => ({ ...x, data: isoDe(x.data), lat: num(x.lat), lon: num(x.lon), numero: num(x.numero),
+      totalPlantas: num(x.totalPlantas) || 0, municipio: municipioNome(x.municipio) || x.municipio || '' }));
+    if (r.auditoria) { auditoria.termosPce = auditoriaDoServidor(r.auditoria.termosPce || [], g => g); auditoria.cadastrosPce = auditoriaDoServidor(r.auditoria.cadastrosPce || [], g => g); }
+    return { agora: num(r.agora) || tAgora, de, ate, barreiras, auditoria, turnosTodos: turnos, veiculosTodos: veiculos, tfsTodos, levantamentos, colheitasTodas, historicoPce, tfsAndamento,
+             termosPceTodos, cadastrosPce };
   }
 
   /**
@@ -387,6 +395,8 @@ const Painel = (() => {
     const pceOk = x => naFaixa(x) && temFiscal(x.servidor, x.usuario) && munOk(x.municipio);     // filtro de barreira não se aplica ao PCE
     const levantamentos = N.levantamentos.filter(pceOk);
     const colheitasTodas = N.colheitasTodas.filter(pceOk);
+    const termosPceTodos = (N.termosPceTodos || []).filter(pceOk);
+    const cadastrosPce = (N.cadastrosPce || []).filter(c => pceOk(c) || termosPceTodos.some(t => t.cadastroId === c.id));
     let historicoPce = N.historicoPce;
     if (faixa && faixa.de > (N.de || '')) {
       const lim = somaDias(faixa.de, -365);
@@ -396,6 +406,7 @@ const Painel = (() => {
     return { agora: N.agora, de: faixa ? faixa.de : N.de, ate: faixa ? faixa.ate : N.ate, barreiras: N.barreiras, auditoria: N.auditoria, turnos, emAndamento, veiculos,
              tfs: tfsTodos.filter(t => !t.cancelado), tfsCancelados: tfsTodos.filter(t => t.cancelado), tfsTodos,
              levantamentos, colheitas: colheitasTodas.filter(c => !c.cancelado), colheitasCanceladas: colheitasTodas.filter(c => c.cancelado), colheitasTodas,
+             termosPce: termosPceTodos.filter(t => !t.cancelado), termosPceTodos, cadastrosPce,
              historicoPce, municipios: MUN.map(m => m.nome),
              // TF em preenchimento: urgente, vale qualquer filtro; os sem turno aberto ganham marcador e cartão próprios
              tfsAndamento: N.tfsAndamento, tfsSemTurno: N.tfsAndamento.filter(a => !a.turno),
@@ -410,6 +421,7 @@ const Painel = (() => {
     N.tfsTodos.forEach(t => t.fiscal && separarNomes(t.fiscal).forEach(n => nomes.add(n)));
     N.levantamentos.forEach(l => l.servidor && nomes.add(String(l.servidor).trim()));
     N.colheitasTodas.forEach(c => c.servidor && nomes.add(String(c.servidor).trim()));
+    (N.termosPceTodos || []).forEach(c => c.servidor && nomes.add(String(c.servidor).trim()));
     if (F.fiscal) nomes.add(F.fiscal);
     const selF = $('#pn-fiscal');
     selF.innerHTML = '<option value="">Todos</option>' + [...nomes].sort((a, b) => a.localeCompare(b, 'pt-BR')).map(n => `<option ${n === F.fiscal ? 'selected' : ''}>${esc(n)}</option>`).join('');
@@ -1215,12 +1227,12 @@ const Painel = (() => {
     };
     audit(d.auditoria.tf, 'TF', 'tf');
     audit(d.auditoria.pce, 'Termo de colheita', 'pce');
-    // 4. cobertura PCE: municípios sem levantamento nos últimos 90 dias (até o fim do período)
-    const lim = somaDias(d.ate, -89), cobertos = new Set();
+    // 4. cobertura PCE (anual): municípios sem levantamento no ano, de 1º de janeiro até o fim do período
+    const anoCob = String(d.ate).slice(0, 4), lim = anoCob + '-01-01', cobertos = new Set();
     d.historicoPce.forEach(h => { if (h.data >= lim && h.data <= d.ate) cobertos.add(norm(h.municipio)); });
     N.levantamentos.forEach(l => { if (l.data >= lim && l.data <= d.ate) cobertos.add(norm(l.municipio)); });
     const desc = MUN.filter(m => !cobertos.has(m.chave)).map(m => m.nome);
-    if (desc.length) A.push({ nivel: desc.length > 40 ? 'serio' : 'atencao', aba: 'pce', titulo: `${desc.length} de ${MUN.length} municípios sem levantamento PCE nos últimos 90 dias`,
+    if (desc.length) A.push({ nivel: desc.length > 40 ? 'serio' : 'atencao', aba: 'pce', titulo: `${desc.length} de ${MUN.length} municípios sem levantamento PCE em ${anoCob}`,
       detalhe: `Período de ${fmt.data(lim)} a ${fmt.data(d.ate)}: ${desc.slice(0, 25).join(', ')}${desc.length > 25 ? ` e mais ${desc.length - 25}` : ''}.` });
     // 5. reincidentes com nova apreensão
     const reinc = d.tfs.filter(t => t.reincidente && t.procedimento === 'apreensao');

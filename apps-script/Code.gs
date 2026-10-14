@@ -94,8 +94,10 @@ const TABELAS = {
   ConvLancamentos: ['id', 'convenio', 'etapa', 'submeta', 'data', 'municipio', 'quantidade', 'descricao', 'tipo', 'situacao', 'documento',
                     'usuario', 'criadoEm', 'atualizadoEm', 'excluido', 'armadilhas', 'propriedades'],
   // Execução financeira (empenho/NF/PCDP/OB no campo documento; nunca CPF do favorecido). fonte = concedente | contrapartida.
+  // Importados da planilha de movimentação (painelConvFinImportar): origem = 'planilha', chave = imp|convênio|item|memo (idempotência),
+  // arquivo = nome do .xlsx e importadoEm = quando; lançados à mão: origem 'manual' (ou vazio nas linhas antigas).
   ConvFinanceiro: ['id', 'convenio', 'etapa', 'item', 'natureza', 'data', 'quantidade', 'valor', 'documento', 'descricao', 'fonte',
-                   'usuario', 'criadoEm', 'atualizadoEm', 'excluido'],
+                   'usuario', 'criadoEm', 'atualizadoEm', 'excluido', 'chave', 'origem', 'arquivo', 'importadoEm'],
   // Textos do relatório mensal (id = convenio|AAAA-MM): textos = JSON {etapas:{"1.4":{evidencias, justificativa, fator, providencia, situacao}},
   // gerais:{fatores, providencias, analise, conclusao}}
   ConvRelatorios: ['id', 'convenio', 'mes', 'numero', 'textos', 'usuario', 'atualizadoEm'],
@@ -112,7 +114,7 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criad
                           'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito', 'tamanho',
                           'inicioTs', 'atualizadoTs', 'registroAntigo', 'encerradoEm',
                           'standalone', 'online', 'ultimoSinal', 'ultimoErroEm', 'primeiroSinal', 'recusaAssinatura',
-                          'totalPlantas', 'plantasInspecionadas'];   // lat/lon/precisao ficam como texto (como em Turnos)
+                          'totalPlantas', 'plantasInspecionadas', 'importadoEm'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, pragas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000,
                         dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000 };   // demais colunas: 500
@@ -124,7 +126,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-15a';
+const VERSAO_CODIGO = '2026-10-15b';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -155,6 +157,7 @@ function doPost(e) {
     if (req.action === 'painelConvLancar') return json_(painelConvLancar(req.key, req.lancamento));
     if (req.action === 'painelConvExcluir') return json_(painelConvExcluir(req.key, 'ConvLancamentos', req.id));
     if (req.action === 'painelConvFinLancar') return json_(painelConvFinLancar(req.key, req.lancamento));
+    if (req.action === 'painelConvFinImportar') return json_(painelConvFinImportar(req.key, req));
     if (req.action === 'painelConvFinExcluir') return json_(painelConvExcluir(req.key, 'ConvFinanceiro', req.id));
     if (req.action === 'painelConvRelSalvar') return json_(painelConvRelSalvar(req.key, req));
     if (req.action === 'painelPceLaudo') return json_(painelPceLaudo(req.key, req));
@@ -1972,7 +1975,8 @@ function convLancOut_(r) {
 }
 function convFinOut_(r) {
   return { id: r.id, convenio: r.convenio, etapa: r.etapa, item: r.item, natureza: r.natureza, data: r.data, quantidade: numOuNulo_(r.quantidade),
-           valor: numOuNulo_(r.valor) || 0, documento: r.documento, descricao: r.descricao, fonte: r.fonte, usuario: r.usuario, criadoEm: r.criadoEm, atualizadoEm: r.atualizadoEm };
+           valor: numOuNulo_(r.valor) || 0, documento: r.documento, descricao: r.descricao, fonte: r.fonte, usuario: r.usuario, criadoEm: r.criadoEm, atualizadoEm: r.atualizadoEm,
+           chave: r.chave, origem: r.origem || 'manual', arquivo: r.arquivo, importadoEm: r.importadoEm || 0 };
 }
 
 /** Painel → aba Convênios: configurações, lançamentos físicos, financeiro e textos dos relatórios (só administrador). */
@@ -2136,7 +2140,7 @@ function painelConvFinLancar(token, l) {
   const qtd = l.quantidade === '' || l.quantidade === null || l.quantidade === undefined ? '' : convNumero_(l.quantidade, 'Quantidade');
   if (qtd !== '' && (qtd < 0 || qtd > 1e7)) throw new Error('Quantidade inválida.');
   const o = { convenio: cfg.id, etapa: e.id, item: item.id, natureza: item.natureza, data: convDataNaVigencia_(cfg, String(l.data || '')), quantidade: qtd,
-              valor: valor, documento: convTexto_(l.documento, 120, 'Documento'), descricao: convTexto_(l.descricao, 1000, 'Descrição'), fonte: fonte };
+              valor: valor, documento: convTexto_(l.documento, 120, 'Documento'), descricao: convTexto_(l.descricao, 1000, 'Descrição'), fonte: fonte, origem: 'manual' };
   if (valor < 0 && o.descricao.length < 5) throw new Error('Valor negativo (estorno) exige descrição.');
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
@@ -2146,10 +2150,88 @@ function painelConvFinLancar(token, l) {
       const ant = convLinha_('ConvFinanceiro', id);
       if (!ant || ant.excluido === 1 || ant.convenio !== cfg.id) throw new Error('Lançamento não encontrado.');
       o.criadoEm = ant.criadoEm;
+      // importado da planilha e editado à mão: mantém a chave (a próxima importação compara e, se a planilha diferir, atualiza)
+      o.chave = ant.chave; o.origem = ant.origem || 'manual'; o.arquivo = ant.arquivo; o.importadoEm = ant.importadoEm;
     } else { id = Utilities.getUuid(); o.criadoEm = agora; }
     o.id = id; o.usuario = admin; o.atualizadoEm = agora; o.excluido = 0;
     convGravar_('ConvFinanceiro', o);
     return { ok: true, lancamento: convFinOut_(paraObjeto_(TABELAS.ConvFinanceiro, TABELAS.ConvFinanceiro.map(function (c) { return o[c]; }))) };
+  } finally { lock.releaseLock(); }
+}
+
+const CONV_IMP_MAX = 500;                              // lançamentos por chamada de painelConvFinImportar (o painel divide em lotes)
+/**
+ * Importação em lote da planilha de movimentação financeira (painel → Financeiro → "Importar planilha"; o .xlsx é lido no navegador).
+ * req = {convenio, arquivo, itens: [{chave, item, etapa, data, valor, documento, quantidade, fonte, descricao}], excluir: [ids]}.
+ * Idempotente pela chave (imp|<convênio>|<item>|<memo> ou imp|<convênio>|<item>|<data>|<valor>|<n>): chave já gravada e igual → nada;
+ * diferente (valor/data/documento) → atualiza a mesma linha; nova → acrescenta. Linha excluída antes com a mesma chave volta a valer.
+ * excluir = ids de lançamentos importados que sumiram da planilha e o gerente marcou para excluir (exclusão lógica).
+ * Mesmas validações do lançamento manual (etapa/item do plano, data na vigência, valor, textos sem CPF). Nunca recebe nomes de servidores.
+ */
+function painelConvFinImportar(token, req) {
+  const admin = adminDoToken_(token);
+  req = req || {};
+  const cfg = convDe_(req.convenio);
+  const itens = Array.isArray(req.itens) ? req.itens : [], excluir = Array.isArray(req.excluir) ? req.excluir.map(String) : [];
+  if (!itens.length && !excluir.length) throw new Error('Nada a importar.');
+  if (itens.length > CONV_IMP_MAX || excluir.length > CONV_IMP_MAX) throw new Error('No máximo ' + CONV_IMP_MAX + ' lançamentos por envio.');
+  const arquivo = convTexto_(req.arquivo, 200, 'Arquivo');
+  const pre = 'imp|' + cfg.id + '|', vistas = {};
+  const novos = itens.map(function (l, i) {
+    const rot = 'Linha ' + (i + 1);
+    if (!l || typeof l !== 'object') throw new Error(rot + ': lançamento inválido.');
+    const e = convEtapa_(cfg, l.etapa);
+    const item = (e.itens || []).filter(function (x) { return x.id === String(l.item || ''); })[0];
+    if (!item) throw new Error(rot + ': item ' + l.item + ' não existe na etapa ' + e.id + '.');
+    const chave = String(l.chave || '');
+    if (chave.indexOf(pre + item.id + '|') !== 0 || chave.length > 200) throw new Error(rot + ': chave de importação inválida.');
+    if (vistas[chave]) throw new Error(rot + ': chave repetida no envio (' + chave + ').');
+    vistas[chave] = 1;
+    const valor = Math.round(convNumero_(l.valor, rot + ': valor') * 100) / 100;
+    if (!(valor > 0) || valor > 1e8) throw new Error(rot + ': valor inválido.');
+    const qtd = l.quantidade === '' || l.quantidade === null || l.quantidade === undefined ? '' : convNumero_(l.quantidade, rot + ': quantidade');
+    if (qtd !== '' && (qtd < 0 || qtd > 1e7)) throw new Error(rot + ': quantidade inválida.');
+    const fonte = String(l.fonte || 'concedente');
+    if (CONV_FONTES.indexOf(fonte) < 0) throw new Error(rot + ': fonte inválida.');
+    let data;
+    try { data = convDataNaVigencia_(cfg, String(l.data || '')); } catch (err) { throw new Error(rot + ': ' + err.message); }
+    return { convenio: cfg.id, etapa: e.id, item: item.id, natureza: item.natureza, data: data, quantidade: qtd === '' ? '' : Math.round(qtd * 100) / 100, valor: valor,
+             documento: convTexto_(l.documento, 120, rot + ': documento'), descricao: convTexto_(l.descricao, 200, rot + ': descrição'), fonte: fonte,
+             chave: chave, origem: 'planilha', arquivo: arquivo };
+  });
+  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    const t = lerTudo_('ConvFinanceiro'), cols = t.cols, ix = {}, iId = {};
+    const ci = function (c) { return cols.indexOf(c); };
+    t.valores.forEach(function (l, i) {
+      const o = paraObjeto_(cols, l);
+      if (o.chave && o.convenio === cfg.id) { if (!ix[o.chave] || ix[o.chave].o.excluido === 1) ix[o.chave] = { i: i, o: o }; }
+      if (o.id) iId[o.id] = { i: i, o: o };
+    });
+    const agora = Date.now(), acrescentar = [], res = { novos: 0, atualizados: 0, iguais: 0, excluidos: 0, lancamentos: [] };
+    const linhaDe = function (o) { return cols.map(function (c) { const v = o[c]; return v === null || v === undefined ? '' : v; }); };
+    novos.forEach(function (n) {
+      const a = ix[n.chave];
+      if (a && a.o.excluido !== 1 && a.o.data === n.data && Number(a.o.valor) === n.valor && a.o.documento === n.documento && a.o.descricao === n.descricao &&
+          a.o.item === n.item && String(a.o.quantidade) === String(n.quantidade) && a.o.fonte === n.fonte) { res.iguais++; return; }
+      const o = Object.assign({}, n, { usuario: admin, atualizadoEm: agora, importadoEm: agora, excluido: 0 });
+      if (a) {
+        o.id = a.o.id; o.criadoEm = a.o.criadoEm || agora;
+        t.sh.getRange(a.i + 2, 1, 1, cols.length).setValues([linhaDe(o)]); res.atualizados++;
+      } else { o.id = Utilities.getUuid(); o.criadoEm = agora; acrescentar.push(linhaDe(o)); res.novos++; }
+      res.lancamentos.push(convFinOut_(o));
+    });
+    if (acrescentar.length) t.sh.getRange(t.sh.getLastRow() + 1, 1, acrescentar.length, cols.length).setValues(acrescentar);
+    excluir.forEach(function (id) {
+      const a = iId[id];
+      if (!a || a.o.excluido === 1 || a.o.convenio !== cfg.id || a.o.origem !== 'planilha') throw new Error('Lançamento importado não encontrado: ' + id + '.');
+      t.sh.getRange(a.i + 2, ci('excluido') + 1).setValue(1);
+      t.sh.getRange(a.i + 2, ci('usuario') + 1).setValue(admin);
+      t.sh.getRange(a.i + 2, ci('atualizadoEm') + 1).setValue(agora);
+      res.excluidos++;
+    });
+    res.ok = true; res.arquivo = arquivo;
+    return res;
   } finally { lock.releaseLock(); }
 }
 

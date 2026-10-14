@@ -317,7 +317,7 @@ cel=[c.text for t in d.tables for r in t.rows for c in r.cells]
 print(json.dumps({'nomes':nomes,'tabelas':x.count('<w:tbl>'),'bordas':x.count('w:insideH'),'vmerge':x.count('w:vMerge'),'txt':txt,'cel':cel,'imgs':[n for n in nomes if n.startswith('word/media/')]}))`, docArq);
   const W = info ? JSON.parse(info) : null;
   ok(W && W.nomes.includes('[Content_Types].xml') && W.nomes.includes('word/document.xml') && W.nomes.includes('word/styles.xml') && W.imgs.length === 3, 'docx: pacote OOXML válido (XML bem formado; cabeçalho e rodapé com 3 logos)', W && W.nomes);
-  ok(W && W.tabelas === 4 && W.bordas === 4 && W.vmerge > 0, 'docx: 4 tabelas com bordas (resumo + 3 financeiras) e células mescladas', W && [W.tabelas, W.bordas, W.vmerge]);
+  ok(W && W.tabelas === 5 && W.bordas === 5 && W.vmerge > 0, 'docx: 5 tabelas com bordas (resumo + 3 financeiras + físico × financeiro) e células mescladas', W && [W.tabelas, W.bordas, W.vmerge]);
   const celTxt = W ? W.cel.join(' | ') : '';
   ok(W && /PARCIAL 7/.test(W.txt) && /Manacapuru \(2 propriedades\), Manaus \(2 propriedades\)/.test(W.txt) && /R\$ 139\.820,00/.test(celTxt) && /52 municípios levantados/.test(celTxt) && /BVA - JUNDIÁ/.test(celTxt) && /15/.test(celTxt),
     'docx: textos e números (parcial, memória, resumo, financeiro)', W && W.txt.slice(0, 200));

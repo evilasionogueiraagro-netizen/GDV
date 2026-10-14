@@ -726,7 +726,25 @@ body.tv .pn-erro { font-size: 2.1vh; padding: 1.4vh; }
 .pn-conv-item { display: grid; grid-template-columns: minmax(0, 2fr) repeat(3, minmax(0, 1fr)); gap: 6px; align-items: end; font-size: 13px; }
 .pn-conv-item small { color: var(--mut); }
 @media (max-width: 640px) { .pn-conv-item { grid-template-columns: repeat(3, minmax(0, 1fr)); } .pn-conv-item > span { grid-column: 1 / -1; } }
-.pn-conv-etapa:has(details[open]) { grid-column: 1 / -1; }   /* etapa aberta: largura toda para a quebra e o gráfico */
+.pn-conv-etapa:has(details[open]) { grid-column: 1 / -1; }
+/* físico × financeiro (cartão da etapa) e importação da planilha de movimentação */
+.pn-conv-ff { display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; margin: 0; font-size: 12.5px; color: var(--ink2); }
+.pn-conv-ff b { color: var(--ink); font-variant-numeric: tabular-nums; }
+.pn-conv-ff .pn-selo { white-space: normal; }
+.pn-conv-imp { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.pn-conv-imp-btn { cursor: pointer; min-height: 40px; display: inline-flex; align-items: center; }
+.pn-conv-imp-arq { position: absolute; width: 1px; height: 1px; opacity: 0; overflow: hidden; }
+.pn-conv-imp-btn:focus-within, .pn-conv-imp-arq:focus + * { outline: 2px solid var(--marca2); }
+.pn-conv-imp-pv { display: flex; flex-direction: column; gap: 12px; min-width: 0; }
+.pn-conv-imp-pv h3 { margin: 0; font-size: 15px; overflow-wrap: anywhere; }
+.pn-conv-imp-dec h3 { margin: 0 0 6px; font-size: 14px; }
+.pn-conv-imp-dec ul { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.pn-conv-imp-dec li { overflow-wrap: anywhere; }
+.pn-conv-imp-dec .pn-selo { white-space: normal; max-width: 100%; }
+.pn-conv-imp-dec label { display: inline-flex; align-items: center; gap: 4px; margin-left: 6px; }
+.pn-conv-imp-dec input[type=date] { font: inherit; padding: 2px 4px; }
+.pn-conv-imp-linhas summary { cursor: pointer; color: var(--marca2); font-size: 13px; }
+.pn-conv-imp-resumo { margin: 0; font-size: 13.5px; font-weight: 600; }   /* etapa aberta: largura toda para a quebra e o gráfico */
 .pn-conv .pn-tab td.num { white-space: nowrap; }
 /* Convênios: valores em R$ não quebram no meio do número */
 .pn-conv .pn-kpis { grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); }

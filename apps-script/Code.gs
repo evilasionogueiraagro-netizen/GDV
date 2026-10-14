@@ -124,7 +124,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-14b';
+const VERSAO_CODIGO = '2026-10-15a';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -4015,18 +4015,36 @@ function abaDe_(ss, nome) {
 function garantirColunas_(sh, nome) {
   const cols = TABELAS[nome];
   if (sh.getMaxColumns() < cols.length) sh.insertColumnsAfter(sh.getMaxColumns(), cols.length - sh.getMaxColumns());
-  let atual = sh.getRange(1, 1, 1, cols.length).getValues()[0];
+  let atual = sh.getRange(1, 1, 1, cols.length).getValues()[0], copias = false;
   cols.forEach(function (c, i) {
     if (atual[i] === c) return;
     if (atual[i] !== '' && atual[i] !== undefined && atual[i] !== null) {
-      // a mesma coluna do sistema já está antes: planilha embaralhada à mão; não dá para adivinhar, para por segurança
-      if (cols.slice(0, i).indexOf(String(atual[i])) >= 0) throw new Error('Cabeçalho da aba ' + nome + ' diferente do esperado na coluna ' + (i + 1) + ' (coluna "' + atual[i] + '" repetida).');
+      // As colunas 1..i já conferem (são acertadas em ordem). Uma coluna do sistema repetida aqui é cópia antiga
+      // (sobra de ajuste à mão no cabeçalho): ela anda para a direita como qualquer coluna de fora, sem apagar nada,
+      // e o que só existir na cópia é levado para a coluna oficial.
+      if (cols.slice(0, i).indexOf(String(atual[i])) >= 0) copias = true;
       sh.insertColumnBefore(i + 1);                                   // a coluna de fora (e o que vem depois) anda uma posição
       atual = sh.getRange(1, 1, 1, cols.length).getValues()[0];
     }
     sh.getRange(1, i + 1).setValue(c).setFontWeight('bold').setBackground('#dbe6f7');
     sh.getRange(1, i + 1, sh.getMaxRows(), 1).setNumberFormat('@');
   });
+  if (copias) {                                                     // cópias antigas (agora à direita): o que só existe nelas vai para a coluna oficial
+    const cab = sh.getRange(1, 1, 1, sh.getLastColumn()).getValues()[0];
+    for (let j = cols.length; j < cab.length; j++) { const k = cols.indexOf(String(cab[j])); if (k >= 0) aproveitarCopia_(sh, k + 1, j + 1); }
+  }
+}
+
+/** Cópia antiga de uma coluna do sistema (coluna `colCopia`): preenche as células vazias da coluna oficial (`colOficial`) com o valor da cópia. */
+function aproveitarCopia_(sh, colOficial, colCopia) {
+  const n = sh.getLastRow() - 1; if (n < 1) return;
+  const of = sh.getRange(2, colOficial, n, 1).getValues(), cp = sh.getRange(2, colCopia, n, 1).getValues();
+  let mudou = false;
+  for (let r = 0; r < n; r++) {
+    const vazio = of[r][0] === '' || of[r][0] === null || of[r][0] === undefined;
+    if (vazio && cp[r][0] !== '' && cp[r][0] !== null && cp[r][0] !== undefined) { of[r][0] = cp[r][0]; mudou = true; }
+  }
+  if (mudou) sh.getRange(2, colOficial, n, 1).setValues(of);
 }
 
 function lerTudo_(nome) {

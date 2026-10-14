@@ -4,7 +4,10 @@
    (textos editáveis por etapa → Word .docx e PDF). Cálculos e conteúdo do relatório: ../documentos/conv-docs.js (ConvDocs);
    Word: js/docx.js (DocxMin); PDF: modelo ../documentos/conv-relatorio.html + ../js/pdf.js (o mesmo gerador do app de campo).
    O acumulado vem da action painelConvApuracao com o intervalo [início da execução, fim do mês escolhido] — independe do período
-   carregado nas outras abas. Não usa o período nem os filtros do painel. */
+   carregado nas outras abas. Não usa o período nem os filtros do painel.
+   Financeiro → "Importar planilha de movimentação (.xlsx)": lê o .xlsx no navegador (SheetJS em vendor/xlsx, carregada só no clique),
+   js/conv-planilha.js (ConvPlanilha) monta a prévia e grava em lotes pela action painelConvFinImportar (idempotente pela chave).
+   A coluna NOME da planilha nunca é lida. Metas: físico × financeiro por etapa (ConvDocs.fisicoFinanceiro). */
 (() => {
   'use strict';
   if (typeof Painel === 'undefined' || typeof ConvDocs === 'undefined') return;
@@ -12,7 +15,8 @@
   const LS_VISAO = 'gdv.painel.conv.visao', LS_MES = 'gdv.painel.conv.mes';
   const VISOES = [['metas', 'Metas'], ['lanc', 'Lançamentos'], ['fin', 'Financeiro'], ['rel', 'Relatório']];
   const SELO = { adiantada: 'bom', ritmo: 'info', atrasada: 'serio' };
-  const E = { raiz: null, dados: null, convId: '', mes: P.ls.get(LS_MES) || '', visao: P.ls.get(LS_VISAO) || 'metas', apur: {}, R: null, carregando: false, erro: '',
+  const XLSX_SRC = 'vendor/xlsx/xlsx.mini.min.js', IMP_LOTE = 200;
+  const E = { imp: null, raiz: null, dados: null, convId: '', mes: P.ls.get(LS_MES) || '', visao: P.ls.get(LS_VISAO) || 'metas', apur: {}, R: null, carregando: false, erro: '',
               abertos: new Set(), editando: null, editandoFin: null, relAberto: false, textos: null, numero: null, msg: {}, gerando: false };
   const cfg = () => E.dados ? (E.dados.convenios.find(c => c.id === E.convId) || E.dados.convenios[0]) : null;
   const hoje = () => P.hoje();
@@ -56,6 +60,16 @@
       if (t.id === 'pn-conv-mes') { E.mes = t.value; P.ls.set(LS_MES, E.mes); E.textos = null; E.relAberto = false; carregar(); }
       if (t.id === 'pn-cl-etapa' || t.id === 'pn-cl-sub') ajustarFormLanc(t.id === 'pn-cl-etapa');
       if (t.id === 'pn-cf-etapa') ajustarFormFin();
+      if (t.id === 'pn-conv-imp-arq' && t.files && t.files[0]) { lerPlanilha(t.files[0]); t.value = ''; }
+      if (E.imp && t.closest && t.closest('#pn-conv-imp-previa')) {
+        const op = E.imp.op, lid = t.dataset.lid;
+        if (t.matches('[data-imp-data]')) { if (t.value) op.datas[lid] = t.value; else delete op.datas[lid]; }
+        else if (t.matches('[data-imp-ign]')) { if (t.checked) op.ignorar[lid] = true; else delete op.ignorar[lid]; }
+        else if (t.matches('[data-imp-rep]')) { if (t.checked) op.repetidos[lid] = true; else delete op.repetidos[lid]; }
+        else if (t.matches('[data-imp-exc]')) { if (t.checked) op.excluir[t.dataset.id] = true; else delete op.excluir[t.dataset.id]; }
+        else return;
+        previaImp(); desenharImp();
+      }
     });
     r.addEventListener('input', e => { if (e.target.closest('#pn-conv-rel-form')) { E.textosSujos = true; msg('rel', 'Alterações não salvas.', ''); } });
     r.addEventListener('click', e => {
@@ -70,6 +84,8 @@
       else if (a === 'fin-excluir') excluir('fin', id);
       else if (a === 'lanc-cancelar') { E.editando = null; desenharVisao(); }
       else if (a === 'fin-cancelar') { E.editandoFin = null; desenharVisao(); }
+      else if (a === 'imp-gravar') gravarImp();
+      else if (a === 'imp-cancelar') { E.imp = null; desenharImp(); }
       else if (a === 'bem') { E.editando = null; desenharVisao(); preencherBem(id); }
       else if (a === 'rel-abrir') { E.relAberto = true; desenharVisao(); }
       else if (a === 'rel-salvar') salvarTextos();
@@ -141,10 +157,13 @@
       { rotulo: 'Etapas no ritmo ou adiantadas', valor: `${n('ritmo') + n('adiantada')} de ${R.etapas.length}`, status: n('atrasada') ? null : 'bom' },
       { rotulo: 'Etapas atrasadas', valor: n('atrasada'), detalhe: '> 5 p.p. abaixo do esperado', status: R.alertas.some(a => a.nivel === 'serio') ? 'serio' : n('atrasada') ? 'atencao' : null },
       { rotulo: 'Esperado pelo tempo', valor: F.pct(R.esperado), detalhe: `fim de ${F.mes(R.mes)} (linear até ${F.data(c.vigencia.fim)})` },
-      { rotulo: 'Execução financeira', valor: F.pct(R.fin.total.pct), detalhe: `${F.moeda(R.fin.total.acum)} de ${F.moeda(R.fin.total.previsto)}` }
+      { rotulo: 'Execução financeira', valor: F.pct(R.fin.total.pct), detalhe: `${F.moeda(R.fin.total.acum)} de ${F.moeda(R.fin.total.previsto)}` },
+      { rotulo: 'Financeiro à frente do físico', valor: `${R.ff.frente} de ${R.etapas.length}`, detalhe: `etapas com gasto > ${Math.round(CD.FF_ALERTA * 100)} p.p. acima do % físico`, status: R.ff.frente ? 'atencao' : 'bom' },
+      { rotulo: 'Diárias usadas', valor: `${F.num(R.ff.diariasUsadas, 1)} de ${F.int(R.ff.diariasPrev)}`, detalhe: `${F.pct(R.ff.diariasPct)} das diárias previstas · ${F.moeda(R.ff.valorDiarias)} de ${F.moeda(R.ff.valorDiariasPrev)}` }
     ]);
     const sa = P.secao(v, 'Alertas', `Etapa atrasada mais de 15 p.p. do esperado e mês sem nenhum registro numa etapa automática (${F.mes(R.mes)}).`);
     P.alertas(sa, R.alertas, { vazio: 'Nenhum alerta neste mês. ✓' });
+    secaoFisFin(v);
     const sm = P.secao(v, `Metas físicas — ${F.mes(R.mes)}`, 'Acumulado desde o início da execução. A marca na barra é o esperado pelo tempo decorrido. Abra uma etapa para ver a quebra por município/BVA/sub-meta e o gráfico mensal.');
     const g = P.el('div', 'pn-conv-etapas'); sm.appendChild(g);
     R.etapas.forEach(r => {
@@ -154,12 +173,35 @@
         <div class="pn-conv-pct"><b>${F.pct(r.pct)}</b><span>${r.media ? 'média das sub-metas' : 'da meta'} · esperado ${F.pct(r.esperado)}</span></div>
         ${barra(r.pct, r.esperado)}
         <dl class="pn-conv-nums"><div><dt>Previsto</dt><dd>${esc(r.previstoTxt)}</dd></div><div><dt>No mês</dt><dd>${esc(r.mesTxt)}</dd></div><div><dt>Acumulado</dt><dd>${esc(r.acumTxt)}</dd></div></dl>
+        <p class="pn-conv-ff" data-ff="${esc(r.id)}"><span>Financeiro <b>${F.pct(r.ff.financeiro)}</b></span>${r.ff.diarias.previstas ? `<span>Diárias <b>${F.num(r.ff.diarias.usadas, 1)}</b> de ${F.int(r.ff.diarias.previstas)}</span>` : ''}<span class="pn-selo ${SELO_FF[r.ff.situacao]}">${esc(r.ff.situacaoTxt)}${r.ff.situacao === 'semgasto' ? '' : ` (${r.ff.difPP > 0 ? '+' : ''}${F.num(r.ff.difPP, 1)} p.p.)`}</span></p>
         <p class="pn-sub pn-conv-apur">${r.auto ? 'Apuração automática (e-GDV)' : r.apuracao === 'bens' ? 'Situação dos bens (lançamento manual)' : 'Lançamento manual no painel'}${r.ajustes.length ? ` · ${r.ajustes.length} ajuste(s)` : ''}</p>`;
       const d = P.el('details', 'pn-conv-det'); d.dataset.etapa = r.id;
       d.innerHTML = `<summary>Detalhes e gráfico</summary><div class="pn-conv-det-corpo"></div>`;
       card.appendChild(d); g.appendChild(card);
       if (E.abertos.has(r.id)) { d.open = true; detalheEtapa(d); }
     });
+  }
+  const SELO_FF = { financeiro: 'atencao', equilibrado: 'bom', fisico: 'info', semgasto: 'info' };
+  const projTxt = x => x.situacao === 'esgotado' ? 'saldo esgotado' : x.situacao === 'semritmo' ? 'sem gasto nos últimos 3 meses' : x.situacao === 'semprevisto' ? '—'
+    : x.antes ? `acaba em ${F.mes(x.mesFim)} (antes do fim da vigência)` : x.meses > 60 ? 'dura além do fim da vigência' : `acaba em ${F.mes(x.mesFim)} (depois do fim da vigência)`;
+  /** Físico × financeiro por etapa: % físico, % financeiro, diferença, diárias, custo por unidade e projeção do saldo. */
+  function secaoFisFin(v) {
+    const R = E.R, c = R.cfg;
+    const s = P.secao(v, 'Físico × financeiro', `% físico (acumulado ÷ meta, até 100%) × % financeiro (gasto acumulado ÷ previsto da etapa). Diferença acima de ${Math.round(CD.FF_ALERTA * 100)} p.p. = financeiro à frente (alerta). Projeção: no ritmo médio dos últimos 3 meses, quando o saldo acaba × fim da vigência (${F.data(c.vigencia.fim)}).`);
+    P.tabela(s, [
+      { chave: 'rotulo', rotulo: 'Etapa' },
+      { chave: 'fis', rotulo: '% físico', num: true, fmt: F.pct, csv: x => Math.round(x * 10000) / 100 },
+      { chave: 'fin', rotulo: '% financeiro', num: true, fmt: F.pct, csv: x => Math.round(x * 10000) / 100 },
+      { chave: 'dif', rotulo: 'Dif. (p.p.)', num: true, fmt: x => (x > 0 ? '+' : '') + F.num(x, 1) },
+      { chave: 'sit', rotulo: 'Situação', html: (x, l) => `<span class="pn-selo ${SELO_FF[l.sitK]}">${esc(x)}</span>`, csv: x => x },
+      { chave: 'diarias', rotulo: 'Diárias usadas / previstas', fmt: x => x || '—' },
+      { chave: 'custoReal', rotulo: 'Custo por unidade', num: true, fmt: (x, l) => x == null ? '—' : `${F.moeda(x)} / ${l.unidade}` },
+      { chave: 'custoPrev', rotulo: 'Previsto por unidade', num: true, fmt: F.moeda },
+      { chave: 'razao', rotulo: 'Real ÷ previsto', num: true, fmt: x => x == null ? '—' : F.num(x, 2) + '×' },
+      { chave: 'proj', rotulo: 'Projeção do saldo', fmt: x => x }
+    ], R.etapas.map(r => { const f = r.ff; return { rotulo: `${r.id} ${r.nomeCurto}`, fis: f.fisico, fin: f.financeiro, dif: f.difPP, sit: f.situacaoTxt, sitK: f.situacao,
+      diarias: f.diarias.previstas ? `${F.num(f.diarias.usadas, 1)} de ${F.int(f.diarias.previstas)} (${F.pct(f.diarias.pct)})` : '', custoReal: f.custo.real, custoPrev: f.custo.previsto,
+      unidade: r.unidade, razao: f.custo.razao, proj: projTxt(f.projecao) }; }), { id: 'conv-fisfin', csv: `convenio-${c.id}-fisico-financeiro.csv`, limite: 20, busca: false });
   }
   function detalheEtapa(d) {
     const r = E.R && E.R.etapas.find(x => x.id === d.dataset.etapa); if (!r) return;
@@ -186,6 +228,20 @@
          { ...tracejada, label: 'Esperado pelo tempo', data: r.serie.map(s => Math.round(s.esperado)) }];
     P.grafico(corpo, 'conv-graf-' + r.id, { type: r.media ? 'line' : 'bar', titulo: `Etapa ${r.id} por mês`, subtitulo: r.media ? '% da meta (média das sub-metas)' : `${r.unidade}; meta ${F.int(r.meta)}`,
       altura: 220, tabelaRotulo: 'Mês', data: { labels: rot, datasets: ds } });
+    // físico × financeiro em % acumulado (um eixo só, em %): físico, financeiro e o esperado pelo tempo
+    const ff = r.ff;
+    P.grafico(corpo, 'conv-ff-' + r.id, { type: 'line', titulo: `Físico × financeiro (% acumulado) — etapa ${r.id}`,
+      subtitulo: `financeiro ${F.pct(ff.financeiro)} × físico ${F.pct(ff.fisico)} · ${ff.situacaoTxt.toLowerCase()}`, altura: 220, tabelaRotulo: 'Mês',
+      options: { scales: { y: { ticks: { color: p.eixo, padding: 6, callback: x => x + '%' } } } },
+      data: { labels: rot, datasets: [{ label: 'Físico (% da meta)', data: ff.serie.map(s => +s.fisico.toFixed(1)), cor: p.serie[0] },
+        { label: 'Financeiro (% do previsto)', data: ff.serie.map(s => +s.financeiro.toFixed(1)), cor: p.serie[1] },
+        { ...tracejada, label: 'Esperado pelo tempo (%)', data: ff.serie.map(s => +s.esperado.toFixed(1)) }] } });
+    corpo.appendChild(P.el('p', 'pn-sub', esc(`Custo por unidade: ${ff.custo.real == null ? 'sem execução física registrada' : `${F.moeda(ff.custo.real)} por unidade (${ff.custo.unidade})`} × previsto ${F.moeda(ff.custo.previsto)} (gasto ${F.moeda(ff.custo.gasto)} ÷ ${F.num(ff.custo.unidades, 1)} ${ff.custo.unidade}). Projeção da etapa: ${projTxt(ff.projecao)}${ff.projecao.ritmo ? `; ritmo ${F.moeda(ff.projecao.ritmo)}/mês` : ''}.`)));
+    P.tabela(corpo, [{ chave: 'rotulo', rotulo: 'Item' }, { chave: 'previsto', rotulo: 'Previsto', num: true, fmt: F.moeda }, { chave: 'acum', rotulo: 'Gasto', num: true, fmt: F.moeda },
+      { chave: 'pct', rotulo: '%', num: true, fmt: F.pct }, { chave: 'ritmo', rotulo: 'Ritmo (3 meses)', num: true, fmt: x => x ? F.moeda(x) + '/mês' : '—' },
+      { chave: 'proj', rotulo: 'Saldo acaba', html: (x, l) => l.antes ? `<span class="pn-selo atencao">${esc(x)}</span>` : esc(x) }],
+      ff.itens.map(it => ({ rotulo: `${it.id} ${it.nome}`, previsto: it.previsto, acum: it.acum, pct: it.pct, ritmo: it.ritmo, proj: projTxt(it), antes: it.antes })),
+      { id: 'conv-proj-' + r.id, simples: true, limite: 20 });
   }
 
   /* ---------------- Lançamentos ---------------- */
@@ -307,6 +363,7 @@
       { rotulo: 'Repasse × contrapartida', valor: `${F.pct(Fn.fonte.concedente.pct)} · ${F.pct(Fn.fonte.contrapartida.pct)}`,
         detalhe: `repasse ${F.moeda(Fn.fonte.concedente.acum)} de ${F.moeda(Fn.fonte.concedente.previsto)}; contrapartida ${F.moeda(Fn.fonte.contrapartida.acum)} de ${F.moeda(Fn.fonte.contrapartida.previsto)}` }
     ]);
+    secaoImp(v);
     const colsFin = primeira => [{ chave: 'rotulo', rotulo: primeira }, { chave: 'previsto', rotulo: 'Previsto', num: true, fmt: F.moeda }, { chave: 'mes', rotulo: 'No mês', num: true, fmt: F.moeda },
       { chave: 'acum', rotulo: 'Acumulado', num: true, fmt: F.moeda }, { chave: 'saldo', rotulo: 'Saldo', num: true, fmt: F.moeda },
       { chave: 'pct', rotulo: '% exec.', num: true, html: (x) => `<span class="pn-conv-pctcel">${F.pct(x)}<span class="pn-conv-barra mini" aria-hidden="true"><i style="width:${Math.min(100, x * 100).toFixed(1)}%"></i></span></span>`, csv: x => Math.round(x * 10000) / 100 }];
@@ -342,9 +399,116 @@
     P.tabela(sl, [{ chave: 'data', rotulo: 'Data', fmt: F.data }, { chave: 'etapa', rotulo: 'Etapa' }, { chave: 'item', rotulo: 'Item', fmt: (v, l) => itemNome(l) },
       { chave: 'natureza', rotulo: 'Natureza' }, { chave: 'quantidade', rotulo: 'Qtd.', num: true, fmt: v => v == null ? '—' : F.num(v) },
       { chave: 'valor', rotulo: 'Valor', num: true, fmt: F.moeda, csv: v => v }, { chave: 'documento', rotulo: 'Documento', fmt: v => v || '—' },
-      { chave: 'fonte', rotulo: 'Fonte', fmt: v => v === 'contrapartida' ? 'Contrapartida' : 'Repasse' }, { chave: 'descricao', rotulo: 'Descrição', fmt: v => v || '—' }, { chave: 'usuario', rotulo: 'Por' },
+      { chave: 'fonte', rotulo: 'Fonte', fmt: v => v === 'contrapartida' ? 'Contrapartida' : 'Repasse' }, { chave: 'descricao', rotulo: 'Descrição', fmt: v => v || '—' },
+      { chave: 'origem', rotulo: 'Origem', fmt: (v, l) => v === 'planilha' ? `Planilha${l.importadoEm ? ' ' + F.data(new Date(l.importadoEm - 4 * 3600e3).toISOString()) : ''}` : 'Manual' }, { chave: 'usuario', rotulo: 'Por' },
       { chave: 'id', rotulo: 'Ações', csv: () => '', html: x => `<span class="pn-conv-acoes-lin"><button type="button" class="pn-btn pn-btn-mini" data-conv="fin-editar" data-id="${esc(x)}">Editar</button><button type="button" class="pn-btn pn-btn-mini pn-btn-encerrar" data-conv="fin-excluir" data-id="${esc(x)}">Excluir</button></span>` }],
       lst, { id: 'conv-fin-lanc', csv: `convenio-${c.id}-financeiro-lancamentos.csv`, limite: 30, vazio: 'Nenhum lançamento financeiro ainda.' });
+  }
+  /* ---------------- importação da planilha de movimentação ---------------- */
+  function secaoImp(v) {
+    const s = P.secao(v, 'Importar planilha de movimentação', 'Planilha do gestor (.xlsx; uma aba "SUBETAPA x.y.z" por item do plano). Lida aqui no navegador; a coluna NOME não é lida nem enviada. Pode repetir todo mês: o que já foi importado não duplica.');
+    const box = P.el('div', 'pn-cartao pn-conv-imp');
+    box.innerHTML = `<div class="pn-conv-acoes"><label class="pn-btn pn-btn-prim pn-conv-imp-btn" for="pn-conv-imp-arq">📥 Importar planilha de movimentação (.xlsx)</label>
+      <input type="file" id="pn-conv-imp-arq" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="pn-conv-imp-arq">${msgHtml('imp')}</div>
+      <div id="pn-conv-imp-previa"></div>`;
+    s.appendChild(box);
+    desenharImp();
+  }
+  async function lerPlanilha(arq) {
+    msg('imp', `Lendo ${arq.name}…`, '');
+    try {
+      if (!/\.xlsx$/i.test(arq.name)) throw new Error('escolha um arquivo .xlsx');
+      if (arq.size > 15e6) throw new Error('arquivo grande demais (máx. 15 MB)');
+      if (typeof window.XLSX === 'undefined') await script(XLSX_SRC);
+      const wb = window.XLSX.read(new Uint8Array(await arq.arrayBuffer()), { type: 'array', cellFormula: false, cellHTML: false, cellText: false, cellStyles: false });
+      const ext = ConvPlanilha.extrair(ConvPlanilha.abasDoLivro(window.XLSX, wb));     // só data, memo, tipo, subetapa e valor (sem NOME)
+      E.imp = { arquivo: arq.name, ext, op: { datas: {}, ignorar: {}, repetidos: {}, excluir: {} }, P: null, resumo: null };
+      previaImp();
+      msg('imp', `${arq.name}: ${E.imp.P.totais.linhas} lançamento(s) em ${ext.abas.length} aba(s). Confira a prévia e grave.`, 'ok');
+    } catch (e) { E.imp = null; msg('imp', 'Não foi possível ler a planilha: ' + e.message, 'erro'); }
+    desenharImp();
+  }
+  function previaImp() { const c = cfg(); E.imp.P = ConvPlanilha.previa(E.imp.ext, c, E.dados.financeiro, E.imp.op); }
+  const dataBR = d => d ? F.data(d) : '—';
+  function desenharImp() {
+    const box = E.raiz && E.raiz.querySelector('#pn-conv-imp-previa'); if (!box) return;
+    box.innerHTML = '';
+    if (E.impResumo) { const r = E.impResumo;
+      box.appendChild(P.el('p', 'pn-conv-imp-resumo', esc(`Última importação (${r.arquivo}): ${r.novos} novo(s), ${r.atualizados} atualizado(s), ${r.iguais} igual(is) já no sistema, ${r.excluidos} excluído(s) — ${F.moeda(r.valor)} gravados.`))); }
+    if (!E.imp) return;
+    const X = E.imp.P, T = X.totais, c = cfg();
+    const pv = P.el('div', 'pn-conv-imp-pv'); pv.id = 'pn-conv-imp-pv'; box.appendChild(pv);
+    pv.appendChild(P.el('h3', null, esc(`Prévia — ${E.imp.arquivo}`)));
+    P.kpis(pv, [
+      { rotulo: 'Na planilha', valor: F.moeda(T.valorPlanilha), detalhe: `${T.linhas} lançamento(s)${X.abasIgnoradas.length ? ` · abas fora: ${X.abasIgnoradas.join(', ')}` : ''}` },
+      { rotulo: 'Novos', valor: T.novos, detalhe: 'serão gravados' }, { rotulo: 'Alterados', valor: T.alterados, detalhe: 'valor/data mudou: serão atualizados', status: T.alterados ? 'atencao' : null },
+      { rotulo: 'Iguais', valor: T.iguais, detalhe: 'já importados (não duplica)' },
+      { rotulo: 'A gravar', valor: F.moeda(T.valorGravar), detalhe: `${T.repetidasFora} repetido(s) fora · ${T.ignoradas} ignorado(s) · ${T.bloqueadas} bloqueado(s)`, status: T.bloqueadas ? 'serio' : null }
+    ]);
+    P.alertas(pv, X.avisos.map(a => ({ nivel: a.nivel, titulo: a.texto })), { vazio: 'Nenhum aviso. ✓', max: 12 });
+    P.tabela(pv, [{ chave: 'rotulo', rotulo: 'Subetapa / item' }, { chave: 'previsto', rotulo: 'Previsto (plano)', num: true, fmt: F.moeda },
+      { chave: 'cabExecutado', rotulo: 'Executado (cabeçalho)', num: true, fmt: F.moeda }, { chave: 'planilha', rotulo: 'Soma na planilha', num: true, fmt: F.moeda },
+      { chave: 'gravar', rotulo: 'Importado', num: true, fmt: F.moeda }, { chave: 'sistema', rotulo: 'Já no sistema', num: true, fmt: F.moeda },
+      { chave: 'novos', rotulo: 'Novos', num: true, fmt: F.int }, { chave: 'iguais', rotulo: 'Iguais', num: true, fmt: F.int }, { chave: 'alterados', rotulo: 'Alterados', num: true, fmt: F.int },
+      { chave: 'diarias', rotulo: 'Diárias equiv.', num: true, fmt: (x, l) => `${F.num(x, 1)} de ${F.int(l.quantidadePrevista)}` },
+      { chave: 'avisos', rotulo: 'Avisos', fmt: x => x.length ? x.join('; ') : '—' }],
+      X.itens.map(y => Object.assign({ rotulo: `${y.id} ${y.nome}` }, y)), { id: 'conv-imp-itens', titulo: 'Por subetapa (item do plano)', limite: 40, busca: false, simples: false });
+    if (X.soma) P.tabela(pv, [{ chave: 'etapa', rotulo: 'Etapa' }, { chave: 'soma', rotulo: 'Aba SOMA', num: true, fmt: F.moeda }, { chave: 'planilha', rotulo: 'Soma das abas', num: true, fmt: F.moeda },
+      { chave: 'ok', rotulo: 'Confere', html: x => x ? '<span class="pn-selo bom">confere</span>' : '<span class="pn-selo atencao">diverge</span>' }],
+      X.soma.etapas.concat([{ etapa: 'TOTAL', soma: X.soma.total.soma, planilha: X.soma.total.planilha, ok: X.soma.total.ok }]), { id: 'conv-imp-soma', titulo: 'Conferência com a aba SOMA', limite: 20, busca: false });
+    // decisões: sem data, repetidos, bloqueados
+    const dec = X.linhas.filter(l => !l.dataPlanilha || l.repetido || l.status === 'bloqueada');
+    if (dec.length) {
+      const d = P.el('div', 'pn-cartao pn-conv-imp-dec'); d.id = 'pn-conv-imp-dec';
+      d.innerHTML = `<h3>Linhas que pedem decisão</h3><ul>${dec.map(l => {
+        const id = esc(l.lid), base = `<b>${esc(l.aba)}</b>, linha ${l.linha} · memo ${esc(l.memo || '—')} · ${esc(l.tipo || '—')} · ${F.moeda(l.valor)}`;
+        if (l.status === 'bloqueada' && l.bloqueio !== 'escolha a data') return `<li data-lid="${id}">${base} · data ${dataBR(l.data)} — <span class="pn-selo serio">bloqueada: ${esc(l.bloqueio)}</span></li>`;
+        if (!l.dataPlanilha) return `<li data-lid="${id}">${base} — <span class="pn-selo atencao">sem data</span> <label>Data <input type="date" data-imp-data data-lid="${id}" min="${c.vigencia.inicio}" max="${c.vigencia.fim}" value="${esc(l.data || '')}"></label>
+          <label><input type="checkbox" data-imp-ign data-lid="${id}" ${E.imp.op.ignorar[l.lid] ? 'checked' : ''}> ignorar</label></li>`;
+        return `<li data-lid="${id}">${base} · data ${dataBR(l.data)} — <span class="pn-selo atencao">memorando repetido</span> <label><input type="checkbox" data-imp-rep data-lid="${id}" ${E.imp.op.repetidos[l.lid] ? 'checked' : ''}> importar mesmo assim</label></li>`;
+      }).join('')}</ul>`;
+      pv.appendChild(d);
+    }
+    if (X.ausentes.length) {
+      const d = P.el('div', 'pn-cartao pn-conv-imp-dec'); d.id = 'pn-conv-imp-ausentes';
+      d.innerHTML = `<h3>No sistema mas não na planilha</h3><p class="pn-sub">Importados antes e que não estão mais na planilha. Não são apagados sozinhos: marque para excluir.</p><ul>${X.ausentes.map(f =>
+        `<li>${esc(f.item)} · ${esc(f.documento || '—')} · ${dataBR(f.data)} · ${F.moeda(f.valor)} <label><input type="checkbox" data-imp-exc data-id="${esc(f.id)}" ${f.excluir ? 'checked' : ''}> excluir</label></li>`).join('')}</ul>`;
+      pv.appendChild(d);
+    }
+    const det = P.el('details', 'pn-conv-imp-linhas'); det.innerHTML = `<summary>Ver os ${T.linhas} lançamentos da planilha</summary>`; pv.appendChild(det);
+    const ST = { novo: 'Novo', igual: 'Igual (já importado)', alterado: 'Alterado', repetida: 'Repetido (fora)', bloqueada: 'Bloqueado', ignorada: 'Ignorado' };
+    P.tabela(det, [{ chave: 'aba', rotulo: 'Aba' }, { chave: 'linha', rotulo: 'Linha', num: true, fmt: F.int }, { chave: 'data', rotulo: 'Data', fmt: dataBR },
+      { chave: 'memo', rotulo: 'Memo', fmt: x => x || '—' }, { chave: 'tipo', rotulo: 'Tipo', fmt: x => x || '—' }, { chave: 'sub', rotulo: 'Subetapa' },
+      { chave: 'valor', rotulo: 'Valor', num: true, fmt: F.moeda }, { chave: 'quantidade', rotulo: 'Diárias', num: true, fmt: x => x == null ? '—' : F.num(x, 1) },
+      { chave: 'status', rotulo: 'Situação', fmt: x => ST[x] || x }, { chave: 'avisos', rotulo: 'Avisos', fmt: (x, l) => [l.bloqueio].concat(x).filter(Boolean).join('; ') || '—' }],
+      X.linhas, { id: 'conv-imp-linhas', limite: 30, simples: true });
+    const n = X.envio.length, ac = P.el('div', 'pn-conv-acoes pn-conv-imp-acoes');
+    ac.innerHTML = `<button type="button" class="pn-btn pn-btn-prim" data-conv="imp-gravar" id="pn-conv-imp-gravar" ${n || X.excluir.length ? '' : 'disabled'}>${n ? `Gravar ${n} lançamento(s)` : 'Nada novo para gravar'}${X.excluir.length ? ` e excluir ${X.excluir.length}` : ''}</button>
+      <button type="button" class="pn-btn" data-conv="imp-cancelar">Cancelar</button>`;
+    pv.appendChild(ac);
+  }
+  async function gravarImp() {
+    if (!E.imp || E.imp.enviando) return;
+    const X = E.imp.P, c = cfg(), lotes = [];
+    for (let i = 0; i < X.envio.length; i += IMP_LOTE) lotes.push(X.envio.slice(i, i + IMP_LOTE));
+    if (!lotes.length) lotes.push([]);
+    const tot = { novos: 0, atualizados: 0, iguais: 0, excluidos: 0, valor: 0, arquivo: E.imp.arquivo };
+    E.imp.enviando = true; const b = E.raiz.querySelector('#pn-conv-imp-gravar'); if (b) b.disabled = true;
+    try {
+      for (let i = 0; i < lotes.length; i++) {
+        msg('imp', `Gravando… lote ${i + 1} de ${lotes.length}`, '');
+        const j = await P.chamar({ action: 'painelConvFinImportar', convenio: c.id, arquivo: E.imp.arquivo, itens: lotes[i], excluir: i === lotes.length - 1 ? X.excluir : [] });
+        ['novos', 'atualizados', 'iguais', 'excluidos'].forEach(k => { tot[k] += j[k] || 0; });
+        tot.valor += (j.lancamentos || []).reduce((s, l) => s + Number(l.valor || 0), 0);
+      }
+      tot.iguais += X.totais.iguais;
+      E.impResumo = tot; E.imp = null;
+      msg('imp', `Importado ✓ ${tot.novos} novo(s), ${tot.atualizados} atualizado(s), ${tot.excluidos} excluído(s).`, 'ok');
+      await carregar(true);
+    } catch (err) {
+      if (!P.logado) return;
+      E.imp.enviando = false; msg('imp', 'Não gravou: ' + err.message + ' (o que já foi gravado não duplica ao repetir).', 'erro'); if (b) b.disabled = false;
+    }
   }
   function ajustarFormFin() {
     const f = E.raiz.querySelector('#pn-conv-fin-form'); if (!f) return;
@@ -555,9 +719,9 @@
     if (!E.dados && !E.carregando && !E.erro) carregar();
     else if (E.visao === 'metas' && E.R) desenharVisao();      // o painel destrói os gráficos a cada atualização: redesenha (sem perder formulários das outras partes)
   }
-  P.aoSair(() => { if (E.raiz) E.raiz.remove(); Object.assign(E, { raiz: null, dados: null, apur: {}, R: null, erro: '', textos: null, editando: null, editandoFin: null, relAberto: false, msg: {} }); });
+  P.aoSair(() => { if (E.raiz) E.raiz.remove(); Object.assign(E, { imp: null, impResumo: null, raiz: null, dados: null, apur: {}, R: null, erro: '', textos: null, editando: null, editandoFin: null, relAberto: false, msg: {} }); });
   P.registrarAba({ id: 'convenios', titulo: 'Convênios', render, semFiltros: true,
     contador: () => E.R ? E.R.alertas.filter(a => a.nivel === 'serio').length : 0,
     /** usados pelos testes: estado calculado e recarga */
-    estado: () => ({ R: E.R, dados: E.dados, mes: E.mes, visao: E.visao }), recarregar: () => carregar(true) });
+    estado: () => ({ R: E.R, dados: E.dados, mes: E.mes, visao: E.visao, imp: E.imp && E.imp.P, impResumo: E.impResumo }), recarregar: () => carregar(true) });
 })();

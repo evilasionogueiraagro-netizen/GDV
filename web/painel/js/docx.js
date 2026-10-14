@@ -11,7 +11,8 @@ const DocxMin = (() => {
   const XML = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n';
   const REL = 'http://schemas.openxmlformats.org/officeDocument/2006/relationships/';
   const PAG = { w: 11906, h: 16838, mt: 1134, mb: 1134, ml: 1134, mr: 1134 };   // A4, margens de 2 cm (twips)
-  const LARG = PAG.w - PAG.ml - PAG.mr;
+  const LARG = PAG.w - PAG.ml - PAG.mr, LARG_PAISAGEM = PAG.h - PAG.ml - PAG.mr;
+  let larguraAtual = LARG;                                                      // muda nas seções em paisagem (bloco "orientacao")
   const EMU_CM = 360000;
 
   /* ---------- ZIP (store) ---------- */
@@ -67,8 +68,9 @@ const DocxMin = (() => {
   }
   /** Tabela com bordas. b = {titulo, colunas:[{rotulo, largura}], linhas:[[célula|null]], pequena}; null = continuação de célula mesclada (rowspan). */
   function tabela(b) {
+    const LARG = larguraAtual;
     const soma = b.colunas.reduce((s, c) => s + c.largura, 0), larg = b.colunas.map(c => Math.floor(LARG * c.largura / soma));
-    const sz = b.pequena ? 17 : 20, borda = '<w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/><w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/>' +
+    const sz = b.mini ? 15 : b.pequena ? 17 : 20, borda = '<w:top w:val="single" w:sz="4" w:space="0" w:color="000000"/><w:left w:val="single" w:sz="4" w:space="0" w:color="000000"/>' +
       '<w:bottom w:val="single" w:sz="4" w:space="0" w:color="000000"/><w:right w:val="single" w:sz="4" w:space="0" w:color="000000"/>' +
       '<w:insideH w:val="single" w:sz="4" w:space="0" w:color="000000"/><w:insideV w:val="single" w:sz="4" w:space="0" w:color="000000"/>';
     const cel = (w, conteudo, o) => {
@@ -97,9 +99,31 @@ const DocxMin = (() => {
     });
     return x + '</w:tbl>' + par('', { antes: 0, depois: 60 });
   }
-  /** Blocos do relatório → corpo do document.xml. */
-  function corpo(B) {
-    return B.map(b => {
+  /** Propriedades da seção (cabeçalho/rodapé, tamanho e orientação da folha). */
+  const sectPr = paisagem => `<w:sectPr><w:headerReference w:type="default" r:id="rIdHdr"/><w:footerReference w:type="default" r:id="rIdFtr"/>` +
+    (paisagem ? `<w:pgSz w:w="${PAG.h}" w:h="${PAG.w}" w:orient="landscape"/>` : `<w:pgSz w:w="${PAG.w}" w:h="${PAG.h}"/>`) +
+    `<w:pgMar w:top="${PAG.mt}" w:right="${PAG.mr}" w:bottom="${PAG.mb}" w:left="${PAG.ml}" w:header="425" w:footer="425" w:gutter="0"/><w:cols w:space="708"/></w:sectPr>`;
+  /**
+   * Blocos do relatório → corpo do document.xml. Além dos blocos de texto e tabela: {t:'imagem', png: Uint8Array, larguraCm, legenda}
+   * (imagem no corpo), {t:'quebra'} (nova página) e {t:'orientacao', paisagem} (nova seção em paisagem/retrato: tabelas largas).
+   * img(png) registra a imagem e devolve {rid, cx, cy, nome}. Devolve {xml, paisagem} (orientação da última seção).
+   */
+  function corpo(B, img) {
+    let paisagem = false;
+    larguraAtual = LARG;
+    const xml = B.map(b => {
+      if (b.t === 'orientacao') {
+        if (!!b.paisagem === paisagem) return '';
+        const fecha = `<w:p><w:pPr>${sectPr(paisagem)}</w:pPr></w:p>`;           // o sectPr num parágrafo encerra a seção anterior
+        paisagem = !!b.paisagem; larguraAtual = paisagem ? LARG_PAISAGEM : LARG;
+        return fecha;
+      }
+      if (b.t === 'quebra') return '<w:p><w:r><w:br w:type="page"/></w:r></w:p>';
+      if (b.t === 'imagem' && b.png && img) {
+        const i = img(b.png, b.larguraCm || 16);
+        return par(imagem(i.rid, i.cx, i.cy, i.nome), { jc: 'center', antes: 60, depois: 40, manter: !!b.legenda }) +
+          (b.legenda ? par(run(b.legenda, { sz: 18 }), { jc: 'center', antes: 0, depois: 160 }) : '');
+      }
       if (b.t === 'titulo') return par(run(b.texto, { negrito: true, sz: 26 }), { jc: 'center', antes: 120, depois: 60, manter: true });
       if (b.t === 'titulo2') return par(run(b.texto, { negrito: true, sz: 24 }), { jc: 'center', depois: 200 });
       if (b.t === 'h') return par(run(b.texto, { negrito: true, sz: 24 }), { antes: 240, depois: 100, manter: true });
@@ -113,6 +137,7 @@ const DocxMin = (() => {
         par(run(a.nome, { negrito: true }), { jc: 'center', antes: 0, depois: 0 }) + par(run(a.cargo), { jc: 'center', antes: 0, depois: 0 })).join('');
       return '';
     }).join('');
+    return { xml, paisagem };
   }
   /** Largura e altura de um PNG (bytes 16–23 do cabeçalho IHDR). */
   const tamPng = u => { const v = new DataView(u.buffer, u.byteOffset, u.byteLength); return { w: v.getUint32(16), h: v.getUint32(20) }; };
@@ -135,9 +160,12 @@ const DocxMin = (() => {
     const relsDe = lista => XML + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
       lista.map(i => `<Relationship Id="${i.rid}" Type="${REL}image" Target="media/${i.nome}"/>`).join('') + '</Relationships>';
     const imgCab = o.cabecalho ? [{ rid: 'rIdImg1', nome: 'image1.png' }] : [], imgRod = rods.map(i => ({ rid: i.rid, nome: i.nome }));
-    const doc = XML + `<w:document ${NS}><w:body>${corpo(o.blocos || [])}` +
-      `<w:sectPr><w:headerReference w:type="default" r:id="rIdHdr"/><w:footerReference w:type="default" r:id="rIdFtr"/><w:pgSz w:w="${PAG.w}" w:h="${PAG.h}"/>` +
-      `<w:pgMar w:top="${PAG.mt}" w:right="${PAG.mr}" w:bottom="${PAG.mb}" w:left="${PAG.ml}" w:header="425" w:footer="425" w:gutter="0"/><w:cols w:space="708"/></w:sectPr></w:body></w:document>`;
+    // imagens do corpo (ex.: mapas): largura em cm, relação no document.xml.rels
+    const imgDoc = [];
+    const addImgCorpo = (dados, largCm) => { const n = imgs.length + 1, t = tamPng(dados), cx = Math.round(largCm * EMU_CM), cy = Math.round(cx * t.h / t.w);
+      imgs.push({ nome: `media/image${n}.png`, dados }); const i = { rid: 'rIdImg' + n, cx, cy, nome: `image${n}.png` }; imgDoc.push(i); return i; };
+    const C = corpo(o.blocos || [], addImgCorpo);
+    const doc = XML + `<w:document ${NS}><w:body>${C.xml}${sectPr(C.paisagem)}</w:body></w:document>`;
     const estilos = XML + '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">' +
       '<w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Calibri" w:hAnsi="Calibri" w:eastAsia="Calibri" w:cs="Calibri"/><w:sz w:val="22"/><w:szCs w:val="22"/><w:lang w:val="pt-BR" w:eastAsia="en-US" w:bidi="ar-SA"/></w:rPr></w:rPrDefault>' +
       '<w:pPrDefault><w:pPr><w:spacing w:after="100" w:line="264" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults>' +
@@ -172,7 +200,8 @@ const DocxMin = (() => {
         '<w:compat><w:compatSetting w:name="compatibilityMode" w:uri="http://schemas.microsoft.com/office/word" w:val="15"/></w:compat></w:settings>' },
       { nome: 'word/_rels/document.xml.rels', dados: XML + '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
         `<Relationship Id="rIdStyles" Type="${REL}styles" Target="styles.xml"/><Relationship Id="rIdSettings" Type="${REL}settings" Target="settings.xml"/>` +
-        `<Relationship Id="rIdHdr" Type="${REL}header" Target="header1.xml"/><Relationship Id="rIdFtr" Type="${REL}footer" Target="footer1.xml"/></Relationships>` },
+        `<Relationship Id="rIdHdr" Type="${REL}header" Target="header1.xml"/><Relationship Id="rIdFtr" Type="${REL}footer" Target="footer1.xml"/>` +
+        imgDoc.map(i => `<Relationship Id="${i.rid}" Type="${REL}image" Target="media/${i.nome}"/>`).join('') + '</Relationships>' },
       { nome: 'word/header1.xml', dados: cabXml },
       { nome: 'word/_rels/header1.xml.rels', dados: relsDe(imgCab) },
       { nome: 'word/footer1.xml', dados: rodXml },

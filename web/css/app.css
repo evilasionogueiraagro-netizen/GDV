@@ -221,3 +221,11 @@ input:disabled { background:#eef1f6; color:#99a; }
 /* PCE: atalhos para cadastros, termos de fiscalização e relatório (o fluxo principal é a visita: levantamento → termo) */
 .pce-docs-atalhos { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 12px; } .pce-docs-atalhos .mini { margin:0; padding:8px 10px; }
 .pce-visita .botao { margin:8px 0; }
+/* PCE: resultado do laboratório do Termo de Colheita (selo com texto, não só cor) */
+.pce-lab { display:inline-block; font-size:13px; border-radius:6px; padding:2px 8px; background:var(--sf2, #eef1f6); color:inherit; border:1px solid rgba(0,0,0,.12); }
+.pce-lab.positivo { border-color:#d03b3b; background:rgba(208,59,59,.10); font-weight:600; }
+.pce-lab.negativo { border-color:#0ca30c; background:rgba(12,163,12,.08); }
+.pce-lab.inconclusivo, .pce-lab.inviavel { border-color:#ec835a; background:rgba(236,131,90,.10); }
+.pce-lab.sem { opacity:.8; }
+.pce-outro-l[hidden], #pce-modal-lab label[hidden] { display:none !important; }
+.pce-lista-outro { min-width:0; } .pce-outro-l { margin-top:6px; }

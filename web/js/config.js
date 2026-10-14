@@ -65,9 +65,19 @@ const CONFIG = {
       'Tefé', 'Tonantins', 'Uarini', 'Urucará', 'Urucurituba'],
     culturas: ['Mandioca', 'Banana', 'Açaí', 'Cacau', 'Cupuaçu', 'Guaraná', 'Pimenta-do-reino', 'Milho', 'Feijão', 'Arroz', 'Café', 'Coco',
       'Abacaxi', 'Laranja', 'Limão', 'Tangerina', 'Mamão', 'Melancia', 'Maracujá', 'Castanha-do-Brasil', 'Pupunha', 'Dendê', 'Urucum',
-      'Seringueira', 'Hortaliças diversas'],
+      'Seringueira', 'Hortaliças diversas', 'Soja'],
     pragas: ['Bactrocera carambolae', 'Schizotetranychus hindustanicus', 'Phakopsora pachyrhizi', 'HLB / Greening', 'Cancro Cítrico',
-      'Fusarium R4T', 'Monilíase do Cacaueiro', 'Vassoura de Bruxa da Mandioca'],
+      'Fusarium R4T', 'Monilíase do Cacaueiro', 'Vassoura de Bruxa da Mandioca', 'Amaranthus palmeri', 'Diaphorina citri (vetor do HLB)'],
+    // dados gerais da visita (opcionais): tipo de local e origem da visita. "Outro" abre um campo para digitar.
+    tiposLocal: ['Propriedade comercial', 'Quintal / área urbana', 'Viveiro', 'Plantio abandonado / não comercial', 'Feira / ponto de venda', 'Floricultura',
+      'Unidade de Produção (UP)', 'Unidade de Consolidação (UC)', 'Outro'],
+    origensVisita: ['Levantamento de rotina', 'Notificação voluntária do produtor', 'Delimitação de foco', 'Verificação / retorno', 'Outro'],
+    // resultado laboratorial do Termo de Colheita (registrado depois, no app ou no painel; não muda o número nem o PDF do termo)
+    laboratorio: {
+      laboratorios: ['LFDA-GO', 'LFDA-PE', 'LFDA-SP', 'Laboratório da ADAF', 'Outro'],
+      resultados: [['aguardando', 'Aguardando'], ['negativo', 'Negativo'], ['positivo', 'Positivo'], ['inconclusivo', 'Inconclusivo'], ['inviavel', 'Amostra inviável']],
+      prazoDias: 30                                  // sem resultado há mais de 30 dias do envio: alerta "atenção" no painel
+    },
     cargos: ['Fiscal Agropecuário Engenheiro Agrônomo', 'Fiscal Agropecuário Médico Veterinário', 'Fiscal Agropecuário Engenheiro Florestal',
       'Técnico de Fiscalização Agropecuária', 'Agente de Defesa Agropecuária', 'Auxiliar de Defesa Agropecuária'],
     situacoes: ['Propriedade titulada', 'Posse', 'Assentamento', 'Arrendamento', 'Comodato', 'Parceria agrícola', 'Concessão de uso',
@@ -87,11 +97,13 @@ const CONFIG = {
     },
     termo: {
       // pragas do quadro "2 – Descrição da Ação" (ordem do papel); a do programa vem marcada
-      pragas: ['Ácaro Hindustânico', 'Cancro Cítrico', 'HLB', 'Ferrugem Asiática da soja', 'Fusariose FOC R4T', 'Monilíase', 'Mosca-da-Carambola', 'Vassoura-de-bruxa da Mandioca'],
+      pragas: ['Ácaro Hindustânico', 'Cancro Cítrico', 'HLB', 'Ferrugem Asiática da soja', 'Fusariose FOC R4T', 'Monilíase', 'Mosca-da-Carambola', 'Vassoura-de-bruxa da Mandioca',
+        'Amaranthus palmeri', 'Diaphorina citri'],   // as duas últimas não estão no papel antigo: entram no fim (a ordem das demais não muda)
       // praga escolhida no levantamento → nome no quadro do Termo (Termo de Fiscalização da visita já sai com as pragas marcadas)
       pragaDoLevantamento: { 'Bactrocera carambolae': 'Mosca-da-Carambola', 'Schizotetranychus hindustanicus': 'Ácaro Hindustânico',
         'Phakopsora pachyrhizi': 'Ferrugem Asiática da soja', 'HLB / Greening': 'HLB', 'Cancro Cítrico': 'Cancro Cítrico', 'Fusarium R4T': 'Fusariose FOC R4T',
-        'Monilíase do Cacaueiro': 'Monilíase', 'Vassoura de Bruxa da Mandioca': 'Vassoura-de-bruxa da Mandioca' },
+        'Monilíase do Cacaueiro': 'Monilíase', 'Vassoura de Bruxa da Mandioca': 'Vassoura-de-bruxa da Mandioca',
+        'Amaranthus palmeri': 'Amaranthus palmeri', 'Diaphorina citri (vetor do HLB)': 'Diaphorina citri' },
       locais: ['Evento Agropecuário', 'Unidade de Produção (UP)', 'Unidade de Consolidação (UC)'],
       acoes: ['Controle/Erradicação', 'Levantamento', 'Monitoramento', 'Educação Sanitária', 'Fiscalização'],
       vias: ['1ª via: Interessado', '2ª via: ADAF Central', '3ª via: Unidade Local'],
@@ -101,6 +113,30 @@ const CONFIG = {
         'Monilíase': 'Executar Ações de Levantamento Fitossanitário de detecção da praga Monilíase, visando a prevenção e ação imediata de contingência.'
       }
     }
+  },
+
+  // Relatório GDV (painel → aba Relatórios): grupos de pragas da Seção I. Cada coluna casa com as pragas dos levantamentos pelo nome
+  // (sem acento/maiúsculas; basta conter um dos termos; vale o termo mais longo — "Diaphorina citri (vetor do HLB)" vai para Diaphorina,
+  // não para HLB). Praga nova: acrescente o termo numa coluna (ou um grupo novo) — sem mexer no código. extras: suspeitas/amostras
+  // (automáticas); manuais: colunas lançadas à mão por município no painel (ex.: poda drástica).
+  RELGDV: {
+    grupos: [
+      { id: 'citros', nome: 'Pragas dos Citros', colunas: [
+        { rotulo: 'Greening (HLB)', pragas: ['HLB', 'Greening', 'Liberibacter'] }, { rotulo: 'Cancro cítrico', pragas: ['Cancro'] },
+        { rotulo: 'Ácaro hindustânico', pragas: ['Schizotetranychus', 'Hindustanico'] }, { rotulo: 'Diaphorina citri', pragas: ['Diaphorina'] }] },
+      { id: 'soja', nome: 'Pragas da Soja', colunas: [
+        { rotulo: 'Ferrugem asiática', pragas: ['Phakopsora', 'Ferrugem'] }, { rotulo: 'Amaranthus palmeri', pragas: ['Amaranthus'] }],
+        manuais: [{ chave: 'vazio', rotulo: 'Fiscalizações do vazio sanitário' }] },
+      { id: 'moniliase', nome: 'Monilíase do Cacaueiro e Cupuaçuzeiro', colunas: [{ rotulo: 'Focos (detectada)', pragas: ['Moniliase', 'Moniliophthora'] }],
+        extras: ['suspeitas', 'amostras'], manuais: [{ chave: 'poda', rotulo: 'Poda drástica' }] },
+      { id: 'carambola', nome: 'Mosca-da-Carambola', colunas: [{ rotulo: 'Detecções', pragas: ['Bactrocera', 'Carambola'] }],
+        extras: ['suspeitas', 'amostras'], manuais: [{ chave: 'armadilhas', rotulo: 'Monitoramento de armadilhas' }] },
+      { id: 'banana', nome: 'Pragas da Bananeira', colunas: [{ rotulo: 'Fusarium R4T', pragas: ['Fusarium', 'R4T'] }] }
+    ],
+    // assinaturas (nome em branco: o gestor preenche no painel; fica salvo com os textos)
+    assinaturas: [{ nome: '', cargo: 'Gerente de Defesa Vegetal' }, { nome: '', cargo: 'Chefe do Departamento de Defesa Agropecuária e Florestal – DDAF' },
+      { nome: '', cargo: 'Diretor-Presidente da ADAF' }],
+    local: 'Manaus/AM'
   }
 };
 

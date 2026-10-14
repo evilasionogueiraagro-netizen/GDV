@@ -252,6 +252,8 @@
           : `${selo('bom', 'Negativo')}${l.pragasAvaliadas.length ? `<br><span class="pn-sub">avaliadas: ${esc(l.pragasAvaliadas.join(', '))}</span>` : ''}`,
         ordem: l => l.deteccoes },
       { chave: 'nAmostras', rotulo: 'Amostras', num: true, fmt: fmt.int },
+      { chave: 'tipoLocal', rotulo: 'Tipo de local', fmt: v => v || 'não informado' },
+      { chave: 'origemVisita', rotulo: 'Origem da visita', fmt: v => v || 'não informada' },
       { chave: 'servidor', rotulo: 'Servidor' },
       { chave: 'coord', rotulo: 'GPS', fmt: (v, l) => temCoord(l) ? 'Sim' : 'Não', html: (v, l) => temCoord(l) ? 'Sim' : selo('atencao', 'Não'), ordem: l => temCoord(l) ? 1 : 0 },
       { chave: 'nFotos', rotulo: 'Fotos', num: true, fmt: fmt.int }
@@ -280,9 +282,12 @@
       { chave: 'analise', rotulo: 'Análise' }, { chave: 'partes', rotulo: 'Partes' }, { chave: 'servidor', rotulo: 'Servidor' },
       { chave: 'nome', rotulo: 'Produtor', fmt: (v, l) => [v, l.doc].filter(Boolean).join(' · ') || '—', html: (v, l) => `${esc(v || '—')}${l.doc ? `<br><span class="pn-sub">${esc(l.doc)}</span>` : ''}` },
       { chave: 'levantamentoId', rotulo: 'Levantamento', fmt: v => v ? (levIds.has(v) ? 'Vinculado' : 'Vinculado (fora do período)') : 'Avulso' },
+      { chave: 'laboratorio', rotulo: 'Resultado', fmt: v => labTexto(v), html: (v, l) => `${seloLab(v)}<br><button type="button" class="pn-btn pn-btn-mini" data-laudo="${esc(l.id)}">🧪 Registrar</button>`,
+        ordem: l => ['positivo', 'aguardando', 'inconclusivo', 'inviavel', 'negativo'].indexOf(l.laboratorio ? l.laboratorio.resultado : 'aguardando') },
       { chave: 'sit', rotulo: 'Situação', fmt: (v, l) => situacaoTermo(l).map(x => x[1]).join(', '), html: (v, l) => situacaoTermo(l).map(x => selo(x[0], x[1])).join('<br>'),
         ordem: l => situacaoTermo(l).map(x => ({ critico: 0, atencao: 2, bom: 3 }[x[0]])).reduce((a, b) => Math.min(a, b), 9) }
     ], termos, { id: 'pce-termos', titulo: 'Termos do período', csv: 'pce-termos-de-colheita.csv', ordenar: 'data', limite: 25, vazio: 'Nenhum termo de colheita válido no período.' });
+    st.addEventListener('click', ev => { const b = ev.target.closest('[data-laudo]'); if (b) dialogoLaudo(termos.find(t => t.id === b.dataset.laudo)); });
 
     const linA = audit.map(a => ({ ...a, nDup: a.duplicados.length, nEd: a.editados.length, nProv: a.provisorios.length,
       sit: a.conflitos || a.duplicados.length ? 0 : (a.lacunasTotal || a.editados.length || a.provisorios.length ? 1 : 2) }));
@@ -307,6 +312,49 @@
         { chave: 'cultura', rotulo: 'Cultura' }, { chave: 'motivoCancel', rotulo: 'Motivo do cancelamento' }
       ], d.colheitasCanceladas, { id: 'pce-cancelados', titulo: 'Termos cancelados no período', csv: 'pce-termos-cancelados.csv', ordenar: 'data', limite: 10 });
     }
+  }
+
+  /* ---------- Resultado do laboratório (Termo de Colheita): o administrador registra pelo painel (action painelPceLaudo) ---------- */
+  const LABC = (typeof CONFIG !== 'undefined' && CONFIG.PCE && CONFIG.PCE.laboratorio) || { laboratorios: ['Outro'], resultados: [['aguardando', 'Aguardando']] };
+  const RES_LAB = Object.fromEntries(LABC.resultados);
+  const SELO_LAB = { positivo: 'critico', negativo: 'bom', aguardando: 'info', inconclusivo: 'atencao', inviavel: 'atencao' };
+  const labTexto = v => v ? `${RES_LAB[v.resultado] || 'Aguardando'}${v.resultado === 'positivo' && v.praga ? ': ' + v.praga : ''}${v.laboratorio ? ' · ' + v.laboratorio : ''}${v.laudo ? ' · laudo ' + v.laudo : ''}` : 'Sem registro';
+  const seloLab = v => v ? selo(SELO_LAB[v.resultado] || 'info', labTexto(v)) : selo('info', 'Sem registro');
+  function dialogoLaudo(t) {
+    if (!t) return;
+    const velho = document.getElementById('pn-laudo'); if (velho) velho.remove();
+    const L0 = t.laboratorio || {}, outro = !!L0.laboratorio && !LABC.laboratorios.includes(L0.laboratorio);
+    const dlg = P.el('dialog', 'pn-dlg'); dlg.id = 'pn-laudo';
+    dlg.innerHTML = `<form method="dialog" class="pn-dlg-form" novalidate><h3>🧪 Resultado do laboratório</h3>
+      <p class="pn-sub">Termo ${esc(numTermo(t))} · ${esc(t.cultura || '')} · ${esc(t.municipio || '')} · ${esc(t.quantidade || '')} amostra(s). Grava só o resultado (o termo não muda).</p>
+      <label class="pn-dlg-campo">Laboratório<select id="pn-lab-lab"><option value="">Selecione</option>${LABC.laboratorios.map(x => `<option ${(outro ? 'Outro' : L0.laboratorio) === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+      <label class="pn-dlg-campo" id="pn-lab-outro-l" ${outro ? '' : 'hidden'}>Nome do laboratório<input id="pn-lab-outro" maxlength="80" value="${esc(outro ? L0.laboratorio : '')}"></label>
+      <label class="pn-dlg-campo">Data de envio<input id="pn-lab-envio" type="date" value="${esc(L0.envio || '')}"></label>
+      <label class="pn-dlg-campo">Nº do laudo<input id="pn-lab-laudo" maxlength="60" value="${esc(L0.laudo || '')}"></label>
+      <label class="pn-dlg-campo">Resultado<select id="pn-lab-res">${LABC.resultados.map(([v, r]) => `<option value="${v}" ${(L0.resultado || 'aguardando') === v ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></label>
+      <label class="pn-dlg-campo">Data do resultado<input id="pn-lab-data" type="date" value="${esc(L0.dataResultado || '')}"></label>
+      <label class="pn-dlg-campo" id="pn-lab-praga-l" ${L0.resultado === 'positivo' ? '' : 'hidden'}>Praga confirmada<input id="pn-lab-praga" maxlength="120" list="pn-lab-pragas" value="${esc(L0.praga || t.pragaTermo || '')}"></label>
+      <datalist id="pn-lab-pragas">${((CONFIG.PCE || {}).pragas || []).map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+      <label class="pn-dlg-campo">Observação<textarea id="pn-lab-obs" rows="2" maxlength="500">${esc(L0.obs || '')}</textarea></label>
+      ${L0.por ? `<p class="pn-sub">Último registro: ${esc(L0.por)}${L0.atualizadoEm ? ' em ' + esc(fmt.dataHora(L0.atualizadoEm)) : ''}.</p>` : ''}
+      <p class="pn-dlg-erro" id="pn-lab-erro" role="alert"></p>
+      <div class="pn-dlg-botoes"><button type="button" class="pn-btn" id="pn-lab-cancelar">Cancelar</button><button type="submit" class="pn-btn pn-btn-prim" id="pn-lab-salvar">Salvar resultado</button></div></form>`;
+    document.body.appendChild(dlg);
+    const q = id => dlg.querySelector('#' + id);
+    q('pn-lab-lab').onchange = () => { q('pn-lab-outro-l').hidden = q('pn-lab-lab').value !== 'Outro'; };
+    q('pn-lab-res').onchange = () => { q('pn-lab-praga-l').hidden = q('pn-lab-res').value !== 'positivo'; };
+    q('pn-lab-cancelar').onclick = () => dlg.close();
+    dlg.addEventListener('close', () => dlg.remove());
+    dlg.querySelector('form').addEventListener('submit', async ev => {
+      ev.preventDefault();
+      const v = id => q(id).value.trim(), res = v('pn-lab-res');
+      const lab = { laboratorio: v('pn-lab-lab') === 'Outro' ? (v('pn-lab-outro') || 'Outro') : v('pn-lab-lab'), laboratorioOutro: v('pn-lab-lab') === 'Outro' ? v('pn-lab-outro') : '',
+        envio: v('pn-lab-envio'), laudo: v('pn-lab-laudo'), dataResultado: v('pn-lab-data'), resultado: res, praga: res === 'positivo' ? v('pn-lab-praga') : '', obs: v('pn-lab-obs') };
+      const b = q('pn-lab-salvar'); b.disabled = true; q('pn-lab-erro').textContent = '';
+      try { await P.chamar({ action: 'painelPceLaudo', id: t.id, laboratorio: lab }); dlg.close(); P.recarregar(); }
+      catch (e) { if (!P.logado) return; q('pn-lab-erro').textContent = 'Não salvou: ' + e.message; b.disabled = false; }
+    });
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
   }
 
   /* ---------- Monilíase: Termos de Fiscalização do PCE, Cadastros de imóvel e Relatório de atividades ---------- */

@@ -85,3 +85,14 @@ Ideias discutidas com a gerência que ainda **não** foram implementadas. Cada u
 - **Decisões do gestor:** 1.4 conta municípios levantados e, em cada um, as propriedades; meta da 1.10 = 18.000 veículos (as 1.800 do plano são diárias); relatórios mensais; financeiro incluído.
 - **Ainda a fazer (por decisão do gestor, "não agora"):** registros de **armadilhas** (monitoramento de mosca-da-carambola, etapa 1.3) e de **ações de controle** (supressão de monilíase, etapa 1.5) no app de campo — hoje essas etapas entram por lançamento manual no painel. Quando existirem, a apuração delas pode passar a automática como a 1.4.
 - Outros convênios: a aba `Convenios` já guarda um JSON por convênio (o seletor existe), mas criar um convênio novo ainda é à mão (copiar a linha e ajustar).
+
+## 4. Relatório GDV (mensal e anual): próximos passos
+*Pedido do gestor (14/10/2026). **Implementado** em 14/10/2026 (README → "Relatório GDV"): aba Relatórios do painel com o relatório técnico parcial (mensal) e consolidado (anual) em Word e PDF; tipo de local e origem da visita no levantamento; resultado de laboratório no Termo de Colheita. O que ficou para depois, por decisão do gestor ("não fazer agora"), entra por enquanto como **linha manual** do relatório:*
+- **Medida aplicada com quantidade** (medida fitossanitária, área controlada, poda drástica, destruição) registrada no app, por visita — hoje: linhas "Medida fitossanitária", "Área controlada" e a coluna "Poda drástica" por município, lançadas no painel.
+- **Vazio sanitário da soja** (fiscalização com resultado) — hoje: coluna "Fiscalizações do vazio sanitário" por município (soma no quadro PCE).
+- **Registro de educação sanitária** (ações, público atingido) no app — hoje: tabela da Seção V lançada no painel; a linha "barreiras: pessoas orientadas" já é automática.
+- **Importação de CFO/CFOC, PTV e UP/UC** (CSV dos sistemas de certificação) — hoje: tabelas das Seções III e IV lançadas no painel (o quadro PCE soma os documentos).
+- **Carga na barreira** (partidas, inspeção de cargas, internalização em t, exportação/importação, madeira) — hoje: linhas manuais do VIGIFITO (fixas e volantes).
+- **Armadilhas** (mosca-da-carambola e Diaphorina citri) — hoje: coluna "Monitoramento de armadilhas" por município e linha "Armadilhas para Diaphorina citri" (Seção VI).
+- **BVAs/portos a confirmar** (o gestor precisa confirmar os nomes antes de cadastrar em `CONFIG.bvas`): Humaitá, Guajará, Porto de Tabatinga, Porto de Benjamin Constant, AM-070 (volante). Até lá, turnos nesses locais entram como volantes ou na BVA mais próxima, conforme o fiscal registrar.
+- Avisos de consistência que podem vir depois: coordenadas fora do município informado (exige a malha no servidor) e importação dos relatórios dos meses anteriores ao e-GDV.

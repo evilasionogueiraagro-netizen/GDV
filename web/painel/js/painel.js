@@ -16,7 +16,7 @@ const Painel = (() => {
   // TF em preenchimento (apreensão em andamento): enquanto houver um, as barreiras ao vivo são consultadas a cada 25 s;
   // sem batimento do aparelho há mais de 10 min o TF é considerado encerrado (o servidor já filtra; aqui vale também sem conexão)
   const TF_RAPIDO_MS = 15 * 1000, TF_VALIDADE_MS = 10 * 60 * 1000;
-  const ORDEM_ABAS = ['geral', 'barreiras', 'tf', 'pce', 'convenios', 'acessos'];
+  const ORDEM_ABAS = ['geral', 'barreiras', 'tf', 'pce', 'convenios', 'relatorios', 'acessos'];
 
   /* ---------------- utilidades ---------------- */
   const $ = s => document.querySelector(s);
@@ -1225,6 +1225,14 @@ const Painel = (() => {
       if (lac.length) A.push({ nivel: 'atencao', aba, titulo: `${nome}: ${nLac} lacuna(s) na sequência`,
         detalhe: 'Números sem registro — ' + lac.map(a => `${g(a)}: ${a.lacunas.slice(0, 12).join(', ')}${a.lacunasTotal > 12 ? '…' : ''}`).join(' · ') });
     };
+    // 3b. resultado de laboratório dos Termos de Colheita: amostra positiva (crítico) e sem resultado há mais de 30 dias do envio (atenção)
+    const prazoLab = (typeof CONFIG !== 'undefined' && CONFIG.PCE && CONFIG.PCE.laboratorio && CONFIG.PCE.laboratorio.prazoDias) || 30, hojeLab = diaManaus(agora());
+    (d.colheitas || []).filter(c => c.laboratorio && c.laboratorio.resultado === 'positivo').forEach(c => A.push({ nivel: 'critico', aba: 'pce',
+      titulo: `Amostra positiva: ${c.laboratorio.praga || c.pragaTermo || 'praga'} em ${c.municipio || 'município não informado'}`,
+      detalhe: `Termo de colheita ${c.numeroTxt || ''} · ${c.cultura || ''} · ${[c.laboratorio.laboratorio, c.laboratorio.laudo && 'laudo ' + c.laboratorio.laudo, c.laboratorio.dataResultado && 'resultado em ' + fmt.data(c.laboratorio.dataResultado)].filter(Boolean).join(', ')}. Confirmar a delimitação do foco e as medidas.` }));
+    const semLab = (d.colheitas || []).filter(c => c.laboratorio && c.laboratorio.resultado === 'aguardando' && c.laboratorio.envio && diasEntre(c.laboratorio.envio, hojeLab) > prazoLab);
+    if (semLab.length) A.push({ nivel: 'atencao', aba: 'pce', titulo: `${semLab.length} amostra(s) sem resultado há mais de ${prazoLab} dias do envio`,
+      detalhe: semLab.slice(0, 8).map(c => `Termo ${c.numeroTxt || ''} · ${c.pragaTermo || c.cultura || ''} · ${c.municipio || '?'} (enviada em ${fmt.data(c.laboratorio.envio)} ao ${c.laboratorio.laboratorio || 'laboratório'})`).join('; ') + '. Cobrar o laudo do laboratório.' });
     audit(d.auditoria.tf, 'TF', 'tf');
     audit(d.auditoria.pce, 'Termo de colheita', 'pce');
     // 4. cobertura PCE (anual): municípios sem levantamento no ano, de 1º de janeiro até o fim do período

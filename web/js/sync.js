@@ -215,6 +215,8 @@ const Sync = (() => {
 
   // campos do encerramento de um turno (iguais aos que a planilha protege contra reabertura)
   const CAMPOS_ENCERRAMENTO = ['encerrado', 'fim', 'latFim', 'lngFim', 'precFim', 'encerradoPor', 'encerradoEm'];
+  const labAtt = v => { try { const o = typeof v === 'string' ? JSON.parse(v || 'null') : v; return o && Number(o.atualizadoEm) || 0; } catch (e) { return 0; } };
+  const labMaisNovo = (a, b) => labAtt(a) > labAtt(b);
   async function aplicar(store, linhas) {
     await Store.mesclar(store, linhas, (local, row) => {
       if (local && local.pendente && local.atualizadoEm > row.atualizadoEm) {               // edição local mais nova: fica a local…
@@ -223,6 +225,8 @@ const Sync = (() => {
           const m = { ...local }; CAMPOS_ENCERRAMENTO.forEach(c => { if (c in row) m[c] = row[c]; });
           return m;
         }
+        // Termo de Colheita: resultado laboratorial mais novo vindo da planilha (lançado no painel) entra na edição local pendente
+        if (store === 'colheitas' && row.laboratorio && labMaisNovo(row.laboratorio, local.laboratorio)) return { ...local, laboratorio: row.laboratorio };
         return null;
       }
       return { ...row, pendente: 0 };

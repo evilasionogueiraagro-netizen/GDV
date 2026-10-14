@@ -418,9 +418,14 @@ const ConvDocs = (() => {
         if (b.rotulo) { p.append(el('b', null, b.rotulo + ': ')); }
         p.append(doc.createTextNode(b.texto)); raiz.append(p);
       } else if (b.t === 'lista') { const ul = el('ul'); b.itens.forEach(i => ul.append(el('li', null, i))); raiz.append(ul); }
+      else if (b.t === 'imagem') {
+        const f = el('figure', 'fig'), im = el('img'); im.src = b.src || ''; im.alt = b.legenda || '';
+        if (b.larguraCm) im.style.width = Math.min(18, b.larguraCm) + 'cm';
+        f.append(im); if (b.legenda) f.append(el('figcaption', null, b.legenda)); raiz.append(f);
+      }
       else if (b.t === 'tabela') {
         const wrap = el('div', 'tab'); if (b.titulo) wrap.append(el('div', 'tab-tit', b.titulo));
-        const tb = el('table', b.pequena ? 'peq' : ''), cg = el('colgroup'), soma = b.colunas.reduce((s, x) => s + x.largura, 0);
+        const tb = el('table', b.mini ? 'mini' : b.pequena ? 'peq' : ''), cg = el('colgroup'), soma = b.colunas.reduce((s, x) => s + x.largura, 0);
         b.colunas.forEach(x => { const col = el('col'); col.style.width = (100 * x.largura / soma).toFixed(2) + '%'; cg.append(col); });
         tb.append(cg);
         const th = el('thead'), tr = el('tr'); b.colunas.forEach(x => tr.append(el('th', null, x.rotulo))); th.append(tr); tb.append(th);

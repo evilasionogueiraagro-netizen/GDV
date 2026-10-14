@@ -206,6 +206,74 @@ const ConvDocs = (() => {
       R.etapas.push(r);
     });
     R.fin = financeiro(cfg, fin, mes);
+    fisicoFinanceiro(R, cfg);
+    return R;
+  }
+
+  /* ================= físico × financeiro ================= */
+  const NAT_DIARIAS = ['33.90.14', '33.90.36'];
+  const FF_FAIXA = 0.10, FF_ALERTA = 0.20;            // |financeiro − físico| ≤ 10 p.p. = equilibrado; financeiro > 20 p.p. à frente = alerta
+  const FF_SIT = { financeiro: 'Financeiro à frente do físico', equilibrado: 'Equilibrado', fisico: 'Físico à frente do financeiro', semgasto: 'Sem gasto' };
+  const somaMeses = (m, n) => { let x = m; for (let i = 0; i < n; i++) x = proxMes(x); return x; };
+  /**
+   * Projeção do saldo no ritmo de gasto atual: ritmo = média mensal dos últimos 3 meses (até o mês de referência, desde o início da
+   * execução); acaba em = mês de referência + ⌈saldo ÷ ritmo⌉ meses; "antes" = acaba antes do mês do fim da vigência.
+   */
+  function projecao(cfg, R, previsto, porMes, acum) {
+    const ult = R.meses.slice(-3), ritmo = ult.length ? ult.reduce((s, m) => s + (porMes[m] || 0), 0) / ult.length : 0;
+    const saldo = previsto - acum, fimVig = cfg.vigencia.fim.slice(0, 7);
+    if (previsto <= 0) return { ritmo, saldo, mesFim: '', situacao: 'semprevisto', antes: false };
+    if (saldo <= 0.005) return { ritmo, saldo, mesFim: R.mes, situacao: 'esgotado', antes: R.mes < fimVig };
+    if (!(ritmo > 0)) return { ritmo, saldo, mesFim: '', situacao: 'semritmo', antes: false, meses: null };
+    const meses = Math.ceil(saldo / ritmo - 1e-9), mesFim = somaMeses(R.mes, meses);
+    return { ritmo, saldo, meses, mesFim, situacao: mesFim < fimVig ? 'antes' : 'ok', antes: mesFim < fimVig };
+  }
+  /** Por etapa: % financeiro, diárias usadas × previstas, físico × financeiro (p.p. e situação), custo por unidade física e projeção. */
+  function fisicoFinanceiro(R, cfg) {
+    const F = R.fin, mesIni = R.meses[0] || R.mes;
+    const bucket = d => { const m = String(d).slice(0, 7); return m < mesIni ? mesIni : m; };
+    const tot = { diariasPrev: 0, diariasUsadas: 0, valorDiariasPrev: 0, valorDiarias: 0, frente: 0 };
+    R.etapas.forEach(r => {
+      const e = cfg.etapas.find(x => x.id === r.id), fe = F.etapas.find(x => x.id === r.id) || { previsto: 0, acum: 0, itens: [] };
+      const ls = F.lancamentos.filter(l => l.etapa === r.id);
+      const porMes = {}; ls.forEach(l => { const b = bucket(l.data); porMes[b] = (porMes[b] || 0) + Number(l.valor || 0); });
+      // diárias (33.90.14 e 33.90.36): quantidade lançada; sem quantidade, valor ÷ valor unitário do item
+      const its = (e.itens || []).filter(it => NAT_DIARIAS.includes(it.natureza));
+      const d = { previstas: 0, usadas: 0, valorPrevisto: 0, valor: 0 };
+      its.forEach(it => {
+        d.previstas += Number(it.quantidade) || 0; d.valorPrevisto += Number(it.total) || 0;
+        ls.filter(l => l.item === it.id).forEach(l => { const v = Number(l.valor || 0); d.valor += v;
+          d.usadas += l.quantidade != null && l.quantidade !== '' ? Number(l.quantidade) : (Number(it.valorUnitario) ? v / Number(it.valorUnitario) : 0); });
+      });
+      d.pct = d.previstas ? d.usadas / d.previstas : null;
+      const fis = Math.min(1, r.pct), finPct = fe.previsto ? fe.acum / fe.previsto : 0, dif = finPct - fis;
+      const situacao = !fe.acum ? 'semgasto' : dif > FF_FAIXA ? 'financeiro' : dif < -FF_FAIXA ? 'fisico' : 'equilibrado';
+      // custo por unidade física (etapa por média de sub-metas: unidades equivalentes = % × meta)
+      const unidades = r.media ? r.pct * r.meta : r.acum;
+      const custo = { gasto: fe.acum, unidades, real: unidades > 0 ? fe.acum / unidades : null, previsto: r.meta > 0 ? fe.previsto / r.meta : null, unidade: r.unidade };
+      custo.razao = custo.real != null && custo.previsto ? custo.real / custo.previsto : null;
+      // séries mensais em % acumulado (físico e financeiro)
+      let ac = 0;
+      const serie = r.serie.map(s => { ac += porMes[s.mes] || 0;
+        return { mes: s.mes, fisico: r.media ? s.acum : (r.meta ? s.acum / r.meta * 100 : 0), financeiro: fe.previsto ? ac / fe.previsto * 100 : 0, esperado: r.media ? s.esperado : (r.meta ? s.esperado / r.meta * 100 : 0) }; });
+      const proj = projecao(cfg, R, fe.previsto, porMes, fe.acum);
+      const itens = (fe.itens || []).map(it => {
+        const li = ls.filter(l => l.item === it.id), pm = {}; li.forEach(l => { const b = bucket(l.data); pm[b] = (pm[b] || 0) + Number(l.valor || 0); });
+        return Object.assign({ id: it.id, nome: it.nome, natureza: it.natureza, previsto: it.previsto, acum: it.acum, pct: it.previsto ? it.acum / it.previsto : 0 }, projecao(cfg, R, it.previsto, pm, it.acum));
+      });
+      r.ff = { fisico: fis, financeiro: finPct, difPP: dif * 100, situacao, situacaoTxt: FF_SIT[situacao], alerta: !!fe.acum && dif > FF_ALERTA, diarias: d, custo, serie, projecao: proj, itens,
+        previsto: fe.previsto, acum: fe.acum };
+      tot.diariasPrev += d.previstas; tot.diariasUsadas += d.usadas; tot.valorDiariasPrev += d.valorPrevisto; tot.valorDiarias += d.valor;
+      if (r.ff.alerta) {
+        tot.frente++;
+        R.alertas.push({ nivel: 'atencao', etapa: r.id, titulo: `Etapa ${r.id}: financeiro à frente do físico (+${fmt.num(dif * 100, 1)} p.p.)`,
+          detalhe: `${r.nomeCurto}: ${fmt.pct(finPct)} do previsto gasto × ${fmt.pct(fis)} da meta física.` + (d.valor > 0 ? ` Diárias: ${fmt.num(d.usadas, 1)} de ${fmt.int(d.previstas)} (${fmt.pct(d.pct)}) — gasto de diárias adiantado em relação à execução.` : ' Gasto adiantado em relação à execução.') });
+      }
+      if (proj.antes && proj.situacao === 'antes') R.alertas.push({ nivel: 'atencao', etapa: r.id, titulo: `Etapa ${r.id}: no ritmo atual o saldo acaba em ${fmt.mes(proj.mesFim)}`,
+        detalhe: `${r.nomeCurto}: saldo ${fmt.moeda(proj.saldo)}, gasto médio de ${fmt.moeda(proj.ritmo)}/mês nos últimos 3 meses; a vigência vai até ${fmt.data(cfg.vigencia.fim)}.` });
+    });
+    tot.diariasPct = tot.diariasPrev ? tot.diariasUsadas / tot.diariasPrev : null;
+    R.ff = tot;
     return R;
   }
 
@@ -344,6 +412,25 @@ const ConvDocs = (() => {
       { rotulo: 'Executado acumulado', largura: 15 }, { rotulo: 'Saldo', largura: 15 }, { rotulo: '% executado', largura: 11 }], linhas: lin };
   }
 
+  /** Tabela "Físico × Financeiro por etapa" (relatório: seção 8). */
+  function tabelaFisFin(R) {
+    const lin = R.etapas.map(r => { const f = r.ff, c = f.custo, dd = f.diarias;
+      return [{ texto: r.id, negrito: true, alinhar: 'c' }, r.nomeCurto, { texto: fmt.pct(f.fisico), alinhar: 'd' }, { texto: fmt.pct(f.financeiro), alinhar: 'd' },
+        { texto: (f.difPP > 0 ? '+' : '') + fmt.num(f.difPP, 1), alinhar: 'd' },
+        { texto: dd.previstas ? `${fmt.num(dd.usadas, 1)} de ${fmt.int(dd.previstas)}` : '—', alinhar: 'd' },
+        { texto: c.real != null ? `${fmt.moeda(c.real)} × ${fmt.moeda(c.previsto)}` : `— × ${fmt.moeda(c.previsto)}`, alinhar: 'd' }, f.situacaoTxt]; });
+    return { t: 'tabela', titulo: 'Físico × Financeiro por etapa', pequena: true,
+      colunas: [{ rotulo: 'Etapa', largura: 6 }, { rotulo: 'Descrição', largura: 18 }, { rotulo: '% físico', largura: 9 }, { rotulo: '% financeiro', largura: 10 },
+        { rotulo: 'Dif. (p.p.)', largura: 8 }, { rotulo: 'Diárias usadas / previstas', largura: 13 }, { rotulo: 'Custo por unidade (real × previsto)', largura: 20 }, { rotulo: 'Situação', largura: 16 }], linhas: lin };
+  }
+  /** Frase automática sobre as etapas com financeiro adiantado (> 20 p.p. à frente do físico). */
+  function fraseFisFin(R) {
+    const fr = R.etapas.filter(r => r.ff && r.ff.alerta);
+    return fr.length
+      ? `Físico × financeiro: ${fr.length === 1 ? 'a etapa' : 'as etapas'} ${listaE(fr.map(r => `${r.id} (financeiro ${fmt.pct(r.ff.financeiro)} × físico ${fmt.pct(r.ff.fisico)}; +${fmt.num(r.ff.difPP, 1)} p.p.)`))} ${fr.length === 1 ? 'apresenta' : 'apresentam'} desembolso adiantado em relação à execução física (gasto de diárias à frente da meta); a programação das próximas ações deve recuperar o ritmo físico ou rever o uso das diárias.`
+      : `Físico × financeiro: nenhuma etapa com desembolso mais de ${Math.round(FF_ALERTA * 100)} p.p. à frente da execução física.`;
+  }
+
   /**
    * Blocos do relatório. R = calcular(...); t = textos {etapas, gerais}; o = {numero, dataEmissao (AAAA-MM-DD)}.
    */
@@ -387,6 +474,7 @@ const ConvDocs = (() => {
     B.push(P(baixo.length ? `Etapas com percentual inferior a 50%: ${baixo.map(r => `${r.id} (${fmt.pct(r.pct)})`).join(', ')}.` : 'Todas as etapas estão com 50% ou mais da meta executada.'));
     const atras = R.etapas.filter(r => r.situacao === 'atrasada');
     B.push(P(atras.length ? `Em relação ao esperado pelo tempo decorrido (${fmt.pct(R.esperado)}), estão abaixo do ritmo: ${atras.map(r => `${r.id} (${fmt.pct(r.pct)})`).join(', ')}.` : `Todas as etapas estão no ritmo ou adiantadas em relação ao esperado pelo tempo decorrido (${fmt.pct(R.esperado)}).`));
+    B.push(P(fraseFisFin(R)));
     linhasDe(t.gerais.analise).forEach(l => B.push(P(l)));
     B.push({ t: 'h', texto: '7. CONCLUSÃO TÉCNICA' });
     const num = id => R.etapas.find(r => r.id === id);
@@ -400,6 +488,8 @@ const ConvDocs = (() => {
     B.push(tabelaFin('Por natureza de despesa', 'Natureza', F.naturezas.map(x => ({ rotulo: `${x.natureza} – ${x.nome}`, previsto: x.previsto, mes: x.mes, acum: x.acum })), F.total));
     B.push(tabelaFin('Por fonte de recurso', 'Fonte', [{ rotulo: 'Repasse (concedente)', ...F.fonte.concedente }, { rotulo: 'Contrapartida (convenente)', ...F.fonte.contrapartida }],
       { previsto: F.fonte.concedente.previsto + F.fonte.contrapartida.previsto, mes: F.fonte.concedente.mes + F.fonte.contrapartida.mes, acum: F.fonte.concedente.acum + F.fonte.contrapartida.acum }));
+    B.push(tabelaFisFin(R));
+    B.push(P(`% físico = execução acumulada ÷ meta (limitado a 100%); % financeiro = executado acumulado ÷ previsto da etapa; diárias = itens de natureza 33.90.14 e 33.90.36 (quantidade lançada ou valor ÷ valor unitário); custo por unidade = gasto ÷ unidades físicas executadas × previsto ÷ meta. ${fraseFisFin(R)}`, { pequeno: true }));
     B.push(P(`${c.local}, ${fmt.extenso(o.dataEmissao || R.fim)}.`, { alinhar: 'd', espaco: true }));
     B.push({ t: 'assinaturas', itens: (c.assinaturas || []).filter(a => a.nome || a.cargo) });
     return B;
@@ -442,6 +532,6 @@ const ConvDocs = (() => {
     });
   }
 
-  return { calcular, financeiro, blocos, html, textosIniciais, numeroAuto, mesesDe, esperadoEm, fimDoMes, fmt, TEXTOS_PADRAO, ROTULOS_TXT, ROTULOS_GERAIS, SIT_BEM, NATUREZAS, SITUACAO };
+  return { calcular, financeiro, fisicoFinanceiro, tabelaFisFin, fraseFisFin, FF_SIT, FF_ALERTA, NAT_DIARIAS, blocos, html, textosIniciais, numeroAuto, mesesDe, esperadoEm, fimDoMes, fmt, TEXTOS_PADRAO, ROTULOS_TXT, ROTULOS_GERAIS, SIT_BEM, NATUREZAS, SITUACAO };
 })();
 if (typeof window !== 'undefined') window.ConvDocs = ConvDocs;

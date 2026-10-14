@@ -339,7 +339,8 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
       data: dataPce(reg.data), doc: fmtDoc(reg.doc), coordDec: co.dec || 'Não capturadas', coordGms: co.gms,
       praga: nomePraga(grupo.praga), fichaN: total > 1 ? `${i + 1} de ${total} (uma ficha por praga/doença avaliada na visita)` : '1 de 1',
       resumoPraga: culturas.length ? `${culturas.length} cultura(s) avaliada(s): ${resumoResultados(culturas)}.` : 'Nenhuma cultura informada.',
-      nFotos: nFotos ? `(${nFotos})` : ''
+      nFotos: nFotos ? `(${nFotos})` : '',
+      localOrigem: `Local: ${String(reg.tipoLocal || '').trim() || 'não informado'} · Origem: ${String(reg.origemVisita || '').trim() || 'não informada'}`
     }));
     const corpo = d.getElementById('culturasCorpo');
     if (!culturas.length) corpo.innerHTML = '<tr><td colspan="10" class="vazio">Nenhuma cultura informada.</td></tr>';

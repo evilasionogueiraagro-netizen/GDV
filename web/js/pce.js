@@ -549,14 +549,15 @@ const PCEUI = (() => {
   const culturaVazia = () => ({ uid: novoUid(), cultura: '', area: '', espLinha: '', espPlanta: '', resultado: '', coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '', fotos: [] });
   const pragaVazia = () => ({ praga: '', legado: false, outra: false, culturas: [culturaVazia()] });
   const levVazio = s => ({ doc: '', nome: '', telefone: '', email: '', propriedade: '', codigoPropriedade: '', situacaoFundiaria: '', municipio: s.lotacao || '',
-    lat: '', lon: '', precisao: '', data: hojeISO(), hora: agoraHM(), obs: '', pragas: [pragaVazia()] });
+    lat: '', lon: '', precisao: '', data: hojeISO(), hora: agoraHM(), obs: '', tipoLocal: '', origemVisita: '', pragas: [pragaVazia()] });
   /** Registro antigo: nada pré-preenchido com "agora" nem com o perfil de quem digita ("Salvar e digitar outro" mantém servidor/município/data). */
   const levVazioAntigo = (s, m = {}) => ({ ...levVazio(s), municipio: m.municipio || '', data: m.data || '', hora: '', coordTxt: '',
     sNome: m.sNome || '', sCargo: m.sCargo || '', sMatricula: m.sMatricula || '', sLotacao: m.sLotacao || '' });
   const levDeRegistro = r => ({ doc: fmtDoc(digitos(r.doc)), nome: r.nome || '', telefone: r.telefone || '', email: r.email || '', propriedade: r.propriedade || '',
     codigoPropriedade: r.codigoPropriedade || '', situacaoFundiaria: r.situacaoFundiaria || '', municipio: r.municipio || '', lat: r.lat == null ? '' : r.lat,
     lon: r.lon == null ? '' : r.lon, precisao: r.precisao == null ? '' : r.precisao, data: r.data || '', hora: r.hora || '', obs: r.obs || '',
-    coordTxt: coordTxtDe(r), sNome: r.servidor || '', sCargo: r.cargo || '', sMatricula: r.matricula || '', sLotacao: r.lotacao || '' });
+    coordTxt: coordTxtDe(r), sNome: r.servidor || '', sCargo: r.cargo || '', sMatricula: r.matricula || '', sLotacao: r.lotacao || '',
+    tipoLocal: r.tipoLocal || '', origemVisita: r.origemVisita || '' });
   const nomePraga = p => String(p || '').trim() || SEM_PRAGA;
 
   /**
@@ -586,6 +587,7 @@ const PCEUI = (() => {
     return { doc: g('doc'), nome: g('nome'), telefone: g('telefone'), email: g('email'), propriedade: g('propriedade'), codigoPropriedade: g('codigo'),
       situacaoFundiaria: g('situacao'), municipio: g('municipio'), lat: g('lat'), lon: g('lon'), precisao: g('precisao'), data: g('data'), hora: g('hora'), obs: g('obs'),
       coordTxt: g('coord'), sNome: g('snome'), sCargo: cargoValor('pce-scargo'), sMatricula: g('smatricula'), sLotacao: g('slotacao'),
+      tipoLocal: listaOutroValor('tipolocal'), origemVisita: listaOutroValor('origem'),
       pragas: [...document.querySelectorAll('#pce-pragas .pce-praga')].map(card => ({ praga: nomePragaCard(card), outra: card.querySelector('.p-praga').value === OUTRA,
         legado: card.dataset.legado === '1',
         culturas: [...card.querySelectorAll('.pce-cult')].map(b => {
@@ -595,6 +597,19 @@ const PCEUI = (() => {
         }) })) };
   }
   const campo = (id, rot, v, extra = '') => `<label>${rot}<input id="pce-${id}" value="${esc(v)}" ${extra}></label>`;
+  /** Lista com "Outro" digitável (tipo de local e origem da visita): valor fora da lista = "Outro" + o texto. */
+  const OUTRO = 'Outro';
+  function listaOutroHTML(id, rot, lista, v) {
+    const fora = !!v && !lista.includes(v) || v === OUTRO, sel = fora ? OUTRO : v;
+    return `<div class="pce-lista-outro"><label>${rot}<select id="pce-${id}" data-outro="pce-${id}-outro">${opts(lista, sel, 'Não informado')}</select></label>
+      <label class="pce-outro-l" id="pce-${id}-outro-l" ${sel === OUTRO ? '' : 'hidden'}>Qual?<input id="pce-${id}-outro" maxlength="80" value="${esc(fora && v !== OUTRO ? v : '')}" autocomplete="off"></label></div>`;
+  }
+  function listaOutroValor(id) {
+    const s = $('#pce-' + id); if (!s) return '';
+    if (s.value !== OUTRO) return s.value;
+    const t = (($('#pce-' + id + '-outro') || {}).value || '').trim().replace(/\s+/g, ' ');
+    return t || OUTRO;
+  }
   function blocoCultura(c, k) {
     const amostra = c.coleta === 'Sim' ? '' : 'disabled', u = esc(c.uid);
     const inp = (cls, rot, extra = '') => `<label>${rot}<input class="c-${cls}" value="${esc(c[cls])}" maxlength="60" ${extra}></label>`;
@@ -655,6 +670,8 @@ const PCEUI = (() => {
       ${coordAntigaHTML('pce-', D)}`
       : `${gpsHTML('pce-', D)}
       <div class="duas">${campo('data', 'Data da vistoria', D.data, 'type="date"')}${campo('hora', 'Hora', D.hora, 'type="time"')}</div>`}</div>
+    <div class="card" id="pce-visita-card"><h3>Local e origem da visita <small>(opcional)</small></h3>
+      <div class="duas">${listaOutroHTML('tipolocal', 'Tipo de local', P.tiposLocal || [], D.tipoLocal)}${listaOutroHTML('origem', 'Origem da visita', P.origensVisita || [], D.origemVisita)}</div></div>
     <div class="card pce-pragas-card"><h3>Pragas/doenças avaliadas</h3>
       <p class="dica" style="text-align:left">Um card para cada praga/doença avaliada na visita; dentro dele, as culturas avaliadas, com o resultado e as fotos de cada uma. A mesma cultura pode aparecer em pragas diferentes. Cada praga sai num PDF próprio.</p>
       <div id="pce-pragas"></div>
@@ -731,6 +748,7 @@ const PCEUI = (() => {
       if (t.id === 'pce-pdfs') return adicionarPDFs(F, t, '#pce-pdfs-lista');
       if (t.id === 'pce-naoassina') return naoAssina(F, t.checked);
       if (t.id === 'pce-docprod-in') return fotoDocProdutor(F, t);
+      if (t.dataset && t.dataset.outro) { const l = $('#' + t.dataset.outro + '-l'); if (l) { l.hidden = t.value !== OUTRO; if (!l.hidden) l.querySelector('input').focus(); } }
       if (t.id === 'pce-snome') await completarServidor('pce-');
       if (t.id === 'pce-doc') t.value = fmtDoc(digitos(t.value));
       if (t.classList.contains('c-coleta')) t.closest('.pce-cult').querySelectorAll('.pce-amostra input').forEach(i => { i.disabled = t.value !== 'Sim'; });
@@ -806,7 +824,8 @@ const PCEUI = (() => {
       const rec = { ...base, id: F.id, ...(sv || F.serv), data: D.data, hora: D.hora, doc, nome: D.nome.trim().replace(/\s+/g, ' ').toUpperCase(), telefone: D.telefone.trim(),
         email: D.email.trim(), propriedade: D.propriedade.trim(), codigoPropriedade: D.codigoPropriedade.trim(), situacaoFundiaria: D.situacaoFundiaria,
         municipio: D.municipio, lat: numOuVazio(D.lat), lon: numOuVazio(D.lon), precisao: numOuVazio(D.precisao), culturas: JSON.stringify(culturasDerivadas(pragas)),
-        pragas: JSON.stringify(pragas), fotos: JSON.stringify(fotos), assinaturas: JSON.stringify(mapa), obs: D.obs.trim(), excluido: 0 };
+        pragas: JSON.stringify(pragas), fotos: JSON.stringify(fotos), assinaturas: JSON.stringify(mapa), obs: D.obs.trim(), excluido: 0,
+        tipoLocal: D.tipoLocal.slice(0, 80), origemVisita: D.origemVisita.slice(0, 80) };
       if (F.antigo || F.docs.length) Object.assign(rec, { registroAntigo: F.antigo ? 1 : 0, documentos: JSON.stringify(F.docs) });   // campos técnicos (não aparecem no painel nem na ficha)
       await Store.salvar('levantamentos', rec);
       if (sv) await lembrarServidor(sv);
@@ -859,6 +878,7 @@ const PCEUI = (() => {
     const G = Docs.pceGrupos(r), amostras = amostrasDe(G), visita = await docsDaVisita(r);
     view(`<div class="card" id="pce-lev-pronto"><h3>✅ Levantamento salvo</h3>
       <p><b>${esc(r.nome)}</b> · ${esc(r.propriedade || 'Propriedade não informada')}</p><p>${esc(dBR(r.data))} ${esc(r.hora)} · ${esc(r.municipio)}</p>
+      ${r.tipoLocal || r.origemVisita ? `<p class="dica" style="text-align:left" id="pce-pronto-local">Local: ${esc(r.tipoLocal || 'não informado')} · Origem: ${esc(r.origemVisita || 'não informada')}</p>` : ''}
       <ul class="pce-res-lista">${G.pragas.map(g => `<li><b>${esc(nomePraga(g.praga))}</b> ${seloRes(resultadoPraga(g))}<br><small>${g.culturas.map(c => `${esc(c.cultura)} (${esc(RES[c.resultado])}${c.fotos.length ? `, ${c.fotos.length} foto(s)` : ''})`).join(' · ')}</small></li>`).join('')}</ul>
       ${G.gerais.length ? `<p class="dica" style="text-align:left">${G.gerais.length} foto(s) gerais (registro anterior) saem em todos os PDFs.</p>` : ''}</div>
       ${botoesVisita(r, visita, true) ? `<div class="card pce-visita"><h3>Próximo passo da visita</h3>
@@ -1318,9 +1338,11 @@ const PCEUI = (() => {
     view(`<div class="card" id="pce-pronto"><h3>✅ Termo de Colheita gerado</h3><div class="tf-num"><b id="pce-pronto-num">${esc(t.numeroTxt)}</b></div>
       <p>${esc(t.nome)} · ${esc(fmtDoc(digitos(t.doc)))}</p><p>${esc(dBR(t.data))} ${esc(t.hora)} · ${esc(t.cultura)} · ${esc(t.quantidade)} amostra(s)</p>
       ${t.pendente ? '<div class="tf-novo">⏳ Número provisório / aguardando envio: será conferido na planilha ao sincronizar. Se houver repetição, a coordenação é avisada.</div>' : '<div class="tf-ok">✓ Número confirmado na planilha.</div>'}
-      ${t.numeroOrigem === 'editado' && Number(t.registroAntigo) !== 1 ? `<div class="tf-novo">✏️ Número alterado manualmente (o sistema sugeriu ${num3(t.numeroSugerido)}). Registrado para auditoria.</div>` : ''}</div>
+      ${t.numeroOrigem === 'editado' && Number(t.registroAntigo) !== 1 ? `<div class="tf-novo">✏️ Número alterado manualmente (o sistema sugeriu ${num3(t.numeroSugerido)}). Registrado para auditoria.</div>` : ''}
+      <p id="pce-pronto-lab">${seloLab(labDe(t))}</p></div>
       <button class="botao" data-pce="imprimirtermo" data-id="${esc(t.id)}" id="pce-imprimir">🖨️ Imprimir / PDF (${P.vias || 2} vias)</button>
       <button class="botao sec" data-pce="enviartermo" data-id="${esc(t.id)}" id="pce-t-enviar">📤 Enviar via do produtor (WhatsApp, e-mail…)</button>
+      ${t.cancelado || !Sync.pode('pce') ? '' : `<button class="botao sec" data-pce="laudo" data-id="${esc(t.id)}" id="pce-laudo">🧪 Resultado do laboratório</button>`}
       ${Number(t.registroAntigo) === 1 && podeAntigo() ? '<button class="botao sec" data-pce="novotermoantigo">📄 Digitar outro termo do papel</button>' : '<button class="botao sec" data-pce="novotermo">➕ Novo termo</button>'}
       <button class="botao sec" data-v="pcetermos">📋 Ver termos de colheita</button>
       <p class="dica">Na janela de impressão, escolha “Salvar como PDF” ou imprima direto. As vias saem em páginas separadas.</p>`);
@@ -1344,14 +1366,67 @@ const PCEUI = (() => {
       $('#pceTItens').innerHTML = v.length ? v.map(t => `<div class="item pce-termo" data-termo="${esc(t.id)}"><div class="topo"><div><div class="placa">${esc(t.numeroTxt)}</div><div class="tipo">${esc(t.nome)}</div></div>
         <div class="hora">${esc(dBR(t.data))}</div></div>
         <div class="info">${esc(t.cultura)} · ${esc(t.quantidade)} amostra(s) · ${esc(t.municipio)}</div>
+        <div class="info pce-lab-info">${seloLab(labDe(t))}</div>
         ${t.cancelado ? `<div class="info pend">⛔ CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
         ${t.conflito ? '<div class="info pend">⚠️ Número duplicado na planilha: confira com a coordenação.</div>' : ''}
         ${t.pendente ? `<div class="info pend">⏳ ${t.provisorio ? 'número provisório, será conferido ao sincronizar' : 'aguardando envio'}${Number(t.registroAntigo) === 1 && !podeAnt ? ' — termo do papel: sem autorização, fica guardado neste aparelho' : ''}</div>` : ''}
         <div class="botoes"><button class="editar" data-pce="imprimirtermo" data-id="${esc(t.id)}">Imprimir</button>
+        ${t.cancelado || !Sync.pode('pce') ? '' : `<button class="editar" data-pce="laudo" data-id="${esc(t.id)}">🧪 Resultado</button>`}
         ${t.cancelado ? '' : `<button class="excluir" data-pce="cancelartermo" data-id="${esc(t.id)}">Cancelar termo</button>`}</div></div>`).join('')
         : '<div class="vazio">Nenhum Termo de Colheita neste aparelho.</div>';
     };
     desenhar(); $('#pceTQ').oninput = desenhar;
+  }
+
+  /* ---------- Resultado do laboratório (Termo de Colheita) ----------
+     Registrado depois da coleta (quando o laudo chega): grava só o campo "laboratorio" do termo (JSON com atualizadoEm/por). O número, o PDF e os
+     demais campos não mudam. A planilha mescla pelo atualizadoEm do resultado: um resultado lançado no painel não é apagado por este aparelho. */
+  const LABC = P.laboratorio || { laboratorios: ['Outro'], resultados: [['aguardando', 'Aguardando']] };
+  const RES_LAB = Object.fromEntries(LABC.resultados);
+  const labDe = t => { const o = lerJSON(t && t.laboratorio, null); return o && typeof o === 'object' && !Array.isArray(o) ? o : null; };
+  const seloLab = lab => !lab ? '<span class="pce-lab sem">🧪 Laboratório: sem resultado registrado</span>'
+    : `<span class="pce-lab ${esc(lab.resultado || 'aguardando')}">🧪 ${esc(RES_LAB[lab.resultado] || 'Aguardando')}${lab.resultado === 'positivo' && lab.praga ? ': ' + esc(lab.praga) : ''}${lab.laudo ? ' · laudo ' + esc(lab.laudo) : ''}</span>`;
+  async function laudo(id) {
+    const t = await Store.obter('colheitas', id); if (!t) return;
+    if (t.cancelado) return toast('Termo cancelado: sem resultado de laboratório.', true);
+    const L0 = labDe(t) || {}, fecharM = () => { const m = $('#pce-modal-lab'); if (m) m.remove(); };
+    fecharM();
+    const outro = !!L0.laboratorio && !LABC.laboratorios.includes(L0.laboratorio);
+    const m = document.createElement('div'); m.className = 'tf-modal'; m.id = 'pce-modal-lab';
+    m.innerHTML = `<div class="tf-modal-box"><h3>🧪 Resultado do laboratório</h3>
+      <p class="dica" style="text-align:left">Termo <b>${esc(t.numeroTxt || '')}</b> · ${esc(t.cultura || '')} · ${esc(t.quantidade || '')} amostra(s). O número e o PDF do termo não mudam.</p>
+      <label>Laboratório<select id="pce-lab-lab">${opts(LABC.laboratorios, outro ? 'Outro' : L0.laboratorio || '', 'Selecione')}</select></label>
+      <label id="pce-lab-outro-l" ${outro || L0.laboratorio === 'Outro' ? '' : 'hidden'}>Nome do laboratório<input id="pce-lab-outro" maxlength="80" value="${esc(outro ? L0.laboratorio : L0.laboratorioOutro || '')}"></label>
+      <div class="duas"><label>Data de envio<input id="pce-lab-envio" type="date" value="${esc(L0.envio || '')}"></label>
+        <label>Nº do laudo<input id="pce-lab-laudo" maxlength="60" value="${esc(L0.laudo || '')}"></label></div>
+      <div class="duas"><label>Resultado<select id="pce-lab-res">${LABC.resultados.map(([v, r]) => `<option value="${v}" ${(L0.resultado || 'aguardando') === v ? 'selected' : ''}>${esc(r)}</option>`).join('')}</select></label>
+        <label>Data do resultado<input id="pce-lab-data" type="date" value="${esc(L0.dataResultado || '')}"></label></div>
+      <label id="pce-lab-praga-l" ${L0.resultado === 'positivo' ? '' : 'hidden'}>Praga confirmada *<input id="pce-lab-praga" list="pce-lab-pragas" maxlength="120" value="${esc(L0.praga || '')}"></label>
+      <datalist id="pce-lab-pragas">${P.pragas.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+      <label>Observação<textarea id="pce-lab-obs" rows="2" maxlength="500">${esc(L0.obs || '')}</textarea></label>
+      ${L0.por ? `<p class="dica" style="text-align:left">Último registro: ${esc(L0.por)}${L0.atualizadoEm ? ', ' + esc(new Date(L0.atualizadoEm).toLocaleString('pt-BR')) : ''}.</p>` : ''}
+      <div class="duas"><button class="botao sec" type="button" id="pce-lab-cancelar">Cancelar</button><button class="botao" type="button" id="pce-lab-salvar">💾 Salvar resultado</button></div></div>`;
+    document.body.append(m);
+    const q = s2 => m.querySelector(s2);
+    q('#pce-lab-lab').onchange = () => { q('#pce-lab-outro-l').hidden = q('#pce-lab-lab').value !== 'Outro'; };
+    q('#pce-lab-res').onchange = () => { q('#pce-lab-praga-l').hidden = q('#pce-lab-res').value !== 'positivo'; };
+    q('#pce-lab-cancelar').onclick = fecharM;
+    q('#pce-lab-salvar').onclick = async () => {
+      const v = s2 => q(s2).value.trim();
+      const lab = { laboratorio: v('#pce-lab-lab') === 'Outro' ? (v('#pce-lab-outro') || 'Outro') : v('#pce-lab-lab'), laboratorioOutro: '', envio: v('#pce-lab-envio'), laudo: v('#pce-lab-laudo'),
+        dataResultado: v('#pce-lab-data'), resultado: v('#pce-lab-res'), praga: v('#pce-lab-res') === 'positivo' ? v('#pce-lab-praga') : '', obs: v('#pce-lab-obs') };
+      if (!lab.laboratorio && !lab.envio && !lab.laudo && lab.resultado === 'aguardando') return toast('Informe ao menos o laboratório ou a data de envio.', true);
+      if (lab.envio && lab.envio > hojeISO()) return toast('A data de envio está no futuro.', true);
+      if (lab.envio && lab.dataResultado && lab.dataResultado < lab.envio) return toast('A data do resultado é anterior à data de envio.', true);
+      if (lab.resultado === 'positivo' && !lab.praga) return toast('Resultado positivo: informe a praga confirmada.', true);
+      if (lab.resultado !== 'aguardando' && !lab.dataResultado) lab.dataResultado = hojeISO();
+      const s0 = await servidorAtual();
+      lab.atualizadoEm = Date.now(); lab.por = (s0 && (s0.nome || s0.servidor)) || localStorage.getItem('gdv.nome') || '';
+      const atual = await Store.obter('colheitas', id);
+      await Store.salvar('colheitas', { ...atual, laboratorio: JSON.stringify(lab) });
+      fecharM(); toast('Resultado do laboratório salvo.'); Sync.sincronizar();
+      if ($('#pce-pronto')) pronto(id); else if ($('#pceTItens')) termos();
+    };
   }
 
   /* ---------- impressão (modelos em web/documentos, via docs.js) ---------- */
@@ -1478,6 +1553,7 @@ const PCEUI = (() => {
       else if (a === 'excluirlev') await excluirLev(id);
       else if (a === 'novotermo') go('pcetermo');
       else if (a === 'imprimirtermo') await imprimir('termo', id);
+      else if (a === 'laudo') await laudo(id);
       else if (a === 'cancelartermo') {
         const motivo = prompt('Motivo do cancelamento (o número do termo continua usado):'); if (motivo == null) return;
         const t = await Store.obter('colheitas', id); await Store.salvar('colheitas', { ...t, cancelado: 1, motivoCancel: motivo.trim().slice(0, 300) });

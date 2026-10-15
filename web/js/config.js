@@ -30,6 +30,10 @@ const CONFIG = {
     MT: { nome: 'Moto',              icone: '🏍️', pessoas: 2 }
   },
   linhasFicha: 50,
+  // Carga do veículo (formulário do veículo; tudo opcional): UFs de origem/destino. Destino AM = internalização/importação; destino em
+  // outro estado = carga em trânsito/exportação (alimentam o VIGIFITO sem lançamento manual).
+  ufs: ['AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO', 'Exterior'],
+  ufLocal: 'AM',
 
   // Termo de Fiscalização de Barreira (TF)
   TF: {
@@ -114,6 +118,11 @@ const CONFIG = {
       }
     }
   },
+
+  // Portal do Administrativo (web/administrativo/): ID do cliente OAuth do Google (público; o mesmo valor vai na propriedade do script
+  // GOOGLE_CLIENT_ID, usada pelo servidor para conferir o login). Vazio = o portal mostra só a entrada por código de ativação.
+  // Passo a passo para criar no README ("Portal do Administrativo").
+  adm: { googleClientId: '' },
 
   // Relatório GDV (painel → aba Relatórios): grupos de pragas da Seção I. Cada coluna casa com as pragas dos levantamentos pelo nome
   // (sem acento/maiúsculas; basta conter um dos termos; vale o termo mais longo — "Diaphorina citri (vetor do HLB)" vai para Diaphorina,

@@ -483,7 +483,7 @@ function auditarSequencia_(barreira, ano, tipo) {
   return auditarRegs_(tipo, barreira, ano, lerLeitura_(SEQUENCIAS[tipo].aba), lerLeitura_('Numeracao'));
 }
 
-/** Número duplicado (mesmo grupo/ano): o registro mais antigo vale; os demais ficam com conflito = 1. */
+/** Número duplicado (mesmo grupo/ano): o registro mais antigo vale; os demais ficam com conflito = 1. Sozinho no número = conflito 0. */
 function marcarConflitos_(tipo, recebidos, agora) {
   const s = SEQUENCIAS[tipo], ids = {};
   recebidos.forEach(function (r) { if (r && r.id) ids[r.id] = true; });
@@ -497,7 +497,8 @@ function marcarConflitos_(tipo, recebidos, agora) {
   });
   Object.keys(grupos).forEach(function (k) {
     const g = grupos[k];
-    if (!g.some(function (x) { return ids[x.o.id]; })) return;
+    // grupo de um registro recebido, ou com conflito marcado que pode ter ficado velho (o dono do número trocou de número)
+    if (!g.some(function (x) { return ids[x.o.id] || x.o.conflito === 1; })) return;
     g.sort(function (a, b) { return a.o.criadoEm - b.o.criadoEm || String(a.o.id).localeCompare(String(b.o.id)); });
     g.forEach(function (x, n) {
       const quer = g.length > 1 && n > 0 ? 1 : 0;

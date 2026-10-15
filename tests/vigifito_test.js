@@ -297,6 +297,20 @@ print(json.dumps({'tabelas':x.count('<w:tbl>'),'paisagem':x.count('w:orient="lan
   await p.selectOption('#pn-rg-rel', 'convenio'); await esperar('s.rel === "convenio" && s.CR');
   const cv = await baixar('#pn-rg-docx');
   ok(cv.buf.slice(0, 2).toString() === 'PK' && /Relatorio_Convenio_991272-2025_Parcial/.test(cv.nome), 'Convênio: relatório gerado também na central (Word)', cv.nome);
+  // Convênio: "Total (consolidado até hoje)" no mês de referência
+  const opCm = await p.$$eval('#pn-rg-cmes option', os => os.map(o => [o.value, o.textContent]));
+  ok(opCm[0][0] === 'total' && /Total \(consolidado até hoje\)/.test(opCm[0][1]) && opCm.length > 1, 'Convênio: mês de referência com "Total (consolidado até hoje)" no topo', opCm.slice(0, 3));
+  await p.selectOption('#pn-rg-cmes', 'total'); await esperar('s.rel === "convenio" && s.CR');
+  await p.waitForFunction(() => /consolidado até/.test(document.querySelector('#pn-rg-titulo').textContent), null, { timeout: 20000 });
+  const tcons = await p.textContent('#pn-rg-corpo');
+  ok(/Metas — consolidado até/.test(tcons) && /Consolidado\s*Total/.test(tcons) && !/No mês/.test(tcons) && !/Parcial nº/.test(tcons), 'consolidado: título, KPI "Consolidado até" e tabela sem "No mês"');
+  await p.evaluate(() => { window.__prints = []; }); await p.click('#pn-rg-imprimir');
+  await p.waitForFunction(() => window.__prints && window.__prints.length, null, { timeout: 30000 });
+  const cvp = await p.evaluate(() => window.__prints[0].texto);
+  ok(/CONSOLIDADO ATÉ \d{2}\/\d{2}\/\d{4}/.test(cvp) && !/PARCIAL \d/.test(cvp) && !/Exec\. (jan|fev|mar|abr|mai|jun|jul|ago|set|out|nov|dez)/i.test(cvp) && !/Executado no mês/.test(cvp) && /Executado acumulado/.test(cvp), 'consolidado (PDF): título "CONSOLIDADO ATÉ", sem colunas do mês', [/PARCIAL \d/, /Exec\. [a-z]{3}.{0,20}/i, /Executado no mês/, /Executado acumulado/].map(r => (cvp.match(r) || [null])[0]));
+  const cvc = await baixar('#pn-rg-docx');
+  ok(cvc.buf.slice(0, 2).toString() === 'PK' && /Relatorio_Convenio_991272-2025_Consolidado_ate_\d{4}-\d{2}-\d{2}\.docx/.test(cvc.nome), 'consolidado em Word', cvc.nome);
+  await shot(p, 'central_convenio_consolidado');
   // Metas SUASA
   await p.selectOption('#pn-rg-rel', 'suasa'); await p.waitForSelector('#pn-rg-suasa');
   ok(/Aguardando o plano de metas SUASA/.test(await p.textContent('#pn-rg-suasa')) && !(await p.$('#pn-rg-docx')), 'Metas SUASA: "aguardando o plano de metas SUASA" (sem gerar)');

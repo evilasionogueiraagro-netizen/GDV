@@ -322,7 +322,7 @@
       if (arq.size > 15e6) throw new Error('arquivo grande demais (máx. 15 MB)');
       if (typeof window.XLSX === 'undefined') await A.script(XLSX_SRC);
       const wb = window.XLSX.read(new Uint8Array(await arq.arrayBuffer()), { type: 'array', cellFormula: false, cellHTML: false, cellText: false, cellStyles: false });
-      const ext = ConvPlanilha.extrair(ConvPlanilha.abasDoLivro(window.XLSX, wb));
+      const ext = ConvPlanilha.extrair(ConvPlanilha.abasDoLivro(window.XLSX, wb), { nomes: true });   // portal: traz o servidor de cada diária
       E.imp = { arquivo: arq.name, ext, op: { datas: {}, ignorar: {}, repetidos: {}, excluir: {} }, P: null };
       previaImp();
       msg(raiz, 'imp', `${arq.name}: ${E.imp.P.totais.linhas} lançamento(s) em ${ext.abas.length} aba(s). Confira a prévia e grave.`, 'ok');

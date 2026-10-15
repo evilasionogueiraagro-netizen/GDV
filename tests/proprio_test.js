@@ -14,7 +14,7 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) proce
   };
   const turno = async (p, tf, bva, n) => {
     await p.click('.modulo[data-v=home]'); await p.waitForSelector('#fTurno'); await p.selectOption('#nLocal', bva); await p.fill('#nTF', tf); await p.click('#fTurno button[type=submit]'); await p.waitForSelector('.contador');
-    await p.click('[data-go=registrar]'); for (let i = 0; i < n; i++) { await p.waitForSelector('#fVeic'); await p.fill('#placa', 'ABC1D' + String(10 + i)); await p.click('#fVeic button.botao'); await p.waitForTimeout(400); }
+    await p.click('[data-go=registrar]'); for (let i = 0; i < n; i++) { await p.waitForSelector('#fVeic'); await p.fill('#placa', 'ABC1D' + String(10 + i)); await p.click('#fVeic > button.botao'); await p.waitForTimeout(400); }
     await p.click('nav [data-v=modulos]'); await p.waitForSelector('.modulo[data-v=home]');
   };
   const sync = p => p.evaluate(async () => { await Sync.sincronizar(); await new Promise(r => setTimeout(r, 800)); });

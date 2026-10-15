@@ -9,6 +9,7 @@ const amb = require('./lib/amb');
 // paisagem, mapas; LibreOffice se houver), LGPD (nenhum CPF completo/nome completo), fiscal recusado e celular 390 px.
 const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
 const { API } = amb;
+const PORTAL = require('./lib/portal');
 const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 const get = p => fetch(API + p).then(r => r.json());
 const gerar = (nome, perfil) => get('/__gerar?nome=' + encodeURIComponent(nome) + (perfil ? '&perfil=' + perfil : ''));
@@ -80,6 +81,7 @@ const GRUPOS = [{ id: 'citros', colunas: [{ rotulo: 'HLB', pragas: ['HLB', 'Gree
   const adm = await gerar('Gerente Relatorio', 'admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
   const fis = await gerar('Fiscal Curioso'), TOKF = (await post({ action: 'ativar', codigo: fis.codigo })).token;
   ok(TOK && TOKF, 'credenciais de administrador e de fiscal');
+  const SA = await PORTAL.sessao(TOK, 'relatorio.adm@gmail.com', 'Rita Relatorio Administrativa');
   for (const a of ['painelRelGdv', 'painelRelGdvSalvar', 'painelRelGdvApuracao', 'painelPceLaudo']) {
     const x = await post({ action: a, key: TOKF, ano: A, de: d(1, 1), ate: d(12, 31), grupos: GRUPOS, tipo: 'mensal', mes: '03', textos: { introducao: 'x' }, id: 'c1', laboratorio: { resultado: 'negativo' } });
     ok(!x.ok && /Acesso restrito/.test(x.erro), `fiscal comum recusado em ${a}`, x);
@@ -87,9 +89,10 @@ const GRUPOS = [{ id: 'citros', colunas: [{ rotulo: 'HLB', pragas: ['HLB', 'Gree
   r = await post({ action: 'painelRelGdvApuracao', de: d(1, 1), ate: d(12, 31), grupos: GRUPOS }); ok(!r.ok && /Sessão do painel inválida/.test(r.erro), 'sem credencial: recusado', r.erro);
   r = await post({ action: 'painelRelGdvApuracao', key: TOK, de: d(1, 1), ate: `${A + 1}-03-01`, grupos: GRUPOS }); ok(!r.ok && /longo demais/.test(r.erro), 'período maior que um ano recusado', r.erro);
   const erros = [[{ lancamentos: [{ mes: '13', chave: 'pce.capacitacao', valor: 1 }] }, /Mês inválido/], [{ lancamentos: [{ mes: '03', chave: 'x.y', valor: 1 }] }, /inválida/],
-    [{ lancamentos: [{ mes: '03', chave: 'pce.capacitacao', valor: -2 }] }, /inválido/], [{ lancamentos: [{ mes: '03', chave: 'pce.capacitacao', valor: 'dez' }] }, /número/],
-    [{ tipo: 'mensal', mes: '03', textos: { introducao: 'Produtor CPF 529.982.247-25' } }, /CPF/], [{ tipo: 'semanal', textos: {} }, /Tipo de relatório/]];
-  for (const [x, re] of erros) { const y = await post({ action: 'painelRelGdvSalvar', key: TOK, ano: A, ...x }); ok(!y.ok && re.test(y.erro), `validação: ${re.source}`, y.erro || y); }
+    [{ lancamentos: [{ mes: '03', chave: 'pce.capacitacao', valor: -2 }] }, /inválido/], [{ lancamentos: [{ mes: '03', chave: 'pce.capacitacao', valor: 'dez' }] }, /número/]];
+  for (const [x, re] of erros) { const y = await post({ action: 'admRelLancar', sessao: SA.sessao, ano: A, ...x }); ok(!y.ok && re.test(y.erro), `validação (portal): ${re.source}`, y.erro || y); }
+  for (const [x, re] of [[{ tipo: 'mensal', mes: '03', textos: { introducao: 'Produtor CPF 529.982.247-25' } }, /CPF/], [{ tipo: 'semanal', textos: {} }, /Tipo de relatório/],
+    [{ lancamentos: [{ mes: '03', chave: 'pce.capacitacao', valor: 1 }] }, /Portal do Administrativo/]]) { const y = await post({ action: 'painelRelGdvSalvar', key: TOK, ano: A, ...x }); ok(!y.ok && re.test(y.erro), `validação (painel): ${re.source}`, y.erro || y); }
 
   const AP = await post({ action: 'painelRelGdvApuracao', key: TOK, de: d(1, 1), ate: d(12, 31), grupos: GRUPOS });
   ok(AP.ok && AP.meses.length === 12, 'apuração anual: 12 meses', AP.erro || AP.meses);
@@ -162,45 +165,54 @@ const GRUPOS = [{ id: 'citros', colunas: [{ rotulo: 'HLB', pragas: ['HLB', 'Gree
     'quadro PCE (março): 7 visitadas, 5 novas, 2 antigas; acumulado jan–mar 7 distintas (CIT-1 em jan e mar conta uma vez), 6 novas', [linhaQ(S.R, 'propVisitadas'), linhaQ(S.R, 'propNovas')]);
   ok(linhaQ(S.R, 'area').mes === 22 && linhaQ(S.R, 'area').acum === 22, 'área: 22 ha no mês; acumulado jan–mar 22 ha (CIT-1 conta uma vez, com a maior área; não 24 = soma dos meses)', linhaQ(S.R, 'area'));
   const vt = k => S.R.vig.total.find(x => x.chave === k), vfx = k => S.R.vig.fixa.find(x => x.chave === k), vvo = k => S.R.vig.volante.find(x => x.chave === k);
-  ok(vt('veiculos').mes === 5 && vt('veiculos').mes === vfx('veiculos').mes + vvo('veiculos').mes && vt('pessoas').mes === 53 && vt('tfs').mes === 4 && vt('liberacaoT').mes === 3.5,
-    'VIGIFITO na tela: total = fixas + volantes (5 veículos, 53 pessoas, 4 TFs, 3,5 t liberadas)', [vt('veiculos'), vt('tfs')]);
+  ok(vt('veiculos').mes === 5 && vt('veiculos').mes === vfx('veiculos').mes + vvo('veiculos').mes && vt('educacao').mes === 5 && vt('tfs').mes === 4 && vt('liberacaoT').mes === 3.5,
+    'VIGIFITO na tela: total = fixas + volantes (5 veículos, 5 medidas de educação sanitária, 4 TFs, 3,5 t liberadas)', [vt('veiculos'), vt('tfs')]);
   const gm = S.R.grupos.find(x => x.g.id === 'moniliase');
   ok(gm.total.propriedades === gm.linhas.reduce((s, l) => s + l.propriedades, 0) && gm.total.det[0] === 1 && S.R.grupos.find(x => x.g.id === 'citros').total.propriedades === 3,
     'tabelas por grupo: o total fecha com a soma das linhas', gm.total);
   ok(S.R.avisos.some(a => a.nivel === 'critico' && /positiva/.test(a.titulo)) && S.R.avisos.some(a => /linha\(s\) manual/.test(a.titulo)), 'avisos: amostra positiva e linhas manuais vazias', S.R.avisos.map(a => a.titulo));
   ok((await p.textContent('#pn-rg')).includes('Pragas dos Citros') && await p.locator('.pn-rg-grupo').count() === 5, 'pré-visualização das tabelas dos 5 grupos');
-  // lançamentos manuais e textos
-  const preencher = async (sel, v) => { await p.fill(sel, String(v)); };
+  // lançamentos manuais (Portal do Administrativo) e textos (painel)
+  ok(!(await p.$('#pn-rg input.pn-rg-in')) && !(await p.$('[data-rg=add-linha]')), 'painel: linhas manuais só para leitura (lançadas no portal)');
+  const pa = await PORTAL.abrir(b, SA, { aba: 'relatorios' });
+  await pa.waitForSelector('#pn-rg-ano'); await pa.selectOption('#pn-rg-ano', String(A)); await pa.waitForSelector('#pn-rg-mes');
+  await pa.selectOption('#pn-rg-mes', '3'); await pa.waitForSelector('.pn-rg-in[data-chave="pce.capacitacao"]');
+  const preencher = async (sel, v) => { await pa.fill(sel, String(v)); };
   await preencher('.pn-rg-in[data-chave="pce.capacitacao"]', 2);
   await preencher('.pn-rg-in[data-chave="pce.areaControlada"]', '12,5');
-  await preencher('.pn-rg-in[data-chave="vig.fixa.partidas"]', 7);
-  await preencher('.pn-rg-in[data-chave="vig.volante.partidas"]', 3);
+  await pa.selectOption('[data-mun-novo="moniliase"]', 'Tabatinga'); await pa.click('[data-rg=add-mun][data-grupo=moniliase]');
+  await pa.waitForSelector('.pn-rg-in[data-chave="mun.moniliase.poda|Tabatinga"]');
   await preencher('.pn-rg-in[data-chave="mun.moniliase.poda|Tabatinga"]', 5);
-  await p.selectOption('[data-mun-novo="moniliase"]', 'Benjamin Constant'); await p.click('[data-rg=add-mun][data-grupo=moniliase]');
-  await p.waitForSelector('.pn-rg-in[data-chave="mun.moniliase.poda|Benjamin Constant"]');
+  await pa.selectOption('[data-mun-novo="moniliase"]', 'Benjamin Constant'); await pa.click('[data-rg=add-mun][data-grupo=moniliase]');
+  await pa.waitForSelector('.pn-rg-in[data-chave="mun.moniliase.poda|Benjamin Constant"]');
   await preencher('.pn-rg-in[data-chave="mun.moniliase.poda|Benjamin Constant"]', 3);
   await preencher('.pn-rg-in[data-chave="hlb.armadilhas"]', 6);
-  await p.click('[data-rg=add-linha][data-tab="tab.cfo"]');
-  await p.fill('[data-tab="tab.cfo"][data-campo=produto]', 'BANANA COMPRIDA'); await p.fill('[data-tab="tab.cfo"][data-campo=documentos]', '4');
-  await p.fill('[data-tab="tab.cfo"][data-campo=quantidade]', '300'); await p.fill('[data-tab="tab.cfo"][data-campo=unidade]', 'caixa');
-  await p.click('[data-rg=add-linha][data-tab="tab.educacao"]');
-  await p.fill('[data-tab="tab.educacao"][data-campo=tipo]', 'Palestra'); await p.fill('[data-tab="tab.educacao"][data-campo=descricao]', 'Palestra sobre monilíase na comunidade');
-  await p.fill('[data-tab="tab.educacao"][data-campo=atingido]', '45');
+  await pa.click('[data-rg=add-linha][data-tab="tab.cfo"]');
+  await pa.fill('[data-tab="tab.cfo"][data-campo=produto]', 'BANANA COMPRIDA'); await pa.fill('[data-tab="tab.cfo"][data-campo=documentos]', '4');
+  await pa.fill('[data-tab="tab.cfo"][data-campo=quantidade]', '300'); await pa.fill('[data-tab="tab.cfo"][data-campo=unidade]', 'caixa');
+  await pa.click('[data-rg=add-linha][data-tab="tab.educacao"]');
+  await pa.fill('[data-tab="tab.educacao"][data-campo=tipo]', 'Palestra'); await pa.fill('[data-tab="tab.educacao"][data-campo=descricao]', 'Palestra sobre monilíase na comunidade');
+  await pa.fill('[data-tab="tab.educacao"][data-campo=atingido]', '45');
+  await pa.click('#pn-rg-salvar');
+  await pa.waitForFunction(() => /Gravado/.test(document.querySelector('[data-msg=rg]').textContent), null, { timeout: 15000 });
+  await PORTAL.post({ action: 'admVigLancar', sessao: SA.sessao, lancamentos: [{ periodo: `${A}-03`, posto: 'pf-jundia', indicador: 'partidas', valor: 7, justificativa: 'Partidas anotadas no papel' }, { periodo: `${A}-03`, posto: 'tabatinga-volante', indicador: 'partidas', valor: 3, justificativa: 'Partidas anotadas no papel' }] });
   await p.fill('[data-txt=introducao]', 'Introdução do gestor: {municipiosLevantados} municípios em {periodo}.');
   await p.fill('[data-ass="0:nome"]', 'GESTOR DA GDV');
   await p.click('#pn-rg-salvar');
-  await p.waitForFunction(() => /Salvo/.test(document.querySelector('[data-msg=rg]').textContent), null, { timeout: 15000 });
+  await p.waitForFunction(() => /salvos/.test(document.querySelector('[data-msg=rg]').textContent), null, { timeout: 15000 });
   const lancs = await get('/__aba?nome=RelGdvLancamentos'), txts = await get('/__aba?nome=RelGdvTextos');
   const lan = (ch) => lancs.find(l => l[0] === `${A}|03|${ch}`);
-  ok(lan('pce.capacitacao')[4] === 2 && lan('pce.areaControlada')[4] === 12.5 && lan('mun.moniliase.poda|Benjamin Constant')[4] === 3 && lan('pce.capacitacao')[6] === 'Gerente Relatorio',
-    'lançamentos na aba RelGdvLancamentos (um por mês e linha; quem lançou)', lancs.slice(1, 4));
-  ok(/BANANA COMPRIDA/.test(lan('tab.cfo')[5]) && txts.length === 2 && txts[1][0] === `mensal|${A}|03` && /GESTOR DA GDV/.test(txts[1][4]), 'tabela de CFO (lista JSON) e textos (id mensal|ano|mês)', txts[1]);
+  ok(lan('pce.capacitacao')[4] === 2 && lan('pce.areaControlada')[4] === 12.5 && lan('mun.moniliase.poda|Benjamin Constant')[4] === 3 && lan('pce.capacitacao')[6] === 'Rita Relatorio Administrativa',
+    'lançamentos do portal na aba RelGdvLancamentos (um por mês e linha; quem lançou)', lancs.slice(1, 4));
+  ok(/BANANA COMPRIDA/.test(lan('tab.cfo')[5]) && txts.length === 2 && txts[1][0] === `mensal|${A}|03` && /GESTOR DA GDV/.test(txts[1][4]), 'tabela de CFO (lista JSON) e textos (id mensal|ano|mês, salvos no painel)', txts[1]);
+  await pa.context().close();
   await p.reload(); await p.click('.pn-aba[data-aba=relatorios]'); await esperarR(p, 'mensal', 3);
   S = await est(p);
-  ok(await p.inputValue('.pn-rg-in[data-chave="pce.capacitacao"]') === '2' && await p.inputValue('[data-txt=introducao]') === 'Introdução do gestor: {municipiosLevantados} municípios em {periodo}.' && /BANANA/.test(await p.inputValue('[data-tab="tab.cfo"][data-campo=produto]')),
-    'recarregou: lançamentos, tabela e textos persistem');
-  ok(linhaQ(S.R, 'pce.capacitacao').mes === 2 && linhaQ(S.R, 'cfo').mes === 4 && S.R.vig.total.find(x => x.chave === 'partidas').mes === 10 && S.R.grupos.find(x => x.g.id === 'moniliase').total.manual.poda === 8,
-    'manuais no cálculo: capacitação 2, CFO 4 (da tabela), partidas 7 + 3 = 10, poda drástica 5 + 3 = 8');
+  ok(await p.textContent('.pn-rg-val[data-chave="pce.capacitacao"]') === '2' && /lançado pelo Administrativo em .* por Rita Relatorio Administrativa/.test(await p.getAttribute('.pn-rg-val[data-chave="pce.capacitacao"]', 'title')) &&
+    await p.inputValue('[data-txt=introducao]') === 'Introdução do gestor: {municipiosLevantados} municípios em {periodo}.' && /BANANA/.test(await p.textContent('[data-tab="tab.cfo"][data-campo=produto]')),
+    'painel: lançamentos (só leitura, com quem/quando), tabela e textos persistem');
+  ok(linhaQ(S.R, 'pce.capacitacao').mes === 2 && linhaQ(S.R, 'cfo').mes === 4 && S.R.grupos.find(x => x.g.id === 'moniliase').total.manual.poda === 8 && S.R.vig.total.find(x => x.chave === 'partidas').mes === 10,
+    'manuais no cálculo: capacitação 2, CFO 4 (da tabela), poda drástica 5 + 3 = 8, partidas do VIGIFITO (substituições por posto) 7 (Jundiá) + 3 (Tabatinga) = 10');
   await shot(p, 'aba_mensal');
   // relatório mensal: impressão (texto), PDF e Word
   console.log('3. Relatório mensal (PDF e Word)');
@@ -246,8 +258,9 @@ print(json.dumps(out))`, arq); return o ? JSON.parse(o) : null; };
   ok(linhaQ(S.R, 'propVisitadas').total === 9 && linhaQ(S.R, 'propVisitadas').valores['03'] === 7 && linhaQ(S.R, 'area').total === 26 && linhaQ(S.R, 'inspecoes').total === 10,
     'quadro anual: jan–dez + total (9 propriedades distintas; área 26 ha; 10 inspeções)', linhaQ(S.R, 'propVisitadas'));
   ok(S.R.vig.total.find(x => x.chave === 'veiculos').total === 6 && S.R.vig.total.find(x => x.chave === 'apreensaoT').total === 0.75, 'VIGIFITO anual: 6 veículos; 0,75 t apreendidas', S.R.vig.total.find(x => x.chave === 'apreensaoT'));
-  await p.fill('.pn-rg-in[data-mes="06"][data-chave="pce.capacitacao"]', '1');
-  await p.click('#pn-rg-salvar'); await p.waitForFunction(() => /Salvo/.test(document.querySelector('[data-msg=rg]').textContent), null, { timeout: 15000 });
+  r = await PORTAL.post({ action: 'admRelLancar', sessao: SA.sessao, ano: A, lancamentos: [{ mes: '06', chave: 'pce.capacitacao', valor: 1 }] });
+  ok(r.ok, 'portal: capacitação de junho lançada');
+  await p.click('#pn-rg-atualizar'); await esperarR(p, 'anual');
   S = await est(p);
   ok(linhaQ(S.R, 'pce.capacitacao').total === 3 && linhaQ(S.R, 'pce.capacitacao').valores['03'] === 2, 'anual: capacitação = soma dos meses (2 em março + 1 em junho)', linhaQ(S.R, 'pce.capacitacao'));
   ok(await p.isChecked('#pn-rg-anexo'), 'anual: anexo marcado por padrão');

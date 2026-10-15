@@ -158,6 +158,26 @@ function planilha(var2) {
     'nomes dos servidores das diárias gravados na planilha do e-GDV (coluna servidorNome, com id estável)', vivas().map(r => r[col('servidorNome')]).slice(0, 4));
   const painelTxt = await p.evaluate(() => JSON.stringify(Painel.aba('convenios').estado()) + document.body.innerText);
   ok(NOMES.some(n => painelTxt.includes(n)), 'painel (administrador) mostra o servidor das diárias na lista do Financeiro');
+  // lista do painel separada por etapa (chips com nº e total) e filtrada por item
+  await p.click('[data-conv=visao][data-v=fin]'); await p.waitForSelector('[data-fin-etapa]');
+  const lancTxt = () => p.evaluate(() => document.querySelector('.pn-conv-filtro').parentElement.innerText);
+  const chips = await p.$$eval('[data-fin-etapa]', bs => bs.map(b => [b.dataset.finEtapa, b.getAttribute('aria-pressed'), b.textContent.replace(/\s+/g, ' ').trim()]));
+  ok(chips.length === 5 && chips[0][1] === 'true' && chips[chips.length - 1][0] === '*' && chips.some(c => c[0] === '1.10' && /R\$\s?197\.055,00/.test(c[2])),
+    'painel: chips por etapa (com nº e total) + "Todas"; abre na primeira etapa', chips);
+  await p.click('[data-fin-etapa="1.4"]');
+  let lt = await lancTxt();
+  ok(/Etapa 1\.4/.test(lt) && /R\$\s?9\.840,00/.test(lt) && !/Memo nº 702\/2026/.test(lt), 'painel: etapa 1.4 mostra só os lançamentos dela (total R$ 9.840,00)', lt.slice(0, 300));
+  await p.click('[data-fin-etapa="1.10"]');
+  const opcoes = await p.$$eval('#pn-conv-fin-item option', os => os.map(o => o.value).filter(Boolean));
+  ok(opcoes.length >= 2 && opcoes.every(o => o.startsWith('1.10.')), 'painel: filtro de item com os itens da etapa 1.10 que têm lançamentos', opcoes);
+  await p.selectOption('#pn-conv-fin-item', opcoes[0]);
+  const linhasItem = await p.$$eval('.pn-conv-filtro + div tbody tr', trs => trs.length);
+  lt = await lancTxt();
+  ok(new RegExp(opcoes[0].replace(/\./g, '\\.')).test(lt) && linhasItem > 0 && !/Item\t/.test(lt), 'painel: filtrando por item (sem a coluna Item)', [opcoes[0], linhasItem]);
+  await p.selectOption('#pn-conv-fin-item', ''); await shot(p, 'financeiro_por_etapa');
+  await p.click('[data-fin-etapa="*"]');
+  lt = await lancTxt();
+  ok(/Todas as etapas/.test(lt) && /17 lançamentos · R\$\s?212\.337,00/.test(lt), 'painel: "Todas" junta as etapas (17 · R$ 212.337,00)', lt.slice(0, 300));
   const sug = await pa.evaluate(() => (AdmConvenio.estado().dados.servidores || []).map(x => x.nome));
   ok(NOMES.filter(n => sug.includes(n)).length >= 2, 'portal: nomes importados viram sugestões do autopreenchimento', sug);
   const S = await p.evaluate(() => ({ fin: Painel.aba('convenios').estado().R.fin }));

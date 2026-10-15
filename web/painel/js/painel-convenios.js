@@ -16,7 +16,7 @@
   const VISOES = [['metas', 'Metas'], ['lanc', 'Lançamentos'], ['fin', 'Financeiro'], ['rel', 'Relatório']];
   const SELO = { adiantada: 'bom', ritmo: 'info', atrasada: 'serio' };
   const E = { raiz: null, dados: null, convId: '', mes: P.ls.get(LS_MES) || '', visao: P.ls.get(LS_VISAO) || 'metas', apur: {}, R: null, carregando: false, erro: '',
-              abertos: new Set(), relAberto: false, textos: null, numero: null, msg: {}, gerando: false };
+              abertos: new Set(), finEtapa: '', finItem: '', relAberto: false, textos: null, numero: null, msg: {}, gerando: false };
   const cfg = () => E.dados ? (E.dados.convenios.find(c => c.id === E.convId) || E.dados.convenios[0]) : null;
   const hoje = () => P.hoje();
   const mesesDisponiveis = c => { const ate = hoje().slice(0, 7); const l = CD.mesesDe(c).filter(m => m <= ate); return l.length ? l : [CD.mesesDe(c)[0]]; };
@@ -269,16 +269,41 @@
       { id: 'conv-fin-etapa', titulo: 'Por etapa', csv: `convenio-${c.id}-financeiro-etapa.csv`, limite: 20, busca: false });
     P.tabela(sp, colsFin('Natureza'), Fn.naturezas.map(x => ({ rotulo: `${x.natureza} – ${x.nome}`, previsto: x.previsto, mes: x.mes, acum: x.acum, saldo: x.saldo, pct: x.pct })),
       { id: 'conv-fin-nat', titulo: 'Por natureza de despesa', csv: `convenio-${c.id}-financeiro-natureza.csv`, limite: 20, busca: false });
-    const sl = P.secao(v, 'Lançamentos financeiros', 'Todos os lançamentos (mais recentes primeiro). O nome do servidor da diária aparece aqui e no CSV; os relatórios (Word/PDF) não trazem nomes.');
+    const sl = P.secao(v, 'Lançamentos financeiros', 'Escolha a etapa e, se quiser, o item (mais recentes primeiro). O nome do servidor da diária aparece aqui e no CSV; os relatórios (Word/PDF) não trazem nomes.');
+    const filtro = P.el('div', 'pn-conv-filtro'), lista = P.el('div');
+    sl.appendChild(filtro); sl.appendChild(lista);
+    lancFin(c, filtro, lista);
+  }
+  /* Lançamentos financeiros separados por etapa (chips com nº e total) e filtro por item; "Todas" junta tudo (CSV completo). */
+  function lancFin(c, filtro, lista) {
+    const todos = E.dados.financeiro.filter(l => l.convenio === c.id);
+    const soma = a => a.reduce((t, l) => t + (Number(l.valor) || 0), 0);
+    const etapas = c.etapas.map(e => ({ e, ls: todos.filter(l => l.etapa === e.id) })).filter(x => x.ls.length);
+    if (E.finEtapa !== '*' && !etapas.some(x => x.e.id === E.finEtapa)) { E.finEtapa = etapas.length ? etapas[0].e.id : ''; E.finItem = ''; }   // '' = ainda sem lançamentos
+    const sel = etapas.find(x => x.e.id === E.finEtapa) || null;
+    const itens = sel ? (sel.e.itens || []).map(it => ({ it, ls: sel.ls.filter(l => l.item === it.id) })).filter(x => x.ls.length) : [];
+    if (E.finItem && !itens.some(x => x.it.id === E.finItem)) E.finItem = '';
+    const chip = (id, rot, ls) => `<button type="button" class="pn-chip" data-fin-etapa="${esc(id)}" aria-pressed="${(E.finEtapa || '*') === id}">${esc(rot)} <span class="pn-conv-chipn">${ls.length} · ${F.moeda(soma(ls))}</span></button>`;
+    filtro.innerHTML = `<div class="pn-conv-nav" role="group" aria-label="Etapa">${etapas.map(x => chip(x.e.id, 'Etapa ' + x.e.id, x.ls)).join('')}${chip('*', 'Todas', todos)}</div>
+      ${sel ? `<label class="pn-conv-campo pn-conv-filtro-item">Item<select id="pn-conv-fin-item"><option value="">Todos os itens da etapa ${esc(sel.e.id)}</option>${itens.map(x => `<option value="${esc(x.it.id)}" ${E.finItem === x.it.id ? 'selected' : ''}>${esc(x.it.id + ' ' + x.it.nome)} (${x.ls.length})</option>`).join('')}</select></label>` : ''}`;
+    filtro.onclick = e => { const b = e.target.closest('[data-fin-etapa]'); if (!b) return; E.finEtapa = b.dataset.finEtapa; E.finItem = ''; lancFin(c, filtro, lista); };
+    filtro.onchange = e => { if (e.target.id === 'pn-conv-fin-item') { E.finItem = e.target.value; lancFin(c, filtro, lista); } };
     const itemNome = l => { const e = etapa(l.etapa), it = e && (e.itens || []).find(x => x.id === l.item); return it ? `${it.id} ${it.nome}` : l.item; };
-    const lst = E.dados.financeiro.filter(l => l.convenio === c.id).slice().sort((a, b) => b.data.localeCompare(a.data) || (b.atualizadoEm || 0) - (a.atualizadoEm || 0));
-    P.tabela(sl, [{ chave: 'data', rotulo: 'Data', fmt: F.data }, { chave: 'etapa', rotulo: 'Etapa' }, { chave: 'item', rotulo: 'Item', fmt: (v, l) => itemNome(l) },
+    let lst = sel ? sel.ls : todos;
+    if (sel && E.finItem) lst = lst.filter(l => l.item === E.finItem);
+    lst = lst.slice().sort((a, b) => sel ? (b.data.localeCompare(a.data) || (b.atualizadoEm || 0) - (a.atualizadoEm || 0))
+      : (String(a.etapa).localeCompare(String(b.etapa), 'pt-BR', { numeric: true }) || b.data.localeCompare(a.data)));
+    const diarias = lst.reduce((t, l) => t + (/^33\.90\.(14|36)/.test(l.natureza || '') ? Number(l.quantidade) || 0 : 0), 0);
+    const titulo = !sel ? 'Todas as etapas' : E.finItem ? itemNome({ etapa: sel.e.id, item: E.finItem }) : `Etapa ${sel.e.id} – ${sel.e.nome}`;
+    lista.innerHTML = '';
+    P.tabela(lista, [{ chave: 'data', rotulo: 'Data', fmt: F.data }].concat(sel ? [] : [{ chave: 'etapa', rotulo: 'Etapa' }]).concat(sel && E.finItem ? [] : [{ chave: 'item', rotulo: 'Item', fmt: (v, l) => itemNome(l) }]).concat([
       { chave: 'natureza', rotulo: 'Natureza' }, { chave: 'quantidade', rotulo: 'Qtd.', num: true, fmt: v => v == null ? '—' : F.num(v) },
       { chave: 'valor', rotulo: 'Valor', num: true, fmt: F.moeda, csv: v => v }, { chave: 'documento', rotulo: 'Documento', fmt: v => v || '—' },
       { chave: 'fonte', rotulo: 'Fonte', fmt: v => v === 'contrapartida' ? 'Contrapartida' : 'Repasse' }, { chave: 'servidorNome', rotulo: 'Servidor', fmt: v => v || '—' }, { chave: 'descricao', rotulo: 'Descrição', fmt: v => v || '—' },
-      { chave: 'origem', rotulo: 'Origem', fmt: (v, l) => v === 'planilha' ? `Planilha${l.importadoEm ? ' ' + F.data(new Date(l.importadoEm - 4 * 3600e3).toISOString()) : ''}` : 'Manual' },
-      { chave: 'usuario', rotulo: 'Lançado pelo Administrativo', fmt: lancadoEm }],
-      lst, { id: 'conv-fin-lanc', csv: `convenio-${c.id}-financeiro-lancamentos.csv`, limite: 30, vazio: 'Nenhum lançamento financeiro ainda.' });
+      { chave: 'origem', rotulo: 'Origem', fmt: (v, l) => v === 'planilha' ? `Planilha${l.importadoEm ? ' ' + F.data(new Date(l.importadoEm - 4 * 3600e3).toISOString()) : ''}` : v === 'bem' ? 'Bem (aquisição)' : 'Manual' },
+      { chave: 'usuario', rotulo: 'Lançado pelo Administrativo', fmt: lancadoEm }]),
+      lst, { id: 'conv-fin-lanc', titulo, subtitulo: `${lst.length} lançamento${lst.length === 1 ? '' : 's'} · ${F.moeda(soma(lst))}${diarias ? ` · ${F.num(diarias, 1)} diárias` : ''}`,
+        csv: `convenio-${c.id}-financeiro-lancamentos${sel ? '-' + sel.e.id + (E.finItem ? '-' + E.finItem : '') : ''}.csv`, limite: 30, vazio: 'Nenhum lançamento financeiro ainda.' });
   }
 
   /* ---------------- Relatório ---------------- */

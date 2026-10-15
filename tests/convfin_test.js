@@ -157,7 +157,7 @@ function planilha(var2) {
   ok(vivas().some(r => NOMES.includes(r[col('servidorNome')]) && /^srv-[0-9a-f]{12}$/.test(r[col('servidorId')])),
     'nomes dos servidores das diárias gravados na planilha do e-GDV (coluna servidorNome, com id estável)', vivas().map(r => r[col('servidorNome')]).slice(0, 4));
   const painelTxt = await p.evaluate(() => JSON.stringify(Painel.aba('convenios').estado()) + document.body.innerText);
-  ok(!NOMES.some(n => painelTxt.includes(n)), 'painel continua sem nenhum nome de servidor (dados e tela)');
+  ok(NOMES.some(n => painelTxt.includes(n)), 'painel (administrador) mostra o servidor das diárias na lista do Financeiro');
   const sug = await pa.evaluate(() => (AdmConvenio.estado().dados.servidores || []).map(x => x.nome));
   ok(NOMES.filter(n => sug.includes(n)).length >= 2, 'portal: nomes importados viram sugestões do autopreenchimento', sug);
   const S = await p.evaluate(() => ({ fin: Painel.aba('convenios').estado().R.fin }));
@@ -194,7 +194,7 @@ function planilha(var2) {
   ok(r120[col('id')] === id120 && Number(r120[col('valor')]) === 4410 && Number(r120[col('quantidade')]) === 21, 'memo 120/2026 atualizado na mesma linha (R$ 4.410,00; 21 diárias)', r120);
   ok(r121[col('excluido')] === 1, 'memo 121/2026 marcado: exclusão lógica', r121);
   const painelTxt2 = JSON.stringify(await p.evaluate(() => Painel.aba('convenios').estado()));
-  ok(!NOMES.some(n => painelTxt2.includes(n)), 'segunda importação: painel continua sem nomes');
+  ok(NOMES.some(n => painelTxt2.includes(n)), 'segunda importação: painel continua mostrando o servidor');
 
   console.log('4. Metas: físico × financeiro, diárias, custo por unidade e projeção');
   await p.click('[data-conv=visao][data-v=metas]'); await p.waitForSelector('.pn-conv-ff');

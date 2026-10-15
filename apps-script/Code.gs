@@ -149,7 +149,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-16c';
+const VERSAO_CODIGO = '2026-10-16d';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -2025,7 +2025,7 @@ function painelConvenios(token) {
   const vivo = function (r) { return r.id && r.excluido !== 1; };
   return { ok: true, admin: admin, hoje: hojeManaus_(), convenios: convListar_(), semente: convSemente_(),
            lancamentos: lerLeitura_('ConvLancamentos').filter(vivo).map(convLancOut_),
-           financeiro: lerLeitura_('ConvFinanceiro').filter(vivo).map(convFinOut_),
+           financeiro: lerLeitura_('ConvFinanceiro').filter(vivo).map(function (r) { const o = convFinOut_(r); o.servidorNome = r.servidorNome || ''; return o; }),   // painel (só administrador) mostra o servidor; relatórios não
            relatorios: lerLeitura_('ConvRelatorios').filter(function (r) { return r.id; }).map(function (r) {
              return { id: r.id, convenio: r.convenio, mes: r.mes, numero: r.numero, textos: lerJSONSeguro_(r.textos, {}), usuario: r.usuario, atualizadoEm: r.atualizadoEm }; }) };
 }

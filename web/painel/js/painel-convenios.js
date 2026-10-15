@@ -417,14 +417,24 @@
     const velho = document.getElementById('pn-conv-cfg'); if (velho) velho.remove();
     const dlg = P.el('dialog', 'pn-dlg pn-conv-dlg'); dlg.id = 'pn-conv-cfg';
     const inp = (id, rot, v, extra) => `<label class="pn-conv-campo">${esc(rot)}<input id="${id}" value="${esc(v == null ? '' : v)}" ${extra || ''}></label>`;
-    const bvasConhecidas = [...new Set(((typeof CONFIG !== 'undefined' && CONFIG.bvas) || []).map(b => b.nome).concat(((P.todos && P.todos.barreiras) || []).map(b => b.nome).filter(Boolean)))];
+    // BVAs do app (CONFIG.bvas) + barreiras do cadastro do TF; a barreira cujo id/nome/sufixo é o de uma BVA do app é a mesma
+    // (ex.: "Barreira Porto da CEASA", sufixo "BVA - CEASA" = "BVA - CEASA") e aparece uma vez só, com o nome do app
+    const nBva = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+    const bvasApp = ((typeof CONFIG !== 'undefined' && CONFIG.bvas) || []).map(b => b.nome), apelido = {};
+    bvasApp.forEach(n => { apelido[nBva(n)] = n; });
+    ((P.todos && P.todos.barreiras) || []).forEach(b => {
+      const nomes = [b.id, b.nome, b.sufixo].filter(Boolean), canon = nomes.map(x => apelido[nBva(x)]).find(Boolean) || b.nome;
+      if (canon) nomes.forEach(x => { if (!apelido[nBva(x)]) apelido[nBva(x)] = canon; });
+    });
+    const canonBva = n => apelido[nBva(n)] || n;
+    const bvasConhecidas = [...new Set(bvasApp.concat(((P.todos && P.todos.barreiras) || []).map(b => canonBva(b.nome)).filter(Boolean)))];
     const secEtapa = e => {
       let x = `<fieldset class="pn-conv-cfg-etapa" data-etapa="${esc(e.id)}"><legend>Etapa ${esc(e.id)}</legend>
         ${inp(`pn-cc-nome-${e.id.replace('.', '_')}`, 'Nome curto', e.nomeCurto, 'maxlength="80"')}
         ${inp(`pn-cc-meta-${e.id.replace('.', '_')}`, `Meta (${e.unidade})`, e.meta, 'inputmode="decimal" maxlength="10"')}`;
       if (e.apuracao === 'bva') {
-        const todas = [...new Set(bvasConhecidas.concat(e.bvas || []))];
-        x += `<div class="pn-conv-campo pn-conv-largo">BVAs fixas apuradas<div class="pn-conv-checks">${todas.map(b => `<label><input type="checkbox" data-bva value="${esc(b)}" ${(e.bvas || []).includes(b) ? 'checked' : ''}> ${esc(b)}</label>`).join('')}</div></div>`;
+        const marcadas = (e.bvas || []).map(canonBva), todas = [...new Set(bvasConhecidas.concat(marcadas))];
+        x += `<div class="pn-conv-campo pn-conv-largo">BVAs fixas apuradas<div class="pn-conv-checks">${todas.map(b => `<label><input type="checkbox" data-bva value="${esc(b)}" ${marcadas.includes(b) ? 'checked' : ''}> ${esc(b)}</label>`).join('')}</div></div>`;
       }
       if (e.apuracao === 'volante') x += `<label class="pn-conv-campo pn-conv-largo">Municípios da barreira volante (um por linha)<textarea data-lista="municipios" rows="2">${esc((e.municipios || []).join('\n'))}</textarea></label>`;
       if (e.apuracao === 'pce') x += `<label class="pn-conv-campo pn-conv-largo">Nomes da praga nos registros do PCE (um por linha; basta conter)<textarea data-lista="pragas" rows="2">${esc((e.pragas || []).join('\n'))}</textarea></label>`;

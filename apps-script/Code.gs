@@ -149,7 +149,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-16a';
+const VERSAO_CODIGO = '2026-10-16b';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -2196,12 +2196,13 @@ function convFinLancar_(autor, l) {
   if (valor < 0 && o.descricao.length < 5) throw new Error('Valor negativo (estorno) exige descrição.');
   o.tipoDiaria = String(l.tipoDiaria || '').toUpperCase();
   if (o.tipoDiaria && CONV_TIPOS_DIARIA.indexOf(o.tipoDiaria) < 0) throw new Error('Tipo de diária inválido (NM, NS ou terceiros).');
-  o.servidorId = String(l.servidorId || '').trim(); o.servidorNome = '';
-  if (o.servidorId) {
-    const srv = admServidores_().filter(function (x) { return x.id === o.servidorId; })[0];
-    if (!srv) throw new Error('Servidor não encontrado na lista de servidores cadastrados.');
-    o.servidorNome = srv.nome;
+  // servidor da diária: nome digitado livremente (não precisa ser fiscal cadastrado); id estável pelo nome normalizado
+  o.servidorNome = convTexto_(String(l.servidorNome || '').replace(/\s+/g, ' ').trim(), 120, 'Servidor'); o.servidorId = '';
+  if (!o.servidorNome && l.servidorId) {                          // compatibilidade: id da lista antiga
+    const srv = admServidores_().concat(admServidoresDiaria_()).filter(function (x) { return x.id === String(l.servidorId); })[0];
+    if (srv) o.servidorNome = srv.nome;
   }
+  if (o.servidorNome) o.servidorId = 'srv-' + hexSha_('srv:' + nomeChave_(o.servidorNome)).slice(0, 12);
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     const agora = Date.now();
@@ -3344,12 +3345,23 @@ function admServidores_() {
   return out.sort(function (a, b) { return a.nome.localeCompare(b.nome); });
 }
 
+/** Nomes de servidores já usados em diárias (para o autopreenchimento do portal): o nome mais recente de cada pessoa. */
+function admServidoresDiaria_() {
+  const por = {};
+  lerLeitura_('ConvFinanceiro').forEach(function (r) {
+    if (!r.id || r.excluido === 1 || !r.servidorNome) return;
+    const k = nomeChave_(r.servidorNome), t = Number(r.atualizadoEm) || 0;
+    if (!por[k] || t >= por[k].t) por[k] = { id: 'srv-' + hexSha_('srv:' + k).slice(0, 12), nome: String(r.servidorNome), t: t };
+  });
+  return Object.keys(por).map(function (k) { return { id: por[k].id, nome: por[k].nome }; }).sort(function (a, b) { return a.nome.localeCompare(b.nome); });
+}
+
 /* ----- actions do portal (todas exigem a sessão) ----- */
 const autorAdm_ = function (s) { return { nome: s.nome, admId: s.admId }; };
 function admDados_(s) {
   const vivo = function (r) { return r.id && r.excluido !== 1; };
   return { ok: true, nome: s.nome, email: s.email, expiraEm: s.expiraEm, hoje: hojeManaus_(), painelUrl: painelUrl_(),
-           convenios: convListar_(), servidores: admServidores_(),
+           convenios: convListar_(), servidores: admServidoresDiaria_(),
            lancamentos: lerLeitura_('ConvLancamentos').filter(vivo).map(convLancOut_),
            financeiro: lerLeitura_('ConvFinanceiro').filter(vivo).map(convFinOutAdm_) };
 }

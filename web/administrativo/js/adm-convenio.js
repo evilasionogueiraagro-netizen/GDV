@@ -1,6 +1,6 @@
 /* Portal do Administrativo — convênio: "Desembolso" (lançamentos financeiros por subetapa/item do plano de aplicação, com saldo da
-   subetapa ao vivo, avisos de memorando repetido, diária acima do previsto e data fora da vigência; servidor da diária escolhido da
-   lista de servidores cadastrados — o NOME fica só aqui e na planilha; importação da planilha de movimentação .xlsx) e "Físico do
+   subetapa ao vivo, avisos de memorando repetido, diária acima do previsto e data fora da vigência; servidor da diária digitado (com
+   sugestão dos nomes já lançados) — o NOME fica só aqui e na planilha; importação da planilha de movimentação .xlsx) e "Físico do
    convênio" (lançamentos manuais das etapas 1.1 bens, 1.3, 1.5, 1.14 e ajustes +/− das etapas automáticas). Mesmas validações
    e regras de antes (que estavam no painel): actions admConvLancar / admConvFinLancar / admConvExcluir / admConvFinExcluir /
    admConvFinImportar. Os formulários usam os mesmos ids da antiga aba do painel (pn-cl-*, pn-cf-*, pn-conv-imp-*). */
@@ -219,7 +219,7 @@
       <label class="pn-conv-campo"><span id="pn-cf-qtd-rot">Quantidade</span><input id="pn-cf-qtd" inputmode="decimal" maxlength="12"></label>
       <label class="pn-conv-campo">Fonte<select id="pn-cf-fonte"><option value="concedente">Repasse (concedente)</option><option value="contrapartida">Contrapartida</option></select></label>
       <label class="pn-conv-campo">Nº do memorando / empenho / NF / PCDP / OB<input id="pn-cf-doc" maxlength="120" placeholder="Memo nº 560/2026"></label>
-      <label class="pn-conv-campo pn-conv-largo2" data-se="srv">Servidor (diária)<select id="pn-cf-srv"><option value="">—</option>${(E.d.servidores || []).map(s => `<option value="${esc(s.id)}">${esc(s.nome)}</option>`).join('')}</select></label>
+      <label class="pn-conv-campo pn-conv-largo2" data-se="srv">Servidor (diária)<input id="pn-cf-srv" list="pn-cf-srv-lista" maxlength="120" autocomplete="off" placeholder="Digite o nome; os já lançados aparecem como sugestão"><datalist id="pn-cf-srv-lista">${(E.d.servidores || []).map(s => `<option value="${esc(s.nome)}">`).join('')}</datalist></label>
       <label class="pn-conv-campo pn-conv-largo">Descrição<textarea id="pn-cf-desc" rows="2" maxlength="1000"></textarea></label>
       <div class="pn-conv-largo adm-vivo" id="adm-fin-vivo" aria-live="polite"></div>
       <div class="pn-conv-acoes pn-conv-largo"><button type="submit" class="pn-btn pn-btn-prim" id="pn-cf-salvar">${E.editandoFin ? 'Salvar alteração' : 'Lançar'}</button>
@@ -230,7 +230,7 @@
       const l = E.d.financeiro.find(x => x.id === E.editandoFin);
       if (l) { const q = s => form.querySelector(s); q('#pn-cf-etapa').value = l.etapa; ajustarFormFin(raiz, true); q('#pn-cf-item').value = l.item; ajustarFormFin(raiz, false); q('#pn-cf-data').value = l.data;
         q('#pn-cf-qtd').value = l.quantidade == null ? '' : String(l.quantidade).replace('.', ','); q('#pn-cf-qtd').dataset.manual = '1'; q('#pn-cf-valor').value = F.num(l.valor, 2).replace(/\./g, '');
-        q('#pn-cf-fonte').value = l.fonte; q('#pn-cf-doc').value = l.documento || ''; q('#pn-cf-desc').value = l.descricao || ''; q('#pn-cf-tipo').value = l.tipoDiaria || ''; q('#pn-cf-srv').value = l.servidorId || ''; }
+        q('#pn-cf-fonte').value = l.fonte; q('#pn-cf-doc').value = l.documento || ''; q('#pn-cf-desc').value = l.descricao || ''; q('#pn-cf-tipo').value = l.tipoDiaria || ''; q('#pn-cf-srv').value = l.servidorNome || ''; }
     }
     vivoFin(raiz);
     secaoImp(raiz, v);
@@ -293,7 +293,7 @@
     if (valor == null || valor === 0) return msg(raiz, 'fin', 'Informe o valor (ex.: 1.234,56).', 'erro');
     const l = { id: E.editandoFin || '', convenio: cfg().id, etapa: q('#pn-cf-etapa').value, item: q('#pn-cf-item').value, data: q('#pn-cf-data').value,
       quantidade: numSimples(q('#pn-cf-qtd').value), valor, fonte: q('#pn-cf-fonte').value, documento: q('#pn-cf-doc').value.trim(), descricao: q('#pn-cf-desc').value.trim(),
-      tipoDiaria: q('[data-se="tipo"]').hidden ? '' : q('#pn-cf-tipo').value, servidorId: q('[data-se="srv"]').hidden ? '' : q('#pn-cf-srv').value };
+      tipoDiaria: q('[data-se="tipo"]').hidden ? '' : q('#pn-cf-tipo').value, servidorNome: q('[data-se="srv"]').hidden ? '' : q('#pn-cf-srv').value.replace(/\s+/g, ' ').trim() };
     const b = q('#pn-cf-salvar'); b.disabled = true; msg(raiz, 'fin', 'Salvando…', '');
     try {
       const j = await A.chamar({ action: 'admConvFinLancar', lancamento: l });

@@ -269,13 +269,13 @@
       { id: 'conv-fin-etapa', titulo: 'Por etapa', csv: `convenio-${c.id}-financeiro-etapa.csv`, limite: 20, busca: false });
     P.tabela(sp, colsFin('Natureza'), Fn.naturezas.map(x => ({ rotulo: `${x.natureza} – ${x.nome}`, previsto: x.previsto, mes: x.mes, acum: x.acum, saldo: x.saldo, pct: x.pct })),
       { id: 'conv-fin-nat', titulo: 'Por natureza de despesa', csv: `convenio-${c.id}-financeiro-natureza.csv`, limite: 20, busca: false });
-    const sl = P.secao(v, 'Lançamentos financeiros', 'Todos os lançamentos (mais recentes primeiro). Sem nomes de servidores (ficam só no portal e na planilha).');
+    const sl = P.secao(v, 'Lançamentos financeiros', 'Todos os lançamentos (mais recentes primeiro). O nome do servidor da diária aparece aqui e no CSV; os relatórios (Word/PDF) não trazem nomes.');
     const itemNome = l => { const e = etapa(l.etapa), it = e && (e.itens || []).find(x => x.id === l.item); return it ? `${it.id} ${it.nome}` : l.item; };
     const lst = E.dados.financeiro.filter(l => l.convenio === c.id).slice().sort((a, b) => b.data.localeCompare(a.data) || (b.atualizadoEm || 0) - (a.atualizadoEm || 0));
     P.tabela(sl, [{ chave: 'data', rotulo: 'Data', fmt: F.data }, { chave: 'etapa', rotulo: 'Etapa' }, { chave: 'item', rotulo: 'Item', fmt: (v, l) => itemNome(l) },
       { chave: 'natureza', rotulo: 'Natureza' }, { chave: 'quantidade', rotulo: 'Qtd.', num: true, fmt: v => v == null ? '—' : F.num(v) },
       { chave: 'valor', rotulo: 'Valor', num: true, fmt: F.moeda, csv: v => v }, { chave: 'documento', rotulo: 'Documento', fmt: v => v || '—' },
-      { chave: 'fonte', rotulo: 'Fonte', fmt: v => v === 'contrapartida' ? 'Contrapartida' : 'Repasse' }, { chave: 'descricao', rotulo: 'Descrição', fmt: v => v || '—' },
+      { chave: 'fonte', rotulo: 'Fonte', fmt: v => v === 'contrapartida' ? 'Contrapartida' : 'Repasse' }, { chave: 'servidorNome', rotulo: 'Servidor', fmt: v => v || '—' }, { chave: 'descricao', rotulo: 'Descrição', fmt: v => v || '—' },
       { chave: 'origem', rotulo: 'Origem', fmt: (v, l) => v === 'planilha' ? `Planilha${l.importadoEm ? ' ' + F.data(new Date(l.importadoEm - 4 * 3600e3).toISOString()) : ''}` : 'Manual' },
       { chave: 'usuario', rotulo: 'Lançado pelo Administrativo', fmt: lancadoEm }],
       lst, { id: 'conv-fin-lanc', csv: `convenio-${c.id}-financeiro-lancamentos.csv`, limite: 30, vazio: 'Nenhum lançamento financeiro ainda.' });

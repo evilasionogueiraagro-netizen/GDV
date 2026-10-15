@@ -163,7 +163,7 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   }
   r = await post({ action: 'painelRelGdvSalvar', key: TOK, ano: 2026, tipo: 'mensal', mes: '09', textos: { introducao: 'Texto do gerente.' } }); ok(r.ok, 'painel continua salvando os TEXTOS dos relatórios');
   const PC = await post({ action: 'painelConvenios', key: TOK }), PR = await post({ action: 'painelRelGdv', key: TOK, ano: 2026 });
-  ok(PC.ok && PC.financeiro.length === 4 && !JSON.stringify(PC).includes(SRV) && !PC.financeiro.some(l => 'servidorNome' in l), 'painelConvenios: financeiro sem o nome do servidor', PC.financeiro[0]);
+  ok(PC.ok && PC.financeiro.length === 4 && PC.financeiro.some(l => l.servidorNome === SRV), 'painelConvenios (só administrador): financeiro com o nome do servidor da diária', PC.financeiro[0]);
   ok(PR.ok && PR.lancamentos.some(l => l.chave === 'pce.capacitacao' && l.usuario === 'Ana Repetida Souza'), 'painelRelGdv: lançamentos do portal com quem lançou (só leitura)');
 
   /* ================= 6. telas ================= */
@@ -251,7 +251,7 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   await pp.click('[data-conv=visao][data-v=lanc]'); await pp.waitForSelector('#pn-conv-portal');
   ok(!(await pp.$('#pn-conv-lanc-form')) && /Lançado pelo Administrativo/.test(await pp.textContent('#pn-conv-visao')), 'painel → Lançamentos: sem formulário, aviso com link para o portal e quem lançou');
   await pp.click('[data-conv=visao][data-v=fin]'); await pp.waitForSelector('#pn-conv-portal');
-  ok(!(await pp.$('#pn-conv-fin-form')) && !(await pp.$('#pn-conv-imp-arq')) && !(await pp.textContent('#pn-conv')).includes(SRV), 'painel → Financeiro só leitura: sem formulário, sem importação e sem nome de servidor');
+  ok(!(await pp.$('#pn-conv-fin-form')) && !(await pp.$('#pn-conv-imp-arq')) && (await pp.textContent('#pn-conv')).includes(SRV), 'painel → Financeiro só leitura (sem formulário nem importação), lista com o nome do servidor');
   await shot(pp, 'painel_financeiro_so_leitura');
   const blocos = await pp.evaluate(() => { const s = Painel.aba('convenios').estado(); return JSON.stringify(ConvDocs.blocos(s.R, ConvDocs.textosIniciais(s.R.cfg, s.dados.relatorios, s.mes).textos, { numero: 1, dataEmissao: '2026-09-30' })); });
   ok(!blocos.includes(SRV) && /Execução financeira|EXECUÇÃO FINANCEIRA/i.test(blocos), 'relatório do convênio sem o nome do servidor das diárias');

@@ -436,19 +436,24 @@ const ConvDocs = (() => {
    */
   function blocos(R, t, o) {
     o = o || {}; t = t || textosIniciais(R.cfg, [], R.mes).textos;
+    // o.consolidado: total desde o início da execução até o.ate (sem as colunas e frases "no mês")
+    const consol = !!o.consolidado, ateD = o.ate || R.fim;
     const c = R.cfg, B = [], mes = fmt.mes(R.mes), ini = fmt.mes(R.meses[0]);
-    const per = R.meses[0] === R.mes ? mes : `${ini} a ${mes}`;
-    B.push({ t: 'titulo', texto: `${c.titulo} – PARCIAL ${o.numero || numeroAuto(c, R.mes)}` });
+    const per = consol ? `${fmt.data(c.inicioExecucao)} a ${fmt.data(ateD)}` : R.meses[0] === R.mes ? mes : `${ini} a ${mes}`;
+    const ateTxt = consol ? fmt.data(ateD) : mes;
+    const semMes = (tab, i) => { tab.colunas.splice(i, 1); tab.linhas.forEach(l => l.splice(i, 1)); return tab; };
+    B.push({ t: 'titulo', texto: consol ? `${c.titulo} – CONSOLIDADO ATÉ ${fmt.data(ateD)}` : `${c.titulo} – PARCIAL ${o.numero || numeroAuto(c, R.mes)}` });
     B.push({ t: 'titulo2', texto: c.nome });
     B.push(P(c.convenente, { rotulo: 'Convenente' }), P(c.objeto, { rotulo: 'Objeto' }), P(c.meta, { negrito: true }),
-      P(`${mes} (${fmt.data(R.mes + '-01')} a ${fmt.data(R.fim)}); acumulado desde o início da execução: ${per} (${fmt.data(c.inicioExecucao)} a ${fmt.data(R.fim)})`, { rotulo: 'Período de referência' }));
+      P(consol ? `consolidado desde o início da execução: ${per}` : `${mes} (${fmt.data(R.mes + '-01')} a ${fmt.data(R.fim)}); acumulado desde o início da execução: ${per} (${fmt.data(c.inicioExecucao)} a ${fmt.data(R.fim)})`, { rotulo: 'Período de referência' }));
     B.push({ t: 'h', texto: '1. OBJETIVO DO RELATÓRIO' });
     B.push(P(`O presente relatório tem por objetivo registrar e demonstrar, de forma circunstanciada, a execução física da ${c.meta.replace(/:\s*/, ' – ')}, prevista no ${c.nome}, celebrado entre o Ministério da Agricultura e Pecuária – MAPA e a ${c.convenente}.`));
-    B.push(P(`O período analisado é o mês de ${mes}, com o acumulado desde ${fmt.data(c.inicioExecucao)}, data de início da execução das ações com utilização dos recursos do convênio.`));
+    B.push(P(consol ? `O período analisado é o consolidado de ${per}, desde ${fmt.data(c.inicioExecucao)}, data de início da execução das ações com utilização dos recursos do convênio.`
+      : `O período analisado é o mês de ${mes}, com o acumulado desde ${fmt.data(c.inicioExecucao)}, data de início da execução das ações com utilização dos recursos do convênio.`));
     B.push(P('As informações apresentadas estão organizadas por etapa, com indicação dos quantitativos realizados, percentual de execução, evidências da atividade, fatores que influenciaram a execução, justificativas para eventual execução parcial e providências adotadas pela ADAF.'));
     B.push({ t: 'h', texto: '2. SÍNTESE DA EXECUÇÃO FÍSICA' });
     B.push(P(`No período de ${per}, foram executadas ações de vigilância fitossanitária, levantamentos para detecção de pragas, controle e supressão da Monilíase, fiscalização móvel e fixa do trânsito de vegetais e supervisão das unidades operacionais. Os principais resultados registrados foram:`));
-    B.push(tabelaResumo(R));
+    B.push(consol ? semMes(tabelaResumo(R), 4) : tabelaResumo(R));
     B.push(P(`Os percentuais representam a relação entre a execução acumulada registrada e a respectiva meta prevista no Plano de Trabalho. Esperado pelo tempo decorrido (linear de ${fmt.data(c.inicioExecucao)} a ${fmt.data(c.vigencia.fim)}): ${fmt.pct(R.esperado)}.`, { pequeno: true }));
     B.push({ t: 'h2', texto: 'Memória descritiva' });
     R.etapas.forEach(r => B.push(P(r.memoria, { rotulo: `Etapa ${r.id}` })));
@@ -456,8 +461,8 @@ const ConvDocs = (() => {
     R.etapas.forEach((r, i) => {
       const x = (t.etapas || {})[r.id] || {};
       B.push({ t: 'h2', texto: `3.${i + 1} Etapa ${r.id} – ${r.nome}` });
-      B.push(P(`${mes} (acumulado: ${per}).`, { rotulo: 'Período' }));
-      B.push(P(r.execTexto + (r.media ? '' : ` No mês: ${fmt.int(r.mes)}.`), { rotulo: 'Execução registrada' }));
+      B.push(P(consol ? `${per} (consolidado).` : `${mes} (acumulado: ${per}).`, { rotulo: 'Período' }));
+      B.push(P(r.execTexto + (r.media || consol ? '' : ` No mês: ${fmt.int(r.mes)}.`), { rotulo: 'Execução registrada' }));
       B.push(P(r.media ? r.previstoTxt : `${fmt.int(r.meta)} ${r.unidade}.${r.obs ? ' ' + r.obs : ''}`, { rotulo: 'Meta' }));
       B.push(P(`${fmt.pct(r.pct)}${r.media ? ' (média das sub-metas)' : ''} · esperado pelo tempo: ${fmt.pct(r.esperado)} · situação: ${r.situacaoTxt.toLowerCase()}.`, { rotulo: 'Percentual de execução' }));
       ['evidencias', 'justificativa', 'fator', 'providencia', 'situacao'].forEach(k => { if (x[k]) B.push(P(x[k], { rotulo: ROTULOS_TXT[k] })); });
@@ -469,7 +474,7 @@ const ConvDocs = (() => {
     B.push({ t: 'lista', itens: linhasDe(t.gerais.providencias) });
     B.push({ t: 'h', texto: '6. ANÁLISE DA EXECUÇÃO DA META' });
     const ord = R.etapas.slice().sort((a, b) => b.pct - a.pct), top = ord.filter(r => r.pct > 0).slice(0, 3), baixo = ord.filter(r => r.pct < 0.5);
-    B.push(P(`Considerando o acumulado até ${mes}, os maiores percentuais registrados foram:`));
+    B.push(P(`Considerando o acumulado até ${ateTxt}, os maiores percentuais registrados foram:`));
     B.push({ t: 'lista', itens: top.length ? top.map(r => `${fmt.pct(r.pct)} – ${r.nomeCurto.toLowerCase()} (etapa ${r.id})`) : ['nenhuma etapa com execução registrada.'] });
     B.push(P(baixo.length ? `Etapas com percentual inferior a 50%: ${baixo.map(r => `${r.id} (${fmt.pct(r.pct)})`).join(', ')}.` : 'Todas as etapas estão com 50% ou mais da meta executada.'));
     const atras = R.etapas.filter(r => r.situacao === 'atrasada');
@@ -479,15 +484,16 @@ const ConvDocs = (() => {
     B.push({ t: 'h', texto: '7. CONCLUSÃO TÉCNICA' });
     const num = id => R.etapas.find(r => r.id === id);
     const partes = R.etapas.filter(r => r.acum > 0 && !r.media).map(r => `${fmt.int(r.acum)} ${r.unidade} (etapa ${r.id})`);
-    B.push(P(`Com base nos registros de execução até ${mes}, conclui-se que a ${c.meta.replace(/:\s*/, ' – ')} encontra-se em execução${partes.length ? ', tendo sido registrados ' + listaE(partes) : ''}${num('1.3') && num('1.3').acum ? ', além dos monitoramentos e da vigilância em áreas de risco fitossanitário (etapa 1.3)' : ''}.`));
+    B.push(P(`Com base nos registros de execução até ${ateTxt}, conclui-se que a ${c.meta.replace(/:\s*/, ' – ')} encontra-se em execução${partes.length ? ', tendo sido registrados ' + listaE(partes) : ''}${num('1.3') && num('1.3').acum ? ', além dos monitoramentos e da vigilância em áreas de risco fitossanitário (etapa 1.3)' : ''}.`));
     linhasDe(t.gerais.conclusao).forEach(l => B.push(P(l)));
     B.push({ t: 'h', texto: '8. EXECUÇÃO FINANCEIRA' });
     const F = R.fin;
-    B.push(P(`Valor global ${fmt.moeda(c.valores.global)}: repasse ${fmt.moeda(c.valores.repasse)} (custeio ${fmt.moeda(c.valores.repasseCusteio)}, investimento ${fmt.moeda(c.valores.repasseInvestimento)}) e contrapartida ${fmt.moeda(c.valores.contrapartida)}. Executado até ${mes}: ${fmt.moeda(F.total.acum)} (${fmt.pct(F.total.pct)}); saldo ${fmt.moeda(F.total.saldo)}.`));
-    B.push(tabelaFin('Por etapa', 'Etapa', F.etapas.map(x => ({ rotulo: `${x.id} ${x.nome}`, previsto: x.previsto, mes: x.mes, acum: x.acum })), F.total));
-    B.push(tabelaFin('Por natureza de despesa', 'Natureza', F.naturezas.map(x => ({ rotulo: `${x.natureza} – ${x.nome}`, previsto: x.previsto, mes: x.mes, acum: x.acum })), F.total));
-    B.push(tabelaFin('Por fonte de recurso', 'Fonte', [{ rotulo: 'Repasse (concedente)', ...F.fonte.concedente }, { rotulo: 'Contrapartida (convenente)', ...F.fonte.contrapartida }],
-      { previsto: F.fonte.concedente.previsto + F.fonte.contrapartida.previsto, mes: F.fonte.concedente.mes + F.fonte.contrapartida.mes, acum: F.fonte.concedente.acum + F.fonte.contrapartida.acum }));
+    B.push(P(`Valor global ${fmt.moeda(c.valores.global)}: repasse ${fmt.moeda(c.valores.repasse)} (custeio ${fmt.moeda(c.valores.repasseCusteio)}, investimento ${fmt.moeda(c.valores.repasseInvestimento)}) e contrapartida ${fmt.moeda(c.valores.contrapartida)}. Executado até ${ateTxt}: ${fmt.moeda(F.total.acum)} (${fmt.pct(F.total.pct)}); saldo ${fmt.moeda(F.total.saldo)}.`));
+    const tf = tab => consol ? semMes(tab, 2) : tab;
+    B.push(tf(tabelaFin('Por etapa', 'Etapa', F.etapas.map(x => ({ rotulo: `${x.id} ${x.nome}`, previsto: x.previsto, mes: x.mes, acum: x.acum })), F.total)));
+    B.push(tf(tabelaFin('Por natureza de despesa', 'Natureza', F.naturezas.map(x => ({ rotulo: `${x.natureza} – ${x.nome}`, previsto: x.previsto, mes: x.mes, acum: x.acum })), F.total)));
+    B.push(tf(tabelaFin('Por fonte de recurso', 'Fonte', [{ rotulo: 'Repasse (concedente)', ...F.fonte.concedente }, { rotulo: 'Contrapartida (convenente)', ...F.fonte.contrapartida }],
+      { previsto: F.fonte.concedente.previsto + F.fonte.contrapartida.previsto, mes: F.fonte.concedente.mes + F.fonte.contrapartida.mes, acum: F.fonte.concedente.acum + F.fonte.contrapartida.acum })));
     B.push(tabelaFisFin(R));
     B.push(P(`% físico = execução acumulada ÷ meta (limitado a 100%); % financeiro = executado acumulado ÷ previsto da etapa; diárias = itens de natureza 33.90.14 e 33.90.36 (quantidade lançada ou valor ÷ valor unitário); custo por unidade = gasto ÷ unidades físicas executadas × previsto ÷ meta. ${fraseFisFin(R)}`, { pequeno: true }));
     B.push(P(`${c.local}, ${fmt.extenso(o.dataEmissao || R.fim)}.`, { alinhar: 'd', espaco: true }));

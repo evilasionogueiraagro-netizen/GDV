@@ -149,7 +149,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-16d';
+const VERSAO_CODIGO = '2026-10-16e';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -2140,6 +2140,12 @@ function convLancar_(autor, l) {
     o.situacao = String(l.situacao || '');
     if (CONV_SITUACOES_BEM.indexOf(o.situacao) < 0) throw new Error('Situação do bem inválida.');
     o.quantidade = 1;
+    var bemValor = l.valor === '' || l.valor === null || l.valor === undefined ? null : Math.round(convNumero_(l.valor, 'Valor de aquisição') * 100) / 100;
+    if (bemValor !== null && !(bemValor > 0 && bemValor <= 1e8)) throw new Error('Valor de aquisição inválido.');
+    var bemQtd = l.quantidadeAquisicao === '' || l.quantidadeAquisicao === null || l.quantidadeAquisicao === undefined ? null : convNumero_(l.quantidadeAquisicao, 'Quantidade adquirida');
+    if (bemQtd !== null && !(bemQtd > 0 && bemQtd <= 1e4)) throw new Error('Quantidade adquirida inválida.');
+    var bemFonte = String(l.fonte || 'concedente');
+    if (CONV_FONTES.indexOf(bemFonte) < 0) throw new Error('Fonte inválida (concedente ou contrapartida).');
   } else {
     const q = convNumero_(l.quantidade, 'Quantidade');
     if (Math.abs(q) > 1e6) throw new Error('Quantidade grande demais.');
@@ -2169,11 +2175,48 @@ function convLancar_(autor, l) {
       o.criadoEm = ant.criadoEm;
     } else { id = Utilities.getUuid(); o.criadoEm = agora; }
     o.id = id; o.usuario = autor.nome; o.admId = autor.admId || ''; o.atualizadoEm = agora; o.excluido = 0;
+    // bem adquirido/entregue: o valor de aquisição vira (ou atualiza) o desembolso do item do bem no Financeiro (chave bem|<convênio>|<bem>)
+    let fin = null;
+    if (tipo === 'bem' && (o.situacao === 'adquirido' || o.situacao === 'entregue')) {
+      fin = convBemFinanceiro_(autor, cfg, e, o, bemValor, bemFonte, agora, bemQtd);
+      if (!fin) throw new Error('Informe o valor de aquisição do bem (entra no financeiro da etapa ' + e.id + ').');
+    }
     convGravar_('ConvLancamentos', o);
-    return { ok: true, lancamento: convLancOut_(paraObjeto_(TABELAS.ConvLancamentos, TABELAS.ConvLancamentos.map(function (c) { return o[c]; }))), antes: ant };
+    return { ok: true, lancamento: convLancOut_(paraObjeto_(TABELAS.ConvLancamentos, TABELAS.ConvLancamentos.map(function (c) { return o[c]; }))), antes: ant,
+             financeiro: fin && fin.lancamento, finAntes: fin && fin.antes };
   } finally { lock.releaseLock(); }
 }
 
+/** Item do plano de aplicação de um bem da 1.1: b.item, ou o item cujo nome traz a primeira palavra do bem (pick-up, embarcação, quadriciclo, carreta). */
+function convItemDoBem_(e, b) {
+  const itens = e.itens || [];
+  if (b.item) { const x = itens.filter(function (i) { return i.id === b.item; })[0]; if (x) return x; }
+  const p = normPub_(b.nome).split(' ')[0];
+  return itens.filter(function (i) { return normPub_(i.nome).split(' ').some(function (w) { return w === p || (p.length >= 4 && w.indexOf(p) === 0); }); })[0] || null;
+}
+const convChaveBem_ = function (cfg, bemId) { return 'bem|' + cfg.id + '|' + bemId; };
+/**
+ * Desembolso da aquisição de um bem (dentro do lock de convLancar_), com a quantidade adquirida (padrão 1). valor null = mantém o já lançado (ex.: "entregue" depois de "adquirido").
+ * Devolve {lancamento, antes} ou null se não há valor nem lançamento anterior.
+ */
+function convBemFinanceiro_(autor, cfg, e, lanc, valor, fonte, agora, qtd) {
+  const b = (e.bens || []).filter(function (x) { return x.id === lanc.submeta; })[0];
+  const item = convItemDoBem_(e, b);
+  if (!item) throw new Error('O bem "' + b.nome + '" não tem item no plano de aplicação da etapa ' + e.id + '.');
+  const chave = convChaveBem_(cfg, b.id);
+  const ant = lerLeitura_('ConvFinanceiro').filter(function (r) { return r.id && r.chave === chave; })[0] || null;
+  const vivo = ant && ant.excluido !== 1;
+  if (valor === null && !vivo) return null;
+  const o = vivo ? JSON.parse(JSON.stringify(ant)) : { id: ant ? ant.id : Utilities.getUuid(), criadoEm: ant ? ant.criadoEm : agora };
+  Object.assign(o, { convenio: cfg.id, etapa: e.id, item: item.id, natureza: item.natureza, chave: chave, origem: 'bem',
+                     descricao: 'Aquisição: ' + b.nome + ' – ' + b.local, usuario: autor.nome, admId: autor.admId || '', atualizadoEm: agora, excluido: 0 });
+  if (valor !== null) { o.valor = valor; o.fonte = fonte; }
+  if (qtd !== null && qtd !== undefined) o.quantidade = qtd; else if (!vivo) o.quantidade = 1;
+  if (!vivo || valor !== null) { o.data = lanc.data; if (lanc.documento) o.documento = lanc.documento; }
+  if (!o.fonte) o.fonte = 'concedente';
+  convGravar_('ConvFinanceiro', o);
+  return { lancamento: convFinOutAdm_(paraObjeto_(TABELAS.ConvFinanceiro, TABELAS.ConvFinanceiro.map(function (c) { return o[c]; }))), antes: vivo ? ant : null };
+}
 const CONV_TIPOS_DIARIA = ['NM', 'NS', 'TERC'];
 /**
  * Lançamento financeiro / desembolso (novo ou edição): etapa e item do plano de aplicação, data, quantidade (diárias), valor, documento
@@ -3372,7 +3415,8 @@ function admDados_(s) {
 function admConvLancar_(s, req) {
   const r = convLancar_(autorAdm_(s), req.lancamento);
   admHistLote_(s, r.antes ? 'editar' : 'lançar', 'ConvLancamentos', [[r.lancamento.id, r.antes, r.lancamento]]);
-  delete r.antes; return r;
+  if (r.financeiro) admHistLote_(s, r.finAntes ? 'editar' : 'lançar', 'ConvFinanceiro', [[r.financeiro.id, r.finAntes, r.financeiro]]);
+  delete r.antes; delete r.finAntes; return r;
 }
 function admConvFinLancar_(s, req) {
   const r = convFinLancar_(autorAdm_(s), req.lancamento);
@@ -3381,7 +3425,15 @@ function admConvFinLancar_(s, req) {
 }
 function admConvExcluir_(s, req) {
   const r = convExcluir_(autorAdm_(s), 'ConvLancamentos', req.id);
-  admHistLote_(s, 'excluir', 'ConvLancamentos', [[r.id, r.antes, { excluido: 1 }]]); delete r.antes; return r;
+  admHistLote_(s, 'excluir', 'ConvLancamentos', [[r.id, r.antes, { excluido: 1 }]]);
+  // bem: sem outro lançamento "adquirido"/"entregue" desse bem, o desembolso da aquisição também sai do Financeiro
+  const a = r.antes;
+  if (a.tipo === 'bem' && (a.situacao === 'adquirido' || a.situacao === 'entregue')) {
+    const resta = lerLeitura_('ConvLancamentos').some(function (x) { return x.id && x.excluido !== 1 && x.convenio === a.convenio && x.tipo === 'bem' && x.submeta === a.submeta && (x.situacao === 'adquirido' || x.situacao === 'entregue'); });
+    const f = resta ? null : lerLeitura_('ConvFinanceiro').filter(function (x) { return x.id && x.excluido !== 1 && x.chave === convChaveBem_(convDe_(a.convenio), a.submeta); })[0];
+    if (f) { const rf = convExcluir_(autorAdm_(s), 'ConvFinanceiro', f.id); admHistLote_(s, 'excluir', 'ConvFinanceiro', [[rf.id, rf.antes, { excluido: 1 }]]); r.finExcluido = rf.id; }
+  }
+  delete r.antes; return r;
 }
 function admConvFinExcluir_(s, req) {
   const r = convExcluir_(autorAdm_(s), 'ConvFinanceiro', req.id);

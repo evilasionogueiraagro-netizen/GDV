@@ -674,6 +674,9 @@ body.tv .pn-erro { font-size: 2.1vh; padding: 1.4vh; }
 .pn-conv-ficha dd, .pn-conv-nums dd { margin: 2px 0 0; font-weight: 650; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
 .pn-conv-nav { display: flex; flex-wrap: wrap; gap: 6px; }
 .pn-conv-visao.carregando { opacity: .55; }
+.pn-conv-filtro { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.pn-conv-chipn { font-size: 11.5px; color: var(--ink2); font-variant-numeric: tabular-nums; margin-left: 4px; }
+.pn-conv-filtro-item { display: flex; flex-direction: column; gap: 3px; font-size: 12px; color: var(--ink2); max-width: 420px; }
 .pn-conv-etapas { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 12px; align-items: start; }
 .pn-conv-etapa { display: flex; flex-direction: column; gap: 8px; }
 .pn-conv-etapa-cab { display: flex; justify-content: space-between; align-items: flex-start; gap: 8px; }

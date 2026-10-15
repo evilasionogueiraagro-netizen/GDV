@@ -73,7 +73,7 @@ const EU = [-2.63, -56.74];
   // ---------- app ----------
   const b = await amb.lancar();
   const aparelho = async ({ token, nome }) => {
-    const c = await b.newContext({ viewport: { width: 400, height: 860 }, permissions: ['geolocation'], geolocation: { latitude: EU[0], longitude: EU[1], accuracy: 12 }, acceptDownloads: true });
+    const c = await b.newContext({ viewport: { width: 400, height: 860 }, permissions: ['geolocation'], geolocation: { latitude: EU[0], longitude: EU[1], accuracy: 12 }, acceptDownloads: true, timezoneId: 'America/Manaus' });   // aparelho em Manaus: "hoje" do app = diaM(0) mesmo depois das 20h
     await c.route('https://tile.openstreetmap.org/**', rt => rt.abort());
     await c.addInitScript(([t, n]) => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } } catch (e) {} }, [token, nome]);
     await c.addInitScript(() => {          // compartilhamento do celular (WhatsApp/e-mail) simulado: guarda os arquivos recebidos

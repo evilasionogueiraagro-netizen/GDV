@@ -2,7 +2,7 @@
 const CONFIG = {
   // Endereço do servidor (Apps Script, termina em /exec). Não é segredo: sem uma credencial de fiscal
   // o servidor recusa tudo. Com ele preenchido, o fiscal só digita o código de 6 dígitos.
-  sync: { url: 'https://script.google.com/macros/s/AKfycbx58-TObty08Aqc5Vft30r_G_zzLPq_agJReOqJcFgXRKkVXoqb4vFPowi3kDKo3q7p/exec' },
+  sync: { url: 'https://script.google.com/macros/s/AKfycbyesoopdbY-lTZQT9QbMe2qvH5Pvp-fN4Z1w1eEFxLmBxGhsF77YYa8NPPu2rnOZFr4/exec' },
   unidadePadrao: 'MANAUS',          // só para turnos antigos sem unidade; hoje a unidade vem da BVA (fixa) ou do município (volante)
   localPadrao: '',                  // sugestão de local (ex.: 'Barreira Porto CEASA'); vazio = digitar a cada turno
   postos: ['Fixa', 'Móvel'],        // "Móvel" aparece como "Volante (móvel)" na tela

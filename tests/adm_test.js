@@ -109,18 +109,19 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   /* ================= 4. lançamentos pelo portal ================= */
   console.log('4. Desembolso, físico, linhas de relatório e histórico');
   const S = G.sessao, D = await post({ action: 'admDados', sessao: S });
-  const srv = D.servidores.find(x => x.nome === SRV);
-  ok(D.ok && D.nome === 'Ana Repetida Souza' && srv && /^srv-[0-9a-f]{12}$/.test(srv.id) && !D.servidores.some(x => x.nome === 'Gerente Portal'), 'admDados: convênio e lista de servidores cadastrados (id + nome; sem administradores)', D.servidores);
+  ok(D.ok && D.nome === 'Ana Repetida Souza' && Array.isArray(D.servidores) && !D.servidores.length, 'admDados: sugestões de servidores começam vazias (vêm dos lançamentos; não são os fiscais)', D.servidores);
   const FL = l => post({ action: 'admConvFinLancar', sessao: S, lancamento: { convenio: '991272-2025', ...l } });
-  let f = await FL({ etapa: '1.4', item: '1.4.3', data: '2026-09-10', valor: 1200, quantidade: 10, tipoDiaria: 'NM', servidorId: srv.id, documento: 'Memo nº 100/2026', descricao: 'Diárias levantamento' });
-  ok(f.ok && f.lancamento.servidorNome === SRV && f.lancamento.usuario === 'Ana Repetida Souza' && !f.avisos.length, 'desembolso com servidor da lista (nome resolvido no servidor) e quem lançou', f);
+  let f = await FL({ etapa: '1.4', item: '1.4.3', data: '2026-09-10', valor: 1200, quantidade: 10, tipoDiaria: 'NM', servidorNome: '  ' + SRV + '  ', documento: 'Memo nº 100/2026', descricao: 'Diárias levantamento' });
+  ok(f.ok && f.lancamento.servidorNome === SRV && /^srv-[0-9a-f]{12}$/.test(f.lancamento.servidorId) && f.lancamento.usuario === 'Ana Repetida Souza' && !f.avisos.length, 'desembolso com servidor digitado livremente (nome normalizado, id estável) e quem lançou', f);
+  const D2 = await post({ action: 'admDados', sessao: S }), srv = D2.servidores.find(x => x.nome === SRV);
+  ok(srv && srv.id === f.lancamento.servidorId, 'o nome lançado passa a ser sugerido no autopreenchimento', D2.servidores);
   const ID_FIN = f.lancamento.id;
   f = await FL({ etapa: '1.4', item: '1.4.3', data: '2026-09-11', valor: 120, quantidade: 1, tipoDiaria: 'NM', documento: 'memo 100/2026' });
   ok(f.ok && f.avisos.some(a => /já lançado/.test(a)), 'aviso: memorando repetido no mesmo item (não bloqueia)', f.avisos);
   f = await FL({ etapa: '1.14', item: '1.14.3', data: '2026-09-11', valor: 1920, quantidade: 16, tipoDiaria: 'NM' });
   ok(f.ok && f.avisos.some(a => /acima do previsto/.test(a)), 'aviso: diárias acima do previsto no item (16 de 15)', f.avisos);
   f = await FL({ etapa: '1.4', item: '1.4.3', data: '2027-09-11', valor: 120 }); ok(!f.ok && /fora da vigência/.test(f.erro), 'data fora da vigência recusada', f.erro);
-  f = await FL({ etapa: '1.4', item: '1.4.3', data: '2026-09-11', valor: 120, servidorId: 'srv-000000000000' }); ok(!f.ok && /Servidor não encontrado/.test(f.erro), 'servidor fora da lista recusado', f.erro);
+  f = await FL({ etapa: '1.4', item: '1.4.3', data: '2026-09-11', valor: 120, servidorNome: 'Fulano 123.456.789-09' }); ok(!f.ok && /CPF/.test(f.erro), 'servidor com CPF no nome recusado (LGPD)', f.erro);
   f = await FL({ etapa: '1.4', item: '1.4.3', data: '2026-09-11', valor: 120, tipoDiaria: 'XX' }); ok(!f.ok && /Tipo de diária/.test(f.erro), 'tipo de diária inválido recusado', f.erro);
   // importação pela action do portal (idempotente)
   const imp = itens => post({ action: 'admConvFinImportar', sessao: S, convenio: '991272-2025', arquivo: 'MOVIMENTACAO.xlsx', itens });
@@ -204,7 +205,8 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   await p.fill('#pn-cf-data', '2027-12-01');
   ok(/fora da vigência/.test(await p.textContent('#adm-fin-avisos')), 'aviso ao vivo: data fora da vigência');
   await p.fill('#pn-cf-data', '2026-09-20'); await p.fill('#pn-cf-doc', 'Memo nº 130/2026');
-  await p.selectOption('#pn-cf-srv', srv.id);
+  ok(await p.locator('#pn-cf-srv-lista option[value="' + SRV + '"]').count() === 1, 'campo do servidor é texto livre com sugestão dos nomes já lançados');
+  await p.fill('#pn-cf-srv', SRV);
   await shot(p, 'portal_desembolso');
   await p.click('#pn-cf-salvar');
   await p.waitForFunction(() => /Lançado/.test(document.querySelector('[data-msg=fin]').textContent), null, { timeout: 15000 });

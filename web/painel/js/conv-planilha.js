@@ -10,7 +10,7 @@
    Sem abas "SUBETAPA": layout genérico — qualquer aba com um cabeçalho que tenha data, memo, subetapa e valor.
    Aba "SOMA" (opcional): total executado por etapa e TOTAL, usado só para conferência.
 
-   LGPD: a coluna NOME (servidor que recebeu a diária) NUNCA é lida — só data, memo, tipo (NM/NS), subetapa e valor. Nada de nome
+   LGPD: a coluna NOME (servidor que recebeu a diária) só é lida no Portal do Administrativo (opts.nomes) — só data, memo, tipo (NM/NS), subetapa e valor. Nada de nome
    sai do navegador, entra na prévia ou é gravado; a descrição gravada é "Diária NM"/"Diária NS".
 
    Regras:
@@ -77,9 +77,11 @@ const ConvPlanilha = (() => {
   /**
    * Extrai os lançamentos das abas. Devolve {formato: 'subetapas'|'generico', abas: [{nome, codigo, previsto, executado, saldo,
    * linhas: [{lid, aba, linha, data, memo, tipo, sub, valor}], totais: [valor], somaLinhas}], soma: {porEtapa: {'1.10': v}, total} | null,
-   * ignoradas: [nomes]}. A coluna NOME não é lida.
+   * ignoradas: [nomes]}. A coluna NOME só é lida com opts.nomes (Portal do Administrativo: o nome do servidor da diária fica no
+   * portal e na planilha do e-GDV; o painel e os relatórios nunca recebem).
    */
-  function extrair(abas) {
+  function extrair(abas, opts) {
+    const lerNomes = !!(opts && opts.nomes);
     const out = { formato: 'subetapas', abas: [], soma: null, ignoradas: [] };
     const subs = abas.filter(a => /subetapa/i.test(a.nome) && RE_COD.test(a.nome));
     let fonte = subs;
@@ -105,6 +107,7 @@ const ConvPlanilha = (() => {
         const memo = memoNorm(l[h.memo]), dt = data(l[h.data]);
         const sub = String((h.sub >= 0 && l[h.sub] != null && String(l[h.sub]).trim()) || codigo).trim().replace(/^subetapa\s*/i, '');
         brutas.push({ lid: `${a.nome}#${i + 1}`, aba: a.nome, linha: i + 1, data: dt, memo, tipo: h.tipo >= 0 ? tipoDe(l[h.tipo]) : '', sub, valor: r2(valor),
+          servidorNome: lerNomes && h.nome >= 0 && l[h.nome] != null ? String(l[h.nome]).replace(/\s+/g, ' ').trim().slice(0, 120) : '',
           semData: !dt, vazia: !dt && !memo });
       }
       // linhas sem data e sem memo: a que vale a soma das demais é o total da aba (pode haver mais de um total: maiores primeiro)
@@ -190,7 +193,8 @@ const ConvPlanilha = (() => {
         if (x.importar) {
           const f = porChave[x.chave];
           if (f) x.status = f.data === x.data && igual(Number(f.valor), l.valor) && (f.documento || '') === x.documento && (f.descricao || '') === x.descricao &&
-            f.item === x.item && (f.quantidade == null ? null : Number(f.quantidade)) === x.quantidade ? 'igual' : 'alterado';
+            f.item === x.item && (f.quantidade == null ? null : Number(f.quantidade)) === x.quantidade &&
+            (!x.servidorNome || (f.servidorNome || '') === x.servidorNome) ? 'igual' : 'alterado';
           if (f) x.id = f.id;
         }
         linhas.push(x);
@@ -250,7 +254,7 @@ const ConvPlanilha = (() => {
     itens.forEach(y => y.avisos.forEach(a => avisos.push({ nivel: 'atencao', texto: `Item ${y.id}: ${a}.` })));
     if (t.ausentes) avisos.push({ nivel: 'info', texto: `${t.ausentes} lançamento(s) importado(s) antes não estão mais na planilha (não são apagados sozinhos; marque para excluir).` });
     const envio = linhas.filter(l => l.importar && l.status !== 'igual').map(l => ({ chave: l.chave, item: l.item, etapa: l.etapa, data: l.data, valor: l.valor,
-      documento: l.documento, quantidade: l.quantidade, fonte: 'concedente', descricao: l.descricao }));
+      documento: l.documento, quantidade: l.quantidade, fonte: 'concedente', descricao: l.descricao, servidorNome: l.servidorNome || '' }));
     return { linhas, itens, ausentes, soma, totais: t, avisos, envio, excluir: ausentes.filter(f => f.excluir).map(f => f.id), abasIgnoradas: ext.ignoradas, formato: ext.formato };
   }
   function moeda(v) { return v == null || !isFinite(v) ? '—' : 'R$ ' + new Intl.NumberFormat('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(v); }

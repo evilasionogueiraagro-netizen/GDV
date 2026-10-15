@@ -109,7 +109,11 @@ const ctx = {
   },
   MailApp: { sendEmail: m => { if (typeof m !== 'object') throw new Error('use o formato de objeto'); emails.push(JSON.parse(JSON.stringify(m))); } },
   LockService: { getScriptLock: () => ({ waitLock() { if (lockFalha && --lockFalha === 0) throw new Error('Lock timeout: another process was holding the lock for too long.'); }, releaseLock() {} }) },
-  Utilities: { formatDate: d => d.toISOString().slice(0, 10), getUuid: () => require('crypto').randomUUID(),
+  Utilities: { formatDate: (d, tz, fmt) => {                           // como no Apps Script: no fuso pedido (ex.: America/Manaus), não em UTC
+      const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: tz || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
+        .formatToParts(new Date(d)).map(x => [x.type, x.value]));
+      return String(fmt || 'yyyy-MM-dd').replace(/yyyy|MM|dd|HH|mm|ss/g, k => ({ yyyy: p.year, MM: p.month, dd: p.day, HH: p.hour, mm: p.minute, ss: p.second })[k]);
+    }, getUuid: () => require('crypto').randomUUID(),
     base64Decode: s => { if (!/^[A-Za-z0-9+/]*={0,2}$/.test(s)) throw new Error('Could not decode string.'); return Array.from(Buffer.from(s, 'base64')).map(b => (b > 127 ? b - 256 : b)); },
     newBlob: (bytes, mime, nome) => ({ bytes, getName: () => nome, getContentType: () => mime, getBytes: () => bytes }),
     DigestAlgorithm: { SHA_256: 'sha256' }, Charset: { UTF_8: 'utf8' },   // computeDigest devolve bytes com sinal (-128..127), como no Apps Script

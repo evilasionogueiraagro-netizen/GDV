@@ -35,7 +35,7 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) proce
   await p.click('nav [data-v=home]'); await p.waitForSelector('.contador');
   await p.click('[data-go=registrar]'); await p.waitForSelector('#fVeic');
   ok(!(await p.getAttribute('#placa', 'required')), 'volante: registro sem placa permitido');
-  await p.click('#fVeic button.botao'); await p.waitForTimeout(500);
+  await p.click('#fVeic > button.botao'); await p.waitForTimeout(500);
   ok((await p.evaluate(async () => (await Store.todos('veiculos')).length)) === 1, 'veículo sem placa contado');
   // encerra e abre turno na CEASA
   await p.evaluate(async () => { const id = await Store.meta('turnoAtual'); const x = await Store.obter('turnos', id); await Store.salvar('turnos', { ...x, encerrado: 1, fim: '12:00' }); await Store.setMeta('turnoAtual', ''); });

@@ -118,8 +118,18 @@ const ctx = {
   Session: { getActiveUser: () => ({ getEmail: () => emailAtual }), getEffectiveUser: () => ({ getEmail: () => emailDono }) },
   HtmlService: { createHtmlOutput: h => ({ kind: 'html', content: h, setTitle() { return this; } }), createHtmlOutputFromFile: n => ({ kind: 'arquivo', name: n, setTitle() { return this; }, addMetaTag() { return this; } }) },
   CacheService: { getScriptCache: () => ({ get: k => cache.get(k) ?? null, put: (k, v) => cache.set(k, v), remove: k => cache.delete(k) }) },
-  ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ getContent: () => t, setMimeType() { return this; } }) }
+  ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ getContent: () => t, setMimeType() { return this; } }) },
+  // UrlFetchApp falso: só o tokeninfo do Google (login do Portal do Administrativo). Os testes registram as respostas por token em
+  // /__tokeninfo?token=&status=&body= ; token desconhecido = 400 {"error":"invalid_token"}. /__fetches lista as URLs (com o token mascarado).
+  UrlFetchApp: { fetch: (url, opts) => {
+    const m = /[?&]id_token=([^&]*)/.exec(String(url)), t = m ? decodeURIComponent(m[1]) : '';
+    fetches.push(String(url).replace(/id_token=[^&]*/, 'id_token=***'));
+    if (!/^https:\/\/oauth2\.googleapis\.com\/tokeninfo\?/.test(String(url))) throw new Error('UrlFetchApp falso: URL não esperada ' + url);
+    const r = tokeninfo[t] || { status: 400, body: JSON.stringify({ error: 'invalid_token', error_description: 'Invalid Value' }) };
+    return { getResponseCode: () => r.status, getContentText: () => r.body };
+  } }
 };
+const tokeninfo = {}, fetches = [];
 vm.createContext(ctx);
 vm.runInContext(fs.readFileSync(path.join(RAIZ, 'apps-script', 'Code.gs'), 'utf8'), ctx);
 let online = true;
@@ -135,6 +145,9 @@ http.createServer((req, res) => {
   if (req.url.startsWith('/__criarArquivo')) { const q = new URL(req.url, 'http://x').searchParams, pasta = drive.itens[props[q.get('pastaProp')]];   // arquivo numa pasta guardada nas propriedades
     if (!pasta) return res.end('sem pasta'); const a = pasta.api.createFile(ctx.Utilities.newBlob([], 'application/octet-stream', q.get('nome'))); return res.end(a.getId()); }
   if (req.url.startsWith('/__drivefalha')) { driveFalha = new URL(req.url, 'http://x').searchParams.get('v') === '1'; return res.end('ok'); }
+  if (req.url.startsWith('/__tokeninfo')) { const q = new URL(req.url, 'http://x').searchParams; tokeninfo[q.get('token')] = { status: Number(q.get('status')) || 200, body: q.get('body') || '{}' }; return res.end('ok'); }
+  if (req.url === '/__fetches') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify(fetches)); }
+  if (req.url === '/__tudo') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify(Object.fromEntries(Object.entries(sheets).map(([n, sh]) => [n, sh._rows])))); }
   if (req.url === '/__off') { online = false; return res.end('off'); }
   if (req.url === '/__on') { online = true; return res.end('on'); }
   if (req.url.startsWith('/__gerar')) { const n = new URL(req.url, 'http://x').searchParams.get('nome'); res.setHeader('content-type', 'application/json'); try { return res.end(JSON.stringify(ctx.gerarCodigo_(n, new URL(req.url, 'http://x').searchParams.get('perfil') || ''))); } catch (e) { return res.end(JSON.stringify({ erro: e.message })); } }

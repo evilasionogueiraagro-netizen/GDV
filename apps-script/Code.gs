@@ -24,7 +24,12 @@ const TABELAS = {
            'latIni', 'lngIni', 'precIni', 'latFim', 'lngFim', 'precFim', 'usuario', 'semPlaca',   // colunas novas ficam sempre no fim (semPlaca=1: placa opcional no turno)
            'encerradoPor', 'encerradoEm'],   // turno encerrado fora do aparelho: nome do administrador (painel) ou "Automático (12 h)", e quando (ms)
   Veiculos: ['id', 'turnoId', 'hora', 'placa', 'tipo', 'pessoas', 'obs',
-             'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
+             'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
+             // fiscalização e carga (formulário do veículo, tudo opcional; alimentam o VIGIFITO): semEducacao = 1 se NÃO houve orientação de
+             // educação sanitária (vazio = houve: registros antigos contam como orientados); medidaFito; carga (transporta vegetais/partes);
+             // produtos = JSON ["PRODUTO - 10 Kg", …] (como no TF); UF de origem/destino; partida fiscalizada; inspeção fitossanitária;
+             // documento conferido (NF/PTV/CFO)
+             'semEducacao', 'medidaFito', 'carga', 'produtos', 'ufOrigem', 'ufDestino', 'partida', 'inspecaoFito', 'docConferido'],
   Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm', 'perfil',   // perfil: vazio = fiscal, 'admin' = administrador
             'geradoPor',                                                             // quem gerou o código: nome do administrador (painel) ou "planilha" (menu)
             'oculto', 'ocultoPor', 'ocultoEm'],                                      // "Remover da lista" no painel: oculto=1 some da aba Servidores (a linha fica, para auditoria)
@@ -92,12 +97,16 @@ const TABELAS = {
   // Execução física lançada à mão: tipo execucao (etapas manuais), ajuste (+/− nas etapas automáticas, com justificativa) ou bem
   // (situação de um bem da etapa 1.1: submeta = id do bem). Exclusão lógica (excluido = 1). Sem dados pessoais.
   ConvLancamentos: ['id', 'convenio', 'etapa', 'submeta', 'data', 'municipio', 'quantidade', 'descricao', 'tipo', 'situacao', 'documento',
-                    'usuario', 'criadoEm', 'atualizadoEm', 'excluido', 'armadilhas', 'propriedades'],
+                    'usuario', 'criadoEm', 'atualizadoEm', 'excluido', 'armadilhas', 'propriedades',
+                    'admId'],   // quem lançou no Portal do Administrativo (id da linha da aba Administrativo; o e-mail fica só lá)
   // Execução financeira (empenho/NF/PCDP/OB no campo documento; nunca CPF do favorecido). fonte = concedente | contrapartida.
   // Importados da planilha de movimentação (painelConvFinImportar): origem = 'planilha', chave = imp|convênio|item|memo (idempotência),
   // arquivo = nome do .xlsx e importadoEm = quando; lançados à mão: origem 'manual' (ou vazio nas linhas antigas).
   ConvFinanceiro: ['id', 'convenio', 'etapa', 'item', 'natureza', 'data', 'quantidade', 'valor', 'documento', 'descricao', 'fonte',
-                   'usuario', 'criadoEm', 'atualizadoEm', 'excluido', 'chave', 'origem', 'arquivo', 'importadoEm'],
+                   'usuario', 'criadoEm', 'atualizadoEm', 'excluido', 'chave', 'origem', 'arquivo', 'importadoEm',
+                   // desembolso lançado no portal: tipo da diária (NM/NS/TERC), servidor que recebeu (id da lista de servidores e o NOME — o nome
+                   // fica só aqui e no portal; o painel e os relatórios nunca recebem) e quem lançou (admId)
+                   'tipoDiaria', 'servidorId', 'servidorNome', 'admId'],
   // Textos do relatório mensal (id = convenio|AAAA-MM): textos = JSON {etapas:{"1.4":{evidencias, justificativa, fator, providencia, situacao}},
   // gerais:{fatores, providencias, analise, conclusao}}
   ConvRelatorios: ['id', 'convenio', 'mes', 'numero', 'textos', 'usuario', 'atualizadoEm'],
@@ -106,7 +115,19 @@ const TABELAS = {
   // valor numérico (quadros PCE/VIGIFITO, colunas manuais por município) ou lista = JSON (tabelas de CFO/CFOC, PTV e educação sanitária do mês).
   // O anual soma os meses. Quem/quando em cada linha (auditável na planilha).
   RelGdvTextos: ['id', 'tipo', 'ano', 'mes', 'textos', 'usuario', 'atualizadoEm'],
-  RelGdvLancamentos: ['id', 'ano', 'mes', 'chave', 'valor', 'lista', 'usuario', 'atualizadoEm']
+  RelGdvLancamentos: ['id', 'ano', 'mes', 'chave', 'valor', 'lista', 'usuario', 'atualizadoEm', 'admId'],
+  // Portal do Administrativo (web/administrativo/): pessoas liberadas (login com Google pelo e-mail ou código de 6 dígitos gerado no
+  // painel). Os e-mails ficam SÓ nesta aba (LGPD); os lançamentos guardam o nome e o admId. Gerida no painel → Servidores.
+  Administrativo: ['id', 'email', 'nome', 'ativo', 'criadoEm', 'criadoPor', 'ultimoAcesso', 'codigo', 'codigoExpira', 'atualizadoEm', 'atualizadoPor'],
+  // Sessões do portal: só o SHA-256 do token (o token em si fica no navegador); 12 h, renovada a cada uso; revogado = 1 ao sair.
+  AdmSessoes: ['id', 'hash', 'admId', 'origem', 'criadoEm', 'expiraEm', 'ultimoUso', 'revogado'],
+  // Histórico de alterações feitas no portal (antes/depois em JSON).
+  AdmHistorico: ['em', 'admId', 'nome', 'acao', 'aba', 'registro', 'antes', 'depois'],
+  // VIGIFITO: configuração (postos e a escala dos períodos de 10 dias; sem linha = semente vigSemente_) e valores lançados por
+  // posto × mês (periodo = AAAA-MM) ou por período de 10 dias (periodo = P<AAAA-MM-DD do início>). Uma linha por célula
+  // (id = periodo|posto|indicador); substitui = 1: valor que substitui o apurado pelo e-GDV (com justificativa).
+  VigConfig: ['id', 'config', 'atualizadoEm', 'atualizadoPor'],
+  VigLancamentos: ['id', 'ano', 'periodo', 'posto', 'indicador', 'valor', 'substitui', 'justificativa', 'origem', 'arquivo', 'usuario', 'admId', 'atualizadoEm', 'excluido']
 };
 const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
                           'expiraEm', 'ativo', 'ativadoEm', 'oculto', 'ocultoEm',
@@ -114,7 +135,9 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criad
                           'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito', 'tamanho',
                           'inicioTs', 'atualizadoTs', 'registroAntigo', 'encerradoEm',
                           'standalone', 'online', 'ultimoSinal', 'ultimoErroEm', 'primeiroSinal', 'recusaAssinatura',
-                          'totalPlantas', 'plantasInspecionadas', 'importadoEm'];   // lat/lon/precisao ficam como texto (como em Turnos)
+                          'totalPlantas', 'plantasInspecionadas', 'importadoEm',
+                          'ultimoAcesso', 'codigoExpira', 'ultimoUso', 'revogado', 'substitui',
+                          'semEducacao', 'medidaFito', 'carga', 'partida', 'inspecaoFito', 'docConferido'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, pragas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000,
                         dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000 };   // demais colunas: 500
@@ -126,7 +149,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-15b';
+const VERSAO_CODIGO = '2026-10-16a';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -164,6 +187,15 @@ function doPost(e) {
     if (req.action === 'painelRelGdv') return json_(painelRelGdv(req.key, req));
     if (req.action === 'painelRelGdvSalvar') return json_(painelRelGdvSalvar(req.key, req));
     if (req.action === 'painelRelGdvApuracao') return json_(painelRelGdvApuracao(req.key, req));
+    if (req.action === 'painelVigDados') return json_(painelVigDados(req.key, req));
+    if (req.action === 'painelVigConfigSalvar') return json_(painelVigConfigSalvar(req.key, req));
+    if (req.action === 'painelAdmLista') return json_(painelAdmLista(req.key));
+    if (req.action === 'painelAdmSalvar') return json_(painelAdmSalvar(req.key, req));
+    if (req.action === 'painelAdmCodigo') return json_(painelAdmCodigo(req.key, req));
+    // Portal do Administrativo: login (Google ou código) e as demais actions com a sessão do portal (nunca com a credencial do painel/app)
+    if (req.action === 'admLogin') return json_(admLogin_(req));
+    if (req.action === 'admCodigo') return json_(admCodigo_(req));
+    if (/^adm[A-Z]/.test(String(req.action || ''))) return json_(admAcao_(req));
     const usuario = autenticar_(req.key);
     // TF/PCE: o servidor confere a autorização do módulo (foto/assinatura de TF = módulo TF; as demais, PCE)
     const modulo = req.action === 'arquivoEnviar' && req.arquivo && req.arquivo.dono === 'tfs' ? 'tf' : MODULO_DA_ACAO[req.action];
@@ -1670,7 +1702,9 @@ function dadosPainel_(admin, filtro) {
     a.n++; a.pessoas += v.pessoas;
     if (v.srv_ts > a.ts) a.ts = v.srv_ts;
     if (String(v.hora) > a.hora) a.hora = String(v.hora);
-    return { id: v.id, turnoId: v.turnoId, hora: v.hora, placa: v.placa, tipo: v.tipo, pessoas: v.pessoas, srv_ts: v.srv_ts, usuario: v.usuario };
+    const o = { id: v.id, turnoId: v.turnoId, hora: v.hora, placa: v.placa, tipo: v.tipo, pessoas: v.pessoas, srv_ts: v.srv_ts, usuario: v.usuario };
+    if (v.carga === 1) { o.carga = 1; o.produtos = produtosTF_(v.produtos).map(function (p) { return p.texto; }).join('; '); o.ufOrigem = v.ufOrigem || ''; o.ufDestino = v.ufDestino || ''; }
+    return o;
   });
   // sinal dos aparelhos: vale para o turno o aparelho do fiscal com este turno aberto (turnoAtual) ou encerrado sem enviar
   // (aparelho de versão antiga, sem sinal próprio, não conta: não se sabe qual turno ele tem aberto)
@@ -1976,7 +2010,13 @@ function convLancOut_(r) {
 function convFinOut_(r) {
   return { id: r.id, convenio: r.convenio, etapa: r.etapa, item: r.item, natureza: r.natureza, data: r.data, quantidade: numOuNulo_(r.quantidade),
            valor: numOuNulo_(r.valor) || 0, documento: r.documento, descricao: r.descricao, fonte: r.fonte, usuario: r.usuario, criadoEm: r.criadoEm, atualizadoEm: r.atualizadoEm,
-           chave: r.chave, origem: r.origem || 'manual', arquivo: r.arquivo, importadoEm: r.importadoEm || 0 };
+           chave: r.chave, origem: r.origem || 'manual', arquivo: r.arquivo, importadoEm: r.importadoEm || 0, tipoDiaria: r.tipoDiaria || '' };
+}
+/** Para o Portal do Administrativo: o mesmo e o servidor que recebeu (id e nome — o nome NUNCA vai ao painel nem aos relatórios). */
+function convFinOutAdm_(r) {
+  const o = convFinOut_(r);
+  o.servidorId = r.servidorId || ''; o.servidorNome = r.servidorNome || ''; o.admId = r.admId || '';
+  return o;
 }
 
 /** Painel → aba Convênios: configurações, lançamentos físicos, financeiro e textos dos relatórios (só administrador). */
@@ -2074,9 +2114,17 @@ function painelConvSalvar(token, convenio, config) {
   } finally { lock.releaseLock(); }
 }
 
-/** Lançamento físico (novo ou edição pelo id): execucao (etapa manual), ajuste (etapa automática, justificativa obrigatória) ou bem (1.1). */
-function painelConvLancar(token, l) {
-  const admin = adminDoToken_(token);
+/** Painel: as gravações de dados do convênio passaram para o Portal do Administrativo (o painel só mostra). Fiscal continua com "Acesso restrito". */
+function painelConvLancar(token) { adminDoToken_(token); throw new Error(MSG_PORTAL); }
+function painelConvFinLancar(token) { adminDoToken_(token); throw new Error(MSG_PORTAL); }
+function painelConvFinImportar(token) { adminDoToken_(token); throw new Error(MSG_PORTAL); }
+function painelConvExcluir(token) { adminDoToken_(token); throw new Error(MSG_PORTAL); }
+
+/**
+ * Lançamento físico (novo ou edição pelo id): execucao (etapa manual), ajuste (etapa automática, justificativa obrigatória) ou bem (1.1).
+ * autor = {nome, admId} (Portal do Administrativo). Devolve também {antes} para o histórico.
+ */
+function convLancar_(autor, l) {
   if (!l || typeof l !== 'object') throw new Error('Lançamento inválido.');
   const cfg = convDe_(l.convenio), e = convEtapa_(cfg, l.etapa);
   const tipo = String(l.tipo || (e.apuracao === 'bens' ? 'bem' : CONV_AUTOMATICAS.indexOf(e.apuracao) >= 0 ? 'ajuste' : 'execucao'));
@@ -2114,21 +2162,25 @@ function painelConvLancar(token, l) {
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     const agora = Date.now();
-    let id = String(l.id || '');
+    let id = String(l.id || ''), ant = null;
     if (id) {
-      const ant = convLinha_('ConvLancamentos', id);
+      ant = convLinha_('ConvLancamentos', id);
       if (!ant || ant.excluido === 1 || ant.convenio !== cfg.id) throw new Error('Lançamento não encontrado.');
       o.criadoEm = ant.criadoEm;
     } else { id = Utilities.getUuid(); o.criadoEm = agora; }
-    o.id = id; o.usuario = admin; o.atualizadoEm = agora; o.excluido = 0;
+    o.id = id; o.usuario = autor.nome; o.admId = autor.admId || ''; o.atualizadoEm = agora; o.excluido = 0;
     convGravar_('ConvLancamentos', o);
-    return { ok: true, lancamento: convLancOut_(paraObjeto_(TABELAS.ConvLancamentos, TABELAS.ConvLancamentos.map(function (c) { return o[c]; }))) };
+    return { ok: true, lancamento: convLancOut_(paraObjeto_(TABELAS.ConvLancamentos, TABELAS.ConvLancamentos.map(function (c) { return o[c]; }))), antes: ant };
   } finally { lock.releaseLock(); }
 }
 
-/** Lançamento financeiro (novo ou edição): etapa e item do plano de aplicação, data, quantidade, valor, documento (empenho/NF/PCDP/OB) e fonte. */
-function painelConvFinLancar(token, l) {
-  const admin = adminDoToken_(token);
+const CONV_TIPOS_DIARIA = ['NM', 'NS', 'TERC'];
+/**
+ * Lançamento financeiro / desembolso (novo ou edição): etapa e item do plano de aplicação, data, quantidade (diárias), valor, documento
+ * (memorando/empenho/NF/PCDP/OB), fonte, tipo da diária e servidor que recebeu (id da lista; o nome é resolvido aqui e gravado só na
+ * planilha). autor = {nome, admId}. Devolve avisos (memorando repetido no item, diárias acima do previsto) e {antes} para o histórico.
+ */
+function convFinLancar_(autor, l) {
   if (!l || typeof l !== 'object') throw new Error('Lançamento inválido.');
   const cfg = convDe_(l.convenio), e = convEtapa_(cfg, l.etapa);
   const item = (e.itens || []).filter(function (x) { return x.id === String(l.item || ''); })[0];
@@ -2142,22 +2194,40 @@ function painelConvFinLancar(token, l) {
   const o = { convenio: cfg.id, etapa: e.id, item: item.id, natureza: item.natureza, data: convDataNaVigencia_(cfg, String(l.data || '')), quantidade: qtd,
               valor: valor, documento: convTexto_(l.documento, 120, 'Documento'), descricao: convTexto_(l.descricao, 1000, 'Descrição'), fonte: fonte, origem: 'manual' };
   if (valor < 0 && o.descricao.length < 5) throw new Error('Valor negativo (estorno) exige descrição.');
+  o.tipoDiaria = String(l.tipoDiaria || '').toUpperCase();
+  if (o.tipoDiaria && CONV_TIPOS_DIARIA.indexOf(o.tipoDiaria) < 0) throw new Error('Tipo de diária inválido (NM, NS ou terceiros).');
+  o.servidorId = String(l.servidorId || '').trim(); o.servidorNome = '';
+  if (o.servidorId) {
+    const srv = admServidores_().filter(function (x) { return x.id === o.servidorId; })[0];
+    if (!srv) throw new Error('Servidor não encontrado na lista de servidores cadastrados.');
+    o.servidorNome = srv.nome;
+  }
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     const agora = Date.now();
-    let id = String(l.id || '');
+    let id = String(l.id || ''), ant = null;
     if (id) {
-      const ant = convLinha_('ConvFinanceiro', id);
+      ant = convLinha_('ConvFinanceiro', id);
       if (!ant || ant.excluido === 1 || ant.convenio !== cfg.id) throw new Error('Lançamento não encontrado.');
       o.criadoEm = ant.criadoEm;
       // importado da planilha e editado à mão: mantém a chave (a próxima importação compara e, se a planilha diferir, atualiza)
       o.chave = ant.chave; o.origem = ant.origem || 'manual'; o.arquivo = ant.arquivo; o.importadoEm = ant.importadoEm;
     } else { id = Utilities.getUuid(); o.criadoEm = agora; }
-    o.id = id; o.usuario = admin; o.atualizadoEm = agora; o.excluido = 0;
+    o.id = id; o.usuario = autor.nome; o.admId = autor.admId || ''; o.atualizadoEm = agora; o.excluido = 0;
+    // avisos (não bloqueiam): memorando/documento repetido no mesmo item e diárias do item acima do previsto no plano
+    const vivos = lerLeitura_('ConvFinanceiro').filter(function (r) { return r.id && r.id !== id && r.excluido !== 1 && r.convenio === cfg.id && r.item === item.id; });
+    const docN = function (v) { return normPub_(v).replace(/^(memo|memorando|empenho|ne|nf|pcdp|ob)\s*(n|no|nº)?\s*/, '').replace(/^0+(?=\d)/, ''); };
+    const avisos = [];
+    if (o.documento && vivos.some(function (r) { return docN(r.documento) && docN(r.documento) === docN(o.documento); })) avisos.push('Documento/memorando ' + o.documento + ' já lançado neste item (possível duplicidade).');
+    if (ConvNatDiarias_.indexOf(item.natureza) >= 0 && qtd !== '') {
+      const usadas = vivos.reduce(function (t, r) { return t + (numOuNulo_(r.quantidade) || 0); }, 0) + Number(qtd);
+      if (usadas > Number(item.quantidade || 0)) avisos.push('Diárias do item ' + item.id + ': ' + (Math.round(usadas * 10) / 10) + ' de ' + item.quantidade + ' previstas (acima do previsto).');
+    }
     convGravar_('ConvFinanceiro', o);
-    return { ok: true, lancamento: convFinOut_(paraObjeto_(TABELAS.ConvFinanceiro, TABELAS.ConvFinanceiro.map(function (c) { return o[c]; }))) };
+    return { ok: true, lancamento: convFinOutAdm_(paraObjeto_(TABELAS.ConvFinanceiro, TABELAS.ConvFinanceiro.map(function (c) { return o[c]; }))), avisos: avisos, antes: ant };
   } finally { lock.releaseLock(); }
 }
+const ConvNatDiarias_ = ['33.90.14', '33.90.36'];
 
 const CONV_IMP_MAX = 500;                              // lançamentos por chamada de painelConvFinImportar (o painel divide em lotes)
 /**
@@ -2168,8 +2238,7 @@ const CONV_IMP_MAX = 500;                              // lançamentos por chama
  * excluir = ids de lançamentos importados que sumiram da planilha e o gerente marcou para excluir (exclusão lógica).
  * Mesmas validações do lançamento manual (etapa/item do plano, data na vigência, valor, textos sem CPF). Nunca recebe nomes de servidores.
  */
-function painelConvFinImportar(token, req) {
-  const admin = adminDoToken_(token);
+function convFinImportar_(autor, req) {
   req = req || {};
   const cfg = convDe_(req.convenio);
   const itens = Array.isArray(req.itens) ? req.itens : [], excluir = Array.isArray(req.excluir) ? req.excluir.map(String) : [];
@@ -2214,7 +2283,7 @@ function painelConvFinImportar(token, req) {
       const a = ix[n.chave];
       if (a && a.o.excluido !== 1 && a.o.data === n.data && Number(a.o.valor) === n.valor && a.o.documento === n.documento && a.o.descricao === n.descricao &&
           a.o.item === n.item && String(a.o.quantidade) === String(n.quantidade) && a.o.fonte === n.fonte) { res.iguais++; return; }
-      const o = Object.assign({}, n, { usuario: admin, atualizadoEm: agora, importadoEm: agora, excluido: 0 });
+      const o = Object.assign({}, n, { usuario: autor.nome, admId: autor.admId || '', atualizadoEm: agora, importadoEm: agora, excluido: 0 });
       if (a) {
         o.id = a.o.id; o.criadoEm = a.o.criadoEm || agora;
         t.sh.getRange(a.i + 2, 1, 1, cols.length).setValues([linhaDe(o)]); res.atualizados++;
@@ -2226,7 +2295,8 @@ function painelConvFinImportar(token, req) {
       const a = iId[id];
       if (!a || a.o.excluido === 1 || a.o.convenio !== cfg.id || a.o.origem !== 'planilha') throw new Error('Lançamento importado não encontrado: ' + id + '.');
       t.sh.getRange(a.i + 2, ci('excluido') + 1).setValue(1);
-      t.sh.getRange(a.i + 2, ci('usuario') + 1).setValue(admin);
+      t.sh.getRange(a.i + 2, ci('usuario') + 1).setValue(autor.nome);
+      t.sh.getRange(a.i + 2, ci('admId') + 1).setValue(autor.admId || '');
       t.sh.getRange(a.i + 2, ci('atualizadoEm') + 1).setValue(agora);
       res.excluidos++;
     });
@@ -2236,15 +2306,15 @@ function painelConvFinImportar(token, req) {
 }
 
 /** Exclusão lógica (excluido = 1, com quem/quando) de um lançamento físico ou financeiro. */
-function painelConvExcluir(token, aba, id) {
-  const admin = adminDoToken_(token);
+function convExcluir_(autor, aba, id) {
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     const r = convLinha_(aba, String(id || ''));
     if (!r || r.excluido === 1) throw new Error('Lançamento não encontrado.');
-    r.excluido = 1; r.usuario = admin; r.atualizadoEm = Date.now();
+    const antes = JSON.parse(JSON.stringify(r));
+    r.excluido = 1; r.usuario = autor.nome; r.admId = autor.admId || ''; r.atualizadoEm = Date.now();
     convGravar_(aba, r);
-    return { ok: true, id: r.id };
+    return { ok: true, id: r.id, antes: antes };
   } finally { lock.releaseLock(); }
 }
 
@@ -2294,13 +2364,12 @@ function convApurar_(cfg, de, ate) {
   const etapas = function (ap) { return cfg.etapas.filter(function (e) { return e.apuracao === ap; }); };
   const munNorm = function (s) { return normPub_(s).replace(/ (am|amazonas)$/, ''); };
   let turnos = null, veicPorTurno = null, tfs = null;
+  // turnos, veículos e TFs do MESMO motor do VIGIFITO e do Relatório GDV (motorBarreira_): os números nunca divergem
   const carregarBarreira = function () {
     if (turnos) return;
-    turnos = lerLeitura_('Turnos').filter(function (t) { return t.id && noPer(t.data); });
-    const ids = {}; turnos.forEach(function (t) { ids[t.id] = true; });
-    veicPorTurno = {};
-    lerLeitura_('Veiculos').forEach(function (v) { if (v.id && ids[v.turnoId] && v.excluido !== 1) veicPorTurno[v.turnoId] = (veicPorTurno[v.turnoId] || 0) + 1; });
-    tfs = lerLeitura_('TFs').filter(function (t) { return t.id && t.cancelado !== 1 && noPer(t.data); });
+    const M = motorBarreira_(de, ate);
+    turnos = M.turnos; tfs = M.tfs; veicPorTurno = {};
+    turnos.forEach(function (t) { veicPorTurno[t.id] = t.veiculos; });
   };
 
   // 1.4 — levantamentos/termos de monilíase: municípios distintos e propriedades por município
@@ -2351,7 +2420,7 @@ function convApurar_(cfg, de, ate) {
   etapas('volante').forEach(function (e) {
     carregarBarreira();
     const muns = (e.municipios || []).map(munNorm).filter(Boolean);
-    const volante = function (t) { const p = normPub_(t.posto); return p.indexOf('mov') >= 0 || p.indexOf('volante') >= 0; };
+    const volante = function (t) { return t.tipo === 'volante'; };
     const munDo = function (t) {
       const u = munNorm(t.unidade), l = normPub_(t.local);
       for (let i = 0; i < muns.length; i++) if (u === muns[i] || (' ' + l + ' ').indexOf(' ' + muns[i] + ' ') >= 0) return e.municipios[i];
@@ -2388,7 +2457,7 @@ function convApurar_(cfg, de, ate) {
     const z = function () { return { turnos: 0, veiculos: 0, tfs: 0, apreensoes: 0, rechacos: 0 }; };
     bvas.forEach(function (b) { B[b] = { bva: b, total: z(), meses: {} }; });
     turnos.forEach(function (t) {
-      if (normPub_(t.posto).indexOf('mov') >= 0) return;
+      if (t.tipo === 'volante') return;
       const b = qual(t.local, t.unidade); if (!b) return;
       const mes = mesDe(t.data); sel[t.id] = { b: b, mes: mes };
       const mm = B[b].meses[mes] = B[b].meses[mes] || z(), g = MES[mes] = MES[mes] || z();
@@ -2508,14 +2577,21 @@ function painelRelGdv(token, req) {
       return { mes: r.mes, chave: r.chave, valor: numOuNulo_(r.valor), lista: r.lista ? lerJSONSeguro_(r.lista, []) : null, usuario: r.usuario, atualizadoEm: r.atualizadoEm }; }) };
 }
 
-/** Salva os textos de um relatório (tipo|ano|mês) e/ou lançamentos manuais (por mês e linha). Valor vazio = linha sem lançamento. */
+/**
+ * Painel: salva os textos de um relatório (tipo|ano|mês). Os NÚMEROS lançados à mão (quadro PCE, colunas por município, tabelas de
+ * CFO/CFOC, PTV e educação sanitária, armadilhas do HLB) passaram para o Portal do Administrativo (admRelLancar): com lançamentos,
+ * o painel recusa.
+ */
 function painelRelGdvSalvar(token, req) {
   const admin = adminDoToken_(token), ano = anoRelGdv_(req.ano), agora = Date.now();
+  if (Array.isArray(req.lancamentos) && req.lancamentos.length) throw new Error(MSG_PORTAL);
   let txt = null;
   if (req.textos) {
-    const tipo = req.tipo === 'anual' ? 'anual' : req.tipo === 'mensal' ? 'mensal' : '';
-    if (!tipo) throw new Error('Tipo de relatório inválido (mensal ou anual).');
-    const mes = tipo === 'mensal' ? mesRelGdv_(req.mes) : '', out = {};
+    const tipo = ['anual', 'mensal', 'vigifito'].indexOf(req.tipo) >= 0 ? req.tipo : '';
+    if (!tipo) throw new Error('Tipo de relatório inválido (mensal, anual ou vigifito).');
+    // VIGIFITO: textos por período do relatório — MM (mês), S1/S2 (semestre), P<início> (período de 10 dias) ou vazio (anual)
+    if (tipo === 'vigifito' && !/^(|0[1-9]|1[0-2]|S[12]|P\d{4}-\d{2}-\d{2})$/.test(String(req.mes || ''))) throw new Error('Período do relatório VIGIFITO inválido.');
+    const mes = tipo === 'mensal' ? mesRelGdv_(req.mes) : tipo === 'vigifito' ? String(req.mes || '') : '', out = {};
     if (typeof req.textos !== 'object' || Array.isArray(req.textos)) throw new Error('Textos inválidos.');
     Object.keys(req.textos).forEach(function (k) {
       if (!/^[A-Za-z0-9_:.-]{1,40}$/.test(k) || Object.keys(out).length >= 60) throw new Error('Campo de texto inválido: ' + k + '.');
@@ -2530,19 +2606,43 @@ function painelRelGdvSalvar(token, req) {
     if (json.length > 45000) throw new Error('Textos grandes demais.');
     txt = { id: tipo + '|' + ano + '|' + mes, tipo: tipo, ano: ano, mes: mes, textos: json, usuario: admin, atualizadoEm: agora };
   }
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    if (txt) convGravar_('RelGdvTextos', txt);
+    return { ok: true, ano: ano, gravados: 0, usuario: admin, atualizadoEm: agora,
+             textos: txt ? { id: txt.id, tipo: txt.tipo, ano: ano, mes: txt.mes, textos: JSON.parse(txt.textos), usuario: admin, atualizadoEm: agora } : null };
+  } finally { lock.releaseLock(); }
+}
+
+/** Contagens dos lançamentos do relatório: inteiras (só a área controlada, em ha, e a quantidade das tabelas aceitam decimais). */
+function relGdvInteiro_(chave) { return chave !== 'pce.areaControlada'; }
+
+/**
+ * Portal do Administrativo → linhas manuais do Relatório GDV: lançamentos por mês e linha ({mes, chave, valor} ou {mes, chave, lista}).
+ * Valor vazio = linha sem lançamento. Valida mês, chave, números ≥ 0, contagens inteiras, textos com limite e sem CPF; só regrava linha
+ * que mudou (quem/quando e o histórico só mudam quando o valor muda). O VIGIFITO tem lançamento próprio por posto (admVigLancar).
+ */
+function relGdvLancar_(s, req) {
+  const ano = anoRelGdv_(req.ano), agora = Date.now();
   const lancs = Array.isArray(req.lancamentos) ? req.lancamentos : [];
+  if (!lancs.length) throw new Error('Nada a gravar.');
   if (lancs.length > 3000) throw new Error('Lançamentos demais numa vez.');
   const linhas = lancs.map(function (l) {
     if (!l || typeof l !== 'object') throw new Error('Lançamento inválido.');
     const mes = mesRelGdv_(l.mes), chave = String(l.chave || '');
-    const o = { id: ano + '|' + mes + '|' + chave, ano: ano, mes: mes, chave: chave, valor: '', lista: '', usuario: admin, atualizadoEm: agora };
+    const o = { id: ano + '|' + mes + '|' + chave, ano: ano, mes: mes, chave: chave, valor: '', lista: '', usuario: s.nome, atualizadoEm: agora, admId: s.admId };
     if (RELGDV_TABS[chave]) {
       const campos = RELGDV_TABS[chave], lista = Array.isArray(l.lista) ? l.lista : [];
       if (lista.length > 200) throw new Error('Tabela com linhas demais (máx. 200 por mês).');
       const ok = lista.map(function (x) {
         const y = {};
         campos.forEach(function (c) {
-          if (RELGDV_NUM_TAB.indexOf(c) >= 0) { const n = x && x[c] !== '' && x[c] !== null && x[c] !== undefined ? convNumero_(x[c], c) : null; if (n !== null && (n < 0 || n > 1e9)) throw new Error(c + ' inválido.'); y[c] = n; }
+          if (RELGDV_NUM_TAB.indexOf(c) >= 0) {
+            const n = x && x[c] !== '' && x[c] !== null && x[c] !== undefined ? convNumero_(x[c], c) : null;
+            if (n !== null && (n < 0 || n > 1e9)) throw new Error(c + ' inválido (use números de 0 em diante).');
+            if (n !== null && c !== 'quantidade' && Math.round(n) !== n) throw new Error(c + ': contagem com decimal (use número inteiro).');
+            y[c] = n;
+          }
           else y[c] = convTexto_(x && x[c], c === 'descricao' ? 1000 : 200, c);
         });
         return y;
@@ -2550,30 +2650,31 @@ function painelRelGdvSalvar(token, req) {
       o.lista = lista.length || ok.length ? JSON.stringify(ok) : '';
     } else {
       if (!RELGDV_RE_CHAVE.test(chave)) throw new Error('Linha do relatório inválida: ' + chave + '.');
+      if (/^vig\./.test(chave)) throw new Error('VIGIFITO: lance os valores por posto (aba VIGIFITO do portal).');
       const v = l.valor === '' || l.valor === null || l.valor === undefined ? '' : convNumero_(l.valor, 'Valor de ' + chave);
       if (v !== '' && (v < 0 || v > 1e9)) throw new Error('Valor de ' + chave + ' inválido (use números de 0 em diante).');
+      if (v !== '' && relGdvInteiro_(chave) && Math.round(v) !== v) throw new Error('Valor de ' + chave + ': contagem com decimal (use número inteiro).');
       o.valor = v === '' ? '' : Math.round(v * 1000) / 1000;
     }
     return o;
   });
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
-    if (txt) convGravar_('RelGdvTextos', txt);
     let gravados = 0;
-    if (linhas.length) {
-      const t = lerTudo_('RelGdvLancamentos'), cols = t.cols, idx = {}, iV = cols.indexOf('valor'), iL = cols.indexOf('lista'), novas = [];
-      t.valores.forEach(function (l, i) { idx[String(l[0])] = i; });
-      linhas.forEach(function (o) {
-        const i = idx[o.id], linha = cols.map(function (c) { return o[c]; });
-        if (i === undefined) { if (o.valor === '' && !o.lista) return; idx[o.id] = -1; novas.push(linha); gravados++; return; }
-        if (i < 0) return;
-        if (String(t.valores[i][iV]) === String(o.valor) && String(t.valores[i][iL]) === String(o.lista)) return;   // sem mudança: não troca quem/quando
-        t.sh.getRange(i + 2, 1, 1, cols.length).setValues([linha]); gravados++;
-      });
-      if (novas.length) t.sh.getRange(t.sh.getLastRow() + 1, 1, novas.length, cols.length).setValues(novas);
-    }
-    return { ok: true, ano: ano, gravados: gravados, usuario: admin, atualizadoEm: agora,
-             textos: txt ? { id: txt.id, tipo: txt.tipo, ano: ano, mes: txt.mes, textos: JSON.parse(txt.textos), usuario: admin, atualizadoEm: agora } : null };
+    const hist = [];
+    const t = lerTudo_('RelGdvLancamentos'), cols = t.cols, idx = {}, iV = cols.indexOf('valor'), iL = cols.indexOf('lista'), novas = [];
+    t.valores.forEach(function (l, i) { idx[String(l[0])] = i; });
+    linhas.forEach(function (o) {
+      const i = idx[o.id], linha = cols.map(function (c) { return o[c]; });
+      if (i === undefined) { if (o.valor === '' && !o.lista) return; idx[o.id] = -1; novas.push(linha); gravados++; hist.push([o.id, '', o.lista || o.valor]); return; }
+      if (i < 0) return;
+      if (String(t.valores[i][iV]) === String(o.valor) && String(t.valores[i][iL]) === String(o.lista)) return;   // sem mudança: não troca quem/quando
+      hist.push([o.id, t.valores[i][iL] || t.valores[i][iV], o.lista || o.valor]);
+      t.sh.getRange(i + 2, 1, 1, cols.length).setValues([linha]); gravados++;
+    });
+    if (novas.length) t.sh.getRange(t.sh.getLastRow() + 1, 1, novas.length, cols.length).setValues(novas);
+    admHistLote_(s, 'gravar', 'RelGdvLancamentos', hist);
+    return { ok: true, ano: ano, gravados: gravados, usuario: s.nome, atualizadoEm: agora };
   } finally { lock.releaseLock(); }
 }
 
@@ -2746,37 +2847,20 @@ function relGdvApurar_(de, ate, grupos) {
   };
   const porMes = {}; meses.forEach(function (m) { porMes[m] = fechar(PM[m]); });
 
-  // VIGIFITO: turnos (ações de barreira), veículos, pessoas e TFs por mês, BVAs fixas × volantes (posto "Móvel")
-  const bloco = function (t) { const p = normPub_(t.posto); return p.indexOf('mov') >= 0 || p.indexOf('volante') >= 0 ? 'volante' : 'fixa'; };
-  const zv = function () { return { turnos: 0, veiculos: 0, pessoas: 0, tfs: 0, documentos: 0, inspecao: 0, advertencia: 0, rechaco: 0, fiel: 0, liberacao: 0, liberacaoT: 0,
-                                    apreensao: 0, apreensaoT: 0, infracao: 0, coleta: 0, amostras: 0, outrasUnidades: {} }; };
+  // VIGIFITO: a soma dos postos do VIGIFITO por tipo (BVAs fixas × volantes), do mesmo motor (vigApurar_ → motorBarreira_): o bloco do
+  // Relatório GDV/consolidado nunca diverge do relatório VIGIFITO. Postos não mapeados entram em "outras" do mesmo tipo.
   const V = { fixa: {}, volante: {} };
-  meses.forEach(function (m) { V.fixa[m] = zv(); V.volante[m] = zv(); });
-  const sel = {}, postoDe = {};
-  lerLeitura_('Turnos').forEach(function (t) {
-    if (!t.id) return;
-    postoDe[t.id] = bloco(t);
-    if (!noPer(t.data) || !V.fixa[mesDe(t.data)]) return;
-    const x = V[bloco(t)][mesDe(t.data)]; sel[t.id] = x; x.turnos++;
-  });
-  lerLeitura_('Veiculos').forEach(function (v) { const x = sel[v.turnoId]; if (!x || !v.id || v.excluido === 1) return; x.veiculos++; x.pessoas += Number(v.pessoas) || 0; });
-  lerLeitura_('TFs').forEach(function (f) {
-    if (!f.id || f.cancelado === 1 || !noPer(f.data) || !V.fixa[mesDe(f.data)]) return;
-    const x = V[postoDe[f.turnoId] || 'fixa'][mesDe(f.data)];         // TF sem turno (módulo TF isolado): lavrado na BVA = fixa
-    x.tfs++;
-    if (documentosTF_(f.documentos).length) x.documentos++;
-    if (f.inspecao === 1) x.inspecao++; if (f.advertencia === 1) x.advertencia++; if (f.fiel === 1) x.fiel++; if (f.auto === 1) x.infracao++;
-    if (f.coleta === 1) { x.coleta++; x.amostras += Number(f.amostras) || 0; }
-    if (f.procedimento === 'rechaco') x.rechaco++;
-    if (f.procedimento === 'liberacao' || f.procedimento === 'apreensao') {
-      const p = f.procedimento; x[p]++;
-      produtosTF_(f.produtos).forEach(function (pr) {
-        if (pr.quantidade === null) return;
-        const t = toneladas_(pr.quantidade, pr.unidade);
-        if (t !== null) x[p + 'T'] += t;
-        else { const u = pr.unidade || 'sem unidade', o = x.outrasUnidades[p] = x.outrasUnidades[p] || {}; o[u] = (o[u] || 0) + pr.quantidade; }
+  meses.forEach(function (m) { V.fixa[m] = vigZero_(); V.volante[m] = vigZero_(); });
+  const VA = vigApurar_(vigConfig_(), de, ate), tipoP = {};
+  VA.postos.forEach(function (p) { tipoP[p.id] = p.tipo; });
+  Object.keys(VA.porMes).forEach(function (pid) {
+    Object.keys(VA.porMes[pid]).forEach(function (m) {
+      const x = V[tipoP[pid] || 'fixa'][m], y = VA.porMes[pid][m]; if (!x) return;
+      Object.keys(y).forEach(function (k) {
+        if (k === 'outrasUnidades') Object.keys(y[k]).forEach(function (pr) { const o = x[k][pr] = x[k][pr] || {}; Object.keys(y[k][pr]).forEach(function (u) { o[u] = (o[u] || 0) + y[k][pr][u]; }); });
+        else x[k] += y[k];
       });
-    }
+    });
   });
   ['fixa', 'volante'].forEach(function (b) { meses.forEach(function (m) { const x = V[b][m]; x.liberacaoT = round(x.liberacaoT, 3); x.apreensaoT = round(x.apreensaoT, 3); }); });
 
@@ -2797,6 +2881,589 @@ function relGdvApurar_(de, ate, grupos) {
            quadro: { porMes: porMes, total: fechar(TOT) }, grupos: gruposOut,
            laboratorio: { porPraga: Object.keys(LAB).sort().map(function (k) { return LAB[k]; }), positivos: positivos, semResultado: semResultado, semResultado30: semResultado30 },
            vigifito: V };
+}
+
+/* ---------- Motor de indicadores das barreiras (fonte única para VIGIFITO, Relatório GDV e convênio 1.9/1.10) ----------
+ * Cada número das barreiras é definido UMA vez aqui (fonte + regra) e usado por todos os relatórios: o VIGIFITO por posto, o bloco
+ * VIGIFITO do Relatório GDV/consolidado (soma dos postos por tipo) e as etapas 1.9/1.10 do convênio — o mesmo número nunca diverge.
+ * Regras: turno = registro de barreira (data = data de INÍCIO do turno: um turno que começa no dia da troca da escala conta no
+ * período que começa nesse dia); veículos = registros não excluídos do turno; pessoas = soma do campo pessoas (estimativa por tipo de
+ * veículo); TF = não cancelado, contado pela data do turno em que foi lavrado (TF sem turno: data do TF, como BVA fixa); posto
+ * "Móvel"/"volante" = volante, senão fixa; toneladas = produtos em kg (÷ 1.000) ou t; outras unidades à parte, sem conversão. */
+function motorBarreira_(de, ate) {
+  const noPer = function (d) { d = String(d || '').slice(0, 10); return d >= de && d <= ate; };
+  const tipoDe = function (t) { const p = normPub_(t.posto); return p.indexOf('mov') >= 0 || p.indexOf('volante') >= 0 ? 'volante' : 'fixa'; };
+  const todos = {}, turnos = [];
+  lerLeitura_('Turnos').forEach(function (t) {
+    if (!t.id) return;
+    const o = { id: t.id, data: String(t.data || '').slice(0, 10), posto: t.posto, tipo: tipoDe(t), local: t.local, unidade: t.unidade, veiculos: 0, pessoas: 0,
+                educacao: 0, medidaFito: 0, partidas: 0, inspecaoFito: 0, docVeic: {}, cargasEstados: 0, internN: 0, internT: 0, importT: 0, exportT: 0, outrasCarga: {} };
+    todos[t.id] = o;
+    if (noPer(o.data)) turnos.push(o);
+  });
+  const dentro = {}; turnos.forEach(function (t) { dentro[t.id] = t; });
+  const uf = String(PropertiesService.getScriptProperties().getProperty('UF_LOCAL') || 'AM').toUpperCase();
+  lerLeitura_('Veiculos').forEach(function (v) {
+    const t = dentro[v.turnoId]; if (!t || !v.id || v.excluido === 1) return;
+    t.veiculos++; t.pessoas += Number(v.pessoas) || 0;
+    if (v.semEducacao !== 1) t.educacao++;                                   // padrão: houve orientação (registros antigos também)
+    if (v.medidaFito === 1) t.medidaFito++;
+    if (v.carga !== 1) return;
+    if (v.partida === 1) t.partidas++;
+    if (v.inspecaoFito === 1) t.inspecaoFito++;
+    if (v.docConferido === 1) t.docVeic[v.id] = 1;
+    const ori = String(v.ufOrigem || '').toUpperCase(), des = String(v.ufDestino || '').toUpperCase();
+    let ton = 0;
+    produtosTF_(v.produtos).forEach(function (pr) {
+      if (pr.quantidade === null) return;
+      const tt = toneladas_(pr.quantidade, pr.unidade);
+      if (tt !== null) ton += tt; else { const u = pr.unidade || 'sem unidade'; t.outrasCarga[u] = (t.outrasCarga[u] || 0) + pr.quantidade; }
+    });
+    if (des === uf && ori && ori !== uf) { t.internN++; t.internT += ton; t.importT += ton; }      // entra no estado: internalização/importação
+    else if (des && des !== uf) { t.cargasEstados++; t.exportT += ton; }                           // vai para outro estado: trânsito/exportação
+  });
+  const tfs = [];
+  lerLeitura_('TFs').forEach(function (f) {
+    if (!f.id || f.cancelado === 1) return;
+    const t = f.turnoId ? todos[f.turnoId] : null, data = t ? t.data : String(f.data || '').slice(0, 10);
+    if (!noPer(data)) return;
+    const o = { id: f.id, turnoId: t ? t.id : '', veiculoId: f.veiculoId || '', data: data, tipo: t ? t.tipo : 'fixa', local: f.local, barreira: f.barreira, procedimento: f.procedimento,
+                documentos: documentosTF_(f.documentos).length > 0, coleta: f.coleta === 1, amostras: f.coleta === 1 ? Number(f.amostras) || 0 : 0,
+                inspecao: f.inspecao === 1, advertencia: f.advertencia === 1, fiel: f.fiel === 1, auto: f.auto === 1, liberacaoT: 0, apreensaoT: 0, outras: {} };
+    if (o.procedimento === 'liberacao' || o.procedimento === 'apreensao') {
+      produtosTF_(f.produtos).forEach(function (pr) {
+        if (pr.quantidade === null) return;
+        const tt = toneladas_(pr.quantidade, pr.unidade);
+        if (tt !== null) o[o.procedimento + 'T'] += tt;
+        else { const u = pr.unidade || 'sem unidade'; o.outras[u] = (o.outras[u] || 0) + pr.quantidade; }
+      });
+    }
+    tfs.push(o);
+  });
+  return { turnos: turnos, tfs: tfs };
+}
+
+/* ---------- VIGIFITO (relatório por posto; postos e escala configuráveis; valores manuais lançados no portal) ---------- */
+const VIG_IND = {   // indicador → [unidade, fonte] (rótulos e ordem no navegador: documentos/indicadores.js)
+  veiculos: ['nº', 'auto'], documentos: ['nº', 'auto'], partidas: ['nº', 'auto'], inspecaoFito: ['nº', 'auto'], cargasEstados: ['nº', 'auto'],
+  internN: ['nº', 'auto'], internT: ['t', 'auto'], coleta: ['nº', 'auto'], amostras: ['nº', 'auto'], educacao: ['nº', 'auto'], medidaFito: ['nº', 'auto'],
+  abordagem: ['nº', 'auto'], capacitacao: ['nº', 'manual'], exportT: ['t', 'auto'], madeira: ['m3', 'manual'], importT: ['t', 'auto'],
+  tfs: ['nº', 'auto'], inspecao: ['nº', 'auto'], advertencia: ['nº', 'auto'], rechaco: ['nº', 'auto'], fiel: ['nº', 'auto'], liberacao: ['nº', 'auto'],
+  liberacaoT: ['t', 'auto'], infracao: ['nº', 'auto'], apreensao: ['nº', 'auto'], apreensaoT: ['t', 'auto'], autoDestN: ['nº', 'auto'], autoDestT: ['t', 'auto']
+};
+const VIG_OUTRAS = { fixa: { id: '_outras-fixas', nome: 'OUTRAS BVA FIXAS (não mapeadas)', municipio: '', tipo: 'fixa' },
+                     volante: { id: '_outras-volantes', nome: 'OUTRAS AÇÕES VOLANTES (não mapeadas)', municipio: '', tipo: 'volante' } };
+const VIG_RE_MES = /^\d{4}-(0[1-9]|1[0-2])$/, VIG_RE_PER = /^P\d{4}-\d{2}-\d{2}$/;
+/** Semente: os 11 postos da planilha de controle VIGIFITO 2025 e a escala de 10 dias do Jundiá (05/01/2025, ciclo de 9 dias). */
+function vigSemente_() {
+  const P = function (id, nome, municipio, tipo, locais) { return { id: id, nome: nome, municipio: municipio, tipo: tipo, locais: locais || [] }; };
+  return { ancora: '2025-01-05', ciclo: 9, versao: 0, atualizadoEm: 0, atualizadoPor: '', postos: [
+    P('pf-jundia', 'PRESIDENTE FIGUEIREDO - BVA JUNDIÁ', 'Presidente Figueiredo', 'fixa', ['BVA - JUNDIÁ']),
+    P('pf-volante', 'PRESIDENTE FIGUEIREDO - VOLANTE', 'Presidente Figueiredo', 'volante'),
+    P('manaus-aeroporto', 'MANAUS - BVA AEROPORTO', 'Manaus', 'fixa', ['BVA - AEROPORTO']),
+    P('manaus-volante', 'MANAUS - VOLANTE', 'Manaus', 'volante'),
+    P('parintins-porto', 'PARINTINS - BVA PORTO', 'Parintins', 'fixa', ['BVA - PARINTINS', 'BVA - PORTO DE PARINTINS']),
+    P('parintins-volante', 'PARINTINS - BVA VOLANTE', 'Parintins', 'volante'),
+    P('humaita-fixa', 'HUMAITÁ - BVA FIXA', 'Humaitá', 'fixa', ['BVA - HUMAITÁ']),
+    P('iranduba-volante', 'IRANDUBA - BVA VOLANTE', 'Iranduba', 'volante'),
+    P('guajara-volante', 'GUAJARÁ - BVA VOLANTE', 'Guajará', 'volante'),
+    P('tabatinga-volante', 'TABATINGA - BVA VOLANTE (PORTO)', 'Tabatinga', 'volante'),
+    P('benjamin-volante', 'BENJAMIN CONSTANT - BVA VOLANTE (PORTO)', 'Benjamin Constant', 'volante')] };
+}
+function vigConfig_() {
+  const r = lerLeitura_('VigConfig').filter(function (x) { return x.id === 'vigifito'; })[0];
+  const c = r ? lerJSONSeguro_(r.config, null) : null;
+  return c && Array.isArray(c.postos) && c.postos.length ? c : vigSemente_();
+}
+/** Início (AAAA-MM-DD) do período de 10 dias da escala que contém o dia: âncora + k × ciclo (o dia da troca abre o período seguinte). */
+function vigPeriodo_(cfg, dia) {
+  const d0 = Date.UTC(+cfg.ancora.slice(0, 4), +cfg.ancora.slice(5, 7) - 1, +cfg.ancora.slice(8, 10)), d = Date.UTC(+dia.slice(0, 4), +dia.slice(5, 7) - 1, +dia.slice(8, 10));
+  const k = Math.floor(Math.round((d - d0) / 864e5) / cfg.ciclo);
+  return somarDias_(cfg.ancora, k * cfg.ciclo);
+}
+const vigZero_ = function () {
+  return { turnos: 0, abordagem: 0, veiculos: 0, pessoas: 0, tfs: 0, documentos: 0, inspecao: 0, advertencia: 0, rechaco: 0, fiel: 0, liberacao: 0, liberacaoT: 0,
+           apreensao: 0, apreensaoT: 0, infracao: 0, coleta: 0, amostras: 0, outrasUnidades: {},
+           educacao: 0, medidaFito: 0, partidas: 0, inspecaoFito: 0, cargasEstados: 0, internN: 0, internT: 0, importT: 0, exportT: 0, autoDestN: 0, autoDestT: 0 };
+};
+/**
+ * Apuração automática do VIGIFITO por posto, por mês (AAAA-MM) e por período de 10 dias (início AAAA-MM-DD), no intervalo [de, ate].
+ * Turno → posto: fixa = local (ou unidade) do turno igual a um dos "locais" do posto (nomes de BVA de CONFIG.bvas/Barreiras); volante =
+ * município do turno (unidade, ou o nome do município no local) igual ao do posto. Sem posto: "OUTRAS BVA FIXAS/AÇÕES VOLANTES (não
+ * mapeadas)", listadas em naoMapeados (aviso no relatório). TF sem turno: pelo local do TF entre os locais das BVAs fixas.
+ */
+function vigApurar_(cfg, de, ate) {
+  const M = motorBarreira_(de, ate);
+  const munN = function (s) { return normPub_(s).replace(/ (am|amazonas)$/, ''); };
+  const fixas = cfg.postos.filter(function (p) { return p.tipo === 'fixa'; }), vols = cfg.postos.filter(function (p) { return p.tipo === 'volante'; });
+  const fixaDe = function (local, unidade) {
+    const a = normPub_(local), b = normPub_(unidade);
+    for (let i = 0; i < fixas.length; i++) if ((fixas[i].locais || []).some(function (l) { const n = normPub_(l); return n && (n === a || n === b); })) return fixas[i].id;
+    return null;
+  };
+  const volanteDe = function (t) {
+    const u = munN(t.unidade), l = ' ' + normPub_(t.local) + ' ';
+    for (let i = 0; i < vols.length; i++) { const m = munN(vols[i].municipio); if (m && (u === m || l.indexOf(' ' + m + ' ') >= 0)) return vols[i].id; }
+    return null;
+  };
+  const porMes = {}, porPeriodo = {}, postoTurno = {}, nao = {}, docVeicTurno = {};
+  const celulas = function (pid, data) {
+    const mes = data.slice(0, 7), per = vigPeriodo_(cfg, data);
+    const a = porMes[pid] = porMes[pid] || {}, b = porPeriodo[pid] = porPeriodo[pid] || {};
+    return [a[mes] = a[mes] || vigZero_(), b[per] = b[per] || vigZero_()];
+  };
+  M.turnos.forEach(function (t) {
+    let pid = t.tipo === 'fixa' ? fixaDe(t.local, t.unidade) : volanteDe(t);
+    if (!pid) {
+      pid = VIG_OUTRAS[t.tipo].id;
+      const k = t.tipo + '|' + String(t.local || '').trim() + '|' + String(t.unidade || '').trim();
+      const n = nao[k] = nao[k] || { tipo: t.tipo, local: String(t.local || '').trim(), unidade: String(t.unidade || '').trim(), turnos: 0, veiculos: 0 };
+      n.turnos++; n.veiculos += t.veiculos;
+    }
+    postoTurno[t.id] = pid;
+    celulas(pid, t.data).forEach(function (x) {
+      x.turnos++; if (t.tipo === 'volante') x.abordagem++; x.veiculos += t.veiculos; x.pessoas += t.pessoas;
+      ['educacao', 'medidaFito', 'partidas', 'inspecaoFito', 'cargasEstados', 'internN', 'internT', 'importT', 'exportT'].forEach(function (k) { x[k] += t[k]; });
+      x.documentos += Object.keys(t.docVeic).length;
+      Object.keys(t.outrasCarga).forEach(function (u) { const o = x.outrasUnidades.carga = x.outrasUnidades.carga || {}; o[u] = (o[u] || 0) + t.outrasCarga[u]; });
+    });
+    docVeicTurno[t.id] = t.docVeic;
+  });
+  const cadB = {}; lerLeitura_('Barreiras').forEach(function (b) { if (b.id) cadB[b.id] = b; });
+  M.tfs.forEach(function (f) {
+    let pid = f.turnoId ? postoTurno[f.turnoId] : null;
+    if (!pid && !f.turnoId) { const c = cadB[f.barreira] || {}; pid = fixaDe(f.local, '') || fixaDe(c.nome, c.local) || VIG_OUTRAS.fixa.id; }
+    if (!pid) pid = VIG_OUTRAS[f.tipo].id;
+    celulas(pid, f.data).forEach(function (x) {
+      x.tfs++;
+      // exame de documentos: veículos com documento conferido + TFs com documentos, sem contar duas vezes o mesmo veículo
+      if (f.documentos && !(f.veiculoId && (docVeicTurno[f.turnoId] || {})[f.veiculoId])) x.documentos++;
+      if (f.inspecao) x.inspecao++; if (f.advertencia) x.advertencia++; if (f.fiel) x.fiel++; if (f.auto) x.infracao++;
+      if (f.procedimento === 'apreensao') { x.autoDestN++; x.autoDestT += f.apreensaoT; }      // no e-GDV a apreensão é a apreensão para destruição
+      if (f.coleta) { x.coleta++; x.amostras += f.amostras; }
+      if (f.procedimento === 'rechaco') x.rechaco++;
+      if (f.procedimento === 'liberacao' || f.procedimento === 'apreensao') {
+        x[f.procedimento]++; x[f.procedimento + 'T'] += f[f.procedimento + 'T'];
+        Object.keys(f.outras).forEach(function (u) { const o = x.outrasUnidades[f.procedimento] = x.outrasUnidades[f.procedimento] || {}; o[u] = (o[u] || 0) + f.outras[u]; });
+      }
+    });
+  });
+  const arred = function (G) { Object.keys(G).forEach(function (p) { Object.keys(G[p]).forEach(function (k) { const x = G[p][k];
+    ['liberacaoT', 'apreensaoT', 'internT', 'importT', 'exportT', 'autoDestT'].forEach(function (c) { x[c] = Math.round(x[c] * 1000) / 1000; }); }); }); };
+  arred(porMes); arred(porPeriodo);
+  const postos = cfg.postos.map(function (p) { return { id: p.id, nome: p.nome, municipio: p.municipio, tipo: p.tipo }; });
+  ['fixa', 'volante'].forEach(function (t) { if (porMes[VIG_OUTRAS[t].id]) postos.push(VIG_OUTRAS[t]); });
+  return { ok: true, de: de, ate: ate, apuradoEm: Date.now(), ancora: cfg.ancora, ciclo: cfg.ciclo, postos: postos, porMes: porMes, porPeriodo: porPeriodo,
+           naoMapeados: Object.keys(nao).map(function (k) { return nao[k]; }) };
+}
+/** Intervalo de apuração do ano: 1º/jan até 31/dez ou até o fim do último período de 10 dias que começa no ano. */
+function vigIntervaloAno_(cfg, ano) {
+  const ult = vigPeriodo_(cfg, ano + '-12-31'), fimUlt = somarDias_(ult, cfg.ciclo - 1);
+  return { de: ano + '-01-01', ate: fimUlt > ano + '-12-31' ? fimUlt : ano + '-12-31' };
+}
+function vigLancOut_(r) {
+  return { periodo: r.periodo, posto: r.posto, indicador: r.indicador, valor: numOuNulo_(r.valor), substitui: r.substitui === 1 ? 1 : 0, justificativa: r.justificativa,
+           origem: r.origem || 'manual', arquivo: r.arquivo || '', usuario: r.usuario, atualizadoEm: r.atualizadoEm };
+}
+/** Configuração, lançamentos e apuração do ano (o painel e o portal usam a mesma resposta). */
+function vigDados_(ano) {
+  ano = anoRelGdv_(ano);
+  const cfg = vigConfig_(), iv = vigIntervaloAno_(cfg, ano), a1 = String(ano);
+  const lanc = lerLeitura_('VigLancamentos').filter(function (r) {
+    if (!r.id || r.excluido === 1) return false;
+    return String(r.periodo).slice(0, 4) === a1 || String(r.periodo).slice(1, 5) === a1;
+  }).map(vigLancOut_);
+  return { ok: true, ano: ano, hoje: hojeManaus_(), cfg: cfg, indicadores: VIG_IND, lancamentos: lanc, apuracao: vigApurar_(cfg, iv.de, iv.ate) };
+}
+function painelVigDados(token, req) { adminDoToken_(token); return vigDados_(req.ano || hojeManaus_().slice(0, 4)); }
+function admVigDados_(s, req) { return vigDados_(req.ano || hojeManaus_().slice(0, 4)); }
+
+/** Valor de um indicador: número ≥ 0; contagens (nº) inteiras; t e m³ com até 3 casas (kg não: converta para t). */
+function vigValor_(ind, v, rot) {
+  const n = typeof v === 'number' ? v : numOuNulo_(v);
+  if (n === null || !isFinite(n)) throw new Error(rot + ': valor não numérico.');
+  if (n < 0) throw new Error(rot + ': valor negativo (use números de 0 em diante).');
+  if (n > 1e8) throw new Error(rot + ': valor grande demais.');
+  if (VIG_IND[ind][0] === 'nº' && Math.round(n) !== n) throw new Error(rot + ': contagem com decimal (use número inteiro).');
+  if (VIG_IND[ind][0] !== 'nº' && Math.abs(n * 1000 - Math.round(n * 1000)) > 1e-6) throw new Error(rot + ': no máximo 3 casas decimais (' + VIG_IND[ind][0] + ').');
+  return n;
+}
+/**
+ * Grava valores do VIGIFITO (portal): [{periodo: 'AAAA-MM' | 'P<AAAA-MM-DD>', posto, indicador, valor ('' = apagar), substitui, justificativa}].
+ * Linha manual: o valor do posto no período. Linha automática: só como SUBSTITUIÇÃO do apurado pelo e-GDV (substitui = 1) com
+ * justificativa (meses anteriores ao e-GDV ou correção). Uma linha por célula (id = periodo|posto|indicador); só regrava o que mudou.
+ * origem = 'manual' ou 'planilha' (importação da planilha de controle).
+ */
+function vigGravar_(s, itens, origem, arquivo) {
+  const cfg = vigConfig_(), ids = {};
+  cfg.postos.forEach(function (p) { ids[p.id] = p; });
+  const agora = Date.now(), vistos = {};
+  const linhas = itens.map(function (l, i) {
+    const rot = 'Linha ' + (i + 1);
+    if (!l || typeof l !== 'object') throw new Error(rot + ': lançamento inválido.');
+    const per = String(l.periodo || ''), posto = String(l.posto || ''), ind = String(l.indicador || '');
+    if (VIG_RE_MES.test(per)) { /* mês */ }
+    else if (VIG_RE_PER.test(per)) { if (!diaValido_(per.slice(1)) || vigPeriodo_(cfg, per.slice(1)) !== per.slice(1)) throw new Error(rot + ': o período ' + per.slice(1) + ' não começa na escala de 10 dias (âncora ' + cfg.ancora + ', ciclo de ' + cfg.ciclo + ' dias).'); }
+    else throw new Error(rot + ': período inválido (AAAA-MM ou P<data de início>).');
+    if (!ids[posto]) throw new Error(rot + ': posto do VIGIFITO inexistente: ' + posto + '.');
+    if (!VIG_IND[ind]) throw new Error(rot + ': indicador inexistente: ' + ind + '.');
+    const id = per + '|' + posto + '|' + ind;
+    if (vistos[id]) throw new Error(rot + ': lançamento repetido no envio (' + id + ').');
+    vistos[id] = 1;
+    const ano = Number(per.charAt(0) === 'P' ? per.slice(1, 5) : per.slice(0, 4));
+    const o = { id: id, ano: ano, periodo: per, posto: posto, indicador: ind, valor: '', substitui: 0, justificativa: '', origem: origem, arquivo: arquivo || '',
+                usuario: s.nome, admId: s.admId, atualizadoEm: agora, excluido: 0 };
+    const rotI = rot + ' (' + ids[posto].nome + ', ' + ind + ')';
+    if (l.valor === '' || l.valor === null || l.valor === undefined) { o.excluido = 1; return o; }
+    o.valor = vigValor_(ind, l.valor, rotI);
+    if (VIG_IND[ind][1] === 'auto') {
+      o.substitui = 1;
+      o.justificativa = convTexto_(l.justificativa || (origem === 'planilha' ? 'Importado da planilha de controle VIGIFITO (' + (arquivo || 'arquivo') + ')' : ''), 300, rotI + ': justificativa');
+      if (o.justificativa.length < 5) throw new Error(rotI + ': linha apurada pelo e-GDV — o valor manual SUBSTITUI o automático e exige justificativa.');
+    } else o.justificativa = convTexto_(l.justificativa, 300, rotI + ': observação');
+    return o;
+  });
+  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    const t = lerTudo_('VigLancamentos'), cols = t.cols, idx = {}, novas = [], hist = [];
+    t.valores.forEach(function (l, i) { idx[String(l[0])] = i; });
+    const res = { ok: true, novos: 0, atualizados: 0, iguais: 0, excluidos: 0 };
+    linhas.forEach(function (o) {
+      const i = idx[o.id], ant = i === undefined ? null : paraObjeto_(cols, t.valores[i]), vivo = ant && ant.excluido !== 1;
+      if (o.excluido) {
+        if (!vivo) return;
+        ant.excluido = 1; ant.usuario = o.usuario; ant.admId = o.admId; ant.atualizadoEm = agora;
+        t.sh.getRange(i + 2, 1, 1, cols.length).setValues([cols.map(function (c) { return ant[c]; })]);
+        hist.push([o.id, ant.valor, '']); res.excluidos++; return;
+      }
+      if (vivo && numOuNulo_(ant.valor) === o.valor && ant.substitui === o.substitui && ant.justificativa === o.justificativa) { res.iguais++; return; }
+      const linha = cols.map(function (c) { return o[c]; });
+      if (i === undefined) { novas.push(linha); idx[o.id] = -1; res.novos++; }
+      else if (i < 0) return;
+      else { t.sh.getRange(i + 2, 1, 1, cols.length).setValues([linha]); res.atualizados++; }
+      hist.push([o.id, vivo ? ant.valor : '', o.valor + (o.substitui ? ' (substitui o e-GDV: ' + o.justificativa + ')' : '')]);
+    });
+    if (novas.length) t.sh.getRange(t.sh.getLastRow() + 1, 1, novas.length, cols.length).setValues(novas);
+    admHistLote_(s, origem === 'planilha' ? 'importar' : 'gravar', 'VigLancamentos', origem === 'planilha'
+      ? [['arquivo: ' + arquivo, '', { novos: res.novos, atualizados: res.atualizados, iguais: res.iguais }]] : hist);
+    return res;
+  } finally { lock.releaseLock(); }
+}
+function admVigLancar_(s, req) {
+  const l = Array.isArray(req.lancamentos) ? req.lancamentos : [];
+  if (!l.length) throw new Error('Nada a gravar.');
+  if (l.length > 2000) throw new Error('No máximo 2.000 valores por envio.');
+  return vigGravar_(s, l, 'manual', '');
+}
+/** Importação da planilha de controle VIGIFITO (lida no navegador; até 1.500 valores por chamada; idempotente pelo id da célula). */
+function admVigImportar_(s, req) {
+  const l = Array.isArray(req.itens) ? req.itens : [];
+  if (!l.length) throw new Error('Nada a importar.');
+  if (l.length > 1500) throw new Error('No máximo 1.500 valores por envio.');
+  return vigGravar_(s, l, 'planilha', convTexto_(req.arquivo, 200, 'Arquivo'));
+}
+/** Painel: edita a lista de postos do VIGIFITO (correspondência posto → BVA/município do e-GDV, tipo) e a escala dos períodos de 10 dias. */
+function painelVigConfigSalvar(token, req) {
+  const admin = adminDoToken_(token), c = req && req.config;
+  if (!c || typeof c !== 'object') throw new Error('Configuração inválida.');
+  const ancora = String(c.ancora || ''), ciclo = Number(c.ciclo);
+  if (!diaValido_(ancora)) throw new Error('Data-âncora da escala inválida (aaaa-mm-dd).');
+  if (!(ciclo >= 1 && ciclo <= 31) || Math.round(ciclo) !== ciclo) throw new Error('Ciclo da escala: de 1 a 31 dias.');
+  if (!Array.isArray(c.postos) || !c.postos.length || c.postos.length > 40) throw new Error('Postos: de 1 a 40.');
+  const vistos = {};
+  const postos = c.postos.map(function (p, i) {
+    const id = String((p && p.id) || '').trim();
+    if (!/^[a-z0-9-]{1,40}$/.test(id) || vistos[id]) throw new Error('Posto ' + (i + 1) + ': id inválido ou repetido (letras minúsculas, números e hífen).');
+    vistos[id] = 1;
+    const nome = convTexto_(p.nome, 80, 'Nome do posto'); if (!nome) throw new Error('Posto ' + id + ' sem nome.');
+    if (p.tipo !== 'fixa' && p.tipo !== 'volante') throw new Error('Posto ' + id + ': tipo fixa ou volante.');
+    const locais = (Array.isArray(p.locais) ? p.locais : String(p.locais || '').split(/[\n;]/)).map(function (x) { return convTexto_(x, 80, 'Local'); }).filter(Boolean).slice(0, 10);
+    return { id: id, nome: nome, municipio: convTexto_(p.municipio, 60, 'Município'), tipo: p.tipo, locais: locais };
+  });
+  const atual = vigConfig_(), o = { ancora: ancora, ciclo: ciclo, postos: postos, versao: (Number(atual.versao) || 0) + 1, atualizadoEm: Date.now(), atualizadoPor: admin };
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try { convGravar_('VigConfig', { id: 'vigifito', config: JSON.stringify(o), atualizadoEm: o.atualizadoEm, atualizadoPor: admin }); }
+  finally { lock.releaseLock(); }
+  return { ok: true, config: o };
+}
+
+/* ---------- Portal do Administrativo (web/administrativo/; login com Google ou código de ativação) ----------
+ * O Administrativo da GDV (3 pessoas) lança no portal os dados que não vêm do app de campo: desembolso e execução física do convênio
+ * (e a importação da planilha de movimentação), as linhas manuais dos relatórios (quadro PCE, colunas por município, CFO/CFOC, PTV,
+ * educação sanitária, armadilhas do HLB) e o VIGIFITO por posto × mês (com a importação da planilha de controle). O painel do
+ * gerente só mostra os dados e gera os relatórios: as actions painel* de gravação desses dados recusam (MSG_PORTAL).
+ * Login: o navegador obtém o ID token do Google (Google Identity Services) e chama admLogin {idToken}; o servidor confere o token no
+ * tokeninfo do Google (aud = propriedade GOOGLE_CLIENT_ID, iss, exp, email_verified), o e-mail (minúsculas) na lista de liberados (aba
+ * Administrativo, gerida no painel → Servidores) e devolve um token de SESSÃO do portal (aleatório; na planilha só o SHA-256), válido
+ * por 12 h e renovado ao usar. Sem Google configurado: código de 6 dígitos gerado no painel (admCodigo {codigo}) → a mesma sessão.
+ * A sessão do portal não vale no painel nem no app (e as credenciais deles não valem aqui). O ID token nunca é gravado nem registrado.
+ * Revogar no painel (ativo = 0) derruba a sessão na próxima chamada. Logins recusados: 10 em 15 min bloqueiam (CacheService).
+ * LGPD: os e-mails ficam só na aba Administrativo (e no painel do administrador); lançamentos e histórico guardam o nome e o admId.
+ */
+const ADM_SESSAO_MS = 12 * 3600 * 1000;
+const ADM_MAX_PADRAO = 10;                                    // liberados ativos (propriedade do script ADM_MAX troca)
+const ADM_MAX_FALHAS = 10;                                    // logins recusados (Google ou código) antes de bloquear 15 min
+const ADM_ISS = ['accounts.google.com', 'https://accounts.google.com'];
+const MSG_PORTAL = 'Lançamentos são feitos no Portal do Administrativo (no painel, só leitura).';
+const ADM_URL_PADRAO = 'https://evilasionogueiraagro-netizen.github.io/GDV/administrativo/';
+
+function emailNorm_(v) { return String(v || '').trim().toLowerCase(); }
+/** SHA-256 em hex (64 caracteres). */
+function hexSha_(txt) {
+  return Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, String(txt), Utilities.Charset.UTF_8)
+    .map(function (x) { return ((x + 256) % 256).toString(16).padStart(2, '0'); }).join('');
+}
+function admMax_() { const v = Number(PropertiesService.getScriptProperties().getProperty('ADM_MAX')); return v >= 1 && v <= 50 ? Math.round(v) : ADM_MAX_PADRAO; }
+function admUrl_() { return PropertiesService.getScriptProperties().getProperty('ADM_URL') || ADM_URL_PADRAO; }
+function admGoogleId_() { return String(PropertiesService.getScriptProperties().getProperty('GOOGLE_CLIENT_ID') || '').trim(); }
+/** Conta um login recusado (bloqueio de 15 min depois de ADM_MAX_FALHAS) e lança o erro. */
+function admFalhou_(msg) {
+  const c = CacheService.getScriptCache();
+  c.put('falhas_adm', String(Number(c.get('falhas_adm') || 0) + 1), 900);
+  throw new Error(msg);
+}
+function admBloqueado_() {
+  if (Number(CacheService.getScriptCache().get('falhas_adm') || 0) >= ADM_MAX_FALHAS) throw new Error('Muitas tentativas recusadas. Aguarde 15 minutos e tente de novo.');
+}
+
+/** Login com Google: confere o ID token no tokeninfo do Google e o e-mail na lista de liberados. */
+function admLogin_(req) {
+  admBloqueado_();
+  const tok = String(req.idToken || '');
+  if (tok.length < 20 || tok.length > 4096 || !/^[A-Za-z0-9._-]+$/.test(tok)) admFalhou_('Login do Google inválido. Entre de novo.');
+  const clientId = admGoogleId_();
+  if (!clientId) throw new Error('O login com Google ainda não foi configurado no servidor (propriedade GOOGLE_CLIENT_ID). Use o código de ativação.');
+  let info = null, code = 0;
+  try {
+    const r = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(tok), { muteHttpExceptions: true });
+    code = r.getResponseCode();
+    if (code === 200) info = JSON.parse(r.getContentText());
+  } catch (e) { throw new Error('Não foi possível conferir o login com o Google agora. Tente de novo em instantes.'); }
+  if (!info || typeof info !== 'object') admFalhou_('Login do Google inválido ou expirado. Entre de novo.');
+  if (String(info.aud || '') !== clientId) admFalhou_('Login do Google emitido para outro aplicativo (Client ID diferente).');
+  if (ADM_ISS.indexOf(String(info.iss || '')) < 0) admFalhou_('Login do Google inválido (emissor desconhecido).');
+  if (!(Number(info.exp) * 1000 > Date.now())) admFalhou_('Login do Google expirado. Entre de novo.');
+  if (!(info.email_verified === true || info.email_verified === 'true')) admFalhou_('E-mail da conta Google não verificado.');
+  const email = emailNorm_(info.email);
+  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    const a = lerLeitura_('Administrativo').filter(function (x) { return x.id && x.ativo === 1 && emailNorm_(x.email) === email; })[0];
+    if (!a) admFalhou_('A conta ' + email + ' não está liberada para o Portal do Administrativo. Peça ao gerente para liberar o e-mail no painel (aba Servidores).');
+    return admNovaSessao_(a, 'google');
+  } finally { lock.releaseLock(); }
+}
+
+/** Login por código de 6 dígitos (gerado no painel para um liberado; uso único, 7 dias). */
+function admCodigo_(req) {
+  admBloqueado_();
+  const cod = String(req.codigo || '').replace(/\D/g, '');
+  if (cod.length !== 6) admFalhou_('O código tem 6 dígitos.');
+  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    const t = lerTudo_('Administrativo'), agora = Date.now();
+    for (let i = 0; i < t.valores.length; i++) {
+      const a = paraObjeto_(t.cols, t.valores[i]);
+      if (!a.id || !a.codigo || a.codigo.padStart(6, '0') !== cod) continue;
+      if (a.ativo !== 1) admFalhou_('Este acesso foi revogado pelo gerente.');
+      if (a.codigoExpira <= agora) admFalhou_('Código expirado. Peça um novo código ao gerente.');
+      a.codigo = ''; a.codigoExpira = 0;                                      // uso único
+      t.sh.getRange(i + 2, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return a[c]; })]);
+      return admNovaSessao_(a, 'codigo');
+    }
+    admFalhou_('Código incorreto ou já usado. Peça um novo código ao gerente.');
+  } finally { lock.releaseLock(); }
+}
+
+/** Nova sessão do portal (o chamador segura o lock): token aleatório devolvido uma vez; na planilha, só o SHA-256. */
+function admNovaSessao_(a, origem) {
+  const tok = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').toLowerCase(), agora = Date.now();
+  const s = { id: Utilities.getUuid(), hash: hexSha_(tok), admId: a.id, origem: origem, criadoEm: agora, expiraEm: agora + ADM_SESSAO_MS, ultimoUso: agora, revogado: 0 };
+  const sh = aba_('AdmSessoes'), cols = TABELAS.AdmSessoes;
+  sh.getRange(sh.getLastRow() + 1, 1, 1, cols.length).setValues([cols.map(function (c) { return s[c]; })]);
+  admMarcarAcesso_(a.id, agora);
+  return { ok: true, sessao: tok, nome: a.nome, email: emailNorm_(a.email), expiraEm: s.expiraEm, origem: origem };
+}
+function admMarcarAcesso_(id, agora) {
+  const t = lerTudo_('Administrativo'), iu = t.cols.indexOf('ultimoAcesso');
+  for (let i = 0; i < t.valores.length; i++) if (String(t.valores[i][0]) === String(id)) { t.sh.getRange(i + 2, iu + 1).setValue(agora); return; }
+}
+
+/** Valida o token de sessão do portal; renova a validade (12 h a partir do uso). Liberado revogado = sessão recusada. */
+function admSessao_(tok) {
+  tok = String(tok || '');
+  if (!/^[0-9a-f]{64}$/.test(tok)) throw new Error('Sessão do portal inválida. Entre de novo.');
+  const h = hexSha_(tok), t = lerTudo_('AdmSessoes'), agora = Date.now(), ih = t.cols.indexOf('hash');
+  for (let i = t.valores.length - 1; i >= 0; i--) {
+    if (String(t.valores[i][ih]) !== h) continue;
+    const s = paraObjeto_(t.cols, t.valores[i]);
+    if (s.revogado === 1) break;
+    if (s.expiraEm <= agora) throw new Error('Sessão do portal expirada (12 h sem uso). Entre de novo.');
+    const a = lerLeitura_('Administrativo').filter(function (x) { return x.id === s.admId; })[0];
+    if (!a || a.ativo !== 1) throw new Error('Sessão do portal revogada: o acesso foi retirado pelo gerente.');
+    if (s.expiraEm - agora < ADM_SESSAO_MS - 5 * 60 * 1000) {                 // renova (no máximo uma escrita a cada 5 min)
+      s.expiraEm = agora + ADM_SESSAO_MS; s.ultimoUso = agora;
+      t.sh.getRange(i + 2, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return s[c]; })]);
+      admMarcarAcesso_(a.id, agora);
+    }
+    return { admId: a.id, nome: a.nome, email: emailNorm_(a.email), expiraEm: s.expiraEm };
+  }
+  throw new Error('Sessão do portal encerrada. Entre de novo.');
+}
+
+/** Sair: a sessão é revogada no servidor (cópias do token deixam de valer). */
+function admSair_(s, req) {
+  const h = hexSha_(String(req.sessao || '')), t = lerTudo_('AdmSessoes'), ih = t.cols.indexOf('hash'), ir = t.cols.indexOf('revogado');
+  for (let i = 0; i < t.valores.length; i++) if (String(t.valores[i][ih]) === h) t.sh.getRange(i + 2, ir + 1).setValue(1);
+  return { ok: true };
+}
+
+/** Histórico de alterações feitas no portal: [registro, antes, depois] por linha (JSON limitado). */
+function admHistLote_(s, acao, aba, itens) {
+  if (!itens || !itens.length) return;
+  const lim = function (o) {
+    if (o === null || o === undefined || o === '') return '';
+    const j = typeof o === 'string' ? o : JSON.stringify(o);
+    return (j.length > 3000 ? j.slice(0, 2990) + '…' : j).replace(/^[=+\-@]/, "'$&");
+  };
+  const sh = aba_('AdmHistorico'), cols = TABELAS.AdmHistorico, agora = Date.now();
+  const linhas = itens.map(function (x) {
+    const o = { em: agora, admId: s.admId, nome: s.nome, acao: acao, aba: aba, registro: String(x[0] || '').slice(0, 200), antes: lim(x[1]), depois: lim(x[2]) };
+    return cols.map(function (c) { return o[c]; });
+  });
+  sh.getRange(sh.getLastRow() + 1, 1, linhas.length, cols.length).setValues(linhas);
+}
+
+/** Servidores cadastrados (aba Fiscais, sem administradores) para o desembolso de diárias: id estável (hash do nome) e nome. */
+function admServidores_() {
+  const vistos = {}, out = [];
+  lerLeitura_('Fiscais').forEach(function (f) {
+    if (!f.nome || f.perfil === 'admin') return;
+    const k = nomeChave_(f.nome); if (vistos[k]) return;
+    vistos[k] = 1; out.push({ id: 'srv-' + hexSha_('srv:' + k).slice(0, 12), nome: f.nome });
+  });
+  return out.sort(function (a, b) { return a.nome.localeCompare(b.nome); });
+}
+
+/* ----- actions do portal (todas exigem a sessão) ----- */
+const autorAdm_ = function (s) { return { nome: s.nome, admId: s.admId }; };
+function admDados_(s) {
+  const vivo = function (r) { return r.id && r.excluido !== 1; };
+  return { ok: true, nome: s.nome, email: s.email, expiraEm: s.expiraEm, hoje: hojeManaus_(), painelUrl: painelUrl_(),
+           convenios: convListar_(), servidores: admServidores_(),
+           lancamentos: lerLeitura_('ConvLancamentos').filter(vivo).map(convLancOut_),
+           financeiro: lerLeitura_('ConvFinanceiro').filter(vivo).map(convFinOutAdm_) };
+}
+function admConvLancar_(s, req) {
+  const r = convLancar_(autorAdm_(s), req.lancamento);
+  admHistLote_(s, r.antes ? 'editar' : 'lançar', 'ConvLancamentos', [[r.lancamento.id, r.antes, r.lancamento]]);
+  delete r.antes; return r;
+}
+function admConvFinLancar_(s, req) {
+  const r = convFinLancar_(autorAdm_(s), req.lancamento);
+  admHistLote_(s, r.antes ? 'editar' : 'lançar', 'ConvFinanceiro', [[r.lancamento.id, r.antes, r.lancamento]]);
+  delete r.antes; return r;
+}
+function admConvExcluir_(s, req) {
+  const r = convExcluir_(autorAdm_(s), 'ConvLancamentos', req.id);
+  admHistLote_(s, 'excluir', 'ConvLancamentos', [[r.id, r.antes, { excluido: 1 }]]); delete r.antes; return r;
+}
+function admConvFinExcluir_(s, req) {
+  const r = convExcluir_(autorAdm_(s), 'ConvFinanceiro', req.id);
+  admHistLote_(s, 'excluir', 'ConvFinanceiro', [[r.id, r.antes, { excluido: 1 }]]); delete r.antes; return r;
+}
+function admConvFinImportar_(s, req) {
+  const r = convFinImportar_(autorAdm_(s), req);
+  admHistLote_(s, 'importar', 'ConvFinanceiro', [['arquivo: ' + r.arquivo, '', { novos: r.novos, atualizados: r.atualizados, iguais: r.iguais, excluidos: r.excluidos }]]);
+  r.lancamentos = r.lancamentos.map(function (l) { return Object.assign({}, l, { servidorId: '', servidorNome: '' }); });
+  return r;
+}
+/** Lançamentos manuais do Relatório GDV no ano (com quem/quando), para o portal. */
+function admRelDados_(s, req) {
+  const ano = req.ano ? anoRelGdv_(req.ano) : Number(hojeManaus_().slice(0, 4));
+  return { ok: true, ano: ano, hoje: hojeManaus_(),
+    lancamentos: lerLeitura_('RelGdvLancamentos').filter(function (r) { return r.id && r.ano === ano; }).map(function (r) {
+      return { mes: r.mes, chave: r.chave, valor: numOuNulo_(r.valor), lista: r.lista ? lerJSONSeguro_(r.lista, []) : null, usuario: r.usuario, atualizadoEm: r.atualizadoEm }; }) };
+}
+function admRelLancar_(s, req) { return relGdvLancar_(s, req); }
+/** Histórico (últimas 300 alterações; filtro opcional por aba/registro). */
+function admHistorico_(s, req) {
+  const aba = String(req.aba || ''), reg = String(req.registro || '');
+  const l = lerLeitura_('AdmHistorico').filter(function (h) { return h.em && (!aba || h.aba === aba) && (!reg || h.registro === reg); });
+  return { ok: true, historico: l.slice(-300).reverse().map(function (h) { return { em: h.em, nome: h.nome, acao: h.acao, aba: h.aba, registro: h.registro, antes: h.antes, depois: h.depois }; }) };
+}
+
+const ADM_ACOES_ = {
+  admSair: admSair_, admDados: admDados_, admConvLancar: admConvLancar_, admConvExcluir: admConvExcluir_, admConvFinLancar: admConvFinLancar_,
+  admConvFinExcluir: admConvFinExcluir_, admConvFinImportar: admConvFinImportar_, admRelDados: admRelDados_, admRelLancar: admRelLancar_,
+  admHistorico: admHistorico_, admVigDados: admVigDados_, admVigLancar: admVigLancar_, admVigImportar: admVigImportar_
+};
+/** Roteador das actions do portal: sessão obrigatória (o token do painel/app não vale aqui). */
+function admAcao_(req) {
+  const fn = ADM_ACOES_[req.action];
+  if (!fn) throw new Error('Ação inválida.');
+  return fn(admSessao_(req.sessao), req);
+}
+
+/* ----- painel → aba Servidores: lista de liberados do Administrativo (só administrador do painel) ----- */
+function admLinhaOut_(a, agora) {
+  const pend = a.codigo && a.codigoExpira > agora;
+  return { id: a.id, email: emailNorm_(a.email), nome: a.nome, ativo: a.ativo === 1 ? 1 : 0, criadoEm: a.criadoEm, criadoPor: a.criadoPor, ultimoAcesso: a.ultimoAcesso || 0,
+           codigo: pend ? a.codigo.padStart(6, '0') : '', codigoExpira: pend ? a.codigoExpira : 0, atualizadoEm: a.atualizadoEm, atualizadoPor: a.atualizadoPor };
+}
+function painelAdmLista(token) {
+  adminDoToken_(token);
+  const agora = Date.now();
+  return { ok: true, max: admMax_(), google: !!admGoogleId_(), url: admUrl_(),
+           liberados: lerLeitura_('Administrativo').filter(function (a) { return a.id; }).map(function (a) { return admLinhaOut_(a, agora); }) };
+}
+/** Inclui/edita um liberado (e-mail Google, nome, ativo). ativo = 0 revoga: a sessão cai na próxima chamada do portal. */
+function painelAdmSalvar(token, req) {
+  const admin = adminDoToken_(token);
+  req = req || {};
+  const email = emailNorm_(req.email);
+  if (!RE_EMAIL_.test(email) || email.length > 120) throw new Error('E-mail inválido.');
+  const nome = nomeServidor_(req.nome), ativo = req.ativo === 0 || req.ativo === false || req.ativo === '0' ? 0 : 1;
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const t = lerTudo_('Administrativo'), agora = Date.now(), id = String(req.id || '');
+    let pos = -1, outros = 0;
+    t.valores.forEach(function (l, i) {
+      const a = paraObjeto_(t.cols, l); if (!a.id) return;
+      if (id ? a.id === id : emailNorm_(a.email) === email) pos = i;
+      else { if (emailNorm_(a.email) === email) throw new Error('Este e-mail já está na lista.'); if (a.ativo === 1) outros++; }
+    });
+    if (id && pos < 0) throw new Error('Liberado não encontrado.');
+    if (ativo && outros >= admMax_()) throw new Error('Limite de ' + admMax_() + ' pessoas liberadas no Portal do Administrativo. Revogue alguém antes.');
+    const a = pos >= 0 ? paraObjeto_(t.cols, t.valores[pos]) : { id: Utilities.getUuid(), criadoEm: agora, criadoPor: admin, ultimoAcesso: 0, codigo: '', codigoExpira: 0 };
+    a.email = email; a.nome = nome; a.ativo = ativo; a.atualizadoEm = agora; a.atualizadoPor = admin;
+    if (!ativo) { a.codigo = ''; a.codigoExpira = 0; }
+    const linha = t.cols.map(function (c) { const v = a[c]; return v === null || v === undefined ? '' : v; });
+    if (pos >= 0) t.sh.getRange(pos + 2, 1, 1, t.cols.length).setValues([linha]);
+    else t.sh.getRange(t.sh.getLastRow() + 1, 1, 1, t.cols.length).setValues([linha]);
+    if (!ativo) {                                                                  // revogado: sessões abertas também saem
+      const ss = lerTudo_('AdmSessoes'), ia = ss.cols.indexOf('admId'), ir = ss.cols.indexOf('revogado');
+      ss.valores.forEach(function (l, i) { if (String(l[ia]) === a.id && Number(l[ir]) !== 1) ss.sh.getRange(i + 2, ir + 1).setValue(1); });
+    }
+    return { ok: true, liberado: admLinhaOut_(a, agora) };
+  } finally { lock.releaseLock(); }
+}
+/** Código de ativação do portal (6 dígitos, uso único, 7 dias) para um liberado ativo — alternativa ao login com Google. */
+function painelAdmCodigo(token, req) {
+  const admin = adminDoToken_(token);
+  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    const t = lerTudo_('Administrativo'), agora = Date.now(), id = String((req && req.id) || ''), emUso = {};
+    let pos = -1;
+    t.valores.forEach(function (l, i) { const a = paraObjeto_(t.cols, l); if (a.codigo && a.codigoExpira > agora) emUso[a.codigo.padStart(6, '0')] = 1; if (a.id && a.id === id) pos = i; });
+    if (pos < 0) throw new Error('Liberado não encontrado.');
+    const a = paraObjeto_(t.cols, t.valores[pos]);
+    if (a.ativo !== 1) throw new Error('Acesso revogado: reative antes de gerar o código.');
+    let codigo;
+    do { codigo = String(parseInt(Utilities.getUuid().replace(/-/g, '').slice(0, 8), 16) % 1000000).padStart(6, '0'); } while (emUso[codigo]);
+    a.codigo = codigo; a.codigoExpira = agora + VALIDADE_CODIGO_MS; a.atualizadoEm = agora; a.atualizadoPor = admin;
+    t.sh.getRange(pos + 2, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return a[c]; })]);
+    return { ok: true, id: a.id, nome: a.nome, codigo: codigo, expiraEm: a.codigoExpira, url: admUrl_() };
+  } finally { lock.releaseLock(); }
 }
 
 /* ---------- Dashboard público (web/dashboard/, sem credencial) ----------

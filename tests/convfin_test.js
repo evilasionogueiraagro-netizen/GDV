@@ -134,7 +134,7 @@ function planilha(var2) {
   ok(it('1.10.5').diarias === 1125 && it('1.5.4').diarias === 10 && quase(it('1.10.4').gravar, 11655), 'diárias equivalentes por item (1.10.5: 1.125; 1.5.4: 10) e soma importada da 1.10.4 (R$ 11.655,00)', [it('1.10.5'), it('1.10.4').gravar]);
   const telaPv = await pa.textContent('#pn-conv-imp-pv');
   ok(/memorando\(s\) repetido/.test(telaPv) && /Conferência com a aba SOMA/.test(telaPv) && /Linhas que pedem decisão/.test(telaPv) && /Gravar 17 lançamento/.test(telaPv), 'prévia na tela: avisos, SOMA, decisões e botão "Gravar 17"');
-  ok(!NOMES.some(n => telaPv.includes(n)) && !NOMES.some(n => JSON.stringify(V).includes(n)), 'prévia sem nenhum nome da coluna NOME (nem na tela nem no estado)');
+  ok(V.linhas.filter(l => l.servidorNome).every(l => NOMES.includes(l.servidorNome)) && V.linhas.some(l => l.servidorNome === NOMES[1]), 'portal: a prévia traz o servidor de cada diária (coluna NOME)', V.linhas.map(l => l.servidorNome).slice(0, 5));
   // escolher a data da linha sem data
   await pa.fill('[data-imp-data]', '2026-03-05'); await pa.dispatchEvent('[data-imp-data]', 'change');
   await pa.waitForFunction(() => AdmConvenio.estado().imp.linhas.find(l => !l.dataPlanilha).data === '2026-03-05', null, { timeout: 5000 });
@@ -154,8 +154,12 @@ function planilha(var2) {
   const rSd = vivas().find(r => r[col('chave')] === 'imp|991272-2025|1.10.4||2100.00|1');
   ok(rSd && rSd[col('data')] === '2026-03-05' && rSd[col('fonte')] === 'concedente' && rSd[col('natureza')] === '33.90.14', 'linha sem data gravada com a data escolhida; fonte = repasse; natureza do item', rSd);
   const abaTxt = JSON.stringify(aba);
-  ok(!NOMES.some(n => abaTxt.includes(n)), 'nenhum nome fictício gravado na planilha do servidor');
-  ok(!NOMES.some(n => corpos.some(c => c.includes(n))), 'nenhum nome fictício em requisição alguma do navegador', corpos.length);
+  ok(vivas().some(r => NOMES.includes(r[col('servidorNome')]) && /^srv-[0-9a-f]{12}$/.test(r[col('servidorId')])),
+    'nomes dos servidores das diárias gravados na planilha do e-GDV (coluna servidorNome, com id estável)', vivas().map(r => r[col('servidorNome')]).slice(0, 4));
+  const painelTxt = await p.evaluate(() => JSON.stringify(Painel.aba('convenios').estado()) + document.body.innerText);
+  ok(!NOMES.some(n => painelTxt.includes(n)), 'painel continua sem nenhum nome de servidor (dados e tela)');
+  const sug = await pa.evaluate(() => (AdmConvenio.estado().dados.servidores || []).map(x => x.nome));
+  ok(NOMES.filter(n => sug.includes(n)).length >= 2, 'portal: nomes importados viram sugestões do autopreenchimento', sug);
   const S = await p.evaluate(() => ({ fin: Painel.aba('convenios').estado().R.fin }));
   Object.assign(S, await pa.evaluate(() => ({ msg: document.querySelector('[data-msg=imp]').textContent, resumo: AdmConvenio.estado().impResumo })));
   const fe = id => S.fin.etapas.find(e => e.id === id), nat = n => S.fin.naturezas.find(x => x.natureza === n);
@@ -189,7 +193,8 @@ function planilha(var2) {
   ok(aba.length - 1 === 17 && vivas().length === 16, 'nenhuma linha nova na planilha do servidor (17 linhas; 16 valendo)', [aba.length - 1, vivas().length]);
   ok(r120[col('id')] === id120 && Number(r120[col('valor')]) === 4410 && Number(r120[col('quantidade')]) === 21, 'memo 120/2026 atualizado na mesma linha (R$ 4.410,00; 21 diárias)', r120);
   ok(r121[col('excluido')] === 1, 'memo 121/2026 marcado: exclusão lógica', r121);
-  ok(!NOMES.some(n => JSON.stringify(aba).includes(n) || corpos.some(c => c.includes(n))), 'segunda importação também sem nomes no servidor');
+  const painelTxt2 = JSON.stringify(await p.evaluate(() => Painel.aba('convenios').estado()));
+  ok(!NOMES.some(n => painelTxt2.includes(n)), 'segunda importação: painel continua sem nomes');
 
   console.log('4. Metas: físico × financeiro, diárias, custo por unidade e projeção');
   await p.click('[data-conv=visao][data-v=metas]'); await p.waitForSelector('.pn-conv-ff');

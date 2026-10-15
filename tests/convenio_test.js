@@ -378,6 +378,9 @@ print(json.dumps({'nomes':nomes,'tabelas':x.count('<w:tbl>'),'bordas':x.count('w
   await p.click('#pn-conv-editar'); await p.waitForSelector('#pn-conv-cfg[open]');
   ok(await p.isChecked('#pn-conv-cfg [data-bva][value="BVA - JUNDIÁ"]') && await p.isChecked('#pn-conv-cfg [data-bva][value="BVA - CEASA"]') && !(await p.isChecked('#pn-conv-cfg [data-bva][value="BVA - AEROPORTO"]')),
     'BVAs da 1.10 escolhidas entre as de CONFIG.bvas (Jundiá e CEASA marcadas; Aeroporto não)');
+  const vBva = await p.$$eval('#pn-conv-cfg [data-bva]', xs => xs.map(x => x.value));
+  ok(await p.evaluate(() => (Painel.todos.barreiras || []).some(b => b.nome === 'Barreira Porto da CEASA')) && !vBva.includes('Barreira Porto da CEASA') && vBva.filter(v => v === 'BVA - CEASA').length === 1,
+    'BVA - CEASA e "Barreira Porto da CEASA" (cadastro do TF, sufixo BVA - CEASA) aparecem unificadas', vBva);
   ok(await p.inputValue('#pn-cc-an2') === 'SIVANDRO CAMPOS DE FREITAS', 'assinaturas editáveis');
   await p.check('#pn-conv-cfg [data-bva][value="BVA - AEROPORTO"]');
   await p.fill('#pn-cc-meta-1_14', '8');

@@ -51,9 +51,9 @@
         if (!CD) throw new Error('ConvDocs não carregado.');
         if (!E.conv || forcar) E.conv = await P.chamar({ action: 'painelConvenios' });
         const c = cfgConv(), ms = mesesConv(c);
-        if (!ms.includes(E.cmes)) E.cmes = ms[ms.length - 1];
+        if (E.cmes !== 'total' && !ms.includes(E.cmes)) E.cmes = ms[ms.length - 1];
         const k = `${c.id}|${E.cmes}|${c.versao || 0}`;
-        if (!E.capur[k] || forcar) E.capur[k] = await P.chamar({ action: 'painelConvApuracao', convenio: c.id, de: c.inicioExecucao, ate: CD.fimDoMes(E.cmes) });
+        if (!E.capur[k] || forcar) E.capur[k] = await P.chamar({ action: 'painelConvApuracao', convenio: c.id, de: c.inicioExecucao, ate: consolConv() ? hoje() : CD.fimDoMes(E.cmes) });
       } else if (E.rel !== 'suasa') {
         if (!E.dados[E.ano] || forcar) E.dados[E.ano] = await P.chamar({ action: 'painelRelGdv', ano: E.ano });
         if (E.anoEstado !== E.ano || forcar) iniciarLancamentos();
@@ -105,7 +105,7 @@
     if (E.rel === 'convenio') {
       const c = cfgConv(); if (!c) return;
       const ap = E.capur[`${c.id}|${E.cmes}|${c.versao || 0}`];
-      if (ap) E.CR = CD.calcular(c, ap, E.conv.lancamentos, E.conv.financeiro, E.cmes, { hoje: hoje(), municipio: n => P.municipioNome(n) || n });
+      if (ap) E.CR = CD.calcular(c, ap, E.conv.lancamentos, E.conv.financeiro, cmesEf(c), { hoje: hoje(), municipio: n => P.municipioNome(n) || n });
       return;
     }
     if (E.rel === 'vigifito') {
@@ -123,6 +123,9 @@
   }
   const cfgConv = () => E.conv ? (E.conv.convenios.find(c => c.id === E.cid) || E.conv.convenios[0]) : null;
   const mesesConv = c => { const ate = hoje().slice(0, 7); const l = CD.mesesDe(c).filter(m => m <= ate); return l.length ? l : [CD.mesesDe(c)[0]]; };
+  // "total" = consolidado desde o início da execução até hoje (o motor usa o último mês disponível; a apuração vai até hoje)
+  const consolConv = () => E.cmes === 'total';
+  const cmesEf = c => { if (!consolConv()) return E.cmes; const ms = mesesConv(c); return ms[ms.length - 1]; };
 
   /* ---------------- estrutura e eventos ---------------- */
   function montar() {
@@ -167,7 +170,7 @@
   function titulo() {
     if (E.rel === 'pce') return E.tipo === 'mensal' ? `Relatório PCE Parcial — ${RD.MESES[E.mes - 1]}/${E.ano}` : `Relatório PCE ${E.ano} — Consolidado`;
     if (E.rel === 'vigifito') return `Relatório VIGIFITO — ${E.VR ? E.VR.rotulo : E.ano}`;
-    if (E.rel === 'convenio') { const c = cfgConv(); return c ? `Relatório do convênio ${c.numero} — ${CD.fmt.mes(E.cmes)}` : 'Relatório do convênio'; }
+    if (E.rel === 'convenio') { const c = cfgConv(); return c ? `Relatório do convênio ${c.numero} — ${consolConv() ? 'consolidado até ' + CD.fmt.data(hoje()) : CD.fmt.mes(E.cmes)}` : 'Relatório do convênio'; }
     if (E.rel === 'suasa') return 'Metas SUASA';
     return E.tipo === 'mensal' ? `Relatório Técnico Parcial — ${RD.MESES[E.mes - 1]}/${E.ano}` : `Relatório Técnico ${E.ano} — Consolidado`;
   }
@@ -187,12 +190,12 @@
     } else if (E.rel === 'convenio' && E.conv) {
       const c = cfgConv(), ms = mesesConv(c);
       ctl = `<label>Convênio<select id="pn-rg-conv">${E.conv.convenios.map(x => `<option value="${esc(x.id)}" ${x.id === c.id ? 'selected' : ''}>${esc(x.numero || x.id)}</option>`).join('')}</select></label>
-        <label>Mês de referência<select id="pn-rg-cmes">${ms.slice().reverse().map(m => `<option value="${m}" ${m === E.cmes ? 'selected' : ''}>${esc(CD.fmt.mes(m))}</option>`).join('')}</select></label>`;
+        <label>Mês de referência<select id="pn-rg-cmes"><option value="total" ${consolConv() ? 'selected' : ''}>Total (consolidado até hoje)</option>${ms.slice().reverse().map(m => `<option value="${m}" ${m === E.cmes ? 'selected' : ''}>${esc(CD.fmt.mes(m))}</option>`).join('')}</select></label>`;
     }
     const ap = ehGdv() && E.ap[`${periodo().de}|${periodo().ate}`];
     const sub = E.rel === 'pce' ? 'Seção I por grupo de pragas (tabelas e mapas), amostras e laudos, quadro PCE, HLB e anexo (LGPD).'
       : E.rel === 'vigifito' ? 'Indicadores da planilha de controle por posto. Valores do e-GDV (turnos, veículos, TFs) + lançados pelo Administrativo (linhas manuais e substituições). Word, PDF e Excel (.xlsx com os dados).'
-      : E.rel === 'convenio' ? 'Relatório circunstancial técnico mensal do convênio (metas e execução financeira). Os textos são editados na aba Convênios.'
+      : E.rel === 'convenio' ? 'Relatório circunstancial técnico do convênio (metas e execução financeira): mensal (parcial) ou o total consolidado desde o início da execução até hoje. Os textos são editados na aba Convênios.'
       : E.rel === 'suasa' ? 'Relatório de metas do SUASA.' : 'Relatório Técnico da GDV: todas as seções (PCE, VIGIFITO — o mesmo relatório VIGIFITO —, CFO/CFOC, PTV, educação sanitária, HLB).';
     r.innerHTML = `
       <div class="pn-cartao pn-rg-topo">
@@ -395,11 +398,13 @@
   function desenharConv(c) {
     const R = E.CR;
     P.kpis(c, [{ rotulo: 'Esperado pelo tempo', valor: CD.fmt.pct(R.esperado) }, { rotulo: 'Execução financeira', valor: CD.fmt.pct(R.fin.total.pct), detalhe: `${CD.fmt.moeda(R.fin.total.acum)} de ${CD.fmt.moeda(R.fin.total.previsto)}` },
-      { rotulo: 'Etapas atrasadas', valor: R.etapas.filter(r => r.situacao === 'atrasada').length, detalhe: `de ${R.etapas.length}` }, { rotulo: 'Parcial nº', valor: CD.textosIniciais(R.cfg, E.conv.relatorios, E.cmes).numero }]);
-    const s = P.secao(c, 'Metas no mês de referência', 'Os mesmos números da aba Convênios (motor de metas do convênio). Os textos do relatório (por etapa e gerais) são editados na aba Convênios → Relatório; aqui o relatório é gerado com os textos salvos.');
+      { rotulo: 'Etapas atrasadas', valor: R.etapas.filter(r => r.situacao === 'atrasada').length, detalhe: `de ${R.etapas.length}` },
+      consolConv() ? { rotulo: 'Consolidado', valor: 'Total', detalhe: `${CD.fmt.data(R.cfg.inicioExecucao)} a ${CD.fmt.data(hoje())}` } : { rotulo: 'Parcial nº', valor: CD.textosIniciais(R.cfg, E.conv.relatorios, E.cmes).numero }]);
+    const consol = consolConv();
+    const s = P.secao(c, consol ? `Metas — consolidado até ${CD.fmt.data(hoje())}` : 'Metas no mês de referência', 'Os mesmos números da aba Convênios (motor de metas do convênio). Os textos do relatório (por etapa e gerais) são editados na aba Convênios → Relatório; aqui o relatório é gerado com os textos salvos.');
     const k = P.el('div', 'pn-cartao');
-    k.innerHTML = tabela([{ r: 'Etapa' }, { r: 'Previsto', num: true }, { r: 'No mês', num: true }, { r: 'Acumulado', num: true }, { r: '%', num: true }, { r: 'Situação' }],
-      R.etapas.map(r => ({ c: [esc(`${r.id} ${r.nomeCurto}`), esc(r.previstoTxt), esc(r.mesTxt), esc(r.acumTxt), esc(CD.fmt.pct(r.pct)), esc(r.situacaoTxt)] }))) +
+    k.innerHTML = tabela([{ r: 'Etapa' }, { r: 'Previsto', num: true }].concat(consol ? [] : [{ r: 'No mês', num: true }]).concat([{ r: 'Acumulado', num: true }, { r: '%', num: true }, { r: 'Situação' }]),
+      R.etapas.map(r => ({ c: [esc(`${r.id} ${r.nomeCurto}`), esc(r.previstoTxt)].concat(consol ? [] : [esc(r.mesTxt)]).concat([esc(r.acumTxt), esc(CD.fmt.pct(r.pct)), esc(r.situacaoTxt)]) }))) +
       '<p><button type="button" class="pn-link" data-rg="ir-conv">Editar os textos na aba Convênios ›</button></p>';
     s.appendChild(k);
     barra(c, false, true);
@@ -430,7 +435,7 @@
   }
   function nomeArq(ext) {
     if (E.rel === 'vigifito') return VD.nomeArquivo(E.VR, ext);
-    if (E.rel === 'convenio') { const c = cfgConv(); return `Relatorio_Convenio_${c.numero.replace(/\W+/g, '-')}_Parcial_${CD.textosIniciais(c, E.conv.relatorios, E.cmes).numero}_${E.cmes}.${ext}`; }
+    if (E.rel === 'convenio') { const c = cfgConv(); if (consolConv()) return `Relatorio_Convenio_${c.numero.replace(/\W+/g, '-')}_Consolidado_ate_${hoje()}.${ext}`; return `Relatorio_Convenio_${c.numero.replace(/\W+/g, '-')}_Parcial_${CD.textosIniciais(c, E.conv.relatorios, E.cmes).numero}_${E.cmes}.${ext}`; }
     const pre = E.rel === 'pce' ? 'Relatorio_PCE' : 'Relatorio_GDV';
     return (E.tipo === 'mensal' ? `${pre}_Parcial_${E.ano}-${pad2(E.mes)}` : `${pre}_${E.ano}_Consolidado`) + '.' + ext;
   }
@@ -441,7 +446,7 @@
   async function montarBlocos() {
     recalcular();
     if (E.rel === 'vigifito') return VD.blocos(E.VR, E.textos, { dataEmissao: hoje() });
-    if (E.rel === 'convenio') { const c = cfgConv(), t = CD.textosIniciais(c, E.conv.relatorios, E.cmes); return CD.blocos(E.CR, t.textos, { numero: t.numero, dataEmissao: hoje() }); }
+    if (E.rel === 'convenio') { const c = cfgConv(), t = CD.textosIniciais(c, E.conv.relatorios, cmesEf(c)); return CD.blocos(E.CR, t.textos, { numero: t.numero, dataEmissao: hoje(), consolidado: consolConv(), ate: hoje() }); }
     const geo = await P.carregarGeo(), mapas = {};
     E.R.grupos.forEach(G => { if (Object.keys(G.niveis).length) mapas[G.g.id] = RD.mapa(geo, G.niveis); });
     const o = { dataEmissao: hoje(), mapas, anexo: !!E.textos.anexo, pce: E.rel === 'pce' };

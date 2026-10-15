@@ -149,7 +149,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-16e';
+const VERSAO_CODIGO = '2026-10-16f';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -2495,10 +2495,21 @@ function convApurar_(cfg, de, ate) {
   // 1.10 — BVAs fixas configuradas: veículos, TFs, apreensões e rechaços
   etapas('bva').forEach(function (e) {
     carregarBarreira();
-    const bvas = e.bvas || [], alvo = bvas.map(normPub_);
+    // a mesma BVA tem nomes diferentes no app de campo ("BVA - CEASA") e no cadastro de barreiras do TF ("Barreira Porto da CEASA",
+    // sufixo "BVA - CEASA"): qualquer id/nome/sufixo/local do cadastro conta para a BVA marcada que bater com um deles
+    const bvas = [], vistos = {};
+    (e.bvas || []).forEach(function (b) { const n = normPub_(b); if (n && !vistos[n]) { vistos[n] = 1; bvas.push(b); } });
+    const alvo = {}; bvas.forEach(function (b) { alvo[normPub_(b)] = b; });
     const cad = {}; lerLeitura_('Barreiras').forEach(function (b) { if (b.id) cad[b.id] = b; });
+    Object.keys(cad).forEach(function (k) {
+      const b = cad[k], nomes = [b.id, b.nome, b.sufixo, b.local].map(normPub_).filter(Boolean);
+      const canon = nomes.map(function (n) { return alvo[n]; }).filter(Boolean)[0];
+      if (canon) nomes.forEach(function (n) { alvo[n] = canon; });
+    });
+    const unicas = []; bvas.forEach(function (b) { if (alvo[normPub_(b)] === b) unicas.push(b); });   // marcadas duas vezes (apelidos): uma só
+    bvas.length = 0; unicas.forEach(function (b) { bvas.push(b); });
     const qual = function () {
-      for (let a = 0; a < arguments.length; a++) { const n = normPub_(arguments[a]); if (!n) continue; const i = alvo.indexOf(n); if (i >= 0) return bvas[i]; }
+      for (let a = 0; a < arguments.length; a++) { const n = normPub_(arguments[a]); if (n && alvo[n]) return alvo[n]; }
       return null;
     };
     const sel = {}, B = {}, MES = {};
@@ -2513,7 +2524,7 @@ function convApurar_(cfg, de, ate) {
     });
     tfs.forEach(function (tf) {
       const s = sel[tf.turnoId], c = cad[tf.barreira] || {};
-      const b = s ? s.b : (tf.turnoId ? null : qual(tf.local, c.nome, c.local)); if (!b) return;
+      const b = s ? s.b : (tf.turnoId ? null : qual(tf.local, c.nome, c.sufixo, c.local, tf.barreira)); if (!b) return;
       const mes = s ? s.mes : mesDe(tf.data);
       const mm = B[b].meses[mes] = B[b].meses[mes] || z(), g = MES[mes] = MES[mes] || z();
       [B[b].total, mm, g].forEach(function (x) { x.tfs++; if (tf.procedimento === 'apreensao') x.apreensoes++; if (tf.procedimento === 'rechaco') x.rechacos++; });

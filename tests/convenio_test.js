@@ -1,5 +1,6 @@
 const amb = require('./lib/amb');
 // Convênios (aba "Convênios" do painel + actions painelConv* do Code.gs real via fakegas): Convênio SUASA nº 991272/2025 – MAPA/ADAF.
+// Os lançamentos (físicos e financeiros) são feitos no Portal do Administrativo (actions adm*; telas de web/administrativo/); o painel só mostra.
 // Dados de barreira (BVA Jundiá, CEASA, Aeroporto fora da meta, volante em Tabatinga e em Manaus), levantamentos PCE de monilíase em
 // 5 municípios (um só em outubro, outro de outra praga) e Termos de Fiscalização do PCE em meses diferentes desde o início da execução;
 // apuração automática (1.4 municípios + propriedades por município; 1.9 turnos volantes de Tabatinga; 1.10 veículos por BVA) pelo
@@ -8,6 +9,7 @@ const amb = require('./lib/amb');
 // document.xml, tabelas e números; LibreOffice converte para PDF); fiscal comum recusado; nada de CPF/nome/placa; celular 390 px; claro/escuro.
 const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
 const { API } = amb;
+const PORTAL = require('./lib/portal');
 const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 const get = p => fetch(API + p).then(r => r.json());
 const gerar = (nome, perfil) => get('/__gerar?nome=' + encodeURIComponent(nome) + (perfil ? '&perfil=' + perfil : ''));
@@ -60,6 +62,8 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
   const adm = await gerar('Gerente Convênio', 'admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
   const fis = await gerar('Fiscal Curioso'), TOKF = (await post({ action: 'ativar', codigo: fis.codigo })).token;
   ok(TOK && TOKF, 'credenciais de administrador e de fiscal');
+  const SA = await PORTAL.sessao(TOK, 'adm.convenio@gmail.com', 'Ana Convenio Administrativa');
+  ok(SA.sessao, 'sessão do Portal do Administrativo (quem lança)');
   for (const a of ['painelConvenios', 'painelConvApuracao', 'painelConvSalvar', 'painelConvLancar', 'painelConvExcluir', 'painelConvFinLancar', 'painelConvFinExcluir', 'painelConvRelSalvar']) {
     const r = await post({ action: a, key: TOKF, convenio: '991272-2025', config: {}, lancamento: { etapa: '1.5' }, id: 'x', mes: '2026-09', numero: 1, textos: {} });
     ok(!r.ok && /Acesso restrito/.test(r.erro), `fiscal comum recusado em ${a}`, r);
@@ -76,7 +80,9 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
   ok(C.etapas.every(e => Math.round(totItens(e)) === e.valor), 'soma dos itens = valor de cada etapa');
   ok(C.assinaturas.map(a => a.nome).join('|') === 'FRANCISCO DANIEL DE OLIVEIRA SENA|STEFANO SAMUEL BERNARDO DA COSTA|SIVANDRO CAMPOS DE FREITAS', 'assinaturas da semente = nomes do relatório');
   ok(!/\d{3}\.\d{3}\.\d{3}-\d{2}|Residencial|CEP/i.test(JSON.stringify(C)), 'semente sem CPF/endereço de dirigentes do plano de trabalho');
-  const L = (l, k = TOK) => post({ action: 'painelConvLancar', key: k, lancamento: { convenio: '991272-2025', ...l } });
+  const L = l => post({ action: 'admConvLancar', sessao: SA.sessao, lancamento: { convenio: '991272-2025', ...l } });
+  d = await post({ action: 'painelConvLancar', key: TOK, lancamento: { convenio: '991272-2025', etapa: '1.5', submeta: 'tabatinga', data: '2026-09-01', quantidade: 1 } });
+  ok(!d.ok && /Portal do Administrativo/.test(d.erro), 'painel não grava lançamentos (só o portal)', d.erro);
   const erros = [
     [{ etapa: '9.9', data: '2026-09-01', quantidade: 1 }, /Etapa inexistente/],
     [{ etapa: '1.5', submeta: 'tabatinga', data: '2028-01-01', quantidade: 1 }, /fora da vigência/],
@@ -91,7 +97,7 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
     [{ etapa: '1.3', submeta: 'moniliase-risco', data: '2026-09-01', quantidade: 1, municipio: '' }, /Informe o município/]
   ];
   for (const [l, re] of erros) { const r = await L(l); ok(!r.ok && re.test(r.erro), `validação: ${re.source}`, r.erro || r); }
-  const FL = l => post({ action: 'painelConvFinLancar', key: TOK, lancamento: { convenio: '991272-2025', ...l } });
+  const FL = l => post({ action: 'admConvFinLancar', sessao: SA.sessao, lancamento: { convenio: '991272-2025', ...l } });
   d = await FL({ etapa: '1.4', item: '1.9.1', data: '2026-09-01', valor: 10 }); ok(!d.ok && /item do plano/.test(d.erro), 'financeiro: item de outra etapa recusado', d.erro);
   d = await FL({ etapa: '1.4', item: '1.4.1', data: '2026-09-01', valor: 'abc' }); ok(!d.ok && /número/.test(d.erro), 'financeiro: valor não numérico recusado', d.erro);
   d = await FL({ etapa: '1.4', item: '1.4.1', data: '2026-09-01', valor: 10, fonte: 'outra' }); ok(!d.ok && /Fonte inválida/.test(d.erro), 'financeiro: fonte inválida recusada', d.erro);
@@ -115,7 +121,7 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
   ok(d.etapas['1.4'].porMunicipio.length === 5 && d.etapas['1.10'].porBva[0].total.veiculos === 13, 'intervalo até outubro: Careiro e o turno de outubro entram (acumulado depende só do intervalo pedido)');
   // um lançamento via API (agosto) que depois será excluído pela tela e outro que fica
   d = await L({ etapa: '1.5', submeta: 'urucurituba', data: '2026-08-20', quantidade: 36, descricao: 'Ações de supressão' });
-  ok(d.ok && d.lancamento.municipio === 'Urucurituba' && d.lancamento.usuario === 'Gerente Convênio', 'lançamento 1.5 Urucurituba (município da sub-meta; quem lançou)', d);
+  ok(d.ok && d.lancamento.municipio === 'Urucurituba' && d.lancamento.usuario === 'Ana Convenio Administrativa', 'lançamento 1.5 Urucurituba (município da sub-meta; quem lançou no portal)', d);
   d = await L({ etapa: '1.14', submeta: 'tabatinga', data: '2026-09-25', quantidade: 5, descricao: 'lançado errado' });
   const ID_ERRADO = d.lancamento && d.lancamento.id;
   ok(d.ok, 'lançamento 1.14 Tabatinga (será excluído na tela)');
@@ -179,53 +185,59 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
   await p.waitForFunction(() => Painel.aba('convenios').estado().R.mes === '2026-09', null, { timeout: 20000 });
 
   /* ---- lançamentos ---- */
-  console.log('3. Lançamentos manuais');
-  await p.click('[data-conv=visao][data-v=lanc]'); await p.waitForSelector('#pn-conv-lanc-form');
+  console.log('3. Lançamentos manuais (Portal do Administrativo)');
+  await p.click('[data-conv=visao][data-v=lanc]'); await p.waitForSelector('#pn-conv-portal');
+  ok(!(await p.$('#pn-conv-lanc-form')) && /Portal do Administrativo/.test(await p.textContent('#pn-conv-visao')), 'painel → Lançamentos: só leitura, com o aviso e o link para o portal');
+  const pa = await PORTAL.abrir(b, SA, { aba: 'fisico' });
+  await pa.waitForSelector('#pn-conv-lanc-form', { timeout: 20000 });
+  const recarregarPainel = async () => { await p.evaluate(() => Painel.aba('convenios').recarregar()); await p.waitForFunction(() => { const s = Painel.aba('convenios').estado(); return s.R && s.R.mes === '2026-09' && !document.querySelector('#pn-conv-visao.carregando'); }, null, { timeout: 20000 }); };
   const lancar = async (o) => {
-    await p.selectOption('#pn-cl-etapa', o.etapa);
-    if (o.sub) await p.selectOption('#pn-cl-sub', o.sub);
-    if (o.bem) { await p.selectOption('#pn-cl-bem', o.bem); await p.selectOption('#pn-cl-sit', o.sit); }
-    if (o.mun != null) await p.fill('#pn-cl-mun', o.mun);
-    await p.fill('#pn-cl-data', o.data);
-    if (o.qtd != null) await p.fill('#pn-cl-qtd', String(o.qtd));
-    if (o.arm != null) await p.fill('#pn-cl-arm', String(o.arm));
-    if (o.prop != null) await p.fill('#pn-cl-prop', String(o.prop));
-    await p.fill('#pn-cl-desc', o.desc || ''); await p.fill('#pn-cl-doc', o.doc || '');
-    const n = await p.evaluate(() => Painel.aba('convenios').estado().dados.lancamentos.length);
-    await p.click('#pn-cl-salvar');
-    if (o.erro) { await p.waitForFunction(() => /erro/.test((document.querySelector('[data-msg=lanc]') || {}).className || ''), null, { timeout: 10000 }); return p.textContent('[data-msg=lanc]'); }
-    await p.waitForFunction(n0 => Painel.aba('convenios').estado().dados.lancamentos.length > n0 || /Lançado/.test((document.querySelector('[data-msg=lanc]') || {}).textContent || ''), n, { timeout: 10000 });
-    await p.waitForSelector('#pn-conv-lanc-form');
-    return p.textContent('[data-msg=lanc]');
+    await pa.selectOption('#pn-cl-etapa', o.etapa);
+    if (o.sub) await pa.selectOption('#pn-cl-sub', o.sub);
+    if (o.bem) { await pa.selectOption('#pn-cl-bem', o.bem); await pa.selectOption('#pn-cl-sit', o.sit); }
+    if (o.mun != null) await pa.fill('#pn-cl-mun', o.mun);
+    await pa.fill('#pn-cl-data', o.data);
+    if (o.qtd != null) await pa.fill('#pn-cl-qtd', String(o.qtd));
+    if (o.arm != null) await pa.fill('#pn-cl-arm', String(o.arm));
+    if (o.prop != null) await pa.fill('#pn-cl-prop', String(o.prop));
+    await pa.fill('#pn-cl-desc', o.desc || ''); await pa.fill('#pn-cl-doc', o.doc || '');
+    const n = await pa.evaluate(() => AdmConvenio.estado().dados.lancamentos.length);
+    await pa.click('#pn-cl-salvar');
+    if (o.erro) { await pa.waitForFunction(() => /erro/.test((document.querySelector('[data-msg=lanc]') || {}).className || ''), null, { timeout: 10000 }); return pa.textContent('[data-msg=lanc]'); }
+    await pa.waitForFunction(n0 => AdmConvenio.estado().dados.lancamentos.length > n0 || /Lançado/.test((document.querySelector('[data-msg=lanc]') || {}).textContent || ''), n, { timeout: 10000 });
+    await pa.waitForSelector('#pn-conv-lanc-form');
+    return pa.textContent('[data-msg=lanc]');
   };
-  await p.selectOption('#pn-cl-etapa', '1.3');
-  ok(await p.isVisible('#pn-cl-arm') && await p.isVisible('#pn-cl-sub') && await p.isHidden('#pn-cl-bem'), 'formulário 1.3: sub-meta e nº de armadilhas');
+  await pa.selectOption('#pn-cl-etapa', '1.3');
+  ok(await pa.isVisible('#pn-cl-arm') && await pa.isVisible('#pn-cl-sub') && await pa.isHidden('#pn-cl-bem'), 'formulário 1.3: sub-meta e nº de armadilhas');
   ok(/Lançado/.test(await lancar({ etapa: '1.3', sub: 'nhamunda', data: '2026-09-10', qtd: 2, arm: 21, desc: 'Monitoramento quinzenal' })), 'lançamento 1.3 Nhamundá: 2 monitoramentos, 21 armadilhas');
-  await p.selectOption('#pn-cl-etapa', '1.3'); await p.selectOption('#pn-cl-sub', 'moniliase-risco');
-  ok(await p.isHidden('#pn-cl-arm') && /municípios distintos/.test(await p.textContent('#pn-cl-dica')), 'sub-meta por municípios: sem armadilhas, com dica');
+  await pa.selectOption('#pn-cl-etapa', '1.3'); await pa.selectOption('#pn-cl-sub', 'moniliase-risco');
+  ok(await pa.isHidden('#pn-cl-arm') && /municípios distintos/.test(await pa.textContent('#pn-cl-dica')), 'sub-meta por municípios: sem armadilhas, com dica');
   ok(/Lançado/.test(await lancar({ etapa: '1.3', sub: 'moniliase-risco', mun: 'Coari', data: '2026-09-12', qtd: 1, prop: 3, desc: 'Vigilância em área de alto risco' })), 'lançamento 1.3 monilíase em Coari (3 propriedades)');
   ok(/Lançado/.test(await lancar({ etapa: '1.5', sub: 'benjamin-constant', data: '2026-09-15', qtd: 10, desc: 'Supressão' })), 'lançamento 1.5 Benjamin Constant: 10 ações');
   ok(/Lançado/.test(await lancar({ etapa: '1.14', sub: 'jundia', data: '2026-09-20', qtd: 1, desc: 'Supervisão na BVA do Jundiá', doc: 'Relatório de supervisão 01' })), 'lançamento 1.14 Jundiá: 1 supervisão');
-  await p.selectOption('#pn-cl-etapa', '1.1');
-  ok(await p.isVisible('#pn-cl-bem') && await p.isVisible('#pn-cl-sit') && await p.isHidden('#pn-cl-qtd'), 'formulário 1.1: bem e situação (sem quantidade)');
+  await pa.selectOption('#pn-cl-etapa', '1.1');
+  ok(await pa.isVisible('#pn-cl-bem') && await pa.isVisible('#pn-cl-sit') && await pa.isHidden('#pn-cl-qtd'), 'formulário 1.1: bem e situação (sem quantidade)');
   ok(/Lançado/.test(await lancar({ etapa: '1.1', bem: 'pickup-urucurituba', sit: 'em_aquisicao', data: '2026-08-01', desc: 'Processo licitatório' })), 'bem 1.1: pick-up em aquisição (agosto)');
   ok(/Lançado/.test(await lancar({ etapa: '1.1', bem: 'pickup-urucurituba', sit: 'entregue', data: '2026-09-02', doc: 'NF 4521' })), 'bem 1.1: pick-up entregue (setembro)');
-  await p.selectOption('#pn-cl-etapa', '1.4');
-  ok(/Ajuste/.test(await p.textContent('#pn-cl-qtd-rot')) && /obrigatória/.test(await p.textContent('#pn-cl-desc-rot')), 'etapa automática: campo de ajuste e justificativa obrigatória');
+  await pa.selectOption('#pn-cl-etapa', '1.4');
+  ok(/Ajuste/.test(await pa.textContent('#pn-cl-qtd-rot')) && /obrigatória/.test(await pa.textContent('#pn-cl-desc-rot')), 'etapa automática: campo de ajuste e justificativa obrigatória');
   ok(/justificativa/i.test(await lancar({ etapa: '1.4', data: '2026-03-31', qtd: 11, desc: '', erro: true })), 'ajuste sem justificativa: recusado na tela');
   ok(/Lançado/.test(await lancar({ etapa: '1.4', data: '2026-03-31', qtd: 11, desc: 'Levantamentos de março a junho anotados em papel, antes do e-GDV' })), 'ajuste 1.4: +11 com justificativa');
   // editar (1.5 Benjamin Constant: 10 → 12) e excluir o lançamento errado da 1.14
-  const idBC = await p.evaluate(() => Painel.aba('convenios').estado().dados.lancamentos.find(l => l.submeta === 'benjamin-constant').id);
-  await p.click(`[data-conv=lanc-editar][data-id="${idBC}"]`); await p.waitForSelector('#pn-cl-salvar:has-text("Salvar alteração")');
-  ok(await p.inputValue('#pn-cl-qtd') === '10' && await p.inputValue('#pn-cl-etapa') === '1.5', 'editar: formulário preenchido com o lançamento');
-  await p.fill('#pn-cl-qtd', '12'); await p.click('#pn-cl-salvar');
-  await p.waitForFunction(id => Painel.aba('convenios').estado().dados.lancamentos.find(l => l.id === id).quantidade === 12, idBC, { timeout: 10000 });
+  const idBC = await pa.evaluate(() => AdmConvenio.estado().dados.lancamentos.find(l => l.submeta === 'benjamin-constant').id);
+  await pa.click(`[data-conv=lanc-editar][data-id="${idBC}"]`); await pa.waitForSelector('#pn-cl-salvar:has-text("Salvar alteração")');
+  ok(await pa.inputValue('#pn-cl-qtd') === '10' && await pa.inputValue('#pn-cl-etapa') === '1.5', 'editar: formulário preenchido com o lançamento');
+  await pa.fill('#pn-cl-qtd', '12'); await pa.click('#pn-cl-salvar');
+  await pa.waitForFunction(id => AdmConvenio.estado().dados.lancamentos.find(l => l.id === id).quantidade === 12, idBC, { timeout: 10000 });
   ok(true, 'lançamento editado (12 ações)');
-  await p.click(`[data-conv=lanc-excluir][data-id="${ID_ERRADO}"]`);
-  await p.waitForFunction(id => !Painel.aba('convenios').estado().dados.lancamentos.some(l => l.id === id), ID_ERRADO, { timeout: 10000 });
+  await pa.click(`[data-conv=lanc-excluir][data-id="${ID_ERRADO}"]`);
+  await pa.waitForFunction(id => !AdmConvenio.estado().dados.lancamentos.some(l => l.id === id), ID_ERRADO, { timeout: 10000 });
   const linhaExc = (await get('/__aba?nome=ConvLancamentos')).find(r => r[0] === ID_ERRADO);
-  ok(linhaExc && linhaExc[14] === 1 && linhaExc[11] === 'Gerente Convênio', 'exclusão lógica: excluido = 1 e quem excluiu na planilha', linhaExc);
-  ok(/Entregue/.test(await p.textContent('#pn-conv-visao')) && /NF 4521/.test(await p.textContent('#pn-conv-visao')), 'lista de bens com a situação (entregue, NF)');
+  ok(linhaExc && linhaExc[14] === 1 && linhaExc[11] === 'Ana Convenio Administrativa', 'exclusão lógica: excluido = 1 e quem excluiu na planilha', linhaExc);
+  await shot(pa, 'portal_lancamentos');
+  await recarregarPainel();
+  ok(/Entregue/.test(await pa.textContent('#pn-conv-visao')) && /NF 4521/.test(await pa.textContent('#pn-conv-visao')), 'portal: lista de bens com a situação (entregue, NF)');
   S = await est();
   ok(S.etapas['1.4'].acum === 15 && S.etapas['1.4'].mes === 3, '1.4 com ajuste: 15 acumulados (ajuste em março não entra no mês)', S.etapas['1.4']);
   ok(S.etapas['1.5'].acum === 48 && S.etapas['1.5'].mes === 12 && S.etapas['1.14'].acum === 1 && S.etapas['1.1'].acum === 1 && S.etapas['1.1'].mes === 1,
@@ -236,33 +248,39 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
 
   /* ---- financeiro ---- */
   console.log('4. Execução financeira');
-  await p.click('[data-conv=visao][data-v=fin]'); await p.waitForSelector('#pn-conv-fin-form');
+  await PORTAL.aba(pa, 'desembolso'); await pa.waitForSelector('#pn-conv-fin-form');
   const fin = async o => {
-    await p.selectOption('#pn-cf-etapa', o.etapa); await p.selectOption('#pn-cf-item', o.item); await p.fill('#pn-cf-data', o.data);
-    await p.fill('#pn-cf-qtd', o.qtd || ''); await p.fill('#pn-cf-valor', o.valor); if (o.fonte) await p.selectOption('#pn-cf-fonte', o.fonte);
-    await p.fill('#pn-cf-doc', o.doc || ''); await p.fill('#pn-cf-desc', o.desc || '');
-    const n = await p.evaluate(() => Painel.aba('convenios').estado().dados.financeiro.length);
-    await p.click('#pn-cf-salvar');
-    await p.waitForFunction(n0 => Painel.aba('convenios').estado().dados.financeiro.length > n0, n, { timeout: 10000 });
-    await p.waitForSelector('#pn-conv-fin-form');
+    await pa.selectOption('#pn-cf-etapa', o.etapa); await pa.selectOption('#pn-cf-item', o.item); await pa.fill('#pn-cf-data', o.data);
+    await pa.fill('#pn-cf-valor', o.valor); await pa.fill('#pn-cf-qtd', o.qtd || ''); if (o.fonte) await pa.selectOption('#pn-cf-fonte', o.fonte);
+    await pa.fill('#pn-cf-doc', o.doc || ''); await pa.fill('#pn-cf-desc', o.desc || '');
+    const n = await pa.evaluate(() => AdmConvenio.estado().dados.financeiro.length);
+    await pa.click('#pn-cf-salvar');
+    await pa.waitForFunction(n0 => AdmConvenio.estado().dados.financeiro.length > n0, n, { timeout: 10000 });
+    await pa.waitForSelector('#pn-conv-fin-form');
   };
   await fin({ etapa: '1.4', item: '1.4.1', data: '2026-09-05', qtd: '100', valor: '1.200,00', doc: 'NE 2026NE000123', desc: 'Gasolina setembro' });
   await fin({ etapa: '1.10', item: '1.10.3', data: '2026-08-10', qtd: '10', valor: '2520', doc: 'PCDP 77/2026' });
   await fin({ etapa: '1.1', item: '1.1.4', data: '2026-09-02', qtd: '1', valor: '68.042,00', fonte: 'contrapartida', doc: 'NF 4521' });
   await fin({ etapa: '1.9', item: '1.9.2', data: '2026-10-03', valor: '2.500,00', doc: 'Bilhete 1' });     // outubro: não entra em setembro
+  await recarregarPainel();
   S = await est();
   ok(Math.abs(S.fin.acum - (1200 + 2520 + 68042)) < 0.001 && Math.abs(S.fin.mes - (1200 + 68042)) < 0.001, 'financeiro: acumulado R$ 71.762,00 (outubro fora), setembro R$ 69.242,00', S.fin);
   const finR = await p.evaluate(() => { const F = Painel.aba('convenios').estado().R.fin; return { e14: F.etapas.find(e => e.id === '1.4'), n30: F.naturezas.find(n => n.natureza === '33.90.30'), fonte: F.fonte }; });
   ok(finR.e14.saldo === 139820 && Math.abs(finR.e14.pct - 1200 / 141020) < 1e-12 && finR.n30.acum === 1200 && finR.fonte.contrapartida.acum === 68042 && finR.fonte.contrapartida.pct === 1 && finR.fonte.concedente.acum === 3720,
     'saldo da 1.4 = R$ 139.820,00 (0,85%); natureza 33.90.30; contrapartida 100%; repasse R$ 3.720,00', finR);
+  await p.click('[data-conv=visao][data-v=fin]'); await p.waitForSelector('#pn-conv-portal');
+  ok(!(await p.$('#pn-conv-fin-form')) && !(await p.$('#pn-conv-imp-arq')), 'painel → Financeiro: só leitura (sem formulário nem importação)');
   const txFin = await p.textContent('#pn-conv-visao');
   ok(/R\$\s?139\.820,00/.test(txFin) && /0,85%/.test(txFin) && /NE 2026NE000123/.test(txFin), 'tela do financeiro: saldo, % e documento', txFin.slice(0, 200));
   d = await FL({ etapa: '1.4', item: '1.4.2', data: '2026-09-01', valor: 10, descricao: 'favorecido 529.982.247-25' }); ok(!d.ok && /CPF/.test(d.erro), 'financeiro: CPF do favorecido recusado', d.erro);
-  const [dlCsv] = await Promise.all([p.waitForEvent('download'), p.click('#pn-conv-visao .pn-secao:last-child .pn-tab-acoes button')]);
+  const [dlCsv] = await Promise.all([p.waitForEvent('download'), p.click('#pn-conv-visao .pn-secao:last-child .pn-tab-acoes button')]);   // CSV do painel (sem nomes)
   const csv = fs.readFileSync(await dlCsv.path(), 'utf8');
   ok(/Valor/.test(csv) && /1200/.test(csv) && /NE 2026NE000123/.test(csv) && /68042/.test(csv), 'exportar CSV dos lançamentos financeiros', csv.slice(0, 200));
   salvar('financeiro.csv', csv);
   await shot(p, 'financeiro');
+  await shot(pa, 'portal_desembolso');
+  ok(!pa.errosPag.length, 'portal sem erros de JavaScript', pa.errosPag);
+  await pa.context().close();
 
   /* ---- relatório ---- */
   console.log('5. Relatório mensal (setembro/2026)');

@@ -771,3 +771,10 @@ body.tv .pn-erro { font-size: 2.1vh; padding: 1.4vh; }
 .pn-rg-marc dt { font-family: ui-monospace, monospace; color: var(--ink); } .pn-rg-marc dd { margin: 0 0 4px; color: var(--ink2); }
 .pn-rg-chk { display: flex; gap: 8px; align-items: flex-start; font-size: 13.5px; margin-top: 8px; }
 #pn-rg-corpo.carregando { opacity: .55; }
+
+/* Números lançados no Portal do Administrativo: no painel só leitura (com quem/quando no título) */
+.pn-rg-val { font-variant-numeric: tabular-nums; border-bottom: 1px dotted var(--base); cursor: help; }
+.pn-rg-val.vazio { color: var(--mut); border-bottom: 0; }
+.pn-conv-portal { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; margin-bottom: 12px; background: var(--sel); }
+.pn-conv-portal p { margin: 0; flex: 1 1 320px; font-size: 14px; }
+.pn-conv-portal a.pn-btn { text-decoration: none; }

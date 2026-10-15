@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0B3A82">
+<meta name="robots" content="noindex">
+<title>e-GDV Administrativo</title>
+<link rel="icon" href="../img/icon-192.png">
+<link rel="stylesheet" href="../painel/css/painel.css">
+<link rel="stylesheet" href="css/adm.css">
+</head>
+<body>
+<header class="pn-topo">
+  <img src="../img/logo-adaf.png" alt="ADAF">
+  <div class="pn-topo-txt"><h1>e-GDV · Portal do Administrativo</h1><div id="adm-status" class="pn-status" aria-live="polite"></div></div>
+  <div class="pn-usuario" id="adm-usuario" hidden><span id="adm-nome"></span><button type="button" id="adm-sair" class="pn-btn-topo">Sair</button></div>
+</header>
+
+<!-- Login: Google (quando o Client ID estiver configurado) ou código de ativação gerado pelo gerente no painel -->
+<main id="adm-login" class="pn-login" hidden>
+  <div class="pn-cartao pn-login-form adm-login">
+    <h2>Acesso do Administrativo</h2>
+    <p class="pn-sub">Lançamentos do convênio, linhas manuais dos relatórios e VIGIFITO. Só para os e-mails liberados pelo gerente.</p>
+    <div id="adm-google" class="adm-google" hidden>
+      <div id="adm-google-btn" class="adm-google-btn" aria-label="Entrar com o Google"></div>
+      <p class="pn-sub adm-ou">ou</p>
+    </div>
+    <details id="adm-cod-box" class="adm-cod-box">
+      <summary>Entrar com um código de ativação</summary>
+      <form id="adm-cod-form" autocomplete="off">
+        <label for="adm-codigo">Código de 6 dígitos (gerado pelo gerente no painel, aba Servidores)</label>
+        <input id="adm-codigo" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" required>
+        <button type="submit" class="pn-botao pn-btn pn-btn-prim" id="adm-entrar">Entrar</button>
+      </form>
+    </details>
+    <p class="pn-erro" id="adm-login-erro" role="alert" hidden></p>
+  </div>
+</main>
+
+<div id="adm-app" hidden>
+  <nav class="pn-abas" id="adm-abas" role="tablist" aria-label="Lançamentos"></nav>
+  <main id="adm-conteudo" class="pn-conteudo"></main>
+  <footer class="pn-rodape">Portal do Administrativo · cada lançamento registra quem lançou e quando (histórico) · excluir é lógico (a linha fica na planilha). Os nomes de servidores das diárias ficam só aqui e na planilha.</footer>
+</div>
+
+<script src="../js/config.js"></script>
+<script src="../documentos/conv-docs.js"></script>
+<script src="../documentos/relgdv-docs.js"></script>
+<script src="../documentos/indicadores.js"></script>
+<script src="../documentos/vigifito-docs.js"></script>
+<script src="../painel/js/conv-planilha.js"></script>
+<script src="js/vig-planilha.js"></script>
+<script src="js/adm.js"></script>
+<script src="js/adm-convenio.js"></script>
+<script src="js/adm-relatorios.js"></script>
+<script src="js/adm-vigifito.js"></script>
+</body>
+</html>

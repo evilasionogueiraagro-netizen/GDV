@@ -90,9 +90,22 @@ Ideias discutidas com a gerência que ainda **não** foram implementadas. Cada u
 *Pedido do gestor (14/10/2026). **Implementado** em 14/10/2026 (README → "Relatório GDV"): aba Relatórios do painel com o relatório técnico parcial (mensal) e consolidado (anual) em Word e PDF; tipo de local e origem da visita no levantamento; resultado de laboratório no Termo de Colheita. O que ficou para depois, por decisão do gestor ("não fazer agora"), entra por enquanto como **linha manual** do relatório:*
 - **Medida aplicada com quantidade** (medida fitossanitária, área controlada, poda drástica, destruição) registrada no app, por visita — hoje: linhas "Medida fitossanitária", "Área controlada" e a coluna "Poda drástica" por município, lançadas no painel.
 - **Vazio sanitário da soja** (fiscalização com resultado) — hoje: coluna "Fiscalizações do vazio sanitário" por município (soma no quadro PCE).
-- **Registro de educação sanitária** (ações, público atingido) no app — hoje: tabela da Seção V lançada no painel; a linha "barreiras: pessoas orientadas" já é automática.
+- **Registro de educação sanitária** (ações, público atingido) no app — hoje: tabela da Seção V lançada no painel; a linha "barreiras: medidas de educação sanitária (veículos orientados)" já é automática.
 - **Importação de CFO/CFOC, PTV e UP/UC** (CSV dos sistemas de certificação) — hoje: tabelas das Seções III e IV lançadas no painel (o quadro PCE soma os documentos).
-- **Carga na barreira** (partidas, inspeção de cargas, internalização em t, exportação/importação, madeira) — hoje: linhas manuais do VIGIFITO (fixas e volantes).
+- ~~**Carga na barreira**~~ — **implementado** em 16/10/2026: carga registrada no veículo (app de campo) → partidas, inspeção, cargas para outros estados, internalização/importação/exportação (t) e medida fitossanitária apurados pelo e-GDV. Madeira (m³) segue manual.
 - **Armadilhas** (mosca-da-carambola e Diaphorina citri) — hoje: coluna "Monitoramento de armadilhas" por município e linha "Armadilhas para Diaphorina citri" (Seção VI).
 - **BVAs/portos a confirmar** (o gestor precisa confirmar os nomes antes de cadastrar em `CONFIG.bvas`): Humaitá, Guajará, Porto de Tabatinga, Porto de Benjamin Constant, AM-070 (volante). Até lá, turnos nesses locais entram como volantes ou na BVA mais próxima, conforme o fiscal registrar.
 - Avisos de consistência que podem vir depois: coordenadas fora do município informado (exige a malha no servidor) e importação dos relatórios dos meses anteriores ao e-GDV.
+
+---
+
+## 5. Relatórios separados, Portal do Administrativo e VIGIFITO: pendências
+
+*Implementado em 16/10/2026 (central de relatórios PCE / VIGIFITO / Convênio / Metas SUASA / Consolidado, motor de indicadores, Portal do Administrativo com login Google). Ficou para depois:*
+
+- **Carga no registro do veículo:** feita (bloco "Fiscalização (opcional)" no formulário do veículo). Próximos passos possíveis: madeira em m³ no próprio registro (hoje manual); "auto de destruição" como campo próprio do TF (hoje = TFs de apreensão, que no e-GDV já é "apreensão p/ destruição"); conversão de caixas/sacos para t por produto (tabela de pesos médios), hoje listados à parte.
+- **Importação da planilha VIGIFITO antiga:** passou a ser secundária — serve para o histórico de 2025 (meses anteriores ao e-GDV), gravando as linhas automáticas como substituição com justificativa automática. A partir do uso da carga no app, os números saem do sistema.
+- **Histórico do Jundiá por período de 10 dias:** a importação já lê a aba de períodos (como "JUNDIÁ") da planilha de controle; falta o modelo do gestor com o histórico completo dos anos anteriores para importar.
+- **Metas SUASA:** a central mostra "aguardando o plano de metas SUASA". Quando o documento chegar, configurar as metas reaproveitando o motor de metas do convênio (etapas, metas, apuração automática pelos mesmos indicadores do PCE/VIGIFITO ou lançamento no portal, esperado pelo tempo, físico × financeiro).
+- **BVAs/portos novos a confirmar** com o gestor (Parintins, Humaitá e os portos volantes): não foram cadastrados em `CONFIG.bvas`. A correspondência posto do VIGIFITO → BVA/município do e-GDV fica em "Postos do VIGIFITO" (painel → Relatórios); turnos sem posto (ex.: BVA - CEASA) aparecem como "não mapeados".
+- **Client ID do Google:** criar no Google Cloud Console e colar em `CONFIG.adm.googleClientId` e na propriedade `GOOGLE_CLIENT_ID` (passo a passo no README, "Portal do Administrativo"); até lá o portal entra por código de ativação.

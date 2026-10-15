@@ -185,7 +185,7 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
   const registrar = async placa => { await p.click('nav [data-v=registrar]'); await p.waitForSelector('#fVeic'); await p.waitForTimeout(400);
     // a tela pode ser redesenhada logo depois do clique (o formulário antigo ainda estava na tela): confere a placa antes de salvar
     for (let i = 0; i < 5 && await p.inputValue('#placa').catch(() => '') !== placa; i++) { await p.fill('#placa', placa); await p.waitForTimeout(300); }
-    await p.click('#fVeic button');
+    await p.click('#fVeic > button');
     await p.waitForFunction(pl => document.querySelector('#toast').textContent.includes(pl), placa); };
   await p.waitForSelector('.modulo');
   const id1 = await iniciarTurno(41); await registrar('AAA1A11'); await sync();

@@ -41,7 +41,7 @@ const RelGdvDocs = (() => {
     grupo_padrao: 'Levantamentos fitossanitários de detecção realizados no período para as pragas deste grupo.',
     laboratorio: 'As amostras coletadas nos levantamentos foram registradas em Termos de Colheita de Amostras e enviadas a laboratório oficial para diagnóstico. A tabela resume os termos e as amostras por praga e a situação dos resultados laboratoriais registrados no e-GDV.',
     secao2: 'Nesta seção são apresentadas as ações de defesa sanitária vegetal do Programa de Prevenção, Controle e Erradicação de Pragas (PCE) e da vigilância do trânsito de vegetais (VIGIFITO) realizadas em {periodo}, consolidadas por mês.',
-    vigifito: 'As Barreiras de Vigilância Agropecuária (BVA) fixas e as ações volantes fiscalizam o trânsito de vegetais e suas partes. Em {periodo} foram abordados {veiculos} veículos, com {pessoas} pessoas orientadas (estimativa por tipo de veículo) e {tfs} Termos de Fiscalização lavrados.',
+    vigifito: 'As Barreiras de Vigilância Agropecuária (BVA) fixas e as ações volantes fiscalizam o trânsito de vegetais e suas partes. Em {periodo} foram abordados {veiculos} veículos, com {pessoas} medidas de educação sanitária (veículos orientados) e {tfs} Termos de Fiscalização lavrados.',
     cfo: 'O Certificado Fitossanitário de Origem (CFO) e o Certificado Fitossanitário de Origem Consolidado (CFOC) atestam que as partidas de vegetais estão livres de pragas específicas e viabilizam o trânsito interestadual seguro. A tabela resume os certificados emitidos no período, por produto.',
     ptv: 'A Permissão de Trânsito de Vegetais (PTV) é o documento oficial emitido pela ADAF que autoriza o trânsito de vegetais, partes vegetais ou produtos de origem vegetal para fora do Estado, após a verificação da documentação e a inspeção da carga. A tabela resume as PTV emitidas no período, por produto.',
     educacao: 'A educação sanitária promove a participação de produtores, comerciantes e da população na prevenção e no controle de pragas. A tabela relaciona as ações educativas realizadas no período; a orientação nas barreiras é apurada pelo e-GDV.',
@@ -54,7 +54,7 @@ const RelGdvDocs = (() => {
   const MARCADORES = { periodo: 'mês/ano ou ano do relatório', ano: 'ano', mes: 'mês (por extenso)', municipiosLevantados: 'municípios com levantamento',
     propriedadesVisitadas: 'propriedades/localidades visitadas (distintas)', levantamentos: 'levantamentos fitossanitários', deteccoes: 'detecções e suspeitas (culturas)',
     termosColheita: 'termos de colheita', amostras: 'amostras enviadas a laboratório', termosFiscalizacao: 'termos de fiscalização (PCE)', veiculos: 'veículos abordados nas barreiras',
-    pessoas: 'pessoas orientadas nas barreiras', tfs: 'TFs lavrados nas barreiras' };
+    pessoas: 'medidas de educação sanitária nas barreiras (veículos orientados)', tfs: 'TFs lavrados nas barreiras' };
   const aplicarMarcadores = (txt, M) => String(txt || '').replace(/\{(\w+)\}/g, (m, k) => (k in M ? M[k] : m));
 
   /* ================= linhas dos quadros ================= */
@@ -92,36 +92,10 @@ const RelGdvDocs = (() => {
     { chave: 'pce.autoInterdicao', rotulo: 'Auto de interdição', fonte: 'manual' },
     { chave: 'pce.autoDestruicao', rotulo: 'Auto de destruição', fonte: 'manual' },
     { chave: 'pce.outros', rotulo: 'Outros (descrever no texto)', fonte: 'manual' }];
-  const VIG = [
-    { chave: 'turnos', rotulo: 'Ações de barreira (turnos)', fonte: 'auto' },
-    { chave: 'veiculos', rotulo: 'Veículos parados pela fiscalização', fonte: 'auto' },
-    { chave: 'documentos', rotulo: 'Exame e análise de documento de sanidade e fiscal (TFs com documentos)', fonte: 'auto' },
-    { chave: 'partidas', rotulo: 'Fiscalização de partidas', fonte: 'manual' },
-    { chave: 'cargas', rotulo: 'Inspeção fitossanitária de cargas', fonte: 'manual' },
-    { chave: 'cargasEstados', rotulo: 'Cargas em trânsito para outros estados', fonte: 'manual' },
-    { chave: 'internN', rotulo: 'Internalização de partidas', fonte: 'manual' },
-    { chave: 'internT', rotulo: 'Internalização de partidas', unid: 't', fonte: 'manual' },
-    { chave: 'coleta', rotulo: 'Termo de colheita de amostra (TFs com coleta)', fonte: 'auto' },
-    { chave: 'amostras', rotulo: 'Amostras colhidas na barreira', fonte: 'auto' },
-    { chave: 'pessoas', rotulo: 'Medida de educação sanitária (pessoas orientadas)', fonte: 'auto', nota: 'pessoas' },
-    { chave: 'medidaFito', rotulo: 'Medida fitossanitária', fonte: 'manual' },
-    { chave: 'capacitacao', rotulo: 'Capacitação técnica', fonte: 'manual' },
-    { chave: 'exportT', rotulo: 'Exportação de vegetais para outros estados', unid: 't', fonte: 'manual' },
-    { chave: 'madeira', rotulo: 'Exportação de madeira para outros estados', unid: 'm³', fonte: 'manual' },
-    { chave: 'importT', rotulo: 'Importação de vegetais de outros estados', unid: 't', fonte: 'manual' },
-    { chave: 'tfs', rotulo: 'Termo de fiscalização – resultou em:', fonte: 'auto' },
-    { chave: 'inspecao', rotulo: '• Inspeção', fonte: 'auto' },
-    { chave: 'advertencia', rotulo: '• Advertência', fonte: 'auto' },
-    { chave: 'rechaco', rotulo: '• Rechaço', fonte: 'auto' },
-    { chave: 'fiel', rotulo: '• Fiel depositário', fonte: 'auto' },
-    { chave: 'liberacao', rotulo: '• Liberação', fonte: 'auto' },
-    { chave: 'liberacaoT', rotulo: '• Liberação', unid: 't', fonte: 'auto', nota: 'toneladas' },
-    { chave: 'infracao', rotulo: '• Auto de infração', fonte: 'auto' },
-    { chave: 'apreensao', rotulo: '• Apreensão', fonte: 'auto' },
-    { chave: 'apreensaoT', rotulo: '• Apreensão', unid: 't', fonte: 'auto', nota: 'toneladas' },
-    { chave: 'autoDestN', rotulo: 'Auto de destruição', fonte: 'manual' },
-    { chave: 'autoDestT', rotulo: 'Auto de destruição', unid: 't', fonte: 'manual' },
-    { chave: 'pnemc', rotulo: 'PNEMC (ações do programa da mosca-da-carambola)', fonte: 'manual' }];
+  // VIGIFITO: as linhas da planilha de controle, do motor de indicadores (documentos/indicadores.js); valores = soma dos postos do tipo
+  // (relatório VIGIFITO, VigDocs) — o consolidado nunca diverge do relatório VIGIFITO.
+  const IND = typeof Indicadores !== 'undefined' ? Indicadores : (typeof window !== 'undefined' ? window.Indicadores : null);
+  const VIG = (IND ? IND.VIGIFITO : []).map(d => ({ chave: d.k, rotulo: d.rotulo, unid: d.unid === 'm3' ? 'm³' : d.unid, fonte: d.fonte, nota: d.nota }));
   const BLOCOS_VIG = [['fixa', 'BVA fixas'], ['volante', 'BVA volantes']];
   const TABS = {
     'tab.cfo': [['produto', 'Produto'], ['documentos', 'Nº de CFO/CFOC', 'n'], ['quantidade', 'Quantidade', 'n'], ['unidade', 'Unidade']],
@@ -133,7 +107,8 @@ const RelGdvDocs = (() => {
   /**
    * Monta tudo o que o relatório e a tela mostram.
    * o = {tipo: 'mensal'|'anual', ano, mes (1–12, mensal), ap (apuração do período), apAno (mensal: apuração de 1º/jan até o fim do mês),
-   *      lancamentos: [{mes:'MM', chave, valor, lista}], cfg (CONFIG.RELGDV), hoje: 'AAAA-MM-DD', municipio: nome canônico (opcional)}.
+   *      lancamentos: [{mes:'MM', chave, valor, lista}], cfg (CONFIG.RELGDV), hoje: 'AAAA-MM-DD', municipio: nome canônico (opcional),
+   *      vig: VigDocs.calcular({tipo: 'anual', ano, dados}) — o VIGIFITO por posto do ano (valores e-GDV + lançados no portal)}.
    */
   function calcular(o) {
     const cfg = o.cfg || cfgPadrao(), grupos = cfg.grupos || [], tipo = o.tipo === 'anual' ? 'anual' : 'mensal', ano = Number(o.ano), mesN = Number(o.mes) || 1;
@@ -187,7 +162,8 @@ const RelGdvDocs = (() => {
     const vigMes = (b, m) => (apAno && apAno.vigifito && apAno.vigifito[b] && apAno.vigifito[b][`${ano}-${m}`]) || null;
     const valorVig = (b, d, m) => {
       if (futuro(m)) return null;
-      if (d.fonte === 'manual') return lv(m, `vig.${b}.${d.chave}`);
+      if (o.vig) return o.vig.tot(b === 'fixa' ? o.vig.fixas : o.vig.volantes, d.chave, [`${ano}-${m}`]).v;
+      if (d.fonte === 'manual') return null;
       const x = vigMes(b, m); return x ? (x[d.chave] || 0) : 0;
     };
     const soma2 = (a, b) => (a == null && b == null ? null : (a || 0) + (b || 0));
@@ -206,7 +182,7 @@ const RelGdvDocs = (() => {
     // outras unidades de liberação/apreensão (sem conversão para toneladas)
     const outrasUn = {};
     ['fixa', 'volante'].forEach(b => (tipo === 'mensal' ? [mm] : meses).forEach(m => { const x = vigMes(b, m); if (!x) return;
-      Object.keys(x.outrasUnidades || {}).forEach(p => Object.keys(x.outrasUnidades[p]).forEach(u => { const k = `${p === 'apreensao' ? 'Apreensão' : 'Liberação'}|${u}`; outrasUn[k] = (outrasUn[k] || 0) + x.outrasUnidades[p][u]; })); }));
+      Object.keys(x.outrasUnidades || {}).forEach(p => Object.keys(x.outrasUnidades[p]).forEach(u => { const k = `${p === 'apreensao' ? 'Apreensão' : p === 'carga' ? 'Carga dos veículos' : 'Liberação'}|${u}`; outrasUn[k] = (outrasUn[k] || 0) + x.outrasUnidades[p][u]; })); }));
 
     /* ---- Seção I: tabelas por grupo e município ---- */
     const mesesGrupo = tipo === 'mensal' ? [mm] : meses;
@@ -257,22 +233,23 @@ const RelGdvDocs = (() => {
     const marcadores = { periodo, ano: String(ano), mes: tipo === 'mensal' ? MESES[mesN - 1] : '', municipiosLevantados: fmt.int(resumo.municipiosLevantados),
       propriedadesVisitadas: fmt.int(Q.propVisitadas || 0), levantamentos: fmt.int(resumo.levantamentos), deteccoes: fmt.int(resumo.deteccoes),
       termosColheita: fmt.int(Q.colheitas || 0), amostras: fmt.int(Q.amostras || 0), termosFiscalizacao: fmt.int(Q.termosFisc || 0),
-      veiculos: fmt.int(totV('veiculos')), pessoas: fmt.int(totV('pessoas')), tfs: fmt.int(totV('tfs')) };
+      veiculos: fmt.int(totV('veiculos')), pessoas: fmt.int(totV('educacao')), tfs: fmt.int(totV('tfs')) };
 
     /* ---- avisos de consistência ---- */
     const avisos = [];
     const mesesVer = (tipo === 'mensal' ? [mm] : meses).filter(m => !futuro(m));
     const manuaisVazias = quadroPce.filter(r => r.fonte === 'manual' && mesesVer.every(m => r.valores[m] == null)).map(r => r.rotulo)
       .concat(vig.fixa.filter(r => r.fonte === 'manual' && mesesVer.every(m => r.valores[m] == null) && vig.volante.find(x => x.chave === r.chave && mesesVer.every(m => x.valores[m] == null))).map(r => 'VIGIFITO: ' + r.rotulo + (r.unid !== 'nº' ? ` (${r.unid})` : '')));
+    if (o.vig) o.vig.avisos.filter(a => a.nivel !== 'info').forEach(a => avisos.push({ ...a, titulo: 'VIGIFITO: ' + a.titulo }));
     if (manuaisVazias.length) avisos.push({ nivel: 'atencao', titulo: `${manuaisVazias.length} linha(s) manual(is) sem lançamento em ${periodo}`,
-      detalhe: manuaisVazias.slice(0, 14).join('; ') + (manuaisVazias.length > 14 ? '…' : '') + '. Sem lançamento, a linha sai com "—" no relatório.' });
+      detalhe: manuaisVazias.slice(0, 14).join('; ') + (manuaisVazias.length > 14 ? '…' : '') + '. Sem lançamento, a linha sai com "—" no relatório. Os números manuais são lançados no Portal do Administrativo.' });
     if (labAp.positivos.length) avisos.push({ nivel: 'critico', titulo: `${labAp.positivos.length} amostra(s) positiva(s) no período`, detalhe: labAp.positivos.slice(0, 8).map(x => `${x.praga} em ${x.municipio} (${fmt.data(x.data)})`).join('; ') + '.' });
     if (labAp.semResultado30) avisos.push({ nivel: 'atencao', titulo: `${labAp.semResultado30} termo(s) de colheita sem resultado há mais de 30 dias`, detalhe: 'Registre o resultado na aba PCE (termos de colheita) ou no app; sem resultado, a amostra conta como "aguardando".' });
     const semTipo = (resumo.porTipoLocal || {})['Não informado'] || 0, semOrig = (resumo.porOrigem || {})['Não informada'] || 0;
     if (semTipo || semOrig) avisos.push({ nivel: 'info', titulo: `${semTipo} levantamento(s) sem tipo de local e ${semOrig} sem origem da visita`, detalhe: 'Campos opcionais (registros antigos ficam vazios): não afetam os totais; viveiros e UP/UC só são contados quando o tipo de local é informado.' });
     if (Object.keys(outrasUn).length) avisos.push({ nivel: 'info', titulo: 'Liberações/apreensões em unidades que não são de massa', detalhe: Object.keys(outrasUn).map(k => `${k.split('|')[0]}: ${fmt.num(outrasUn[k], 2)} ${k.split('|')[1]}`).join('; ') + '. Listadas à parte, sem conversão para toneladas.' });
 
-    return { tipo, ano, mes: mesN, mm, meses, mesesAcum, periodo, de: ap ? ap.de : '', ate: ap ? ap.ate : '', cfg, quadroPce, vig, outrasUn, grupos: gruposR,
+    return { tipo, ano, mes: mesN, mm, meses, mesesAcum, periodo, de: ap ? ap.de : '', ate: ap ? ap.ate : '', cfg, quadroPce, vig, vigR: o.vig || null, outrasUn, grupos: gruposR,
       lab: { porPraga: labAp.porPraga, total: labTot, positivos: labAp.positivos, semResultado30: labAp.semResultado30 }, tabs, hlb, marcadores, resumo, avisos, futuro };
   }
 
@@ -336,13 +313,16 @@ const RelGdvDocs = (() => {
   const paras = (txt, M) => String(aplicarMarcadores(txt, M) || '').split(/\n\s*\n/).map(s => s.trim()).filter(Boolean).map(t => ({ t: 'p', texto: t }));
   const marcaFonte = r => (r.fonte === 'auto' ? '' : ' †');
   /**
-   * R = calcular(...); t = textos; o = {dataEmissao, mapas: {grupoId: {src, png}}, anexo: bool}. Devolve a lista de blocos.
+   * R = calcular(...); t = textos; o = {dataEmissao, mapas: {grupoId: {src, png}}, anexo: bool, pce: true = só as partes de PCE (relatório
+   * PCE: Seção I com tabelas e mapas, amostras e laudos, quadro PCE, HLB e anexo), vigBlocos: blocos do VIGIFITO por posto (VigDocs.blocos
+   * com secao) para a Seção II do consolidado}. Devolve a lista de blocos.
    */
   function blocos(R, t, o) {
     o = o || {};
-    const M = R.marcadores, B = [], anual = R.tipo === 'anual';
-    const titulo = anual ? `RELATÓRIO TÉCNICO ${R.ano} — CONSOLIDADO` : `RELATÓRIO TÉCNICO PARCIAL — ${MESES[R.mes - 1].toUpperCase()}/${R.ano}`;
-    B.push({ t: 'titulo', texto: titulo }, { t: 'titulo2', texto: 'Gerência de Defesa Vegetal – GDV/ADAF' },
+    const M = R.marcadores, B = [], anual = R.tipo === 'anual', soPce = !!o.pce;
+    const titulo = soPce ? (anual ? `RELATÓRIO PCE ${R.ano} — CONSOLIDADO` : `RELATÓRIO PCE PARCIAL — ${MESES[R.mes - 1].toUpperCase()}/${R.ano}`)
+      : anual ? `RELATÓRIO TÉCNICO ${R.ano} — CONSOLIDADO` : `RELATÓRIO TÉCNICO PARCIAL — ${MESES[R.mes - 1].toUpperCase()}/${R.ano}`;
+    B.push({ t: 'titulo', texto: titulo }, { t: 'titulo2', texto: soPce ? 'Programa de Prevenção, Controle e Erradicação de Pragas – PCE · Gerência de Defesa Vegetal – GDV/ADAF' : 'Gerência de Defesa Vegetal – GDV/ADAF' },
       { t: 'p', rotulo: 'Período', texto: `${fmt.data(R.de)} a ${fmt.data(R.ate)}` });
     B.push({ t: 'h', texto: 'INTRODUÇÃO' }, ...paras(t.introducao, M));
     // Seção I
@@ -377,7 +357,7 @@ const RelGdvDocs = (() => {
         { rotulo: 'Negativo', largura: 9 }, { rotulo: 'Positivo', largura: 9 }, { rotulo: 'Inconclusivo', largura: 11 }, { rotulo: 'Inviável', largura: 9 }],
       linhas: R.lab.porPraga.length ? R.lab.porPraga.map(x => lr(x, false)).concat([lr(R.lab.total, true)]) : [[{ texto: 'Nenhum termo de colheita no período.' }, '–', '–', '–', '–', '–', '–', '–', '–']] });
     // Seção II
-    B.push({ t: 'h', texto: 'SEÇÃO II – AÇÕES DE DEFESA SANITÁRIA VEGETAL' }, ...paras(t.secao2, M));
+    B.push({ t: 'h', texto: soPce ? 'SEÇÃO II – QUADRO DE AÇÕES DO PCE' : 'SEÇÃO II – AÇÕES DE DEFESA SANITÁRIA VEGETAL' }, ...paras(t.secao2, M));
     if (anual) B.push({ t: 'orientacao', paisagem: true });
     const ML = R.meses.map(m => MESES_CURTOS[+m - 1]);
     const quadro = (tit, linhas) => anual
@@ -391,8 +371,10 @@ const RelGdvDocs = (() => {
     B.push(quadro(`Programa de Prevenção, Controle e Erradicação de Pragas – PCE ${anual ? R.ano : R.periodo}`, R.quadroPce));
     B.push({ t: 'p', pequeno: true, texto: (anual ? '† lançado manualmente no painel; demais linhas apuradas pelo e-GDV. ' : '') +
       'Propriedades visitadas: distintas no mês; no total (ou acumulado), distintas no período inteiro — por isso o total não é a soma dos meses. Novas = cadastradas no mês (data de cadastro da propriedade ou do primeiro levantamento); antigas = visitadas − novas. Área monitorada: soma das áreas das culturas avaliadas; no total, a soma por propriedade distinta no período (a área de uma propriedade visitada em vários meses conta uma vez, como estoque, e não se somam os meses).' });
-    B.push(...paras(t.vigifito, M));
-    if (anual) {
+    if (!soPce) B.push(...paras(t.vigifito, M));
+    if (soPce) { /* relatório PCE: sem VIGIFITO (relatório próprio) */ }
+    else if (anual && o.vigBlocos) B.push(...o.vigBlocos);
+    else if (anual) {
       [['total', 'VIGIFITO – TOTAL CONSOLIDADO (BVA fixas + volantes)'], ['fixa', 'VIGIFITO – BVA FIXAS'], ['volante', 'VIGIFITO – BVA VOLANTES']]
         .forEach(([b, tit]) => B.push(quadro(`${tit} – ${R.ano}`, R.vig[b].map(r => (b === 'total' ? { ...r, fonte: r.fonte } : r)))));
     } else {
@@ -403,11 +385,23 @@ const RelGdvDocs = (() => {
           { texto: valorTxt(R.vig.fixa[i].mes, r.unid), alinhar: 'd' }, { texto: valorTxt(R.vig.volante[i].mes, r.unid), alinhar: 'd' },
           { texto: valorTxt(r.mes, r.unid), alinhar: 'd', negrito: true }, { texto: valorTxt(r.acum, r.unid), alinhar: 'd' }]) });
     }
+    if (!anual && !soPce && o.vigBlocos) B.push(...o.vigBlocos);
     const outras = Object.keys(R.outrasUn);
-    B.push({ t: 'p', pequeno: true, texto: 'Total = BVA fixas + BVA volantes (postos "Móvel" do e-GDV). Pessoas orientadas: estimativa por tipo de veículo (padrão do app, editável em cada registro). ' +
+    if (!soPce) B.push({ t: 'p', pequeno: true, texto: 'VIGIFITO = soma dos postos do relatório VIGIFITO (mesmos números). Total = BVA fixas + BVA volantes (postos "Móvel" do e-GDV). Medida de educação sanitária: veículos com orientação (campo do registro do veículo). ' +
       'Toneladas: soma dos produtos dos TFs informados em kg (÷ 1.000) ou toneladas; ' + (outras.length ? 'outras unidades, sem conversão: ' + outras.map(k => `${k.split('|')[0]} ${fmt.num(R.outrasUn[k], 2)} ${k.split('|')[1]}`).join('; ') + '.' : 'não houve produtos em outras unidades.') +
-      ' TF sem turno (módulo TF isolado) conta como BVA fixa.' });
+      ' TF sem turno (módulo TF isolado) conta como BVA fixa. Os valores manuais do VIGIFITO são lançados por posto no Portal do Administrativo.' });
     if (anual) B.push({ t: 'orientacao', paisagem: false });
+    if (soPce) {
+      B.push({ t: 'h', texto: 'SEÇÃO III – RESULTADOS DAS AÇÕES ESTABELECIDAS PELO PLANO DE CONTINGÊNCIA – HLB' }, ...paras(t.hlb, M));
+      const H = R.hlb;
+      B.push({ t: 'tabela', titulo: `Plano de contingência do HLB – ${R.periodo}`, pequena: true, colunas: [{ rotulo: 'Indicador', largura: 60 }, { rotulo: 'Valor', largura: 20 }, { rotulo: 'Fonte', largura: 20 }],
+        linhas: [['Levantamentos de pragas dos citros', H.levantamentos, 'e-GDV'], ['Propriedades/localidades com citros inspecionadas', H.propriedades, 'e-GDV'],
+          ['Viveiros inspecionados (tipo de local "Viveiro")', H.viveiros, 'e-GDV'], ['Propriedades com HLB detectado ou suspeito', H.hlb, 'e-GDV'],
+          ['Propriedades com Diaphorina citri detectada ou suspeita', H.diaphorina, 'e-GDV'], ['Armadilhas para Diaphorina citri (monitoramento)', H.armadilhas, 'lançado']]
+          .map(([a, v, f]) => [{ texto: a }, { texto: v == null ? '—' : fmt.int(v), alinhar: 'd' }, { texto: f, alinhar: 'c' }]) });
+      fecho(B, R, t, o, M);
+      return B;
+    }
     // Seções III e IV
     const tabManual = (chave, tit, vazio) => {
       const C = TABS[chave], lst = R.tabs[chave];
@@ -423,9 +417,9 @@ const RelGdvDocs = (() => {
     // Seção V
     B.push({ t: 'h', texto: 'SEÇÃO V – EDUCAÇÃO SANITÁRIA VOLTADA PARA OS PROGRAMAS NACIONAIS DE SANIDADE VEGETAL' }, ...paras(t.educacao, M));
     const ed = tabManual('tab.educacao', `Relatório de educação fitossanitária – ${R.periodo}`, 'Nenhuma ação educativa lançada no período.');
-    const pessoas = (R.vig.total.find(r => r.chave === 'pessoas') || {});
+    const pessoas = (R.vig.total.find(r => r.chave === 'educacao') || {});
     const nPess = anual ? pessoas.total : pessoas.mes;
-    const linhaAuto = (anual ? [{ texto: '—', alinhar: 'c' }] : []).concat([{ texto: 'Medida de educação sanitária (e-GDV)' }, { texto: 'Abordagem de veículos nas barreiras (BVA fixas e volantes), com orientação sobre as pragas quarentenárias' },
+    const linhaAuto = (anual ? [{ texto: '—', alinhar: 'c' }] : []).concat([{ texto: 'Medida de educação sanitária (e-GDV)' }, { texto: 'Veículos abordados nas barreiras (BVA fixas e volantes) com orientação sobre as pragas quarentenárias' },
       { texto: R.periodo }, { texto: 'BVA fixas e volantes' }, { texto: 'Condutores, passageiros e transportadores' }, { texto: fmt.int(nPess || 0), alinhar: 'd' }]);
     if (R.tabs['tab.educacao'].length) ed.linhas.splice(ed.linhas.length - 1, 0, linhaAuto); else ed.linhas = [linhaAuto];
     B.push(ed);
@@ -437,7 +431,11 @@ const RelGdvDocs = (() => {
         ['Viveiros inspecionados (tipo de local "Viveiro")', H.viveiros, 'e-GDV'], ['Propriedades com HLB detectado ou suspeito', H.hlb, 'e-GDV'],
         ['Propriedades com Diaphorina citri detectada ou suspeita', H.diaphorina, 'e-GDV'], ['Armadilhas para Diaphorina citri (monitoramento)', H.armadilhas, 'lançado']]
         .map(([a, v, f]) => [{ texto: a }, { texto: v == null ? '—' : fmt.int(v), alinhar: 'd' }, { texto: f, alinhar: 'c' }]) });
-    // Conclusão e assinaturas
+    fecho(B, R, t, o, M);
+    return B;
+  }
+  /** Conclusão, local/data, assinaturas e o anexo por propriedade (comum ao consolidado e ao relatório PCE). */
+  function fecho(B, R, t, o, M) {
     B.push({ t: 'h', texto: 'CONCLUSÃO' }, ...paras(t.conclusao, M));
     B.push({ t: 'p', alinhar: 'd', espaco: true, texto: `${t.local || 'Manaus/AM'}, ${fmt.extenso(o.dataEmissao || '')}.` });
     const ass = (t.assinaturas || []).filter(a => a && (a.nome || a.cargo));
@@ -457,7 +455,6 @@ const RelGdvDocs = (() => {
             x.lat == null ? '—' : fmt.num(x.lat, 2), x.lon == null ? '—' : fmt.num(x.lon, 2)].map((v, j) => ({ texto: v, alinhar: j >= 8 ? 'd' : null }))) });
       });
     }
-    return B;
   }
 
   /* ================= HTML (modelo relgdv-relatorio.html → PDF/impressão) ================= */
@@ -476,7 +473,9 @@ const RelGdvDocs = (() => {
     if (rod) ult.append(rod);
   }
 
-  return { calcular, blocos, html, mapa, textosIniciais, aplicarMarcadores, fimDoMes, fmt, valorTxt, TEXTOS_PADRAO, ROTULOS_TXT, MARCADORES, TABS, VIG, BLOCOS_VIG,
+  /** Linhas manuais do quadro PCE (lançadas no Portal do Administrativo, por mês). */
+  const LINHAS_MANUAIS_PCE = PCE_ANTES.concat(PCE_DEPOIS).filter(d => d.fonte === 'manual').map(d => ({ ...d, unid: d.unid || 'nº' }));
+  return { calcular, blocos, html, mapa, textosIniciais, aplicarMarcadores, fimDoMes, fmt, valorTxt, TEXTOS_PADRAO, ROTULOS_TXT, MARCADORES, TABS, LINHAS_MANUAIS_PCE, VIG, BLOCOS_VIG,
     MESES, MESES_CURTOS, norm, textoGrupo };
 })();
 if (typeof window !== 'undefined') window.RelGdvDocs = RelGdvDocs;

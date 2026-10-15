@@ -296,7 +296,7 @@ const temId = async (aba, id) => (await linhas(aba)).some((r, i) => i > 0 && r[0
   await a.fill('#nTF', '5'); await a.selectOption('#nPosto', 'Móvel'); await a.fill('#nLocal', 'BR-174 km 10'); await a.fill('#nUnidade', 'MANAUS'); await a.click('#fTurno button[type=submit]');
   await a.waitForSelector('.contador');
   ok(await a.locator('[data-go=tfnovo]').count() === 1, 'TF liberado: "Lavrar TF neste turno" aparece');
-  await a.click('[data-go=registrar]'); await a.waitForSelector('#fVeic'); await a.fill('#placa', 'AAA1B22'); await a.click('#fVeic button');
+  await a.click('[data-go=registrar]'); await a.waitForSelector('#fVeic'); await a.fill('#placa', 'AAA1B22'); await a.click('#fVeic > button');
   await a.waitForFunction(() => /registrado/.test(document.querySelector('#toast').textContent)); await sync();
   await a.click('nav [data-v=lista]'); await a.waitForSelector('.item');
   ok(await a.locator('[data-tfveic]').count() === 1, 'TF liberado: "Lavrar TF" no veículo');
@@ -315,7 +315,7 @@ const temId = async (aba, id) => (await linhas(aba)).some((r, i) => i > 0 && r[0
   // dentro do Controle de veículos, sem internet: registra; gerência tira o módulo; ao sincronizar volta para os módulos sem perder nada
   await a.click('.modulo[data-v=home]'); await a.waitForSelector('.contador');
   await ca.setOffline(true); await a.evaluate(() => window.dispatchEvent(new Event('offline')));
-  await a.click('[data-go=registrar]'); await a.waitForSelector('#fVeic'); await a.fill('#placa', 'OFF1L23'); await a.click('#fVeic button');
+  await a.click('[data-go=registrar]'); await a.waitForSelector('#fVeic'); await a.fill('#placa', 'OFF1L23'); await a.click('#fVeic > button');
   await a.waitForFunction(() => /OFF1L23 registrado/.test(document.querySelector('#toast').textContent));
   await a.click('nav [data-v=lista]'); await a.waitForSelector('.item');
   await perm(0, 0, 1);

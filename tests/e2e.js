@@ -28,7 +28,7 @@ const assert = require('assert');
   for (const [pl, tipo] of [['ABC1D23', 'PA'], ['XYZ9K88', 'ON'], ['QQQ1A11', 'CC']]) {
     await page.waitForTimeout(400); await page.click('nav [data-v=registrar]'); await page.waitForTimeout(300); await page.waitForSelector('#fVeic');
     await page.fill('#placa', pl.toLowerCase()); await page.check(`input[value=${tipo}]`);
-    await page.click('#fVeic button');
+    await page.click('#fVeic > button');
     await page.waitForFunction(p => document.querySelector('#toast').textContent.includes(p), pl, {timeout:4000}).catch(async e => { console.log('TOAST=', await page.textContent('#toast'), 'URL erros=', erros); throw e; });
   }
   // edita um e exclui outro
@@ -36,7 +36,7 @@ const assert = require('assert');
   assert.equal(await page.locator('.item').count(), 3);
   await page.locator('[data-del]').first().click(); await page.waitForFunction(() => document.querySelectorAll('.item').length === 2);
   await page.locator('[data-edit]').first().click(); await page.waitForSelector('#fVeic');
-  await page.fill('#obs', 'carga de frutas'); await page.click('#fVeic button'); await page.waitForSelector('.item');
+  await page.fill('#obs', 'carga de frutas'); await page.click('#fVeic > button'); await page.waitForSelector('.item');
   console.log('offline: 2 veículos ativos, pendentes ->', (await page.locator('.pend').count()));
   // resumo
   await page.click('nav [data-v=resumo]'); await page.waitForSelector('.total');
@@ -124,7 +124,7 @@ const assert = require('assert');
   console.log('credencial != código:', await p6.evaluate(c => localStorage.getItem('gdv.key') !== c && localStorage.getItem('gdv.key').length >= 32, g1.codigo));
   await p6.fill('#nTF', '21'); await p6.selectOption('#nPosto', 'Móvel'); await p6.fill('#nLocal', 'BR-174'); await p6.fill('#nUnidade', 'MANAUS'); await p6.fill('#nFiscal2', 'João Silva');
   await p6.click('#fTurno button[type=submit]'); await p6.waitForSelector('.contador');
-  await p6.waitForTimeout(400); await p6.click('nav [data-v=registrar]'); await p6.waitForTimeout(300); await p6.fill('#placa', 'MMM1A11'); await p6.click('#fVeic button');
+  await p6.waitForTimeout(400); await p6.click('nav [data-v=registrar]'); await p6.waitForTimeout(300); await p6.fill('#placa', 'MMM1A11'); await p6.click('#fVeic > button');
   await p6.waitForFunction(() => document.querySelector('#toast').textContent.includes('registrado'));
   await p6.evaluate(() => Sync.sincronizar()); await p6.waitForTimeout(1500);
   const d2 = await dump();

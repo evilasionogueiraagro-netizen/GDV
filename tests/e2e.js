@@ -103,7 +103,7 @@ const assert = require('assert');
   await p3.click('#fTurno button[type=submit]'); await p3.waitForSelector('.contador', { timeout: 20000 });
   console.log('GPS negado -> turno iniciou | toast:', (await p3.textContent('#toast')).slice(0, 60));
   // ---------- ativação por código de 6 dígitos ----------
-  const URLGS = 'https://script.google.com/macros/s/AKfycbx58-TObty08Aqc5Vft30r_G_zzLPq_agJReOqJcFgXRKkVXoqb4vFPowi3kDKo3q7p/exec';
+  const URLGS = /sync: \{ url: '([^']+)'/.exec(require('fs').readFileSync(require('path').join(amb.RAIZ, 'web/js/config.js'), 'utf8'))[1];   // endereço oficial do config.js
   const rota = async pg => pg.route(URLGS, async route => {
     const r = await fetch(amb.API + '/', { method: 'POST', body: route.request().postData() });
     await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: await r.text() });

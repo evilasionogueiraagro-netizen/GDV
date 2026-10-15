@@ -4,8 +4,12 @@
   const $ = s => document.querySelector(s);
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const dataBR = iso => (/^\d{4}-\d{2}-\d{2}$/.test(String(iso || '')) ? iso.split('-').reverse().join('/') : String(iso || ''));
-  // mesmo servidor do app (no aparelho de um fiscal pode haver outro endereço guardado)
-  const api = () => { try { return localStorage.getItem('gdv.url') || CONFIG.sync.url; } catch (e) { return CONFIG.sync.url; } };
+  // mesmo servidor do app: o endereço oficial (config.js) manda; o guardado no aparelho só vale sem ele ou nos testes (localhost), como em sync.js
+  const api = () => {
+    let salvo = '';
+    try { salvo = localStorage.getItem('gdv.url') || ''; } catch (e) { /* sem localStorage */ }
+    return (CONFIG.sync.url && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? CONFIG.sync.url : salvo || CONFIG.sync.url) || '';
+  };
   const res = $('#resultado');
 
   async function verificar(id) {

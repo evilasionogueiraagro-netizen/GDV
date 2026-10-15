@@ -149,7 +149,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-16a';
+const VERSAO_CODIGO = '2026-10-16c';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -2196,12 +2196,13 @@ function convFinLancar_(autor, l) {
   if (valor < 0 && o.descricao.length < 5) throw new Error('Valor negativo (estorno) exige descrição.');
   o.tipoDiaria = String(l.tipoDiaria || '').toUpperCase();
   if (o.tipoDiaria && CONV_TIPOS_DIARIA.indexOf(o.tipoDiaria) < 0) throw new Error('Tipo de diária inválido (NM, NS ou terceiros).');
-  o.servidorId = String(l.servidorId || '').trim(); o.servidorNome = '';
-  if (o.servidorId) {
-    const srv = admServidores_().filter(function (x) { return x.id === o.servidorId; })[0];
-    if (!srv) throw new Error('Servidor não encontrado na lista de servidores cadastrados.');
-    o.servidorNome = srv.nome;
+  // servidor da diária: nome digitado livremente (não precisa ser fiscal cadastrado); id estável pelo nome normalizado
+  o.servidorNome = convTexto_(String(l.servidorNome || '').replace(/\s+/g, ' ').trim(), 120, 'Servidor'); o.servidorId = '';
+  if (!o.servidorNome && l.servidorId) {                          // compatibilidade: id da lista antiga
+    const srv = admServidores_().concat(admServidoresDiaria_()).filter(function (x) { return x.id === String(l.servidorId); })[0];
+    if (srv) o.servidorNome = srv.nome;
   }
+  if (o.servidorNome) o.servidorId = 'srv-' + hexSha_('srv:' + nomeChave_(o.servidorNome)).slice(0, 12);
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     const agora = Date.now();
@@ -2264,9 +2265,11 @@ function convFinImportar_(autor, req) {
     if (CONV_FONTES.indexOf(fonte) < 0) throw new Error(rot + ': fonte inválida.');
     let data;
     try { data = convDataNaVigencia_(cfg, String(l.data || '')); } catch (err) { throw new Error(rot + ': ' + err.message); }
+    const servidorNome = convTexto_(String(l.servidorNome || '').replace(/\s+/g, ' ').trim(), 120, rot + ': servidor');
     return { convenio: cfg.id, etapa: e.id, item: item.id, natureza: item.natureza, data: data, quantidade: qtd === '' ? '' : Math.round(qtd * 100) / 100, valor: valor,
              documento: convTexto_(l.documento, 120, rot + ': documento'), descricao: convTexto_(l.descricao, 200, rot + ': descrição'), fonte: fonte,
-             chave: chave, origem: 'planilha', arquivo: arquivo };
+             chave: chave, origem: 'planilha', arquivo: arquivo,
+             servidorNome: servidorNome, servidorId: servidorNome ? 'srv-' + hexSha_('srv:' + nomeChave_(servidorNome)).slice(0, 12) : '' };
   });
   const lock = LockService.getScriptLock(); lock.waitLock(30000);
   try {
@@ -2282,13 +2285,15 @@ function convFinImportar_(autor, req) {
     novos.forEach(function (n) {
       const a = ix[n.chave];
       if (a && a.o.excluido !== 1 && a.o.data === n.data && Number(a.o.valor) === n.valor && a.o.documento === n.documento && a.o.descricao === n.descricao &&
-          a.o.item === n.item && String(a.o.quantidade) === String(n.quantidade) && a.o.fonte === n.fonte) { res.iguais++; return; }
+          a.o.item === n.item && String(a.o.quantidade) === String(n.quantidade) && a.o.fonte === n.fonte &&
+          (!n.servidorNome || a.o.servidorNome === n.servidorNome)) { res.iguais++; return; }
+      if (a && !n.servidorNome && a.o.servidorNome) { n.servidorNome = a.o.servidorNome; n.servidorId = a.o.servidorId; }   // sem nome no envio: mantém o já gravado
       const o = Object.assign({}, n, { usuario: autor.nome, admId: autor.admId || '', atualizadoEm: agora, importadoEm: agora, excluido: 0 });
       if (a) {
         o.id = a.o.id; o.criadoEm = a.o.criadoEm || agora;
         t.sh.getRange(a.i + 2, 1, 1, cols.length).setValues([linhaDe(o)]); res.atualizados++;
       } else { o.id = Utilities.getUuid(); o.criadoEm = agora; acrescentar.push(linhaDe(o)); res.novos++; }
-      res.lancamentos.push(convFinOut_(o));
+      res.lancamentos.push(convFinOutAdm_(o));
     });
     if (acrescentar.length) t.sh.getRange(t.sh.getLastRow() + 1, 1, acrescentar.length, cols.length).setValues(acrescentar);
     excluir.forEach(function (id) {
@@ -3344,12 +3349,23 @@ function admServidores_() {
   return out.sort(function (a, b) { return a.nome.localeCompare(b.nome); });
 }
 
+/** Nomes de servidores já usados em diárias (para o autopreenchimento do portal): o nome mais recente de cada pessoa. */
+function admServidoresDiaria_() {
+  const por = {};
+  lerLeitura_('ConvFinanceiro').forEach(function (r) {
+    if (!r.id || r.excluido === 1 || !r.servidorNome) return;
+    const k = nomeChave_(r.servidorNome), t = Number(r.atualizadoEm) || 0;
+    if (!por[k] || t >= por[k].t) por[k] = { id: 'srv-' + hexSha_('srv:' + k).slice(0, 12), nome: String(r.servidorNome), t: t };
+  });
+  return Object.keys(por).map(function (k) { return { id: por[k].id, nome: por[k].nome }; }).sort(function (a, b) { return a.nome.localeCompare(b.nome); });
+}
+
 /* ----- actions do portal (todas exigem a sessão) ----- */
 const autorAdm_ = function (s) { return { nome: s.nome, admId: s.admId }; };
 function admDados_(s) {
   const vivo = function (r) { return r.id && r.excluido !== 1; };
   return { ok: true, nome: s.nome, email: s.email, expiraEm: s.expiraEm, hoje: hojeManaus_(), painelUrl: painelUrl_(),
-           convenios: convListar_(), servidores: admServidores_(),
+           convenios: convListar_(), servidores: admServidoresDiaria_(),
            lancamentos: lerLeitura_('ConvLancamentos').filter(vivo).map(convLancOut_),
            financeiro: lerLeitura_('ConvFinanceiro').filter(vivo).map(convFinOutAdm_) };
 }
@@ -3374,7 +3390,6 @@ function admConvFinExcluir_(s, req) {
 function admConvFinImportar_(s, req) {
   const r = convFinImportar_(autorAdm_(s), req);
   admHistLote_(s, 'importar', 'ConvFinanceiro', [['arquivo: ' + r.arquivo, '', { novos: r.novos, atualizados: r.atualizados, iguais: r.iguais, excluidos: r.excluidos }]]);
-  r.lancamentos = r.lancamentos.map(function (l) { return Object.assign({}, l, { servidorId: '', servidorNome: '' }); });
   return r;
 }
 /** Lançamentos manuais do Relatório GDV no ano (com quem/quando), para o portal. */

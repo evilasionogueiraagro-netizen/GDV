@@ -195,6 +195,9 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
     await pa.selectOption('#pn-cl-etapa', o.etapa);
     if (o.sub) await pa.selectOption('#pn-cl-sub', o.sub);
     if (o.bem) { await pa.selectOption('#pn-cl-bem', o.bem); await pa.selectOption('#pn-cl-sit', o.sit); }
+    if (o.valor != null) await pa.fill('#pn-cl-valor', o.valor);
+    if (o.fonte) await pa.selectOption('#pn-cl-fonte', o.fonte);
+    if (o.qtdbem != null) await pa.fill('#pn-cl-qtdbem', o.qtdbem);
     if (o.mun != null) await pa.fill('#pn-cl-mun', o.mun);
     await pa.fill('#pn-cl-data', o.data);
     if (o.qtd != null) await pa.fill('#pn-cl-qtd', String(o.qtd));
@@ -219,7 +222,18 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
   await pa.selectOption('#pn-cl-etapa', '1.1');
   ok(await pa.isVisible('#pn-cl-bem') && await pa.isVisible('#pn-cl-sit') && await pa.isHidden('#pn-cl-qtd'), 'formulário 1.1: bem e situação (sem quantidade)');
   ok(/Lançado/.test(await lancar({ etapa: '1.1', bem: 'pickup-urucurituba', sit: 'em_aquisicao', data: '2026-08-01', desc: 'Processo licitatório' })), 'bem 1.1: pick-up em aquisição (agosto)');
-  ok(/Lançado/.test(await lancar({ etapa: '1.1', bem: 'pickup-urucurituba', sit: 'entregue', data: '2026-09-02', doc: 'NF 4521' })), 'bem 1.1: pick-up entregue (setembro)');
+  ok(await pa.isHidden('#pn-cl-valor'), 'bem em aquisição: sem campo de valor');
+  await pa.selectOption('#pn-cl-sit', 'entregue');
+  ok(await pa.isVisible('#pn-cl-valor') && await pa.isVisible('#pn-cl-qtdbem') && await pa.isVisible('#pn-cl-fonte') && await pa.inputValue('#pn-cl-qtdbem') === '1', 'bem entregue/adquirido: pede o valor de aquisição, a quantidade (padrão 1) e a fonte');
+  ok(/valor de aquisição/i.test(await lancar({ etapa: '1.1', bem: 'pickup-urucurituba', sit: 'entregue', data: '2026-09-02', doc: 'NF 4521', valor: '', erro: true })), 'bem entregue sem valor: recusado na tela');
+  d = await L({ etapa: '1.1', tipo: 'bem', submeta: 'pickup-urucurituba', situacao: 'adquirido', data: '2026-09-02' });
+  ok(!d.ok && /valor de aquisição/i.test(d.erro), 'servidor: bem adquirido sem valor recusado', d.erro);
+  ok(/Lançado/.test(await lancar({ etapa: '1.1', bem: 'pickup-urucurituba', sit: 'entregue', data: '2026-09-02', doc: 'NF 4521', valor: '68.042,00', qtdbem: '1', fonte: 'contrapartida' })), 'bem 1.1: pick-up entregue (setembro) com valor de aquisição');
+  const fBem = await pa.evaluate(() => AdmConvenio.estado().dados.financeiro.filter(x => x.chave === 'bem|991272-2025|pickup-urucurituba'));
+  ok(fBem.length === 1 && fBem[0].item === '1.1.4' && fBem[0].natureza === '44.90.52' && fBem[0].valor === 68042 && fBem[0].quantidade === 1 && fBem[0].fonte === 'contrapartida' && fBem[0].origem === 'bem' && fBem[0].documento === 'NF 4521',
+    'valor de aquisição virou desembolso no item 1.1.4 (44.90.52, contrapartida, NF)', fBem);
+  await pa.click('[data-conv=bem][data-id="pickup-urucurituba"]');
+  ok(await pa.inputValue('#pn-cl-valor') === '68.042,00', '"Atualizar" o bem traz o valor já lançado', await pa.inputValue('#pn-cl-valor'));
   await pa.selectOption('#pn-cl-etapa', '1.4');
   ok(/Ajuste/.test(await pa.textContent('#pn-cl-qtd-rot')) && /obrigatória/.test(await pa.textContent('#pn-cl-desc-rot')), 'etapa automática: campo de ajuste e justificativa obrigatória');
   ok(/justificativa/i.test(await lancar({ etapa: '1.4', data: '2026-03-31', qtd: 11, desc: '', erro: true })), 'ajuste sem justificativa: recusado na tela');
@@ -260,7 +274,6 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
   };
   await fin({ etapa: '1.4', item: '1.4.1', data: '2026-09-05', qtd: '100', valor: '1.200,00', doc: 'NE 2026NE000123', desc: 'Gasolina setembro' });
   await fin({ etapa: '1.10', item: '1.10.3', data: '2026-08-10', qtd: '10', valor: '2520', doc: 'PCDP 77/2026' });
-  await fin({ etapa: '1.1', item: '1.1.4', data: '2026-09-02', qtd: '1', valor: '68.042,00', fonte: 'contrapartida', doc: 'NF 4521' });
   await fin({ etapa: '1.9', item: '1.9.2', data: '2026-10-03', valor: '2.500,00', doc: 'Bilhete 1' });     // outubro: não entra em setembro
   await recarregarPainel();
   S = await est();
@@ -270,6 +283,8 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
     'saldo da 1.4 = R$ 139.820,00 (0,85%); natureza 33.90.30; contrapartida 100%; repasse R$ 3.720,00', finR);
   await p.click('[data-conv=visao][data-v=fin]'); await p.waitForSelector('#pn-conv-portal');
   ok(!(await p.$('#pn-conv-fin-form')) && !(await p.$('#pn-conv-imp-arq')), 'painel → Financeiro: só leitura (sem formulário nem importação)');
+  ok(/Etapa 1\.1/.test(await p.textContent('[data-fin-etapa][aria-pressed=true]')) && /Bem \(aquisição\)/.test(await p.textContent('#pn-conv-visao')), 'painel: lista abre na etapa 1.1, com a aquisição da pick-up');
+  await p.click('[data-fin-etapa="*"]');
   const txFin = await p.textContent('#pn-conv-visao');
   ok(/R\$\s?139\.820,00/.test(txFin) && /0,85%/.test(txFin) && /NE 2026NE000123/.test(txFin), 'tela do financeiro: saldo, % e documento', txFin.slice(0, 200));
   d = await FL({ etapa: '1.4', item: '1.4.2', data: '2026-09-01', valor: 10, descricao: 'favorecido 529.982.247-25' }); ok(!d.ok && /CPF/.test(d.erro), 'financeiro: CPF do favorecido recusado', d.erro);

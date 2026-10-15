@@ -45,6 +45,7 @@
       const t = e.target;
       if (t.id === 'pn-conv-sel') { E.convId = t.value; E.editando = E.editandoFin = null; desenhar(raiz, visao); }
       if (t.id === 'pn-cl-etapa' || t.id === 'pn-cl-sub') ajustarFormLanc(raiz, t.id === 'pn-cl-etapa');
+      if (t.id === 'pn-cl-bem' || t.id === 'pn-cl-sit') { if (t.id === 'pn-cl-bem') valorDoBem(raiz); ajustarFormLanc(raiz, false); }
       if (t.id === 'pn-cf-etapa') { ajustarFormFin(raiz, true); vivoFin(raiz); }
       if (t.id === 'pn-cf-item') { ajustarFormFin(raiz, false); vivoFin(raiz); }
       if (t.id === 'pn-cf-data' || t.id === 'pn-cf-fonte' || t.id === 'pn-cf-tipo' || t.id === 'pn-cf-srv') vivoFin(raiz);
@@ -99,6 +100,9 @@
       <label class="pn-conv-campo" data-se="sub">Sub-meta<select id="pn-cl-sub"></select></label>
       <label class="pn-conv-campo" data-se="bem">Bem<select id="pn-cl-bem"></select></label>
       <label class="pn-conv-campo" data-se="sit">Situação<select id="pn-cl-sit">${Object.entries(CD.SIT_BEM).map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}</select></label>
+      <label class="pn-conv-campo" data-se="valor">Valor de aquisição (R$)<input id="pn-cl-valor" inputmode="decimal" maxlength="16" placeholder="0,00"></label>
+      <label class="pn-conv-campo" data-se="qtdbem">Quantidade adquirida<input id="pn-cl-qtdbem" inputmode="decimal" maxlength="8" value="1"></label>
+      <label class="pn-conv-campo" data-se="fonte">Fonte<select id="pn-cl-fonte"><option value="concedente">Repasse</option><option value="contrapartida">Contrapartida</option></select></label>
       <label class="pn-conv-campo" data-se="mun">Município<input id="pn-cl-mun" list="pn-conv-muns" maxlength="80" autocomplete="off"></label>
       <label class="pn-conv-campo">Data<input id="pn-cl-data" type="date" min="${c.vigencia.inicio}" max="${c.vigencia.fim}" value="${dataPadrao}"></label>
       <label class="pn-conv-campo" data-se="qtd"><span id="pn-cl-qtd-rot">Quantidade</span><input id="pn-cl-qtd" inputmode="decimal" maxlength="12"></label>
@@ -140,28 +144,38 @@
     if (etapaMudou) {
       q('#pn-cl-sub').innerHTML = (e.submetas || []).map(s => `<option value="${esc(s.id)}">${esc(s.nome)}</option>`).join('');
       q('#pn-cl-bem').innerHTML = (e.bens || []).map(b => `<option value="${esc(b.id)}">${esc(b.nome)} – ${esc(b.local)}</option>`).join('');
+      if (bens) valorDoBem(raiz);
     }
     const s = (e.submetas || []).find(x => x.id === q('#pn-cl-sub').value);
     const mostra = (k, sim) => { f.querySelector(`[data-se="${k}"]`).hidden = !sim; };
-    mostra('sub', !bens && !auto && (e.submetas || []).length > 0); mostra('bem', bens); mostra('sit', bens); mostra('qtd', !bens);
+    const aquis = bens && ['adquirido', 'entregue'].includes(q('#pn-cl-sit').value);
+    mostra('sub', !bens && !auto && (e.submetas || []).length > 0); mostra('bem', bens); mostra('sit', bens); mostra('qtd', !bens); mostra('valor', aquis); mostra('qtdbem', aquis); mostra('fonte', aquis);
     mostra('mun', !bens); mostra('arm', e.id === '1.3' && !auto && (!s || s.contagem !== 'municipios')); mostra('prop', !bens && !auto);
     if (s && !E.editando && (etapaMudou || !q('#pn-cl-mun').dataset.digitado)) q('#pn-cl-mun').value = s.municipio || '';
     q('#pn-cl-qtd-rot').textContent = auto ? 'Ajuste (+/−)' : `Quantidade${s ? ' (' + (s.contagem === 'municipios' ? 'levantamentos' : s.unidade) + ')' : ' (' + e.unidade + ')'}`;
     q('#pn-cl-desc-rot').textContent = auto ? 'Justificativa (obrigatória)' : 'Descrição / evidência';
     q('#pn-cl-dica').textContent = auto ? 'Etapa apurada automaticamente pelo e-GDV. Use o ajuste só para registros que não estão no sistema (ex.: antes do e-GDV); negativo para corrigir.'
-      : bens ? 'Lance cada mudança de situação do bem (em aquisição, adquirido, entregue). Adquirido ou entregue conta como executado.'
+      : bens ? 'Lance cada mudança de situação do bem (em aquisição, adquirido, entregue). Adquirido ou entregue conta como executado; o valor de aquisição entra no Financeiro (item do bem, natureza 44.90.52) e no saldo da etapa.'
       : s && s.contagem === 'municipios' ? `Sub-meta contada por municípios distintos (${(s.municipios || []).join(', ')}); informe o município e as propriedades.` : '';
+  }
+  /* valor de aquisição já lançado para o bem (desembolso com chave bem|<convênio>|<bem>) */
+  const finDoBem = bemId => E.d.financeiro.find(x => x.chave === `bem|${cfg().id}|${bemId}`);
+  function valorDoBem(raiz) {
+    const f = raiz.querySelector('#pn-conv-lanc-form'); if (!f) return;
+    const x = finDoBem(f.querySelector('#pn-cl-bem').value);
+    f.querySelector('#pn-cl-valor').value = x ? Number(x.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''; f.querySelector('#pn-cl-fonte').value = x ? x.fonte || 'concedente' : 'concedente';
+    f.querySelector('#pn-cl-qtdbem').value = x && x.quantidade != null ? String(x.quantidade).replace('.', ',') : '1';
   }
   function preencherBem(raiz, id) {
     const f = raiz.querySelector('#pn-conv-lanc-form'); if (!f) return;
     const e = cfg().etapas.find(x => x.apuracao === 'bens'); f.querySelector('#pn-cl-etapa').value = e.id; ajustarFormLanc(raiz, true);
-    f.querySelector('#pn-cl-bem').value = id; f.scrollIntoView({ block: 'start' }); f.querySelector('#pn-cl-sit').focus();
+    f.querySelector('#pn-cl-bem').value = id; valorDoBem(raiz); ajustarFormLanc(raiz, false); f.scrollIntoView({ block: 'start' }); f.querySelector('#pn-cl-sit').focus();
   }
   function preencherLanc(raiz, id) {
     const l = E.d.lancamentos.find(x => x.id === id), f = raiz.querySelector('#pn-conv-lanc-form'); if (!l || !f) return;
     const q = s => f.querySelector(s);
     q('#pn-cl-etapa').value = l.etapa; ajustarFormLanc(raiz, true);
-    if (l.tipo === 'bem') { q('#pn-cl-bem').value = l.submeta; q('#pn-cl-sit').value = l.situacao; } else q('#pn-cl-sub').value = l.submeta;
+    if (l.tipo === 'bem') { q('#pn-cl-bem').value = l.submeta; q('#pn-cl-sit').value = l.situacao; valorDoBem(raiz); } else q('#pn-cl-sub').value = l.submeta;
     ajustarFormLanc(raiz, false);
     q('#pn-cl-mun').value = l.municipio || ''; q('#pn-cl-data').value = l.data; q('#pn-cl-qtd').value = l.tipo === 'bem' ? '' : String(l.quantidade).replace('.', ',');
     q('#pn-cl-arm').value = l.armadilhas == null ? '' : l.armadilhas; q('#pn-cl-prop').value = l.propriedades == null ? '' : l.propriedades;
@@ -175,6 +189,12 @@
       municipio: bens ? '' : q('#pn-cl-mun').value.trim(), quantidade: bens ? 1 : numSimples(q('#pn-cl-qtd').value),
       armadilhas: q('[data-se="arm"]').hidden ? '' : numSimples(q('#pn-cl-arm').value), propriedades: q('[data-se="prop"]').hidden ? '' : numSimples(q('#pn-cl-prop').value),
       descricao: q('#pn-cl-desc').value.trim(), documento: q('#pn-cl-doc').value.trim() };
+    if (!q('[data-se="valor"]').hidden) {
+      l.valor = num(q('#pn-cl-valor').value); l.fonte = q('#pn-cl-fonte').value; l.quantidadeAquisicao = numSimples(q('#pn-cl-qtdbem').value);
+      if (!(l.quantidadeAquisicao > 0)) return msg(raiz, 'lanc', 'Informe a quantidade adquirida (maior que zero).', 'erro');
+      if (!(l.valor > 0) && !finDoBem(l.submeta)) return msg(raiz, 'lanc', 'Informe o valor de aquisição do bem.', 'erro');
+      if (l.valor == null) l.valor = '';
+    }
     if (!bens && (l.quantidade == null || (!auto && !(l.quantidade > 0)) || l.quantidade === 0)) return msg(raiz, 'lanc', auto ? 'Informe o ajuste (ex.: 3 ou -2).' : 'Informe a quantidade (maior que zero).', 'erro');
     if (auto && l.descricao.length < 5) return msg(raiz, 'lanc', 'Ajuste exige justificativa.', 'erro');
     const b = q('#pn-cl-salvar'); b.disabled = true; msg(raiz, 'lanc', 'Salvando…', '');
@@ -182,6 +202,7 @@
       const j = await A.chamar({ action: 'admConvLancar', lancamento: l });
       const i = E.d.lancamentos.findIndex(x => x.id === j.lancamento.id);
       if (i >= 0) E.d.lancamentos[i] = j.lancamento; else E.d.lancamentos.push(j.lancamento);
+      if (j.financeiro) { const k = E.d.financeiro.findIndex(x => x.id === j.financeiro.id); if (k >= 0) E.d.financeiro[k] = j.financeiro; else E.d.financeiro.push(j.financeiro); }
       E.editando = null; E.msg.lanc = { t: `Lançado ✓ (etapa ${e.id})`, cls: 'ok' };
       desenhar(raiz, visao);
     } catch (err) { if (!A.logado) return; msg(raiz, 'lanc', 'Não salvou: ' + err.message, 'erro'); b.disabled = false; }
@@ -189,8 +210,9 @@
   async function excluir(raiz, visao, tipo, id) {
     if (!confirm('Excluir este lançamento? (fica registrado na planilha como excluído)')) return;
     try {
-      await A.chamar({ action: tipo === 'fin' ? 'admConvFinExcluir' : 'admConvExcluir', id });
+      const j = await A.chamar({ action: tipo === 'fin' ? 'admConvFinExcluir' : 'admConvExcluir', id });
       const lista = tipo === 'fin' ? E.d.financeiro : E.d.lancamentos, i = lista.findIndex(x => x.id === id); if (i >= 0) lista.splice(i, 1);
+      if (j && j.finExcluido) { const k = E.d.financeiro.findIndex(x => x.id === j.finExcluido); if (k >= 0) E.d.financeiro.splice(k, 1); }   // bem: a aquisição sai junto
       E.msg[tipo === 'fin' ? 'fin' : 'lanc'] = { t: 'Excluído ✓', cls: 'ok' };
       desenhar(raiz, visao);
     } catch (err) { if (A.logado) alert('Não excluiu: ' + err.message); }
@@ -245,7 +267,7 @@
       { chave: 'quantidade', rotulo: 'Qtd.', num: true, fmt: x => x == null ? '—' : F.num(x, 1) }, { chave: 'valor', rotulo: 'Valor', num: true, fmt: F.moeda, csv: x => x },
       { chave: 'fonte', rotulo: 'Fonte', fmt: x => x === 'contrapartida' ? 'Contrapartida' : 'Repasse' }, { chave: 'servidorNome', rotulo: 'Servidor', fmt: x => x || '—' },
       { chave: 'descricao', rotulo: 'Descrição', fmt: x => x || '—' },
-      { chave: 'origem', rotulo: 'Origem', fmt: (x, l) => x === 'planilha' ? `Planilha${l.importadoEm ? ' ' + A.fmt.dataHora(l.importadoEm) : ''}` : 'Manual' }, { chave: 'usuario', rotulo: 'Lançado por' },
+      { chave: 'origem', rotulo: 'Origem', fmt: (x, l) => x === 'planilha' ? `Planilha${l.importadoEm ? ' ' + A.fmt.dataHora(l.importadoEm) : ''}` : x === 'bem' ? 'Bem (aquisição)' : 'Manual' }, { chave: 'usuario', rotulo: 'Lançado por' },
       { chave: 'id', rotulo: 'Ações', csv: () => '', html: x => `<span class="pn-conv-acoes-lin"><button type="button" class="pn-btn pn-btn-mini" data-conv="fin-editar" data-id="${esc(x)}">Editar</button><button type="button" class="pn-btn pn-btn-mini pn-btn-encerrar" data-conv="fin-excluir" data-id="${esc(x)}">Excluir</button></span>` }],
       lst, { id: 'conv-fin-lanc', csv: `convenio-${c.id}-desembolso.csv`, limite: 30, vazio: 'Nenhum desembolso lançado ainda.' });
   }

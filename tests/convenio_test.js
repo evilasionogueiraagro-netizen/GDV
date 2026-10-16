@@ -181,6 +181,21 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
   S = await est();
   ok(S.alertas.some(a => /Etapa 1.9 sem nenhum registro em outubro\/2026/.test(a.titulo)) && !S.alertas.some(a => /Etapa 1.10 sem/.test(a.titulo)), 'alerta: mês sem registro numa etapa automática (1.9 em outubro)', S.alertas.map(a => a.titulo));
   ok(S.etapas['1.4'].acum === 5 && S.etapas['1.10'].acum === 15, 'outubro: acumulado inclui Careiro e o turno de outubro', [S.etapas['1.4'].acum, S.etapas['1.10'].acum]);
+  // total consolidado até hoje: apuração do início da execução até hoje, sem o que é "no mês" (metas, financeiro e relatório)
+  ok((await p.$$eval('#pn-conv-mes option', os => os.map(o => o.value)))[0] === 'total', 'mês de referência: primeira opção "Total (consolidado até hoje)"');
+  await p.selectOption('#pn-conv-mes', 'total');
+  await p.waitForFunction(() => Painel.aba('convenios').estado().mes === 'total' && /Metas físicas — consolidado até/.test((document.querySelector('#pn-conv-visao') || {}).textContent || ''), null, { timeout: 20000 });
+  S = await est();
+  ok(S.etapas['1.4'].acum === 5 && S.etapas['1.10'].acum === 15, 'total: acumulado até hoje (os registros de outubro são de antes de hoje)', [S.etapas['1.4'].acum, S.etapas['1.10'].acum]);
+  ok(!/No mês/.test(await p.textContent('.pn-conv-etapa[data-etapa="1.4"]')), 'total: cartões das etapas sem "No mês"');
+  await p.click('[data-conv=visao][data-v=fin]'); await p.waitForSelector('#pn-conv-portal');
+  const finTot = await p.textContent('#pn-conv-visao');
+  ok(!/Executado em/.test(finTot) && !/No mês/.test(finTot) && /Executado acumulado/.test(finTot), 'total: financeiro só com o acumulado (sem "Executado em" nem "No mês")');
+  await p.click('[data-conv=visao][data-v=rel]'); await p.waitForSelector('#pn-conv-rel-abrir');
+  ok(/Gerar relatório consolidado até/.test(await p.textContent('#pn-conv-rel-abrir')), 'total: botão "Gerar relatório consolidado até …"');
+  await p.click('#pn-conv-rel-abrir'); await p.waitForSelector('#pn-conv-rel-form');
+  ok(!(await p.$('#pn-cr-salvar')) && !(await p.$('#pn-cr-numero')), 'total: relatório sem "Salvar textos" nem "Parcial nº" (textos vêm do último mês)');
+  await p.click('[data-conv=visao][data-v=metas]');
   await p.selectOption('#pn-conv-mes', '2026-09');
   await p.waitForFunction(() => Painel.aba('convenios').estado().R.mes === '2026-09', null, { timeout: 20000 });
 

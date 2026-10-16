@@ -46,14 +46,14 @@ const TFUI = (() => {
   /* ---------- estado do formulário ---------- */
   // { hist:{doc,placa}, tpl, turnoId, veiculoId, rid, id (do TF, já na abertura: as fotos ficam ligadas a ele), fotos:[ids], ass, assNovas, recusa }
   let S = null;
-  const vazio = () => ({ barreira: '', data: hojeISO(), hora: agoraHM(), doc: '', nome: '', rg: '', endereco: '', municipio: '', uf: '', telefone: '', relacao: T.relacoes[0],
+  const vazio = () => ({ barreira: '', numero: '', data: hojeISO(), hora: agoraHM(), doc: '', nome: '', rg: '', endereco: '', municipio: '', uf: '', telefone: '', relacao: T.relacoes[0],
     inspecao: false, coleta: false, amostras: '', procedimento: '', fiel: false, auto: false, advertencia: false, local: '', placa: '', origem: '', destino: '',
     docs: { nf: '', ptv: '', gta: '', sif: '', sie: '', sim: '', lacre: '', outros: '' }, produtos: [{ p: '', q: '', u: T.unidades[0] }], constatacao: '', enquadramento: '' });
 
   function coletar() {
     const g = id => { const e = $('#tf-' + id); return e ? e.value : ''; }, c = id => !!($('#tf-' + id) && $('#tf-' + id).checked);
     const proc = document.querySelector('input[name=tf-proc]:checked');
-    return { barreira: g('barreira'), data: g('data'), hora: g('hora'), doc: g('doc'), nome: g('nome'), rg: g('rg'), endereco: g('endereco'), municipio: g('municipio'),
+    return { barreira: g('barreira'), numero: digitos(g('num')), data: g('data'), hora: g('hora'), doc: g('doc'), nome: g('nome'), rg: g('rg'), endereco: g('endereco'), municipio: g('municipio'),
       uf: g('uf'), telefone: g('telefone'), relacao: g('relacao'), inspecao: c('inspecao'), coleta: c('coleta'), amostras: g('amostras'),
       procedimento: proc ? proc.value : '', fiel: c('fiel'), auto: c('auto'), advertencia: c('advertencia'), local: g('local'), placa: placaNorm(g('placa')), origem: g('origem'), destino: g('destino'),
       docs: Object.fromEntries(['nf', 'ptv', 'gta', 'sif', 'sie', 'sim', 'lacre', 'outros'].map(k => [k, g('d-' + k)])),
@@ -179,6 +179,7 @@ const TFUI = (() => {
     <div class="card"><h3>Termo de Fiscalização de Barreira</h3>
       <label>Barreira<select id="tf-barreira">${bars.map(b => `<option value="${esc(b.id)}" ${b.id === D.barreira ? 'selected' : ''}>${esc(b.nome)}</option>`).join('')}</select></label>
       <div class="tf-num" id="tf-numero"></div>
+      ${campo('num', 'Nº do TF (opcional)', D.numero, 'inputmode="numeric" maxlength="5" placeholder="Em branco: o sistema sugere"')}
       <div class="duas">${campo('data', 'Data', D.data, 'type="date" required')}${campo('hora', 'Hora', D.hora, 'type="time" required')}</div></div>
 
     <div class="card"><h3>Identificação do fiscalizado</h3>
@@ -230,8 +231,11 @@ const TFUI = (() => {
   async function mostrarInfoNumero() {
     const sel = $('#tf-barreira'), el = $('#tf-numero'); if (!sel || !el) return;
     const b = sel.value, a = anoAtual(), bar = (await barreiras()).find(x => x.id === b); if (!bar) return;
-    const u = await ultimoConhecido(b, a);
-    el.innerHTML = `<small>Nº do TF</small><b>definido ao gerar</b><small>Ao gerar, o sistema consulta a planilha (último nº usado + 1) e mostra o número para você confirmar ou editar, antes do PDF.${u ? ' Último nº conhecido neste aparelho: ' + esc(num4(u) + '/' + a + ' - ' + bar.sufixo) + '.' : ''}</small>`;
+    const u = await ultimoConhecido(b, a), manual = parseInt(digitos(($('#tf-num') || {}).value || ''), 10) || 0;
+    // nº digitado (talão de papel à frente do sistema): vira a sugestão ao gerar; a confirmação continua antes do PDF
+    el.innerHTML = manual
+      ? `<small>Nº do TF</small><b>${esc(num4(manual) + '/' + a + ' - ' + bar.sufixo)}</b><small>Número digitado. Ao gerar, o sistema confere se ele está livre e mostra para você confirmar antes do PDF.</small>`
+      : `<small>Nº do TF</small><b>definido ao gerar</b><small>Ao gerar, o sistema consulta a planilha (último nº usado + 1) e mostra o número para você confirmar ou editar, antes do PDF. Se o talão de papel estiver à frente do sistema, digite o nº abaixo.${u ? ' Último nº conhecido neste aparelho: ' + esc(num4(u) + '/' + a + ' - ' + bar.sufixo) + '.' : ''}</small>`;
   }
 
   async function novo(prefill) {
@@ -274,6 +278,7 @@ const TFUI = (() => {
       if (e.target.id === 'tf-placa') { e.target.value = placaNorm(e.target.value); if (e.target.value.length === 7) agendar('placa'); }
       if (e.target.id === 'tf-doc') { const d = digitos(e.target.value); if (d.length === 11 || d.length === 14) agendar('doc'); else $('#tf-st-doc').replaceChildren(); }
       if (e.target.id === 'tf-placa') mudouAndamento();
+      if (e.target.id === 'tf-num') { e.target.value = digitos(e.target.value); mostrarInfoNumero(); }
       salvarRascunho();
     });
     f.addEventListener('change', async e => {
@@ -418,7 +423,7 @@ const TFUI = (() => {
     const pessoa = { id: doc, tipo: doc.length === 14 ? 'PJ' : 'PF', nome, rg: D.rg.trim(), endereco: D.endereco.trim(), municipio: D.municipio.trim(), uf: D.uf.trim().toUpperCase(), telefone: D.telefone.trim(), criadoEm: t0, atualizadoEm: t0 };
     const placa = D.placa.length >= 7 ? { id: D.placa, doc, nome, criadoEm: t0, atualizadoEm: t0 } : null;
 
-    let numero = sug.numero, aviso = '';
+    let numero = parseInt(D.numero, 10) || sug.numero, aviso = '';                     // nº digitado no formulário tem prioridade sobre a sugestão
     for (let tentativa = 0; tentativa < 6; tentativa++) {
       const n = await pedirNumero({ numero, sugerido: sug.numero, sufixo: bar.sufixo, ano: a, ultimo: sug.ultimo, ultimoTF: sug.ultimoTF, offline: sug.origem !== 'servidor', aviso });
       if (n == null) return;

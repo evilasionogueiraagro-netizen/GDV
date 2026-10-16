@@ -127,7 +127,13 @@ const TABELAS = {
   // posto × mês (periodo = AAAA-MM) ou por período de 10 dias (periodo = P<AAAA-MM-DD do início>). Uma linha por célula
   // (id = periodo|posto|indicador); substitui = 1: valor que substitui o apurado pelo e-GDV (com justificativa).
   VigConfig: ['id', 'config', 'atualizadoEm', 'atualizadoPor'],
-  VigLancamentos: ['id', 'ano', 'periodo', 'posto', 'indicador', 'valor', 'substitui', 'justificativa', 'origem', 'arquivo', 'usuario', 'admId', 'atualizadoEm', 'excluido']
+  VigLancamentos: ['id', 'ano', 'periodo', 'posto', 'indicador', 'valor', 'substitui', 'justificativa', 'origem', 'arquivo', 'usuario', 'admId', 'atualizadoEm', 'excluido'],
+  // Login com usuário e senha (um login para app, painel e portal). perfis = "fiscal,administrativo,gerente,dev"; modulos = JSON
+  // {veiculos, tf, pce, antigo} do fiscal (copiado para a aba Permissoes). Senha: só o hash e o salt. trocarSenha = 1: senha provisória.
+  Usuarios: ['id', 'login', 'nome', 'perfis', 'modulos', 'senhaHash', 'senhaSalt', 'trocarSenha', 'ativo', 'criadoEm', 'criadoPor',
+             'atualizadoEm', 'atualizadoPor', 'ultimoAcesso'],
+  // Uma sessão por aparelho/navegador; só o SHA-256 do token. Vale até sair, trocar a senha ou o gerente revogar.
+  Sessoes: ['id', 'hash', 'usuarioId', 'aparelho', 'criadoEm', 'ultimoUso', 'revogado']
 };
 const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
                           'expiraEm', 'ativo', 'ativadoEm', 'oculto', 'ocultoEm',
@@ -137,7 +143,7 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criad
                           'standalone', 'online', 'ultimoSinal', 'ultimoErroEm', 'primeiroSinal', 'recusaAssinatura',
                           'totalPlantas', 'plantasInspecionadas', 'importadoEm',
                           'ultimoAcesso', 'codigoExpira', 'ultimoUso', 'revogado', 'substitui',
-                          'semEducacao', 'medidaFito', 'carga', 'partida', 'inspecaoFito', 'docConferido'];   // lat/lon/precisao ficam como texto (como em Turnos)
+                          'semEducacao', 'medidaFito', 'carga', 'partida', 'inspecaoFito', 'docConferido', 'trocarSenha'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, pragas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000,
                         dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000 };   // demais colunas: 500
@@ -149,7 +155,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-16f';
+const VERSAO_CODIGO = '2026-10-16g';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -192,6 +198,12 @@ function doPost(e) {
     if (req.action === 'painelAdmLista') return json_(painelAdmLista(req.key));
     if (req.action === 'painelAdmSalvar') return json_(painelAdmSalvar(req.key, req));
     if (req.action === 'painelAdmCodigo') return json_(painelAdmCodigo(req.key, req));
+    // Usuário e senha: um login para app, painel e portal (o que cada um abre depende dos perfis)
+    if (req.action === 'login') return json_(login_(req));
+    if (req.action === 'sair') return json_({ ok: true, saiu: sairSessao_(req.key) });
+    if (req.action === 'trocarSenha') return json_(trocarSenha_(req));
+    if (req.action === 'painelUsuarios') return json_(painelUsuarios(req.key));
+    if (req.action === 'painelUsuarioSalvar') return json_(painelUsuarioSalvar(req.key, req));
     // Portal do Administrativo: login (Google ou código) e as demais actions com a sessão do portal (nunca com a credencial do painel/app)
     if (req.action === 'admLogin') return json_(admLogin_(req));
     if (req.action === 'admCodigo') return json_(admCodigo_(req));
@@ -1171,6 +1183,11 @@ function adminDoToken_(token) {
   if (token) {
     const mestra = PropertiesService.getScriptProperties().getProperty('ACCESS_KEY');
     if (mestra && token === mestra) return 'Administrador';
+    const us = usuarioDaSessao_(token);                                       // usuário e senha (perfil gerente)
+    if (us) {
+      if (temPerfil_(us.u, ['gerente'])) return us.u.nome;
+      throw new Error('Acesso restrito ao gerente. Seu usuário não tem o perfil de gerente.');
+    }
     const t = lerLeitura_('Fiscais');
     for (let i = 0; i < t.length; i++) {
       if (t[i].token !== token || t[i].ativo !== 1) continue;
@@ -1186,6 +1203,7 @@ function painelSair(token) {
   token = String(token || '');
   const mestra = PropertiesService.getScriptProperties().getProperty('ACCESS_KEY');
   if (!token || (mestra && token === mestra)) return { ok: true };            // chave mestra não é revogada por aqui
+  if (sairSessao_(token)) return { ok: true };                                // sessão de usuário e senha
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
@@ -3351,6 +3369,11 @@ function admMarcarAcesso_(id, agora) {
 function admSessao_(tok) {
   tok = String(tok || '');
   if (!/^[0-9a-f]{64}$/.test(tok)) throw new Error('Sessão do portal inválida. Entre de novo.');
+  const us = usuarioDaSessao_(tok);                                           // usuário e senha (perfil administrativo)
+  if (us) {
+    if (!temPerfil_(us.u, ['administrativo'])) throw new Error('Seu usuário não tem o perfil de administrativo. Peça ao gerente para liberar o portal.');
+    return { admId: 'u:' + us.u.id, nome: us.u.nome, email: '', expiraEm: Date.now() + ADM_SESSAO_MS };
+  }
   const h = hexSha_(tok), t = lerTudo_('AdmSessoes'), agora = Date.now(), ih = t.cols.indexOf('hash');
   for (let i = t.valores.length - 1; i >= 0; i--) {
     if (String(t.valores[i][ih]) !== h) continue;
@@ -3371,6 +3394,7 @@ function admSessao_(tok) {
 
 /** Sair: a sessão é revogada no servidor (cópias do token deixam de valer). */
 function admSair_(s, req) {
+  if (sairSessao_(req.sessao)) return { ok: true };                           // sessão de usuário e senha
   const h = hexSha_(String(req.sessao || '')), t = lerTudo_('AdmSessoes'), ih = t.cols.indexOf('hash'), ir = t.cols.indexOf('revogado');
   for (let i = 0; i < t.valores.length; i++) if (String(t.valores[i][ih]) === h) t.sh.getRange(i + 2, ir + 1).setValue(1);
   return { ok: true };
@@ -3907,6 +3931,165 @@ function publicoDados_(req) {
   return r;
 }
 
+/* ---------- Usuários e login (usuário + senha; um login para app, painel e portal) ----------
+ * O gerente cria o usuário no painel (perfis, módulos e senha provisória) e controla o acesso: desativar ou trocar a senha revoga as
+ * sessões de todos os aparelhos. Perfis: fiscal (app), administrativo (portal), gerente (painel e controle de acesso), dev (tudo).
+ * As credenciais antigas (códigos de ativação: abas Fiscais e AdmSessoes) continuam valendo até cada pessoa entrar com usuário e senha. */
+const PERFIS_ = ['fiscal', 'administrativo', 'gerente', 'dev'];
+const SENHA_ITER = 1000, SENHA_MIN = 8, MAX_FALHAS_LOGIN = 10;
+const RE_LOGIN_ = /^[a-z0-9][a-z0-9._-]{2,39}$/;
+
+const loginNorm_ = function (v) { return String(v || '').trim().toLowerCase(); };
+/** SHA-256 iterado sobre salt + senha (só o hash e o salt ficam na planilha). */
+function hashSenha_(senha, salt) {
+  let h = hexSha_(salt + '|' + senha);
+  for (let i = 1; i < SENHA_ITER; i++) h = hexSha_(salt + h);
+  return h;
+}
+function perfisDe_(u) {
+  return String(u.perfis || '').split(',').map(function (p) { return p.trim(); }).filter(function (p) { return PERFIS_.indexOf(p) >= 0; });
+}
+/** dev tem todos os perfis. */
+function temPerfil_(u, lista) {
+  const p = perfisDe_(u);
+  return p.indexOf('dev') >= 0 || lista.some(function (x) { return p.indexOf(x) >= 0; });
+}
+function modulosDe_(u) {
+  try { const m = JSON.parse(u.modulos || '{}'); return { veiculos: m.veiculos ? 1 : 0, tf: m.tf ? 1 : 0, pce: m.pce ? 1 : 0, antigo: m.antigo ? 1 : 0 }; }
+  catch (e) { return { veiculos: 0, tf: 0, pce: 0, antigo: 0 }; }
+}
+function novoToken_() { return (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').toLowerCase(); }
+
+/** Sessão de usuário e senha válida para o token → {u, s}; null se o token não for de uma sessão (credencial antiga) ou foi revogada. */
+function usuarioDaSessao_(tok) {
+  tok = String(tok || '');
+  if (!/^[0-9a-f]{64}$/.test(tok)) return null;
+  const h = hexSha_(tok), s = lerLeitura_('Sessoes').filter(function (x) { return x.hash === h; })[0];
+  if (!s || s.revogado === 1) return null;
+  const u = lerLeitura_('Usuarios').filter(function (x) { return x.id === s.usuarioId; })[0];
+  return u && u.ativo === 1 ? { u: u, s: s } : null;
+}
+/** Sessão revogada para o token (botão Sair). true se era uma sessão de usuário e senha. */
+function sairSessao_(tok) {
+  tok = String(tok || '');
+  if (!/^[0-9a-f]{64}$/.test(tok)) return false;
+  const h = hexSha_(tok), lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    const t = lerTudo_('Sessoes'), ih = t.cols.indexOf('hash'), ir = t.cols.indexOf('revogado');
+    for (let i = 0; i < t.valores.length; i++) if (String(t.valores[i][ih]) === h) { t.sh.getRange(i + 2, ir + 1).setValue(1); return true; }
+    return false;
+  } finally { lock.releaseLock(); }
+}
+/** Revoga todas as sessões de um usuário (desativado ou senha trocada). O chamador segura o lock. */
+function revogarSessoesDe_(usuarioId, menosHash) {
+  const t = lerTudo_('Sessoes'), iu = t.cols.indexOf('usuarioId'), ih = t.cols.indexOf('hash'), ir = t.cols.indexOf('revogado');
+  for (let i = 0; i < t.valores.length; i++) {
+    if (String(t.valores[i][iu]) === usuarioId && String(t.valores[i][ih]) !== menosHash && Number(t.valores[i][ir]) !== 1) t.sh.getRange(i + 2, ir + 1).setValue(1);
+  }
+}
+function atualizarUsuario_(u) {
+  const t = lerTudo_('Usuarios');
+  for (let i = 0; i < t.valores.length; i++) {
+    if (String(t.valores[i][0]) === u.id) { t.sh.getRange(i + 2, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return u[c]; })]); return; }
+  }
+  t.sh.getRange(t.sh.getLastRow() + 1, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return u[c]; })]);
+}
+function usuarioOut_(u) {
+  return { id: u.id, login: u.login, nome: u.nome, perfis: perfisDe_(u), modulos: modulosDe_(u), ativo: u.ativo, trocarSenha: u.trocarSenha,
+           criadoEm: u.criadoEm, criadoPor: u.criadoPor, atualizadoEm: u.atualizadoEm, atualizadoPor: u.atualizadoPor, ultimoAcesso: u.ultimoAcesso };
+}
+
+/** Entrar: {login, senha, aparelho} → token da sessão (guardado no aparelho) + nome e perfis. 10 erros seguidos no mesmo usuário = 15 min de espera. */
+function login_(req) {
+  const login = loginNorm_(req.login), senha = String(req.senha || '');
+  if (!login || !senha) throw new Error('Informe o usuário e a senha.');
+  const cache = CacheService.getScriptCache(), kf = 'falhas_login_' + login;
+  if (Number(cache.get(kf) || 0) >= MAX_FALHAS_LOGIN) throw new Error('Muitas tentativas erradas para este usuário. Aguarde 15 minutos ou peça ao gerente uma senha nova.');
+  const u = lerLeitura_('Usuarios').filter(function (x) { return x.id && loginNorm_(x.login) === login; })[0];
+  if (!u || u.ativo !== 1 || !u.senhaSalt || hashSenha_(senha, u.senhaSalt) !== u.senhaHash) {
+    cache.put(kf, String(Number(cache.get(kf) || 0) + 1), 900);
+    throw new Error(u && u.ativo !== 1 ? 'Este usuário foi desativado pelo gerente.' : 'Usuário ou senha incorretos.');
+  }
+  cache.remove(kf);
+  const tok = novoToken_(), agora = Date.now();
+  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    const s = { id: Utilities.getUuid(), hash: hexSha_(tok), usuarioId: u.id, aparelho: String(req.aparelho || '').slice(0, 80), criadoEm: agora, ultimoUso: agora, revogado: 0 };
+    const sh = aba_('Sessoes'), cols = TABELAS.Sessoes;
+    sh.getRange(sh.getLastRow() + 1, 1, 1, cols.length).setValues([cols.map(function (c) { return s[c]; })]);
+    u.ultimoAcesso = agora; atualizarUsuario_(u);
+  } finally { lock.releaseLock(); }
+  return { ok: true, token: tok, nome: u.nome, login: u.login, perfis: perfisDe_(u), modulos: modulosDe_(u), trocarSenha: u.trocarSenha === 1 };
+}
+
+/** Trocar a senha (obrigatório depois de uma senha provisória): {key, atual, nova}. As outras sessões do usuário são revogadas. */
+function trocarSenha_(req) {
+  const us = usuarioDaSessao_(req.key);
+  if (!us) throw new Error('Sessão inválida ou revogada. Entre de novo.');
+  const nova = String(req.nova || '');
+  if (hashSenha_(String(req.atual || ''), us.u.senhaSalt) !== us.u.senhaHash) throw new Error('A senha atual não confere.');
+  if (nova.length < SENHA_MIN) throw new Error('A senha nova precisa ter pelo menos ' + SENHA_MIN + ' caracteres.');
+  if (nova === String(req.atual || '')) throw new Error('A senha nova precisa ser diferente da atual.');
+  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    const u = us.u, agora = Date.now();
+    u.senhaSalt = novoToken_().slice(0, 32); u.senhaHash = hashSenha_(nova, u.senhaSalt); u.trocarSenha = 0;
+    u.atualizadoEm = agora; u.atualizadoPor = u.nome;
+    atualizarUsuario_(u);
+    revogarSessoesDe_(u.id, us.s.hash);
+  } finally { lock.releaseLock(); }
+  return { ok: true };
+}
+
+/** Painel → Usuários (só gerente): lista sem senha. */
+function painelUsuarios(token) {
+  exigirGerente_(token);
+  return { ok: true, perfis: PERFIS_, usuarios: lerLeitura_('Usuarios').filter(function (u) { return u.id; }).map(usuarioOut_) };
+}
+/** Controle de acesso é do gerente: credencial de administrador antiga (código do painel) ou usuário com perfil gerente. */
+function exigirGerente_(token) {
+  const us = usuarioDaSessao_(token);
+  if (us) { if (temPerfil_(us.u, ['gerente'])) return us.u.nome; throw new Error('Só o gerente controla o acesso.'); }
+  return adminDoToken_(token);
+}
+
+/**
+ * Painel → Usuários → salvar (só gerente): {id?, login, nome, perfis[], modulos{}, ativo, senha?}.
+ * Novo: login único e senha provisória obrigatória (a pessoa troca no 1º acesso). senha preenchida na edição = nova senha provisória.
+ * Desativar ou trocar a senha revoga as sessões de todos os aparelhos. Fiscal: os módulos vão também para a aba Permissoes (pelo nome).
+ */
+function painelUsuarioSalvar(token, req) {
+  return salvarUsuario_(exigirGerente_(token), req);
+}
+function salvarUsuario_(gerente, req) {
+  const login = loginNorm_(req.login), nome = nomeServidor_(req.nome);
+  if (!RE_LOGIN_.test(login)) throw new Error('Usuário inválido: de 3 a 40 letras minúsculas, números, ponto, hífen ou sublinhado (ex.: ronald.vieira).');
+  const perfis = (Array.isArray(req.perfis) ? req.perfis : String(req.perfis || '').split(',')).map(function (p) { return String(p).trim(); })
+    .filter(function (p, i, a) { return PERFIS_.indexOf(p) >= 0 && a.indexOf(p) === i; });
+  if (!perfis.length) throw new Error('Marque pelo menos um perfil.');
+  const ehFiscal = perfis.indexOf('fiscal') >= 0;                         // dev sem módulos marcados: tudo liberado (como hoje sem linha em Permissoes)
+  const modulos = ehFiscal ? modulosValidos_(req.modulos || {}) : null;
+  const senha = String(req.senha || ''), ativo = req.ativo === 0 || req.ativo === false || req.ativo === '0' ? 0 : 1;
+  if (senha && senha.length < SENHA_MIN) throw new Error('A senha provisória precisa ter pelo menos ' + SENHA_MIN + ' caracteres.');
+  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+  let u, novo;
+  try {
+    const todos = lerLeitura_('Usuarios').filter(function (x) { return x.id; }), agora = Date.now();
+    if (todos.some(function (x) { return loginNorm_(x.login) === login && x.id !== req.id; })) throw new Error('Já existe um usuário "' + login + '".');
+    const antes = req.id ? todos.filter(function (x) { return x.id === req.id; })[0] : null;
+    if (req.id && !antes) throw new Error('Usuário não encontrado.');
+    novo = !antes;
+    if (novo && !senha) throw new Error('Defina a senha provisória (a pessoa troca no primeiro acesso).');
+    u = antes || { id: Utilities.getUuid(), criadoEm: agora, criadoPor: gerente, ultimoAcesso: 0, senhaHash: '', senhaSalt: '', trocarSenha: 1 };
+    Object.assign(u, { login: login, nome: nome, perfis: perfis.join(','), modulos: JSON.stringify(modulos || {}), ativo: ativo, atualizadoEm: agora, atualizadoPor: gerente });
+    if (senha) { u.senhaSalt = novoToken_().slice(0, 32); u.senhaHash = hashSenha_(senha, u.senhaSalt); u.trocarSenha = 1; }
+    atualizarUsuario_(u);
+    if (!novo && (senha || !ativo)) revogarSessoesDe_(u.id, '');
+  } finally { lock.releaseLock(); }
+  if (modulos) gravarPermissoes_(nome, modulos, gerente);
+  return { ok: true, novo: novo, usuario: usuarioOut_(u) };
+}
+
 /* ---------- Segurança ---------- */
 
 /** Valida a credencial e devolve o nome do usuário (fiscal ou "Administrador"). */
@@ -3915,6 +4098,11 @@ function autenticar_(key) {
   if (!key) throw new Error('Aparelho não ativado.');
   const mestra = PropertiesService.getScriptProperties().getProperty('ACCESS_KEY');
   if (mestra && key === mestra) return 'Administrador';
+  const us = usuarioDaSessao_(key);                                           // usuário e senha (perfil fiscal)
+  if (us) {
+    if (temPerfil_(us.u, ['fiscal'])) return us.u.nome;
+    throw new Error('Seu usuário não tem o perfil de fiscal. Peça ao gerente para liberar o app.');
+  }
   const t = lerTudo_('Fiscais');
   for (let i = 0; i < t.valores.length; i++) {
     const f = paraObjeto_(t.cols, t.valores[i]);
@@ -4605,6 +4793,7 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('e-GDV')
     .addItem('Gerar código de ativação', 'menuGerarCodigo')
     .addItem('Gerar código de administrador (painel)', 'menuGerarCodigoAdmin')
+    .addItem('Criar usuário do gerente (login e senha)', 'menuCriarGerente')
     .addItem('Definir último nº de TF usado (barreira)', 'menuDefinirSequencia')
     .addItem('Auditar numeração de TF (lacunas e duplicidades)', 'menuAuditarNumeracao')
     .addItem('Definir último nº de Termo de Colheita (PCE)', 'menuDefinirSequenciaPce')
@@ -4697,6 +4886,19 @@ function menuGerarCodigo() {
     const venc = Utilities.formatDate(new Date(g.expiraEm), 'America/Manaus', 'dd/MM/yyyy HH:mm');
     ui.alert('Código para ' + g.nome, g.codigo.slice(0, 3) + ' ' + g.codigo.slice(3) + '\n\nEnvie ao fiscal. Uso único, válido até ' + venc + '.', ui.ButtonSet.OK);
   } catch (e) { ui.alert('Não foi possível gerar', String(e.message || e), ui.ButtonSet.OK); }
+}
+
+/** Primeiro acesso com usuário e senha: o dono da planilha cria o usuário do gerente (perfil gerente); o resto o gerente faz no painel. */
+function menuCriarGerente() {
+  const ui = SpreadsheetApp.getUi();
+  const p = function (t, m) { const r = ui.prompt(t, m, ui.ButtonSet.OK_CANCEL); return r.getSelectedButton() === ui.Button.OK ? r.getResponseText().trim() : null; };
+  const nome = p('Criar usuário do gerente', 'Nome completo do gerente:'); if (nome === null) return;
+  const login = p('Criar usuário do gerente', 'Usuário para entrar (ex.: joao.silva; letras minúsculas, números e ponto):'); if (login === null) return;
+  const senha = p('Criar usuário do gerente', 'Senha provisória (pelo menos ' + SENHA_MIN + ' caracteres; ele troca no primeiro acesso):'); if (senha === null) return;
+  try {
+    const r = salvarUsuario_('planilha', { login: login, nome: nome, perfis: ['gerente'], senha: senha });
+    ui.alert('Usuário criado', 'Usuário: ' + r.usuario.login + '\nPerfil: gerente\n\nEntre no painel com esse usuário e a senha provisória (ela será trocada no primeiro acesso). No painel, aba Servidores, o gerente cria e controla os demais usuários.', ui.ButtonSet.OK);
+  } catch (e) { ui.alert('Não foi possível criar', String(e.message || e), ui.ButtonSet.OK); }
 }
 
 function menuGerarCodigoAdmin() {

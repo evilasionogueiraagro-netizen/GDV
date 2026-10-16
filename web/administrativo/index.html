@@ -21,7 +21,21 @@
 <main id="adm-login" class="pn-login" hidden>
   <div class="pn-cartao pn-login-form adm-login">
     <h2>Acesso do Administrativo</h2>
-    <p class="pn-sub">Lançamentos do convênio, linhas manuais dos relatórios e VIGIFITO. Só para os e-mails liberados pelo gerente.</p>
+    <p class="pn-sub">Lançamentos do convênio, linhas manuais dos relatórios e VIGIFITO. Entre com o usuário e a senha que o gerente criou para você.</p>
+    <form id="adm-senha-form">
+      <label for="adm-login-usuario">Usuário</label>
+      <input id="adm-login-usuario" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      <label for="adm-senha">Senha</label>
+      <input id="adm-senha" type="password" autocomplete="current-password" required>
+      <div id="adm-troca" hidden>
+        <label for="adm-senha-nova">Senha nova (pelo menos 8 caracteres)</label>
+        <input id="adm-senha-nova" type="password" autocomplete="new-password" minlength="8">
+        <label for="adm-senha-nova2">Repita a senha nova</label>
+        <input id="adm-senha-nova2" type="password" autocomplete="new-password" minlength="8">
+      </div>
+      <button type="submit" class="pn-botao pn-btn pn-btn-prim" id="adm-entrar-senha">Entrar</button>
+      <p class="pn-sub adm-ou">ou</p>
+    </form>
     <div id="adm-google" class="adm-google" hidden>
       <div id="adm-google-btn" class="adm-google-btn" aria-label="Entrar com o Google"></div>
       <p class="pn-sub adm-ou">ou</p>

@@ -220,11 +220,23 @@ window.addEventListener('gdv-turno-encerrado', e => {
 });
 
 /* ---------- Início / novo turno ---------- */
+let TROCA_SENHA = null;                                     // {senha, pendente}: entrou com a senha provisória e ainda não trocou
 const avisoAtivacao = () => {
   const revog = localStorage.getItem('gdv.revogado');
   if (Sync.ativado() && !revog) return '';
   if (precisaInstalar()) return '';   // passo 1 ainda pendente: só as instruções de instalação aparecem
-  return `<form class="card aviso" id="fAtivar"><h3>${revog ? '⛔ Acesso revogado' : '🔑 Ativar este aparelho'}</h3>
+  if (TROCA_SENHA) return `<form class="card aviso" id="fTrocaSenha"><h3>Crie a sua senha</h3>
+    <p>Você entrou com a senha provisória que o gerente definiu. Escolha a sua senha (pelo menos 8 caracteres).</p>
+    <label>Senha nova<input id="tsNova" type="password" autocomplete="new-password" minlength="8" required></label>
+    <label>Repita a senha nova<input id="tsNova2" type="password" autocomplete="new-password" minlength="8" required></label>
+    <button class="botao">Salvar senha</button></form>`;
+  return `<form class="card aviso" id="fLogin"><h3>Entrar</h3>
+    <p>Use o usuário e a senha que o gerente criou para você. Só esta etapa exige internet; depois o aparelho fica lembrado.</p>
+    ${CONFIG.sync.url ? '' : '<label>Endereço do servidor<input id="lUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" required></label>'}
+    <label>Usuário<input id="lUser" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+    <label>Senha<input id="lSenha" type="password" autocomplete="current-password" required></label>
+    <button class="botao">Entrar</button></form>
+  <form class="card aviso" id="fAtivar"><h3>${revog ? '⛔ Acesso revogado' : '🔑 Ativar este aparelho'}</h3>
     <p>${revog ? 'Peça um novo código de ativação ao administrador.' : 'Digite o código de 6 dígitos enviado pelo administrador. Só esta etapa exige internet.'}</p>
     ${CONFIG.sync.url ? '' : '<label>Endereço do servidor<input id="aUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" required></label>'}
     <label>Código de ativação<input id="aCod" inputmode="numeric" maxlength="7" autocomplete="off" placeholder="000 000" required></label>
@@ -596,6 +608,28 @@ async function config() {
     Sync.desativar(); toast('Aparelho desativado.'); config();
   };
 }
+
+// Entrar com usuário e senha; senha provisória → troca obrigatória antes de usar o app (a senha digitada fica só na memória até a troca)
+document.addEventListener('submit', async e => {
+  if (e.target.id !== 'fLogin' && e.target.id !== 'fTrocaSenha') return;
+  e.preventDefault();
+  const btn = e.target.querySelector('button'), rot = btn.textContent; btn.disabled = true;
+  try {
+    if (e.target.id === 'fLogin') {
+      btn.textContent = 'Entrando…';
+      const senha = $('#lSenha').value, j = await Sync.entrar($('#lUser').value, senha, $('#lUrl') ? $('#lUrl').value : '');
+      if (j.trocarSenha) { TROCA_SENHA = { senha, pendente: j.pendente }; go(VIEW === 'editar' ? 'home' : VIEW); return; }
+      toast(`Bem-vindo, ${j.nome}.`);
+    } else {
+      if ($('#tsNova').value !== $('#tsNova2').value) throw new Error('As duas senhas não são iguais.');
+      btn.textContent = 'Salvando…';
+      await Sync.trocarSenha(TROCA_SENHA.pendente, TROCA_SENHA.senha, $('#tsNova').value);
+      TROCA_SENHA = null; toast('Senha salva.');
+    }
+    Sync.sincronizar(); go(VIEW === 'editar' ? 'home' : VIEW);
+    pegarLocal();                                                   // pede a permissão de localização uma vez, logo ao entrar
+  } catch (err) { toast(err.message, true); btn.disabled = false; btn.textContent = rot; }
+});
 
 document.addEventListener('submit', async e => {            // ativação por código (formulário aparece quando o aparelho não está ativado)
   if (e.target.id !== 'fAtivar') return;

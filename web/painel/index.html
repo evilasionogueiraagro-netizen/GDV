@@ -31,6 +31,22 @@ try { var tvq = /[?&]tv=([01])/.exec(location.search), tvt = /[?&]tema=claro/.te
 
 <!-- Login por código de administrador -->
 <main id="pn-login" class="pn-login" hidden>
+  <form class="pn-cartao pn-login-form" id="pn-login-senha">
+    <h2>Entrar no painel</h2>
+    <p class="pn-sub">Use o usuário e a senha que o gerente criou para você (perfil gerente).</p>
+    <label for="pn-login-usuario">Usuário</label>
+    <input id="pn-login-usuario" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+    <label for="pn-senha">Senha</label>
+    <input id="pn-senha" type="password" autocomplete="current-password" required>
+    <div id="pn-troca" hidden>
+      <label for="pn-senha-nova">Senha nova (pelo menos 8 caracteres)</label>
+      <input id="pn-senha-nova" type="password" autocomplete="new-password" minlength="8">
+      <label for="pn-senha-nova2">Repita a senha nova</label>
+      <input id="pn-senha-nova2" type="password" autocomplete="new-password" minlength="8">
+    </div>
+    <button type="submit" class="pn-botao" id="pn-entrar-senha">Entrar</button>
+    <p class="pn-erro" id="pn-login-senha-erro" role="alert" hidden></p>
+  </form>
   <form class="pn-cartao pn-login-form" id="pn-login-form" autocomplete="off">
     <h2 id="pn-login-tit">Acesso do administrador</h2>
     <p class="pn-sub" id="pn-login-txt">Digite o código de administrador de 6 dígitos gerado na planilha (menu <b>e-GDV → Gerar código de administrador</b>). Cada código vale uma vez.</p>
@@ -77,6 +93,7 @@ try { var tvq = /[?&]tv=([01])/.exec(location.search), tvt = /[?&]tema=claro/.te
 <script src="js/painel-adm.js"></script>
 <script src="js/painel-acessos.js"></script>
 <script src="js/painel-publico.js"></script>
+<script src="js/painel-usuarios.js"></script>
 <script src="../documentos/conv-docs.js"></script>
 <script src="js/docx.js"></script>
 <script src="js/painel-convenios.js"></script>

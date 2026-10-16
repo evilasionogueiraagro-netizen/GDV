@@ -4897,7 +4897,7 @@ function menuCriarGerente() {
   const senha = p('Criar usuário do gerente', 'Senha provisória (pelo menos ' + SENHA_MIN + ' caracteres; ele troca no primeiro acesso):'); if (senha === null) return;
   try {
     const r = salvarUsuario_('planilha', { login: login, nome: nome, perfis: ['gerente'], senha: senha });
-    ui.alert('Usuário criado', 'Usuário: ' + r.usuario.login + '\nPerfil: gerente\n\nEntre no painel com esse usuário e a senha provisória (ela será trocada no primeiro acesso). No painel, aba Servidores, o gerente cria e controla os demais usuários.', ui.ButtonSet.OK);
+    ui.alert('Usuário criado', 'Usuário: ' + r.usuario.login + '\nPerfil: gerente\n\nEntre no painel com esse usuário e a senha provisória (ela será trocada no primeiro acesso). No painel, aba Usuários, o gerente cria e controla os demais usuários.', ui.ButtonSet.OK);
   } catch (e) { ui.alert('Não foi possível criar', String(e.message || e), ui.ButtonSet.OK); }
 }
 

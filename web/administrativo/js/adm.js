@@ -168,6 +168,29 @@ const Adm = (() => {
     try { entrou(await api({ action: 'admLogin', idToken: credencial })); }
     catch (e) { erroLogin(e.message); }
   }
+  /** Usuário e senha (perfil administrativo ou dev). Senha provisória: pede a senha nova antes de entrar. */
+  async function entrarSenha(ev) {
+    ev.preventDefault(); erroLogin('');
+    const b = $('#adm-entrar-senha'); b.disabled = true;
+    try {
+      if (S.troca) {
+        const n1 = $('#adm-senha-nova').value;
+        if (n1 !== $('#adm-senha-nova2').value) throw new Error('As duas senhas não são iguais.');
+        await api({ action: 'trocarSenha', key: S.troca.token, atual: $('#adm-senha').value, nova: n1 });
+        const t = S.troca; S.troca = null; $('#adm-troca').hidden = true; b.textContent = 'Entrar';
+        return entrou({ sessao: t.token, nome: t.nome, email: '' });
+      }
+      const j = await api({ action: 'login', login: $('#adm-login-usuario').value, senha: $('#adm-senha').value, aparelho: 'portal' });
+      if (!(j.perfis || []).some(p => p === 'administrativo' || p === 'dev')) {
+        api({ action: 'sair', key: j.token }).catch(() => {});
+        throw new Error('O portal é do Administrativo: seu usuário não tem esse perfil.');
+      }
+      if (j.trocarSenha) { S.troca = j; $('#adm-troca').hidden = false; $('#adm-senha-nova').required = $('#adm-senha-nova2').required = true;
+        b.textContent = 'Salvar senha e entrar'; erroLogin('Você entrou com uma senha provisória. Crie a sua senha para continuar.'); return; }
+      entrou({ sessao: j.token, nome: j.nome, email: '' });
+    } catch (e) { erroLogin(e.message); }
+    finally { b.disabled = false; }
+  }
   async function entrarCodigo(ev) {
     ev.preventDefault(); erroLogin('');
     const b = $('#adm-entrar'); b.disabled = true;
@@ -210,6 +233,7 @@ const Adm = (() => {
   function iniciar() {
     registrarAba({ id: 'historico', titulo: 'Histórico', render: c => carregarHist(c) });     // sempre a última aba
     $('#adm-cod-form').addEventListener('submit', entrarCodigo);
+    $('#adm-senha-form').addEventListener('submit', entrarSenha);
     $('#adm-codigo').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6); });
     $('#adm-sair').onclick = sair;
     $('#adm-abas').addEventListener('click', e => { const b = e.target.closest('[data-aba]'); if (b) irPara(b.dataset.aba); });

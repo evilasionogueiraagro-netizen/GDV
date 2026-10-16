@@ -16,7 +16,7 @@ const Painel = (() => {
   // TF em preenchimento (apreensão em andamento): enquanto houver um, as barreiras ao vivo são consultadas a cada 25 s;
   // sem batimento do aparelho há mais de 10 min o TF é considerado encerrado (o servidor já filtra; aqui vale também sem conexão)
   const TF_RAPIDO_MS = 15 * 1000, TF_VALIDADE_MS = 10 * 60 * 1000;
-  const ORDEM_ABAS = ['geral', 'barreiras', 'tf', 'pce', 'convenios', 'relatorios', 'acessos'];
+  const ORDEM_ABAS = ['geral', 'barreiras', 'tf', 'pce', 'convenios', 'relatorios', 'acessos', 'usuarios'];
 
   /* ---------------- utilidades ---------------- */
   const $ = s => document.querySelector(s);
@@ -1472,9 +1472,39 @@ const Painel = (() => {
     finally { b.disabled = false; b.textContent = 'Entrar'; }
   }
   function iniciarApp() { mostrar('app'); desenharPresets(); desenharBotaoNotif(); carregar(); agendar(); }
+  function guardarEntrar(token, nome) {
+    S.token = token; S.nome = nome || 'Gerente'; ls.set(LS_TOKEN, S.token); ls.set(LS_NOME, S.nome);
+    S.encerrada = false; ls.del(LS_ENCERRADA);
+    iniciarApp();
+  }
+  /** Usuário e senha (perfil gerente ou dev). Senha provisória: pede a senha nova antes de entrar. */
+  async function entrarSenha(ev) {
+    ev.preventDefault();
+    const err = $('#pn-login-senha-erro'), b = $('#pn-entrar-senha'), rot = b.textContent;
+    err.hidden = true; b.disabled = true; b.textContent = 'Verificando…';
+    try {
+      if (S.troca) {
+        const n1 = $('#pn-senha-nova').value;
+        if (n1 !== $('#pn-senha-nova2').value) throw new Error('As duas senhas não são iguais.');
+        await api({ action: 'trocarSenha', key: S.troca.token, atual: $('#pn-senha').value, nova: n1 });
+        const t = S.troca; S.troca = null; $('#pn-troca').hidden = true;
+        return guardarEntrar(t.token, t.nome);
+      }
+      const j = await api({ action: 'login', login: $('#pn-login-usuario').value, senha: $('#pn-senha').value, aparelho: 'painel' });
+      if (!(j.perfis || []).some(p => p === 'gerente' || p === 'dev')) {
+        api({ action: 'sair', key: j.token }).catch(() => {});
+        throw new Error('O painel é do gerente: seu usuário não tem esse perfil.');
+      }
+      if (j.trocarSenha) { S.troca = j; $('#pn-troca').hidden = false; $('#pn-senha-nova').required = $('#pn-senha-nova2').required = true;
+        err.textContent = 'Você entrou com uma senha provisória. Crie a sua senha para continuar.'; err.hidden = false; return; }
+      guardarEntrar(j.token, j.nome);
+    } catch (e) { err.textContent = e.message; err.hidden = false; }
+    finally { b.disabled = false; b.textContent = S.troca ? 'Salvar senha e entrar' : rot; }
+  }
 
   function ligarEventos() {
     $('#pn-login-form').addEventListener('submit', entrar);
+    $('#pn-login-senha').addEventListener('submit', entrarSenha);
     $('#pn-sair').onclick = async () => {
       if (!confirm('Sair do painel? A credencial deste acesso será revogada no servidor e será preciso um novo código de administrador para entrar de novo.')) return;
       const tok = S.token; sair();

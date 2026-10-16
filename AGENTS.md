@@ -44,6 +44,9 @@ publicado no GitHub Pages                            Web App do Apps Script     
 - **Permissões**: actions de TF/PCE passam por `exigirModulo_` (mapa `MODULO_DA_ACAO`); registros de módulo não
   liberado voltam em `recusados`. Painel = credencial de perfil `admin` (`adminDoToken_`); portal = sessão própria
   (`admSessao_`) — uma credencial nunca vale no lugar da outra.
+- **Login**: usuário e senha (abas `Usuarios` e `Sessoes`) é o caminho principal; o mesmo token abre app, painel e portal
+  conforme os perfis (`fiscal`, `administrativo`, `gerente`, `dev`). Senha e token ficam só como hash. O controle de acesso
+  é do gerente (`exigirGerente_`). Os códigos de 6 dígitos são legado: continuam valendo, mas não crie fluxo novo com eles.
 - **LGPD**: nada público expõe CPF, nome completo, placa inteira ou coordenada exata (dashboard e `verificar.html`
   mascaram). Os testes conferem isso; não afrouxe.
 - **Fuso**: datas de negócio em `America/Manaus` (UTC−4). Use `hojeManaus_()`, `tsManaus_()`; nada de `new Date()` cru

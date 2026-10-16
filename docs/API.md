@@ -38,12 +38,26 @@ ou mudar uma action:
 
 | Tipo | Campo | Como se obtém | Validado por |
 |---|---|---|---|
+| **Usuário e senha** (app, painel e portal) | `key` (app/painel) ou `sessao` (portal): o mesmo token | `login` | `usuarioDaSessao_` dentro de `autenticar_` (perfil fiscal), `adminDoToken_` (gerente) e `admSessao_` (administrativo); `dev` vale para tudo |
 | Fiscal (aparelho) | `key` | `ativar` com código de 6 dígitos | `autenticar_` (+ `exigirModulo_` em TF/PCE) |
 | Administrador (painel/TV) | `key` | `painelAtivar` com código de administrador, ou a chave mestra `ACCESS_KEY` | `adminDoToken_` |
 | Portal do Administrativo | `sessao` | `admLogin` (Google) ou `admCodigo` | `admSessao_` (12 h sem uso expira) |
 | Pública | — | — | limitador de taxa e cache próprios |
 
-As credenciais ficam na aba `Fiscais` (coluna `perfil`: vazio = fiscal, `admin` = administrador); as sessões do portal
+**Usuário e senha** (aba `Usuarios`, sessões na aba `Sessoes`, só hash): o gerente cria o usuário com perfis (`fiscal`,
+`administrativo`, `gerente`, `dev`), módulos do fiscal e senha provisória; a pessoa troca a senha no primeiro acesso. A sessão
+vale até `sair`, troca de senha ou o gerente desativar o usuário. Os perfis decidem o que o mesmo token abre.
+
+| Action | Credencial | Parâmetros | Resposta |
+|---|---|---|---|
+| `login` | — | `login`, `senha`, `aparelho` | `token`, `nome`, `login`, `perfis`, `modulos`, `trocarSenha` (10 erros seguidos no mesmo usuário = 15 min de espera) |
+| `trocarSenha` | `key` | `atual`, `nova` (mín. 8) | — (revoga as outras sessões do usuário) |
+| `sair` | `key` | — | `saiu` |
+| `painelUsuarios` | gerente | — | `usuarios` (sem senha), `perfis` |
+| `painelUsuarioSalvar` | gerente | `id?`, `login`, `nome`, `perfis`, `modulos`, `ativo`, `senha?` | `usuario`, `novo` (senha = nova provisória; senha ou desativar revoga as sessões) |
+
+Credenciais antigas (códigos de 6 dígitos), que continuam valendo até cada pessoa entrar com usuário e senha:
+as credenciais ficam na aba `Fiscais` (coluna `perfil`: vazio = fiscal, `admin` = administrador); as sessões do portal
 ficam na aba `AdmSessoes`, guardadas só como hash. Uma credencial nunca vale no lugar de outra: `key` de fiscal recebe
 "Acesso restrito" no painel, e a `key` do painel não abre o portal.
 

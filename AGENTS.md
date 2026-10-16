@@ -79,9 +79,13 @@ Drive da conta anterior.
 
 1. **Front**: merge na `main` com mudança em `web/**` → `.github/workflows/pages.yml` publica no GitHub Pages
    **direto em produção** (os celulares atualizam ao abrir). Trabalhe em branch e abra PR.
-2. **Back**: **manual**. Colar o `Code.gs` no editor do Apps Script → Implantar → Gerenciar implantações → editar a
-   implantação atual → Nova versão. Criar implantação nova muda a URL `/exec` (que está em `web/js/config.js`).
-   Front e back devem ir juntos quando uma mudança depende de action ou coluna nova.
+2. **Back**: `.github/workflows/apps-script.yml` publica sozinho com o clasp depois que os testes passam na `main`, na
+   implantação atual (a URL `/exec` em `web/js/config.js` não muda). **Só publica se o `VERSAO_CODIGO` mudou.** Entra uns
+   10 minutos depois do front: se o front depende de action ou coluna nova, ele precisa aguentar o back antigo nesse
+   intervalo (ou mande o back antes, em PR próprio). Não edite código no editor do Apps Script (a publicação seguinte
+   sobrescreve). Configuração, serviço novo do Google e como voltar versão: [docs/PUBLICACAO-BACK.md](docs/PUBLICACAO-BACK.md).
+   Enquanto os segredos do ambiente `apps-script` não estiverem configurados, o workflow falha e a publicação é manual:
+   colar o `Code.gs` → Implantar → Gerenciar implantações → editar a implantação atual → Nova versão.
 
 O CI de testes (`testes.yml`) roda em push/PR para `main` e `claude/**`.
 
@@ -94,5 +98,6 @@ O CI de testes (`testes.yml`) roda em push/PR para `main` e `claude/**`.
 - [docs/MIGRACAO.md](docs/MIGRACAO.md): passar planilha e script para a conta institucional.
 - [docs/PORTABILIDADE.md](docs/PORTABILIDADE.md): camada de acesso ao Google, o que fica fora dela e regras para o
   `Code.gs` ser portado para servidor próprio.
+- [docs/PUBLICACAO-BACK.md](docs/PUBLICACAO-BACK.md): publicação automática do Apps Script (clasp) e como configurar.
 - Propriedades do script (`PropertiesService`): `SHEET_ID`, `ACCESS_KEY`, `GOOGLE_CLIENT_ID`, `ADM_MAX`, `ADM_URL`,
   `PAINEL_URL`, `PUBLICO_URL`, `RELATORIO_EMAILS`, `ROTINAS_DESATIVADAS`, entre outras — `grep -n getProperty` no `Code.gs`.

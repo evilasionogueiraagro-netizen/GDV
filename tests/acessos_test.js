@@ -78,8 +78,21 @@ const APP = 'https://evilasionogueiraagro-netizen.github.io/GDV/';
   d = await post({ action: 'painelAcessos', key: TOK });
   ok(ach('João da Silva-Pereira', d.acessos).every(a => a.situacao === 'revogado' && !('codigo' in a)), 'lista: revogados, sem código', ach('João da Silva-Pereira', d.acessos).map(a => a.situacao));
   d = await post({ action: 'painelRevogar', key: TOK, nome: 'Gestor Painel' });
-  ok(!d.ok && /administrador não é retirado pelo painel/.test(d.erro) && !/revogad/i.test(d.erro), 'não revoga administrador pelo painel (mensagem não derruba a sessão do painel)', d.erro);
+  ok(!d.ok && /é administrador: .*Mostrar administradores/.test(d.erro) && !/revogad/i.test(d.erro), 'painelRevogar não tira administrador e aponta a linha de administrador (mensagem não derruba a sessão do painel)', d.erro);
   d = await post({ action: 'painelDados', key: TOK }); ok(d.ok, 'administrador continua ativo');
+  // revogar administrador pelo painel (painelRevogarAdmin)
+  d = await post({ action: 'painelRevogarAdmin', key: TOKFIS, nome: 'Gestor Painel' }); ok(!d.ok && /Acesso restrito/.test(d.erro), 'fiscal não revoga administrador', d.erro);
+  d = await post({ action: 'painelRevogarAdmin', key: TOK, nome: ' gestor  PAINEL ' });
+  ok(!d.ok && /seu próprio acesso/.test(d.erro) && !/revogad|sess[aã]o do painel/i.test(d.erro), 'o próprio acesso não sai por aqui (mensagem não derruba a sessão do painel)', d.erro);
+  d = await post({ action: 'painelDados', key: TOK }); ok(d.ok, 'e continua ativo');
+  const outroAdm = await gerar('Outro Gerente Silva', 'admin'), TOKO = (await post({ action: 'painelAtivar', codigo: outroAdm.codigo })).token;
+  const pendAdm = await gerar('Outro Gerente Silva', 'admin');                            // 2º código, ainda não usado
+  d = await post({ action: 'painelRevogarAdmin', key: TOK, nome: 'outro gerente silva' });
+  ok(d.ok && d.revogados === 2, 'revoga credencial e código pendente de outro administrador (nome sem diferenciar maiúsculas)', d);
+  d = await post({ action: 'painelDados', key: TOKO }); ok(!d.ok && /inválida ou revogada/.test(d.erro), 'painel do administrador revogado deixa de abrir', d.erro);
+  d = await post({ action: 'painelAtivar', codigo: pendAdm.codigo }); ok(!d.ok, 'código de administrador pendente não entra mais', d.erro);
+  d = await post({ action: 'painelRevogarAdmin', key: TOK, nome: 'Ninguém Existe' }); ok(d.ok && d.revogados === 0, 'administrador inexistente: 0 revogados', d);
+  d = await post({ action: 'painelRevogarAdmin', key: TOK, nome: '' }); ok(!d.ok && /Informe/.test(d.erro), 'nome vazio recusado', d.erro);
   d = await post({ action: 'painelRevogar', key: TOK, nome: 'Ninguém Existe' }); ok(d.ok && d.revogados === 0, 'nome sem acesso: 0 revogados', d);
   d = await post({ action: 'painelRevogar', key: TOK, nome: '' }); ok(!d.ok, 'nome vazio recusado', d.erro);
   // nome igual em fiscal e admin: painel só tira o de fiscal
@@ -88,6 +101,11 @@ const APP = 'https://evilasionogueiraagro-netizen.github.io/GDV/';
   const aba2 = await get('/__aba?nome=Fiscais'); const dup = aba2.filter(r => r[0] === 'Dupla Função');
   ok(dup.find(r => r[6] === 'admin')[3] === 1 && dup.find(r => r[6] === '')[3] === 0, 'linha de admin continua ativa', dup.map(r => [r[6], r[3]]));
   void df;
+  // e o inverso: painelRevogarAdmin só tira o de administrador
+  await gerar('Dupla Gerencia', 'admin'); await post({ action: 'painelGerarCodigo', key: TOK, nome: 'Dupla Gerencia' });
+  d = await post({ action: 'painelRevogarAdmin', key: TOK, nome: 'Dupla Gerencia' }); ok(d.ok && d.revogados === 1, 'mesmo nome em fiscal e admin: painelRevogarAdmin só revoga o de administrador', d);
+  const dup2 = (await get('/__aba?nome=Fiscais')).filter(r => r[0] === 'Dupla Gerencia');
+  ok(dup2.find(r => r[6] === 'admin')[3] === 0 && dup2.find(r => r[6] === '')[3] === 1, 'linha de fiscal continua ativa', dup2.map(r => [r[6], r[3]]));
 
   // remover da lista (oculto=1; nada é apagado) e restaurar
   const linhasF = async n => (await get('/__aba?nome=Fiscais')).filter(r => r[0] === n);
@@ -133,6 +151,7 @@ const APP = 'https://evilasionogueiraagro-netizen.github.io/GDV/';
   const ini = new Date(Date.now() - 4 * 3600e3 - 3600e3).toISOString(), hoje = ini.slice(0, 10), ag = Date.now();
   await post({ action: 'sync', key: 'segredo', since: 0, turnos: [{ id: 'ac1', numeroTF: 'X', data: hoje, letra: 'A', inicio: ini.slice(11, 16), fim: '', fiscal: 'Fiscal Menu Silva', local: 'Barreira Porto CEASA', unidade: 'MANAUS', posto: 'Fixa', encerrado: 0, criadoEm: ag, atualizadoEm: ag, latIni: '-3.1', lngIni: '-60.0' }] });
   const adm2 = await gerar('Gerente Web', 'admin');
+  const tvAdm = await gerar('TV Para Revogar', 'admin'), TOKTV = (await post({ action: 'painelAtivar', codigo: tvAdm.codigo })).token;   // revogada pela tela
   const b = await amb.lancar();
   const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
   const erros = [], wame = [];
@@ -231,7 +250,17 @@ const APP = 'https://evilasionogueiraagro-netizen.github.io/GDV/';
   ok(L.length === 1 && L[0][0] === 'Carla Mendes Rocha', 'busca por nome (sem diferenciar maiúsculas)', L.map(r => r[0]));
   await p.fill('#pn-ac-busca', ''); await p.check('#pn-ac-admins'); await p.waitForTimeout(100); L = await linhasTab(p);
   const la = L.find(r => r[0].startsWith('Gerente Web'));
-  ok(la && /administrador/.test(la[0]) && la[7] === '—' && /só pela planilha/.test(la[12]), 'administradores (opcional): sem código e sem botão Revogar', la);
+  ok(la && /administrador/.test(la[0]) && la[7] === '—' && /você \(use Sair\)/.test(la[12]), 'administradores (opcional): o próprio acesso sem código e com "você (use Sair)"', la);
+  ok(await p.$$eval('#pn-ac-tab tbody tr', trs => trs.filter(tr => tr.cells[0].textContent.startsWith('Gerente Web')).every(tr => !tr.querySelector('button[data-acao=revogar]'))),
+    'sem botão Revogar no próprio acesso');
+  // revogar outro administrador (ex.: uma TV) pela tela
+  p.dialogos = [];
+  await p.click('#pn-ac-tab tr:has-text("TV Para Revogar") button[data-acao=revogar]');
+  await p.waitForFunction(() => [...document.querySelectorAll('#pn-ac-tab tbody tr')].some(tr => tr.cells[0].textContent.includes('TV Para Revogar') && tr.cells[1].textContent.includes('Revogado')), null, { timeout: 10000 });
+  ok(p.dialogos.length === 1 && /acesso de administrador de TV Para Revogar/.test(p.dialogos[0]) && /painel e a TV/.test(p.dialogos[0]), 'confirmação própria para administrador', p.dialogos);
+  d = await post({ action: 'painelDados', key: TOKTV }); ok(!d.ok && /inválida ou revogada/.test(d.erro), 'administrador revogado pela tela: credencial recusada', d.erro);
+  ok(/Acesso de administrador de TV Para Revogar revogado/.test(await p.textContent('#pn-ac-tab')) && await p.isVisible('#pn-app'), 'aviso na lista e sessão do painel intacta');
+  ok(!(await p.$('#pn-ac-tab tr:has-text("TV Para Revogar") button[data-acao=revogar]')), 'administrador revogado: sem botão Revogar');
   await p.uncheck('#pn-ac-admins');
 
   // reenviar

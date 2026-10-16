@@ -602,7 +602,7 @@ const PCEMon = (() => {
         ${A && st.novo ? `${inp(p, 'numpapel', 'Nº do termo (como está no papel) *', D.numPapel, 'placeholder="ex.: 001.2026.AUTAZES ou 1" autocomplete="off"')}<div id="${p}numpapel-st" class="tf-status" aria-live="polite"></div>`
           : `<div class="tf-num">${st.rec ? `<b>${esc(st.rec.numeroTxt)}</b>` : '<small>Nº definido ao salvar (consulta a planilha; sem internet, provisório).</small>'}</div>`}</div>
       <div class="card"><h3>Cadastro da propriedade</h3>
-        <div class="campo-busca"><label>Buscar cadastro (CPF, nome, propriedade ou nº do cadastro)<input id="${p}busca" type="search" autocomplete="off" placeholder="ex.: 134.034.782-20 ou VALDENIZA"></label><div id="${p}busca-res"></div></div>
+        <div class="campo-busca"><label>Buscar cadastro (CPF, nome, propriedade ou nº do cadastro)<input id="${p}busca" type="search" autocomplete="off" placeholder="ex.: CPF, nome do produtor ou nº do cadastro"></label><div id="${p}busca-res"></div></div>
         <div id="${p}cad">${cadLigadoHTML(st)}</div></div>
       <div class="card"><h3>1 – Identificação</h3>
         ${inp(p, 'nome', 'Nome *', D.nome, 'autocapitalize="characters"')}

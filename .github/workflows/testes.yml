@@ -34,8 +34,8 @@ jobs:
         run: npm ci
       - name: Instalar Chromium do Playwright (mesma versão do playwright-core)
         run: npx playwright-core install --with-deps chromium
-      - name: Instalar pypdf (usado pelo tf_paginas)
-        run: python3 -m pip install --user --break-system-packages pypdf
+      - name: Instalar pypdf e python-docx (conferem os PDFs e os .docx gerados: tf_paginas, convenio_test, relgdv_test…)
+        run: python3 -m pip install --user --break-system-packages pypdf python-docx
       - name: Rodar testes
         run: node run.js --tentativas 2
       - name: Publicar saída (screenshots, PDFs, logs)

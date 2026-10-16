@@ -1,0 +1,89 @@
+name: Publicar Apps Script
+# Depois que os testes passam na main, publica apps-script/ (Code.gs + appsscript.json) na implantação atual do Web App,
+# com o clasp: a URL /exec não muda. Só publica quando a versão no ar (GET /exec) for diferente do VERSAO_CODIGO do
+# repositório, então merge só de front não gera versão nova.
+# Configuração (uma vez, pelo dono do repositório): docs/PUBLICACAO-BACK.md.
+on:
+  workflow_run:
+    workflows: ['Testes automáticos']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: apps-script
+  cancel-in-progress: false
+jobs:
+  publicar:
+    if: >-
+      github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      CLASP: npx --yes @google/clasp@3.4.1
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Conferir o que publicar
+        id: alvo
+        run: |
+          # Commit testado que já não é o último da main: a execução do commit mais novo publica.
+          git fetch -q origin main
+          if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
+            echo "::notice::$(git rev-parse --short HEAD) não é mais o último commit da main; nada a publicar."
+            echo "publicar=0" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          versao=$(sed -nE "s/^const VERSAO_CODIGO = '([^']+)'.*/\1/p" apps-script/Code.gs)
+          url=$(sed -nE "s/.*sync: \{ url: '([^']+)'.*/\1/p" web/js/config.js)
+          implantacao=$(printf '%s' "$url" | sed -nE 's#^https://script\.google\.com/macros/s/([^/]+)/exec$#\1#p')
+          [ -n "$versao" ] || { echo "::error::VERSAO_CODIGO não encontrado em apps-script/Code.gs"; exit 1; }
+          [ -n "$implantacao" ] || { echo "::error::URL /exec não encontrada em web/js/config.js"; exit 1; }
+          no_ar=$(curl -sL --max-time 30 "$url" | jq -r '.versao // empty' || true)
+          echo "Repositório: $versao | no ar: ${no_ar:-sem resposta}"
+          if [ "$versao" = "$no_ar" ]; then
+            echo "::notice::A versão $versao já está no ar; nada a publicar."
+            echo "publicar=0" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          { echo "publicar=1"; echo "versao=$versao"; echo "url=$url"; echo "implantacao=$implantacao"; } >> "$GITHUB_OUTPUT"
+
+      - name: Credenciais do clasp
+        if: steps.alvo.outputs.publicar == '1'
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          SCRIPT_ID: ${{ secrets.APPS_SCRIPT_ID }}
+        run: |
+          [ -n "$CLASPRC_JSON" ] && [ -n "$SCRIPT_ID" ] || { echo "::error::Faltam os segredos do repositório CLASPRC_JSON e APPS_SCRIPT_ID (docs/PUBLICACAO-BACK.md)."; exit 1; }
+          umask 077
+          printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
+          jq -n --arg id "$SCRIPT_ID" '{scriptId: $id, rootDir: "apps-script"}' > .clasp.json
+
+      - name: Enviar o código
+        if: steps.alvo.outputs.publicar == '1'
+        run: $CLASP push --force           # substitui todos os arquivos do projeto pelos de apps-script/
+
+      - name: Nova versão na implantação atual
+        if: steps.alvo.outputs.publicar == '1'
+        run: $CLASP redeploy "${{ steps.alvo.outputs.implantacao }}" -d "${{ steps.alvo.outputs.versao }} ($(git rev-parse --short HEAD))"
+
+      - name: Conferir a versão no ar
+        if: steps.alvo.outputs.publicar == '1'
+        run: |
+          for i in $(seq 1 12); do
+            no_ar=$(curl -sL --max-time 30 "${{ steps.alvo.outputs.url }}" | jq -r '.versao // empty' || true)
+            [ "$no_ar" = "${{ steps.alvo.outputs.versao }}" ] && { echo "No ar: $no_ar"; exit 0; }
+            sleep 10
+          done
+          echo "::error::Depois de publicar, o /exec responde '${no_ar:-nada}' em vez de ${{ steps.alvo.outputs.versao }}."
+          exit 1
+
+      - name: Apagar credenciais
+        if: always()
+        run: rm -f ~/.clasprc.json .clasp.json

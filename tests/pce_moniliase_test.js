@@ -1,6 +1,6 @@
 const amb = require('./lib/amb');
 // PCE — monilíase: Cadastro de imóvel, Termo de Fiscalização do PCE e Relatório de atividades (app real + Code.gs real no fakegas).
-// Dados reais do relatório de Autazes (julho/2026): 2 cadastros e 2 termos digitados do papel pela estagiária, termo de campo sem internet,
+// Dados fictícios no formato do relatório de Autazes (julho/2026): 2 cadastros e 2 termos digitados do papel pela estagiária, termo de campo sem internet,
 // permissão "Digitar do papel", PDFs (impressão e arquivo gerado no aparelho), relatório do período e painel.
 const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
 const { API, APP, PAINEL } = amb;
@@ -66,7 +66,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   await A.click('#mon-novo-papel'); await A.waitForSelector('#monCadForm.pce-antigo');
   ok(await A.locator('.pce-canvas').count() === 0 && await A.locator('[data-mon=gps]').count() === 0, 'papel: sem assinaturas e sem GPS');
   await shot(A, 'mon_cadastro_pc_vazio.png');
-  const servidorPapel = async (p, pref) => { await p.fill(`#${pref}snome`, 'Coordenador Ficticio Teste'); await p.selectOption(`#${pref}scargo`, 'Fiscal Agropecuário Engenheiro Agrônomo');
+  const servidorPapel = async (p, pref) => { await p.fill(`#${pref}snome`, 'Servidor Ficticio Teste'); await p.selectOption(`#${pref}scargo`, 'Fiscal Agropecuário Engenheiro Agrônomo');
     await p.fill(`#${pref}smatricula`, '000.000-0 A'); await p.selectOption(`#${pref}slotacao`, 'Autazes'); };
   await servidorPapel(A, 'mc-');
   await A.selectOption('#mc-unidade', 'Autazes'); await A.fill('#mc-data', '2025-05-26'); await A.fill('#mc-numpapel', '001-2025-AUTAZES'); await A.fill('#mc-local', 'Autazes');
@@ -91,7 +91,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   ok(/001-2025-AUTAZES/.test(await A.textContent('#mon-papel-num')) && /Dentro da sequência|próximo da sequência|maior/.test(await A.textContent('#mon-modal')), 'popup do papel: número e efeito na sequência', await A.textContent('#mon-modal'));
   await A.click('#mon-m-ok'); await A.waitForSelector('#monCadForm.pce-antigo #mc-numpapel');
   await A.waitForFunction(() => document.querySelector('#mc-numpapel').value === '');
-  ok((await A.inputValue('#mc-snome')) === 'Coordenador Ficticio Teste' && (await A.inputValue('#mc-data')) === '2025-05-26' && (await A.inputValue('#mc-municipio')) === 'Autazes',
+  ok((await A.inputValue('#mc-snome')) === 'Servidor Ficticio Teste' && (await A.inputValue('#mc-data')) === '2025-05-26' && (await A.inputValue('#mc-municipio')) === 'Autazes',
     '"Salvar e digitar outro": mantém servidor, data e município');
   await A.fill('#mc-numpapel', '3'); await sim(A, 'mc-comercial', 'nao'); await sim(A, 'mc-tipoNaoComercial', 'residencia');
   await A.fill('#mc-nome', 'Joao Ficticio Teste'); await A.fill('#mc-doc', '702.815.364-90');
@@ -103,25 +103,25 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   await A.waitForSelector('#mon-pronto', { timeout: 15000 });
   ok((await A.textContent('#mon-pronto-num')).trim() === '003-2025-AUTAZES', 'nº "3" do papel gravado como 003-2025-AUTAZES', await A.textContent('#mon-pronto-num'));
   let cads = await ler('CadastrosPCE');
-  const cV = cads.find(c => /maria/.test(c.nome)), cA = cads.find(c => /ANTONIO/.test(c.nome));
+  const cV = cads.find(c => /MARIA FICTICIA/.test(c.nome)), cA = cads.find(c => /JOAO FICTICIO/.test(c.nome));
   ok(cads.length === 2 && cV && cA && cV.numeroTxt === '001-2025-AUTAZES' && cA.numeroTxt === '003-2025-AUTAZES' && cV.numeroOrigem === 'papel' && cV.registroAntigo === 1,
     'planilha (CadastrosPCE): 2 cadastros com os números do papel (numeroOrigem = papel)', cads.map(c => [c.numeroTxt, c.numeroOrigem]));
   const dV = JSON.parse(cV.dados || '{}');
   ok(Number(cV.lat) === -3.70000 && Number(cV.lon) === -59.1500 && cV.totalPlantas === 20 && dV.idadeProducao === 8 && dV.plantas.cupuacu === 20 && dV.tipoNaoComercial === 'sitio' && dV.viaAcesso === 'terrestre',
     'cadastro: coordenadas, total de plantas, idade "08 anos" → 8, sítio, via terrestre', [cV.lat, cV.lon, cV.totalPlantas, dV.idadeProducao]);
-  ok(cV.servidor === 'Coordenador Ficticio Teste' && cV.matricula === '000.000-0 A' && cV.usuario === E.nome && cV.data === '2025-05-26', 'servidor do papel e quem digitou (usuario)');
+  ok(cV.servidor === 'Servidor Ficticio Teste' && cV.matricula === '000.000-0 A' && cV.usuario === E.nome && cV.data === '2025-05-26', 'servidor do papel e quem digitou (usuario)');
   const props = await ler('Propriedades'), pV = props.find(x => x.id === cV.propriedadeId);
   ok(pV && pV.viaAcesso === 'terrestre' && pV.comercial === 'nao' && pV.tipoPropriedade === 'sitio' && pV.municipio === 'Autazes', 'Propriedades: campos comuns do cadastro (via, comercial, tipo)', pV);
 
   /* ================= 3. termos do papel, ligados ao cadastro ================= */
   console.log('3) Termos de Fiscalização digitados do papel (08/07/2026)');
   await A.evaluate(() => go('pcetfs')); await A.waitForSelector('#mon-novo-papel'); await A.click('#mon-novo-papel'); await A.waitForSelector('#monTfForm.pce-antigo');
-  await A.fill('#mt-snome', 'Coordenador Ficticio Teste'); await A.dispatchEvent('#mt-snome', 'change'); await A.waitForTimeout(300);
+  await A.fill('#mt-snome', 'Servidor Ficticio Teste'); await A.dispatchEvent('#mt-snome', 'change'); await A.waitForTimeout(300);
   ok((await A.inputValue('#mt-smatricula')) === '000.000-0 A', 'servidor lembrado: escolher o nome completa cargo/matrícula/lotação');
   await A.selectOption('#mt-unidade', 'Autazes'); await A.fill('#mt-data', '2026-07-08'); await A.fill('#mt-hora', '14:20'); await A.fill('#mt-numpapel', '001.2026.AUTAZES');
   await A.fill('#mt-busca', '702.815'); await A.waitForSelector('[data-mon=usarcad]'); await A.click('[data-mon=usarcad]');
   await A.waitForSelector('#mt-cadinfo');
-  ok(/003-2025-AUTAZES/.test(await A.textContent('#mt-cadinfo')) && /ANTONIO/.test(await A.inputValue('#mt-nome')) && (await A.inputValue('#mt-plantas')) === '1', 'termo ligado ao cadastro por CPF: nome, plantas = total do cadastro', await A.textContent('#mt-cadinfo'));
+  ok(/003-2025-AUTAZES/.test(await A.textContent('#mt-cadinfo')) && /JOAO FICTICIO/.test(await A.inputValue('#mt-nome')) && (await A.inputValue('#mt-plantas')) === '1', 'termo ligado ao cadastro por CPF: nome, plantas = total do cadastro', await A.textContent('#mt-cadinfo'));
   await A.fill('#mt-lat', '-3,60033'); await A.fill('#mt-lon', '-59,15044W');
   ok(await A.isChecked('input[name="mt-pragas"][value="Monilíase"]'), 'Monilíase marcada por padrão');
   await marcar(A, 'mt-acoes', 'Fiscalização'); await A.click('#mt-negativa');
@@ -131,14 +131,14 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   await A.click('#mt-salvar-outro'); await A.waitForSelector('#mon-m-ok', { timeout: 15000 }); await A.click('#mon-m-ok');
   await A.waitForFunction(() => document.querySelector('#mt-numpapel') && document.querySelector('#mt-numpapel').value === '' && !document.querySelector('#mon-modal'), null, { timeout: 15000 });
   await A.fill('#mt-numpapel', '2'); await A.fill('#mt-hora', '15:50');
-  await A.fill('#mt-busca', 'maria'); await A.waitForSelector('[data-mon=usarcad]'); await A.click('[data-mon=usarcad]'); await A.waitForSelector('#mt-cadinfo');
+  await A.fill('#mt-busca', 'maria ficticia'); await A.waitForSelector('[data-mon=usarcad]'); await A.click('[data-mon=usarcad]'); await A.waitForSelector('#mt-cadinfo');
   ok((await A.inputValue('#mt-plantas')) === '20' && (await A.inputValue('#mt-data')) === '2026-07-08', 'segundo termo: data mantida e plantas = 20 (cadastro)');
   await A.fill('#mt-lat', '-3,70000'); await A.fill('#mt-lon', '-59,1500W'); await marcar(A, 'mt-acoes', 'Fiscalização'); await marcar(A, 'mt-acoes', 'Educação Sanitária'); await A.click('#mt-negativa');
   await A.click('#mt-salvar'); await A.waitForSelector('#mon-m-ok', { timeout: 15000 }); await A.click('#mon-m-ok'); await A.waitForSelector('#mon-pronto', { timeout: 15000 });
   ok((await A.textContent('#mon-pronto-num')).trim() === '002.2026.AUTAZES', 'nº "2" do papel gravado como 002.2026.AUTAZES');
   // número repetido: recusado
   await A.evaluate(() => go('pcetf', { antigo: true })); await A.waitForSelector('#monTfForm.pce-antigo');
-  await A.fill('#mt-snome', 'Coordenador Ficticio Teste'); await A.dispatchEvent('#mt-snome', 'change'); await A.selectOption('#mt-unidade', 'Autazes');
+  await A.fill('#mt-snome', 'Servidor Ficticio Teste'); await A.dispatchEvent('#mt-snome', 'change'); await A.selectOption('#mt-unidade', 'Autazes');
   await A.fill('#mt-data', '2026-07-09'); await A.fill('#mt-hora', '09:00'); await A.fill('#mt-numpapel', '001.2026.AUTAZES'); await A.fill('#mt-nome', 'Outra Pessoa');
   await A.selectOption('#mt-municipio', 'Autazes'); await marcar(A, 'mt-acoes', 'Fiscalização');
   await A.click('#mt-salvar'); await A.waitForTimeout(800);
@@ -157,12 +157,12 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   console.log('4) PDFs: termo e cadastro (impressão e arquivo gerado no aparelho)');
   const idT1 = t1.id, idCV = cV.id;
   let pr = await imprimir(A, () => A.evaluate(id => PCEMon.imprimir('termo', id), idT1));
-  ok(/TERMO DE FISCALIZAÇÃO Nº 001\.2026\.AUTAZES/.test(pr.texto) && /Joao Ficticio Teste/.test(pr.texto) && /435\.660\.222-68/.test(pr.texto) && /-3,60033 \/ -59,15044/.test(pr.texto)
+  ok(/TERMO DE FISCALIZAÇÃO Nº 001\.2026\.AUTAZES/.test(pr.texto) && /JOAO FICTICIO TESTE/.test(pr.texto) && /702\.815\.364-90/.test(pr.texto) && /-3,60033 \/ -59,15044/.test(pr.texto)
     && /Não constatei a presença da monilíase/.test(pr.texto) && /1ª via: Interessado/.test(pr.texto) && pr.paginas === 1, 'PDF do termo: número, interessado, CPF, coordenadas, constatação, vias (1 folha)', pr.texto.slice(0, 300));
   ok(/class="cx on" data-x="pragas=Monilíase"/.test(pr.html) && /class="cx on" data-x="acoes=Fiscalização"/.test(pr.html) && !/class="cx on" data-x="acoes=Levantamento"/.test(pr.html), 'caixas marcadas: Monilíase e Fiscalização');
   pr = await imprimir(A, () => A.evaluate(id => PCEMon.imprimir('cadastro', id), idCV));
-  ok(/CADASTRO DE IMÓVEIS COM HOSPEDEIROS DA MONILÍASE Nº 001-2025-AUTAZES/.test(pr.texto) && /Maria Ficticia Teste/.test(pr.texto) && /Sítio Ficticio Teste/.test(pr.texto)
-    && /Coordenador Ficticio Teste/.test(pr.texto) && /26\/05\/2025/.test(pr.texto) && /\(X\) sítio/.test(pr.texto) && /\(X\) Terrestre/.test(pr.texto) && /Mercado local/.test(pr.texto), 'PDF do cadastro: nº, produtor, propriedade, servidor, data, marcações (X)', pr.texto.slice(0, 400));
+  ok(/CADASTRO DE IMÓVEIS COM HOSPEDEIROS DA MONILÍASE Nº 001-2025-AUTAZES/.test(pr.texto) && /MARIA FICTICIA TESTE/.test(pr.texto) && /Sítio Ficticio Teste/.test(pr.texto)
+    && /Servidor Ficticio Teste/.test(pr.texto) && /26\/05\/2025/.test(pr.texto) && /\(X\) sítio/.test(pr.texto) && /\(X\) Terrestre/.test(pr.texto) && /Mercado local/.test(pr.texto), 'PDF do cadastro: nº, produtor, propriedade, servidor, data, marcações (X)', pr.texto.slice(0, 400));
   const pdfT = await pdfArquivo(A, 'termo', idT1), pdfC = await pdfArquivo(A, 'cadastro', idCV);
   salvar('mon_termo_001.2026.AUTAZES.pdf', pdfT); salvar('mon_cadastro_001-2025-AUTAZES.pdf', pdfC);
   ok(pdfT.slice(0, 5).toString() === '%PDF-' && pdfT.length > 30000 && pdfC.slice(0, 5).toString() === '%PDF-', 'PDF gerado no aparelho (termo e cadastro)', [pdfT.length, pdfC.length]);
@@ -178,7 +178,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   await A.fill('#mr-folders-n', '72'); await A.waitForTimeout(400);
   ok((await A.textContent('#mr-folders')) === '1 ação(ões); distribuição orientada de 72 folders e flyers', 'folders digitados na geração do relatório', await A.textContent('#mr-folders'));
   await A.fill('#mr-conv', '00991272/2025'); await A.fill('#mr-etapa', '1.4');
-  await A.fill('#mr-servs', 'Coordenador Ficticio Teste - Coordenador de Unidade\nMotorista Ficticio Teste - Motorista'); await A.fill('#mr-resp', 'Coordenador Ficticio Teste - Coordenador de Unidade');
+  await A.fill('#mr-servs', 'Servidor Ficticio Teste - Coordenador de Unidade\nMotorista Ficticio Teste - Motorista'); await A.fill('#mr-resp', 'Servidor Ficticio Teste - Coordenador de Unidade');
   await A.fill('#mr-desl', 'Manaus/AM x Autazes/AM x Manaus/AM');
   ok((await A.inputValue('#mr-local')) === 'Autazes/AM' && /Monilíase/.test(await A.inputValue('#mr-obj')), 'local e objetivo sugeridos');
   await shot(A, 'mon_relatorio_pc_form.png');
@@ -197,12 +197,12 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   const npR = paginasPdf(pdfR); if (npR != null) ok(npR === 5, 'pypdf: relatório + 4 anexos = 5 páginas', npR);
   await A.evaluate(() => go('pce')); await A.evaluate(() => go('pcerel')); await A.waitForSelector('#monRelForm');
   ok((await A.inputValue('#mr-folders-n')) === '', 'nº de folders não é lembrado');
-  ok((await A.inputValue('#mr-conv')) === '00991272/2025' && (await A.inputValue('#mr-etapa')) === '1.4' && /Joel/.test(await A.inputValue('#mr-servs')), 'convênio, etapa e servidores lembrados');
+  ok((await A.inputValue('#mr-conv')) === '00991272/2025' && (await A.inputValue('#mr-etapa')) === '1.4' && /Motorista Ficticio/.test(await A.inputValue('#mr-servs')), 'convênio, etapa e servidores lembrados');
   ok(!A.err.length, 'sem erros no app da estagiária', A.err);
 
   /* ================= 6. permissão "Digitar do papel" ================= */
   console.log('6) permissão Papel');
-  const W = await credencial('Coordenador Ficticio Teste');
+  const W = await credencial('Servidor Ficticio Teste');
   const idx = require('crypto').randomUUID();
   r = await post({ action: 'sync', key: W.token, since: Date.now(), termosPce: [{ id: idx, unidade: 'AUTAZES', ano: 2026, numero: 50, data: '2026-07-01', hora: '08:00', nome: 'X', registroAntigo: 1, criadoEm: 1, atualizadoEm: 1 }] });
   ok(r.ok && (r.recusados.termosPce || []).includes(idx) && !(await ler('TermosPCE')).some(t => t.id === idx), 'sync sem permissão: termo do papel recusado (fica no aparelho)');
@@ -214,7 +214,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   /* ================= 7. fiscal em campo: termo sem internet, sincronização ================= */
   console.log('7) Termo de Fiscalização em campo (celular 360 px, sem internet)');
   const Wp = await aparelho(W, { width: 360, height: 760 });
-  await Wp.evaluate(() => Store.setMeta('pceServidor', { nome: 'Coordenador Ficticio Teste', cargo: 'Fiscal Agropecuário Engenheiro Agrônomo', matricula: '000.000-0 A', lotacao: 'Autazes' }));
+  await Wp.evaluate(() => Store.setMeta('pceServidor', { nome: 'Servidor Ficticio Teste', cargo: 'Fiscal Agropecuário Engenheiro Agrônomo', matricula: '000.000-0 A', lotacao: 'Autazes' }));
   await Wp.evaluate(() => Sync.sincronizar()); await Wp.waitForTimeout(900);
   const baixados = await Wp.evaluate(async () => { await Campo.baixar(['Autazes']); return (await Store.todos('cadastrosPce')).map(c => c.numeroTxt).sort(); });
   ok(JSON.stringify(baixados) === '["001-2025-AUTAZES","003-2025-AUTAZES"]', '"Dados para o campo": cadastros de monilíase de Autazes no aparelho', baixados);
@@ -227,7 +227,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   await Wp.click('#mon-novo'); await Wp.waitForSelector('#monTfForm:not(.pce-antigo)');
   ok(await Wp.locator('.pce-canvas').count() === 4 && await Wp.locator('[data-mon=gps]').count() === 1, 'campo: assinaturas (interessado, servidor, 2 testemunhas) e GPS');
   await shot(Wp, 'mon_termo_celular_vazio.png');
-  await Wp.fill('#mt-busca', 'maria'); await Wp.waitForSelector('[data-mon=usarcad]'); await Wp.click('[data-mon=usarcad]'); await Wp.waitForSelector('#mt-cadinfo');
+  await Wp.fill('#mt-busca', 'maria ficticia'); await Wp.waitForSelector('[data-mon=usarcad]'); await Wp.click('[data-mon=usarcad]'); await Wp.waitForSelector('#mt-cadinfo');
   await Wp.click('#mt-negativa');
   await shot(Wp, 'mon_termo_celular_preenchido.png');
   await Wp.click('#mt-salvar'); await Wp.waitForSelector('#mon-num-m', { timeout: 15000 });
@@ -242,7 +242,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   ok(t3 && t3.numero === esperado && t3.numeroOrigem === 'provisorio' && t3.conflito === 0 && t3.cadastroId === cV.id && t3.registroAntigo === 0,
     'sincronizado: termo de campo na planilha, ligado ao cadastro, sem conflito', t3 && [t3.numeroTxt, t3.numeroOrigem, t3.conflito]);
   pr = await imprimir(Wp, () => Wp.evaluate(id => PCEMon.imprimir('termo', id), t3.id));
-  ok(/Coordenador Ficticio Teste · Fiscal Agropecuário Engenheiro Agrônomo · Mat\. 000\.000-0 A · Autazes/.test(pr.texto), 'PDF do termo de campo: identificação do servidor', pr.texto.slice(-300));
+  ok(/Servidor Ficticio Teste · Fiscal Agropecuário Engenheiro Agrônomo · Mat\. 000\.000-0 A · Autazes/.test(pr.texto), 'PDF do termo de campo: identificação do servidor', pr.texto.slice(-300));
   // "Termo aqui" para propriedade sem cadastro: oferece criar
   await Wp.evaluate(() => Store.gravar('propriedades', { id: 'PROP-TESTE', nome: 'Sítio Sem Cadastro', doc: '52998224725', municipio: 'Autazes', lat: -3.6, lon: -59.2, criadoEm: 1, atualizadoEm: 1, pendente: 0 }));
   await Wp.evaluate(() => go('pcetf', { propId: 'PROP-TESTE' })); await Wp.waitForSelector('#mt-criarcad'); await Wp.waitForFunction(() => /52998224725|529\.982/.test(document.querySelector('#mt-doc').value));
@@ -270,7 +270,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   const corte = await pn.evaluate(() => [...document.querySelectorAll('.pn-pce-kpis .pn-kpi-rot')].filter(e => e.scrollWidth > e.clientWidth + 1).map(e => e.textContent));
   ok(!corte.length, 'rótulos dos KPIs do PCE sem corte', corte);
   const tab = await pn.locator('.pn-pce-mon').textContent();
-  ok(/001\.2026\.AUTAZES/.test(tab) && /002\.2026\.AUTAZES/.test(tab) && !/435\.660\.222-68/.test(tab), 'painel: tabela dos termos (documento mascarado)');
+  ok(/001\.2026\.AUTAZES/.test(tab) && /002\.2026\.AUTAZES/.test(tab) && !/702\.815\.364-90/.test(tab), 'painel: tabela dos termos (documento mascarado)');
   await pn.locator('.pn-pce-mon').scrollIntoViewIfNeeded(); await shot(pn, 'mon_painel_pce.png');
   await pn.click('#pn-pce-relatorio'); await pn.waitForSelector('#pn-relatorio[open]');
   ok(/2 termo\(s\) · 95 plantas · Educação Sanitária: 1 ação/.test(await pn.textContent('#pn-rel-resumo')), 'painel: resumo do relatório', await pn.textContent('#pn-rel-resumo'));

@@ -31,7 +31,7 @@ const PCEMon = (() => {
   const area = v => { const n = numero(v); return n === '' ? '' : String(n).replace('.', ','); };
 
   /* ---------- coordenadas: latitude e longitude em campos separados (como no papel) ---------- */
-  /** "-3,60033", "-3.60033", "3,60033S", "-59,15044W", "3°36'01,8\"S", "S 3 36 1.2"… → {v} | {vazio} | {erro}. Longitude sem sinal nem letra = Oeste. */
+  /** "-3,60033", "-3.60033", "3,60033S", "-59,15044W", "3°36'01,2\"S", "S 3 36 1.2"… → {v} | {vazio} | {erro}. Longitude sem sinal nem letra = Oeste. */
   function lerEixo(txt, eixo) {
     let s = semAcento(String(txt == null ? '' : txt)).toUpperCase().replace(/[−–—]/g, '-').trim();
     if (!s) return { vazio: true };

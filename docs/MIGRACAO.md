@@ -4,6 +4,9 @@ Hoje a planilha, o Apps Script, as fotos (Drive) e os backups ficam na conta pes
 
 Tempo estimado: 1 h, num horário com pouca barreira aberta (ex.: domingo de manhã).
 
+Este roteiro é de uma conta Google para outra. Para sair do Google (servidor próprio), veja
+[PORTABILIDADE.md](PORTABILIDADE.md).
+
 ## O que muda e o que não muda
 
 | Item | Depois da migração |

@@ -42,13 +42,14 @@ Precisa da conta dona do script (**adafegdv@gmail.com**) e do dono do repositór
    Compare com o repositório: deve haver só `Code.gs` e `appsscript.json`, e o `appsscript.json` deve ser igual ao do
    repositório. Arquivo a mais (ex.: o `Painel.html` antigo) será apagado na primeira publicação; se ele ainda for usado,
    traga-o para `apps-script/` antes.
-5. **No GitHub** (dono do repositório): **Settings → Environments → New environment** com o nome `apps-script`.
-   - Em **Deployment branches and tags**, escolha **Selected branches and tags** e adicione `main`. Assim os segredos só
-     ficam disponíveis para a `main`, nunca para uma branch qualquer.
-   - Em **Environment secrets**, crie:
-     - `CLASPRC_JSON`: o conteúdo inteiro do `clasprc-gdv.json`;
-     - `APPS_SCRIPT_ID`: o ID do script do passo 2.
-   - Depois apague o `clasprc-gdv.json` do computador.
+5. **No GitHub**: **Settings → Secrets and variables → Actions → New repository secret**, duas vezes:
+   - `CLASPRC_JSON`: o conteúdo inteiro do `clasprc-gdv.json`;
+   - `APPS_SCRIPT_ID`: o ID do script do passo 2.
+
+   Depois apague o `clasprc-gdv.json` do computador. Segredo do repositório fica disponível para os workflows de qualquer
+   branch do repositório (não de forks): só quem tem acesso de escrita ao repositório consegue usá-lo. Se o dono quiser
+   restringir à `main`, pode mover os dois segredos para um ambiente (Settings → Environments) liberado só para a `main` e
+   acrescentar `environment: <nome>` no job do workflow.
 6. **Testar**: **Actions → Publicar Apps Script → Run workflow** (branch `main`). Com a versão do repositório já no ar, ele
    termina com "nada a publicar"; isso já confere a leitura da versão. A publicação de verdade acontece no próximo merge
    que mudar o `VERSAO_CODIGO`.

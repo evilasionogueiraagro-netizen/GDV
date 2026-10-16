@@ -21,7 +21,6 @@ jobs:
       (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
     runs-on: ubuntu-latest
     timeout-minutes: 10
-    environment: apps-script                    # os segredos ficam neste ambiente, liberado só para a main
     env:
       CLASP: npx --yes @google/clasp@3.4.1
     steps:
@@ -61,7 +60,7 @@ jobs:
           CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
           SCRIPT_ID: ${{ secrets.APPS_SCRIPT_ID }}
         run: |
-          [ -n "$CLASPRC_JSON" ] && [ -n "$SCRIPT_ID" ] || { echo "::error::Faltam os segredos CLASPRC_JSON e APPS_SCRIPT_ID no ambiente apps-script (docs/PUBLICACAO-BACK.md)."; exit 1; }
+          [ -n "$CLASPRC_JSON" ] && [ -n "$SCRIPT_ID" ] || { echo "::error::Faltam os segredos do repositório CLASPRC_JSON e APPS_SCRIPT_ID (docs/PUBLICACAO-BACK.md)."; exit 1; }
           umask 077
           printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
           jq -n --arg id "$SCRIPT_ID" '{scriptId: $id, rootDir: "apps-script"}' > .clasp.json

@@ -115,6 +115,22 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   await A.evaluate(() => { window.__prints = []; }); await A.click('[data-doc=termo]'); await A.waitForFunction(() => window.__prints && window.__prints.length);
   const termo = (await A.evaluate(() => window.__prints[0])).texto; ok(termo.includes('Termos de Barreira Lavrados: ' + numLigado), `Termo do turno lista o TF ligado: "${numLigado}"`);
 
+  console.log('D2) nº digitado no formulário (talão de papel à frente do sistema)');
+  await irTF(A); await novoTF(A);
+  await A.fill('#tf-num', '0150');
+  await A.waitForFunction(() => /^0150\//.test(document.querySelector('#tf-numero b').textContent), null, { timeout: 5000 }).catch(() => {});
+  ok(new RegExp(`0150/${ANO} - BVA - CEASA`).test(await numeroTela(A)), 'formulário mostra o nº digitado: "' + await numeroTela(A) + '"');
+  await preencher(A, { doc: '529.982.247-25', proc: 'liberacao', produto: 'LARANJA' });
+  await abrirPopup(A);
+  ok(+(await A.inputValue('#tf-num-m')) === 150, 'popup já vem com o nº digitado (150)');
+  await confirmar(A); await A.waitForSelector('text=TF gerado', { timeout: 10000 });
+  linhas = await tfsPlanilha(); const t150 = linhas.find(l => l.numero === 150);
+  ok(t150 && t150.numeroOrigem === 'editado' && t150.numeroSugerido > 0 && t150.numeroSugerido !== 150, 'planilha: TF 150 com origem "editado" e a sugestão do sistema guardada para auditoria', t150 && [t150.numeroOrigem, t150.numeroSugerido]);
+  await irTF(A); await novoTF(A); await preencher(A, { doc: '529.982.247-25', proc: 'liberacao', produto: 'LARANJA' });
+  await abrirPopup(A);
+  ok(+(await A.inputValue('#tf-num-m')) === 151, 'TF seguinte, sem nº digitado: o sistema sugere 151 (continua do talão)');
+  await A.click('#tf-m-cancel'); await A.click('[data-tf=descartar]'); await A.waitForSelector('button[data-tf=novo]');
+
   console.log('E) cancelamento e rascunho');
   await irTF(A); await A.waitForSelector('#tfItens .item'); const antes = await A.locator('#tfItens .item').count();
   await A.locator('[data-tf=cancelar]').first().click(); await A.waitForFunction(() => /CANCELADO/.test(document.querySelector('#tfItens').textContent));

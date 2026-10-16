@@ -20,7 +20,11 @@
   const cfg = () => E.dados ? (E.dados.convenios.find(c => c.id === E.convId) || E.dados.convenios[0]) : null;
   const hoje = () => P.hoje();
   const mesesDisponiveis = c => { const ate = hoje().slice(0, 7); const l = CD.mesesDe(c).filter(m => m <= ate); return l.length ? l : [CD.mesesDe(c)[0]]; };
-  const chaveApur = (c, m) => `${c.id}|${CD.fimDoMes(m)}|${c.versao || 0}`;
+  // "total" = consolidado desde o início da execução até hoje (como em Relatórios → Convênio): a apuração vai até hoje e o motor usa
+  // o último mês disponível; a tela e o relatório escondem o que é "no mês"
+  const consol = () => E.mes === 'total';
+  const mesEf = c => { if (!consol()) return E.mes; const ms = mesesDisponiveis(c); return ms[ms.length - 1]; };
+  const chaveApur = (c, m) => `${c.id}|${m === 'total' ? hoje() : CD.fimDoMes(m)}|${c.versao || 0}`;
   const etapa = id => cfg().etapas.find(e => e.id === id);
   const AUTO = ['pce', 'volante', 'bva'];
   const num = v => { const n = parseFloat(String(v == null ? '' : v).replace(/\./g, '').replace(',', '.')); return isFinite(n) ? n : null; };
@@ -36,10 +40,10 @@
         if (!E.dados.convenios.some(c => c.id === E.convId)) E.convId = E.dados.convenios[0].id;
       }
       const c = cfg(), ms = mesesDisponiveis(c);
-      if (!ms.includes(E.mes)) E.mes = ms[ms.length - 1];
+      if (!consol() && !ms.includes(E.mes)) E.mes = ms[ms.length - 1];
       if (forcar) E.apur = {};
       const k = chaveApur(c, E.mes);
-      if (!E.apur[k]) E.apur[k] = await P.chamar({ action: 'painelConvApuracao', convenio: c.id, de: c.inicioExecucao, ate: CD.fimDoMes(E.mes) });
+      if (!E.apur[k]) E.apur[k] = await P.chamar({ action: 'painelConvApuracao', convenio: c.id, de: c.inicioExecucao, ate: consol() ? hoje() : CD.fimDoMes(E.mes) });
     } catch (e) { E.erro = e.message; }
     finally { E.carregando = false; }
     recalcular(); desenhar();
@@ -47,7 +51,7 @@
   function recalcular() {
     const c = cfg(); if (!c) { E.R = null; return; }
     const ap = E.apur[chaveApur(c, E.mes)];
-    E.R = ap ? CD.calcular(c, ap, E.dados.lancamentos, E.dados.financeiro, E.mes, { hoje: hoje(), municipio: n => P.municipioNome(n) || n }) : null;
+    E.R = ap ? CD.calcular(c, ap, E.dados.lancamentos, E.dados.financeiro, mesEf(c), { hoje: hoje(), municipio: n => P.municipioNome(n) || n }) : null;
   }
 
   /* ---------------- estrutura ---------------- */
@@ -58,7 +62,7 @@
       if (t.id === 'pn-conv-sel') { E.convId = t.value; E.textos = null; carregar(); }
       if (t.id === 'pn-conv-mes') { E.mes = t.value; P.ls.set(LS_MES, E.mes); E.textos = null; E.relAberto = false; carregar(); }
     });
-    r.addEventListener('input', e => { if (e.target.closest('#pn-conv-rel-form')) { E.textosSujos = true; msg('rel', 'Alterações não salvas.', ''); } });
+    r.addEventListener('input', e => { if (e.target.closest('#pn-conv-rel-form')) { E.textosSujos = true; msg('rel', consol() ? 'Alterações valem só para o arquivo gerado agora.' : 'Alterações não salvas.', ''); } });
     r.addEventListener('click', e => {
       const b = e.target.closest('[data-conv]'); if (!b) return;
       const a = b.dataset.conv;
@@ -94,7 +98,7 @@
       <div class="pn-cartao pn-conv-topo">
         <div class="pn-conv-sel">
           <label>Convênio<select id="pn-conv-sel">${E.dados.convenios.map(x => `<option value="${esc(x.id)}" ${x.id === c.id ? 'selected' : ''}>${esc(x.numero || x.id)}</option>`).join('')}</select></label>
-          <label>Mês de referência<select id="pn-conv-mes">${ms.slice().reverse().map(m => `<option value="${m}" ${m === E.mes ? 'selected' : ''}>${esc(F.mes(m))}</option>`).join('')}</select></label>
+          <label>Mês de referência<select id="pn-conv-mes"><option value="total" ${consol() ? 'selected' : ''}>Total (consolidado até hoje)</option>${ms.slice().reverse().map(m => `<option value="${m}" ${m === E.mes ? 'selected' : ''}>${esc(F.mes(m))}</option>`).join('')}</select></label>
           <div class="pn-conv-botoes"><button type="button" class="pn-btn" data-conv="atualizar">Atualizar</button><button type="button" class="pn-btn" data-conv="editar-conv" id="pn-conv-editar">Editar convênio</button></div>
         </div>
         <h3 class="pn-conv-nome">${esc(c.nome)}</h3>
@@ -137,7 +141,7 @@
     const sa = P.secao(v, 'Alertas', `Etapa atrasada mais de 15 p.p. do esperado e mês sem nenhum registro numa etapa automática (${F.mes(R.mes)}).`);
     P.alertas(sa, R.alertas, { vazio: 'Nenhum alerta neste mês. ✓' });
     secaoFisFin(v);
-    const sm = P.secao(v, `Metas físicas — ${F.mes(R.mes)}`, 'Acumulado desde o início da execução. A marca na barra é o esperado pelo tempo decorrido. Abra uma etapa para ver a quebra por município/BVA/sub-meta e o gráfico mensal.');
+    const sm = P.secao(v, `Metas físicas — ${consol() ? 'consolidado até ' + F.data(hoje()) : F.mes(R.mes)}`, 'Acumulado desde o início da execução. A marca na barra é o esperado pelo tempo decorrido. Abra uma etapa para ver a quebra por município/BVA/sub-meta e o gráfico mensal.');
     const g = P.el('div', 'pn-conv-etapas'); sm.appendChild(g);
     R.etapas.forEach(r => {
       const card = P.el('article', 'pn-cartao pn-conv-etapa'); card.dataset.etapa = r.id;
@@ -145,7 +149,7 @@
       card.innerHTML = `<div class="pn-conv-etapa-cab"><h3><span class="pn-conv-id">${esc(r.id)}</span> ${esc(r.nomeCurto)}</h3><span class="pn-selo ${cls}">${esc(r.situacaoTxt)}</span></div>
         <div class="pn-conv-pct"><b>${F.pct(r.pct)}</b><span>${r.media ? 'média das sub-metas' : 'da meta'} · esperado ${F.pct(r.esperado)}</span></div>
         ${barra(r.pct, r.esperado)}
-        <dl class="pn-conv-nums"><div><dt>Previsto</dt><dd>${esc(r.previstoTxt)}</dd></div><div><dt>No mês</dt><dd>${esc(r.mesTxt)}</dd></div><div><dt>Acumulado</dt><dd>${esc(r.acumTxt)}</dd></div></dl>
+        <dl class="pn-conv-nums"><div><dt>Previsto</dt><dd>${esc(r.previstoTxt)}</dd></div>${consol() ? '' : `<div><dt>No mês</dt><dd>${esc(r.mesTxt)}</dd></div>`}<div><dt>Acumulado</dt><dd>${esc(r.acumTxt)}</dd></div></dl>
         <p class="pn-conv-ff" data-ff="${esc(r.id)}"><span>Financeiro <b>${F.pct(r.ff.financeiro)}</b></span>${r.ff.diarias.previstas ? `<span>Diárias <b>${F.num(r.ff.diarias.usadas, 1)}</b> de ${F.int(r.ff.diarias.previstas)}</span>` : ''}<span class="pn-selo ${SELO_FF[r.ff.situacao]}">${esc(r.ff.situacaoTxt)}${r.ff.situacao === 'semgasto' ? '' : ` (${r.ff.difPP > 0 ? '+' : ''}${F.num(r.ff.difPP, 1)} p.p.)`}</span></p>
         <p class="pn-sub pn-conv-apur">${r.auto ? 'Apuração automática (e-GDV)' : r.apuracao === 'bens' ? 'Situação dos bens (lançamento manual)' : 'Lançamento manual no painel'}${r.ajustes.length ? ` · ${r.ajustes.length} ajuste(s)` : ''}</p>`;
       const d = P.el('details', 'pn-conv-det'); d.dataset.etapa = r.id;
@@ -192,7 +196,7 @@
           : [{ chave: 'rotulo', rotulo: r.apuracao === 'bens' ? 'Bem' : 'Sub-meta' }, { chave: 'previsto', rotulo: 'Previsto', num: true, fmt: v => v == null ? '—' : F.int(v) },
              { chave: 'mes', rotulo: 'No mês', num: true, fmt: F.int }, { chave: 'acum', rotulo: 'Acum.', num: true, fmt: F.int },
              { chave: 'pct', rotulo: '%', num: true, fmt: v => v == null ? '—' : F.pct(v) }, { chave: 'extra', rotulo: 'Detalhe', fmt: v => v || '—' }];
-    P.tabela(corpo, cols, r.linhas, { id: 'conv-quebra-' + r.id, simples: true, limite: 60, vazio: 'Nenhum registro até este mês.' });
+    P.tabela(corpo, cols.filter(x => !(consol() && x.chave === 'mes')), r.linhas, { id: 'conv-quebra-' + r.id, simples: true, limite: 60, vazio: 'Nenhum registro até este mês.' });
     const p = P.paleta, rot = r.serie.map(s => F.mesCurto(s.mes));
     const tracejada = { type: 'line', borderDash: [6, 4], pointRadius: 0, pointHoverRadius: 4, cor: p.eixo, backgroundColor: 'transparent' };
     const ds = r.media
@@ -231,7 +235,7 @@
     avisoPortal(v, 'Execução física das etapas manuais (1.3, 1.5, 1.14), situação dos bens (1.1) e ajustes das etapas automáticas.');
     const rb = R.etapas.find(r => r.apuracao === 'bens');
     if (rb) {
-      const sb = P.secao(v, `Bens da etapa ${rb.id}`, `Situação em ${F.mes(R.mes)} (último lançamento de cada bem).`);
+      const sb = P.secao(v, `Bens da etapa ${rb.id}`, `Situação em ${consol() ? F.data(hoje()) : F.mes(R.mes)} (último lançamento de cada bem).`);
       P.tabela(sb, [{ chave: 'nome', rotulo: 'Bem' }, { chave: 'local', rotulo: 'Unidade' }, { chave: 'sit', rotulo: 'Situação', html: (x, l) => `<span class="pn-selo ${l.exec ? 'bom' : l.sit === 'em_aquisicao' ? 'atencao' : 'info'}">${esc(CD.SIT_BEM[x] || x)}</span>` },
         { chave: 'data', rotulo: 'Data', fmt: v => v ? F.data(v) : '—' }, { chave: 'doc', rotulo: 'Documento', fmt: v => v || '—' }],
         rb.bens.map(x => ({ id: x.b.id, nome: x.b.nome, local: x.b.local, sit: x.sit, exec: x.exec, data: x.data, doc: x.doc })), { id: 'conv-bens', titulo: '', limite: 20, busca: false });
@@ -254,17 +258,17 @@
   function visaoFin(v) {
     const c = cfg(), Fn = E.R.fin;
     P.kpis(v, [
-      { rotulo: 'Executado acumulado', valor: F.moeda(Fn.total.acum), detalhe: `${F.pct(Fn.total.pct)} de ${F.moeda(Fn.total.previsto)}` },
-      { rotulo: `Executado em ${F.mes(E.mes)}`, valor: F.moeda(Fn.total.mes) },
+      { rotulo: 'Executado acumulado', valor: F.moeda(Fn.total.acum), detalhe: `${F.pct(Fn.total.pct)} de ${F.moeda(Fn.total.previsto)}` }]
+      .concat(consol() ? [] : [{ rotulo: `Executado em ${F.mes(E.mes)}`, valor: F.moeda(Fn.total.mes) }]).concat([
       { rotulo: 'Saldo', valor: F.moeda(Fn.total.saldo) },
       { rotulo: 'Repasse × contrapartida', valor: `${F.pct(Fn.fonte.concedente.pct)} · ${F.pct(Fn.fonte.contrapartida.pct)}`,
         detalhe: `repasse ${F.moeda(Fn.fonte.concedente.acum)} de ${F.moeda(Fn.fonte.concedente.previsto)}; contrapartida ${F.moeda(Fn.fonte.contrapartida.acum)} de ${F.moeda(Fn.fonte.contrapartida.previsto)}` }
-    ]);
+    ]));
     avisoPortal(v, 'Desembolso (memorandos, empenhos, NF, PCDP, OB e diárias) e a importação da planilha de movimentação.');
-    const colsFin = primeira => [{ chave: 'rotulo', rotulo: primeira }, { chave: 'previsto', rotulo: 'Previsto', num: true, fmt: F.moeda }, { chave: 'mes', rotulo: 'No mês', num: true, fmt: F.moeda },
+    const colsFin = primeira => [{ chave: 'rotulo', rotulo: primeira }, { chave: 'previsto', rotulo: 'Previsto', num: true, fmt: F.moeda }].concat(consol() ? [] : [{ chave: 'mes', rotulo: 'No mês', num: true, fmt: F.moeda }]).concat([
       { chave: 'acum', rotulo: 'Acumulado', num: true, fmt: F.moeda }, { chave: 'saldo', rotulo: 'Saldo', num: true, fmt: F.moeda },
-      { chave: 'pct', rotulo: '% exec.', num: true, html: (x) => `<span class="pn-conv-pctcel">${F.pct(x)}<span class="pn-conv-barra mini" aria-hidden="true"><i style="width:${Math.min(100, x * 100).toFixed(1)}%"></i></span></span>`, csv: x => Math.round(x * 10000) / 100 }];
-    const sp = P.secao(v, 'Previsto × executado', `Plano de aplicação × lançamentos até ${F.mes(E.mes)}. Totais: custeio ${F.moeda(c.valores.repasseCusteio)}, investimento ${F.moeda(c.valores.repasseInvestimento + c.valores.contrapartida)}.`);
+      { chave: 'pct', rotulo: '% exec.', num: true, html: (x) => `<span class="pn-conv-pctcel">${F.pct(x)}<span class="pn-conv-barra mini" aria-hidden="true"><i style="width:${Math.min(100, x * 100).toFixed(1)}%"></i></span></span>`, csv: x => Math.round(x * 10000) / 100 }]);
+    const sp = P.secao(v, 'Previsto × executado', `Plano de aplicação × lançamentos até ${consol() ? F.data(hoje()) : F.mes(E.mes)}. Totais: custeio ${F.moeda(c.valores.repasseCusteio)}, investimento ${F.moeda(c.valores.repasseInvestimento + c.valores.contrapartida)}.`);
     P.tabela(sp, colsFin('Etapa'), Fn.etapas.map(x => ({ rotulo: `${x.id} ${x.nome}`, previsto: x.previsto, mes: x.mes, acum: x.acum, saldo: x.saldo, pct: x.pct })).concat([{ rotulo: 'TOTAL', ...Fn.total }]),
       { id: 'conv-fin-etapa', titulo: 'Por etapa', csv: `convenio-${c.id}-financeiro-etapa.csv`, limite: 20, busca: false });
     P.tabela(sp, colsFin('Natureza'), Fn.naturezas.map(x => ({ rotulo: `${x.natureza} – ${x.nome}`, previsto: x.previsto, mes: x.mes, acum: x.acum, saldo: x.saldo, pct: x.pct })),
@@ -309,27 +313,31 @@
   /* ---------------- Relatório ---------------- */
   function visaoRel(v) {
     const c = cfg(), R = E.R;
-    if (!E.textos || E.textos.mes !== E.mes || E.textos.conv !== c.id) { E.textos = Object.assign(CD.textosIniciais(c, E.dados.relatorios, E.mes), { mes: E.mes, conv: c.id }); E.textosSujos = false; }
-    const T = E.textos;
-    const s0 = P.secao(v, `Relatório circunstancial — ${F.mes(E.mes)}`, 'Modelo do relatório parcial de referência: tabela-resumo e memória descritiva geradas pela apuração; textos por etapa editáveis.');
+    // consolidado: os textos são os do último mês (os mesmos que Relatórios → Convênio usa) e não são salvos daqui
+    if (!E.textos || E.textos.mes !== E.mes || E.textos.conv !== c.id) { E.textos = Object.assign(CD.textosIniciais(c, E.dados.relatorios, mesEf(c)), { mes: E.mes, conv: c.id }); E.textosSujos = false; }
+    const T = E.textos, rotulo = consol() ? `consolidado até ${F.data(hoje())}` : F.mes(E.mes);
+    const s0 = P.secao(v, `Relatório circunstancial — ${rotulo}`, consol()
+      ? 'Total desde o início da execução até hoje: tabela-resumo e memória descritiva geradas pela apuração, sem as colunas do mês.'
+      : 'Modelo do relatório parcial de referência: tabela-resumo e memória descritiva geradas pela apuração; textos por etapa editáveis.');
     const topo = P.el('div', 'pn-cartao pn-conv-rel-topo');
-    topo.innerHTML = `<p>${T.salvo ? `Textos salvos para ${esc(F.mes(E.mes))}.` : T.origem === 'anterior' ? `Textos pré-preenchidos com o relatório de ${esc(F.mes(T.anterior))}.` : 'Textos pré-preenchidos com os do relatório parcial de referência.'}
+    topo.innerHTML = `<p>${consol() ? `Textos do relatório de ${esc(F.mes(mesEf(c)))}${T.salvo ? '' : ' (pré-preenchidos)'}; para mudá-los de vez, escolha o mês e salve.`
+      : T.salvo ? `Textos salvos para ${esc(F.mes(E.mes))}.` : T.origem === 'anterior' ? `Textos pré-preenchidos com o relatório de ${esc(F.mes(T.anterior))}.` : 'Textos pré-preenchidos com os do relatório parcial de referência.'}
       Executado: ${R.etapas.map(r => `<b>${esc(r.id)}</b> ${F.pct(r.pct)}`).join(' · ')}</p>
-      ${E.relAberto ? '' : `<button type="button" class="pn-btn pn-btn-prim" data-conv="rel-abrir" id="pn-conv-rel-abrir">Gerar relatório de ${esc(F.mes(E.mes))}</button>`}`;
+      ${E.relAberto ? '' : `<button type="button" class="pn-btn pn-btn-prim" data-conv="rel-abrir" id="pn-conv-rel-abrir">Gerar relatório ${consol() ? esc(rotulo) : 'de ' + esc(rotulo)}</button>`}`;
     s0.appendChild(topo);
     if (!E.relAberto) return;
     const form = P.el('form', 'pn-conv-rel-form'); form.id = 'pn-conv-rel-form'; form.noValidate = true;
     const ta = (id, rot, val, rows) => `<label class="pn-conv-campo pn-conv-largo">${esc(rot)}<textarea id="${id}" rows="${rows || 2}" maxlength="4000">${esc(val || '')}</textarea></label>`;
     form.innerHTML = `
-      <div class="pn-cartao pn-conv-rel-num"><label class="pn-conv-campo">Parcial nº<input id="pn-cr-numero" inputmode="numeric" maxlength="2" value="${esc(T.numero)}"></label>
-        <p class="pn-sub">Automático pela ordem do mês desde o início da execução (${esc(F.mes(c.inicioExecucao.slice(0, 7)))} = 1); pode mudar.</p></div>
+      ${consol() ? '' : `<div class="pn-cartao pn-conv-rel-num"><label class="pn-conv-campo">Parcial nº<input id="pn-cr-numero" inputmode="numeric" maxlength="2" value="${esc(T.numero)}"></label>
+        <p class="pn-sub">Automático pela ordem do mês desde o início da execução (${esc(F.mes(c.inicioExecucao.slice(0, 7)))} = 1); pode mudar.</p></div>`}
       ${R.etapas.map(r => `<fieldset class="pn-cartao pn-conv-rel-etapa"><legend>Etapa ${esc(r.id)} – ${esc(r.nomeCurto)} <span class="pn-sub">${F.pct(r.pct)}</span></legend>
         <p class="pn-sub"><b>Execução registrada (automática):</b> ${esc(r.execTexto)}</p>
         ${Object.entries(CD.ROTULOS_TXT).map(([k, rot]) => ta(`pn-cr-${r.id.replace('.', '_')}-${k}`, rot, (T.textos.etapas[r.id] || {})[k])).join('')}</fieldset>`).join('')}
       <fieldset class="pn-cartao pn-conv-rel-etapa"><legend>Textos gerais</legend>
         ${Object.entries(CD.ROTULOS_GERAIS).map(([k, rot]) => ta(`pn-cr-g-${k}`, rot + (k === 'providencias' ? ' (uma por linha)' : ''), T.textos.gerais[k], 4)).join('')}</fieldset>
       <div class="pn-cartao pn-conv-rel-acoes">
-        <button type="button" class="pn-btn" data-conv="rel-salvar" id="pn-cr-salvar">Salvar textos</button>
+        ${consol() ? '' : '<button type="button" class="pn-btn" data-conv="rel-salvar" id="pn-cr-salvar">Salvar textos</button>'}
         <button type="button" class="pn-btn pn-btn-prim" data-conv="rel-docx" id="pn-cr-docx">Baixar Word (.docx)</button>
         <button type="button" class="pn-btn pn-btn-prim" data-conv="rel-pdf" id="pn-cr-pdf">Baixar PDF</button>
         <button type="button" class="pn-btn" data-conv="rel-imprimir" id="pn-cr-imprimir">Imprimir</button>
@@ -346,9 +354,10 @@
     E.R.etapas.forEach(r => { t.etapas[r.id] = {}; Object.keys(CD.ROTULOS_TXT).forEach(k => { t.etapas[r.id][k] = val(`pn-cr-${r.id.replace('.', '_')}-${k}`); }); });
     Object.keys(CD.ROTULOS_GERAIS).forEach(k => { t.gerais[k] = val(`pn-cr-g-${k}`); });
     const n = parseInt(val('pn-cr-numero'), 10);
-    return { numero: n >= 1 && n <= 99 ? n : CD.numeroAuto(cfg(), E.mes), textos: t };
+    return { numero: n >= 1 && n <= 99 ? n : CD.numeroAuto(cfg(), mesEf(cfg())), textos: t };
   }
   async function salvarTextos(silencioso) {
+    if (consol()) return false;                                 // o consolidado não tem mês próprio para guardar textos
     const x = lerTextos(); E.textos.textos = x.textos; E.textos.numero = x.numero;
     if (!silencioso) msg('rel', 'Salvando…', '');
     try {
@@ -360,7 +369,7 @@
       return true;
     } catch (e) { if (P.logado) msg('rel', 'Textos não salvos: ' + e.message, 'erro'); return false; }
   }
-  const nomeArq = (num, ext) => `Relatorio_Convenio_${cfg().numero.replace(/\W+/g, '-')}_Parcial_${num}_${E.mes}.${ext}`;
+  const nomeArq = (num, ext) => `Relatorio_Convenio_${cfg().numero.replace(/\W+/g, '-')}_${consol() ? `Consolidado_ate_${hoje()}` : `Parcial_${num}_${E.mes}`}.${ext}`;
   function baixarBlob(blob, nome) {
     const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = nome; document.body.appendChild(a); a.click();
     setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 60000);
@@ -381,11 +390,11 @@
     try {
       const x = lerTextos();
       await salvarTextos(true);
-      const B = CD.blocos(E.R, x.textos, { numero: x.numero, dataEmissao: hoje() });
+      const B = CD.blocos(E.R, x.textos, { numero: x.numero, dataEmissao: hoje(), consolidado: consol(), ate: hoje() });
       if (tipo === 'docx') {
         msg('rel', 'Gerando o Word…', '');
         const [cab, adaf, sepror] = await Promise.all([bytes('../img/brasao.png'), bytes('../img/logo-adaf.png'), bytes('../img/sepror.png')]);
-        const blob = DocxMin.criar({ blocos: B, titulo: `${cfg().titulo} – Parcial ${x.numero} – ${F.mes(E.mes)}`, autor: P.usuario || 'e-GDV', cabecalho: cab, rodape: [adaf, sepror],
+        const blob = DocxMin.criar({ blocos: B, titulo: `${cfg().titulo} – ${consol() ? 'Consolidado até ' + F.data(hoje()) : `Parcial ${x.numero} – ${F.mes(E.mes)}`}`, autor: P.usuario || 'e-GDV', cabecalho: cab, rodape: [adaf, sepror],
           cabecalhoTexto: ['GOVERNO DO ESTADO DO AMAZONAS', 'Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF'] });
         baixarBlob(blob, nomeArq(x.numero, 'docx'));
         msg('rel', 'Word gerado ✓', 'ok');

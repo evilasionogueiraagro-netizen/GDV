@@ -56,3 +56,7 @@ Para usar o fakegas à mão (ex.: depurar um teste): `node fakegas.js` em um ter
 3. Não dependa da data de hoje: monte datas a partir de `Date.now()` (horário de Manaus = UTC−4) e use o ano corrente. Se o teste precisar de um dia específico do mês, ponha no topo `// gdv:relogio dia=15 hora=10:00`: o executor desloca o relógio do fakegas, do teste e do navegador para esse dia do mês corrente (como faz o `rotinas_test`). Para avançar o tempo dentro de uma página, use `page.clock`.
 4. O fakegas já traz a linha de turno `antigo-1` (3 dias atrás) e o fiscal "Antigo Fiscal"; as rotas `/__gerar`, `/__aba`, `/__fn`, `/__props`, `/__off`/`/__on` etc. estão no fim de `fakegas.js`.
 5. Se o teste for demorado, acrescente o tempo aproximado em `PESO` no `run.js` (equilibra as partes do CI).
+6. Confira o resultado pelas actions (HTTP) sempre que der. O porte para servidor próprio
+   ([docs/PORTABILIDADE.md](../docs/PORTABILIDADE.md)) roda estes mesmos testes e refaz as rotas `/__*` sobre o banco.
+   Quando precisar do `/__aba` (devolve as linhas cruas), ache a coluna pelo nome em `TABELAS`, não por índice fixo; o que só existe no Google (pastas do Drive,
+   gatilhos, `LockService`) fica num teste ou num trecho separado, para o porte poder marcar "não se aplica".

@@ -20,7 +20,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   const gerar = (nome, perfil = '') => get('/__gerar?nome=' + encodeURIComponent(nome) + '&perfil=' + perfil);
   const credencial = async nome => { const g = await gerar(nome); const r = await post({ action: 'ativar', codigo: g.codigo }); return { token: r.token, nome }; };
   const aparelho = async ({ token, nome }, vp = { width: 1366, height: 800 }) => {
-    const c = await b.newContext({ viewport: vp, permissions: ['geolocation'], geolocation: { latitude: -3.57, longitude: -59.13, accuracy: 9 }, acceptDownloads: true });
+    const c = await b.newContext({ viewport: vp, permissions: ['geolocation'], geolocation: { latitude: -3.60, longitude: -59.15, accuracy: 9 }, acceptDownloads: true });
     await c.addInitScript(([t, n]) => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } } catch (e) {} }, [token, nome]);
     await c.addInitScript(() => { if (window !== window.top) window.print = () => { const d = document; window.top.__prints = window.top.__prints || []; window.top.__prints.push({ texto: d.body.innerText.replace(/\s+/g, ' '), html: d.body.innerHTML, paginas: d.querySelectorAll('.a4').length, titulo: window.top.document.title }); }; });
     const p = await c.newPage(); p.err = []; p.dialogs = [];
@@ -43,12 +43,12 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   ok(r.ok && r.permissoes.antigo === 1, 'painel: estagiária com PCE + Digitar do papel');
   const A = await aparelho(E);
   const C = await A.evaluate(() => { const L = PCEMon.lerEixo, N = PCEMon.lerNumeroDoc;
-    return { a: L('-3,60033', 'lat'), b: L('-3.60033', 'lat'), c: L('3,60033S', 'lat'), d: L('-59,15044W', 'lon'), e: L('59,15044', 'lon'), f: L(`3°36'01,8"S`, 'lat'),
+    return { a: L('-3,60033', 'lat'), b: L('-3.60033', 'lat'), c: L('3,60033S', 'lat'), d: L('-59,15044W', 'lon'), e: L('59,15044', 'lon'), f: L(`3°36'01,2"S`, 'lat'),
       g: L('S 3 36 1.2', 'lat'), h: L('3,5N', 'lon'), par: PCEMon.lerPar('-3,60033', '-59,15044W'), fora: PCEMon.lerPar('-15,7', '-47,8'),
       n1: N('001.2026.AUTAZES', 'Autazes', '2026-07-08'), n2: N('001-2026-AUTAZES', 'Autazes', '2026-07-08'), n3: N('1', 'Autazes', '2026-07-08'), n4: N('001/2025/AUTAZES', 'Autazes', '2026-07-08'),
       n5: N('7.2026.MANAUS', 'Autazes', '2026-07-08'), n6: N('Nº 12', 'Autazes', '2026-07-08'), i1: PCEMon.numero('08 anos'), i2: PCEMon.numero('2,5'), i3: PCEMon.numero('1.234') }; });
   ok([C.a, C.b].every(x => x.v === -3.60033) && C.c.v === -3.60033 && C.d.v === -59.15044 && C.e.v === -59.15044 && C.e.oeste, 'lat/lon: "-3,60033", "-3.60033", "3,60033S", "-59,15044W" e "59,15044" (Oeste)', C);
-  ok(Math.abs(C.f.v + (3 + 34 / 60 + 29.8 / 3600)) < 1e-6 && Math.abs(C.g.v - C.f.v) < 1e-6 && C.h.erro, 'GMS (3°36\'01,8"S e S 3 36 1.2); hemisfério errado recusado', [C.f, C.g, C.h]);
+  ok(Math.abs(C.f.v + (3 + 36 / 60 + 1.2 / 3600)) < 1e-6 && Math.abs(C.g.v - C.f.v) < 1e-6 && C.h.erro, 'GMS (3°36\'01,2"S e S 3 36 1.2); hemisfério errado recusado', [C.f, C.g, C.h]);
   ok(C.par.lat === -3.60033 && C.par.lon === -59.15044 && /fora do Amazonas/.test(C.fora.erro || ''), 'par dentro do Amazonas; fora do AM recusado', [C.par, C.fora]);
   ok(C.n1.n === 1 && C.n2.n === 1 && C.n3.n === 1 && C.n3.ano === 2026 && C.n1.unidade === 'AUTAZES' && C.n6.n === 12, 'nº do papel: 001.2026.AUTAZES, 001-2026-AUTAZES, 1, Nº 12', [C.n1, C.n3]);
   ok(/ano/.test(C.n4.erro || '') && /unidade/.test(C.n5.erro || ''), 'nº do papel: ano diferente da data e outra unidade recusados', [C.n4, C.n5]);
@@ -74,7 +74,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   ok(/001-2025-AUTAZES/.test(await A.textContent('#mc-numpapel-st')), 'nº do papel conferido na tela', await A.textContent('#mc-numpapel-st'));
   await sim(A, 'mc-comercial', 'nao'); await sim(A, 'mc-tipoNaoComercial', 'sitio');
   await A.fill('#mc-nome', 'Maria Ficticia Teste'); await A.fill('#mc-doc', '391.246.587-82'); await A.fill('#mc-propriedade', 'Sítio Ficticio Teste');
-  await A.fill('#mc-lat', '-3,70000'); await A.fill('#mc-lon', '-59,15000W'); await sim(A, 'mc-viaAcesso', 'terrestre');
+  await A.fill('#mc-lat', '-3,70011'); await A.fill('#mc-lon', '-59,10022W'); await sim(A, 'mc-viaAcesso', 'terrestre');
   await A.fill('#mc-endereco', 'Ramal Ficticio, Comunidade Teste'); await A.selectOption('#mc-municipio', 'Autazes');
   await A.fill('#mc-pl-cupuacu', '20'); await sim(A, 'mc-areaAbandonada', 'nao'); await A.fill('#mc-areaProducao', '05'); await A.fill('#mc-idadeProducao', '08 anos');
   await sim(A, 'mc-origem', 'proprias'); await A.fill('#mc-producao', '50'); await A.fill('#mc-destino', 'Mercado local'); await sim(A, 'mc-sacaria', 'nova');
@@ -82,7 +82,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   for (const k of ['vassoura', 'podridao', 'lazio']) await sim(A, `mc-f-${k}-tem`, 'nao');
   await sim(A, 'mc-sintomas', 'nao'); await sim(A, 'mc-camaraUmida', 'nao');
   ok((await A.textContent('#mc-total')).trim() === '20', 'total de plantas calculado (20)');
-  ok(/-3,70000/.test(await A.textContent('#mc-coord-st')) && /-59,1500/.test(await A.textContent('#mc-coord-st')), 'coordenada do papel convertida', await A.textContent('#mc-coord-st'));
+  ok(/-3,70011/.test(await A.textContent('#mc-coord-st')) && /-59,10022/.test(await A.textContent('#mc-coord-st')), 'coordenada do papel convertida', await A.textContent('#mc-coord-st'));
   await sim(A, 'mc-camaraUmida', 'nao'); await A.waitForTimeout(100);
   ok(!(await A.isChecked('input[name="mc-camaraUmida"][value="nao"]')), 'tocar de novo no botão marcado desmarca (campo em branco no papel)');
   await sim(A, 'mc-camaraUmida', 'nao');
@@ -107,7 +107,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   ok(cads.length === 2 && cV && cA && cV.numeroTxt === '001-2025-AUTAZES' && cA.numeroTxt === '003-2025-AUTAZES' && cV.numeroOrigem === 'papel' && cV.registroAntigo === 1,
     'planilha (CadastrosPCE): 2 cadastros com os números do papel (numeroOrigem = papel)', cads.map(c => [c.numeroTxt, c.numeroOrigem]));
   const dV = JSON.parse(cV.dados || '{}');
-  ok(Number(cV.lat) === -3.70000 && Number(cV.lon) === -59.1500 && cV.totalPlantas === 20 && dV.idadeProducao === 8 && dV.plantas.cupuacu === 20 && dV.tipoNaoComercial === 'sitio' && dV.viaAcesso === 'terrestre',
+  ok(Number(cV.lat) === -3.70011 && Number(cV.lon) === -59.10022 && cV.totalPlantas === 20 && dV.idadeProducao === 8 && dV.plantas.cupuacu === 20 && dV.tipoNaoComercial === 'sitio' && dV.viaAcesso === 'terrestre',
     'cadastro: coordenadas, total de plantas, idade "08 anos" → 8, sítio, via terrestre', [cV.lat, cV.lon, cV.totalPlantas, dV.idadeProducao]);
   ok(cV.servidor === 'Servidor Ficticio Teste' && cV.matricula === '000.000-0 A' && cV.usuario === E.nome && cV.data === '2025-05-26', 'servidor do papel e quem digitou (usuario)');
   const props = await ler('Propriedades'), pV = props.find(x => x.id === cV.propriedadeId);
@@ -133,7 +133,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   await A.fill('#mt-numpapel', '2'); await A.fill('#mt-hora', '15:50');
   await A.fill('#mt-busca', 'maria ficticia'); await A.waitForSelector('[data-mon=usarcad]'); await A.click('[data-mon=usarcad]'); await A.waitForSelector('#mt-cadinfo');
   ok((await A.inputValue('#mt-plantas')) === '20' && (await A.inputValue('#mt-data')) === '2026-07-08', 'segundo termo: data mantida e plantas = 20 (cadastro)');
-  await A.fill('#mt-lat', '-3,70000'); await A.fill('#mt-lon', '-59,1500W'); await marcar(A, 'mt-acoes', 'Fiscalização'); await marcar(A, 'mt-acoes', 'Educação Sanitária'); await A.click('#mt-negativa');
+  await A.fill('#mt-lat', '-3,70011'); await A.fill('#mt-lon', '-59,10022W'); await marcar(A, 'mt-acoes', 'Fiscalização'); await marcar(A, 'mt-acoes', 'Educação Sanitária'); await A.click('#mt-negativa');
   await A.click('#mt-salvar'); await A.waitForSelector('#mon-m-ok', { timeout: 15000 }); await A.click('#mon-m-ok'); await A.waitForSelector('#mon-pronto', { timeout: 15000 });
   ok((await A.textContent('#mon-pronto-num')).trim() === '002.2026.AUTAZES', 'nº "2" do papel gravado como 002.2026.AUTAZES');
   // número repetido: recusado

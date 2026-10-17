@@ -149,7 +149,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-16f';
+const VERSAO_CODIGO = '2026-10-16h';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -168,6 +168,7 @@ function doPost(e) {
     if (req.action === 'painelOcultarAcesso') return json_(painelOcultarAcesso(req.key, req.nome, false));
     if (req.action === 'painelRestaurarAcesso') return json_(painelOcultarAcesso(req.key, req.nome, true));
     if (req.action === 'painelRevogar') return json_(painelRevogar(req.key, req.nome));
+    if (req.action === 'painelRevogarAdmin') return json_(painelRevogarAdmin(req.key, req.nome));
     if (req.action === 'painelPermissoes') return json_(painelPermissoes(req.key, req.nome, req));
     if (req.action === 'painelEncerrarTurno') return json_(painelEncerrarTurno(req.key, req.turnoId, req.fim));
     if (req.action === 'tfVerificar') return json_(tfVerificar_(req));                      // página pública verificar.html: sem credencial
@@ -1133,7 +1134,8 @@ function arquivoEnviar_(req, usuario) {
  *   painelOcultarAcesso {key, nome}  → "Remover da lista": marca oculto=1/ocultoPor/ocultoEm nas linhas de FISCAL desse nome (não apaga;
  *                                       recusa se houver aparelho ativo ou código aguardando ativação). Nova chave para o nome = volta à lista.
  *   painelRestaurarAcesso {key, nome} → desfaz o "Remover da lista" (oculto=0)
- *   painelRevogar {key, nome}        → revoga os acessos de FISCAL com esse nome (administradores só pelo menu da planilha)
+ *   painelRevogar {key, nome}        → revoga os acessos de FISCAL com esse nome
+ *   painelRevogarAdmin {key, nome}   → revoga os acessos de ADMINISTRADOR (painel e TV) com esse nome; o próprio acesso não (botão Sair)
  *   painelPermissoes {key, nome, veiculos, tf, pce, antigo} → módulos em que o FISCAL pode inserir dados (aba Permissoes; pelo menos um
  *                                       entre veiculos/tf/pce; antigo = "Digitar do papel", padrão 0, exige pce=1)
  *   painelGerarCodigo aceita também modulos:{veiculos, tf, pce, antigo} (gravados junto); painelAcessos devolve permissoes de cada fiscal.
@@ -1402,16 +1404,29 @@ function painelAcessos(token, ocultos) {
   return { ok: true, agora: agora, acessos: lista };
 }
 
-/** Painel → "Revogar": tira todos os acessos de FISCAL com esse nome (aparelhos e códigos). Administrador só pela planilha. */
+/** Painel → "Revogar": tira todos os acessos de FISCAL com esse nome (aparelhos e códigos). Administrador: painelRevogarAdmin. */
 function painelRevogar(token, nome) {
   adminDoToken_(token);
   nome = String(nome || '').trim().replace(/\s+/g, ' ').slice(0, NOME_SERVIDOR_MAX + 20);
   if (!nome) throw new Error('Informe o nome do servidor.');
-  const n = revogar_(nome, true);
+  const n = revogar_(nome, 'fiscal');
   if (!n && lerLeitura_('Fiscais').some(function (f) { return f.perfil === 'admin' && f.ativo === 1 && nomeChave_(f.nome) === nomeChave_(nome); })) {
-    throw new Error('Acesso de administrador não é retirado pelo painel. Use o menu e-GDV da planilha.');
+    throw new Error(nome + ' é administrador: marque "Mostrar administradores" e use o Revogar da linha de administrador.');
   }
   return { ok: true, nome: nome, revogados: n };
+}
+
+/**
+ * Painel → "Revogar" na linha de um administrador: tira os acessos de ADMINISTRADOR com esse nome (painel e TV; credenciais e
+ * códigos ainda não usados). Não toca em acessos de fiscal do mesmo nome. O próprio acesso não sai por aqui (use Sair), para
+ * ninguém se trancar fora do painel. Novo acesso de administrador continua só pelo menu da planilha.
+ */
+function painelRevogarAdmin(token, nome) {
+  const admin = adminDoToken_(token);
+  nome = String(nome || '').trim().replace(/\s+/g, ' ').slice(0, NOME_SERVIDOR_MAX + 20);
+  if (!nome) throw new Error('Informe o nome do administrador.');
+  if (nomeChave_(nome) === nomeChave_(admin)) throw new Error('Este é o seu próprio acesso. Para sair do painel, use o botão Sair.');
+  return { ok: true, nome: nome, revogados: revogar_(nome, 'admin') };
 }
 
 /**
@@ -4005,8 +4020,11 @@ function gerarCodigo_(nome, perfil, geradoPor) {
   }
 }
 
-/** Revoga todos os aparelhos/códigos de um fiscal (pelo nome). Devolve quantos foram revogados. soFiscais: não toca em administradores (painel). */
-function revogar_(nome, soFiscais) {
+/**
+ * Revoga todos os aparelhos/códigos com esse nome. Devolve quantos foram revogados.
+ * perfil: 'fiscal' = só acessos de fiscal (painelRevogar), 'admin' = só de administrador (painelRevogarAdmin), vazio = todos (menu).
+ */
+function revogar_(nome, perfil) {
   nome = nomeChave_(nome);
   if (!nome) return 0;
   const lock = LockService.getScriptLock();
@@ -4015,7 +4033,7 @@ function revogar_(nome, soFiscais) {
     const t = lerTudo_('Fiscais'); let n = 0;
     t.valores.forEach(function (l, i) {
       const f = paraObjeto_(t.cols, l);
-      if (nomeChave_(f.nome) === nome && f.ativo === 1 && !(soFiscais && f.perfil === 'admin')) {
+      if (nomeChave_(f.nome) === nome && f.ativo === 1 && (!perfil || (perfil === 'admin') === (f.perfil === 'admin'))) {
         f.ativo = 0;
         t.sh.getRange(i + 2, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return f[c]; })]);
         n++;

@@ -84,6 +84,7 @@ Registros de módulo não liberado (ou `registroAntigo = 1` sem a flag `antigo`)
 | `painelAcessos` | `ocultos` | lista servidores e situação dos acessos | `painelAcessos` |
 | `painelOcultarAcesso` / `painelRestaurarAcesso` | `nome` | esconde/mostra servidor sem acesso ativo | `painelOcultarAcesso` |
 | `painelRevogar` | `nome` | revoga os acessos de um fiscal | `painelRevogar` |
+| `painelRevogarAdmin` | `nome` | revoga os acessos de um administrador (painel e TV); recusa o próprio | `painelRevogarAdmin` |
 | `painelPermissoes` | `nome`, `modulos` | grava os módulos liberados de um fiscal | `painelPermissoes` |
 | `painelEncerrarTurno` | `turnoId`, `fim` (HH:MM) | encerra turno esquecido aberto | `painelEncerrarTurno` |
 | `painelPceLaudo` | `id`, `laboratorio` | grava resultado laboratorial do Termo de Colheita | `painelPceLaudo` |

@@ -1,12 +1,15 @@
 name: Testes automáticos
-# Roda tests/run.js (Code.gs real no fakegas + app/painel no Chromium). Localmente a suíte leva ~9 min,
-# então um job só basta. Se passar de ~30 min, troque por matrix com "node run.js --parte N/3"
-# (cada job em sua máquina, com seu fakegas nas portas padrão).
+# Roda tests/run.js (Code.gs real no fakegas + app/painel no Chromium) em 4 partes ao mesmo tempo, cada uma numa
+# máquina com seu fakegas nas portas padrão ("node run.js --parte N/4", divididas pelo tempo de cada teste no PESO
+# do run.js). A suíte em fila leva ~11 min; em 4 partes, ~4 min. O workflow só fica verde com as 4 partes verdes
+# (a publicação do Apps Script espera isso).
+# Roda uma vez por mudança: no PR para a main (testa o resultado do merge) e no push da main. Branch sem PR:
+# Actions → Testes automáticos → Run workflow.
 on:
   push:
-    branches: [main, 'claude/**']
+    branches: [main]
   pull_request:
-    branches: [main, 'claude/**']
+    branches: [main]
   workflow_dispatch:
 permissions:
   contents: read
@@ -15,8 +18,13 @@ concurrency:
   cancel-in-progress: true
 jobs:
   testes:
+    name: testes (parte ${{ matrix.parte }}/4)
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false                     # uma parte com falha não interrompe as outras: o resumo mostra tudo de uma vez
+      matrix:
+        parte: [1, 2, 3, 4]
     defaults:
       run:
         working-directory: tests
@@ -37,11 +45,11 @@ jobs:
       - name: Instalar pypdf e python-docx (conferem os PDFs e os .docx gerados, ex. tf_paginas e convenio_test)
         run: python3 -m pip install --user --break-system-packages pypdf python-docx
       - name: Rodar testes
-        run: node run.js --tentativas 2
+        run: node run.js --parte ${{ matrix.parte }}/4 --tentativas 2
       - name: Publicar saída (screenshots, PDFs, logs)
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: saida-testes
+          name: saida-testes-parte-${{ matrix.parte }}
           path: tests/saida/
           retention-days: 14

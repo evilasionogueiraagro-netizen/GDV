@@ -7,9 +7,11 @@
 //   node tests/run.js --lista            lista os testes (respeita --parte)
 //   node tests/run.js -v tv_test         mostra a saída do teste ao vivo
 //   node tests/run.js --tentativas 2     repete uma vez quem falhar (a falha original fica registrada)
+//   node tests/run.js --paralelo 4       suíte inteira em 4 partes ao mesmo tempo (uso local, ~3 min; antes de subir)
 //
 // Cada teste roda com um fakegas NOVO (planilha vazia), um de cada vez, nas portas
-// GDV_PORTA_WEB (8081) / GDV_PORTA_API (8082). Saída de cada teste em tests/saida/logs/.
+// GDV_PORTA_WEB (8081) / GDV_PORTA_API (8082). Com --paralelo N, a parte k usa as portas 8081+2(k-1) / 8082+2(k-1).
+// Saída de cada teste em tests/saida/logs/.
 // Código de saída 0 só se todos passarem.
 //
 // Um teste é qualquer tests/*.js (exceto fakegas.js e run.js). Ele falha se sair com código ≠ 0,
@@ -25,27 +27,31 @@ const PORTA_WEB = Number(process.env.GDV_PORTA_WEB) || 8081, PORTA_API = Number(
 const TIMEOUT_S = Number(process.env.GDV_TIMEOUT) || 360;
 const CI = !!process.env.CI;
 
-// Tempo aproximado de cada teste (s, medido localmente), só para dividir em partes equilibradas (--parte).
+// Tempo aproximado de cada teste (s, medido no CI), só para dividir em partes equilibradas (--parte, --paralelo).
 // Teste novo sem entrada aqui conta como 60 s.
 const PESO = {
-  acessos_test: 12, arquivo_test: 4, bgsync_test: 47, e2e: 89, encerrar_test: 23, gps_pedidos_test: 5, install_check: 6,
-  migra_db: 4, painel_test: 88, pce_antigo_test: 36, pce_campo_test: 14, pce_e2e: 24, pce_moniliase_test: 25, pce_naoassina_test: 9, pce_server_test: 1, permissoes_test: 11, publico_test: 17, responsivo_test: 3,
-  proprio_test: 39, rotinas_test: 8, semplaca_test: 8, server_painel_test: 1, sinal_test: 13, tf_alerta_test: 25,
-  cargo_outro_test: 7, colunas_test: 1, convenio_test: 25, convfin_test: 10, relgdv_test: 45, adm_test: 8, vigifito_test: 25, pce_laudo_test: 14, tf_anexos_test: 14, tf_e2e: 16, tf_paginas: 5, tf_server_test: 1, tv_test: 83
+  acessos_test: 23, adm_test: 5, arquivo_test: 3, bgsync_test: 47, cargo_outro_test: 2, colunas_dup_test: 1, colunas_test: 1, convenio_test: 16,
+  convfin_test: 6, e2e: 88, encerrar_test: 21, gps_pedidos_test: 5, install_check: 5, migra_db: 4, painel_test: 39, pce_antigo_test: 33,
+  pce_campo_test: 12, pce_e2e: 49, pce_laudo_test: 13, pce_moniliase_test: 16, pce_naoassina_test: 5, pce_server_test: 1, pce_visita_test: 6,
+  permissoes_test: 10, proprio_test: 38, publico_test: 12, relgdv_test: 18, responsivo_test: 2, rotinas_test: 7, semplaca_test: 8,
+  server_painel_test: 1, sinal_test: 12, tf_alerta_test: 23, tf_anexos_test: 11, tf_e2e: 17, tf_paginas: 4, tf_server_test: 1, tv_test: 80,
+  vigifito_test: 17
 };
 
 // ---------- argumentos ----------
 const args = process.argv.slice(2);
-let parte = null, listar = false, verboso = false, tentativas = Number(process.env.GDV_TENTATIVAS) || 1;
+let parte = null, paralelo = 0, listar = false, verboso = false, tentativas = Number(process.env.GDV_TENTATIVAS) || 1;
 const pedidos = [];
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
   if (a === '--parte') parte = args[++i];
   else if (a.startsWith('--parte=')) parte = a.slice(8);
+  else if (a === '--paralelo' || a === '-j') paralelo = Number(args[++i]) || 0;
+  else if (a.startsWith('--paralelo=')) paralelo = Number(a.slice(11)) || 0;
   else if (a === '--lista') listar = true;
   else if (a === '-v' || a === '--verboso') verboso = true;
   else if (a === '--tentativas') tentativas = Number(args[++i]) || 1;
-  else if (a === '-h' || a === '--help') { console.log(fs.readFileSync(__filename, 'utf8').split('\n').slice(1, 19).map(l => l.replace(/^\/\/ ?/, '')).join('\n')); process.exit(0); }
+  else if (a === '-h' || a === '--help') { console.log(fs.readFileSync(__filename, 'utf8').split('\n').slice(1, 21).map(l => l.replace(/^\/\/ ?/, '')).join('\n')); process.exit(0); }
   else pedidos.push(path.basename(a).replace(/\.js$/, ''));
 }
 
@@ -157,7 +163,48 @@ async function rodarUm(nome, tentativa) {
   return { nome, passou: !motivo, motivo, ms: Date.now() - t0, okN, xs, rc, logArq, txt, rel };
 }
 
+/**
+ * --paralelo N (uso local): roda as N partes de --parte ao mesmo tempo, cada uma num processo com o próprio fakegas em portas
+ * próprias. Mostra o andamento de cada parte e, no fim, o resumo das N juntas. Sai com 0 só se todas passarem.
+ */
+async function rodarEmParalelo() {
+  const repassar = [];
+  for (let i = 0; i < args.length; i++) {
+    if (args[i] === '--paralelo' || args[i] === '-j') { i++; continue; }
+    if (!args[i].startsWith('--paralelo=')) repassar.push(args[i]);
+  }
+  fs.mkdirSync(SAIDA, { recursive: true });
+  fs.readdirSync(SAIDA).filter(f => /^resumo-parte-/.test(f)).forEach(f => fs.unlinkSync(path.join(SAIDA, f)));
+  console.log(`GDV – ${testes.length} teste(s) em ${paralelo} partes ao mesmo tempo | portas ${PORTA_WEB}/${PORTA_API} a ${PORTA_WEB + 2 * (paralelo - 1)}/${PORTA_API + 2 * (paralelo - 1)}`);
+  const t0 = Date.now();
+  const cods = await Promise.all(Array.from({ length: paralelo }, (_, k) => new Promise(res => {
+    const env = { ...process.env, GDV_PORTA_WEB: String(PORTA_WEB + 2 * k), GDV_PORTA_API: String(PORTA_API + 2 * k) };
+    const p = spawn(process.execPath, [__filename, '--parte', `${k + 1}/${paralelo}`, ...repassar], { cwd: DIR, env, stdio: ['ignore', 'pipe', 'pipe'] });
+    let resto = '';
+    const linhas = d => {
+      resto += d; const ls = resto.split('\n'); resto = ls.pop();
+      ls.forEach(l => { if (/^\[\d+\/\d+\]|^\s+✗|executor/.test(l)) console.log(`[parte ${k + 1}] ${l}`); });
+    };
+    p.stdout.on('data', linhas); p.stderr.on('data', linhas);
+    p.on('close', c => res(c === null ? 1 : c));
+  })));
+  const linhas = [];
+  for (let k = 1; k <= paralelo; k++) {
+    const arq = path.join(SAIDA, `resumo-parte-${k}de${paralelo}.txt`);
+    if (fs.existsSync(arq)) fs.readFileSync(arq, 'utf8').split('\n').filter(l => /^(OK|FALHOU) /.test(l)).forEach(l => linhas.push(l));
+  }
+  linhas.sort((a, b) => a.slice(7).localeCompare(b.slice(7)));
+  const falhas = linhas.filter(l => l.startsWith('FALHOU'));
+  const resumo = `\n===== Resumo: ${linhas.length - falhas.length}/${linhas.length} passaram em ${fmtS(Date.now() - t0)} (${paralelo} partes ao mesmo tempo) =====\n` +
+    linhas.join('\n') + (falhas.length ? `\nFalharam: ${falhas.map(l => l.slice(7).trim().split(/\s+/)[0]).join(', ')}\nLogs em tests/saida/logs/` : '') +
+    (linhas.length < testes.length ? `\nAtenção: só ${linhas.length} de ${testes.length} testes têm resultado (uma parte terminou antes da hora).` : '') + '\n';
+  console.log(resumo);
+  fs.writeFileSync(path.join(SAIDA, 'resumo.txt'), resumo);
+  process.exit(cods.some(c => c !== 0) || falhas.length || linhas.length < testes.length ? 1 : 0);
+}
+
 (async () => {
+  if (paralelo > 1 && !parte) return rodarEmParalelo();
   fs.mkdirSync(LOGS, { recursive: true });
   console.log(`GDV – ${testes.length} teste(s)${parte ? ` (parte ${parte})` : ''} | web :${PORTA_WEB} api :${PORTA_API} | timeout ${TIMEOUT_S} s` + (tentativas > 1 ? ` | até ${tentativas} tentativas` : ''));
   const resultados = [], t0 = Date.now();

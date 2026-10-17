@@ -3,6 +3,10 @@
 App para registrar os veículos abordados em barreiras **fixas ou móveis**, por turno, e gerar o
 **Termo de Fiscalização** e a **Ficha de Campo** (modelos HTML de `web/documentos/`).
 
+**Página inicial (atalhos para tudo):** https://evilasionogueiraagro-netizen.github.io/GDV/inicio/ leva ao painel, ao app de campo,
+ao Portal do Administrativo e ao dashboard público, cada um com uma linha de como entrar. Salve nos favoritos. Não usa login nem
+chama a API (`web/inicio/index.html`). A raiz `/GDV/` continua sendo o app de campo, que já está instalado nos celulares.
+
 ## Como funciona
 
 ```
@@ -500,6 +504,7 @@ O e-GDV Painel é um app instalável, separado do app de campo:
 | `apps-script/` | API de sincronização que grava na planilha e entrega os dados do painel gerencial |
 | `web/administrativo/` | Portal do Administrativo (`index.html`, `js/adm.js` = login/sessão/abas, `js/adm-convenio.js`, `js/adm-relatorios.js`, `js/adm-vigifito.js`, `js/vig-planilha.js` = leitura da planilha de controle VIGIFITO, `css/adm.css`; usa `../painel/css/painel.css`, `../painel/js/conv-planilha.js` e `../painel/vendor/xlsx/`) |
 | `web/painel/` | App "e-GDV Painel" do administrador (`index.html`, `js/painel*.js`, `js/docx.js` = gerador do Word dos relatórios, `js/conv-planilha.js` = leitura da planilha de movimentação do convênio (usada pelo portal), `vendor/xlsx/` = SheetJS (carregada só no clique), `css/painel.css`, `vendor/`, `dados/`, `manifest.webmanifest`, `sw.js`) |
+| `web/inicio/` | Página inicial com os atalhos (`index.html` só; usa `../painel/css/painel.css` e `../img/`) |
 | `web/dashboard/` | Dashboard público sem login (`index.html`, `js/dashboard.js`, `css/dashboard.css`; usa `../painel/vendor`, `../painel/css` e `../painel/dados`) |
 | `tests/` | Testes automáticos (`fakegas.js` roda o `Code.gs` real com Google falso; testes Playwright do app e do painel; `run.js`) |
 

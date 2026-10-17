@@ -44,6 +44,10 @@ publicado no GitHub Pages                            Web App do Apps Script     
 - **Permissões**: actions de TF/PCE passam por `exigirModulo_` (mapa `MODULO_DA_ACAO`); registros de módulo não
   liberado voltam em `recusados`. Painel = credencial de perfil `admin` (`adminDoToken_`); portal = sessão própria
   (`admSessao_`) — uma credencial nunca vale no lugar da outra.
+- **Repositório público: nenhum dado pessoal real versionado.** Código, testes, exemplos, placeholders, docs e commits usam
+  só dados fictícios (nome "Fulano Ficticio Teste", CPF de teste como 529.982.247-25, placa ABC1D23). Nada de nome, CPF,
+  endereço, telefone ou matrícula de produtor, fiscal ou servidor de verdade, nem trecho de planilha ou relatório real.
+  Planilhas reais para importar ficam fora do repositório. O histórico do Git é público: o que entrar não sai mais.
 - **LGPD**: nada público expõe CPF, nome completo, placa inteira ou coordenada exata (dashboard e `verificar.html`
   mascaram). Os testes conferem isso; não afrouxe.
 - **Fuso**: datas de negócio em `America/Manaus` (UTC−4). Use `hojeManaus_()`, `tsManaus_()`; nada de `new Date()` cru

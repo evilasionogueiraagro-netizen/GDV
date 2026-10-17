@@ -31,7 +31,7 @@ const PCEMon = (() => {
   const area = v => { const n = numero(v); return n === '' ? '' : String(n).replace('.', ','); };
 
   /* ---------- coordenadas: latitude e longitude em campos separados (como no papel) ---------- */
-  /** "-3,57495", "-3.57495", "3,57495S", "-59,12784W", "3°34'29,8\"S", "S 3 34 29.8"… → {v} | {vazio} | {erro}. Longitude sem sinal nem letra = Oeste. */
+  /** "-3,60033", "-3.60033", "3,60033S", "-59,15044W", "3°36'01,2\"S", "S 3 36 1.2"… → {v} | {vazio} | {erro}. Longitude sem sinal nem letra = Oeste. */
   function lerEixo(txt, eixo) {
     let s = semAcento(String(txt == null ? '' : txt)).toUpperCase().replace(/[−–—]/g, '-').trim();
     if (!s) return { vazio: true };
@@ -67,8 +67,8 @@ const PCEMon = (() => {
     const r = U().validarCoord(a.v, b.v);
     return r.erro ? r : { lat: r.lat, lon: r.lon, oeste: b.oeste };
   }
-  const coordHTML = (pref, D, gps) => `<div class="duas"><label>Latitude<input id="${pref}lat" value="${esc(D.lat)}" autocomplete="off" inputmode="text" placeholder="-3,57495"></label>
-      <label>Longitude<input id="${pref}lon" value="${esc(D.lon)}" autocomplete="off" inputmode="text" placeholder="-59,12784W"></label></div>
+  const coordHTML = (pref, D, gps) => `<div class="duas"><label>Latitude<input id="${pref}lat" value="${esc(D.lat)}" autocomplete="off" inputmode="text" placeholder="-3,60033"></label>
+      <label>Longitude<input id="${pref}lon" value="${esc(D.lon)}" autocomplete="off" inputmode="text" placeholder="-59,15044W"></label></div>
       <div id="${pref}coord-st" class="tf-status" aria-live="polite"></div>
       ${gps ? `<div class="pce-gps"><span id="${pref}gps-st" class="dica"></span><button type="button" class="mini" data-mon="gps" data-pref="${pref}">📍 Usar GPS</button></div>` : ''}`;
   function mostrarCoord(pref) {
@@ -602,7 +602,7 @@ const PCEMon = (() => {
         ${A && st.novo ? `${inp(p, 'numpapel', 'Nº do termo (como está no papel) *', D.numPapel, 'placeholder="ex.: 001.2026.AUTAZES ou 1" autocomplete="off"')}<div id="${p}numpapel-st" class="tf-status" aria-live="polite"></div>`
           : `<div class="tf-num">${st.rec ? `<b>${esc(st.rec.numeroTxt)}</b>` : '<small>Nº definido ao salvar (consulta a planilha; sem internet, provisório).</small>'}</div>`}</div>
       <div class="card"><h3>Cadastro da propriedade</h3>
-        <div class="campo-busca"><label>Buscar cadastro (CPF, nome, propriedade ou nº do cadastro)<input id="${p}busca" type="search" autocomplete="off" placeholder="ex.: 134.034.782-20 ou VALDENIZA"></label><div id="${p}busca-res"></div></div>
+        <div class="campo-busca"><label>Buscar cadastro (CPF, nome, propriedade ou nº do cadastro)<input id="${p}busca" type="search" autocomplete="off" placeholder="ex.: CPF, nome do produtor ou nº do cadastro"></label><div id="${p}busca-res"></div></div>
         <div id="${p}cad">${cadLigadoHTML(st)}</div></div>
       <div class="card"><h3>1 – Identificação</h3>
         ${inp(p, 'nome', 'Nome *', D.nome, 'autocapitalize="characters"')}

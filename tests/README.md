@@ -20,13 +20,14 @@
 
 ## Rodar localmente
 
-Precisa de Node 20+ e, para o `tf_paginas`, de `python3` com `pypdf` (`pip install pypdf`; o `tf_anexos_test` só pula a conferência das páginas do PDF sem ele). O `convenio_test` usa também `python-docx` (`pip install python-docx`) e, se houver, o LibreOffice (`soffice`).
+Precisa de Node 20+ e de `python3` com `pypdf` (`pip install pypdf`): sem ele falham `tf_paginas`, `convenio_test`, `convfin_test`, `relgdv_test` e `vigifito_test` (o `tf_anexos_test` só pula a conferência das páginas do PDF). Para não mexer no Python do sistema, use um venv e ponha o `bin/` dele no começo do `PATH` ao rodar os testes. O `convenio_test` usa também `python-docx` (`pip install python-docx`) e, se houver, o LibreOffice (`soffice`).
 
 ```sh
 cd tests
 npm ci                                # instala o playwright-core (fixo em 1.54.2)
 npx playwright-core install chromium  # baixa o Chromium dessa versão (em Linux novo: install --with-deps chromium)
-node run.js                           # todos (~10 min)
+node run.js --paralelo 4              # todos, em 4 partes ao mesmo tempo (~6 min; portas 8081/8082 a 8087/8088)
+node run.js                           # todos, em fila (~11 min)
 node run.js tv_test painel_test       # só alguns (com ou sem .js)
 node run.js -v tf_e2e                 # mostra a saída do teste ao vivo
 node run.js --lista                   # lista os testes

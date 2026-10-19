@@ -149,7 +149,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-19a';
+const VERSAO_CODIGO = '2026-10-19b';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -3103,8 +3103,9 @@ function vigApurar_(cfg, de, ate) {
   const munN = function (s) { return normPub_(s).replace(/ (am|amazonas)$/, ''); };
   const fixas = cfg.postos.filter(function (p) { return p.tipo === 'fixa'; }), vols = cfg.postos.filter(function (p) { return p.tipo === 'volante'; });
   const fixaDe = function (local, unidade) {
-    const a = normPub_(local), b = normPub_(unidade);
-    for (let i = 0; i < fixas.length; i++) if ((fixas[i].locais || []).some(function (l) { const n = normPub_(l); return n && (n === a || n === b); })) return fixas[i].id;
+    // apelidos da mesma BVA (localCanon_) valem dos dois lados: posto configurado com "Barreira Porto da CEASA" pega os turnos "BVA - CEASA"
+    const alvos = [normPub_(local), normPub_(localCanon_(local)), normPub_(unidade)].filter(Boolean);
+    for (let i = 0; i < fixas.length; i++) if ((fixas[i].locais || []).some(function (l) { return [normPub_(l), normPub_(localCanon_(l))].some(function (n) { return n && alvos.indexOf(n) >= 0; }); })) return fixas[i].id;
     return null;
   };
   const volanteDe = function (t) {

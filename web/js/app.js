@@ -247,7 +247,6 @@ async function home() {
     <button class="botao" data-go="registrar">➕ Registrar veículo</button>
     <button class="botao" data-go="lista">📋 Lista de veículos</button>
     <button class="botao" data-go="resumo">📊 Resumo e documentos</button>
-    ${Sync.pode('tf') ? '<button class="botao sec" data-go="tfnovo">📄 Lavrar TF neste turno</button>' : ''}
     <button class="botao vermelho" id="encerrar">⏹ Encerrar turno</button>`);
   $('#encerrar').onclick = () => encerrarTurno(t);
 }

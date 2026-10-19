@@ -230,11 +230,7 @@ input:disabled { background:#eef1f6; color:#99a; }
 .pce-lab.sem { opacity:.8; }
 .pce-outro-l[hidden], #pce-modal-lab label[hidden] { display:none !important; }
 .pce-lista-outro { min-width:0; } .pce-outro-l { margin-top:6px; }
-/* Veículo: fiscalização e carga (opcionais) */
-.veic-extra { border:1px solid var(--borda, #ddd); border-radius:10px; padding:6px 12px 10px; margin:10px 0; }
-.veic-extra legend { font-size:14px; color:var(--ink2, #555); padding:0 4px; }
-.veic-prod { display:grid; grid-template-columns:minmax(0,1fr) 76px 92px 36px; gap:6px; margin:6px 0; align-items:center; }
-.veic-prod select, .veic-prod input { min-width:0; }
-.veic-rm { border:0; background:none; font-size:18px; cursor:pointer; color:inherit; }
-.veic-ufs { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
-.veic-add { margin:4px 0 6px; }
+/* Veículo: origem e destino (opcionais) */
+.veic-ufs { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 8px; border:1px solid var(--linha); border-radius:10px; padding:6px 12px 2px; margin:10px 0; }
+.veic-ufs-rot { grid-column:1 / -1; font-size:14px; color:var(--mut); }
+.veic-ufs select { min-width:0; }

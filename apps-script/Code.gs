@@ -25,10 +25,10 @@ const TABELAS = {
            'encerradoPor', 'encerradoEm'],   // turno encerrado fora do aparelho: nome do administrador (painel) ou "Automático (12 h)", e quando (ms)
   Veiculos: ['id', 'turnoId', 'hora', 'placa', 'tipo', 'pessoas', 'obs',
              'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
-             // fiscalização e carga (formulário do veículo, tudo opcional; alimentam o VIGIFITO): semEducacao = 1 se NÃO houve orientação de
-             // educação sanitária (vazio = houve: registros antigos contam como orientados); medidaFito; carga (transporta vegetais/partes);
-             // produtos = JSON ["PRODUTO - 10 Kg", …] (como no TF); UF de origem/destino; partida fiscalizada; inspeção fitossanitária;
-             // documento conferido (NF/PTV/CFO)
+             // ufOrigem/ufDestino: "Origem e destino (opcional)" do formulário do veículo (sigla de CONFIG.ufs ou "Exterior"; vazio = não
+             // informado) — entram no VIGIFITO (internalização / cargas para outros estados) quando o veículo não tem TF ligado.
+             // HISTÓRICO (o formulário não grava mais; não entram mais em nenhum cálculo; colunas mantidas pelos dados antigos):
+             // semEducacao, medidaFito, carga, produtos (JSON ["PRODUTO - 10 Kg", …]), partida, inspecaoFito, docConferido
              'semEducacao', 'medidaFito', 'carga', 'produtos', 'ufOrigem', 'ufDestino', 'partida', 'inspecaoFito', 'docConferido'],
   Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm', 'perfil',   // perfil: vazio = fiscal, 'admin' = administrador
             'geradoPor',                                                             // quem gerou o código: nome do administrador (painel) ou "planilha" (menu)
@@ -39,7 +39,8 @@ const TABELAS = {
         'procedimento', 'fiel', 'auto', 'advertencia', 'documentos', 'produtos', 'constatacao', 'enquadramento',
         'reincidente', 'tfsAnteriores', 'cancelado', 'motivoCancel', 'conflito', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
         'numeroSugerido', 'numeroOrigem', 'emitidoEm',   // auditoria da numeração (colunas novas ficam sempre no fim)
-        'fotos', 'assinaturas', 'recusaAssinatura'],    // fotos = JSON [ids]; assinaturas = JSON {fiscalizado, servidor} (ids na aba Arquivos); recusaAssinatura = 1: fiscalizado se recusou
+        'fotos', 'assinaturas', 'recusaAssinatura',    // fotos = JSON [ids]; assinaturas = JSON {fiscalizado, servidor} (ids na aba Arquivos); recusaAssinatura = 1: fiscalizado se recusou
+        'ufOrigem', 'ufDestino'],                     // UF de origem/destino da carga (sigla de UFS_ ou "Exterior"; vazio = não informada; TF antigo: ufDoTexto_ de origem/destino)
   Pessoas: ['id', 'tipo', 'nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
             'email'],                                                                                                              // id = CPF/CNPJ (só dígitos)
   Placas: ['id', 'doc', 'nome', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],                                                    // id = placa
@@ -150,7 +151,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-19d';
+const VERSAO_CODIGO = '2026-10-19e';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -263,6 +264,8 @@ function sincronizar_(req, usuario) {
 
   // levantamento: dados de citros normalizados antes do lock (opções conhecidas, textos curtos, números ≥ 0, até 20 linhas de cultura)
   T.levantamentos.forEach(function (r) { if (r && typeof r === 'object' && ('citros' in r)) r.citros = citrosTexto_(r.citros); });
+  // UF de origem/destino (TF e veículo): sigla conhecida (UFS_) ou vazio; campo não enviado (app antigo) continua não enviado
+  T.tfs.concat(T.veiculos).forEach(ufsNorm_);
 
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -492,6 +495,7 @@ function emitir_(req, usuario) {
   const barreira = String(tf.barreira || ''), ano = Number(tf.ano) || 0, numero = Number(tf.numero) || 0;
   if (!tf.id || !barreira || !ano || numero < 1) throw new Error('Dados do TF incompletos.');
   if (!listarBarreiras_().some(function (b) { return b.id === barreira; })) throw new Error('Barreira desconhecida: ' + barreira);
+  ufsNorm_(tf);
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
@@ -1801,7 +1805,8 @@ function dadosPainel_(admin, filtro) {
     if (v.srv_ts > a.ts) a.ts = v.srv_ts;
     if (String(v.hora) > a.hora) a.hora = String(v.hora);
     const o = { id: v.id, turnoId: v.turnoId, hora: v.hora, placa: v.placa, tipo: v.tipo, pessoas: v.pessoas, srv_ts: v.srv_ts, usuario: v.usuario };
-    if (v.carga === 1) { o.carga = 1; o.produtos = produtosTF_(v.produtos).map(function (p) { return p.texto; }).join('; '); o.ufOrigem = v.ufOrigem || ''; o.ufDestino = v.ufDestino || ''; }
+    if (v.ufOrigem || v.ufDestino) { o.ufOrigem = v.ufOrigem || ''; o.ufDestino = v.ufDestino || ''; }        // origem/destino (opcional)
+    if (v.carga === 1) { o.carga = 1; o.produtos = produtosTF_(v.produtos).map(function (p) { return p.texto; }).join('; '); }   // registro antigo
     return o;
   });
   // sinal dos aparelhos: vale para o turno o aparelho do fiscal com este turno aberto (turnoAtual) ou encerrado sem enviar
@@ -1847,6 +1852,7 @@ function dadosPainel_(admin, filtro) {
     return { id: r.id, barreira: r.barreira, ano: r.ano, numero: r.numero, numeroTxt: r.numeroTxt, numeroSugerido: r.numeroSugerido,
              numeroOrigem: r.numeroOrigem, conflito: r.conflito, emitidoEm: r.emitidoEm, turnoId: r.turnoId, veiculoId: r.veiculoId,
              data: r.data, hora: r.hora, fiscal: r.fiscal, local: r.local, placa: r.placa, origem: r.origem, destino: r.destino,
+             ufOrigem: ufNorm_(r.ufOrigem) || ufDoTexto_(r.origem), ufDestino: ufNorm_(r.ufDestino) || ufDoTexto_(r.destino),
              doc: mascararDoc_(r.doc), tipoDoc: tipoDoc_(r.doc), nome: r.nome, municipio: r.municipio, uf: r.uf, relacao: r.relacao,
              inspecao: r.inspecao, coleta: r.coleta, amostras: r.amostras, procedimento: r.procedimento, fiel: r.fiel, auto: r.auto,
              advertencia: r.advertencia, documentos: documentosTF_(r.documentos), produtos: produtosTF_(r.produtos),
@@ -3040,13 +3046,45 @@ function relGdvApurar_(de, ate, grupos) {
            vigifito: V };
 }
 
+/* ---------- UF de origem/destino (veículo e TF) ---------- */
+const UFS_ = ['AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC',
+              'SE', 'SP', 'TO', 'Exterior'];   // = CONFIG.ufs do app
+/** UF informada (select do app): sigla conhecida (maiúscula) ou "Exterior"; qualquer outra coisa = vazio. */
+function ufNorm_(v) {
+  const s = String(v == null ? '' : v).trim().toUpperCase();
+  if (s === 'EXTERIOR') return 'Exterior';
+  return s.length === 2 && UFS_.indexOf(s) >= 0 ? s : '';
+}
+/** Normaliza ufOrigem/ufDestino de um registro recebido (TF ou veículo), só nos campos que vieram. */
+function ufsNorm_(r) {
+  if (!r || typeof r !== 'object') return;
+  ['ufOrigem', 'ufDestino'].forEach(function (c) { if (c in r) r[c] = ufNorm_(r[c]); });
+}
+/** TF antigo (sem coluna de UF): UF no fim do texto de origem/destino — "PORTO VELHO/RO", "BOA VISTA - RR", "MANAUS (AM)", "RR",
+ *  "LIMA, EXTERIOR". Sigla precisa estar separada (espaço, /, -, vírgula, parêntese): "MANAUS" não vira "US". Sem sigla válida = vazio. */
+function ufDoTexto_(t) {
+  const s = String(t == null ? '' : t).trim().toUpperCase();
+  if (!s) return '';
+  const m = /(?:^|[\s\/\-–—,.(])(EXTERIOR|[A-Z]{2})\)?\.?$/.exec(s);
+  return m ? ufNorm_(m[1]) : '';
+}
+
 /* ---------- Motor de indicadores das barreiras (fonte única para VIGIFITO, Relatório GDV e convênio 1.9/1.10) ----------
  * Cada número das barreiras é definido UMA vez aqui (fonte + regra) e usado por todos os relatórios: o VIGIFITO por posto, o bloco
  * VIGIFITO do Relatório GDV/consolidado (soma dos postos por tipo) e as etapas 1.9/1.10 do convênio — o mesmo número nunca diverge.
  * Regras: turno = registro de barreira (data = data de INÍCIO do turno: um turno que começa no dia da troca da escala conta no
  * período que começa nesse dia); veículos = registros não excluídos do turno; pessoas = soma do campo pessoas (estimativa por tipo de
  * veículo); TF = não cancelado, contado pela data do turno em que foi lavrado (TF sem turno: data do TF, como BVA fixa); posto
- * "Móvel"/"volante" = volante, senão fixa; toneladas = produtos em kg (÷ 1.000) ou t; outras unidades à parte, sem conversão. */
+ * "Móvel"/"volante" = volante, senão fixa; toneladas = produtos em kg (÷ 1.000) ou t; outras unidades à parte, sem conversão.
+ * Indicadores de fiscalização (regras da gerência, 2026-10):
+ *   educacao     = pessoas a bordo dos veículos do turno (cada pessoa recebe a orientação de educação sanitária);
+ *   medidaFito, partidas = 1 por TF de barreira; inspecaoFito = TF com "Inspeção" marcada; documentos = TF com documento preenchido;
+ *   UF do TF = coluna ufOrigem/ufDestino; TF antigo: UF no fim do texto de origem/destino (ufDoTexto_); senão a do veículo ligado;
+ *   internN/internT/importT = TF de outra UF (ou do exterior) com destino ao AM (t = produtos do TF); cargasEstados/exportT = TF com
+ *   destino a outra UF; outras unidades desses TFs à parte (outrasUnidades.carga). Veículo SEM TF ligado (TFs.veiculoId) com UF
+ *   informada também conta em internN/cargasEstados (sem toneladas); com TF ligado, só o TF conta (nunca duas vezes).
+ *   Os campos antigos de fiscalização do veículo (semEducacao, medidaFito, carga, produtos, partida, inspecaoFito, docConferido) não
+ *   entram mais em nenhum número. */
 function motorBarreira_(de, ate) {
   const noPer = function (d) { d = String(d || '').slice(0, 10); return d >= de && d <= ate; };
   const tipoDe = function (t) { const p = normPub_(t.posto); return p.indexOf('mov') >= 0 || p.indexOf('volante') >= 0 ? 'volante' : 'fixa'; };
@@ -3054,47 +3092,46 @@ function motorBarreira_(de, ate) {
   lerLeitura_('Turnos').forEach(function (t) {
     if (!t.id) return;
     const o = { id: t.id, data: String(t.data || '').slice(0, 10), posto: t.posto, tipo: tipoDe(t), local: t.local, unidade: t.unidade, veiculos: 0, pessoas: 0,
-                educacao: 0, medidaFito: 0, partidas: 0, inspecaoFito: 0, docVeic: {}, cargasEstados: 0, internN: 0, internT: 0, importT: 0, exportT: 0, outrasCarga: {} };
+                educacao: 0, cargasEstados: 0, internN: 0 };
     todos[t.id] = o;
     if (noPer(o.data)) turnos.push(o);
   });
   const dentro = {}; turnos.forEach(function (t) { dentro[t.id] = t; });
   const uf = String(PropertiesService.getScriptProperties().getProperty('UF_LOCAL') || 'AM').toUpperCase();
+  // interestadual: destino AM vindo de outra UF = internalização; destino em outra UF = trânsito para outros estados
+  const sentido = function (ori, des) { return des === uf && ori && ori !== uf ? 'intern' : des && des !== uf ? 'estados' : ''; };
+  const tfsVivos = lerLeitura_('TFs').filter(function (f) { return f.id && f.cancelado !== 1; }), comTF = {};
+  tfsVivos.forEach(function (f) { if (f.veiculoId) comTF[f.veiculoId] = 1; });
+  const ufVeic = {};
   lerLeitura_('Veiculos').forEach(function (v) {
-    const t = dentro[v.turnoId]; if (!t || !v.id || v.excluido === 1) return;
+    if (!v.id) return;
+    const ori = ufNorm_(v.ufOrigem), des = ufNorm_(v.ufDestino);
+    ufVeic[v.id] = { ori: ori, des: des };
+    const t = dentro[v.turnoId]; if (!t || v.excluido === 1) return;
     t.veiculos++; t.pessoas += Number(v.pessoas) || 0;
-    if (v.semEducacao !== 1) t.educacao++;                                   // padrão: houve orientação (registros antigos também)
-    if (v.medidaFito === 1) t.medidaFito++;
-    if (v.carga !== 1) return;
-    if (v.partida === 1) t.partidas++;
-    if (v.inspecaoFito === 1) t.inspecaoFito++;
-    if (v.docConferido === 1) t.docVeic[v.id] = 1;
-    const ori = String(v.ufOrigem || '').toUpperCase(), des = String(v.ufDestino || '').toUpperCase();
-    let ton = 0;
-    produtosTF_(v.produtos).forEach(function (pr) {
-      if (pr.quantidade === null) return;
-      const tt = toneladas_(pr.quantidade, pr.unidade);
-      if (tt !== null) ton += tt; else { const u = pr.unidade || 'sem unidade'; t.outrasCarga[u] = (t.outrasCarga[u] || 0) + pr.quantidade; }
-    });
-    if (des === uf && ori && ori !== uf) { t.internN++; t.internT += ton; t.importT += ton; }      // entra no estado: internalização/importação
-    else if (des && des !== uf) { t.cargasEstados++; t.exportT += ton; }                           // vai para outro estado: trânsito/exportação
+    t.educacao += Number(v.pessoas) || 0;                                     // educação sanitária: por pessoa a bordo
+    if (comTF[v.id]) return;                                                  // veículo com TF: a origem/destino conta pelo TF
+    const sv = sentido(ori, des);
+    if (sv === 'intern') t.internN++; else if (sv === 'estados') t.cargasEstados++;
   });
   const tfs = [];
-  lerLeitura_('TFs').forEach(function (f) {
-    if (!f.id || f.cancelado === 1) return;
+  tfsVivos.forEach(function (f) {
     const t = f.turnoId ? todos[f.turnoId] : null, data = t ? t.data : String(f.data || '').slice(0, 10);
     if (!noPer(data)) return;
+    const vu = ufVeic[f.veiculoId] || {};
+    const ori = ufNorm_(f.ufOrigem) || ufDoTexto_(f.origem) || vu.ori || '', des = ufNorm_(f.ufDestino) || ufDoTexto_(f.destino) || vu.des || '';
     const o = { id: f.id, turnoId: t ? t.id : '', veiculoId: f.veiculoId || '', data: data, tipo: t ? t.tipo : 'fixa', local: f.local, barreira: f.barreira, procedimento: f.procedimento,
                 documentos: documentosTF_(f.documentos).length > 0, coleta: f.coleta === 1, amostras: f.coleta === 1 ? Number(f.amostras) || 0 : 0,
-                inspecao: f.inspecao === 1, advertencia: f.advertencia === 1, fiel: f.fiel === 1, auto: f.auto === 1, liberacaoT: 0, apreensaoT: 0, outras: {} };
-    if (o.procedimento === 'liberacao' || o.procedimento === 'apreensao') {
-      produtosTF_(f.produtos).forEach(function (pr) {
-        if (pr.quantidade === null) return;
-        const tt = toneladas_(pr.quantidade, pr.unidade);
-        if (tt !== null) o[o.procedimento + 'T'] += tt;
-        else { const u = pr.unidade || 'sem unidade'; o.outras[u] = (o.outras[u] || 0) + pr.quantidade; }
-      });
-    }
+                inspecao: f.inspecao === 1, advertencia: f.advertencia === 1, fiel: f.fiel === 1, auto: f.auto === 1, liberacaoT: 0, apreensaoT: 0, outras: {},
+                ufOrigem: ori, ufDestino: des, sentido: sentido(ori, des), cargaT: 0, outrasCarga: {} };
+    produtosTF_(f.produtos).forEach(function (pr) {
+      if (pr.quantidade === null) return;
+      const tt = toneladas_(pr.quantidade, pr.unidade), u = pr.unidade || 'sem unidade';
+      if (tt !== null) o.cargaT += tt; else o.outrasCarga[u] = (o.outrasCarga[u] || 0) + pr.quantidade;
+      if (o.procedimento === 'liberacao' || o.procedimento === 'apreensao') {
+        if (tt !== null) o[o.procedimento + 'T'] += tt; else o.outras[u] = (o.outras[u] || 0) + pr.quantidade;
+      }
+    });
     tfs.push(o);
   });
   return { turnos: turnos, tfs: tfs };
@@ -3164,7 +3201,7 @@ function vigApurar_(cfg, de, ate) {
     for (let i = 0; i < vols.length; i++) { const m = munN(vols[i].municipio); if (m && (u === m || l.indexOf(' ' + m + ' ') >= 0)) return vols[i].id; }
     return null;
   };
-  const porMes = {}, porPeriodo = {}, postoTurno = {}, nao = {}, docVeicTurno = {};
+  const porMes = {}, porPeriodo = {}, postoTurno = {}, nao = {};
   const celulas = function (pid, data) {
     const mes = data.slice(0, 7), per = vigPeriodo_(cfg, data);
     const a = porMes[pid] = porMes[pid] || {}, b = porPeriodo[pid] = porPeriodo[pid] || {};
@@ -3181,11 +3218,8 @@ function vigApurar_(cfg, de, ate) {
     postoTurno[t.id] = pid;
     celulas(pid, t.data).forEach(function (x) {
       x.turnos++; if (t.tipo === 'volante') x.abordagem++; x.veiculos += t.veiculos; x.pessoas += t.pessoas;
-      ['educacao', 'medidaFito', 'partidas', 'inspecaoFito', 'cargasEstados', 'internN', 'internT', 'importT', 'exportT'].forEach(function (k) { x[k] += t[k]; });
-      x.documentos += Object.keys(t.docVeic).length;
-      Object.keys(t.outrasCarga).forEach(function (u) { const o = x.outrasUnidades.carga = x.outrasUnidades.carga || {}; o[u] = (o[u] || 0) + t.outrasCarga[u]; });
+      x.educacao += t.educacao; x.internN += t.internN; x.cargasEstados += t.cargasEstados;   // veículos sem TF ligado (motorBarreira_)
     });
-    docVeicTurno[t.id] = t.docVeic;
   });
   const cadB = {}; lerLeitura_('Barreiras').forEach(function (b) { if (b.id) cadB[b.id] = b; });
   M.tfs.forEach(function (f) {
@@ -3193,9 +3227,12 @@ function vigApurar_(cfg, de, ate) {
     if (!pid && !f.turnoId) { const c = cadB[f.barreira] || {}; pid = fixaDe(f.local, '') || fixaDe(c.nome, c.local) || VIG_OUTRAS.fixa.id; }
     if (!pid) pid = VIG_OUTRAS[f.tipo].id;
     celulas(pid, f.data).forEach(function (x) {
-      x.tfs++;
-      // exame de documentos: veículos com documento conferido + TFs com documentos, sem contar duas vezes o mesmo veículo
-      if (f.documentos && !(f.veiculoId && (docVeicTurno[f.turnoId] || {})[f.veiculoId])) x.documentos++;
+      x.tfs++; x.medidaFito++; x.partidas++;                                  // cada TF de barreira = medida fitossanitária e partida fiscalizada
+      if (f.documentos) x.documentos++;                                       // exame de documentos: TF com NF/PTV/GTA/… preenchido
+      if (f.inspecao) x.inspecaoFito++;                                       // inspeção fitossanitária = "Inspeção" do TF (16.1)
+      if (f.sentido === 'intern') { x.internN++; x.internT += f.cargaT; x.importT += f.cargaT; }
+      else if (f.sentido === 'estados') { x.cargasEstados++; x.exportT += f.cargaT; }
+      if (f.sentido) Object.keys(f.outrasCarga).forEach(function (u) { const o = x.outrasUnidades.carga = x.outrasUnidades.carga || {}; o[u] = (o[u] || 0) + f.outrasCarga[u]; });
       if (f.inspecao) x.inspecao++; if (f.advertencia) x.advertencia++; if (f.fiel) x.fiel++; if (f.auto) x.infracao++;
       if (f.procedimento === 'apreensao') { x.autoDestN++; x.autoDestT += f.apreensaoT; }      // no e-GDV a apreensão é a apreensão para destruição
       if (f.coleta) { x.coleta++; x.amostras += f.amostras; }

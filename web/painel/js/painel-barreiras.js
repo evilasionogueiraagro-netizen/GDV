@@ -261,9 +261,10 @@
       { chave: 'data', rotulo: 'Data', fmt: fmt.data, ordem: l => (l.data || '') + (l.hora || '') }, { chave: 'hora', rotulo: 'Hora', fmt: v => v || '—' },
       { chave: 'placa', rotulo: 'Placa', fmt: v => v || '—' }, { chave: 'tipo', rotulo: 'Tipo', fmt: v => nomeTipo(v) },
       { chave: 'pessoas', rotulo: 'Pessoas', num: true, fmt: fmt.int }, { chave: 'local', rotulo: 'Barreira / local', fmt: v => v || '—' },
-      { chave: 'carga', rotulo: 'Carga', fmt: (v, l) => l.carga ? (l.produtos || 'vegetais/partes') + (l.ufOrigem || l.ufDestino ? ` (${l.ufOrigem || '?'} → ${l.ufDestino || '?'})` : '') : '—', ordem: l => l.carga ? 1 : 0 },
+      { chave: 'carga', rotulo: 'Origem → destino', fmt: (v, l) => [l.ufOrigem || l.ufDestino ? `${l.ufOrigem || '?'} → ${l.ufDestino || '?'}` : '', l.carga ? `carga (registro antigo): ${l.produtos || 'vegetais/partes'}` : ''].filter(Boolean).join(' · ') || '—',
+        ordem: l => (l.ufOrigem || '') + (l.ufDestino || '') },
       { chave: 'fiscal', rotulo: 'Fiscais', fmt: v => v || '—' }],
-    veiculos, { titulo: 'Veículos registrados', subtitulo: 'Busque por placa para ver as passagens de um veículo. Carga = produtos e UF de origem → destino registrados no app (entram no VIGIFITO). Observações não são exibidas.', csv: 'barreiras-veiculos.csv', id: 'bar-veiculos', ordenar: 'data', limite: 15 });
+    veiculos, { titulo: 'Veículos registrados', subtitulo: 'Busque por placa para ver as passagens de um veículo. Origem → destino = UFs opcionais do registro do veículo (entram no VIGIFITO quando o veículo não tem TF). Observações não são exibidas.', csv: 'barreiras-veiculos.csv', id: 'bar-veiculos', ordenar: 'data', limite: 15 });
   }
 
   // estilos próprios desta aba (poucos; os tokens vêm de css/painel.css)

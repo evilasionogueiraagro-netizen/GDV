@@ -149,7 +149,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-19b';
+const VERSAO_CODIGO = '2026-10-19c';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -3302,7 +3302,8 @@ function painelVigConfigSalvar(token, req) {
  * Login: o navegador obtém o ID token do Google (Google Identity Services) e chama admLogin {idToken}; o servidor confere o token no
  * tokeninfo do Google (aud = propriedade GOOGLE_CLIENT_ID, iss, exp, email_verified), o e-mail (minúsculas) na lista de liberados (aba
  * Administrativo, gerida no painel → Servidores) e devolve um token de SESSÃO do portal (aleatório; na planilha só o SHA-256), válido
- * por 12 h e renovado ao usar. Sem Google configurado: código de 6 dígitos gerado no painel (admCodigo {codigo}) → a mesma sessão.
+ * por 12 h e renovado ao usar. Sem Google configurado: código de 6 dígitos gerado no painel (admCodigo {codigo}) → a mesma sessão;
+ * o código é permanente (serve para entrar de novo quando a sessão vence) até o gerente gerar outro ou revogar o acesso.
  * A sessão do portal não vale no painel nem no app (e as credenciais deles não valem aqui). O ID token nunca é gravado nem registrado.
  * Revogar no painel (ativo = 0) derruba a sessão na próxima chamada. Logins recusados: 10 em 15 min bloqueiam (CacheService).
  * LGPD: os e-mails ficam só na aba Administrativo (e no painel do administrador); lançamentos e histórico guardam o nome e o admId.
@@ -3360,7 +3361,8 @@ function admLogin_(req) {
   } finally { lock.releaseLock(); }
 }
 
-/** Login por código de 6 dígitos (gerado no painel para um liberado; uso único, 7 dias). */
+/** Login por código de 6 dígitos (gerado no painel para um liberado). Permanente: vale em todo login até o gerente gerar outro
+ * código para a pessoa ou revogar o acesso (as colunas codigoExpira antigas são ignoradas). */
 function admCodigo_(req) {
   admBloqueado_();
   const cod = String(req.codigo || '').replace(/\D/g, '');
@@ -3372,12 +3374,9 @@ function admCodigo_(req) {
       const a = paraObjeto_(t.cols, t.valores[i]);
       if (!a.id || !a.codigo || a.codigo.padStart(6, '0') !== cod) continue;
       if (a.ativo !== 1) admFalhou_('Este acesso foi revogado pelo gerente.');
-      if (a.codigoExpira <= agora) admFalhou_('Código expirado. Peça um novo código ao gerente.');
-      a.codigo = ''; a.codigoExpira = 0;                                      // uso único
-      t.sh.getRange(i + 2, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return a[c]; })]);
       return admNovaSessao_(a, 'codigo');
     }
-    admFalhou_('Código incorreto ou já usado. Peça um novo código ao gerente.');
+    admFalhou_('Código incorreto ou substituído por um novo. Confira com o gerente.');
   } finally { lock.releaseLock(); }
 }
 
@@ -3532,9 +3531,9 @@ function admAcao_(req) {
 
 /* ----- painel → aba Servidores: lista de liberados do Administrativo (só administrador do painel) ----- */
 function admLinhaOut_(a, agora) {
-  const pend = a.codigo && a.codigoExpira > agora;
+  const pend = !!a.codigo;                                                   // código permanente (até gerar outro ou revogar)
   return { id: a.id, email: emailNorm_(a.email), nome: a.nome, ativo: a.ativo === 1 ? 1 : 0, criadoEm: a.criadoEm, criadoPor: a.criadoPor, ultimoAcesso: a.ultimoAcesso || 0,
-           codigo: pend ? a.codigo.padStart(6, '0') : '', codigoExpira: pend ? a.codigoExpira : 0, atualizadoEm: a.atualizadoEm, atualizadoPor: a.atualizadoPor };
+           codigo: pend ? a.codigo.padStart(6, '0') : '', codigoExpira: 0, atualizadoEm: a.atualizadoEm, atualizadoPor: a.atualizadoPor };
 }
 function painelAdmLista(token) {
   adminDoToken_(token);
@@ -3573,22 +3572,22 @@ function painelAdmSalvar(token, req) {
     return { ok: true, liberado: admLinhaOut_(a, agora) };
   } finally { lock.releaseLock(); }
 }
-/** Código de ativação do portal (6 dígitos, uso único, 7 dias) para um liberado ativo — alternativa ao login com Google. */
+/** Código de ativação do portal (6 dígitos, permanente: vale até gerar outro ou revogar) para um liberado ativo — alternativa ao login com Google. */
 function painelAdmCodigo(token, req) {
   const admin = adminDoToken_(token);
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     const t = lerTudo_('Administrativo'), agora = Date.now(), id = String((req && req.id) || ''), emUso = {};
     let pos = -1;
-    t.valores.forEach(function (l, i) { const a = paraObjeto_(t.cols, l); if (a.codigo && a.codigoExpira > agora) emUso[a.codigo.padStart(6, '0')] = 1; if (a.id && a.id === id) pos = i; });
+    t.valores.forEach(function (l, i) { const a = paraObjeto_(t.cols, l); if (a.codigo) emUso[a.codigo.padStart(6, '0')] = 1; if (a.id && a.id === id) pos = i; });
     if (pos < 0) throw new Error('Liberado não encontrado.');
     const a = paraObjeto_(t.cols, t.valores[pos]);
     if (a.ativo !== 1) throw new Error('Acesso revogado: reative antes de gerar o código.');
     let codigo;
     do { codigo = String(parseInt(Utilities.getUuid().replace(/-/g, '').slice(0, 8), 16) % 1000000).padStart(6, '0'); } while (emUso[codigo]);
-    a.codigo = codigo; a.codigoExpira = agora + VALIDADE_CODIGO_MS; a.atualizadoEm = agora; a.atualizadoPor = admin;
+    a.codigo = codigo; a.codigoExpira = 0; a.atualizadoEm = agora; a.atualizadoPor = admin;
     t.sh.getRange(pos + 2, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return a[c]; })]);
-    return { ok: true, id: a.id, nome: a.nome, codigo: codigo, expiraEm: a.codigoExpira, url: admUrl_() };
+    return { ok: true, id: a.id, nome: a.nome, codigo: codigo, expiraEm: 0, permanente: true, url: admUrl_() };
   } finally { lock.releaseLock(); }
 }
 

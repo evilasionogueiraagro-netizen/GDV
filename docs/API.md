@@ -109,7 +109,7 @@ painel antigo estiver em uso.
 ## Portal do Administrativo (`sessao`)
 
 Login sem sessão: `admLogin` (`idToken` do Google, conferido no tokeninfo; precisa da propriedade `GOOGLE_CLIENT_ID`)
-e `admCodigo` (`codigo` de uso único gerado no painel). Ambos devolvem `sessao`, `nome`, `email`, `expiraEm`, `origem`.
+e `admCodigo` (`codigo` gerado no painel; permanente: vale em todo login até o painel gerar outro para a pessoa ou revogar o acesso). Ambos devolvem `sessao`, `nome`, `email`, `expiraEm`, `origem`.
 
 Toda action que começa com `adm` + maiúscula passa por `admAcao_` → mapa `ADM_ACOES_`, que exige `sessao`. Toda
 gravação entra no histórico (aba `AdmHistorico`, com antes/depois).

@@ -77,7 +77,8 @@ Dentro do mesmo app, no módulo **Termo de Fiscalização de Barreira** (menu *M
 
 **Numeração (uma sequência única por barreira e por ano, na planilha)**
 - Formato `0012/2026 - BVA - CEASA` (o sufixo vem da aba `Barreiras`). **Não há faixas reservadas por celular**: o número é o *último usado na planilha + 1*.
-- Ao tocar em **Gerar TF**, o app faz uma consulta rápida à planilha e abre um **popup com o número** (e o último TF usado na barreira), que o fiscal pode **editar** antes de gerar o PDF.
+- No formulário, o campo **Nº do TF** já vem com o próximo da barreira escolhida (consulta rápida à planilha; sem internet, o último que o aparelho conhece + 1) e é **editável** — ex.: o primeiro TF no sistema seguindo o talão de papel; os próximos da barreira seguem a partir do maior número usado.
+- Ao tocar em **Gerar TF**, o app consulta a planilha de novo e abre um **popup com o número** (o digitado no formulário, se foi alterado) (e o último TF usado na barreira), que o fiscal pode **editar** antes de gerar o PDF.
 - Ao confirmar, a planilha **grava o TF só se o número ainda estiver livre**. Se outro fiscal usou o número nesse intervalo, o app avisa e sugere o próximo, **ainda antes do PDF**.
 - **Auditoria:** cada TF guarda `numeroSugerido` (o que o sistema sugeriu), `numeroOrigem` (`sistema`, `editado` ou `provisorio`) e `emitidoEm` (quando a planilha o recebeu). TFs cancelados mantêm o número. Menu **e-GDV → Auditar numeração de TF** lista lacunas, números repetidos e números alterados à mão ou provisórios.
 - **Sem internet:** o app propõe um número **provisório** (último nº conhecido + 1), avisa no popup e confere na planilha ao sincronizar. Se o número já tiver sido usado, o TF mais antigo vale e o outro fica com `conflito = 1` na planilha e com o aviso **“Número duplicado”** na lista do fiscal. Por isso, quando possível, gere o TF com internet.

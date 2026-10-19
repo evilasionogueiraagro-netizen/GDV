@@ -53,7 +53,7 @@ const TFUI = (() => {
   function coletar() {
     const g = id => { const e = $('#tf-' + id); return e ? e.value : ''; }, c = id => !!($('#tf-' + id) && $('#tf-' + id).checked);
     const proc = document.querySelector('input[name=tf-proc]:checked');
-    return { barreira: g('barreira'), numero: digitos(g('num')), data: g('data'), hora: g('hora'), doc: g('doc'), nome: g('nome'), rg: g('rg'), endereco: g('endereco'), municipio: g('municipio'),
+    return { barreira: g('barreira'), numero: S && S.numEditado && S.numEditado.b === g('barreira') ? String(S.numEditado.n) : '', data: g('data'), hora: g('hora'), doc: g('doc'), nome: g('nome'), rg: g('rg'), endereco: g('endereco'), municipio: g('municipio'),
       uf: g('uf'), telefone: g('telefone'), relacao: g('relacao'), inspecao: c('inspecao'), coleta: c('coleta'), amostras: g('amostras'),
       procedimento: proc ? proc.value : '', fiel: c('fiel'), auto: c('auto'), advertencia: c('advertencia'), local: g('local'), placa: placaNorm(g('placa')), origem: g('origem'), destino: g('destino'),
       docs: Object.fromEntries(['nf', 'ptv', 'gta', 'sif', 'sie', 'sim', 'lacre', 'outros'].map(k => [k, g('d-' + k)])),
@@ -179,7 +179,6 @@ const TFUI = (() => {
     <div class="card"><h3>Termo de Fiscalização de Barreira</h3>
       <label>Barreira<select id="tf-barreira">${bars.map(b => `<option value="${esc(b.id)}" ${b.id === D.barreira ? 'selected' : ''}>${esc(b.nome)}</option>`).join('')}</select></label>
       <div class="tf-num" id="tf-numero"></div>
-      ${campo('num', 'Nº do TF (opcional)', D.numero, 'inputmode="numeric" maxlength="5" placeholder="Em branco: o sistema sugere"')}
       <div class="duas">${campo('data', 'Data', D.data, 'type="date" required')}${campo('hora', 'Hora', D.hora, 'type="time" required')}</div></div>
 
     <div class="card"><h3>Identificação do fiscalizado</h3>
@@ -228,14 +227,28 @@ const TFUI = (() => {
     <button class="botao sec" type="button" data-tf="descartar">Descartar este TF</button></form>`;
   }
 
+  /* Nº do TF no formulário: já vem com o próximo da barreira (último usado + 1, na planilha ou neste aparelho) e é editável —
+     ex.: o primeiro TF no sistema segue o talão de papel; daí em diante a sequência de cada barreira continua a partir dele.
+     Ao gerar, a planilha confere de novo (outro fiscal pode ter usado o número) e o popup confirma antes do PDF. */
+  let numTok = 0;
   async function mostrarInfoNumero() {
-    const sel = $('#tf-barreira'), el = $('#tf-numero'); if (!sel || !el) return;
+    const sel = $('#tf-barreira'), el = $('#tf-numero'); if (!sel || !el || !S) return;
     const b = sel.value, a = anoAtual(), bar = (await barreiras()).find(x => x.id === b); if (!bar) return;
-    const u = await ultimoConhecido(b, a), manual = parseInt(digitos(($('#tf-num') || {}).value || ''), 10) || 0;
-    // nº digitado (talão de papel à frente do sistema): vira a sugestão ao gerar; a confirmação continua antes do PDF
-    el.innerHTML = manual
-      ? `<small>Nº do TF</small><b>${esc(num4(manual) + '/' + a + ' - ' + bar.sufixo)}</b><small>Número digitado. Ao gerar, o sistema confere se ele está livre e mostra para você confirmar antes do PDF.</small>`
-      : `<small>Nº do TF</small><b>definido ao gerar</b><small>Ao gerar, o sistema consulta a planilha (último nº usado + 1) e mostra o número para você confirmar ou editar, antes do PDF. Se o talão de papel estiver à frente do sistema, digite o nº abaixo.${u ? ' Último nº conhecido neste aparelho: ' + esc(num4(u) + '/' + a + ' - ' + bar.sufixo) + '.' : ''}</small>`;
+    const tok = ++numTok, st = S;
+    const desenhar = (sug, consultando) => {
+      if (tok !== numTok || S !== st || !$('#tf-numero')) return;
+      st.numSug = sug.numero; st.numBarreira = b;
+      const ult = sug.ultimo ? `Último nº usado nesta barreira: ${num4(sug.ultimo)}/${a}.` : 'Nenhum TF desta barreira neste ano: informe o número do talão, se for o caso.';
+      const val = st.numEditado && st.numEditado.b === b ? st.numEditado.n : sug.numero;
+      el.innerHTML = `<small>Nº do TF</small>
+        <div class="tf-num-campo"><input id="tf-num" type="number" inputmode="numeric" min="1" value="${val}" aria-label="Número do TF"><b id="tf-num-suf">/${a} - ${esc(bar.sufixo)}</b></div>
+        <small id="tf-num-dica">${consultando ? '🔎 Consultando a planilha… ' : sug.origem === 'servidor' ? '✓ Próximo nº pela planilha (último usado + 1). ' : '⚠️ Sem conexão: próximo nº pelo que este aparelho conhece (provisório). '}${ult} Pode editar; os próximos seguem a partir dele. Ao gerar, a planilha confere o número.</small>`;
+      const i = el.querySelector('#tf-num');
+      i.oninput = () => { const n = parseInt(i.value, 10); st.numEditado = n > 0 && n !== st.numSug ? { b, n } : null; };
+    };
+    const u = await ultimoConhecido(b, a);
+    desenhar({ numero: u + 1, ultimo: u, origem: 'offline' }, navigator.onLine && Sync.ativado());
+    try { desenhar(await sugerirNumero(b, a), false); } catch (e) { desenhar({ numero: u + 1, ultimo: u, origem: 'offline' }, false); }
   }
 
   async function novo(prefill) {
@@ -250,6 +263,7 @@ const TFUI = (() => {
       D = { ...D, ...rasc.dados }; S.turnoId = rasc.turnoId || ''; S.veiculoId = rasc.veiculoId || ''; if (rasc.rid) S.rid = rasc.rid;   // mesmo rascunho = mesmo sinal no painel
       if (rasc.id) S.id = rasc.id;                                                   // fotos do rascunho continuam ligadas ao mesmo TF
       S.fotos = Array.isArray(rasc.fotos) ? rasc.fotos.slice() : []; S.assNovas = rasc.assNovas || {}; S.recusa = !!rasc.recusa;
+      if (+D.numero > 0) S.numEditado = { b: D.barreira, n: +D.numero };          // nº digitado antes continua valendo
     } else {
       await descartarRascunho(rasc);
       const turno = await turnoAtual(); let veic = null;
@@ -278,7 +292,6 @@ const TFUI = (() => {
       if (e.target.id === 'tf-placa') { e.target.value = placaNorm(e.target.value); if (e.target.value.length === 7) agendar('placa'); }
       if (e.target.id === 'tf-doc') { const d = digitos(e.target.value); if (d.length === 11 || d.length === 14) agendar('doc'); else $('#tf-st-doc').replaceChildren(); }
       if (e.target.id === 'tf-placa') mudouAndamento();
-      if (e.target.id === 'tf-num') { e.target.value = digitos(e.target.value); mostrarInfoNumero(); }
       salvarRascunho();
     });
     f.addEventListener('change', async e => {
@@ -423,7 +436,8 @@ const TFUI = (() => {
     const pessoa = { id: doc, tipo: doc.length === 14 ? 'PJ' : 'PF', nome, rg: D.rg.trim(), endereco: D.endereco.trim(), municipio: D.municipio.trim(), uf: D.uf.trim().toUpperCase(), telefone: D.telefone.trim(), criadoEm: t0, atualizadoEm: t0 };
     const placa = D.placa.length >= 7 ? { id: D.placa, doc, nome, criadoEm: t0, atualizadoEm: t0 } : null;
 
-    let numero = parseInt(D.numero, 10) || sug.numero, aviso = '';                     // nº digitado no formulário tem prioridade sobre a sugestão
+    // número digitado no formulário (ex.: o primeiro, seguindo o talão) vale no lugar do sugerido; o popup confirma
+    let numero = S.numEditado && S.numEditado.b === bar.id ? S.numEditado.n : sug.numero, aviso = '';
     for (let tentativa = 0; tentativa < 6; tentativa++) {
       const n = await pedirNumero({ numero, sugerido: sug.numero, sufixo: bar.sufixo, ano: a, ultimo: sug.ultimo, ultimoTF: sug.ultimoTF, offline: sug.origem !== 'servidor', aviso });
       if (n == null) return;

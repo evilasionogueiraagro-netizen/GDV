@@ -85,7 +85,7 @@ const VigDocs = (() => {
     if ((ap.naoMapeados || []).length) avisos.push({ nivel: 'atencao', titulo: `${ap.naoMapeados.reduce((s, n) => s + n.turnos, 0)} turno(s) do ano sem posto do VIGIFITO`,
       detalhe: ap.naoMapeados.slice(0, 8).map(n => `${n.local || '(sem local)'}${n.unidade ? ' / ' + n.unidade : ''} (${n.tipo}, ${n.turnos} turno(s))`).join('; ') + '. Entram em "OUTRAS … (não mapeadas)"; ajuste em "Postos do VIGIFITO" (correspondência posto → BVA/município).' });
     const outrasUn = {};
-    postos.forEach(p => colunas.forEach(c => { const x = apCol(p.id, c); if (!x || !x.outrasUnidades) return; Object.keys(x.outrasUnidades).forEach(pr => Object.keys(x.outrasUnidades[pr]).forEach(u => { const kk = `${pr === 'apreensao' ? 'Apreensão' : pr === 'carga' ? 'Carga dos veículos' : 'Liberação'}|${u}`; outrasUn[kk] = (outrasUn[kk] || 0) + x.outrasUnidades[pr][u]; })); }));
+    postos.forEach(p => colunas.forEach(c => { const x = apCol(p.id, c); if (!x || !x.outrasUnidades) return; Object.keys(x.outrasUnidades).forEach(pr => Object.keys(x.outrasUnidades[pr]).forEach(u => { const kk = `${pr === 'apreensao' ? 'Apreensão' : pr === 'carga' ? 'Cargas interestaduais (TF)' : 'Liberação'}|${u}`; outrasUn[kk] = (outrasUn[kk] || 0) + x.outrasUnidades[pr][u]; })); }));
     if (Object.keys(outrasUn).length) avisos.push({ nivel: 'info', titulo: 'Cargas, liberações ou apreensões em unidades que não são de massa', detalhe: Object.keys(outrasUn).map(k => `${k.split('|')[0]}: ${NF(2).format(outrasUn[k])} ${k.split('|')[1]}`).join('; ') + '. Fora das toneladas, sem conversão.' });
     // substituições e valores fora do padrão (t e m³ muito acima da média do posto nos outros meses do ano)
     postos.forEach(p => IND.VIGIFITO.forEach(d => colunas.forEach(c => {

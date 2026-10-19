@@ -32,7 +32,7 @@ App para registrar os veículos abordados em barreiras **fixas ou móveis**, por
 - **Local / Posto:** com posto **Fixa**, o fiscal escolhe a BVA numa lista (`CONFIG.bvas` em `web/js/config.js`: BVA - CEASA, BVA - JUNDIÁ, BVA - AEROPORTO). Com posto **Volante (móvel)**, o local é preenchido pelo endereço da coordenada do GPS (OpenStreetMap/Nominatim; botão *Atualizar pela localização*) e pode ser editado. **Placa do veículo:** obrigatória só onde a BVA exige (`placa: true` — hoje só a CEASA); nas demais BVAs e no volante é opcional e o veículo conta normalmente (a lista mostra "sem placa"). Coluna `semPlaca` na aba `Turnos`.
 - **Ficha de Campo:** 50 veículos por folha; acima disso o app acrescenta folhas com a numeração continuando (51, 52…) e "FOLHA 1/2" no título.
 - A quantidade de **pessoas** é uma estimativa por tipo de veículo (padrões em `web/js/config.js`), editável em cada registro.
-- **Fiscalização (opcional), no registro do veículo:** orientação de educação sanitária (já marcada), medida fitossanitária aplicada e, se o veículo **transporta vegetais/partes**, os produtos (lista do TF) com quantidade e unidade, UF de origem e de destino, partida fiscalizada (já marcada), inspeção fitossanitária e documento conferido (NF/PTV/CFO). Alimenta o VIGIFITO automaticamente (ver [VIGIFITO](#vigifito-relatório-por-posto)).
+- **Origem e destino (opcional), no registro do veículo:** só **UF de origem** e **UF de destino** (`CONFIG.ufs`, inclui "Exterior"; colunas `ufOrigem`/`ufDestino` da aba `Veiculos`). O bloco antigo "Fiscalização (opcional)" (educação sanitária, medida fitossanitária, carga/produtos, partida, inspeção, documento conferido) saiu do formulário em 10/2026: educação sanitária passou a contar **por pessoa a bordo** e os demais indicadores saem dos **TFs** (ver [VIGIFITO](#vigifito-relatório-por-posto)). Registros antigos guardam esses campos na planilha (histórico; editar um registro antigo não os apaga), mas eles não entram mais em nenhum número.
 
 ## Publicação (uma vez)
 
@@ -96,6 +96,11 @@ Dentro do mesmo app, no módulo **Termo de Fiscalização de Barreira** (menu *M
 - **Assinatura na tela:** botões **✍️ Assinar na tela** para o **Fiscalizado** e o **Servidor**, no formulário ou na tela do TF gerado (botão **Abrir** na lista de TFs) antes de imprimir. Abre um quadro para assinar com o dedo (o mesmo canvas do PCE, código comum em `web/js/anexos.js`). Se assinou, a imagem sai no lugar da linha de assinatura nas duas vias; se não, a linha continua em branco para assinar no papel. As assinaturas vão ao Drive como as fotos.
 - **"Fiscalizado se recusou a assinar"** (caixa no mesmo cartão): no PDF, no lugar da assinatura do fiscalizado sai **"Recusou-se a assinar — Atestado por <servidor> em <data> às <hora>"** (data/hora do TF).
 - **Planilha:** colunas novas no fim da aba `TFs` (criadas sozinhas): `fotos` (JSON de ids), `assinaturas` (JSON `{fiscalizado, servidor}`) e `recusaAssinatura` (1 = recusou). O painel recebe só `nFotos` e `assinado` (0/1), nunca as imagens.
+
+**UF de origem e de destino**
+- No cartão *Descrição da ação*, abaixo de **Origem** e **Destino** (texto livre, ex.: "ITACOATIARA"), dois selects opcionais: **UF de origem** e **UF de destino** (`CONFIG.ufs`, inclui "Exterior"). Lavrando o TF de um veículo, vêm preenchidas com a UF do registro do veículo. Entram no rascunho, no envio (`tfEmitir`/`sync`) e no PDF ("ITACOATIARA/AM"; texto que já termina na sigla fica como está).
+- Colunas `ufOrigem` e `ufDestino` no fim da aba `TFs`. O servidor normaliza: sigla conhecida (lista `UFS_`, igual a `CONFIG.ufs`) ou vazio.
+- **TF antigo (sem a coluna):** o VIGIFITO e o painel tiram a UF do fim do texto de origem/destino quando ele termina numa sigla válida separada por espaço, "/", "-", vírgula ou parêntese ("PORTO VELHO/RO", "BOA VISTA - RR", "RR", "MANAUS (AM)"); "MANAUS" ou "ITACOATIARA" ficam sem UF. Sem UF no TF, vale a do veículo ligado (`veiculoId`).
 
 **QR code de autenticidade**
 - Cada via impressa traz, no canto superior esquerdo, um **QR code** e o texto **"Verifique a autenticidade: <endereço>"** com o código do TF. O QR leva a `verificar.html?t=<id do TF>` no mesmo endereço do app (`https://evilasionogueiraagro-netizen.github.io/GDV/verificar.html?t=…`). O id do TF já é um **UUID v4** gerado no aparelho (não dá para adivinhar). O QR é gerado **sem internet** pela biblioteca `web/vendor/qrcode.js` (qrcode-generator 1.4.4, MIT), guardada no cache do app.
@@ -350,28 +355,29 @@ Aba **Relatórios** do painel: **Relatório** → **Período** → **Gerar** (Wo
 
 Os **24 indicadores** da planilha de controle VIGIFITO (28 linhas, contando as de t), com as mesmas unidades e definições, **por posto** (BVA fixas e volantes), com **totais por município**, **total das fixas**, **total das volantes** e **total geral**:
 
-O sistema **calcula** os indicadores a partir do banco alimentado pelo app das barreiras (turnos, **veículos com a carga registrada** e TFs); o Administrativo lança só o que não tem como vir do campo.
+O sistema **calcula** os indicadores a partir do banco alimentado pelo app das barreiras (turnos, veículos — pessoas a bordo e UF opcional — e **TFs de barreira**); o Administrativo lança só o que não tem como vir do campo.
 
 | Indicador | Unid. | Fonte |
 |---|---|---|
 | Veículos parados pela fiscalização | nº | e-GDV: veículos (não excluídos) dos turnos do posto |
-| Exame e análise de documento de sanidade e fiscal | nº | e-GDV: veículos com **documento conferido (NF/PTV/CFO)** + TFs com documentos (o mesmo veículo conta uma vez) |
-| Fiscalização de partidas | nº | e-GDV: veículos com carga e **partida fiscalizada** |
-| Inspeção fitossanitária | nº | e-GDV: veículos com carga e **inspeção fitossanitária realizada** |
-| Cargas em trânsito para outros estados | nº | e-GDV: veículos com carga e **UF de destino ≠ AM** |
-| Internalização de partidas | nº e t | e-GDV: cargas de **outra UF (ou exterior) com destino ao AM**; t = produtos da carga em kg (÷ 1.000) ou t |
+| Exame e análise de documento de sanidade e fiscal | nº | e-GDV: **TFs** com documento preenchido (NF, PTV, GTA, SIF, SIE, SIM, lacre, outros) |
+| Fiscalização de partidas | nº | e-GDV: **TFs** de barreira (não cancelados) — cada TF é uma partida fiscalizada |
+| Inspeção fitossanitária | nº | e-GDV: **TFs** com *Inspeção* marcada (a mesma do 16.1) |
+| Cargas em trânsito para outros estados | nº | e-GDV: **TFs com UF de destino ≠ AM** + veículos **sem TF ligado** com UF de destino ≠ AM |
+| Internalização de partidas | nº e t | e-GDV: **TFs de outra UF (ou do exterior) com destino ao AM** + veículos **sem TF ligado** com essas UFs; t = produtos dos TFs em kg (÷ 1.000) ou t (veículo sem TF não tem t) |
 | Termo de colheita de amostra / Envio de amostra para Unidade Central ou Laboratório | nº | e-GDV: TFs com coleta / amostras desses TFs |
-| Medida de Educação Sanitária | nº | e-GDV: veículos com **orientação de educação sanitária** (padrão sim; registros antigos contam como orientados) |
-| Medida Fitossanitária | nº | e-GDV: veículos com **medida fitossanitária aplicada** |
+| Medida de Educação Sanitária | nº | e-GDV: **pessoas a bordo** dos veículos registrados (uma medida por pessoa) |
+| Medida Fitossanitária | nº | e-GDV: **TFs** de barreira (não cancelados) |
 | Abordagem itinerante (volante) | nº | e-GDV: turnos volantes do posto |
 | Capacitação técnica | nº | **lançado** (portal) |
-| Exportação de vegetais para outros Estados | t | e-GDV: produtos das cargas com destino a outra UF (kg ÷ 1.000 ou t) |
+| Exportação de vegetais para outros Estados | t | e-GDV: produtos dos TFs com destino a outra UF (kg ÷ 1.000 ou t) |
 | Exportação de madeira para outros Estados | m3 | **lançado** (portal) |
-| Importação de vegetais de outros Estados | t | e-GDV: produtos das cargas de outra UF com destino ao AM |
+| Importação de vegetais de outros Estados | t | e-GDV: produtos dos TFs de outra UF (ou do exterior) com destino ao AM |
 | Termo de fiscalização – resultou em: 16.1 Inspeção, 16.2 Advertência, 16.3 Rechaço, 16.4 Fiel depositário, 16.5 Liberação (nº e t), 16.6 Infração, 16.7 Apreensão (nº e t) | nº / t | e-GDV: TFs não cancelados; toneladas = produtos dos TFs em kg (÷ 1.000) ou t, outras unidades (caixas, sacos…) listadas à parte, **sem conversão** |
 | Auto de destruição | nº e t | e-GDV: TFs de apreensão (no e-GDV o procedimento é "apreensão p/ destruição") |
 
-- **Carga no veículo (app de campo):** no formulário do veículo, bloco **Fiscalização (opcional)** — *Orientação de educação sanitária* (já marcada), *Medida fitossanitária aplicada* e *Transporta vegetais/partes*; com carga: produtos (lista do TF) com quantidade e unidade, **UF de origem** e **UF de destino** (`CONFIG.ufs`, inclui "Exterior"), *Partida fiscalizada* (já marcada), *Inspeção fitossanitária realizada* e *Documento conferido (NF/PTV/CFO)*. Tudo opcional. Colunas novas na aba `Veiculos` (criadas sozinhas): `semEducacao`, `medidaFito`, `carga`, `produtos` (JSON como no TF: `["LARANJA - 1500 Kg"]`), `ufOrigem`, `ufDestino`, `partida`, `inspecaoFito`, `docConferido`. A UF do estado é a propriedade `UF_LOCAL` (padrão `AM`). Na lista do turno e no painel (Barreiras → Veículos registrados) aparece a carga.
+- **Origem/destino e dedupe:** UF do TF = colunas `ufOrigem`/`ufDestino`; TF antigo = sigla no fim do texto de origem/destino; senão a do veículo ligado. Destino AM vindo de outra UF (ou do exterior) = internalização (`internN`, `internT`, `importT`); destino em outra UF = carga em trânsito (`cargasEstados`, `exportT`); unidades sem conversão desses TFs (caixas, sacos…) vão à parte ("Cargas interestaduais (TF)"). O veículo com TF ligado (`TFs.veiculoId`, TF não cancelado) conta só pelo TF — nunca duas vezes. A UF do estado é a propriedade `UF_LOCAL` (padrão `AM`). Na lista do turno e no painel (Barreiras → Veículos registrados) aparece "origem → destino" (e a carga dos registros antigos).
+- **Registros antigos do veículo:** as colunas `semEducacao`, `medidaFito`, `carga`, `produtos`, `partida`, `inspecaoFito` e `docConferido` da aba `Veiculos` ficam como histórico (não são removidas nem zeradas), mas **não entram mais no cálculo** desde a versão 2026-10-19e: um mês já apurado com elas pode mudar de número ao ser gerado de novo.
 - **Toda linha do e-GDV aceita, como contingência, um valor lançado que a SUBSTITUI** naquele posto e mês (meses anteriores ao e-GDV ou correção), com justificativa obrigatória; o relatório marca a origem: sem marca = e-GDV, † = lançado, ‡ = substituído (e lista as substituições com a justificativa).
 - **Postos do VIGIFITO** (configuração própria, editável no painel → Relatórios → VIGIFITO → **Postos do VIGIFITO**; aba `VigConfig`): semente com os 11 postos da planilha 2025 (PRESIDENTE FIGUEIREDO - BVA JUNDIÁ, PRESIDENTE FIGUEIREDO - VOLANTE, MANAUS - BVA AEROPORTO, MANAUS - VOLANTE, PARINTINS - BVA PORTO, PARINTINS - BVA VOLANTE, HUMAITÁ - BVA FIXA, IRANDUBA - BVA VOLANTE, GUAJARÁ - BVA VOLANTE, TABATINGA - BVA VOLANTE (PORTO), BENJAMIN CONSTANT - BVA VOLANTE (PORTO)). Cada posto tem tipo (fixa/volante), município e, nas fixas, os nomes de BVA do e-GDV (local do turno, ex.: `BVA - JUNDIÁ`). Turno de BVA fixa entra no posto que tem o local do turno; turno volante, no posto volante do município do turno (unidade ou nome do município no local). Turno sem posto entra em **"OUTRAS BVA FIXAS / AÇÕES VOLANTES (não mapeadas)"** (nos totais) com aviso — ex.: a BVA - CEASA, que não está na planilha. As BVAs/portos novos não foram cadastrados em `CONFIG.bvas` (a confirmar com o gestor).
 - **Período de 10 dias (escala):** data-âncora configurável (padrão **05/01/2025**) e ciclo de **9 dias**; os períodos são "05/01 A 14/01/2025", "14/01 A 23/01/2025"… — o dia da troca aparece nos dois rótulos, mas **cada registro conta uma vez, pela data de início do turno**: o turno que começa no dia da troca pertence ao período que começa nesse dia. O último período do ano vai até janeiro do ano seguinte (pertence ao ano em que começa).

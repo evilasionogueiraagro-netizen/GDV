@@ -31,7 +31,7 @@ const PCEMon = (() => {
   const area = v => { const n = numero(v); return n === '' ? '' : String(n).replace('.', ','); };
 
   /* ---------- coordenadas: latitude e longitude em campos separados (como no papel) ---------- */
-  /** "-3,60033", "-3.60033", "3,60033S", "-59,15044W", "3°36'01,8\"S", "S 3 36 1.2"… → {v} | {vazio} | {erro}. Longitude sem sinal nem letra = Oeste. */
+  /** "-3,60033", "-3.60033", "3,60033S", "-59,15044W", "3°36'01,2\"S", "S 3 36 1.2"… → {v} | {vazio} | {erro}. Longitude sem sinal nem letra = Oeste. */
   function lerEixo(txt, eixo) {
     let s = semAcento(String(txt == null ? '' : txt)).toUpperCase().replace(/[−–—]/g, '-').trim();
     if (!s) return { vazio: true };
@@ -602,7 +602,7 @@ const PCEMon = (() => {
         ${A && st.novo ? `${inp(p, 'numpapel', 'Nº do termo (como está no papel) *', D.numPapel, 'placeholder="ex.: 001.2026.AUTAZES ou 1" autocomplete="off"')}<div id="${p}numpapel-st" class="tf-status" aria-live="polite"></div>`
           : `<div class="tf-num">${st.rec ? `<b>${esc(st.rec.numeroTxt)}</b>` : '<small>Nº definido ao salvar (consulta a planilha; sem internet, provisório).</small>'}</div>`}</div>
       <div class="card"><h3>Cadastro da propriedade</h3>
-        <div class="campo-busca"><label>Buscar cadastro (CPF, nome, propriedade ou nº do cadastro)<input id="${p}busca" type="search" autocomplete="off" placeholder="ex.: 391.246.587-82 ou maria"></label><div id="${p}busca-res"></div></div>
+        <div class="campo-busca"><label>Buscar cadastro (CPF, nome, propriedade ou nº do cadastro)<input id="${p}busca" type="search" autocomplete="off" placeholder="ex.: CPF, nome do produtor ou nº do cadastro"></label><div id="${p}busca-res"></div></div>
         <div id="${p}cad">${cadLigadoHTML(st)}</div></div>
       <div class="card"><h3>1 – Identificação</h3>
         ${inp(p, 'nome', 'Nome *', D.nome, 'autocapitalize="characters"')}

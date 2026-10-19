@@ -46,14 +46,14 @@ const TFUI = (() => {
   /* ---------- estado do formulário ---------- */
   // { hist:{doc,placa}, tpl, turnoId, veiculoId, rid, id (do TF, já na abertura: as fotos ficam ligadas a ele), fotos:[ids], ass, assNovas, recusa }
   let S = null;
-  const vazio = () => ({ barreira: '', data: hojeISO(), hora: agoraHM(), doc: '', nome: '', rg: '', endereco: '', municipio: '', uf: '', telefone: '', relacao: T.relacoes[0],
+  const vazio = () => ({ barreira: '', numero: '', data: hojeISO(), hora: agoraHM(), doc: '', nome: '', rg: '', endereco: '', municipio: '', uf: '', telefone: '', relacao: T.relacoes[0],
     inspecao: false, coleta: false, amostras: '', procedimento: '', fiel: false, auto: false, advertencia: false, local: '', placa: '', origem: '', destino: '',
     docs: { nf: '', ptv: '', gta: '', sif: '', sie: '', sim: '', lacre: '', outros: '' }, produtos: [{ p: '', q: '', u: T.unidades[0] }], constatacao: '', enquadramento: '' });
 
   function coletar() {
     const g = id => { const e = $('#tf-' + id); return e ? e.value : ''; }, c = id => !!($('#tf-' + id) && $('#tf-' + id).checked);
     const proc = document.querySelector('input[name=tf-proc]:checked');
-    return { barreira: g('barreira'), data: g('data'), hora: g('hora'), doc: g('doc'), nome: g('nome'), rg: g('rg'), endereco: g('endereco'), municipio: g('municipio'),
+    return { barreira: g('barreira'), numero: S && S.numEditado && S.numEditado.b === g('barreira') ? String(S.numEditado.n) : '', data: g('data'), hora: g('hora'), doc: g('doc'), nome: g('nome'), rg: g('rg'), endereco: g('endereco'), municipio: g('municipio'),
       uf: g('uf'), telefone: g('telefone'), relacao: g('relacao'), inspecao: c('inspecao'), coleta: c('coleta'), amostras: g('amostras'),
       procedimento: proc ? proc.value : '', fiel: c('fiel'), auto: c('auto'), advertencia: c('advertencia'), local: g('local'), placa: placaNorm(g('placa')), origem: g('origem'), destino: g('destino'),
       docs: Object.fromEntries(['nf', 'ptv', 'gta', 'sif', 'sie', 'sim', 'lacre', 'outros'].map(k => [k, g('d-' + k)])),
@@ -263,6 +263,7 @@ const TFUI = (() => {
       D = { ...D, ...rasc.dados }; S.turnoId = rasc.turnoId || ''; S.veiculoId = rasc.veiculoId || ''; if (rasc.rid) S.rid = rasc.rid;   // mesmo rascunho = mesmo sinal no painel
       if (rasc.id) S.id = rasc.id;                                                   // fotos do rascunho continuam ligadas ao mesmo TF
       S.fotos = Array.isArray(rasc.fotos) ? rasc.fotos.slice() : []; S.assNovas = rasc.assNovas || {}; S.recusa = !!rasc.recusa;
+      if (+D.numero > 0) S.numEditado = { b: D.barreira, n: +D.numero };          // nº digitado antes continua valendo
     } else {
       await descartarRascunho(rasc);
       const turno = await turnoAtual(); let veic = null;

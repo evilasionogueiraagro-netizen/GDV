@@ -83,6 +83,14 @@ antes de gravar (`citrosTexto_`): só chaves e opções conhecidas, textos até 
 `plantas` inteiros), no máximo 20 linhas em `culturas`, `cnpj` só com 14 dígitos, `uf` com 2 letras; JSON inválido ou sem nada preenchido = `''`.
 Registro enviado sem o campo mantém o valor da planilha (como as demais colunas).
 
+TF (`tfs[]` no `sync` e `tf` no `tfEmitir`) e veículo (`veiculos[]`), campos **`ufOrigem`** e **`ufDestino`** (colunas no fim das abas
+`TFs` e `Veiculos`): UF de origem/destino, opcional — sigla de `CONFIG.ufs` (`UFS_` no `Code.gs`: as 27 UFs e `Exterior`). O servidor normaliza
+(`ufNorm_`: maiúscula; desconhecida = `''`); campo não enviado mantém o valor da planilha. No TF elas acompanham o texto livre de `origem`/`destino`;
+TF antigo sem a coluna: o VIGIFITO e o `painelDados` usam a sigla do fim do texto (`ufDoTexto_`, ex.: "PORTO VELHO/RO" → `RO`) e, sem ela, a do
+veículo ligado (`veiculoId`, só no VIGIFITO). O app não envia mais os campos antigos de fiscalização do veículo (`semEducacao`, `medidaFito`,
+`carga`, `produtos`, `partida`, `inspecaoFito`, `docConferido`); ao editar um registro antigo, reenvia os valores que ele já tinha. Esses
+campos ficam na planilha como histórico e não entram em nenhum indicador.
+
 ## Painel do administrador (`key` de administrador)
 
 | Action | Parâmetros | O que faz | Handler |

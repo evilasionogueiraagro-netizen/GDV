@@ -196,13 +196,16 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
       const alvo = d.getElementById(id); alvo.textContent = ''; alvo.append(tb);
     };
     const docs = json(t.documentos, {}), prods = json(t.produtos, []);
+    // origem/destino com a UF escolhida no TF ("ITACOATIARA/AM"); texto que já termina na sigla fica como está; TF antigo: só o texto
+    const comUF = (txt, uf) => { const x = String(txt || '').trim(), u = String(uf || '').trim(); if (!u) return x; if (!x) return u;
+      if (new RegExp(`(^|[\\s/\\-–,(])${u}\\)?$`, 'i').test(x)) return x; return u.length === 2 ? `${x}/${u}` : `${x} (${u})`; };
     set('tf_numero', t.numeroTxt); set('nome', t.nome); set('cpf', fmtDoc(t.doc)); set('rg', t.rg); set('endereco', t.endereco);
     set('relacao', t.relacao); set('municipio', t.municipio); set('uf', t.uf); set('telefone', t.telefone);
     grade('acao_realizada', [[{ w: 50, t: `${marca(t.inspecao)} Inspeção` }, { w: 50, t: `${marca(t.coleta)} Coleta de amostra${t.coleta && t.amostras ? ' – Qtd.: ' + t.amostras : ''}` }]]);
     grade('procedimentos', [
       [{ w: 33, t: `${marca(t.procedimento === 'liberacao')} Liberação` }, { w: 33, t: `${marca(t.procedimento === 'apreensao')} Apreensão p/ destruição` }, { w: 34, t: `${marca(t.procedimento === 'rechaco')} Rechaço` }],
       [{ w: 33, t: `${marca(t.fiel)} Fiel depositário` }, { w: 33, t: `${marca(t.auto)} Auto de Infração` }, { w: 34, t: `${marca(t.advertencia)} Advertência` }]]);
-    set('local', t.local); set('data', t.data ? dataBR(t.data) : ''); set('hora', t.hora); set('placa', t.placa); set('origem', t.origem); set('destino', t.destino);
+    set('local', t.local); set('data', t.data ? dataBR(t.data) : ''); set('hora', t.hora); set('placa', t.placa); set('origem', comUF(t.origem, t.ufOrigem)); set('destino', comUF(t.destino, t.ufDestino));
     const dc = (rot, k) => ({ w: 25, t: `${marca(docs[k])} ${rot} ${docs[k] || '____________'}` });
     grade('documentos', [[dc('NF Nº', 'nf'), dc('SIF Nº', 'sif'), dc('PTV Nº', 'ptv'), dc('SIE Nº', 'sie')], [dc('SIM Nº', 'sim'), dc('GTA Nº', 'gta'), dc('LACRE', 'lacre'), dc('OUTROS', 'outros')]]);
     set('produtos', prods.join('\n')); set('constatacao', t.constatacao); set('enquadramento', t.enquadramento);

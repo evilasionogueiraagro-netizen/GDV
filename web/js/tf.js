@@ -227,11 +227,28 @@ const TFUI = (() => {
     <button class="botao sec" type="button" data-tf="descartar">Descartar este TF</button></form>`;
   }
 
+  /* Nº do TF no formulário: já vem com o próximo da barreira (último usado + 1, na planilha ou neste aparelho) e é editável —
+     ex.: o primeiro TF no sistema segue o talão de papel; daí em diante a sequência de cada barreira continua a partir dele.
+     Ao gerar, a planilha confere de novo (outro fiscal pode ter usado o número) e o popup confirma antes do PDF. */
+  let numTok = 0;
   async function mostrarInfoNumero() {
-    const sel = $('#tf-barreira'), el = $('#tf-numero'); if (!sel || !el) return;
+    const sel = $('#tf-barreira'), el = $('#tf-numero'); if (!sel || !el || !S) return;
     const b = sel.value, a = anoAtual(), bar = (await barreiras()).find(x => x.id === b); if (!bar) return;
+    const tok = ++numTok, st = S;
+    const desenhar = (sug, consultando) => {
+      if (tok !== numTok || S !== st || !$('#tf-numero')) return;
+      st.numSug = sug.numero; st.numBarreira = b;
+      const ult = sug.ultimo ? `Último nº usado nesta barreira: ${num4(sug.ultimo)}/${a}.` : 'Nenhum TF desta barreira neste ano: informe o número do talão, se for o caso.';
+      const val = st.numEditado && st.numEditado.b === b ? st.numEditado.n : sug.numero;
+      el.innerHTML = `<small>Nº do TF</small>
+        <div class="tf-num-campo"><input id="tf-num" type="number" inputmode="numeric" min="1" value="${val}" aria-label="Número do TF"><b id="tf-num-suf">/${a} - ${esc(bar.sufixo)}</b></div>
+        <small id="tf-num-dica">${consultando ? '🔎 Consultando a planilha… ' : sug.origem === 'servidor' ? '✓ Próximo nº pela planilha (último usado + 1). ' : '⚠️ Sem conexão: próximo nº pelo que este aparelho conhece (provisório). '}${ult} Pode editar; os próximos seguem a partir dele. Ao gerar, a planilha confere o número.</small>`;
+      const i = el.querySelector('#tf-num');
+      i.oninput = () => { const n = parseInt(i.value, 10); st.numEditado = n > 0 && n !== st.numSug ? { b, n } : null; };
+    };
     const u = await ultimoConhecido(b, a);
-    el.innerHTML = `<small>Nº do TF</small><b>definido ao gerar</b><small>Ao gerar, o sistema consulta a planilha (último nº usado + 1) e mostra o número para você confirmar ou editar, antes do PDF.${u ? ' Último nº conhecido neste aparelho: ' + esc(num4(u) + '/' + a + ' - ' + bar.sufixo) + '.' : ''}</small>`;
+    desenhar({ numero: u + 1, ultimo: u, origem: 'offline' }, navigator.onLine && Sync.ativado());
+    try { desenhar(await sugerirNumero(b, a), false); } catch (e) { desenhar({ numero: u + 1, ultimo: u, origem: 'offline' }, false); }
   }
 
   async function novo(prefill) {
@@ -418,7 +435,8 @@ const TFUI = (() => {
     const pessoa = { id: doc, tipo: doc.length === 14 ? 'PJ' : 'PF', nome, rg: D.rg.trim(), endereco: D.endereco.trim(), municipio: D.municipio.trim(), uf: D.uf.trim().toUpperCase(), telefone: D.telefone.trim(), criadoEm: t0, atualizadoEm: t0 };
     const placa = D.placa.length >= 7 ? { id: D.placa, doc, nome, criadoEm: t0, atualizadoEm: t0 } : null;
 
-    let numero = sug.numero, aviso = '';
+    // número digitado no formulário (ex.: o primeiro, seguindo o talão) vale no lugar do sugerido; o popup confirma
+    let numero = S.numEditado && S.numEditado.b === bar.id ? S.numEditado.n : sug.numero, aviso = '';
     for (let tentativa = 0; tentativa < 6; tentativa++) {
       const n = await pedirNumero({ numero, sugerido: sug.numero, sufixo: bar.sufixo, ano: a, ultimo: sug.ultimo, ultimoTF: sug.ultimoTF, offline: sug.origem !== 'servidor', aviso });
       if (n == null) return;

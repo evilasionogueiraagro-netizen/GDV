@@ -21,8 +21,8 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
     else { if (!(await p.locator('.modulo').count())) await p.click('nav [data-v=modulos]'); await p.click('.modulo[data-v=tf]'); }
     await p.waitForSelector('button[data-tf=novo]');
   };
-  const novoTF = async p => { await p.click('button[data-tf=novo]'); await p.waitForSelector('#tfForm'); await p.waitForFunction(() => document.querySelector('#tf-numero b'), null, { timeout: 10000 }); };
-  const numeroTela = p => p.textContent('#tf-numero b');
+  const novoTF = async p => { await p.click('button[data-tf=novo]'); await p.waitForSelector('#tfForm'); await p.waitForFunction(() => document.querySelector('#tf-num') && !/Consultando/.test(document.querySelector('#tf-num-dica').textContent), null, { timeout: 10000 }); };
+  const numeroTela = p => p.textContent('#tf-numero');
   async function preencher(p, { doc, nome, placa, produto = 'MANGA', proc = 'apreensao', extra = {} }) {
     await p.fill('#tf-doc', doc); await p.waitForFunction(() => /Novo cadastro|Cadastro encontrado/.test(document.querySelector('#tf-st-doc').textContent), null, { timeout: 8000 });
     if (nome) await p.fill('#tf-nome', nome);
@@ -50,7 +50,7 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   { const P = await aparelho(fA); const tit = await P.locator('.modulo b').allTextContents(); ok(tit.length === 3 && /Educação Sanitária\/Fiscalização de Trânsito/.test(tit[0]) && /Termo de Fiscalização/.test(tit[1]) && tit[2] === 'PCE', 'após ativar: três módulos (veículos, TF, PCE) — ' + tit.join(' | ')); ok(/Olá, Ana/.test(await P.textContent('#view')), 'saudação com o nome vinculado'); await P.ctx.close(); }
   console.log('A) Ana: o número vem da planilha na hora de gerar, num popup editável, antes do PDF');
   const A = await aparelho(fA); await irTF(A); await novoTF(A);
-  ok(/definido ao gerar/.test(await numeroTela(A)), 'no formulário o número ainda não existe: "' + await numeroTela(A) + '"');
+  ok((await A.inputValue('#tf-num')) === '1' && /Próximo nº pela planilha/.test(await numeroTela(A)) && /Nenhum TF desta barreira/.test(await numeroTela(A)), 'no formulário o nº já aparece (1, pela planilha) e é editável: "' + await numeroTela(A) + '"');
   ok((await A.inputValue('#tf-local')) === 'BR-319 PORTO DA CEASA', 'local sugerido pela barreira');
   await A.screenshot({ path: amb.saida('tf_form_topo.png') });
   await preencher(A, { doc: '529.982.247-25', nome: 'josé da silva', placa: 'abc-1d23' });
@@ -123,6 +123,19 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   await novoTF(A); await A.fill('#tf-nome', 'RASCUNHO TESTE'); await A.waitForTimeout(800);
   await A.click('nav [data-v=tf]'); await A.waitForTimeout(300); await irTF(A); await novoTF(A);
   ok((await A.inputValue('#tf-nome')) === 'RASCUNHO TESTE', 'rascunho restaurado ao reabrir (confirmado)');
+  await A.click('[data-tf=descartar]'); await A.waitForSelector('button[data-tf=novo]');
+
+  console.log('E2) número editado no formulário (talão de papel): os próximos seguem a partir dele');
+  await novoTF(A); await preencher(A, { doc: '111.444.777-35', nome: 'Maria Souza', produto: 'CAJU', proc: 'liberacao' });
+  const sugForm = +(await A.inputValue('#tf-num')); ok(sugForm > 7, 'formulário propõe o próximo da barreira: ' + sugForm);
+  await A.fill('#tf-num', '500');
+  await abrirPopup(A);
+  ok(+(await A.inputValue('#tf-num-m')) === 500 && /Número alterado/.test(await A.textContent('#tf-num-edit')), 'popup traz o nº digitado no formulário (500), marcado como alterado');
+  await confirmar(A); await A.waitForSelector('text=TF gerado', { timeout: 10000 });
+  ok(new RegExp(`0500/${ANO} - BVA - CEASA`).test(await A.textContent('#view')), 'TF 0500 gerado');
+  await irTF(A); await novoTF(A);
+  ok((await A.inputValue('#tf-num')) === '501' && /0500/.test(await numeroTela(A)), 'próximo TF da barreira: 501 (segue a partir do editado)', await numeroTela(A));
+  await A.screenshot({ path: amb.saida('tf_form_numero.png') });
   await A.click('[data-tf=descartar]'); await A.waitForSelector('button[data-tf=novo]');
 
   console.log('F) sem ativação não abre o TF');

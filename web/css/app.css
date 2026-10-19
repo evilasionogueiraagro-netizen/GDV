@@ -57,6 +57,7 @@ input[readonly] { background:#eef1f6; color:#445; }
 .tfbtn { background:#198754; }
 nav button span { font-size:9.5px; }
 .tf-num { margin:6px 0 10px; text-align:center; } .tf-num b { display:block; font-size:20px; color:var(--azul); } .tf-num small { display:block; color:var(--mut); }
+.tf-num-campo { display:flex; align-items:center; justify-content:center; gap:8px; margin:4px 0; } .tf-num-campo input { width:7.5em; font-size:22px; font-weight:700; text-align:center; color:var(--azul); padding:6px 8px; } .tf-num-campo b { display:inline; font-size:15px; white-space:nowrap; }
 .aviso-txt { color:#8a5a00 !important; }
 .chk { flex-direction:row; align-items:center; gap:8px; color:var(--ink); font-size:15px; margin:8px 0; } .chk input { width:20px; height:20px; padding:0; }
 hr { border:0; border-top:1px solid var(--linha); margin:10px 0; }

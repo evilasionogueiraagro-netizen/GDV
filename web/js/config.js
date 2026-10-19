@@ -71,7 +71,30 @@ const CONFIG = {
       'Abacaxi', 'Laranja', 'Limão', 'Tangerina', 'Mamão', 'Melancia', 'Maracujá', 'Castanha-do-Brasil', 'Pupunha', 'Dendê', 'Urucum',
       'Seringueira', 'Hortaliças diversas', 'Soja'],
     pragas: ['Bactrocera carambolae', 'Schizotetranychus hindustanicus', 'Phakopsora pachyrhizi', 'HLB / Greening', 'Cancro Cítrico',
-      'Fusarium R4T', 'Monilíase do Cacaueiro', 'Vassoura de Bruxa da Mandioca', 'Amaranthus palmeri', 'Diaphorina citri (vetor do HLB)'],
+      'Fusarium R4T', 'Monilíase do Cacaueiro', 'Vassoura de Bruxa da Mandioca', 'Amaranthus palmeri', 'Diaphorina citri (vetor do HLB)',
+      'Pinta Preta dos Citros', 'Leprose dos Citros'],
+    // Formulário de cítricos (CADASTRO DE IMÓVEIS DE PRODUÇÃO COMERCIAL DE CÍTRICOS; IN 21/2018 cancro cítrico, Portaria 317/2021 HLB): no levantamento,
+    // o card "Dados de citros" aparece quando há card de praga de citros (nome da lista abaixo ou "Outra" digitada com um dos termos; sem acento/maiúsculas).
+    // Gravado na coluna "citros" (JSON) do levantamento. Códigos (1º item de cada par) não mudam: vão para a planilha; o texto é só o rótulo.
+    citros: {
+      pragas: ['HLB / Greening', 'Cancro Cítrico', 'Schizotetranychus hindustanicus', 'Diaphorina citri (vetor do HLB)', 'Pinta Preta dos Citros', 'Leprose dos Citros'],
+      termos: ['citr', 'cancro', 'hlb', 'greening', 'pinta preta', 'leprose', 'hindustan', 'diaphorina'],
+      atividades: [['viveiro_mudas', 'Viveiro – produção de mudas'], ['viveiro_semorigem', 'Viveiro – fornecedor de material de propagação sem origem genética comprovada'],
+        ['viveiro_portaenxerto', 'Viveiro – campos de produção de porta-enxerto'], ['viveiro_clonal', 'Viveiro – jardins clonais e borbulheiras'],
+        ['frutos', 'Produção comercial de frutos'], ['outros', 'Outros (especificar)']],
+      situacoes: [['proprietario', 'Proprietário'], ['arrendatario', 'Arrendatário'], ['cooperativa', 'Cooperativa'], ['outras', 'Outras (especificar)']],
+      formasEntrega: [['saco', 'Saco'], ['caixa', 'Caixa'], ['granel', 'A granel']],
+      compradores: [['atravessador', 'Atravessador'], ['supermercado', 'Supermercado'], ['feira', 'Feira'], ['cooperativa', 'Cooperativa'], ['outros', 'Outros']],
+      materiais: [['muda', 'Muda'], ['borbulha', 'Borbulha'], ['cavalinho', 'Cavalinho'], ['semente', 'Semente']],
+      delimitacao: [['pintapreta', 'Pinta Preta']],
+      deteccao: [['cancro', 'Cancro Cítrico'], ['hlb', 'HLB'], ['acaro', 'Ácaro Hindustânico']],
+      // card de praga com resultado "Detectada" → pré-marca "Sim" no item (só se o fiscal ainda não marcou). Diaphorina (vetor) não marca HLB.
+      marcarPor: { cancro: ['cancro'], hlb: ['hlb', 'greening', 'liberibacter'], acaro: ['hindustan', 'schizotetranychus'], pintapreta: ['pinta preta', 'guignardia', 'phyllosticta'] },
+      naoMarcar: ['diaphorina'],
+      cultivares: ['Laranja Pera', 'Laranja Lima', 'Laranja Valência', 'Laranja Natal', 'Limão Tahiti', 'Limão Galego', 'Tangerina Ponkan', 'Tangerina Murcote',
+        'Lima ácida', 'Pomelo'],                     // só sugestão (texto livre)
+      maxCulturas: 20                                // linhas da tabela "Cultura do citros" (o servidor também corta em 20)
+    },
     // dados gerais da visita (opcionais): tipo de local e origem da visita. "Outro" abre um campo para digitar.
     tiposLocal: ['Propriedade comercial', 'Quintal / área urbana', 'Viveiro', 'Plantio abandonado / não comercial', 'Feira / ponto de venda', 'Floricultura',
       'Unidade de Produção (UP)', 'Unidade de Consolidação (UC)', 'Outro'],

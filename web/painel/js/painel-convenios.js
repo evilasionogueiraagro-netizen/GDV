@@ -244,11 +244,16 @@
     const subNome = l => { const e = etapa(l.etapa); if (!e) return l.submeta; if (l.tipo === 'bem') { const b = (e.bens || []).find(x => x.id === l.submeta); return b ? `${b.nome} – ${b.local}` : l.submeta; }
       const s = (e.submetas || []).find(x => x.id === l.submeta); return s ? s.nome : (l.submeta || ''); };
     const lst = E.dados.lancamentos.filter(l => l.convenio === c.id).slice().sort((a, b) => b.data.localeCompare(a.data) || (b.atualizadoEm || 0) - (a.atualizadoEm || 0));
+    // bem adquirido/entregue: valor e quantidade do desembolso da aquisição (Financeiro, chave bem|<convênio>|<bem>)
+    const aquisicaoSit = l => l.tipo === 'bem' && (l.situacao === 'adquirido' || l.situacao === 'entregue');
+    const aquisicao = l => aquisicaoSit(l) ? E.dados.financeiro.find(f => f.chave === `bem|${c.id}|${l.submeta}`) : null;
     P.tabela(sl, [
       { chave: 'data', rotulo: 'Data', fmt: F.data }, { chave: 'etapa', rotulo: 'Etapa' },
       { chave: 'tipo', rotulo: 'Tipo', fmt: (v, l) => v === 'ajuste' ? 'Ajuste' : v === 'bem' ? 'Bem: ' + (CD.SIT_BEM[l.situacao] || l.situacao) : 'Execução' },
       { chave: 'submeta', rotulo: 'Sub-meta / município', fmt: (v, l) => { const n = subNome(l) || ''; return [n, l.municipio && !n.includes(l.municipio) ? l.municipio : ''].filter(Boolean).join(' · ') || '—'; } },
-      { chave: 'quantidade', rotulo: 'Qtd.', num: true, fmt: (v, l) => l.tipo === 'bem' ? '—' : (v > 0 && l.tipo === 'ajuste' ? '+' : '') + F.num(v) },
+      { chave: 'quantidade', rotulo: 'Qtd.', num: true, fmt: (v, l) => { if (l.tipo !== 'bem') return (v > 0 && l.tipo === 'ajuste' ? '+' : '') + F.num(v); const f = aquisicao(l); return f && f.quantidade != null ? F.num(f.quantidade) : '—'; } },
+      { chave: 'valor', rotulo: 'Valor', num: true, ordem: l => (aquisicao(l) || {}).valor || 0, csv: (v, l) => (aquisicao(l) || {}).valor || '',
+        html: (v, l) => { const f = aquisicao(l); return f ? esc(F.moeda(f.valor)) : aquisicaoSit(l) ? '<span class="pn-selo atencao">sem valor</span>' : '—'; } },
       { chave: 'descricao', rotulo: 'Descrição', fmt: (v, l) => [v, l.armadilhas ? l.armadilhas + ' armadilhas' : '', l.propriedades ? l.propriedades + ' propriedades' : ''].filter(Boolean).join(' · ') || '—' },
       { chave: 'documento', rotulo: 'Documento', fmt: v => v || '—' }, { chave: 'usuario', rotulo: 'Lançado pelo Administrativo', fmt: lancadoEm }
     ], lst, { id: 'conv-lancamentos', csv: `convenio-${c.id}-lancamentos.csv`, limite: 30, vazio: 'Nenhum lançamento ainda.' });

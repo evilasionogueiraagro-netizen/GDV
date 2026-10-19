@@ -128,11 +128,16 @@
     const subNome = l => { const e = etapa(l.etapa); if (!e) return l.submeta; if (l.tipo === 'bem') { const b = (e.bens || []).find(x => x.id === l.submeta); return b ? `${b.nome} – ${b.local}` : l.submeta; }
       const s = (e.submetas || []).find(x => x.id === l.submeta); return s ? s.nome : (l.submeta || ''); };
     const lst = E.d.lancamentos.filter(l => l.convenio === c.id).slice().sort((a, b) => b.data.localeCompare(a.data) || (b.atualizadoEm || 0) - (a.atualizadoEm || 0));
+    // bem adquirido/entregue: valor e quantidade vêm do desembolso da aquisição (Financeiro, chave bem|<convênio>|<bem>)
+    const aquisicaoSit = l => l.tipo === 'bem' && (l.situacao === 'adquirido' || l.situacao === 'entregue');
+    const aquisicao = l => aquisicaoSit(l) ? finDoBem(l.submeta) : null;
     A.tabela(sl, [
       { chave: 'data', rotulo: 'Data', fmt: F.data }, { chave: 'etapa', rotulo: 'Etapa' },
       { chave: 'tipo', rotulo: 'Tipo', fmt: (x, l) => x === 'ajuste' ? 'Ajuste' : x === 'bem' ? 'Bem: ' + (CD.SIT_BEM[l.situacao] || l.situacao) : 'Execução' },
       { chave: 'submeta', rotulo: 'Sub-meta / município', fmt: (x, l) => { const n = subNome(l) || ''; return [n, l.municipio && !n.includes(l.municipio) ? l.municipio : ''].filter(Boolean).join(' · ') || '—'; } },
-      { chave: 'quantidade', rotulo: 'Qtd.', num: true, fmt: (x, l) => l.tipo === 'bem' ? '—' : (x > 0 && l.tipo === 'ajuste' ? '+' : '') + F.num(x) },
+      { chave: 'quantidade', rotulo: 'Qtd.', num: true, fmt: (x, l) => { if (l.tipo !== 'bem') return (x > 0 && l.tipo === 'ajuste' ? '+' : '') + F.num(x); const f = aquisicao(l); return f && f.quantidade != null ? F.num(f.quantidade) : '—'; } },
+      { chave: 'valor', rotulo: 'Valor', num: true, ordem: l => (aquisicao(l) || {}).valor || 0, csv: (x, l) => (aquisicao(l) || {}).valor || '',
+        html: (x, l) => { const f = aquisicao(l); return f ? esc(F.moeda(f.valor)) : aquisicaoSit(l) ? '<span class="pn-selo atencao">sem valor — Editar</span>' : '—'; } },
       { chave: 'descricao', rotulo: 'Descrição', fmt: (x, l) => [x, l.armadilhas ? l.armadilhas + ' armadilhas' : '', l.propriedades ? l.propriedades + ' propriedades' : ''].filter(Boolean).join(' · ') || '—' },
       { chave: 'documento', rotulo: 'Documento', fmt: x => x || '—' }, { chave: 'usuario', rotulo: 'Lançado por' }, { chave: 'atualizadoEm', rotulo: 'Em', fmt: A.fmt.dataHora },
       { chave: 'id', rotulo: 'Ações', csv: () => '', html: x => `<span class="pn-conv-acoes-lin"><button type="button" class="pn-btn pn-btn-mini" data-conv="lanc-editar" data-id="${esc(x)}">Editar</button><button type="button" class="pn-btn pn-btn-mini pn-btn-encerrar" data-conv="lanc-excluir" data-id="${esc(x)}">Excluir</button></span>` }

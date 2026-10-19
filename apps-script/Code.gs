@@ -53,7 +53,8 @@ const TABELAS = {
                   'registroAntigo', 'documentos',   // registroAntigo=1: digitado do papel (só para o app reabrir no formulário certo); documentos = PDFs (JSON de ids)
                   'pragas',    // pragas = JSON [{praga, culturas:[{cultura, area, espLinha, espPlanta, resultado, coleta, tipoMaterial, codigoAmostra, destinoAmostra, fotos:[ids]}]}]
                                // (levantamento por praga/doença). culturas/fotos continuam preenchidos (derivados) para registros e relatórios antigos.
-                  'tipoLocal', 'origemVisita'],   // dados gerais da visita (opcionais; texto da lista CONFIG.PCE.tiposLocal/origensVisita ou o digitado em "Outro")
+                  'tipoLocal', 'origemVisita',   // dados gerais da visita (opcionais; texto da lista CONFIG.PCE.tiposLocal/origensVisita ou o digitado em "Outro")
+                  'citros'],   // formulário de cítricos (IN 21/2018, Portaria 317/2021): JSON normalizado por citrosTexto_; vazio sem praga de citros
   Colheitas: ['id', 'unidade', 'ano', 'numero', 'numeroTxt', 'numeroSugerido', 'numeroOrigem', 'conflito', 'emitidoEm', 'levantamentoId',
               'data', 'hora', 'servidor', 'cargo', 'matricula', 'lotacao', 'municipio', 'doc', 'nome', 'endereco', 'lat', 'lon', 'precisao',
               'cultura', 'quantidade', 'analise', 'partes', 'descricao', 'fotos', 'testemunha1Nome', 'testemunha1Doc', 'testemunha2Nome',
@@ -140,7 +141,7 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criad
                           'semEducacao', 'medidaFito', 'carga', 'partida', 'inspecaoFito', 'docConferido'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, pragas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000,
-                        dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000 };   // demais colunas: 500
+                        dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000, citros: 20000 };   // demais colunas: 500
 // culturas/fotos/assinaturas são JSON: cortar o texto invalidaria o JSON (e apagaria as referências no aparelho). Os limites acima
 // cabem numa célula (50.000 caracteres) e o app limita a quantidade de culturas/fotos e o tamanho dos campos para nunca chegar neles.
 const VALIDADE_CODIGO_MS = 7 * 24 * 3600 * 1000;      // código de ativação vale 7 dias
@@ -149,7 +150,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-19c';
+const VERSAO_CODIGO = '2026-10-19d';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -259,6 +260,9 @@ function sincronizar_(req, usuario) {
       recusados[campo] = (recusados[campo] || []).concat(fora.map(function (r) { return r.id ? String(r.id).slice(0, 64) : ''; }).filter(Boolean));
     });
   }
+
+  // levantamento: dados de citros normalizados antes do lock (opções conhecidas, textos curtos, números ≥ 0, até 20 linhas de cultura)
+  T.levantamentos.forEach(function (r) { if (r && typeof r === 'object' && ('citros' in r)) r.citros = citrosTexto_(r.citros); });
 
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -1630,6 +1634,53 @@ function contarAssinaturas_(v) {
  * resultado = detectada | nao_detectada | suspeita. Registro anterior (sem "pragas"): cada cultura da coluna "culturas" vira um item da praga
  * dela (resultado "detectada") ou da praga '' = "Sem praga informada" (resultado "nao_detectada"). Detectada e suspeita contam como detecção. */
 const RESULTADOS_PCE = ['detectada', 'nao_detectada', 'suspeita'];
+/* Formulário de cítricos no levantamento (coluna "citros"): códigos das opções iguais aos de CONFIG.PCE.citros (web/js/config.js). */
+const CITROS_ = {
+  naoComercial: ['sitio', 'residencia', 'vegetacao', 'publica', 'outros'],
+  atividades: ['viveiro_mudas', 'viveiro_semorigem', 'viveiro_portaenxerto', 'viveiro_clonal', 'frutos', 'outros'],
+  situacoes: ['proprietario', 'arrendatario', 'cooperativa', 'outras'],
+  formasEntrega: ['saco', 'caixa', 'granel'], compradores: ['atravessador', 'supermercado', 'feira', 'cooperativa', 'outros'],
+  materiais: ['muda', 'borbulha', 'cavalinho', 'semente'], delimitacao: ['pintapreta'], deteccao: ['cancro', 'hlb', 'acaro'],
+  maxCulturas: 20, maxTexto: 200
+};
+/**
+ * Dados de citros recebidos do app → texto JSON gravado (ou '' se nada preenchido / inválido). Só as chaves conhecidas; opções fora da
+ * lista viram ''; textos com até 200 caracteres (sem quebra de linha nem "=+-@" no início); números ≥ 0 (negativo ou inválido = vazio;
+ * idade e plantas inteiros); no máximo 20 linhas na cultura do citros (as demais são descartadas); CNPJ só com 14 dígitos; UF com 2 letras.
+ */
+function citrosTexto_(v) {
+  const o = v && typeof v === 'object' ? v : lerJSONSeguro_(v, null);
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return '';
+  const X = CITROS_, t = function (x) { return textoCurto_(x, X.maxTexto); };
+  const um = function (x, l) { return l.indexOf(x) >= 0 ? x : ''; }, sn = function (x) { return um(x, ['sim', 'nao']); };
+  const varios = function (x, l) { return (Array.isArray(x) ? x : []).filter(function (y, i, a) { return l.indexOf(y) >= 0 && a.indexOf(y) === i; }); };
+  const num = function (x, inteiro) {
+    if (x === '' || x === null || x === undefined) return '';
+    const n = Number(String(x).replace(',', '.'));
+    if (!isFinite(n) || n < 0) return '';
+    return inteiro ? Math.round(n) : Math.round(n * 1000) / 1000;
+  };
+  const sub = function (x) { return x && typeof x === 'object' && !Array.isArray(x) ? x : {}; };
+  const culturas = (Array.isArray(o.culturas) ? o.culturas : []).filter(function (c) { return c && typeof c === 'object'; }).map(function (c) {
+    return { atividade: um(c.atividade, X.atividades), cultivar: t(c.cultivar), area: num(c.area), idade: num(c.idade, true), plantas: num(c.plantas, true), producao: num(c.producao) };
+  }).filter(function (c) { return Object.keys(c).some(function (k) { return c[k] !== ''; }); }).slice(0, X.maxCulturas);
+  const delimitacao = {}, deteccao = {}, dl = sub(o.delimitacao), dt = sub(o.deteccao);
+  X.delimitacao.forEach(function (k) { const d = sub(dl[k]); delimitacao[k] = { tem: sn(d.tem), tempo: t(d.tempo), controle: sn(d.controle), qual: t(d.qual) }; });
+  X.deteccao.forEach(function (k) { const d = sub(dt[k]); deteccao[k] = { tem: sn(d.tem), tempo: t(d.tempo) }; });
+  const cnpj = digitos_(o.cnpj), rt = sub(o.rt);
+  const r = { v: 1, comercial: sn(o.comercial), naoComercial: um(o.naoComercial, X.naoComercial), naoComercialOutros: t(o.naoComercialOutros),
+              cnpj: cnpj.length === 14 ? cnpj : '', endereco: t(o.endereco), uf: String(o.uf || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2),
+              atividades: varios(o.atividades, X.atividades), atividadeOutros: t(o.atividadeOutros), situacao: um(o.situacao, X.situacoes), situacaoOutras: t(o.situacaoOutras),
+              culturas: culturas, entrega: sn(o.entrega), formasEntrega: varios(o.formasEntrega, X.formasEntrega), compradores: varios(o.compradores, X.compradores),
+              compradorOutros: t(o.compradorOutros), beneficia: sn(o.beneficia), beneficiaTipo: t(o.beneficiaTipo), materiais: varios(o.materiais, X.materiais),
+              origemMaterial: t(o.origemMaterial), delimitacao: delimitacao, deteccao: deteccao, rt: { nome: t(rt.nome), conselho: t(rt.conselho) } };
+  const temAlgo = function (x) {
+    if (Array.isArray(x)) return x.some(temAlgo);
+    if (x && typeof x === 'object') return Object.keys(x).some(function (k) { return k !== 'v' && temAlgo(x[k]); });
+    return String(x === null || x === undefined ? '' : x) !== '';
+  };
+  return temAlgo(r) ? JSON.stringify(r) : '';
+}
 function culturaPce_(c, resultado) {
   return { cultura: String(c.cultura).trim(), area: numOuNulo_(c.area), espLinha: String(c.espLinha || ''), espPlanta: String(c.espPlanta || ''),
            resultado: resultado, coleta: c.coleta === 'Sim' ? 'Sim' : 'Não', tipoMaterial: String(c.tipoMaterial || ''),

@@ -149,7 +149,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-16h';
+const VERSAO_CODIGO = '2026-10-19b';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -1523,8 +1523,40 @@ function painelAtivar(codigo) {
 function lerLeitura_(nome) {                       // leitura pura: não cria abas nem colunas
   const sh = planilha_().getSheetByName(nome), cols = TABELAS[nome];
   if (!sh || sh.getLastRow() < 2) return [];
-  return sh.getRange(2, 1, sh.getLastRow() - 1, cols.length).getValues()
+  const linhas = sh.getRange(2, 1, sh.getLastRow() - 1, cols.length).getValues()
     .map(function (l) { return paraObjeto_(cols, l); });
+  // painel e relatórios: a mesma BVA fixa com um nome só (no volante o local é o endereço e fica como está)
+  if (nome === 'Turnos') linhas.forEach(function (t) { const p = normPub_(t.posto); if (p.indexOf('mov') < 0 && p.indexOf('volante') < 0) t.local = localCanon_(t.local); });
+  return linhas;
+}
+
+/**
+ * Nomes diferentes da mesma BVA fixa (turnos antigos digitados à mão, cadastro de barreiras do TF) → o nome do app (CONFIG.bvas).
+ * Vale só na leitura (painel, relatórios, convênio, VIGIFITO, página pública): a planilha e os aparelhos ficam como estão.
+ * Compara sem acento/caixa/pontuação e sem as palavras "BVA", "Barreira", "da/de/do": "BVA Porto da Ceasa" = "Barreira Porto CEASA".
+ */
+const BVA_APELIDOS_ = {
+  'BVA - CEASA': ['Porto da CEASA', 'BR-319 Porto da CEASA']
+};
+function chaveBva_(s) {
+  return normPub_(s).split(' ').filter(function (w) { return w && !/^(bva|barreira|da|de|do|das|dos)$/.test(w); }).join(' ');
+}
+let apelidosBva_ = null;
+function localCanon_(local) {
+  if (!apelidosBva_) {
+    apelidosBva_ = {};
+    Object.keys(BVA_APELIDOS_).forEach(function (nome) {
+      [nome].concat(BVA_APELIDOS_[nome]).forEach(function (a) { const k = chaveBva_(a); if (k) apelidosBva_[k] = nome; });
+    });
+  }
+  const k = chaveBva_(local);
+  return (k && apelidosBva_[k]) || local;
+}
+/** Barreira do cadastro do TF que é uma BVA do app (pelo id, nome, sufixo ou local) → o nome da BVA; senão ''. */
+function bvaDoCadastro_(b) {
+  const nomes = [b.sufixo, b.nome, b.id, b.local];
+  for (let i = 0; i < nomes.length; i++) { const c = localCanon_(nomes[i]); if (c && c !== nomes[i] || BVA_APELIDOS_[c]) return c; }
+  return '';
 }
 
 /* --- auxiliares do painel (sem efeitos colaterais) --- */
@@ -1861,7 +1893,7 @@ function dadosPainel_(admin, filtro) {
     termosPce: termosPce,
     cadastrosPce: cadastrosPce,
     barreiras: lerLeitura_('Barreiras').filter(function (b) { return b.id; })
-      .map(function (b) { return { id: b.id, nome: b.nome, sufixo: b.sufixo, local: b.local, ativo: b.ativo === 1 }; }),
+      .map(function (b) { return { id: b.id, nome: b.nome, sufixo: b.sufixo, local: b.local, ativo: b.ativo === 1, bva: bvaDoCadastro_(b) }; }),
     auditoria: { tf: auditar('TF', todosTFs, tfsPer), pce: auditar('PCE', todasColheitas, colPer),
                  termosPce: auditar('TPCE', todosTermosPce, termosPcePer), cadastrosPce: auditar('CPCE', todosCadastrosPce, todosCadastrosPce.filter(noPeriodo)) }
   };
@@ -3071,8 +3103,9 @@ function vigApurar_(cfg, de, ate) {
   const munN = function (s) { return normPub_(s).replace(/ (am|amazonas)$/, ''); };
   const fixas = cfg.postos.filter(function (p) { return p.tipo === 'fixa'; }), vols = cfg.postos.filter(function (p) { return p.tipo === 'volante'; });
   const fixaDe = function (local, unidade) {
-    const a = normPub_(local), b = normPub_(unidade);
-    for (let i = 0; i < fixas.length; i++) if ((fixas[i].locais || []).some(function (l) { const n = normPub_(l); return n && (n === a || n === b); })) return fixas[i].id;
+    // apelidos da mesma BVA (localCanon_) valem dos dois lados: posto configurado com "Barreira Porto da CEASA" pega os turnos "BVA - CEASA"
+    const alvos = [normPub_(local), normPub_(localCanon_(local)), normPub_(unidade)].filter(Boolean);
+    for (let i = 0; i < fixas.length; i++) if ((fixas[i].locais || []).some(function (l) { return [normPub_(l), normPub_(localCanon_(l))].some(function (n) { return n && alvos.indexOf(n) >= 0; }); })) return fixas[i].id;
     return null;
   };
   const volanteDe = function (t) {

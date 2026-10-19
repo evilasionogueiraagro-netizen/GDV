@@ -45,6 +45,17 @@ const HOJE = manaus();
   // s3 (aberto há 60 dias) testa "abertos de qualquer data": sem o encerramento automático de 12 h (testado no rotinas_test.js)
   ok((await (await fetch(amb.API + '/__fn?nome=desativarRotinasAutomaticas_')).json()).r === 0, 'rotinas automáticas desativadas');
 
+  // ---------- mesma BVA com nomes diferentes ----------
+  console.log('Apelidos de BVA');
+  const canon = {};
+  for (const n of ['BVA Porto da Ceasa', 'Barreira Porto CEASA', 'Barreira Porto da CEASA', 'BVA - CEASA', 'bva-ceasa', 'BVA - JUNDIÁ', 'Barreira Estrada Porto da Ceasa', '']) canon[n] = (await fn('localCanon_', n)).r;
+  ok(canon['BVA Porto da Ceasa'] === 'BVA - CEASA' && canon['Barreira Porto CEASA'] === 'BVA - CEASA' && canon['Barreira Porto da CEASA'] === 'BVA - CEASA' && canon['BVA - CEASA'] === 'BVA - CEASA' && canon['bva-ceasa'] === 'BVA - CEASA',
+    'BVA Porto da Ceasa / Barreira Porto (da) CEASA → BVA - CEASA', canon);
+  const vig = (await fn('vigApurar_', { ancora: '2025-01-05', ciclo: 9, postos: [{ id: 'p-ceasa', nome: 'MANAUS - CEASA', municipio: 'Manaus', tipo: 'fixa', locais: ['Barreira Porto da CEASA'] }] }, manaus(-10), HOJE)).r || {};
+  const vigTurnos = k => Object.values((vig.porMes || {})[k] || {}).reduce((t, x) => t + x.turnos, 0);
+  ok(vigTurnos('p-ceasa') > 0 && !vigTurnos('_outras-fixas'), 'VIGIFITO: posto configurado com "Barreira Porto da CEASA" continua pegando os turnos (agora BVA - CEASA)', { posto: vigTurnos('p-ceasa'), outras: vigTurnos('_outras-fixas') });
+  ok(canon['BVA - JUNDIÁ'] === 'BVA - JUNDIÁ' && canon['Barreira Estrada Porto da Ceasa'] === 'Barreira Estrada Porto da Ceasa' && canon[''] === '', 'outros locais ficam como estão', canon);
+
   // ---------- rota antiga ----------
   console.log('Rota antiga ?p=painel');
   const dg = await get('/__doget?p=painel'); ok(dg.kind === 'html', 'doGet ?p=painel devolve página HTML mínima (não mais Painel.html)', dg);

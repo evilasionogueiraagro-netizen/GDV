@@ -250,7 +250,7 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
   ok(/Turno encerrado, bom descanso!/.test(await p.textContent('#encPend').catch(() => '')) && (await linhaTurno(id3)).encerrado === 1, 'com internet: enviado (tela atualiza sozinha)', await p.textContent('#encPend').catch(() => ''));
   ok(await p.locator('#avisoEncerrado').count() === 0, 'encerramento do próprio fiscal não mostra o aviso da gerência');
 
-  const errosReais = erros.filter(e => !/ERR_EMPTY_RESPONSE/.test(e));          // servidor desligado de propósito (/__off)
+  const errosReais = erros.filter(e => !/ERR_EMPTY_RESPONSE|ERR_CONNECTION_RESET/.test(e));          // servidor desligado de propósito (/__off)
   ok(!errosReais.length, 'sem erros de página / diálogos do navegador', errosReais.slice(0, 5));
   await b.close();
   console.log(`FALHOU=${falhas}`);

@@ -73,6 +73,16 @@ tudo liberado, exceto `antigo`. O mapa `MODULO_DA_ACAO` diz qual módulo cada ac
 Registros de módulo não liberado (ou `registroAntigo = 1` sem a flag `antigo`) não são gravados no `sync`: voltam em
 `recusados` e ficam pendentes no aparelho.
 
+Levantamento (`levantamentos[]`), campo **`citros`** (coluna `citros`, a última da aba `Levantamentos`): dados do formulário de cítricos
+(IN 21/2018, Portaria 317/2021), preenchidos só quando o levantamento tem praga de citros; senão `''`. Texto JSON
+`{v: 1, comercial, naoComercial, naoComercialOutros, cnpj, endereco, uf, atividades[], atividadeOutros, situacao, situacaoOutras,
+culturas: [{atividade, cultivar, area, idade, plantas, producao}], entrega, formasEntrega[], compradores[], compradorOutros, beneficia,
+beneficiaTipo, materiais[], origemMaterial, delimitacao: {pintapreta: {tem, tempo, controle, qual}}, deteccao: {cancro|hlb|acaro: {tem, tempo}},
+rt: {nome, conselho}}` (sim/não = `'sim'`/`'nao'`; códigos das opções em `CONFIG.PCE.citros` e `CITROS_` no `Code.gs`). O servidor normaliza
+antes de gravar (`citrosTexto_`): só chaves e opções conhecidas, textos até 200 caracteres, números ≥ 0 (negativo/inválido = vazio; `idade` e
+`plantas` inteiros), no máximo 20 linhas em `culturas`, `cnpj` só com 14 dígitos, `uf` com 2 letras; JSON inválido ou sem nada preenchido = `''`.
+Registro enviado sem o campo mantém o valor da planilha (como as demais colunas).
+
 ## Painel do administrador (`key` de administrador)
 
 | Action | Parâmetros | O que faz | Handler |

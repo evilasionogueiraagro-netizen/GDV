@@ -353,6 +353,7 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
       return `<tr><td class="n">${k + 1}</td>${td(c.cultura)}${td(c.area)}${td(c.espLinha)}${td(c.espPlanta)}<td class="res ${esc(c.resultado)}">${esc(RES_PCE[c.resultado])}</td>${td(c.coleta)}`
         + `${td(amostra ? c.tipoMaterial : '–')}${td(amostra ? c.codigoAmostra : '–')}${td(amostra ? c.destinoAmostra : '–')}</tr>`;
     }).join('');
+    secaoCitros(d, reg, grupo.praga);
     if (!String(reg.obs || '').trim()) d.getElementById('quadroObs').remove();
     // fotos agrupadas por cultura (legenda: cultura e nº da foto) + fotos gerais do registro anterior
     const alvo = d.getElementById('fotos');
@@ -371,6 +372,17 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     await Promise.all([...d.images].map(im => (im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; }))));
     if (modo === 'arquivo') return PDF.deFrame(f, nomePdfPce(reg, grupo.praga));
     imprimir(f, nomePdfPce(reg, grupo.praga));
+  }
+
+  /** Quadro "Dados de citros": só no PDF de praga de citros e só com o que foi preenchido (cultura do citros em tabela); senão sai do PDF. */
+  function secaoCitros(d, reg, praga) {
+    const q = d.getElementById('quadroCitros'); if (!q) return;
+    const R = typeof PCECitros !== 'undefined' && PCECitros.ehCitros(praga) ? PCECitros.resumo(reg.citros) : null;
+    if (!R) { q.remove(); return; }
+    d.getElementById('citrosCampos').innerHTML = R.campos.map(([r, v]) => `<div><span class="rot">${esc(r)}</span><span class="val">${esc(v)}</span></div>`).join('');
+    d.getElementById('citrosCulturas').innerHTML = R.culturas.length ? `<table class="citros-cult"><caption>Cultura do citros</caption>
+      <thead><tr><th>#</th><th>Tipo de atividade</th><th>Cultivar</th><th>Área (ha)</th><th>Idade (anos)</th><th>Qtd. de plantas</th><th>Produção (t/ano)</th></tr></thead>
+      <tbody>${R.culturas.map((c, k) => `<tr><td>${k + 1}</td><td>${esc(c.atividade)}</td><td>${esc(c.cultivar)}</td><td>${esc(c.area)}</td><td>${esc(c.idade)}</td><td>${esc(c.plantas)}</td><td>${esc(c.producao)}</td></tr>`).join('')}</tbody></table>` : '';
   }
 
   /** Termo de Colheita (2 vias). modo 'arquivo': PDF gerado no aparelho só com a via do produtor (a última). */

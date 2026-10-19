@@ -295,7 +295,7 @@ const temId = async (aba, id) => (await linhas(aba)).some((r, i) => i > 0 && r[0
   await a.click('.modulo[data-v=home]'); await a.waitForSelector('#fTurno');
   await a.fill('#nTF', '5'); await a.selectOption('#nPosto', 'Móvel'); await a.fill('#nLocal', 'BR-174 km 10'); await a.fill('#nUnidade', 'MANAUS'); await a.click('#fTurno button[type=submit]');
   await a.waitForSelector('.contador');
-  ok(await a.locator('[data-go=tfnovo]').count() === 1, 'TF liberado: "Lavrar TF neste turno" aparece');
+  ok(await a.locator('[data-go=tfnovo]').count() === 0, 'tela do turno sem o botão "Lavrar TF neste turno" (o TF sai pelo veículo ou pelo módulo de TF)');
   await a.click('[data-go=registrar]'); await a.waitForSelector('#fVeic'); await a.fill('#placa', 'AAA1B22'); await a.click('#fVeic > button');
   await a.waitForFunction(() => /registrado/.test(document.querySelector('#toast').textContent)); await sync();
   await a.click('nav [data-v=lista]'); await a.waitForSelector('.item');
@@ -351,9 +351,9 @@ const temId = async (aba, id) => (await linhas(aba)).some((r, i) => i > 0 && r[0
   ok(loc === 'AAA1B22:0,OFF1L23:0', 'registro guardado foi enviado (não pendente)', loc);
   ok((await linhas('Veiculos')).some(r => r[3] === 'OFF1L23'), 'e está na planilha');
   await a.click('.modulo[data-v=home]'); await a.waitForSelector('.contador');
-  ok(await a.locator('[data-go=tfnovo]').count() === 1, '"Lavrar TF neste turno" volta');
+  ok(await a.locator('[data-go=tfnovo]').count() === 0, 'tela do turno continua sem "Lavrar TF neste turno"');
   // TF tirado com o formulário de TF aberto: volta para os módulos e o rascunho fica guardado
-  await a.click('[data-go=tfnovo]'); await a.waitForSelector('#tfForm'); await a.fill('#tf-nome', 'RASCUNHO GUARDADO'); await a.waitForTimeout(800);
+  await a.evaluate(() => go('tfnovo')); await a.waitForSelector('#tfForm'); await a.fill('#tf-nome', 'RASCUNHO GUARDADO'); await a.waitForTimeout(800);
   await perm(1, 0, 1); await sync();
   await a.waitForFunction(() => VIEW === 'modulos', null, { timeout: 10000 });
   const rasc = await a.evaluate(() => Store.meta('tfRascunho'));

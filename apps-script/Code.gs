@@ -149,7 +149,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-16f';
+const VERSAO_CODIGO = '2026-10-19b';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -168,6 +168,7 @@ function doPost(e) {
     if (req.action === 'painelOcultarAcesso') return json_(painelOcultarAcesso(req.key, req.nome, false));
     if (req.action === 'painelRestaurarAcesso') return json_(painelOcultarAcesso(req.key, req.nome, true));
     if (req.action === 'painelRevogar') return json_(painelRevogar(req.key, req.nome));
+    if (req.action === 'painelRevogarAdmin') return json_(painelRevogarAdmin(req.key, req.nome));
     if (req.action === 'painelPermissoes') return json_(painelPermissoes(req.key, req.nome, req));
     if (req.action === 'painelEncerrarTurno') return json_(painelEncerrarTurno(req.key, req.turnoId, req.fim));
     if (req.action === 'tfVerificar') return json_(tfVerificar_(req));                      // página pública verificar.html: sem credencial
@@ -1133,7 +1134,8 @@ function arquivoEnviar_(req, usuario) {
  *   painelOcultarAcesso {key, nome}  → "Remover da lista": marca oculto=1/ocultoPor/ocultoEm nas linhas de FISCAL desse nome (não apaga;
  *                                       recusa se houver aparelho ativo ou código aguardando ativação). Nova chave para o nome = volta à lista.
  *   painelRestaurarAcesso {key, nome} → desfaz o "Remover da lista" (oculto=0)
- *   painelRevogar {key, nome}        → revoga os acessos de FISCAL com esse nome (administradores só pelo menu da planilha)
+ *   painelRevogar {key, nome}        → revoga os acessos de FISCAL com esse nome
+ *   painelRevogarAdmin {key, nome}   → revoga os acessos de ADMINISTRADOR (painel e TV) com esse nome; o próprio acesso não (botão Sair)
  *   painelPermissoes {key, nome, veiculos, tf, pce, antigo} → módulos em que o FISCAL pode inserir dados (aba Permissoes; pelo menos um
  *                                       entre veiculos/tf/pce; antigo = "Digitar do papel", padrão 0, exige pce=1)
  *   painelGerarCodigo aceita também modulos:{veiculos, tf, pce, antigo} (gravados junto); painelAcessos devolve permissoes de cada fiscal.
@@ -1402,16 +1404,29 @@ function painelAcessos(token, ocultos) {
   return { ok: true, agora: agora, acessos: lista };
 }
 
-/** Painel → "Revogar": tira todos os acessos de FISCAL com esse nome (aparelhos e códigos). Administrador só pela planilha. */
+/** Painel → "Revogar": tira todos os acessos de FISCAL com esse nome (aparelhos e códigos). Administrador: painelRevogarAdmin. */
 function painelRevogar(token, nome) {
   adminDoToken_(token);
   nome = String(nome || '').trim().replace(/\s+/g, ' ').slice(0, NOME_SERVIDOR_MAX + 20);
   if (!nome) throw new Error('Informe o nome do servidor.');
-  const n = revogar_(nome, true);
+  const n = revogar_(nome, 'fiscal');
   if (!n && lerLeitura_('Fiscais').some(function (f) { return f.perfil === 'admin' && f.ativo === 1 && nomeChave_(f.nome) === nomeChave_(nome); })) {
-    throw new Error('Acesso de administrador não é retirado pelo painel. Use o menu e-GDV da planilha.');
+    throw new Error(nome + ' é administrador: marque "Mostrar administradores" e use o Revogar da linha de administrador.');
   }
   return { ok: true, nome: nome, revogados: n };
+}
+
+/**
+ * Painel → "Revogar" na linha de um administrador: tira os acessos de ADMINISTRADOR com esse nome (painel e TV; credenciais e
+ * códigos ainda não usados). Não toca em acessos de fiscal do mesmo nome. O próprio acesso não sai por aqui (use Sair), para
+ * ninguém se trancar fora do painel. Novo acesso de administrador continua só pelo menu da planilha.
+ */
+function painelRevogarAdmin(token, nome) {
+  const admin = adminDoToken_(token);
+  nome = String(nome || '').trim().replace(/\s+/g, ' ').slice(0, NOME_SERVIDOR_MAX + 20);
+  if (!nome) throw new Error('Informe o nome do administrador.');
+  if (nomeChave_(nome) === nomeChave_(admin)) throw new Error('Este é o seu próprio acesso. Para sair do painel, use o botão Sair.');
+  return { ok: true, nome: nome, revogados: revogar_(nome, 'admin') };
 }
 
 /**
@@ -1508,8 +1523,40 @@ function painelAtivar(codigo) {
 function lerLeitura_(nome) {                       // leitura pura: não cria abas nem colunas
   const sh = planilha_().getSheetByName(nome), cols = TABELAS[nome];
   if (!sh || sh.getLastRow() < 2) return [];
-  return sh.getRange(2, 1, sh.getLastRow() - 1, cols.length).getValues()
+  const linhas = sh.getRange(2, 1, sh.getLastRow() - 1, cols.length).getValues()
     .map(function (l) { return paraObjeto_(cols, l); });
+  // painel e relatórios: a mesma BVA fixa com um nome só (no volante o local é o endereço e fica como está)
+  if (nome === 'Turnos') linhas.forEach(function (t) { const p = normPub_(t.posto); if (p.indexOf('mov') < 0 && p.indexOf('volante') < 0) t.local = localCanon_(t.local); });
+  return linhas;
+}
+
+/**
+ * Nomes diferentes da mesma BVA fixa (turnos antigos digitados à mão, cadastro de barreiras do TF) → o nome do app (CONFIG.bvas).
+ * Vale só na leitura (painel, relatórios, convênio, VIGIFITO, página pública): a planilha e os aparelhos ficam como estão.
+ * Compara sem acento/caixa/pontuação e sem as palavras "BVA", "Barreira", "da/de/do": "BVA Porto da Ceasa" = "Barreira Porto CEASA".
+ */
+const BVA_APELIDOS_ = {
+  'BVA - CEASA': ['Porto da CEASA', 'BR-319 Porto da CEASA']
+};
+function chaveBva_(s) {
+  return normPub_(s).split(' ').filter(function (w) { return w && !/^(bva|barreira|da|de|do|das|dos)$/.test(w); }).join(' ');
+}
+let apelidosBva_ = null;
+function localCanon_(local) {
+  if (!apelidosBva_) {
+    apelidosBva_ = {};
+    Object.keys(BVA_APELIDOS_).forEach(function (nome) {
+      [nome].concat(BVA_APELIDOS_[nome]).forEach(function (a) { const k = chaveBva_(a); if (k) apelidosBva_[k] = nome; });
+    });
+  }
+  const k = chaveBva_(local);
+  return (k && apelidosBva_[k]) || local;
+}
+/** Barreira do cadastro do TF que é uma BVA do app (pelo id, nome, sufixo ou local) → o nome da BVA; senão ''. */
+function bvaDoCadastro_(b) {
+  const nomes = [b.sufixo, b.nome, b.id, b.local];
+  for (let i = 0; i < nomes.length; i++) { const c = localCanon_(nomes[i]); if (c && c !== nomes[i] || BVA_APELIDOS_[c]) return c; }
+  return '';
 }
 
 /* --- auxiliares do painel (sem efeitos colaterais) --- */
@@ -1846,7 +1893,7 @@ function dadosPainel_(admin, filtro) {
     termosPce: termosPce,
     cadastrosPce: cadastrosPce,
     barreiras: lerLeitura_('Barreiras').filter(function (b) { return b.id; })
-      .map(function (b) { return { id: b.id, nome: b.nome, sufixo: b.sufixo, local: b.local, ativo: b.ativo === 1 }; }),
+      .map(function (b) { return { id: b.id, nome: b.nome, sufixo: b.sufixo, local: b.local, ativo: b.ativo === 1, bva: bvaDoCadastro_(b) }; }),
     auditoria: { tf: auditar('TF', todosTFs, tfsPer), pce: auditar('PCE', todasColheitas, colPer),
                  termosPce: auditar('TPCE', todosTermosPce, termosPcePer), cadastrosPce: auditar('CPCE', todosCadastrosPce, todosCadastrosPce.filter(noPeriodo)) }
   };
@@ -3056,8 +3103,9 @@ function vigApurar_(cfg, de, ate) {
   const munN = function (s) { return normPub_(s).replace(/ (am|amazonas)$/, ''); };
   const fixas = cfg.postos.filter(function (p) { return p.tipo === 'fixa'; }), vols = cfg.postos.filter(function (p) { return p.tipo === 'volante'; });
   const fixaDe = function (local, unidade) {
-    const a = normPub_(local), b = normPub_(unidade);
-    for (let i = 0; i < fixas.length; i++) if ((fixas[i].locais || []).some(function (l) { const n = normPub_(l); return n && (n === a || n === b); })) return fixas[i].id;
+    // apelidos da mesma BVA (localCanon_) valem dos dois lados: posto configurado com "Barreira Porto da CEASA" pega os turnos "BVA - CEASA"
+    const alvos = [normPub_(local), normPub_(localCanon_(local)), normPub_(unidade)].filter(Boolean);
+    for (let i = 0; i < fixas.length; i++) if ((fixas[i].locais || []).some(function (l) { return [normPub_(l), normPub_(localCanon_(l))].some(function (n) { return n && alvos.indexOf(n) >= 0; }); })) return fixas[i].id;
     return null;
   };
   const volanteDe = function (t) {
@@ -4005,8 +4053,11 @@ function gerarCodigo_(nome, perfil, geradoPor) {
   }
 }
 
-/** Revoga todos os aparelhos/códigos de um fiscal (pelo nome). Devolve quantos foram revogados. soFiscais: não toca em administradores (painel). */
-function revogar_(nome, soFiscais) {
+/**
+ * Revoga todos os aparelhos/códigos com esse nome. Devolve quantos foram revogados.
+ * perfil: 'fiscal' = só acessos de fiscal (painelRevogar), 'admin' = só de administrador (painelRevogarAdmin), vazio = todos (menu).
+ */
+function revogar_(nome, perfil) {
   nome = nomeChave_(nome);
   if (!nome) return 0;
   const lock = LockService.getScriptLock();
@@ -4015,7 +4066,7 @@ function revogar_(nome, soFiscais) {
     const t = lerTudo_('Fiscais'); let n = 0;
     t.valores.forEach(function (l, i) {
       const f = paraObjeto_(t.cols, l);
-      if (nomeChave_(f.nome) === nome && f.ativo === 1 && !(soFiscais && f.perfil === 'admin')) {
+      if (nomeChave_(f.nome) === nome && f.ativo === 1 && (!perfil || (perfil === 'admin') === (f.perfil === 'admin'))) {
         f.ativo = 0;
         t.sh.getRange(i + 2, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return f[c]; })]);
         n++;

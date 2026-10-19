@@ -276,15 +276,15 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   ok(k['Autos de infração'] === '1' && k['Reincidentes'] === '1' && k['Cancelados'] === '1', 'autos, reincidentes, cancelados');
   ok(k['Conflitos de numeração'] === '0' && await p.locator('.pn-kpi:has-text("Conflitos de numeração")').evaluate(e => e.classList.contains('pn-st-atencao')), 'auditoria: 0 conflitos, status atenção (lacuna)');
   const aud = await p.locator('.pn-secao:has(> h2:text-is("Auditoria da numeração")) .pn-tab').first().locator('tbody tr').first().evaluate(tr => [...tr.cells].map(c => c.textContent.trim()));
-  ok(aud[0] === 'Verificar' && aud[1] === 'Barreira Porto da CEASA' && aud[3] === '4' && aud[6] === '1' && aud[7] === '3', 'tabela de auditoria: barreira, 4 TFs no ano, lacuna nº 3', aud);
+  ok(aud[0] === 'Verificar' && aud[1] === 'BVA - CEASA' && aud[3] === '4' && aud[6] === '1' && aud[7] === '3', 'tabela de auditoria: barreira, 4 TFs no ano, lacuna nº 3', aud);
   const prodChart = await p.evaluate(() => { const c = Object.values(Chart.instances).find(x => /produtos/i.test(x.canvas.closest('.pn-cartao').textContent) && /apreend|rechaç/i.test(x.canvas.closest('.pn-cartao').textContent)); return c ? c.data.labels : null; });
   ok(prodChart && prodChart.includes('CARAMBOLA'), 'gráfico de produtos apreendidos/rechaçados', prodChart);
   const tabTF = await p.locator('.pn-secao:has(> h2:text-is("Termos de Fiscalização do período")) .pn-tab').first().textContent();
   ok(/\*\*\*\.982\.247-\*\*/.test(tabTF) && !tabTF.includes(CPF), 'tabela de TFs: CPF mascarado');
   const desemp = await p.locator('.pn-secao:has(> h2:text-is("Desempenho por barreira")) tbody tr').evaluateAll(trs => trs.map(tr => [...tr.cells].map(c => c.textContent.trim())));
   const ceasa = desemp.filter(r => /CEASA/.test(r[0]));
-  ok(ceasa.length === 1 && ceasa[0][0] === 'Barreira Porto CEASA' && ceasa[0][1] === '1' && ceasa[0][3] === '5' && ceasa[0][4] === '2' && ceasa[0][10] !== '—',
-    'desempenho por barreira: turnos e TFs da mesma barreira na mesma linha (taxa calculada)', ceasa);
+  ok(ceasa.length === 1 && ceasa[0][0] === 'BVA - CEASA' && ceasa[0][1] === '2' && ceasa[0][3] === '5' && ceasa[0][4] === '2' && ceasa[0][10] !== '—',
+    'desempenho por barreira: turnos e TFs da mesma barreira na mesma linha (taxa calculada; "Barreira Porto CEASA" e "CEASA" = BVA - CEASA)', ceasa);
   const csvQ = await baixar(p, p.locator('.pn-secao:has(> h2:text-is("Quantidades por produto")) .pn-tab button:has-text("Baixar CSV")').first());
   ok(/CARAMBOLA/.test(csvQ.txt) && /1210,5|1\.210,5/.test(csvQ.txt), 'CSV de quantidades soma 10 + 1.200,5 Kg de carambola', csvQ.txt.split('\r\n').find(l => /CARAMBOLA/.test(l)));
   await p.screenshot({ path: amb.saida('painel_tf.png'), fullPage: true });
@@ -337,16 +337,17 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   k = await lerKpis(p); ok(k['Barreiras em andamento agora'] === '0' && k['Veículos abordados'] === '0', 'filtro de fiscal por nome exato ("Maria" não traz "Maria Souza")', [k['Barreiras em andamento agora'], k['Veículos abordados']]);
   await p.selectOption('#pn-fiscal', ''); await p.selectOption('#pn-local', 'm:Tabatinga'); await p.waitForTimeout(500);
   k = await lerKpis(p); ok(k['Veículos abordados'] === '3' && k['Levantamentos PCE'] === '1', 'município Tabatinga: 3 veículos, 1 levantamento', [k['Veículos abordados'], k['Levantamentos PCE']]);
-  await p.selectOption('#pn-local', 'b:Barreira Porto CEASA'); await aba(p, 'pce');
+  const opsBar = await p.$$eval('#pn-local optgroup[label="Barreiras / locais"] option', os => os.map(o => o.value));
+  ok(opsBar.includes('b:BVA - CEASA') && !opsBar.some(v => /Porto (da )?CEASA|^b:CEASA$/i.test(v)), 'filtro: BVA - CEASA uma vez só (sem "Barreira Porto CEASA", "Barreira Porto da CEASA" nem "CEASA")', opsBar);
+  await p.selectOption('#pn-local', 'b:BVA - CEASA'); await aba(p, 'pce');
   k = await lerKpis(p, '.pn-pce-kpis .pn-kpis'); ok(k['Levantamentos'] === String(E30.levs), 'filtro de barreira não se aplica ao PCE');
   ok(/não se aplica ao PCE/.test(await p.textContent('#pn-conteudo')), 'aviso de que o filtro de barreira não vale para o PCE');
-  await aba(p, 'barreiras'); k = await lerKpis(p); ok(k['Veículos abordados'] === '5', 'barreira Porto CEASA: 5 veículos', k['Veículos abordados']);
-  await p.selectOption('#pn-local', 'b:Barreira Porto da CEASA'); await p.waitForTimeout(500);   // nome do cadastro (o turno guarda o texto digitado)
-  // nos dados de teste todos os TFs são da barreira BVA-CEASA: tA (5 veículos) e tB (3) têm TFs dela; antes do ajuste davam 0 turnos/0 veículos
-  k = await lerKpis(p); ok(k['Veículos abordados'] === '8' && k['Turnos de barreira'] === '2', 'barreira do cadastro casa com os turnos dela (pelos TFs do turno)', [k['Veículos abordados'], k['Turnos de barreira']]);
-  await p.selectOption('#pn-local', 'b:Barreira Porto CEASA'); await p.waitForTimeout(300);
+  await aba(p, 'barreiras');
+  // todos os TFs dos dados de teste são da barreira BVA-CEASA: tA (5 veículos, "Barreira Porto CEASA"), antigo-1 ("CEASA", 0) e tB (3, pelos TFs)
+  k = await lerKpis(p); ok(k['Veículos abordados'] === '8' && k['Turnos de barreira'] === '3', 'BVA - CEASA: turnos do local e os da barreira do cadastro (pelos TFs do turno)', [k['Veículos abordados'], k['Turnos de barreira']]);
+  await p.selectOption('#pn-local', 'b:BVA - CEASA'); await p.waitForTimeout(300);
   await p.reload(); await esperarDados(p);
-  ok(await p.inputValue('#pn-local') === 'b:Barreira Porto CEASA' && await p.getAttribute('.pn-aba[data-aba=barreiras]', 'aria-selected') === 'true', 'filtro e aba lembrados após recarregar');
+  ok(await p.inputValue('#pn-local') === 'b:BVA - CEASA' && await p.getAttribute('.pn-aba[data-aba=barreiras]', 'aria-selected') === 'true', 'filtro e aba lembrados após recarregar');
   await p.selectOption('#pn-local', ''); await aba(p, 'geral');
   await p.click('[data-preset="custom"]'); await p.fill('#pn-de', dia(-25)); await p.fill('#pn-ate', dia(-15)); await p.click('#pn-aplicar'); await p.waitForTimeout(1500);
   const EP = esperado(dia(-25), dia(-15)); k = await lerKpis(p);

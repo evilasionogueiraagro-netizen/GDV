@@ -30,8 +30,8 @@ const CONFIG = {
     MT: { nome: 'Moto',              icone: '🏍️', pessoas: 2 }
   },
   linhasFicha: 50,
-  // Carga do veículo (formulário do veículo; tudo opcional): UFs de origem/destino. Destino AM = internalização/importação; destino em
-  // outro estado = carga em trânsito/exportação (alimentam o VIGIFITO sem lançamento manual).
+  // UFs de origem/destino (opcionais no registro do veículo e no TF; mesma lista que UFS_ no Code.gs). Destino AM vindo de outra UF =
+  // internalização/importação; destino em outro estado = carga em trânsito/exportação (alimentam o VIGIFITO sem lançamento manual).
   ufs: ['AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC', 'SE', 'SP', 'TO', 'Exterior'],
   ufLocal: 'AM',
 

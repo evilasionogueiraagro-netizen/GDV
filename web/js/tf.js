@@ -47,7 +47,7 @@ const TFUI = (() => {
   // { hist:{doc,placa}, tpl, turnoId, veiculoId, rid, id (do TF, já na abertura: as fotos ficam ligadas a ele), fotos:[ids], ass, assNovas, recusa }
   let S = null;
   const vazio = () => ({ barreira: '', numero: '', data: hojeISO(), hora: agoraHM(), doc: '', nome: '', rg: '', endereco: '', municipio: '', uf: '', telefone: '', relacao: T.relacoes[0],
-    inspecao: false, coleta: false, amostras: '', procedimento: '', fiel: false, auto: false, advertencia: false, local: '', placa: '', origem: '', destino: '',
+    inspecao: false, coleta: false, amostras: '', procedimento: '', fiel: false, auto: false, advertencia: false, local: '', placa: '', origem: '', destino: '', ufOrigem: '', ufDestino: '',
     docs: { nf: '', ptv: '', gta: '', sif: '', sie: '', sim: '', lacre: '', outros: '' }, produtos: [{ p: '', q: '', u: T.unidades[0] }], constatacao: '', enquadramento: '' });
 
   function coletar() {
@@ -55,7 +55,7 @@ const TFUI = (() => {
     const proc = document.querySelector('input[name=tf-proc]:checked');
     return { barreira: g('barreira'), numero: S && S.numEditado && S.numEditado.b === g('barreira') ? String(S.numEditado.n) : '', data: g('data'), hora: g('hora'), doc: g('doc'), nome: g('nome'), rg: g('rg'), endereco: g('endereco'), municipio: g('municipio'),
       uf: g('uf'), telefone: g('telefone'), relacao: g('relacao'), inspecao: c('inspecao'), coleta: c('coleta'), amostras: g('amostras'),
-      procedimento: proc ? proc.value : '', fiel: c('fiel'), auto: c('auto'), advertencia: c('advertencia'), local: g('local'), placa: placaNorm(g('placa')), origem: g('origem'), destino: g('destino'),
+      procedimento: proc ? proc.value : '', fiel: c('fiel'), auto: c('auto'), advertencia: c('advertencia'), local: g('local'), placa: placaNorm(g('placa')), origem: g('origem'), destino: g('destino'), ufOrigem: g('ufOrigem'), ufDestino: g('ufDestino'),
       docs: Object.fromEntries(['nf', 'ptv', 'gta', 'sif', 'sie', 'sim', 'lacre', 'outros'].map(k => [k, g('d-' + k)])),
       produtos: [...document.querySelectorAll('#tf-produtos .prod')].map(r => ({ p: r.querySelector('select').value, q: r.querySelector('input').value, u: r.querySelectorAll('select')[1].value })),
       constatacao: g('constatacao'), enquadramento: g('enquadramento') };
@@ -169,6 +169,7 @@ const TFUI = (() => {
   /* ---------- tela: formulário ---------- */
   const campo = (id, rot, v, extra = '') => `<label>${rot}<input id="tf-${id}" value="${esc(v)}" ${extra}></label>`;
   const opts = (lista, atual) => lista.map(x => `<option ${x === atual ? 'selected' : ''}>${esc(x)}</option>`).join('');
+  const selUF = (id, rot, v) => `<label>${rot} <small>(opcional)</small><select id="tf-${id}"><option value="">—</option>${opts(CONFIG.ufs, v)}</select></label>`;
   const linhaProd = (p, i) => `<div class="prod" data-i="${i}"><select><option value=""></option>${opts(T.produtos, p.p)}</select>
     <input type="number" inputmode="decimal" min="0" step="any" placeholder="Qtd." value="${esc(p.q)}"><select>${opts(T.unidades, p.u)}</select>
     <button type="button" class="mini" data-tf="delprod" data-i="${i}" aria-label="Remover produto">✕</button></div>`;
@@ -205,7 +206,8 @@ const TFUI = (() => {
       ${campo('local', 'Local *', D.local)}
       ${campo('placa', 'Veículo fiscalizado – placa', D.placa, 'maxlength="8" autocapitalize="characters" placeholder="ABC1D23"')}
       <div id="tf-st-placa" class="tf-status" aria-live="polite"></div>
-      <div class="duas">${campo('origem', 'Origem', D.origem)}${campo('destino', 'Destino', D.destino)}</div></div>
+      <div class="duas">${campo('origem', 'Origem', D.origem)}${campo('destino', 'Destino', D.destino)}</div>
+      <div class="duas">${selUF('ufOrigem', 'UF de origem', D.ufOrigem)}${selUF('ufDestino', 'UF de destino', D.ufDestino)}</div></div>
 
     <div class="card"><h3>Documentação apresentada</h3><div class="duas">
       ${campo('d-nf', 'NF Nº', d.nf)}${campo('d-ptv', 'PTV Nº', d.ptv)}${campo('d-gta', 'GTA Nº', d.gta)}${campo('d-sif', 'SIF Nº', d.sif)}
@@ -273,7 +275,7 @@ const TFUI = (() => {
       const bPad = localStorage.getItem('gdv.barreira');
       D.barreira = bars.some(b => b.id === bPad) ? bPad : bars[0].id;
       D.local = (tr && tr.local) || (bars.find(b => b.id === D.barreira) || {}).local || '';
-      if (veic) D.placa = veic.placa;
+      if (veic) { D.placa = veic.placa; D.ufOrigem = veic.ufOrigem || ''; D.ufDestino = veic.ufDestino || ''; }   // origem/destino do registro do veículo
     }
     if (!bars.some(b => b.id === D.barreira)) D.barreira = bars[0].id;
     view(formHTML(D, bars));
@@ -445,6 +447,7 @@ const TFUI = (() => {
       const rec = {
         id, criadoEm: t0, atualizadoEm: t0, barreira: bar.id, ano: a, numero: n, numeroTxt: `${num4(n)}/${a} - ${bar.sufixo}`, turnoId: S.turnoId || '', veiculoId: S.veiculoId || '',
         data: D.data, hora: D.hora, fiscal: (turno && turno.fiscal) || Sync.nome(), local: D.local.trim(), placa: D.placa, origem: D.origem.trim(), destino: D.destino.trim(),
+        ufOrigem: CONFIG.ufs.includes(D.ufOrigem) ? D.ufOrigem : '', ufDestino: CONFIG.ufs.includes(D.ufDestino) ? D.ufDestino : '',
         doc, nome, rg: pessoa.rg, endereco: pessoa.endereco, municipio: pessoa.municipio, uf: pessoa.uf, telefone: pessoa.telefone, relacao: D.relacao,
         inspecao: D.inspecao ? 1 : 0, coleta: D.coleta ? 1 : 0, amostras: Number(D.amostras) || 0, procedimento: D.procedimento, fiel: D.fiel ? 1 : 0, auto: D.auto ? 1 : 0, advertencia: D.advertencia ? 1 : 0,
         documentos: JSON.stringify(D.docs), produtos: JSON.stringify(prods), constatacao: D.constatacao, enquadramento: D.enquadramento,

@@ -54,6 +54,8 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   ok((await A.inputValue('#tf-local')) === 'BR-319 PORTO DA CEASA', 'local sugerido pela barreira');
   await A.screenshot({ path: amb.saida('tf_form_topo.png') });
   await preencher(A, { doc: '529.982.247-25', nome: 'josé da silva', placa: 'abc-1d23' });
+  ok((await A.inputValue('#tf-ufOrigem')) === '' && (await A.$$eval('#tf-ufDestino option', os => os.length)) === 29, 'UF de origem/destino: selects opcionais (vazio + 27 UFs + Exterior)');
+  await A.selectOption('#tf-ufOrigem', 'AM'); await A.selectOption('#tf-ufDestino', 'AM');
   ok(/Novo cadastro/.test(await A.textContent('#tf-st-doc')) && /Sem TF anterior/.test(await A.textContent('#tf-st-doc')), 'CPF novo, sem histórico');
   ok((await A.inputValue('#tf-constatacao')).includes('SEM a devida documentação') && (await A.inputValue('#tf-enquadramento')).includes('Lei Federal 9.712'), 'textos sugeridos para apreensão');
   await A.fill('#tf-doc', '123.456.789-00'); await A.waitForTimeout(700); ok(/dígitos inválidos/.test(await A.textContent('#tf-st-doc')), 'CPF com dígitos inválidos é sinalizado');
@@ -65,7 +67,9 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   ok(new RegExp(`0001/${ANO} - BVA - CEASA`).test(await A.textContent('#view')) && /Número confirmado na planilha/.test(await A.textContent('#view')), `TF 0001/${ANO} gerado e confirmado na planilha`);
   let linhas = await tfsPlanilha();
   ok(linhas.length === 1 && linhas[0].numero === 1 && linhas[0].numeroOrigem === 'sistema' && linhas[0].emitidoEm > 0 && linhas[0].usuario === 'Ana Paula Lima', 'planilha já tem o TF 1 (origem "sistema", emitidoEm e usuário gravados), sem esperar a sincronização');
+  ok(linhas[0].origem === 'ITACOATIARA' && linhas[0].ufOrigem === 'AM' && linhas[0].ufDestino === 'AM', 'planilha: UF de origem/destino gravadas nas colunas novas (ufOrigem/ufDestino)');
   let pr = await imprimir(A);
+  ok(pr.texto.includes('ITACOATIARA/AM') && pr.texto.includes('MANAUS/AM'), 'PDF: origem e destino com a UF ("ITACOATIARA/AM", "MANAUS/AM")');
   ok(pr.paginas === 2 && pr.vias.join('|') === '1ª via|2ª via' && pr.texto.includes(`0001/${ANO} - BVA - CEASA`) && pr.texto.includes('JOSÉ DA SILVA') && pr.texto.includes('529.982.247-25') && pr.texto.includes('MANGA - 10 Kg') && pr.texto.includes('☑ Apreensão p/ destruição'), 'PDF em 2 vias com número, nome, CPF formatado, produto e procedimento');
   ok(new RegExp(`TF 0001-${ANO} - BVA - CEASA MANGA APREENSAO`).test(pr.titulo), 'nome sugerido do PDF: ' + pr.titulo);
 

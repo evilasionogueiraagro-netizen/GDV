@@ -142,6 +142,14 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   await irTF(A); await A.waitForSelector('#tfItens .item'); const antes = await A.locator('#tfItens .item').count();
   await A.locator('[data-tf=cancelar]').first().click(); await A.waitForFunction(() => /CANCELADO/.test(document.querySelector('#tfItens').textContent));
   ok(/digitação errada/.test(await A.textContent('#tfItens')), 'TF cancelado mostra o motivo');
+  await sync(A); await irTF(A); await A.waitForSelector('[data-tf=tirar]');
+  const nAntes = await A.locator('#tfItens .item').count(), cancPlan = (await tfsPlanilha()).filter(t => Number(t.cancelado) === 1).length;
+  ok(await A.locator('[data-tf=tirar]').count() >= 1, 'TF cancelado e enviado: botão "Excluir da lista"');
+  await A.locator('[data-tf=tirar]').first().click(); await A.waitForFunction(n => document.querySelectorAll('#tfItens .item').length === n - 1, nAntes, { timeout: 8000 });
+  ok(await A.locator('#tfVerRem').count() === 1 && (await tfsPlanilha()).filter(t => Number(t.cancelado) === 1).length === cancPlan, 'excluído só da lista do aparelho; na planilha continua (cancelado, número usado)');
+  await A.check('#tfVerRem'); await A.waitForSelector('[data-tf=restaurar]');
+  await A.click('[data-tf=restaurar]'); await A.waitForSelector('#tfVerRem', { state: 'detached', timeout: 8000 });
+  ok(await A.locator('#tfItens .item').count() === nAntes, '"Voltar para a lista" devolve o TF');
   await A.locator('[data-tf=imprimir]').first().click().catch(() => {}); 
   await novoTF(A); await A.fill('#tf-nome', 'RASCUNHO TESTE'); await A.waitForTimeout(800);
   await A.click('nav [data-v=tf]'); await A.waitForTimeout(300); await irTF(A); await novoTF(A);

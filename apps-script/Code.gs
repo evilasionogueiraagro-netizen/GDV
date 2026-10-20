@@ -126,7 +126,7 @@ const TABELAS = {
   // Portal do Administrativo (web/administrativo/): pessoas liberadas (login com Google pelo e-mail ou código de 6 dígitos gerado no
   // painel). Os e-mails ficam SÓ nesta aba (LGPD); os lançamentos guardam o nome e o admId. Gerida no painel → Servidores.
   Administrativo: ['id', 'email', 'nome', 'ativo', 'criadoEm', 'criadoPor', 'ultimoAcesso', 'codigo', 'codigoExpira', 'atualizadoEm', 'atualizadoPor'],
-  // Sessões do portal: só o SHA-256 do token (o token em si fica no navegador); 12 h, renovada a cada uso; revogado = 1 ao sair.
+  // Sessões do portal: só o SHA-256 do token (o token em si fica no navegador); 30 dias sem uso, renovada a cada uso; revogado = 1 ao sair.
   AdmSessoes: ['id', 'hash', 'admId', 'origem', 'criadoEm', 'expiraEm', 'ultimoUso', 'revogado'],
   // Histórico de alterações feitas no portal (antes/depois em JSON).
   AdmHistorico: ['em', 'admId', 'nome', 'acao', 'aba', 'registro', 'antes', 'depois'],
@@ -156,7 +156,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-20b';
+const VERSAO_CODIGO = '2026-10-20c';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -3412,13 +3412,13 @@ function painelVigConfigSalvar(token, req) {
  * Login: o navegador obtém o ID token do Google (Google Identity Services) e chama admLogin {idToken}; o servidor confere o token no
  * tokeninfo do Google (aud = propriedade GOOGLE_CLIENT_ID, iss, exp, email_verified), o e-mail (minúsculas) na lista de liberados (aba
  * Administrativo, gerida no painel → Servidores) e devolve um token de SESSÃO do portal (aleatório; na planilha só o SHA-256), válido
- * por 12 h e renovado ao usar. Sem Google configurado: código de 6 dígitos gerado no painel (admCodigo {codigo}) → a mesma sessão;
+ * por 30 dias sem uso e renovado ao usar. Sem Google configurado: código de 6 dígitos gerado no painel (admCodigo {codigo}) → a mesma sessão;
  * o código é permanente (serve para entrar de novo quando a sessão vence) até o gerente gerar outro ou revogar o acesso.
  * A sessão do portal não vale no painel nem no app (e as credenciais deles não valem aqui). O ID token nunca é gravado nem registrado.
  * Revogar no painel (ativo = 0) derruba a sessão na próxima chamada. Logins recusados: 10 em 15 min bloqueiam (CacheService).
  * LGPD: os e-mails ficam só na aba Administrativo (e no painel do administrador); lançamentos e histórico guardam o nome e o admId.
  */
-const ADM_SESSAO_MS = 12 * 3600 * 1000;
+const ADM_SESSAO_MS = 30 * 24 * 3600 * 1000;                 // sessão do portal: 30 dias sem uso (Sair ou revogar derruba na hora)
 const ADM_MAX_PADRAO = 10;                                    // liberados ativos (propriedade do script ADM_MAX troca)
 const ADM_MAX_FALHAS = 10;                                    // logins recusados (Google ou código) antes de bloquear 15 min
 const ADM_ISS = ['accounts.google.com', 'https://accounts.google.com'];
@@ -3504,7 +3504,7 @@ function admMarcarAcesso_(id, agora) {
   for (let i = 0; i < t.valores.length; i++) if (String(t.valores[i][0]) === String(id)) { t.sh.getRange(i + 2, iu + 1).setValue(agora); return; }
 }
 
-/** Valida o token de sessão do portal; renova a validade (12 h a partir do uso). Liberado revogado = sessão recusada. */
+/** Valida o token de sessão do portal; renova a validade (30 dias a partir do uso). Liberado revogado = sessão recusada. */
 function admSessao_(tok) {
   tok = String(tok || '');
   if (!/^[0-9a-f]{64}$/.test(tok)) throw new Error('Sessão do portal inválida. Entre de novo.');
@@ -3513,7 +3513,7 @@ function admSessao_(tok) {
     if (String(t.valores[i][ih]) !== h) continue;
     const s = paraObjeto_(t.cols, t.valores[i]);
     if (s.revogado === 1) break;
-    if (s.expiraEm <= agora) throw new Error('Sessão do portal expirada (12 h sem uso). Entre de novo.');
+    if (s.expiraEm <= agora) throw new Error('Sessão do portal expirada (30 dias sem uso). Entre de novo com o mesmo código de ativação.');
     const a = lerLeitura_('Administrativo').filter(function (x) { return x.id === s.admId; })[0];
     if (!a || a.ativo !== 1) throw new Error('Sessão do portal revogada: o acesso foi retirado pelo gerente.');
     if (s.expiraEm - agora < ADM_SESSAO_MS - 5 * 60 * 1000) {                 // renova (no máximo uma escrita a cada 5 min)

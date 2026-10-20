@@ -1,10 +1,11 @@
 const amb = require('./lib/amb');
 // VIGIFITO (motor de indicadores + relatório por posto + Portal do Administrativo): turnos fixos (BVA Jundiá) e volantes (Tabatinga) com
-// veículos — com a carga registrada no app (produtos em kg/t/caixas, UF de origem/destino, partida, inspeção, documento conferido,
-// educação sanitária, medida fitossanitária) e os indicadores CALCULADOS a partir dela — e TFs (liberação/apreensão em kg, t e caixas; amostra; documentos) em meses e períodos de 10 dias diferentes (inclusive no dia
+// veículos (pessoas a bordo e UF de origem/destino opcional) e TFs (UF de origem/destino — inclusive TF antigo só com o texto "BOA VISTA/RR" —,
+// produtos em kg/t/caixas, documentos, inspeção, amostra) e os indicadores CALCULADOS deles (educação sanitária = pessoas; medida
+// fitossanitária e partidas = TFs; internalização/cargas para outros estados sem contar duas vezes o veículo com TF) em meses e períodos de 10 dias diferentes (inclusive no dia
 // da troca da escala), turno numa BVA sem posto (não mapeado); valores manuais e substituição de automático pelo portal (validações:
 // negativo, decimal em contagem, mais de 3 casas em t, justificativa, período fora da escala); importação de uma planilha VIGIFITO
-// SINTÉTICA (gerada aqui) no layout da planilha de controle (histórico), com avisos e idempotência; app de campo: carga no veículo; central de relatórios do painel: VIGIFITO mensal,
+// SINTÉTICA (gerada aqui) no layout da planilha de controle (histórico), com avisos e idempotência; app de campo: veículo sem o bloco de fiscalização, com UF opcional, e TF lavrado dele; central de relatórios do painel: VIGIFITO mensal,
 // por período, semestral e anual (automáticos por posto, manuais, substituição, totais por município, fixas, volantes e geral; nada de
 // negativo ou decimal em contagem), saídas .docx (zip/XML), PDF e .xlsx (abas e células conferidas), consistência com o convênio (1.10)
 // e com o consolidado; PCE, Convênio e Metas SUASA na central.
@@ -74,17 +75,22 @@ function planilhaVig() {
   let r = await post({ action: 'sync', key: 'segredo', since: 0,
     turnos: [T('j1', d(1, 14), 'BVA - JUNDIÁ', 'Fixa', 'BVA - JUNDIÁ'), T('j2', d(1, 13), 'BVA - JUNDIÁ', 'Fixa', 'BVA - JUNDIÁ'), T('j3', d(3, 10), 'BVA - JUNDIÁ', 'Fixa', 'BVA - JUNDIÁ'),
       T('v1', d(2, 5), 'Porto de Tabatinga', 'Móvel', 'TABATINGA'), T('v2', d(8, 20), 'Porto Público', 'Móvel', 'TABATINGA'), T('c1', d(3, 5), 'BVA - CEASA', 'Fixa', 'BVA - CEASA')],
-    // carga registrada no app: a1 RR→AM (internalização; 1.500 kg + 20 caixas; documento conferido), a2 AM→PA (carga para outro estado,
-    // 2 t; medida fitossanitária), a3 sem orientação, a4 PA→AM sem partida marcada (800 kg; documento), a7 Exterior→AM (0,3 t);
-    // a12 excluído (não conta); veículos antigos sem os campos novos contam como orientados
-    veiculos: [V('a1', 'j1', 5, { carga: 1, produtos: JSON.stringify(['LARANJA - 1.500 Kg', 'BANANA - 20 Caixas']), ufOrigem: 'RR', ufDestino: 'AM', partida: 1, inspecaoFito: 1, docConferido: 1 }),
-      V('a2', 'j1', 5, { carga: 1, produtos: JSON.stringify(['MANGA - 2 Ton']), ufOrigem: 'AM', ufDestino: 'PA', partida: 1, medidaFito: 1 }), V('a3', 'j1', 1, { semEducacao: 1 }),
-      V('a4', 'j2', 2, { carga: 1, produtos: JSON.stringify(['ABACAXI - 800 Kg']), ufOrigem: 'PA', ufDestino: 'AM', partida: 0, docConferido: 1 }), V('a5', 'j2', 2), V('a6', 'j3', 1),
-      V('a7', 'v1', 40, { carga: 1, produtos: JSON.stringify(['TOMATE - 0,3 Ton']), ufOrigem: 'Exterior', ufDestino: 'AM', partida: 1, inspecaoFito: 1 }), V('a8', 'v1', 2), V('a9', 'v2', 5),
-      V('a10', 'c1', 1), V('a11', 'c1', 1), V('a12', 'j1', 9, { excluido: 1, carga: 1, partida: 1, produtos: JSON.stringify(['MANGA - 9 Ton']), ufOrigem: 'RR', ufDestino: 'AM' })],
-    tfs: [TF('f1', 'j1', d(1, 14), 'liberacao', ['LARANJA - 1.500 Kg', 'MANGA - 2 Ton'], { documentos: '{"ptv":"1"}', veiculoId: 'a1' }), TF('f2', 'j1', d(1, 14), 'apreensao', ['GOIABA - 250 Kg', 'CARAMBOLA - 10 Caixas']),
-      TF('f3', 'j2', d(1, 13), 'liberacao', [], { coleta: 1, amostras: 2, inspecao: 1 }), TF('f4', 'j3', d(3, 10), 'rechaco', [], { advertencia: 1 }),
-      TF('f5', 'v1', d(2, 5), 'apreensao', ['TOMATE - 0,5 Ton'], { fiel: 1, auto: 1 }), TF('f6', 'j3', d(3, 10), 'apreensao', ['GOIABA - 1000 Kg'], { cancelado: 1 })],
+    // veículos: pessoas a bordo (educação sanitária) e UF opcional. a1 RR→AM tem o TF f1 ligado (conta só pelo TF); a2 AM→PA sem TF (carga para
+    // outro estado, sem toneladas) e com os campos ANTIGOS de fiscalização marcados (não contam mais); a3 antigo "sem orientação" (conta pelas
+    // pessoas); a4 RR→AM sem TF (internalização sem toneladas); a6 PA→AM com TF cancelado ligado (o cancelado não tira o veículo); a7
+    // Exterior→AM ligado ao f5 (sem UF: herda a do veículo); a12 excluído (não conta)
+    veiculos: [V('a1', 'j1', 5, { ufOrigem: 'RR', ufDestino: 'AM' }),
+      V('a2', 'j1', 5, { ufOrigem: 'AM', ufDestino: 'PA', carga: 1, produtos: JSON.stringify(['MANGA - 2 Ton']), partida: 1, medidaFito: 1, inspecaoFito: 1, docConferido: 1 }), V('a3', 'j1', 1, { semEducacao: 1 }),
+      V('a4', 'j2', 2, { ufOrigem: 'RR', ufDestino: 'AM' }), V('a5', 'j2', 2), V('a6', 'j3', 1, { ufOrigem: 'PA', ufDestino: 'AM' }),
+      V('a7', 'v1', 40, { ufOrigem: 'Exterior', ufDestino: 'AM' }), V('a8', 'v1', 2), V('a9', 'v2', 5),
+      V('a10', 'c1', 1), V('a11', 'c1', 1), V('a12', 'j1', 9, { excluido: 1, ufOrigem: 'RR', ufDestino: 'AM' })],
+    // TFs: f1 RR→AM (1.500 kg + 2 t + 20 caixas; PTV; inspeção) ligado ao a1; f2 AM→PA (250 kg + 10 caixas; apreensão); f3 ANTIGO só com o texto
+    // "BOA VISTA/RR" → "MANAUS - AM" (UF extraída; NF; inspeção; coleta); f4 sem UF; f5 sem UF ligado ao a7 (Exterior→AM; 0,5 t); f6 cancelado
+    tfs: [TF('f1', 'j1', d(1, 14), 'liberacao', ['LARANJA - 1.500 Kg', 'MANGA - 2 Ton', 'BANANA - 20 Caixas'], { documentos: '{"ptv":"1"}', veiculoId: 'a1', ufOrigem: 'RR', ufDestino: 'AM', origem: 'BOA VISTA', destino: 'MANAUS', inspecao: 1 }),
+      TF('f2', 'j1', d(1, 14), 'apreensao', ['GOIABA - 250 Kg', 'CARAMBOLA - 10 Caixas'], { ufOrigem: 'am', ufDestino: 'PA', origem: 'MANAUS', destino: 'BELÉM', documentos: '{"nf":""}' }),
+      TF('f3', 'j2', d(1, 13), 'liberacao', [], { coleta: 1, amostras: 2, inspecao: 1, origem: 'BOA VISTA/RR', destino: 'MANAUS - AM', documentos: '{"nf":"123"}' }),
+      TF('f4', 'j3', d(3, 10), 'rechaco', [], { advertencia: 1, origem: 'ITACOATIARA', destino: 'MANAUS' }),
+      TF('f5', 'v1', d(2, 5), 'apreensao', ['TOMATE - 0,5 Ton'], { fiel: 1, auto: 1, veiculoId: 'a7', ufOrigem: 'XX' }), TF('f6', 'j3', d(3, 10), 'apreensao', ['GOIABA - 1000 Kg'], { cancelado: 1, veiculoId: 'a6', ufOrigem: 'PA', ufDestino: 'AM' })],
     levantamentos: [{ id: 'l1', data: d(3, 12), hora: '09:00', servidor: 'Pedro', doc: '39053344705', nome: 'FAZENDEIRA OCULTA', propriedade: 'Sítio X', codigoPropriedade: 'SX', municipio: 'Tabatinga',
       lat: '-4.2', lon: '-69.9', culturas: '[]', pragas: JSON.stringify([{ praga: 'Monilíase do Cacaueiro', culturas: [{ cultura: 'Cacau', area: '2', resultado: 'detectada', coleta: 'Sim' }] }]), fotos: '[]', assinaturas: '{}', excluido: 0, criadoEm: agora, atualizadoEm: agora }] });
   ok(r.ok, 'turnos, veículos, TFs e levantamento sincronizados', r.erro);
@@ -99,19 +105,30 @@ function planilhaVig() {
   ok(pm('pf-jundia', 1).veiculos === 5 && pm('pf-jundia', 1).tfs === 3 && pm('pf-jundia', 1).coleta === 1 && pm('pf-jundia', 1).amostras === 2,
     'Jundiá/janeiro: 5 veículos (excluído fora), 3 TFs, 1 coleta com 2 amostras', pm('pf-jundia', 1));
   const J1 = pm('pf-jundia', 1);
-  ok(J1.educacao === 4 && J1.medidaFito === 1 && J1.partidas === 2 && J1.inspecaoFito === 1, 'carga no veículo: educação sanitária 4 (1 sem orientação), medida fitossanitária 1, partidas 2 (a sem "partida" e a excluída fora), inspeção 1', J1);
-  ok(J1.documentos === 2, 'exame de documentos: 2 veículos com documento conferido; o TF com documentos do MESMO veículo não conta de novo', J1);
-  ok(J1.internN === 2 && quase(J1.internT, 2.3) && quase(J1.importT, 2.3) && J1.cargasEstados === 1 && quase(J1.exportT, 2) && J1.outrasUnidades.carga.Caixas === 20,
-    'internalização: 2 cargas de outra UF para o AM (1,5 t + 0,8 t = importação 2,3 t); 1 carga para outro estado (exportação 2 t); 20 caixas à parte', J1);
+  ok(J1.educacao === 15, 'educação sanitária = pessoas a bordo (5 + 5 + 1 + 2 + 2; o "sem orientação" antigo conta; excluído fora)', J1);
+  ok(J1.medidaFito === 3 && J1.partidas === 3 && J1.inspecaoFito === 2 && J1.inspecao === 2, 'medida fitossanitária e partidas = 3 TFs; inspeção fitossanitária = TFs com inspeção (2); campos antigos do veículo não contam', J1);
+  ok(J1.documentos === 2, 'exame de documentos = TFs com documento preenchido (PTV, NF; NF vazia não conta; "documento conferido" antigo do veículo não conta)', J1);
+  ok(J1.internN === 3 && quase(J1.internT, 3.5) && quase(J1.importT, 3.5) && J1.outrasUnidades.carga.Caixas === 30,
+    'internalização: TF RR→AM (1,5 t + 2 t) + TF antigo "BOA VISTA/RR" → "MANAUS - AM" (UF extraída do texto) + veículo RR→AM sem TF (sem t); o veículo do TF não conta de novo; caixas à parte', J1);
+  ok(J1.cargasEstados === 2 && quase(J1.exportT, 0.25), 'cargas para outros estados: TF AM→PA (0,25 t) + veículo AM→PA sem TF (sem t)', J1);
   ok(J1.autoDestN === 1 && quase(J1.autoDestT, 0.25), 'auto de destruição = TFs de apreensão (1; 0,25 t)', J1);
   const T2 = pm('tabatinga-volante', 2);
-  ok(T2.internN === 1 && quase(T2.importT, 0.3) && T2.partidas === 1 && T2.inspecaoFito === 1 && T2.educacao === 2 && T2.cargasEstados === 0, 'Tabatinga: carga do exterior para o AM = internalização/importação 0,3 t', T2);
+  ok(T2.internN === 1 && quase(T2.importT, 0.5) && quase(T2.internT, 0.5) && T2.partidas === 1 && T2.inspecaoFito === 0 && T2.educacao === 42 && T2.cargasEstados === 0,
+    'Tabatinga: TF sem UF herda a do veículo ligado (Exterior→AM; UF inválida "XX" ignorada) = internalização 0,5 t; o veículo não conta de novo', T2);
+  const J3 = pm('pf-jundia', 3);
+  ok(J3.internN === 1 && J3.partidas === 1 && J3.medidaFito === 1 && J3.cargasEstados === 0, 'Jundiá/março: TF cancelado não conta nem tira o veículo (PA→AM sem TF válido = internalização); TF sem UF não conta', J3);
+  const uft = async (t) => (await get('/__fn?nome=ufDoTexto_&args=' + encodeURIComponent(JSON.stringify([t])))).r;
+  const exUF = { 'PORTO VELHO/RO': 'RO', 'BOA VISTA - RR': 'RR', 'RR': 'RR', 'manaus am': 'AM', 'SÃO PAULO, SP.': 'SP', 'LIMA (EXTERIOR)': 'Exterior', 'MANAUS': '', 'ITACOATIARA': '', 'ACRE': '', 'BOA VISTA/XX': '', '': '' }, obtUF = {};
+  for (const t of Object.keys(exUF)) obtUF[t] = await uft(t);
+  ok(Object.keys(exUF).every(t => obtUF[t] === exUF[t]), 'TF antigo: UF extraída do fim do texto de origem/destino só com sigla válida e separada', obtUF);
+  const tfRows = await get('/__aba?nome=TFs'), tc = tfRows[0], tr = id => tfRows.find(l => l[0] === id);
+  ok(tr('f2')[tc.indexOf('ufOrigem')] === 'AM' && tr('f5')[tc.indexOf('ufOrigem')] === '' && tr('f3')[tc.indexOf('ufOrigem')] === '', 'servidor normaliza a UF do TF ("am" → AM; "XX" → vazio; TF antigo sem o campo fica vazio)', [tr('f2')[tc.indexOf('ufOrigem')], tr('f5')[tc.indexOf('ufOrigem')]]);
   ok(quase(pm('pf-jundia', 1).liberacaoT, 3.5) && quase(pm('pf-jundia', 1).apreensaoT, 0.25) && pm('pf-jundia', 1).outrasUnidades.apreensao.Caixas === 10, 'toneladas só de massa (1.500 kg + 2 t; 250 kg); 10 caixas à parte', pm('pf-jundia', 1));
   ok(pm('pf-jundia', 3).tfs === 1 && pm('pf-jundia', 3).rechaco === 1 && pm('pf-jundia', 3).advertencia === 1, 'Jundiá/março: TF cancelado fora; rechaço e advertência');
   ok(pm('tabatinga-volante', 2).veiculos === 2 && pm('tabatinga-volante', 2).abordagem === 1 && pm('tabatinga-volante', 8).abordagem === 1 && quase(pm('tabatinga-volante', 2).apreensaoT, 0.5) && pm('tabatinga-volante', 2).fiel === 1 && pm('tabatinga-volante', 2).infracao === 1,
     'Tabatinga volante: abordagem itinerante = turnos volantes; apreensão 0,5 t; fiel e infração', pm('tabatinga-volante', 2));
-  ok(ap.porPeriodo['pf-jundia'][P1].veiculos === 2 && ap.porPeriodo['pf-jundia'][P2].veiculos === 3 && ap.porPeriodo['pf-jundia'][P1].internN === 1 && ap.porPeriodo['pf-jundia'][P2].partidas === 2,
-    `períodos de 10 dias pela data de início do turno: ${P1} → 2 veículos (1 internalização); ${P2} (dia da troca) → 3 (2 partidas)`, ap.porPeriodo['pf-jundia']);
+  ok(ap.porPeriodo['pf-jundia'][P1].veiculos === 2 && ap.porPeriodo['pf-jundia'][P2].veiculos === 3 && ap.porPeriodo['pf-jundia'][P1].internN === 2 && ap.porPeriodo['pf-jundia'][P2].partidas === 2,
+    `períodos de 10 dias pela data de início do turno: ${P1} → 2 veículos (2 internalizações); ${P2} (dia da troca) → 3 (2 partidas = 2 TFs)`, ap.porPeriodo['pf-jundia']);
   ok(pm('_outras-fixas', 3).veiculos === 2 && ap.naoMapeados.some(n => n.local === 'BVA - CEASA' && n.turnos === 1), 'BVA sem posto do VIGIFITO (CEASA): "OUTRAS BVA FIXAS (não mapeadas)" + aviso', ap.naoMapeados);
   ok(!/PRODUTOR SECRETO|52998224725|Joana Fiscal/.test(JSON.stringify(VDp)), 'apuração do VIGIFITO sem dados pessoais');
   // um motor só: convênio 1.10 e Relatório GDV batem com o VIGIFITO
@@ -131,7 +148,7 @@ function planilhaVig() {
     [{ periodo: `${A}-13`, posto: 'pf-jundia', indicador: 'partidas', valor: 1 }, /período inválido/], [{ periodo: `${A}-01`, posto: 'pf-jundia', indicador: 'xyz', valor: 1 }, /indicador/]];
   for (const [l, re] of erros) { const x = await VL([l]); ok(!x.ok && re.test(x.erro), `validação: ${re.source}`, x.erro || x); }
   r = await post({ action: 'admVigLancar', sessao: TOK, lancamentos: [erros[0][0]] }); ok(!r.ok && /Sessão do portal/.test(r.erro), 'credencial do painel não grava no VIGIFITO');
-  r = await VL([{ periodo: `${A}-02`, posto: 'pf-jundia', indicador: 'partidas', valor: 4 }]); ok(!r.ok && /justificativa/.test(r.erro), 'partidas agora vêm do registro do veículo: valor manual só como substituição, com justificativa', r.erro);
+  r = await VL([{ periodo: `${A}-02`, posto: 'pf-jundia', indicador: 'partidas', valor: 4 }]); ok(!r.ok && /justificativa/.test(r.erro), 'partidas vêm dos TFs: valor manual só como substituição, com justificativa', r.erro);
   r = await VL([{ periodo: `${A}-01`, posto: 'pf-jundia', indicador: 'capacitacao', valor: 3 }, { periodo: `${A}-01`, posto: 'pf-jundia', indicador: 'madeira', valor: 12.5 },
     { periodo: `${A}-02`, posto: 'pf-jundia', indicador: 'madeira', valor: 10 }, { periodo: `${A}-03`, posto: 'pf-jundia', indicador: 'madeira', valor: 11 }, { periodo: `${A}-04`, posto: 'pf-jundia', indicador: 'madeira', valor: 300 },
     { periodo: `${A}-02`, posto: 'tabatinga-volante', indicador: 'partidas', valor: 4, justificativa: 'Partidas anotadas no papel antes do app' }, { periodo: `${A}-12`, posto: 'pf-jundia', indicador: 'veiculos', valor: 500, justificativa: 'Contagem manual: e-GDV sem registro no mês' },
@@ -160,7 +177,7 @@ function planilhaVig() {
   await pa.waitForSelector('#adm-vig-grade input[data-vig]', { timeout: 20000 });
   await pa.selectOption('#adm-vig-mes', '1'); await pa.waitForSelector(`[data-vig="${A}-01|pf-jundia|partidas"]`);
   ok(await pa.inputValue(`[data-vig="${A}-01|pf-jundia|capacitacao"]`) === '3' && /e-GDV: 5/.test(await pa.textContent(`#adm-vig-grade tr:has([data-vig="${A}-01|pf-jundia|veiculos"]) td:nth-child(3)`)) &&
-    /e-GDV: 2/.test(await pa.textContent(`#adm-vig-grade tr:has([data-vig="${A}-01|pf-jundia|partidas"]) td:nth-child(3)`)), 'portal: grade posto × indicador com o lançado e o apurado pelo e-GDV (partidas = 2, do registro do veículo)');
+    /e-GDV: 3/.test(await pa.textContent(`#adm-vig-grade tr:has([data-vig="${A}-01|pf-jundia|partidas"]) td:nth-child(3)`)), 'portal: grade posto × indicador com o lançado e o apurado pelo e-GDV (partidas = 3, dos TFs)');
   await pa.fill(`[data-vig="${A}-01|pf-jundia|capacitacao"]`, '1,5'); await pa.dispatchEvent(`[data-vig="${A}-01|pf-jundia|capacitacao"]`, 'change');
   ok(/contagem com decimal/.test(await pa.textContent('#adm-vig-grade [data-erro]')), 'validação na tela: contagem com decimal');
   await pa.fill(`[data-vig="${A}-01|pf-jundia|capacitacao"]`, '2'); await pa.dispatchEvent(`[data-vig="${A}-01|pf-jundia|capacitacao"]`, 'change');
@@ -203,10 +220,10 @@ function planilhaVig() {
   const cel = (g, k) => p.evaluate(([g, k]) => { const R = Painel.aba('relatorios').estado().VR, gr = R.grupos.find(x => x.id === g); const x = R.tot(gr.ids, k); return { v: x.v, o: Object.keys(x.origens).sort().join() }; }, [g, k]);
   let c = await cel('pf-jundia', 'veiculos');
   ok(c.v === 5 && c.o === 'auto', 'mensal (janeiro): Jundiá 5 veículos (e-GDV)', c);
-  c = await cel('pf-jundia', 'partidas'); ok(c.v === 2 && c.o === 'auto', 'mensal: partidas do Jundiá calculadas do registro do veículo (e-GDV)', c);
+  c = await cel('pf-jundia', 'partidas'); ok(c.v === 3 && c.o === 'auto', 'mensal: partidas do Jundiá calculadas dos TFs (e-GDV)', c);
   const cj = {}; for (const k of ['documentos', 'internN', 'internT', 'importT', 'exportT', 'cargasEstados', 'educacao', 'medidaFito', 'inspecaoFito', 'autoDestN', 'capacitacao']) cj[k] = (await cel('pf-jundia', k)).v;
-  ok(cj.documentos === 2 && cj.internN === 2 && quase(cj.internT, 2.3) && quase(cj.importT, 2.3) && quase(cj.exportT, 2) && cj.cargasEstados === 1 && cj.educacao === 4 && cj.medidaFito === 1 && cj.inspecaoFito === 1 && cj.autoDestN === 1 && cj.capacitacao === 2,
-    'mensal: indicadores da carga calculados pelo sistema; capacitação (manual) lançada no portal', cj);
+  ok(cj.documentos === 2 && cj.internN === 3 && quase(cj.internT, 3.5) && quase(cj.importT, 3.5) && quase(cj.exportT, 0.25) && cj.cargasEstados === 2 && cj.educacao === 15 && cj.medidaFito === 3 && cj.inspecaoFito === 2 && cj.autoDestN === 1 && cj.capacitacao === 2,
+    'mensal: indicadores de fiscalização calculados pelo sistema (pessoas e TFs); capacitação (manual) lançada no portal', cj);
   c = await cel('humaita-fixa', 'veiculos'); ok(c.v === 100 && c.o === 'substituido', 'mensal: Humaitá (planilha importada) substitui o e-GDV (‡)', c);
   const tj = await cel('total', 'veiculos'), tf = await cel('fixas', 'veiculos'), tv = await cel('volantes', 'veiculos');
   ok(tj.v === tf.v + tv.v && tf.v === 105, 'total geral = fixas + volantes (105 + 0)', [tj, tf, tv]);
@@ -336,8 +353,8 @@ print(json.dumps({'tabelas':x.count('<w:tbl>'),'paisagem':x.count('w:orient="lan
   }
   ok(!errosPag.length, 'painel sem erros de JavaScript', errosPag.slice(0, 5));
 
-  /* ================= 5. app de campo: carga no veículo ================= */
-  console.log('5. App das barreiras: registro da carga no veículo → VIGIFITO calculado');
+  /* ================= 5. app de campo: veículo (UF opcional) e TF lavrado dele ================= */
+  console.log('5. App das barreiras: veículo sem o bloco de fiscalização, UF opcional, TF do veículo → VIGIFITO calculado');
   const ca = await b.newContext({ viewport: { width: 400, height: 860 }, permissions: ['geolocation'], geolocation: { latitude: -2.05, longitude: -60.02, accuracy: 10 }, timezoneId: 'America/Manaus', locale: 'pt-BR' });
   await ca.addInitScript(() => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', 'segredo'); } } catch (e) { /* */ } });
   const pg = await ca.newPage(); const errosApp = [];
@@ -346,24 +363,60 @@ print(json.dumps({'tabelas':x.count('<w:tbl>'),'paisagem':x.count('w:orient="lan
   await pg.fill('#nTF', '31'); await pg.selectOption('#nPosto', 'Fixa'); await pg.selectOption('#nLocal', 'BVA - JUNDIÁ');
   await pg.fill('#nFiscal1', 'Carla Campo Teste'); await pg.click('#fTurno button[type=submit]'); await pg.waitForSelector('.contador', { timeout: 20000 });
   await pg.waitForTimeout(400); await pg.click('nav [data-v=registrar]'); await pg.waitForSelector('#fVeic');
-  ok(await pg.isChecked('#vEduc') && !(await pg.isVisible('#vCargaBox')), 'formulário: educação sanitária já marcada; bloco da carga escondido até marcar "Transporta vegetais"');
-  await pg.check('#vCarga'); await pg.waitForSelector('#vProds .veic-prod');
-  ok(await pg.isChecked('#vPartida'), 'com carga: "Partida fiscalizada" já vem marcada');
-  await pg.selectOption('#vProds .veic-prod >> nth=0 >> [data-k=p]', 'CAJU');
-  await pg.fill('#vProds .veic-prod >> nth=0 >> [data-k=q]', '500'); await pg.selectOption('#vProds .veic-prod >> nth=0 >> [data-k=u]', 'Kg');
-  await pg.click('#vAddProd'); await pg.selectOption('#vProds .veic-prod >> nth=1 >> [data-k=p]', { index: 2 }); await pg.fill('#vProds .veic-prod >> nth=1 >> [data-k=q]', '1,5'); await pg.selectOption('#vProds .veic-prod >> nth=1 >> [data-k=u]', 'Ton');
-  await pg.selectOption('#vUfOri', 'PA'); await pg.selectOption('#vUfDes', 'AM'); await pg.check('#vDoc'); await pg.check('#vMedFito');
-  await shot(pg, 'app_veiculo_carga');
-  await pg.click('#fVeic > button'); await pg.waitForFunction(() => /registrado/.test(document.querySelector('#toast').textContent), null, { timeout: 8000 });
+  const form = await pg.textContent('#fVeic');
+  ok(!(await pg.$('.veic-extra, #vEduc, #vMedFito, #vCarga, #vPartida, #vInsp, #vDoc, #vProds')) && !/Fiscalização \(opcional\)|Transporta vegetais|educação sanitária/i.test(form),
+    'formulário do veículo sem o bloco "Fiscalização (opcional)" (educação, medida, carga, partida, inspeção, documento)', form);
+  ok(/Origem e destino/.test(form) && (await pg.inputValue('#vUfOri')) === '' && (await pg.inputValue('#vUfDes')) === '' && (await pg.$$eval('#vUfOri option', os => os.length)) === 29,
+    'formulário: "Origem e destino (opcional)" com UF de origem e de destino vazias (27 UFs + Exterior)');
+  await shot(pg, 'app_veiculo_uf');
+  const salvarVeic = async (placa, pessoas, ori, des) => {
+    await pg.fill('#placa', placa); await pg.fill('#pessoas', String(pessoas));
+    if (ori) await pg.selectOption('#vUfOri', ori); if (des) await pg.selectOption('#vUfDes', des);
+    await pg.evaluate(() => { document.querySelector('#toast').textContent = ''; });
+    await pg.click('#fVeic > button'); await pg.waitForFunction(() => /registrado/.test(document.querySelector('#toast').textContent), null, { timeout: 8000 });
+    await pg.waitForTimeout(300); await pg.waitForSelector('#fVeic');
+  };
+  await salvarVeic('ABC1D23', 3, 'PA', 'AM');
+  ok((await pg.inputValue('#vUfOri')) === '' && (await pg.inputValue('#vUfDes')) === '', 'depois de salvar, o próximo registro começa sem UF');
+  await salvarVeic('XYZ9A88', 4);
+  // registro ANTIGO (com os campos de fiscalização de antes) no aparelho: editar não zera esses campos
+  await pg.evaluate(async () => { const t = await Store.meta('turnoAtual'); const ag = Date.now();
+    await Store.salvar('veiculos', { id: 'veic-antigo-1', turnoId: t, hora: '07:00', placa: 'QWE1R23', tipo: 'PA', pessoas: 2, obs: '', excluido: 0, criadoEm: ag, atualizadoEm: ag,
+      semEducacao: 0, medidaFito: 1, carga: 1, produtos: JSON.stringify(['MANGA - 2 Ton']), ufOrigem: '', ufDestino: '', partida: 1, inspecaoFito: 1, docConferido: 1 }); });
   await pg.click('nav [data-v=lista]'); await pg.waitForSelector('.item');
-  ok(/Carga:.*500 Kg.*1,5 Ton.*PA → AM/.test(await pg.textContent('.item .veic-carga')), 'lista do turno mostra a carga (produtos e PA → AM)', await pg.textContent('.item'));
-  let vrow = null;
-  for (let i = 0; i < 40 && !vrow; i++) { await pg.waitForTimeout(500); const vv = await get('/__aba?nome=Veiculos'); const cb = vv[0]; const l = vv.find(x => x[cb.indexOf('carga')] === 1 && x[cb.indexOf('ufOrigem')] === 'PA' && x[cb.indexOf('docConferido')] === 1 && x[cb.indexOf('medidaFito')] === 1); if (l) vrow = Object.fromEntries(cb.map((k, j) => [k, l[j]])); }
-  ok(vrow && vrow.partida === 1 && vrow.medidaFito === 1 && vrow.semEducacao === 0 && vrow.ufDestino === 'AM' && JSON.parse(vrow.produtos).length === 2, 'sincronizado: colunas novas na aba Veiculos (carga, produtos, UF origem/destino, partida, documento, medida)', vrow);
+  await pg.click('[data-edit="veic-antigo-1"]'); await pg.waitForSelector('#fVeic');
+  ok(/Editar veículo/.test(await pg.textContent('#fVeic h3')) && (await pg.inputValue('#vUfDes')) === '', 'editar registro antigo: mesmo formulário (sem o bloco antigo)');
+  await pg.selectOption('#vUfDes', 'PA'); await pg.click('#fVeic > button'); await pg.waitForSelector('.item');
+  const itens = await pg.textContent('#itens');
+  ok(/Origem → destino:\s*PA → AM/.test(itens) && /Origem → destino:\s*\? → PA/.test(itens) && /Carga:.*MANGA/.test(itens), 'lista do turno mostra origem → destino (e a carga do registro antigo)', itens);
+  let vrows = null;
+  for (let i = 0; i < 40 && !vrows; i++) {
+    await pg.waitForTimeout(500); const vv = await get('/__aba?nome=Veiculos'), cb = vv[0];
+    const obj = l => Object.fromEntries(cb.map((k, j) => [k, l[j]])), achar = pl => vv.find(x => x[cb.indexOf('placa')] === pl);
+    if (achar('ABC1D23') && achar('XYZ9A88') && achar('QWE1R23') && achar('QWE1R23')[cb.indexOf('ufDestino')] === 'PA') vrows = { a: obj(achar('ABC1D23')), b: obj(achar('XYZ9A88')), c: obj(achar('QWE1R23')) };
+  }
+  ok(vrows && vrows.a.ufOrigem === 'PA' && vrows.a.ufDestino === 'AM' && vrows.a.pessoas === 3 && vrows.b.ufOrigem === '' && vrows.b.ufDestino === '' && !vrows.a.carga && !vrows.a.medidaFito && !vrows.a.partida && vrows.a.semEducacao !== 1,
+    'sincronizado: UF de origem/destino gravadas (vazias quando não escolhidas); campos antigos não são mais enviados', vrows && [vrows.a, vrows.b]);
+  ok(vrows && vrows.c.carga === 1 && vrows.c.docConferido === 1 && vrows.c.medidaFito === 1 && vrows.c.partida === 1 && JSON.parse(vrows.c.produtos || '[]').length === 1 && vrows.c.ufDestino === 'PA',
+    'registro antigo editado: UF nova gravada e os campos antigos de fiscalização preservados (histórico)', vrows && vrows.c);
+  // TF lavrado do veículo PA → AM: a UF vem do registro do veículo
+  const idA = vrows && vrows.a.id;
+  await pg.click(`[data-tfveic="${idA}"]`); await pg.waitForSelector('#tfForm');
+  await pg.waitForFunction(() => document.querySelector('#tf-num') && !/Consultando/.test(document.querySelector('#tf-num-dica').textContent), null, { timeout: 10000 });
+  ok((await pg.inputValue('#tf-placa')) === 'ABC1D23' && (await pg.inputValue('#tf-ufOrigem')) === 'PA' && (await pg.inputValue('#tf-ufDestino')) === 'AM', 'TF do veículo: placa e UF de origem/destino pré-preenchidas do registro do veículo');
+  await pg.fill('#tf-doc', '529.982.247-25'); await pg.waitForFunction(() => /Novo cadastro|Cadastro encontrado/.test(document.querySelector('#tf-st-doc').textContent), null, { timeout: 8000 });
+  await pg.fill('#tf-nome', 'Fulano Ficticio Teste'); await pg.fill('#tf-origem', 'BELÉM'); await pg.fill('#tf-destino', 'MANAUS');
+  await pg.check('input[name=tf-proc][value=liberacao]'); await pg.check('#tf-inspecao'); await pg.fill('#tf-d-nf', '4567');
+  await pg.selectOption('#tf-produtos .prod select >> nth=0', { index: 1 }); await pg.fill('#tf-produtos .prod input', '500'); await pg.selectOption('#tf-produtos .prod select >> nth=1', 'Kg');
+  await pg.click('#tfForm button[type=submit]'); await pg.waitForSelector('#tf-num-m', { timeout: 15000 }); await pg.click('#tf-m-ok'); await pg.waitForSelector('text=TF gerado', { timeout: 15000 });
+  let tfrow = null;
+  for (let i = 0; i < 30 && !tfrow; i++) { const tt = await get('/__aba?nome=TFs'), ct = tt[0], l = tt.find(x => x[ct.indexOf('veiculoId')] === idA); if (l) tfrow = Object.fromEntries(ct.map((k, j) => [k, l[j]])); else await pg.waitForTimeout(500); }
+  ok(tfrow && tfrow.ufOrigem === 'PA' && tfrow.ufDestino === 'AM' && tfrow.origem === 'BELÉM', 'planilha: TF com UF de origem/destino nas colunas novas', tfrow && [tfrow.origem, tfrow.ufOrigem, tfrow.ufDestino]);
   const anoHoje = new Date(Date.now() - 4 * 3600e3).getUTCFullYear();
   const VH = await post({ action: 'painelVigDados', key: TOK, ano: anoHoje });
-  const jh = Object.values((VH.apuracao && VH.apuracao.porMes['pf-jundia']) || {}).reduce((o, x) => { ['internN', 'importT', 'partidas', 'documentos', 'medidaFito', 'educacao'].forEach(k => { o[k] = (o[k] || 0) + (x[k] || 0); }); return o; }, {});
-  ok(jh.internN === 1 && quase(jh.importT, 2) && jh.partidas === 1 && jh.documentos === 1 && jh.medidaFito === 1 && jh.educacao === 1, 'VIGIFITO do ano corrente calculado do registro feito no app (internalização 1; 0,5 t + 1,5 t = 2 t)', jh);
+  const jh = Object.values((VH.apuracao && VH.apuracao.porMes['pf-jundia']) || {}).reduce((o, x) => { ['veiculos', 'internN', 'importT', 'partidas', 'medidaFito', 'documentos', 'inspecaoFito', 'educacao', 'cargasEstados'].forEach(k => { o[k] = (o[k] || 0) + (x[k] || 0); }); return o; }, {});
+  ok(jh.veiculos === 3 && jh.educacao === 9 && jh.internN === 1 && quase(jh.importT, 0.5) && jh.partidas === 1 && jh.medidaFito === 1 && jh.documentos === 1 && jh.inspecaoFito === 1 && jh.cargasEstados === 1,
+    'VIGIFITO do ano corrente: educação = 9 pessoas; TF do veículo PA→AM = 1 internalização (0,5 t; o veículo não conta de novo), partida, medida, documento e inspeção; antigo → PA = 1 carga para outro estado', jh);
   ok(!errosApp.length, 'app sem erros de JavaScript', errosApp);
   await ca.close();
   await b.close();

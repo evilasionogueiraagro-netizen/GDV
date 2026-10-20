@@ -247,7 +247,6 @@ async function home() {
     <button class="botao" data-go="registrar">➕ Registrar veículo</button>
     <button class="botao" data-go="lista">📋 Lista de veículos</button>
     <button class="botao" data-go="resumo">📊 Resumo e documentos</button>
-    ${Sync.pode('tf') ? '<button class="botao sec" data-go="tfnovo">📄 Lavrar TF neste turno</button>' : ''}
     <button class="botao vermelho" id="encerrar">⏹ Encerrar turno</button>`);
   $('#encerrar').onclick = () => encerrarTurno(t);
 }
@@ -328,14 +327,12 @@ function novoTurno() {
 }
 
 /* ---------- Registrar / editar ---------- */
-/** Carga do veículo (produtos gravados como no TF: ["PRODUTO - 10 Kg", ...]) → [{p, q, u}] para o formulário. */
+/** Carga de um registro ANTIGO do veículo (o formulário não tem mais o bloco "Fiscalização"; produtos como no TF: ["PRODUTO - 10 Kg", ...]). */
 function cargaProdutos(v) {
   let l = []; try { l = JSON.parse((v && v.produtos) || '[]'); } catch (e) { l = []; }
   return (Array.isArray(l) ? l : []).map(t => { const m = /^(.*?)\s+-\s+([\d.,]+)\s*(.*)$/.exec(String(t)); return m ? { p: m[1], q: m[2], u: m[3] } : { p: String(t), q: '', u: '' }; });
 }
-const linhaProduto = x => `<div class="veic-prod"><select data-k="p" aria-label="Produto"><option value="">Produto…</option>${CONFIG.TF.produtos.map(n => `<option ${x.p === n ? 'selected' : ''}>${n}</option>`).join('')}</select>
-  <input data-k="q" inputmode="decimal" placeholder="Qtd." aria-label="Quantidade" value="${esc(x.q || '')}"><select data-k="u" aria-label="Unidade">${CONFIG.TF.unidades.map(u => `<option ${x.u === u ? 'selected' : ''}>${u}</option>`).join('')}</select>
-  <button type="button" class="veic-rm" data-rmprod aria-label="Remover produto">✕</button></div>`;
+const opcoesUF = atual => `<option value="">—</option>${CONFIG.ufs.map(u => `<option ${atual === u ? 'selected' : ''}>${u}</option>`).join('')}`;
 async function registrar() {
   const t = await turnoAtual();
   if (!t) { toast('Inicie um turno primeiro.', true); return go('home'); }
@@ -347,24 +344,11 @@ async function registrar() {
     <div class="tipos">${Object.entries(CONFIG.tipos).map(([c, x]) => `
       <label class="tipo-card"><input type="radio" name="tipo" value="${c}" ${c === tipo ? 'checked' : ''}>${x.icone}<span>${x.nome}</span></label>`).join('')}</div>
     <label>Pessoas a bordo (estimativa)<input id="pessoas" type="number" min="0" inputmode="numeric" value="${v ? v.pessoas : CONFIG.tipos[tipo].pessoas}"></label>
-    <fieldset class="veic-extra"><legend>Fiscalização (opcional)</legend>
-      <label class="chk"><input type="checkbox" id="vEduc" ${v && Number(v.semEducacao) ? '' : 'checked'}> Orientação de educação sanitária</label>
-      <label class="chk"><input type="checkbox" id="vMedFito" ${v && Number(v.medidaFito) ? 'checked' : ''}> Medida fitossanitária aplicada</label>
-      <label class="chk"><input type="checkbox" id="vCarga" ${v && Number(v.carga) ? 'checked' : ''}> Transporta vegetais/partes</label>
-      <div id="vCargaBox" ${v && Number(v.carga) ? '' : 'hidden'}>
-        <div id="vProds">${cargaProdutos(v).map(linhaProduto).join('')}</div>
-        <button type="button" class="botao sec veic-add" id="vAddProd">➕ Produto</button>
-        <div class="veic-ufs"><label>UF de origem<select id="vUfOri"><option value="">—</option>${CONFIG.ufs.map(u => `<option ${v && v.ufOrigem === u ? 'selected' : ''}>${u}</option>`).join('')}</select></label>
-          <label>UF de destino<select id="vUfDes"><option value="">—</option>${CONFIG.ufs.map(u => `<option ${v && v.ufDestino === u ? 'selected' : ''}>${u}</option>`).join('')}</select></label></div>
-        <label class="chk"><input type="checkbox" id="vPartida" ${!v || !Number(v.carga) || Number(v.partida) ? 'checked' : ''}> Partida fiscalizada</label>
-        <label class="chk"><input type="checkbox" id="vInsp" ${v && Number(v.inspecaoFito) ? 'checked' : ''}> Inspeção fitossanitária realizada</label>
-        <label class="chk"><input type="checkbox" id="vDoc" ${v && Number(v.docConferido) ? 'checked' : ''}> Documento conferido (NF/PTV/CFO)</label>
-      </div></fieldset>
+    <div class="veic-ufs" role="group" aria-label="Origem e destino (opcional)"><div class="veic-ufs-rot">Origem e destino <small>(opcional)</small></div>
+      <label>UF de origem<select id="vUfOri">${opcoesUF(v && v.ufOrigem)}</select></label>
+      <label>UF de destino<select id="vUfDes">${opcoesUF(v && v.ufDestino)}</select></label></div>
     <label>Observações<textarea id="obs" rows="3">${esc(v ? v.obs : '')}</textarea></label>
     <button class="botao">💾 Salvar</button></form>`);
-  $('#vCarga').onchange = () => { $('#vCargaBox').hidden = !$('#vCarga').checked; if ($('#vCarga').checked && !$('#vProds').children.length) $('#vProds').insertAdjacentHTML('beforeend', linhaProduto({})); };
-  $('#vAddProd').onclick = () => $('#vProds').insertAdjacentHTML('beforeend', linhaProduto({}));
-  $('#vProds').onclick = e => { const b = e.target.closest('[data-rmprod]'); if (b) b.closest('.veic-prod').remove(); };
   const placa = $('#placa');
   placa.oninput = () => placa.value = placa.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
   document.querySelectorAll('input[name=tipo]').forEach(r => r.onchange = () => {
@@ -379,13 +363,10 @@ async function registrar() {
     const existentes = await veiculosDe(t.id);
     if (p && existentes.some(x => x.placa === p && x.id !== (v && v.id)) && !confirm(`A placa ${p} já foi registrada neste turno. Registrar de novo?`)) return;
     const tp = document.querySelector('input[name=tipo]:checked').value;
-    const carga = $('#vCarga').checked;
-    const produtos = carga ? [...document.querySelectorAll('#vProds .veic-prod')].map(d => ({ p: d.querySelector('[data-k=p]').value, q: d.querySelector('[data-k=q]').value.trim(), u: d.querySelector('[data-k=u]').value })).filter(x => x.p) : [];
+    // educação sanitária, medida fitossanitária, partidas, documentos e inspeção saem das pessoas a bordo e dos TFs (servidor); ao editar um
+    // registro antigo, os campos de fiscalização que ele já tinha ficam como estavam ({ ...v, ...dados })
     const dados = { turnoId: t.id, placa: p, tipo: tp, pessoas: Math.max(0, parseInt($('#pessoas').value, 10) || 0), obs: $('#obs').value.trim(), excluido: 0,
-      semEducacao: $('#vEduc').checked ? 0 : 1, medidaFito: $('#vMedFito').checked ? 1 : 0, carga: carga ? 1 : 0,
-      produtos: carga ? JSON.stringify(produtos.map(x => `${x.p}${x.q ? ' - ' + x.q + ' ' + x.u : ''}`)) : '',
-      ufOrigem: carga ? $('#vUfOri').value : '', ufDestino: carga ? $('#vUfDes').value : '',
-      partida: carga && $('#vPartida').checked ? 1 : 0, inspecaoFito: carga && $('#vInsp').checked ? 1 : 0, docConferido: carga && $('#vDoc').checked ? 1 : 0 };
+      ufOrigem: $('#vUfOri').value, ufDestino: $('#vUfDes').value };
     if (v) { await Store.salvar('veiculos', { ...v, ...dados }); toast('Registro atualizado.'); Sync.sincronizar(); go('lista'); }
     else { await Store.salvar('veiculos', { ...dados, hora: agoraHM() }); toast(p ? `${p} registrado.` : 'Veículo registrado (sem placa).'); Sync.sincronizar(); go('registrar'); }
   };
@@ -408,7 +389,8 @@ async function lista() {
         <div class="tipo">${CONFIG.tipos[x.tipo] ? CONFIG.tipos[x.tipo].icone + ' ' + CONFIG.tipos[x.tipo].nome : esc(x.tipo)}</div></div>
         <div class="hora">${esc(x.hora)}</div></div>
         <div class="info"><b>Pessoas:</b> ${Number(x.pessoas) || 0}</div>
-        ${Number(x.carga) ? `<div class="info veic-carga"><b>Carga:</b> ${esc(cargaProdutos(x).map(c => c.p + (c.q ? ` ${c.q} ${c.u}` : '')).join('; ') || 'vegetais/partes')}${x.ufOrigem || x.ufDestino ? ` · ${esc(x.ufOrigem || '?')} → ${esc(x.ufDestino || '?')}` : ''}</div>` : ''}
+        ${Number(x.carga) ? `<div class="info veic-carga"><b>Carga:</b> ${esc(cargaProdutos(x).map(c => c.p + (c.q ? ` ${c.q} ${c.u}` : '')).join('; ') || 'vegetais/partes')}</div>` : ''}
+        ${x.ufOrigem || x.ufDestino ? `<div class="info veic-uf"><b>Origem → destino:</b> ${esc(x.ufOrigem || '?')} → ${esc(x.ufDestino || '?')}</div>` : ''}
         ${x.obs ? `<div class="info"><b>Obs:</b> ${esc(x.obs)}</div>` : ''}
         ${x.pendente ? '<div class="info pend">⏳ aguardando envio</div>' : ''}
         <div class="botoes"><button class="editar" data-edit="${esc(x.id)}">Editar</button>

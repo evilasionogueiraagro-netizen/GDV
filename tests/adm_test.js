@@ -101,7 +101,7 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   const sesTab = await get('/__aba?nome=AdmSessoes'), iAdm = sesTab[0].indexOf('admId');
   ok(sesTab.length === 6 && sesTab.slice(1).every(l => /^[0-9a-f]{64}$/.test(l[1])), 'aba AdmSessoes: 5 sessões, só com hash', sesTab.length);
   await get(`/__editar?aba=AdmSessoes&col=expiraEm&valor=1&onde=admId:${A2.liberado.id}`);
-  r = await post({ action: 'admDados', sessao: S2.sessao }); ok(!r.ok && /expirada/.test(r.erro), 'sessão expirada (12 h) recusada', r.erro);
+  r = await post({ action: 'admDados', sessao: S2.sessao }); ok(!r.ok && /expirada/.test(r.erro), 'sessão expirada (30 dias sem uso) recusada', r.erro);
   void iAdm;
   // revogada
   r = await post({ action: 'admDados', sessao: S3.sessao }); ok(r.ok, 'Caio usa o portal');

@@ -197,7 +197,10 @@
     if (!q('[data-se="valor"]').hidden) {
       l.valor = num(q('#pn-cl-valor').value); l.fonte = q('#pn-cl-fonte').value; l.quantidadeAquisicao = numSimples(q('#pn-cl-qtdbem').value);
       if (!(l.quantidadeAquisicao > 0)) return msg(raiz, 'lanc', 'Informe a quantidade adquirida (maior que zero).', 'erro');
-      if (!(l.valor > 0) && !finDoBem(l.submeta)) return msg(raiz, 'lanc', 'Informe o valor de aquisição do bem.', 'erro');
+      // sem valor vale se o bem já tem desembolso, ou se já há desembolso manual da etapa com a mesma NF/NE (o servidor liga os dois)
+      const partes = v => String(v || '').split(/[;,/]| e /).map(docN).filter(Boolean), meus = partes(l.documento);
+      const docJaLancado = meus.length && E.d.financeiro.some(x => x.convenio === cfg().id && x.etapa === e.id && !String(x.chave || '').startsWith('bem|') && partes(x.documento).some(d => meus.includes(d)));
+      if (!(l.valor > 0) && !finDoBem(l.submeta) && !docJaLancado) return msg(raiz, 'lanc', 'Informe o valor de aquisição do bem (ou o mesmo nº de NF/NE do desembolso já lançado).', 'erro');
       if (l.valor == null) l.valor = '';
     }
     if (!bens && (l.quantidade == null || (!auto && !(l.quantidade > 0)) || l.quantidade === 0)) return msg(raiz, 'lanc', auto ? 'Informe o ajuste (ex.: 3 ou -2).' : 'Informe a quantidade (maior que zero).', 'erro');
@@ -208,7 +211,7 @@
       const i = E.d.lancamentos.findIndex(x => x.id === j.lancamento.id);
       if (i >= 0) E.d.lancamentos[i] = j.lancamento; else E.d.lancamentos.push(j.lancamento);
       if (j.financeiro) { const k = E.d.financeiro.findIndex(x => x.id === j.financeiro.id); if (k >= 0) E.d.financeiro[k] = j.financeiro; else E.d.financeiro.push(j.financeiro); }
-      E.editando = null; E.msg.lanc = { t: `Lançado ✓ (etapa ${e.id})`, cls: 'ok' };
+      E.editando = null; E.msg.lanc = { t: `Lançado ✓ (etapa ${e.id})${(j.avisos || []).length ? ' — ' + j.avisos.join(' ') : ''}`, cls: 'ok' };
       desenhar(raiz, visao);
     } catch (err) { if (!A.logado) return; msg(raiz, 'lanc', 'Não salvou: ' + err.message, 'erro'); b.disabled = false; }
   }
@@ -304,6 +307,8 @@
     const saldoAntes = it.total - gasto, saldoDepois = saldoAntes - v, avisos = [];
     const doc = q('#pn-cf-doc').value.trim(), data = q('#pn-cf-data').value, qtd = numSimples(q('#pn-cf-qtd').value);
     if (doc && outros.some(l => docN(l.documento) && docN(l.documento) === docN(doc))) avisos.push({ nivel: 'atencao', titulo: `Memorando/documento "${doc}" já lançado nesta subetapa`, detalhe: 'Possível duplicidade: confira antes de lançar.' });
+    const bemIgual = outros.find(l => String(l.chave || '').startsWith('bem|') && v && Math.abs(Number(l.valor) - v) < 0.005);
+    if (bemIgual) avisos.push({ nivel: 'serio', titulo: 'Possível bem lançado duas vezes', detalhe: `Esta subetapa já tem a aquisição "${bemIgual.descricao || bemIgual.documento || ''}" com o mesmo valor, lançada pela execução física. O saldo desconta os dois: se é o mesmo bem, não lance aqui.` });
     if (data && (data < c.vigencia.inicio || data > c.vigencia.fim)) avisos.push({ nivel: 'serio', titulo: 'Data fora da vigência do convênio', detalhe: `${F.data(c.vigencia.inicio)} a ${F.data(c.vigencia.fim)} — o servidor não aceita.` });
     if (NAT_DIARIAS.includes(it.natureza) && qtd != null) {
       const usadas = outros.reduce((s, l) => s + (Number(l.quantidade) || (it.valorUnitario ? Number(l.valor || 0) / it.valorUnitario : 0)), 0) + qtd;

@@ -3,6 +3,10 @@
 App para registrar os veículos abordados em barreiras **fixas ou móveis**, por turno, e gerar o
 **Termo de Fiscalização** e a **Ficha de Campo** (modelos HTML de `web/documentos/`).
 
+**Página inicial (atalhos para tudo):** https://evilasionogueiraagro-netizen.github.io/GDV/inicio/ leva ao painel, ao app de campo,
+ao Portal do Administrativo e ao dashboard público, cada um com uma linha de como entrar. Salve nos favoritos. Não usa login nem
+chama a API (`web/inicio/index.html`). A raiz `/GDV/` continua sendo o app de campo, que já está instalado nos celulares.
+
 ## Como funciona
 
 ```
@@ -514,12 +518,13 @@ O e-GDV Painel é um app instalável, separado do app de campo:
 | `apps-script/` | API de sincronização que grava na planilha e entrega os dados do painel gerencial |
 | `web/administrativo/` | Portal do Administrativo (`index.html`, `js/adm.js` = login/sessão/abas, `js/adm-convenio.js`, `js/adm-relatorios.js`, `js/adm-vigifito.js`, `js/vig-planilha.js` = leitura da planilha de controle VIGIFITO, `css/adm.css`; usa `../painel/css/painel.css`, `../painel/js/conv-planilha.js` e `../painel/vendor/xlsx/`) |
 | `web/painel/` | App "e-GDV Painel" do administrador (`index.html`, `js/painel*.js`, `js/docx.js` = gerador do Word dos relatórios, `js/conv-planilha.js` = leitura da planilha de movimentação do convênio (usada pelo portal), `vendor/xlsx/` = SheetJS (carregada só no clique), `css/painel.css`, `vendor/`, `dados/`, `manifest.webmanifest`, `sw.js`) |
+| `web/inicio/` | Página inicial com os atalhos (`index.html` só; usa `../painel/css/painel.css` e `../img/`) |
 | `web/dashboard/` | Dashboard público sem login (`index.html`, `js/dashboard.js`, `css/dashboard.css`; usa `../painel/vendor`, `../painel/css` e `../painel/dados`) |
 | `tests/` | Testes automáticos (`fakegas.js` roda o `Code.gs` real com Google falso; testes Playwright do app e do painel; `run.js`) |
 
 ## Testes automáticos
 
-A pasta `tests/` tem a suíte de testes de ponta a ponta: o `tests/fakegas.js` executa o `apps-script/Code.gs` **real** em Node, com planilha, Drive, gatilhos, e-mail, cache e propriedades falsos em memória, e serve a pasta `web/`; os testes abrem o app do fiscal, o painel e o modo TV no Chromium (Playwright) e conferem planilha, telas e PDFs. Cada teste roda com um servidor novo. O workflow `.github/workflows/testes.yml` roda tudo a cada push/PR para `main` e `claude/**`; se algo falhar, os logs e screenshots ficam no artifact `saida-testes-*` da execução. Para rodar localmente: `cd tests && npm ci && npx playwright-core install chromium && node run.js` (ou `node run.js tv_test` para um teste só). Detalhes em [`tests/README.md`](tests/README.md).
+A pasta `tests/` tem a suíte de testes de ponta a ponta: o `tests/fakegas.js` executa o `apps-script/Code.gs` **real** em Node, com planilha, Drive, gatilhos, e-mail, cache e propriedades falsos em memória, e serve a pasta `web/`; os testes abrem o app do fiscal, o painel e o modo TV no Chromium (Playwright) e conferem planilha, telas e PDFs. Cada teste roda com um servidor novo. O workflow `.github/workflows/testes.yml` roda tudo, em 4 partes ao mesmo tempo, a cada PR para a `main` e a cada push na `main` (branch sem PR: Actions → Testes automáticos → Run workflow); se algo falhar, os logs e screenshots ficam no artifact `saida-testes-*` da execução. Para rodar localmente: `cd tests && npm ci && npx playwright-core install chromium && node run.js` (ou `node run.js tv_test` para um teste só). Detalhes em [`tests/README.md`](tests/README.md).
 
 ## Limites conhecidos
 - A **Ficha de Campo** tem 50 linhas; acima disso o app avisa e os excedentes ficam fora da ficha (o Termo conta todos).

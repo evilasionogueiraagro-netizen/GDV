@@ -193,7 +193,7 @@ const PCEUI = (() => {
       <label>Nome do servidor *<input id="${pref}snome" list="${pref}servs" value="${esc(D.sNome)}" placeholder="Nome completo" autocomplete="off"></label>
       <datalist id="${pref}servs">${lembrados.map(x => `<option value="${esc(x.nome)}">`).join('')}</datalist>
       <div class="duas"><label>Cargo *${cargoHTML(pref + 'scargo', D.sCargo)}</label>
-        <label>Matrícula<input id="${pref}smatricula" value="${esc(D.sMatricula)}" inputmode="numeric"></label></div>
+        <label>Matrícula<input id="${pref}smatricula" value="${esc(D.sMatricula)}" autocapitalize="characters" autocomplete="off" maxlength="30"></label></div>
       <label>Lotação *<select id="${pref}slotacao">${opts(P.municipios, D.sLotacao, 'Selecione')}</select></label></div>`;
   /** Nome escolhido da lista dos já digitados: completa cargo, matrícula e lotação. */
   async function completarServidor(pref) {
@@ -226,7 +226,7 @@ const PCEUI = (() => {
       <p class="dica" style="text-align:left">${primeira ? 'Antes de começar, informe seus dados. ' : ''}Eles ficam neste aparelho e são copiados para cada levantamento e termo no momento em que é criado.</p>
       <label>Nome do servidor *<input id="pce-s-nome" value="${esc(s.nome || Sync.nome())}" placeholder="Nome completo"></label>
       <label>Cargo *${cargoHTML('pce-s-cargo', s.cargo)}</label>
-      <label>Matrícula<input id="pce-s-matricula" value="${esc(s.matricula || '')}" inputmode="numeric"></label>
+      <label>Matrícula<input id="pce-s-matricula" value="${esc(s.matricula || '')}" autocapitalize="characters" autocomplete="off" maxlength="30"></label>
       <label>Lotação (município) *<select id="pce-s-lotacao">${opts(P.municipios, s.lotacao, 'Selecione')}</select></label>
       ${podeAntigo() ? `<label class="chk"><input type="checkbox" id="pce-s-digitacao" ${s.soDigitacao ? 'checked' : ''}> Só vou digitar registros antigos do papel (não faço vistorias)</label>
       <p class="dica" style="text-align:left">Marque se você apenas digita fichas e termos já feitos (ex.: estagiário). Cargo e lotação deixam de ser obrigatórios; em cada registro você informa o servidor que fez a vistoria.</p>` : ''}

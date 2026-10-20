@@ -55,6 +55,8 @@ publicado no GitHub Pages                            Web App do Apps Script     
 - **Front offline**: arquivo novo em `web/` que o app ou o painel precisem sem internet entra na lista `ARQUIVOS` de
   `web/sw.js` ou `web/painel/sw.js`. Não mexa em `VERSAO`/`VERSAO_APP` (o workflow troca pelo hash do commit).
 - **Sem dependências de CDN** no app de campo: bibliotecas ficam vendorizadas em `web/vendor/` ou `web/painel/vendor/`.
+- **Documentação por área**: manual de funcionalidade vai no arquivo da área em `docs/apps/` ou `docs/modulos/` (índice em
+  [docs/README.md](docs/README.md)), nunca no `README.md` da raiz; arquivo com mais de ~300 linhas se divide.
 
 ## Testes
 
@@ -98,8 +100,8 @@ tempo: atualize o `PESO` do `run.js` (tempo no CI, no resumo do log), senão as 
 
 ## Onde achar contexto
 
-- [README.md](README.md): manual funcional completo (~140 KB). **Não leia inteiro**: liste as seções com
-  `grep -n '^#' README.md` e leia só a do módulo em questão.
+- [docs/README.md](docs/README.md): índice da documentação por área (apps, módulos, API, publicação, testes). Leia o
+  índice e abra só o arquivo da área em questão.
 - [docs/API.md](docs/API.md): todas as actions, autenticação, parâmetros e respostas.
 - [docs/IDEIAS.md](docs/IDEIAS.md): ideias combinadas com a gerência e ainda não feitas, com as decisões já tomadas.
 - [docs/MIGRACAO.md](docs/MIGRACAO.md): passar planilha e script para a conta institucional.

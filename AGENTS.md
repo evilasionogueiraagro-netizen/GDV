@@ -103,5 +103,6 @@ O CI de testes (`testes.yml`) roda em push/PR para `main` e `claude/**`.
 - [docs/PORTABILIDADE.md](docs/PORTABILIDADE.md): camada de acesso ao Google, o que fica fora dela e regras para o
   `Code.gs` ser portado para servidor próprio.
 - [docs/PUBLICACAO-BACK.md](docs/PUBLICACAO-BACK.md): publicação automática do Apps Script (clasp) e como configurar.
+- [docs/FLUXO-GIT.md](docs/FLUXO-GIT.md): branches, commits, PRs e agentes em paralelo.
 - Propriedades do script (`PropertiesService`): `SHEET_ID`, `ACCESS_KEY`, `GOOGLE_CLIENT_ID`, `ADM_MAX`, `ADM_URL`,
   `PAINEL_URL`, `PUBLICO_URL`, `RELATORIO_EMAILS`, `ROTINAS_DESATIVADAS`, entre outras — `grep -n getProperty` no `Code.gs`.

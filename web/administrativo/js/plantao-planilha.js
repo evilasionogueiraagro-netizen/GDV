@@ -8,7 +8,8 @@
    - quadro "2. Eventos": linha "Educação Sanitária" com os mesmos dias;
    - lista de cargas: cabeçalho "dia/mês | Hora | Município-UF (Origem, Destino) | Transporte (Tipo, Placa, Identificação do transportador) |
      Produto (Discriminação, Vol, Und) | Documentação apresentada (Disc, Nº) | Ação (Liberação, Apreensão) | Nº TF", uma carga por linha.
-   Regras: carga sem Liberação nem Apreensão marcada = liberação (decisão da gerência, 2026-10); "Und" T = toneladas; UF de origem/destino
+   Regras: carga sem Liberação nem Apreensão marcada = liberação (decisão da gerência, 2026-10); só a carga com nº do TF conta como partida,
+   medida fitossanitária e liberação/apreensão (como no app; as demais contam em veículos e internalização); "Und" T = toneladas; UF de origem/destino
    = sigla no fim do município ("BOA VISTA/RR", "BOA VISTA - RR") ou, sem sigla, a UF padrão (origem: a do cabeçalho da BVA; destino: AM).
    O servidor (admPlantaoImportar) valida de novo e grava turnos e veículos. */
 const PlantaoPlanilha = (() => {
@@ -207,11 +208,15 @@ const PlantaoPlanilha = (() => {
     });
     const vazios = Object.values(D).filter(d => !d.cargas.length && !d.educacao && !d.total).map(d => d.data);
     if (vazios.length) avisos.push({ nivel: 'info', texto: `${vazios.map(dBR).join(', ')}: dia sem nenhum registro no papel (ex.: o dia da troca) — não vira turno.` });
+    const semTF = X.cargas.filter(c => !c.tf);
+    if (semTF.length) avisos.push({ nivel: 'info', texto: `${semTF.length} carga(s) sem nº de TF: ficam gravadas (placa, transportador, produto) e contam em veículos e na internalização, mas não em partida, medida fitossanitária, liberação ou apreensão (como no app: medida = TF lavrado).` });
+    const aprSemTF = semTF.filter(c => c.medida === 'apreensao').length;
+    if (aprSemTF) avisos.push({ nivel: 'atencao', texto: `${aprSemTF} apreensão(ões) sem nº de TF no papel: não contam como apreensão. Confira o nº do TF no arquivo.` });
     const tons = (f) => Math.round(X.cargas.filter(f).reduce((s, c) => s + (c.unidade === 't' && c.quantidade ? c.quantidade : 0), 0) * 1000) / 1000;
     const totais = { dias: X.dias.length, diasVazios: vazios.length, veiculos, quadro: X.dias.reduce((s, d) => s + d.total, 0), cargas: X.cargas.length,
-      liberacao: X.cargas.filter(c => c.medida === 'liberacao').length, apreensao: X.cargas.filter(c => c.medida === 'apreensao').length,
+      liberacao: X.cargas.filter(c => c.tf && c.medida === 'liberacao').length, apreensao: X.cargas.filter(c => c.tf && c.medida === 'apreensao').length,
       tfs: X.cargas.filter(c => c.tf).length, educacao: X.dias.reduce((s, d) => s + d.educacao, 0),
-      toneladas: tons(() => true), liberacaoT: tons(c => c.medida === 'liberacao'), apreensaoT: tons(c => c.medida === 'apreensao') };
+      toneladas: tons(() => true), liberacaoT: tons(c => c.tf && c.medida === 'liberacao'), apreensaoT: tons(c => c.tf && c.medida === 'apreensao') };
     const envio = { posto: op.posto || '', troca, fiscal: op.fiscal || '',
       dias: X.dias.map(d => ({ data: d.data, tipos: d.tipos, educacao: d.educacao })),
       cargas: X.cargas.map(c => ({ data: c.data, hora: c.hora, tipo: c.tipo, placa: c.placa, origemMun: c.origemMun, ufOrigem: c.ufOrigemTexto || op.ufOrigem || c.ufOrigem || '',

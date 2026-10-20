@@ -93,7 +93,7 @@ hr { border:0; border-top:1px solid var(--linha); margin:10px 0; }
 .pce-praga [hidden] { display:none !important; }
 .pce-praga .pce-cult { margin:8px 0; }
 .pce-addcult { margin-top:4px; }
-/* PCE — bloco "🍊 Cultura do citros" (cadastro de cítricos): um só, dentro do card "Pragas e doenças", com praga de citros no levantamento */
+/* PCE — bloco "Cultura do citros" (cadastro de cítricos): um só, dentro do card "Pragas e doenças", com praga de citros no levantamento */
 .pce-citros { border:2px solid #f0b46a; border-radius:12px; padding:10px; margin:12px 0; background:#fffaf2; }
 .pce-citros h4 { margin:0 0 4px; font-size:16px; color:#8a4b00; } .pce-citros h4 small { display:block; font-weight:400; font-size:12.5px; color:var(--mut); }
 .pce-citros [hidden] { display:none !important; }
@@ -251,3 +251,12 @@ input:disabled { background:#eef1f6; color:#99a; }
 .veic-ufs { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 8px; border:1px solid var(--linha); border-radius:10px; padding:6px 12px 2px; margin:10px 0; }
 .veic-ufs-rot { grid-column:1 / -1; font-size:14px; color:var(--mut); }
 .veic-ufs select { min-width:0; }
+/* ---------- Ícones (web/js/icones.js, docs/DESIGN.md): SVG de traço em currentColor, sempre com texto ao lado ---------- */
+.ico { vertical-align:-0.22em; flex-shrink:0; }
+nav button .ico { width:24px; height:24px; margin-bottom:2px; }
+.modulo .ic { display:flex; color:var(--azul2); } .modulo .ic .ico { width:36px; height:36px; }
+.tipo-card .ico { width:30px; height:30px; margin-bottom:2px; color:var(--azul); }
+.tipo-card:has(input:checked) .ico { color:var(--azul2); }
+#sync .ico { width:14px; height:14px; vertical-align:-0.15em; }
+.pce-foto-del .ico, .mini .ico:only-child { vertical-align:-0.18em; }
+@media (min-width:1024px) { nav button .ico { width:22px; height:22px; margin:0; } }

@@ -781,3 +781,6 @@ body.tv .pn-erro { font-size: 2.1vh; padding: 1.4vh; }
 .pn-conv-portal { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; margin-bottom: 12px; background: var(--sel); }
 .pn-conv-portal p { margin: 0; flex: 1 1 320px; font-size: 14px; }
 .pn-conv-portal a.pn-btn { text-decoration: none; }
+
+/* Ícones (web/js/icones.js, docs/DESIGN.md): SVG de traço em currentColor, sempre com texto ao lado */
+.ico { vertical-align: -0.22em; flex-shrink: 0; }

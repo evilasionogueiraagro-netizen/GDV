@@ -42,8 +42,8 @@ const Anexos = (() => {
     const itens = await Promise.all(ids.map(id => Store.obter('arquivos', id)));
     if (!el.isConnected) return;
     el.innerHTML = ids.length ? ids.map((id, i) => { const a = itens[i];
-      return `<div class="pce-foto" data-id="${escA(id)}">${a && a.dados ? `<img src="${escA(a.dados)}" alt="Foto ${i + 1}">` : '<span>☁️ foto arquivada no Drive</span>'}
-        <button type="button" class="pce-foto-del" ${attrs} data-id="${escA(id)}" aria-label="Remover foto ${i + 1}">✕</button></div>`; }).join('')
+      return `<div class="pce-foto" data-id="${escA(id)}">${a && a.dados ? `<img src="${escA(a.dados)}" alt="Foto ${i + 1}">` : '<span>foto arquivada no Drive</span>'}
+        <button type="button" class="pce-foto-del" ${attrs} data-id="${escA(id)}" aria-label="Remover foto ${i + 1}">${icone('fechar')}</button></div>`; }).join('')
       : '<div class="dica" style="grid-column:1/-1">Nenhuma foto.</div>';
   }
 

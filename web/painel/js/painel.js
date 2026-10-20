@@ -213,8 +213,8 @@ const Painel = (() => {
   function linhasSinal(t) {
     if (!t || !t.emAndamento) return '';
     const ap = t.aparelho || null, out = [];
-    if (t.situacao === 'aguardando') out.push(`<small class="pn-vivo-aviso">📱 O fiscal encerrou este turno no celular${t.fimNoCelular ? ' às ' + esc(t.fimNoCelular) : ''}, mas o encerramento ainda não chegou à planilha (último sinal do celular ${esc(fmt.rel(t.ultimoSinal))}). Peça para abrir o app com internet e tocar em “Tentar enviar agora”; se não der, use Encerrar turno.</small>`);
-    if (ap && ap.erroAtual && ap.ultimoErro) out.push(`<small class="pn-vivo-erro">⚠️ Erro ao enviar: ${esc(ap.ultimoErro)}${ap.ultimoErroEm ? ' (' + esc(fmt.rel(ap.ultimoErroEm)) + ')' : ''}</small>`);
+    if (t.situacao === 'aguardando') out.push(`<small class="pn-vivo-aviso">${icone('celular')} O fiscal encerrou este turno no celular${t.fimNoCelular ? ' às ' + esc(t.fimNoCelular) : ''}, mas o encerramento ainda não chegou à planilha (último sinal do celular ${esc(fmt.rel(t.ultimoSinal))}). Peça para abrir o app com internet e tocar em “Tentar enviar agora”; se não der, use Encerrar turno.</small>`);
+    if (ap && ap.erroAtual && ap.ultimoErro) out.push(`<small class="pn-vivo-erro">${icone('alerta')} Erro ao enviar: ${esc(ap.ultimoErro)}${ap.ultimoErroEm ? ' (' + esc(fmt.rel(ap.ultimoErroEm)) + ')' : ''}</small>`);
     if (t.semSinal && t.situacao !== 'aguardando') out.push(`<small class="pn-vivo-aviso">${esc(textoSemSinal(t))}</small>`);
     return out.join('');
   }
@@ -1418,11 +1418,11 @@ const Painel = (() => {
     const el = $('#pn-instalar'); if (!el) return;
     if (!precisaInstalar()) { el.hidden = true; el.innerHTML = ''; return; }
     const como = ehIOS
-      ? 'No Safari, toque em <b>Compartilhar</b> <span aria-hidden="true">⬆︎</span> e depois em <b>Adicionar à Tela de Início</b>. Abra pelo ícone' + (S.token ? '' : ' e entre por lá: o app instalado não aproveita o acesso feito no Safari') + '.'
+      ? 'No Safari, toque em <b>Compartilhar</b> <span aria-hidden="true">︎</span> e depois em <b>Adicionar à Tela de Início</b>. Abra pelo ícone' + (S.token ? '' : ' e entre por lá: o app instalado não aproveita o acesso feito no Safari') + '.'
       : eventoInstalar ? 'Toque em <b>Instalar app</b> para abrir o painel pelo ícone, em tela cheia.' : 'No Chrome, toque no menu <b>⋮</b> e em <b>Instalar app</b> (ou <b>Adicionar à tela inicial</b>).';
     el.innerHTML = `<div class="pn-instalar-txt"><b>Instale o e-GDV Painel no celular</b> para consultar de qualquer lugar. ${como}</div>
       <div class="pn-instalar-acoes">${!ehIOS && eventoInstalar ? '<button type="button" class="pn-btn pn-btn-prim pn-btn-mini" data-instalar="agora">Instalar app</button>' : ''}
-      <button type="button" class="pn-instalar-x" data-instalar="fechar" aria-label="Fechar a dica de instalação">✕</button></div>`;
+      <button type="button" class="pn-instalar-x" data-instalar="fechar" aria-label="Fechar a dica de instalação">${icone('fechar')}</button></div>`;
     el.hidden = false;
   }
   window.addEventListener('beforeinstallprompt', e => { e.preventDefault(); eventoInstalar = e; desenharDicaInstalar(); });

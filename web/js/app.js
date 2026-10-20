@@ -72,10 +72,10 @@ const temFicha = t => { const b = CONFIG.bvas.find(x => x.nome === t.local); ret
 // Dentro da Educação Sanitária/Fiscalização de Trânsito o TF também está embutido (botão "Lavrar TF"); o menu de baixo muda conforme o módulo.
 let MODULO = 'hub';
 const NAVS = {
-  hub: [['modulos', '🏠', 'Módulos'], ['config', '⚙️', 'Status']],
-  veiculos: [['modulos', '🏠', 'Módulos'], ['home', '🚛', 'Turno'], ['registrar', '➕', 'Registrar'], ['lista', '📋', 'Lista'], ['resumo', '📊', 'Resumo'], ['historico', '📈', 'Histórico']],
-  tf: [['modulos', '🏠', 'Módulos'], ['tf', '📄', 'Meus TFs'], ['tfnovo', '➕', 'Novo TF']],
-  pce: [['modulos', '🏠', 'Módulos'], ['pce', '🌱', 'Levantamentos'], ['pcelev', '➕', 'Novo levantamento'], ['pcemapa', '🗺️', 'Perto de mim'], ['pcetermos', '🧪', 'Termos de colheita'], ['pcetermo', '📝', 'Novo termo']]
+  hub: [['modulos', 'inicio', 'Módulos'], ['config', 'status', 'Status']],
+  veiculos: [['modulos', 'inicio', 'Módulos'], ['home', 'caminhao-bau', 'Turno'], ['registrar', 'mais', 'Registrar'], ['lista', 'lista', 'Lista'], ['resumo', 'resumo', 'Resumo'], ['historico', 'historico', 'Histórico']],
+  tf: [['modulos', 'inicio', 'Módulos'], ['tf', 'documento', 'Meus TFs'], ['tfnovo', 'mais', 'Novo TF']],
+  pce: [['modulos', 'inicio', 'Módulos'], ['pce', 'broto', 'Levantamentos'], ['pcelev', 'mais', 'Novo levantamento'], ['pcemapa', 'mapa', 'Perto de mim'], ['pcetermos', 'amostra', 'Termos de colheita'], ['pcetermo', 'formulario', 'Novo termo']]
 };
 const VIEWS_VEICULOS = ['home', 'registrar', 'editar', 'lista', 'resumo', 'fechado', 'historico'];
 /** Módulo (permissão) de cada tela: veiculos, tf ou pce; '' = livre (módulos, status). */
@@ -92,7 +92,7 @@ function renderNav(view) {
   const ativo = ({ editar: 'lista', fechado: 'home', tfpronto: MODULO === 'tf' ? 'tf' : 'lista', tfnovo: MODULO === 'tf' ? 'tfnovo' : 'lista',
     pcepronto: 'pcetermos', pcelevpronto: 'pce', pceservidor: 'pce', pcecampo: 'pce', pcerota: 'pcemapa',
     pcecads: 'pce', pcecad: 'pce', pcecadpronto: 'pce', pcetfs: 'pce', pcetf: 'pce', pcetfpronto: 'pce', pcerel: 'pce' })[view] || view;
-  $('#nav').innerHTML = NAVS[MODULO].map(([v, i, t]) => `<button data-v="${v}" class="${v === ativo ? 'on' : ''}">${i}<span>${t}</span></button>`).join('');
+  $('#nav').innerHTML = NAVS[MODULO].map(([v, i, t]) => `<button data-v="${v}" class="${v === ativo ? 'on' : ''}">${icone(i)}<span>${t}</span></button>`).join('');
 }
 function go(view, arg) {
   if (VIEW === 'fechado' && view !== 'fechado' && EDIT) avisarSaidaPendente(EDIT);   // aviso não bloqueante: encerramento ainda não chegou
@@ -124,18 +124,18 @@ async function modulos() {
   const stPce = await PCEUI.status();
   // módulo sem autorização: cartão cinza, não abre (os registros já feitos continuam guardados no aparelho)
   const cartao = (mod, v, ic, titulo, linhas) => Sync.pode(mod)
-    ? `<button class="modulo" data-v="${v}"><span class="ic">${ic}</span><span><b>${titulo}</b>${linhas}</span></button>`
-    : `<button class="modulo bloqueado" data-bloq="${mod}" aria-disabled="true"><span class="ic">${ic}</span><span><b>${titulo}</b><small class="sem-aut">🔒 ${SEM_AUT}</small>${linhas}</span></button>`;
+    ? `<button class="modulo" data-v="${v}"><span class="ic">${icone(ic)}</span><span><b>${titulo}</b>${linhas}</span></button>`
+    : `<button class="modulo bloqueado" data-bloq="${mod}" aria-disabled="true"><span class="ic">${icone(ic)}</span><span><b>${titulo}</b><small class="sem-aut">${icone('bloqueio')} ${SEM_AUT}</small>${linhas}</span></button>`;
   const aviso = (Sync.estado() || {}).aviso || Sync.avisoSemPermissao(await Sync.bloqueadosComPendentes());
   const encPend = await cartaoEncerramento();                       // turno encerrado aqui que ainda não chegou à planilha: no topo
   mostrar(`${encPend}<div class="card"><h3>Olá${nome ? ', ' + esc(nome) : ''}!</h3><p class="dica" style="text-align:left">Escolha o que deseja fazer.</p></div>
-    ${aviso ? `<div class="card aviso" id="avisoPerm">⚠️ ${esc(aviso)}</div>` : ''}
+    ${aviso ? `<div class="card aviso" id="avisoPerm">${icone('alerta')} ${esc(aviso)}</div>` : ''}
     ${avisoTurnoEncerrado()}
-    <div class="modulos">${cartao('veiculos', 'home', '🚛', 'Educação Sanitária/Fiscalização de Trânsito', `<small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)${Sync.pode('veiculos') ? '' : ' (guardado neste aparelho)'}` : 'Registro das informações, por ação'}</small>`)}
-    ${cartao('tf', 'tf', '📄', 'Termo de Fiscalização de Barreira', `<small>${tfs.length} TF(s) neste aparelho${pend ? ` · ⏳ ${pend} aguardando envio` : ''}</small>`)}
-    ${cartao('pce', 'pce', '🌱', 'PCE', `<small>Programa de Controle e Erradicação — levantamento fitossanitário e Termo de Colheita de Amostras</small><small class="pce-status">${esc(stPce)}</small>`)}</div>
+    <div class="modulos">${cartao('veiculos', 'home', 'caminhao-bau', 'Educação Sanitária/Fiscalização de Trânsito', `<small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)${Sync.pode('veiculos') ? '' : ' (guardado neste aparelho)'}` : 'Registro das informações, por ação'}</small>`)}
+    ${cartao('tf', 'tf', 'documento', 'Termo de Fiscalização de Barreira', `<small>${tfs.length} TF(s) neste aparelho${pend ? ` · ${icone('pendente')} ${pend} aguardando envio` : ''}</small>`)}
+    ${cartao('pce', 'pce', 'broto', 'PCE', `<small>Programa de Controle e Erradicação — levantamento fitossanitário e Termo de Colheita de Amostras</small><small class="pce-status">${esc(stPce)}</small>`)}</div>
     ${Sync.pode('veiculos') && Sync.pode('tf') ? '<p class="dica">Dentro da Educação Sanitária/Fiscalização de Trânsito também dá para lavrar o TF de um veículo (botão “Lavrar TF”).</p>' : ''}
-    <a class="botao sec" href="manual.html">📖 Manual do fiscal</a>`);
+    <a class="botao sec" href="manual.html">${icone('manual')} Manual do fiscal</a>`);
 }
 const view = html => { $('#view').innerHTML = bannerInstalar() + html; };
 
@@ -156,16 +156,16 @@ function bannerInstalar() {
     <div class="duas"><button class="botao sec" data-instalar="copiar">Copiar endereço</button>
     <button class="botao sec" data-instalar="continuar">Continuar no navegador mesmo assim</button></div>`;
   if (lsGet('gdv.instalado')) {
-    return `<div id="bInstalar" class="card instalar"><h3>✅ App instalado</h3>
+    return `<div id="bInstalar" class="card instalar"><h3>${icone('ok')} App instalado</h3>
       <p>Agora <b>feche esta página</b> e abra o app pelo <b>ícone</b> na ${ehIOS ? 'Tela de Início' : 'tela inicial'}. Ele vai pedir o código de ativação e, em seguida, liberar o início do turno.</p>${saida}</div>`;
   }
   const passos = ehIOS
-    ? ['Toque no botão <b>Compartilhar</b> (quadrado com seta para cima ⬆️): fica na barra de baixo do Safari (no Chrome, no topo, ao lado do endereço).',
+    ? [`Toque no botão <b>Compartilhar</b> (quadrado com seta para cima ${icone('compartilhar')}): fica na barra de baixo do Safari (no Chrome, no topo, ao lado do endereço).`,
        'Role a lista e toque em <b>Adicionar à Tela de Início</b>.', 'Toque em <b>Adicionar</b>.',
        'Abra o app pelo <b>ícone</b> na Tela de Início.']
     : ['Toque no menu <b>⋮</b> do navegador (canto superior direito).', 'Toque em <b>Adicionar à tela inicial</b> (ou <b>Instalar app</b>).',
        'Confirme em <b>Instalar</b> / <b>Adicionar</b>.', 'Abra o app pelo <b>ícone</b> na tela inicial.'];
-  return `<div id="bInstalar" class="card instalar"><h3>📲 Passo 1: instale o app</h3>
+  return `<div id="bInstalar" class="card instalar"><h3>${icone('celular')} Passo 1: instale o app</h3>
     <p>Instale na tela inicial para abrir como aplicativo e funcionar mesmo sem internet. Depois de instalar, abra pelo ícone: o app pede o <b>código de ativação</b> e só então libera o <b>início do turno</b>.</p>
     <ol>${passos.map(p => `<li>${p}</li>`).join('')}</ol>
     ${eventoInstalar ? '<button class="botao" data-instalar="agora">Instalar agora</button>' : ''}
@@ -205,9 +205,9 @@ function textoTurnoEncerrado(a) {
 function avisoTurnoEncerrado() {
   let a = null; try { a = JSON.parse(lsGet(LS_AVISO_ENC) || 'null'); } catch (e) { a = null; }
   if (!a || !a.id) return '';
-  return `<div class="card aviso" id="avisoEncerrado" role="alert"><h3>⏹ Turno encerrado</h3><p>${esc(textoTurnoEncerrado(a))}</p>
+  return `<div class="card aviso" id="avisoEncerrado" role="alert"><h3>${icone('parar')} Turno encerrado</h3><p>${esc(textoTurnoEncerrado(a))}</p>
     ${a.numeroTF || a.encerradoPor ? `<p><small>${esc([a.numeroTF, a.encerradoPor && !encerradoAuto(a.encerradoPor) && 'encerrado por ' + a.encerradoPor].filter(Boolean).join(' · '))}</small></p>` : ''}
-    <div class="duas"><button class="botao sec" data-go="historico">📈 Abrir o Histórico</button><button class="botao sec" data-avisook="1">Entendi</button></div></div>`;
+    <div class="duas"><button class="botao sec" data-go="historico">${icone('historico')} Abrir o Histórico</button><button class="botao sec" data-avisook="1">Entendi</button></div></div>`;
 }
 window.addEventListener('gdv-turno-encerrado', e => {
   const a = e.detail || {};
@@ -224,7 +224,7 @@ const avisoAtivacao = () => {
   const revog = localStorage.getItem('gdv.revogado');
   if (Sync.ativado() && !revog) return '';
   if (precisaInstalar()) return '';   // passo 1 ainda pendente: só as instruções de instalação aparecem
-  return `<form class="card aviso" id="fAtivar"><h3>${revog ? '⛔ Acesso revogado' : '🔑 Ativar este aparelho'}</h3>
+  return `<form class="card aviso" id="fAtivar"><h3>${revog ? icone('proibido') + ' Acesso revogado' : icone('chave') + ' Ativar este aparelho'}</h3>
     <p>${revog ? 'Peça um novo código de ativação ao administrador.' : 'Digite o código de 6 dígitos enviado pelo administrador. Só esta etapa exige internet.'}</p>
     ${CONFIG.sync.url ? '' : '<label>Endereço do servidor<input id="aUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" required></label>'}
     <label>Código de ativação<input id="aCod" inputmode="numeric" maxlength="7" autocomplete="off" placeholder="000 000" required></label>
@@ -244,10 +244,10 @@ async function home() {
       <p><b>Início do turno:</b> ${esc(t.inicio)}</p>
       <p><small>${Number(t.semPlaca) ? 'Placa do veículo opcional neste turno.' : 'Placa do veículo obrigatória neste turno.'}</small></p></div>
     <div class="card contador"><h1>${v.length}</h1><p>Veículos registrados</p></div>
-    <button class="botao" data-go="registrar">➕ Registrar veículo</button>
-    <button class="botao" data-go="lista">📋 Lista de veículos</button>
-    <button class="botao" data-go="resumo">📊 Resumo e documentos</button>
-    <button class="botao vermelho" id="encerrar">⏹ Encerrar turno</button>`);
+    <button class="botao" data-go="registrar">${icone('mais')} Registrar veículo</button>
+    <button class="botao" data-go="lista">${icone('lista')} Lista de veículos</button>
+    <button class="botao" data-go="resumo">${icone('resumo')} Resumo e documentos</button>
+    <button class="botao vermelho" id="encerrar">${icone('parar')} Encerrar turno</button>`);
   $('#encerrar').onclick = () => encerrarTurno(t);
 }
 function novoTurno() {
@@ -267,7 +267,7 @@ function novoTurno() {
   const placaObrigatoria = () => $('#nPosto').value === 'Fixa' && !!(bvaDe($('#nLocal').value) || {}).placa;
   const avisoPlaca = () => { $('#nPlacaInfo').textContent = placaObrigatoria() ? 'Placa do veículo obrigatória nesta barreira.' : 'Placa do veículo opcional neste local.'; };
   async function preencherEndereco() {
-    const st = $('#nLocalSt'); st.textContent = '📍 Obtendo localização…';
+    const st = $('#nLocalSt'); st.textContent = 'Obtendo localização…';
     gpsVolante = await pegarLocal();
     const volante = () => $('#nPosto') && $('#nPosto').value === 'Móvel' && $('#nLocal');   // o formulário pode ter sido fechado
     if (!volante()) return;
@@ -285,7 +285,7 @@ function novoTurno() {
       ? `<label>Local / Posto (BVA)<select id="nLocal" required>${CONFIG.bvas.map(b => `<option ${b.nome === ult ? 'selected' : ''}>${esc(b.nome)}</option>`).join('')}</select></label>
          <p class="dica" id="nPlacaInfo"></p>`
       : `<label>Local / Posto (volante)<input id="nLocal" required autocomplete="off" placeholder="endereço do posto volante"></label>
-         <div class="linha-acoes"><small id="nLocalSt"></small><button type="button" class="botao sec mini" id="nLocalGps">📍 Atualizar pela localização</button></div>
+         <div class="linha-acoes"><small id="nLocalSt"></small><button type="button" class="botao sec mini" id="nLocalGps">${icone('local')} Atualizar pela localização</button></div>
          <p class="dica" id="nPlacaInfo"></p>`;
     $('#nLocal').addEventListener(fixa ? 'change' : 'input', () => { if (!fixa) $('#nLocal').dataset.editado = '1'; avisoPlaca(); unidadeDoLocal(); });
     // Unidade (Termo): na BVA fixa é a própria BVA escolhida (não edita); no volante, o município da barreira (vem da localização, editável)
@@ -307,7 +307,7 @@ function novoTurno() {
     const curto = nomes.find(n => n.split(' ').length < 2);
     if (curto) { toast(`Informe o nome completo (nome e sobrenome): "${curto}"`, true); return; }
     const data = hojeISO(), inicio = agoraHM(), letra = letraDoTurno(inicio);   // horário = instante do clique
-    const btn = $('#fTurno button[type=submit]'); btn.disabled = true; btn.textContent = '📍 Obtendo localização…';
+    const btn = $('#fTurno button[type=submit]'); btn.disabled = true; btn.textContent = 'Obtendo localização…';
     const gps = (await pegarLocal()) || gpsVolante;
     if (!gps) toast('Turno iniciado sem coordenadas (GPS indisponível ou permissão negada).', true);
     const t = await Store.salvar('turnos', {
@@ -342,13 +342,13 @@ async function registrar() {
     <label>Placa${semPlaca ? ' <small>(opcional)</small>' : ''}<input id="placa" maxlength="8" autocapitalize="characters" autocomplete="off" ${semPlaca ? '' : 'required'} placeholder="ABC1D23" value="${esc(v ? v.placa : '')}"></label>
     <label>Tipo do veículo</label>
     <div class="tipos">${Object.entries(CONFIG.tipos).map(([c, x]) => `
-      <label class="tipo-card"><input type="radio" name="tipo" value="${c}" ${c === tipo ? 'checked' : ''}>${x.icone}<span>${x.nome}</span></label>`).join('')}</div>
+      <label class="tipo-card"><input type="radio" name="tipo" value="${c}" ${c === tipo ? 'checked' : ''}>${icone(x.icone)}<span>${x.nome}</span></label>`).join('')}</div>
     <label>Pessoas a bordo (estimativa)<input id="pessoas" type="number" min="0" inputmode="numeric" value="${v ? v.pessoas : CONFIG.tipos[tipo].pessoas}"></label>
     <div class="veic-ufs" role="group" aria-label="Origem e destino (opcional)"><div class="veic-ufs-rot">Origem e destino <small>(opcional)</small></div>
       <label>UF de origem<select id="vUfOri">${opcoesUF(v && v.ufOrigem)}</select></label>
       <label>UF de destino<select id="vUfDes">${opcoesUF(v && v.ufDestino)}</select></label></div>
     <label>Observações<textarea id="obs" rows="3">${esc(v ? v.obs : '')}</textarea></label>
-    <button class="botao">💾 Salvar</button></form>`);
+    <button class="botao">${icone('salvar')} Salvar</button></form>`);
   const placa = $('#placa');
   placa.oninput = () => placa.value = placa.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
   document.querySelectorAll('input[name=tipo]').forEach(r => r.onchange = () => {
@@ -386,13 +386,13 @@ async function lista() {
     const v = todos.filter(x => !q || x.placa.includes(q));
     $('#itens').innerHTML = v.length ? v.map(x => `
       <div class="item"><div class="topo"><div><div class="placa">${x.placa ? esc(x.placa) : '<small>sem placa</small>'}</div>
-        <div class="tipo">${CONFIG.tipos[x.tipo] ? CONFIG.tipos[x.tipo].icone + ' ' + CONFIG.tipos[x.tipo].nome : esc(x.tipo)}</div></div>
+        <div class="tipo">${CONFIG.tipos[x.tipo] ? icone(CONFIG.tipos[x.tipo].icone) + ' ' + CONFIG.tipos[x.tipo].nome : esc(x.tipo)}</div></div>
         <div class="hora">${esc(x.hora)}</div></div>
         <div class="info"><b>Pessoas:</b> ${Number(x.pessoas) || 0}</div>
         ${Number(x.carga) ? `<div class="info veic-carga"><b>Carga:</b> ${esc(cargaProdutos(x).map(c => c.p + (c.q ? ` ${c.q} ${c.u}` : '')).join('; ') || 'vegetais/partes')}</div>` : ''}
         ${x.ufOrigem || x.ufDestino ? `<div class="info veic-uf"><b>Origem → destino:</b> ${esc(x.ufOrigem || '?')} → ${esc(x.ufDestino || '?')}</div>` : ''}
         ${x.obs ? `<div class="info"><b>Obs:</b> ${esc(x.obs)}</div>` : ''}
-        ${x.pendente ? '<div class="info pend">⏳ aguardando envio</div>' : ''}
+        ${x.pendente ? `<div class="info pend">${icone('pendente')} aguardando envio</div>` : ''}
         <div class="botoes"><button class="editar" data-edit="${esc(x.id)}">Editar</button>
         ${Sync.pode('tf') ? `<button class="tfbtn" data-tfveic="${esc(x.id)}">Lavrar TF</button>` : ''}
         <button class="excluir" data-del="${esc(x.id)}">Excluir</button></div></div>`).join('')
@@ -411,10 +411,10 @@ async function resumo() {
   const por = contar(v);
   if (!mostrar.viva()) return;
   view(`<div class="card"><h3>${esc(t.numeroTF)} — total por tipo</h3>
-    ${Object.entries(CONFIG.tipos).map(([c, x]) => `<div class="resumo-item"><span>${x.icone} ${x.nome}</span><strong>${por[c] || 0}</strong></div>`).join('')}
+    ${Object.entries(CONFIG.tipos).map(([c, x]) => `<div class="resumo-item"><span>${icone(x.icone)} ${x.nome}</span><strong>${por[c] || 0}</strong></div>`).join('')}
     <div class="total">TOTAL DE VEÍCULOS<br>${v.length}<small>${v.reduce((s, x) => s + (Number(x.pessoas) || 0), 0)} pessoas fiscalizadas</small></div></div>
-    ${temFicha(t) ? `<button class="botao" data-doc="ficha" data-id="${t.id}">📝 Ficha de Campo (PDF)</button>` : ''}
-    <button class="botao vermelho" id="encerrar">⏹ Encerrar turno</button>
+    ${temFicha(t) ? `<button class="botao" data-doc="ficha" data-id="${t.id}">${icone('formulario')} Ficha de Campo (PDF)</button>` : ''}
+    <button class="botao vermelho" id="encerrar">${icone('parar')} Encerrar turno</button>
     <p class="dica">Início do turno: ${esc(t.inicio)}. Ao encerrar, o horário final é registrado e o Termo de Fiscalização fica disponível.<br>Na janela de impressão, escolha “Salvar como PDF”.</p>`);
   $('#encerrar').onclick = () => encerrarTurno(t);
 }
@@ -445,9 +445,9 @@ async function fechado() {
     <p>${dBR(t.data)} · das <b>${esc(t.inicio)}</b> às <b>${esc(t.fim)}</b></p>
     <p>${v.length} veículos · ${v.reduce((s, x) => s + (Number(x.pessoas) || 0), 0)} pessoas</p>
     ${htmlStatusEnc(t)}</div>
-    <button class="botao" data-doc="termo" data-id="${t.id}">📄 Termo de Fiscalização (PDF)</button>
-    ${temFicha(t) ? `<button class="botao" data-doc="ficha" data-id="${t.id}">📝 Ficha de Campo (PDF)</button>` : ''}
-    <button class="botao" data-go="home">➕ Iniciar novo turno</button>
+    <button class="botao" data-doc="termo" data-id="${t.id}">${icone('documento')} Termo de Fiscalização (PDF)</button>
+    ${temFicha(t) ? `<button class="botao" data-doc="ficha" data-id="${t.id}">${icone('formulario')} Ficha de Campo (PDF)</button>` : ''}
+    <button class="botao" data-go="home">${icone('mais')} Iniciar novo turno</button>
     <p class="dica">Os documentos deste turno também ficam no Histórico.</p>`);
 }
 /** Complemento dos avisos de pendência: no Android (Background Sync) o envio acontece sozinho; no iPhone, só com o app aberto. */
@@ -455,7 +455,7 @@ const avisoEnvio = () => Sync.envioAutomatico() ? ' — será enviado automatica
   : ' — abra o app com internet para enviar (e mantenha-o aberto até aparecer “Sincronizado”)';
 
 /* ---------- status do encerramento (feito neste aparelho) até a planilha confirmar ----------
-   ⏳ enviando / ⚠️ não enviado (motivo + Tentar enviar agora) / ✅ só quando o servidor confirmou (o sync marca pendente: 0).
+   enviando / não enviado (motivo + Tentar enviar agora) / encerrado só quando o servidor confirmou (o sync marca pendente: 0).
    Aparece na tela "Turno encerrado" e, enquanto houver encerramento pendente, num cartão amarelo no topo de Módulos. */
 const AVISO_SAIDA = 'O encerramento ainda não chegou à planilha. Mantenha o app aberto com internet por alguns segundos.';
 const hhmm = ms => { const d = new Date(ms); return `${pad(d.getHours())}:${pad(d.getMinutes())}`; };
@@ -471,14 +471,14 @@ function htmlStatusEnc(t, cartao) {
   const attrs = `id="${cartao ? 'encCartao' : 'encPend'}" data-id="${esc(t.id)}" role="status" aria-live="polite"`;
   if (!t.pendente) {
     if (cartao) return '';
-    return `<div ${attrs} class="enc-st ok"><b>✅ Turno encerrado, bom descanso!</b><small>${t.srv_ts ? `Recebido pela planilha às ${hhmm(Number(t.srv_ts))}.` : 'Recebido pela planilha.'}</small></div>`;
+    return `<div ${attrs} class="enc-st ok"><b>${icone('ok')} Turno encerrado, bom descanso!</b><small>${t.srv_ts ? `Recebido pela planilha às ${hhmm(Number(t.srv_ts))}.` : 'Recebido pela planilha.'}</small></div>`;
   }
-  const st = estadoEnvio(), qual = cartao ? `<span class="enc-qual">⏹ Turno <b>${esc(t.numeroTF || '')}</b> encerrado às ${esc(t.fim || '')}</span>` : '';
+  const st = estadoEnvio(), qual = cartao ? `<span class="enc-qual">${icone('parar')} Turno <b>${esc(t.numeroTF || '')}</b> encerrado às ${esc(t.fim || '')}</span>` : '';
   const pend = `Encerramento ainda não enviado à planilha${avisoEnvio()}. Enquanto não chegar, a gerência vê esta barreira como em andamento.`;
-  const botao = `<button type="button" class="botao sec mini" data-reenviar="${esc(t.id)}">🔄 Tentar enviar agora</button>`;
-  if (st.tipo === 'enviando') return `<div ${attrs} class="enc-st pend${cartao ? ' card aviso' : ''}">${qual}<b>⏳ Enviando…</b><small>${esc(pend)} Mantenha o app aberto com internet por alguns segundos.</small></div>`;
-  if (st.tipo === 'aguardando') return `<div ${attrs} class="enc-st pend${cartao ? ' card aviso' : ''}">${qual}<b>⏳ Aguardando envio…</b><small>${esc(pend)}</small>${botao}</div>`;
-  return `<div ${attrs} class="enc-st erro${cartao ? ' card aviso' : ''}">${qual}<b>⚠️ Não enviado: ${esc(st.motivo)}</b><small>${esc(pend)}</small>${botao}</div>`;
+  const botao = `<button type="button" class="botao sec mini" data-reenviar="${esc(t.id)}">${icone('sincronizar')} Tentar enviar agora</button>`;
+  if (st.tipo === 'enviando') return `<div ${attrs} class="enc-st pend${cartao ? ' card aviso' : ''}">${qual}<b>${icone('pendente')} Enviando…</b><small>${esc(pend)} Mantenha o app aberto com internet por alguns segundos.</small></div>`;
+  if (st.tipo === 'aguardando') return `<div ${attrs} class="enc-st pend${cartao ? ' card aviso' : ''}">${qual}<b>${icone('pendente')} Aguardando envio…</b><small>${esc(pend)}</small>${botao}</div>`;
+  return `<div ${attrs} class="enc-st erro${cartao ? ' card aviso' : ''}">${qual}<b>${icone('alerta')} Não enviado: ${esc(st.motivo)}</b><small>${esc(pend)}</small>${botao}</div>`;
 }
 /** Cartão amarelo no topo de Módulos enquanto houver turno encerrado neste aparelho sem chegar à planilha. */
 async function cartaoEncerramento() {
@@ -498,11 +498,11 @@ function avisarSaidaPendente(id) {
   Store.obter('turnos', id).then(t => { if (t && t.pendente && Number(t.encerrado) === 1) toast(AVISO_SAIDA, true); }).catch(() => {});
 }
 async function tentarEnviarAgora(id, botao) {
-  if (botao) { botao.disabled = true; botao.textContent = '⏳ Enviando…'; }
+  if (botao) { botao.disabled = true; botao.textContent = 'Enviando…'; }
   await Sync.sincronizar();
   const t = await Store.obter('turnos', id);
-  if (t && !t.pendente) toast('✅ Turno encerrado, bom descanso!');
-  else { const st = estadoEnvio(); toast(`⚠️ Não enviado: ${st.motivo || 'tente de novo em instantes'}`, true); }
+  if (t && !t.pendente) toast('Turno encerrado, bom descanso!');
+  else { const st = estadoEnvio(); toast(`Não enviado: ${st.motivo || 'tente de novo em instantes'}`, true); }
   await atualizarStatusEnc();
 }
 const contar = v => v.reduce((o, x) => (o[x.tipo] = (o[x.tipo] || 0) + 1, o), {});
@@ -528,12 +528,12 @@ async function historico() {
         <div class="card kpi"><b>${veic.length}</b><span>veículos</span></div>
         <div class="card kpi"><b>${pessoas}</b><span>pessoas</span></div>
         <div class="card kpi"><b>${turnos.length ? (veic.length / turnos.length).toFixed(1).replace('.', ',') : 0}</b><span>veíc./turno</span></div></div>
-      <div class="card"><h3>Veículos por tipo</h3>${barras(Object.entries(CONFIG.tipos).map(([c, x]) => [x.icone + ' ' + x.nome, porTipo[c] || 0]))}</div>
+      <div class="card"><h3>Veículos por tipo</h3>${barras(Object.entries(CONFIG.tipos).map(([c, x]) => [x.nome, porTipo[c] || 0, x.icone]))}</div>
       <div class="card"><h3>Veículos por dia</h3>${barras(Object.entries(porDia).sort().map(([k, n]) => [dBR(k).slice(0, 5), n]))}</div>
       <div class="card"><h3>Turnos</h3>${turnos.length ? turnos.map(t => `
-        <div class="turno-linha"><div><b>${esc(t.numeroTF)}</b><br><small>${dBR(t.data)} · ${esc(t.inicio)}${t.fim ? '–' + esc(t.fim) : ''} · ${esc(t.fiscal)} · ${porTurno[t.id] || 0} veíc.${t.encerrado ? '' : ' · em andamento'}${t.encerradoPor ? (encerradoAuto(t.encerradoPor) ? ' · encerrado automaticamente (12 h)' : ' · encerrado pela gerência') : ''}${t.pendente ? ' · ⏳ aguardando envio' : ''}</small></div>
+        <div class="turno-linha"><div><b>${esc(t.numeroTF)}</b><br><small>${dBR(t.data)} · ${esc(t.inicio)}${t.fim ? '–' + esc(t.fim) : ''} · ${esc(t.fiscal)} · ${porTurno[t.id] || 0} veíc.${t.encerrado ? '' : ' · em andamento'}${t.encerradoPor ? (encerradoAuto(t.encerradoPor) ? ' · encerrado automaticamente (12 h)' : ' · encerrado pela gerência') : ''}${t.pendente ? ` · ${icone('pendente')} aguardando envio` : ''}</small></div>
         <div>${t.encerrado ? `<button class="mini" data-doc="termo" data-id="${t.id}">Termo</button>` : ''}${temFicha(t) ? `<button class="mini" data-doc="ficha" data-id="${t.id}">Ficha</button>` : ''}</div></div>`).join('') : '<div class="vazio">Sem turnos no período.</div>'}</div>
-      <button class="botao vermelho" id="limpar">🗑 Limpar histórico deste aparelho</button>
+      <button class="botao vermelho" id="limpar">${icone('lixeira')} Limpar histórico deste aparelho</button>
       <p class="dica">Remove só os turnos já encerrados <b>deste celular</b>. Os dados continuam salvos na planilha.</p>`;
     $('#limpar').onclick = limparHistorico;
   };
@@ -553,9 +553,9 @@ async function limparHistorico() {
   await Store.apagar('veiculos', veic.map(v => v.id));
   toast('Histórico limpo.'); historico();
 }
-function barras(pares) {
+function barras(pares) {                                    // [rótulo, valor, ícone opcional]
   const max = Math.max(1, ...pares.map(p => p[1]));
-  return pares.length ? pares.map(([r, n]) => `<div class="barra"><span class="rot">${esc(r)}</span>
+  return pares.length ? pares.map(([r, n, ic]) => `<div class="barra"><span class="rot">${ic ? icone(ic) + ' ' : ''}${esc(r)}</span>
     <span class="trilho"><i style="width:${(n / max) * 100}%"></i></span><b>${n}</b></div>`).join('') : '<div class="vazio">Sem dados.</div>';
 }
 
@@ -565,11 +565,11 @@ async function config() {
   const ult = await Store.meta('ultimaSync');
   if (!mostrar.viva()) return;
   view(`${avisoAtivacao()}<div class="card"><h3>Sincronização</h3>
-    <p>Aparelho: ${Sync.ativado() ? '✅ ativado' : '⚠️ não ativado'}</p>
+    <p>Aparelho: ${Sync.ativado() ? icone('ok') + ' ativado' : icone('alerta') + ' não ativado'}</p>
     ${Sync.nome() ? `<p>Fiscal vinculado: <b>${esc(Sync.nome())}</b></p>` : ''}<p id="cEst"></p>
     <p>Última sincronização: ${ult ? new Date(ult).toLocaleString('pt-BR') : 'nunca'}</p>
     <p class="dica">A sincronização é automática quando há internet (a cada 20 s com turno aberto; sem turno, a cada minuto). Para forçar agora, toque no selo no topo da tela.</p>
-    <p><a href="manual.html">📖 Manual do fiscal</a></p>
+    <p><a href="manual.html">${icone('manual')} Manual do fiscal</a></p>
     ${Sync.ativado() ? '<button class="botao sec" id="desativar">Desativar este aparelho / trocar de fiscal</button>' : ''}</div>`);
   const e = Sync.estado();
   $('#cEst').textContent = (navigator.onLine ? 'Online' : 'Offline') + ' · pendentes de envio: ' + (e.pend || 0) + (e.pend ? avisoEnvio() : '') + (e.tipo === 'erro' ? ' · erro: ' + e.msg : '');
@@ -618,7 +618,9 @@ document.addEventListener('click', async e => {
 Sync.onEstado(e => {
   const b = $('#sync');
   const pend = e.pend ? ` · ${e.pend} a enviar` : '';
-  b.textContent = (e.tipo === 'sync' ? '🔄 Sincronizando…' : e.tipo === 'erro' ? '⚠️ Falha ao sincronizar' : (navigator.onLine ? '🟢 Online' : '🔴 Offline')) + (e.tipo === 'sync' ? '' : pend);
+  const [ic, txt] = e.tipo === 'sync' ? ['sincronizar', 'Sincronizando…'] : e.tipo === 'erro' ? ['alerta', 'Falha ao sincronizar']
+    : navigator.onLine ? ['online', 'Online'] : ['offline', 'Offline'];
+  b.innerHTML = icone(ic) + ' ' + esc(txt + (e.tipo === 'sync' ? '' : pend));
   atualizarStatusEnc().catch(() => {});
 });
 window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'resumo', 'historico', 'tf', 'pce', 'pcetermos', 'pcecads', 'pcetfs', 'fechado'].includes(VIEW)) go(VIEW, EDIT); });

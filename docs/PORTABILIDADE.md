@@ -34,6 +34,7 @@ abaixo. Os nomes seguem as funções que o porte já tem em `server/egdv/` do Si
 | `lerOnde_(nome, coluna, valor)` | linhas em que `coluna = valor` | `lerOnde` |
 | `inserir_(nome, objs)` | acrescenta no fim da aba; coluna ausente fica vazia | `inserir` |
 | `atualizar_(nome, linha, campos)` | grava só as colunas informadas da linha | `atualizar` |
+| `atualizarColuna_(nome, coluna, linhas, valor)` | grava o mesmo valor numa coluna de várias linhas (uma escrita só; ex.: excluir os veículos de uma importação substituída) | `atualizarVarios` |
 | `apagar_(nome, linhas)` | `deleteRows`, de baixo para cima (hoje só o arquivamento anual apaga linha; o resto é exclusão lógica) | `apagar` |
 | `gravar_(nome, recebidos, ts, usuario)` (já existe) | sync com "última edição vence" | `gravar_` (`base.ts`) |
 | `comLock_(fn)` | `getScriptLock().waitLock(30000)`, roda `fn`, `releaseLock()` no `finally` | `comLock` |

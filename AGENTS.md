@@ -47,6 +47,10 @@ publicado no GitHub Pages                            Web App do Apps Script     
 - **Login**: usuário e senha (abas `Usuarios` e `Sessoes`) é o caminho principal; o mesmo token abre app, painel e portal
   conforme os perfis (`fiscal`, `administrativo`, `gerente`, `dev`). Senha e token ficam só como hash. O controle de acesso
   é do gerente (`exigirGerente_`). Os códigos de 6 dígitos são legado: continuam valendo, mas não crie fluxo novo com eles.
+- **Repositório público: nenhum dado pessoal real versionado.** Código, testes, exemplos, placeholders, docs e commits usam
+  só dados fictícios (nome "Fulano Ficticio Teste", CPF de teste como 529.982.247-25, placa ABC1D23). Nada de nome, CPF,
+  endereço, telefone ou matrícula de produtor, fiscal ou servidor de verdade, nem trecho de planilha ou relatório real.
+  Planilhas reais para importar ficam fora do repositório. O histórico do Git é público: o que entrar não sai mais.
 - **LGPD**: nada público expõe CPF, nome completo, placa inteira ou coordenada exata (dashboard e `verificar.html`
   mascaram). Os testes conferem isso; não afrouxe.
 - **Fuso**: datas de negócio em `America/Manaus` (UTC−4). Use `hojeManaus_()`, `tsManaus_()`; nada de `new Date()` cru

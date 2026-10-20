@@ -111,7 +111,7 @@
       const j = await A.chamar({ action: 'admVigLancar', lancamentos: env });
       E.edit = {}; E.just = '';
       E.dados[E.ano] = await A.chamar({ action: 'admVigDados', ano: E.ano });
-      E.msg = { t: `Gravado ${icone('check')} ${j.novos} novo(s), ${j.atualizados} alterado(s), ${j.excluidos} apagado(s).`, cls: 'ok' }; desenhar();
+      E.msg = { t: `Gravado ✓ ${j.novos} novo(s), ${j.atualizados} alterado(s), ${j.excluidos} apagado(s).`, cls: 'ok' }; desenhar();
     } catch (e) { if (A.logado) setMsg('Não gravou: ' + e.message, 'erro'); }
   }
 
@@ -183,7 +183,7 @@
       }
       E.dados[I.ano] = await A.chamar({ action: 'admVigDados', ano: I.ano });
       E.imp = null; E.impResumo = Object.assign({ arquivo: I.arquivo, ano: I.ano }, tot);
-      E.impMsg = { t: `Importado ${icone('check')} ${tot.novos} novo(s), ${tot.atualizados} atualizado(s) (${I.arquivo}).`, cls: 'ok' };
+      E.impMsg = { t: `Importado ✓ ${tot.novos} novo(s), ${tot.atualizados} atualizado(s) (${I.arquivo}).`, cls: 'ok' };
       desenhar();
     } catch (e) { if (!A.logado) return; I.enviando = false; msgImp('Não gravou: ' + e.message + ' (o que já foi gravado não duplica ao repetir).', 'erro'); if (b) b.disabled = false; }
   }

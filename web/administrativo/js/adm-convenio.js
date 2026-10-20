@@ -211,7 +211,7 @@
       const i = E.d.lancamentos.findIndex(x => x.id === j.lancamento.id);
       if (i >= 0) E.d.lancamentos[i] = j.lancamento; else E.d.lancamentos.push(j.lancamento);
       if (j.financeiro) { const k = E.d.financeiro.findIndex(x => x.id === j.financeiro.id); if (k >= 0) E.d.financeiro[k] = j.financeiro; else E.d.financeiro.push(j.financeiro); }
-      E.editando = null; E.msg.lanc = { t: `Lançado ${icone('check')} (etapa ${e.id})${(j.avisos || []).length ? ' — ' + j.avisos.join(' ') : ''}`, cls: 'ok' };
+      E.editando = null; E.msg.lanc = { t: `Lançado ✓ (etapa ${e.id})${(j.avisos || []).length ? ' — ' + j.avisos.join(' ') : ''}`, cls: 'ok' };
       desenhar(raiz, visao);
     } catch (err) { if (!A.logado) return; msg(raiz, 'lanc', 'Não salvou: ' + err.message, 'erro'); b.disabled = false; }
   }
@@ -333,7 +333,7 @@
       const i = E.d.financeiro.findIndex(x => x.id === j.lancamento.id);
       if (i >= 0) E.d.financeiro[i] = j.lancamento; else E.d.financeiro.push(j.lancamento);
       E.editandoFin = null; E.avisosFin = j.avisos || [];
-      E.msg.fin = { t: `Lançado ${icone('check')} (${F.moeda(j.lancamento.valor)})${E.avisosFin.length ? ' — com aviso' : ''}`, cls: 'ok' };
+      E.msg.fin = { t: `Lançado ✓ (${F.moeda(j.lancamento.valor)})${E.avisosFin.length ? ' — com aviso' : ''}`, cls: 'ok' };
       desenhar(raiz, visao);
     } catch (err) { if (!A.logado) return; msg(raiz, 'fin', 'Não salvou: ' + err.message, 'erro'); b.disabled = false; }
   }
@@ -440,7 +440,7 @@
       }
       tot.iguais += X.totais.iguais;
       E.impResumo = tot; E.imp = null;
-      E.msg.imp = { t: `Importado ${icone('check')} ${tot.novos} novo(s), ${tot.atualizados} atualizado(s), ${tot.excluidos} excluído(s).`, cls: 'ok' };
+      E.msg.imp = { t: `Importado ✓ ${tot.novos} novo(s), ${tot.atualizados} atualizado(s), ${tot.excluidos} excluído(s).`, cls: 'ok' };
       E.d = await A.dados(true);
       desenhar(raiz, visao);
     } catch (err) {

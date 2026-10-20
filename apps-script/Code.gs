@@ -158,7 +158,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-20f';
+const VERSAO_CODIGO = '2026-10-20g';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -3774,8 +3774,10 @@ const PUBLICO_MIN_PEQUENO = 3;                 // supressão de números pequeno
 const PUBLICO_GRADE = 10;                      // células de 1/10 de grau (≈ 11 km)
 const PUBLICO_TITULO = 'Defesa Agropecuária em números';
 const PUBLICO_TEXTO = 'Ações de educação sanitária, fiscalização do trânsito de vegetais e vigilância fitossanitária da ADAF no Amazonas, a partir dos registros do e-GDV.';
-const PUBLICO_PERIODOS = { '30d': 'Últimos 30 dias', ano: 'Ano atual', anoAnterior: 'Ano anterior', tudo: 'Desde o início' };
-const PUBLICO_PERIODOS_PADRAO = ['30d', 'ano', 'anoAnterior'];
+const PUBLICO_PERIODOS = { '15d': 'Últimos 15 dias', '30d': 'Últimos 30 dias', ano: 'Ano atual', anoAnterior: 'Ano anterior', tudo: 'Desde o início',
+                           intervalo: 'Intervalo' };   // intervalo: o visitante escolhe de/até (AAAA-MM-DD) dentro dos registros
+const PUBLICO_PERIODOS_PADRAO = ['15d', '30d', 'ano', 'anoAnterior', 'intervalo'];
+const PUBLICO_PERIODOS_ANTIGOS = ['30d', 'ano', 'anoAnterior', 'tudo'];   // os que existiam antes de 2026-10-20 (config sem periodosConhecidos)
 // blocos (KPIs, gráficos e camadas) e o padrão de cada um
 const PUBLICO_BLOCOS = {
   acoes: true, horas: true, veiculos: true, pessoas: true, porBarreira: true, tiposVeiculo: true,   // Barreiras
@@ -3827,7 +3829,14 @@ function publicoAplicar_(base, o, estrito) {
 function publicoConfig_() {
   const txt = PropertiesService.getScriptProperties().getProperty('PUBLICO_CONFIG');
   const o = lerJSONSeguro_(txt, null), c = publicoAplicar_(publicoPadrao_(), o, false);
-  if (o && typeof o === 'object') { c.versao = Number(o.versao) || 0; c.atualizadoPor = String(o.atualizadoPor || ''); c.atualizadoEm = Number(o.atualizadoEm) || 0; }
+  if (o && typeof o === 'object') {
+    c.versao = Number(o.versao) || 0; c.atualizadoPor = String(o.atualizadoPor || ''); c.atualizadoEm = Number(o.atualizadoEm) || 0;
+    // período novo no código (ex.: 15 dias, intervalo) entra ligado na config já salva, uma vez; depois vale o que o gerente marcar
+    const conhecidos = Array.isArray(o.periodosConhecidos) ? o.periodosConhecidos.map(String) : PUBLICO_PERIODOS_ANTIGOS;
+    const novos = PUBLICO_PERIODOS_PADRAO.filter(function (p) { return conhecidos.indexOf(p) < 0; });
+    if (novos.length) c.periodos = Object.keys(PUBLICO_PERIODOS).filter(function (p) { return c.periodos.indexOf(p) >= 0 || novos.indexOf(p) >= 0; });
+  }
+  c.periodosConhecidos = Object.keys(PUBLICO_PERIODOS);
   return c;
 }
 
@@ -3855,11 +3864,23 @@ function publicoLimparCache_(versao) {
   cache.remove(b + 'vivo'); cache.remove(b + 'vivo_velho');
 }
 
-/** Período público (horário de Manaus). */
-function publicoPeriodo_(chave) {
+/** Período público (horário de Manaus). intervalo: req.de/req.ate (AAAA-MM-DD), até hoje; erro = {erro}. */
+function publicoPeriodo_(chave, req) {
   const hoje = hojeManaus_(), ano = Number(hoje.slice(0, 4));
   let de = somarDias_(hoje, -29), ate = hoje;
-  if (chave === 'ano') de = ano + '-01-01';
+  if (chave === 'intervalo') {
+    req = req || {};
+    const re = /^\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\d|3[01])$/, d = String(req.de || ''), a = String(req.ate || '');
+    if (!re.test(d) || !re.test(a)) return { erro: 'Escolha as datas de início e de fim do intervalo.' };
+    if (d > a) return { erro: 'A data de início é depois da data de fim.' };
+    if (d > hoje) return { erro: 'O intervalo começa depois de hoje.' };
+    de = d < '2000-01-01' ? '2000-01-01' : d; ate = a > hoje ? hoje : a;
+    const br = function (x) { return x.slice(8, 10) + '/' + x.slice(5, 7) + '/' + x.slice(0, 4); };
+    const dias0 = Math.round((Date.parse(ate + 'T00:00:00Z') - Date.parse(de + 'T00:00:00Z')) / 864e5) + 1;
+    return { chave: chave, rotulo: 'De ' + br(de) + ' a ' + br(ate), de: de, ate: ate, dias: dias0 };
+  }
+  if (chave === '15d') de = somarDias_(hoje, -14);
+  else if (chave === 'ano') de = ano + '-01-01';
   else if (chave === 'anoAnterior') { de = (ano - 1) + '-01-01'; ate = (ano - 1) + '-12-31'; }
   else if (chave === 'tudo') de = '2000-01-01';
   const dias = Math.round((Date.parse(ate + 'T00:00:00Z') - Date.parse(de + 'T00:00:00Z')) / 864e5) + 1;
@@ -4101,13 +4122,15 @@ function publicoDados_(req) {
   if (previa) adminDoToken_(req.key);
   if (!cfg.ativo && !previa) return { ok: true, ativo: false };
   const periodos = cfg.periodos.map(function (k) { return { chave: k, rotulo: PUBLICO_PERIODOS[k] }; });
-  const chave = req.periodo ? String(req.periodo) : cfg.periodos[0];
+  const chave = req.periodo ? String(req.periodo) : (cfg.periodos.indexOf('30d') >= 0 ? '30d' : cfg.periodos[0]);   // abre nos 30 dias, se liberado
   if (cfg.periodos.indexOf(chave) < 0) return { ok: false, erro: 'Este período não está disponível no dashboard. Escolha outro.', periodos: periodos };
   const cache = CacheService.getScriptCache(), base = 'publico_' + cfg.versao + '_';
-  const per = publicoPeriodo_(chave);
-  const c = publicoDoCache_(cache, base + chave, PUBLICO_CACHE_MS, function () { return publicoCalcular_(cfg, per); });
+  const per = publicoPeriodo_(chave, req);
+  if (per.erro) return { ok: false, erro: per.erro, intervaloInvalido: true };
+  const ck = chave === 'intervalo' ? 'iv_' + per.de + '_' + per.ate : chave;   // cada intervalo tem o seu cache
+  const c = publicoDoCache_(cache, base + ck, PUBLICO_CACHE_MS, function () { return publicoCalcular_(cfg, per); });
   const r = { ok: true, ativo: cfg.ativo, previa: previa, titulo: cfg.titulo, texto: cfg.texto, modos: cfg.modos, blocos: cfg.blocos,
-              periodos: periodos, periodo: { chave: chave, rotulo: per.rotulo, de: per.de, ate: per.ate },
+              periodos: periodos, periodo: { chave: chave, rotulo: per.rotulo, de: per.de, ate: per.ate }, hoje: hojeManaus_(),
               atualizadoEm: c.em, agora: Date.now(), supressao: cfg.blocos.supressaoPequenos ? PUBLICO_MIN_PEQUENO : 0 };
   if (c.limitado) r.doCache = true;
   if (c.dados.numeros) r.numeros = c.dados.numeros;

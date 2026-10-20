@@ -111,7 +111,7 @@
       const j = await A.chamar({ action: 'admVigLancar', lancamentos: env });
       E.edit = {}; E.just = '';
       E.dados[E.ano] = await A.chamar({ action: 'admVigDados', ano: E.ano });
-      E.msg = { t: `Gravado ✓ ${j.novos} novo(s), ${j.atualizados} alterado(s), ${j.excluidos} apagado(s).`, cls: 'ok' }; desenhar();
+      E.msg = { t: `Gravado ${icone('check')} ${j.novos} novo(s), ${j.atualizados} alterado(s), ${j.excluidos} apagado(s).`, cls: 'ok' }; desenhar();
     } catch (e) { if (A.logado) setMsg('Não gravou: ' + e.message, 'erro'); }
   }
 
@@ -119,7 +119,7 @@
   function secaoImp(c) {
     const s = A.secao(c, 'Importar a planilha de controle VIGIFITO antiga (.xlsx) — histórico', 'Para meses anteriores ao e-GDV (ex.: 2025). Aba de postos × meses (como "VIGIFITO") e abas de períodos de 10 dias por posto (como "JUNDIÁ"). Grava os valores como lançados (linhas apuradas pelo e-GDV: como substituição); totais e semestres não são importados — saem do sistema. Reimportar não duplica.');
     const box = A.el('div', 'pn-cartao pn-conv-imp');
-    box.innerHTML = `<div class="pn-conv-acoes"><label class="pn-btn pn-btn-prim pn-conv-imp-btn" for="adm-vig-imp-arq">📥 Importar planilha VIGIFITO (.xlsx)</label>
+    box.innerHTML = `<div class="pn-conv-acoes"><label class="pn-btn pn-btn-prim pn-conv-imp-btn" for="adm-vig-imp-arq">${icone('baixar')} Importar planilha VIGIFITO (.xlsx)</label>
       <input type="file" id="adm-vig-imp-arq" accept=".xlsx" class="pn-conv-imp-arq"><span class="pn-pub-msg${E.impMsg.cls ? ' ' + E.impMsg.cls : ''}" data-msg="vigimp" role="status">${esc(E.impMsg.t)}</span></div>
       <div id="adm-vig-imp-previa"></div>`;
     s.appendChild(box);
@@ -183,7 +183,7 @@
       }
       E.dados[I.ano] = await A.chamar({ action: 'admVigDados', ano: I.ano });
       E.imp = null; E.impResumo = Object.assign({ arquivo: I.arquivo, ano: I.ano }, tot);
-      E.impMsg = { t: `Importado ✓ ${tot.novos} novo(s), ${tot.atualizados} atualizado(s) (${I.arquivo}).`, cls: 'ok' };
+      E.impMsg = { t: `Importado ${icone('check')} ${tot.novos} novo(s), ${tot.atualizados} atualizado(s) (${I.arquivo}).`, cls: 'ok' };
       desenhar();
     } catch (e) { if (!A.logado) return; I.enviando = false; msgImp('Não gravou: ' + e.message + ' (o que já foi gravado não duplica ao repetir).', 'erro'); if (b) b.disabled = false; }
   }

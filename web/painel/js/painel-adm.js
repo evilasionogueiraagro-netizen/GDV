@@ -47,13 +47,13 @@
       e.preventDefault();
       const email = r.querySelector('#pn-adm-email').value.trim(), nome = r.querySelector('#pn-adm-nome').value.trim();
       if (!email || !nome) return setMsg('Informe o e-mail e o nome completo.', 'erro');
-      salvar({ email, nome, ativo: 1 }, `Liberado ✓ ${email}`);
+      salvar({ email, nome, ativo: 1 }, `Liberado ${icone('check')} ${email}`);
     });
     r.addEventListener('click', async e => {
       const b = e.target.closest('[data-adm]'); if (!b) return;
       const l = E.d.liberados.find(x => x.id === b.dataset.id); if (!l) return;
-      if (b.dataset.adm === 'revogar') { if (!confirm(`Revogar o acesso de ${l.nome} ao Portal do Administrativo? A sessão aberta cai na próxima ação.`)) return; salvar({ id: l.id, email: l.email, nome: l.nome, ativo: 0 }, `Revogado ✓ ${l.nome}`); }
-      else if (b.dataset.adm === 'reativar') salvar({ id: l.id, email: l.email, nome: l.nome, ativo: 1 }, `Reativado ✓ ${l.nome}`);
+      if (b.dataset.adm === 'revogar') { if (!confirm(`Revogar o acesso de ${l.nome} ao Portal do Administrativo? A sessão aberta cai na próxima ação.`)) return; salvar({ id: l.id, email: l.email, nome: l.nome, ativo: 0 }, `Revogado ${icone('check')} ${l.nome}`); }
+      else if (b.dataset.adm === 'reativar') salvar({ id: l.id, email: l.email, nome: l.nome, ativo: 1 }, `Reativado ${icone('check')} ${l.nome}`);
       else if (b.dataset.adm === 'codigo') {
         try { E.codigo = await P.chamar({ action: 'painelAdmCodigo', id: l.id }); E.msg = { t: 'Código gerado ✓', cls: 'ok' }; await carregar(); }
         catch (err) { if (P.logado) setMsg('Não gerou: ' + err.message, 'erro'); }

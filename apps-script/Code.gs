@@ -112,7 +112,8 @@ const TABELAS = {
                    'usuario', 'criadoEm', 'atualizadoEm', 'excluido', 'chave', 'origem', 'arquivo', 'importadoEm',
                    // desembolso lançado no portal: tipo da diária (NM/NS/TERC), servidor que recebeu (id da lista de servidores e o NOME — o nome
                    // fica só aqui e no portal; o painel e os relatórios nunca recebem) e quem lançou (admId)
-                   'tipoDiaria', 'servidorId', 'servidorNome', 'admId'],
+                   'tipoDiaria', 'servidorId', 'servidorNome', 'admId',
+                   'municipio'],   // município do desembolso (opcional; lançado no portal)
   // Textos do relatório mensal (id = convenio|AAAA-MM): textos = JSON {etapas:{"1.4":{evidencias, justificativa, fator, providencia, situacao}},
   // gerais:{fatores, providencias, analise, conclusao}}
   ConvRelatorios: ['id', 'convenio', 'mes', 'numero', 'textos', 'usuario', 'atualizadoEm'],
@@ -155,7 +156,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-20a';
+const VERSAO_CODIGO = '2026-10-20b';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -2133,7 +2134,7 @@ function convLancOut_(r) {
 function convFinOut_(r) {
   return { id: r.id, convenio: r.convenio, etapa: r.etapa, item: r.item, natureza: r.natureza, data: r.data, quantidade: numOuNulo_(r.quantidade),
            valor: numOuNulo_(r.valor) || 0, documento: r.documento, descricao: r.descricao, fonte: r.fonte, usuario: r.usuario, criadoEm: r.criadoEm, atualizadoEm: r.atualizadoEm,
-           chave: r.chave, origem: r.origem || 'manual', arquivo: r.arquivo, importadoEm: r.importadoEm || 0, tipoDiaria: r.tipoDiaria || '' };
+           chave: r.chave, origem: r.origem || 'manual', arquivo: r.arquivo, importadoEm: r.importadoEm || 0, tipoDiaria: r.tipoDiaria || '', municipio: r.municipio || '' };
 }
 /** Para o Portal do Administrativo: o mesmo e o servidor que recebeu (id e nome — o nome NUNCA vai ao painel nem aos relatórios). */
 function convFinOutAdm_(r) {
@@ -2358,7 +2359,8 @@ function convFinLancar_(autor, l) {
   const qtd = l.quantidade === '' || l.quantidade === null || l.quantidade === undefined ? '' : convNumero_(l.quantidade, 'Quantidade');
   if (qtd !== '' && (qtd < 0 || qtd > 1e7)) throw new Error('Quantidade inválida.');
   const o = { convenio: cfg.id, etapa: e.id, item: item.id, natureza: item.natureza, data: convDataNaVigencia_(cfg, String(l.data || '')), quantidade: qtd,
-              valor: valor, documento: convTexto_(l.documento, 120, 'Documento'), descricao: convTexto_(l.descricao, 1000, 'Descrição'), fonte: fonte, origem: 'manual' };
+              valor: valor, documento: convTexto_(l.documento, 120, 'Documento'), descricao: convTexto_(l.descricao, 1000, 'Descrição'), fonte: fonte, origem: 'manual',
+              municipio: convTexto_(String(l.municipio || '').replace(/\s+/g, ' ').trim(), 80, 'Município') };
   if (valor < 0 && o.descricao.length < 5) throw new Error('Valor negativo (estorno) exige descrição.');
   o.tipoDiaria = String(l.tipoDiaria || '').toUpperCase();
   if (o.tipoDiaria && CONV_TIPOS_DIARIA.indexOf(o.tipoDiaria) < 0) throw new Error('Tipo de diária inválido (NM, NS ou terceiros).');
@@ -2454,6 +2456,7 @@ function convFinImportar_(autor, req) {
           a.o.item === n.item && String(a.o.quantidade) === String(n.quantidade) && a.o.fonte === n.fonte &&
           (!n.servidorNome || a.o.servidorNome === n.servidorNome)) { res.iguais++; return; }
       if (a && !n.servidorNome && a.o.servidorNome) { n.servidorNome = a.o.servidorNome; n.servidorId = a.o.servidorId; }   // sem nome no envio: mantém o já gravado
+      if (a && a.o.municipio) n.municipio = a.o.municipio;                         // a planilha não traz município: mantém o lançado no portal
       const o = Object.assign({}, n, { usuario: autor.nome, admId: autor.admId || '', atualizadoEm: agora, importadoEm: agora, excluido: 0 });
       if (a) {
         o.id = a.o.id; o.criadoEm = a.o.criadoEm || agora;

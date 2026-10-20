@@ -273,7 +273,11 @@
       E.dados[ano] = await A.chamar({ action: 'admVigDados', ano });
       E.pltMsg = { t: `Importado ✓ ${j.posto}, ${dBR(j.de)} a ${dBR(j.ate)}: ${j.turnos} turno(s), ${j.veiculos} veículo(s), ${j.cargas} carga(s) (${j.liberacao} liberação, ${j.apreensao} apreensão, ${j.tfs} TF)${j.substituidos ? `; ${j.substituidos} veículo(s) da importação anterior excluídos` : ''}.${j.turnosDoApp ? ` Atenção: há ${j.turnosDoApp} turno(s) do app na mesma BVA nesses dias.` : ''}`, cls: 'ok' };
       desenhar();
-    } catch (e) { if (!A.logado) return; I.enviando = false; msgPlt('Não gravou: ' + e.message, 'erro'); if (b) b.disabled = false; }
+    } catch (e) {
+      if (!A.logado) return; I.enviando = false; if (b) b.disabled = false;
+      // servidor ainda sem a action (publicação do Code.gs uns minutos depois do portal): nada foi gravado
+      msgPlt(/a[çc][ãa]o inv[áa]lida/i.test(e.message) ? 'Não gravou: o servidor ainda está com a versão antiga (a atualização entra em alguns minutos). Tente de novo daqui a pouco.' : 'Não gravou: ' + e.message, 'erro');
+    }
   }
 
   function montar() {

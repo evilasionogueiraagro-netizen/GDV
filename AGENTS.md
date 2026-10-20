@@ -88,8 +88,8 @@ Drive da conta anterior.
    10 minutos depois do front: se o front depende de action ou coluna nova, ele precisa aguentar o back antigo nesse
    intervalo (ou mande o back antes, em PR próprio). Não edite código no editor do Apps Script (a publicação seguinte
    sobrescreve). Configuração, serviço novo do Google e como voltar versão: [docs/PUBLICACAO-BACK.md](docs/PUBLICACAO-BACK.md).
-   Enquanto os segredos `CLASPRC_JSON` e `APPS_SCRIPT_ID` não estiverem no repositório, o workflow falha e a publicação é manual:
-   colar o `Code.gs` → Implantar → Gerenciar implantações → editar a implantação atual → Nova versão.
+   Workflow "Publicar Apps Script" falhou: o back no ar fica para trás do front sem ninguém perceber. Confira a versão no ar
+   (`GET /exec`) e veja "Quando o workflow falha" no mesmo documento.
 
 O CI de testes (`testes.yml`) roda em push/PR para `main` e `claude/**`.
 

@@ -156,7 +156,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-20c';
+const VERSAO_CODIGO = '2026-10-20d';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -2333,7 +2333,7 @@ function convBemFinanceiro_(autor, cfg, e, lanc, valor, fonte, agora, qtd) {
   if (valor === null && !vivo) return null;
   const o = vivo ? JSON.parse(JSON.stringify(ant)) : { id: ant ? ant.id : Utilities.getUuid(), criadoEm: ant ? ant.criadoEm : agora };
   Object.assign(o, { convenio: cfg.id, etapa: e.id, item: item.id, natureza: item.natureza, chave: chave, origem: 'bem',
-                     descricao: 'Aquisição: ' + b.nome + ' – ' + b.local, usuario: autor.nome, admId: autor.admId || '', atualizadoEm: agora, excluido: 0 });
+                     descricao: 'Aquisição: ' + b.nome + ' – ' + b.local, municipio: b.local || '', usuario: autor.nome, admId: autor.admId || '', atualizadoEm: agora, excluido: 0 });
   if (valor !== null) { o.valor = valor; o.fonte = fonte; }
   if (qtd !== null && qtd !== undefined) o.quantidade = qtd; else if (!vivo) o.quantidade = 1;
   if (!vivo || valor !== null) { o.data = lanc.data; if (lanc.documento) o.documento = lanc.documento; }

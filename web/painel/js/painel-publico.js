@@ -35,7 +35,7 @@
       ['aoVivo', 'Barreiras agora', 'BVAs fixas em funcionamento neste momento.']]]
   ];
   const AVISO_VIVO = 'Mostra publicamente onde há barreira fixa em funcionamento agora. Pode ajudar quem quer evitar a fiscalização.';
-  const PERIODOS = [['30d', 'Últimos 30 dias'], ['ano', 'Ano atual'], ['anoAnterior', 'Ano anterior'], ['tudo', 'Desde o início']];
+  const PERIODOS = [['15d', 'Últimos 15 dias'], ['30d', 'Últimos 30 dias'], ['ano', 'Ano atual'], ['anoAnterior', 'Ano anterior'], ['tudo', 'Desde o início'], ['intervalo', 'Intervalo (o visitante escolhe as datas)']];
   const E = { raiz: null, cfg: null, url: '', carregando: false, erro: '', sujo: false, msg: '', msgCls: '' };
   const urlPublica = () => { try { return new URL('../dashboard/', location.href).href; } catch (e) { return E.url; } };
 

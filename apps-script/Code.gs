@@ -33,7 +33,7 @@ const TABELAS = {
              'semEducacao', 'medidaFito', 'carga', 'produtos', 'ufOrigem', 'ufDestino', 'partida', 'inspecaoFito', 'docConferido',
              // relatório de plantão do papel importado no portal (admPlantaoImportar; o app não grava): município de origem/destino,
              // transportador, carga (JSON [{p, q, u}], como os produtos do TF), medida (liberacao | apreensao), nº do TF do papel,
-             // documento apresentado e o id da importação. Veículo com medidaPapel conta no VIGIFITO como partida fiscalizada (motorBarreira_).
+             // documento apresentado e o id da importação. Carga com nº do TF conta no VIGIFITO como o TF de barreira (motorBarreira_).
              'origemMun', 'destinoMun', 'transportador', 'cargaPapel', 'medidaPapel', 'tfPapel', 'docPapel', 'importacao'],
   Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm', 'perfil',   // perfil: vazio = fiscal, 'admin' = administrador
             'geradoPor',                                                             // quem gerou o código: nome do administrador (painel) ou "planilha" (menu)
@@ -163,7 +163,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-20h';
+const VERSAO_CODIGO = '2026-10-20i';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -3140,9 +3140,10 @@ function ufDoTexto_(t) {
  *   informada também conta em internN/cargasEstados (sem toneladas); com TF ligado, só o TF conta (nunca duas vezes).
  *   Os campos antigos de fiscalização do veículo (semEducacao, medidaFito, carga, produtos, partida, inspecaoFito, docConferido) não
  *   entram mais em nenhum número.
- *   Relatório de plantão do papel (importado no portal): o veículo com medidaPapel é uma partida fiscalizada sem TF no e-GDV e conta
- *   como o TF de barreira contaria — partidas, medidaFito, liberação/apreensão (+ t da cargaPapel), auto de destruição (apreensão),
- *   internT/importT ou exportT pelo sentido, documentos (docPapel) e tfs só quando o papel traz o nº do TF (tfPapel). */
+ *   Relatório de plantão do papel (importado no portal): toda carga (medidaPapel) soma as toneladas da cargaPapel em internT/importT
+ *   ou exportT pelo sentido (o internN/cargasEstados já vem da UF do veículo, como acima). Só a carga com nº do TF no papel (tfPapel)
+ *   conta como o TF de barreira contaria — tfs, partidas, medidaFito, liberação/apreensão (+ t), auto de destruição (apreensão) e
+ *   documentos (docPapel): a mesma regra do app (medida = TF lavrado; decisão da gerência, 2026-10). */
 function motorBarreira_(de, ate) {
   const noPer = function (d) { d = String(d || '').slice(0, 10); return d >= de && d <= ate; };
   const tipoDe = function (t) { const p = normPub_(t.posto); return p.indexOf('mov') >= 0 || p.indexOf('volante') >= 0 ? 'volante' : 'fixa'; };
@@ -3173,17 +3174,19 @@ function motorBarreira_(de, ate) {
     if (sv === 'intern') t.internN++; else if (sv === 'estados') t.cargasEstados++;
     if (v.medidaPapel !== 'liberacao' && v.medidaPapel !== 'apreensao') return;
     const p = t.papel = t.papel || { partidas: 0, tfs: 0, documentos: 0, liberacao: 0, liberacaoT: 0, apreensao: 0, apreensaoT: 0, internT: 0, exportT: 0, outras: {} };
+    const comTFPapel = !!String(v.tfPapel || '').trim();
     let cargaT = 0;
     produtosTF_(v.cargaPapel).forEach(function (pr) {
       if (pr.quantidade === null) return;
       const tt = toneladas_(pr.quantidade, pr.unidade), u = pr.unidade || 'sem unidade';
       if (tt !== null) { cargaT += tt; return; }
-      // outras unidades à parte, nos mesmos grupos do TF: liberacao/apreensao e carga (interestadual)
-      [v.medidaPapel].concat(sv ? ['carga'] : []).forEach(function (g) { const o = p.outras[g] = p.outras[g] || {}; o[u] = (o[u] || 0) + pr.quantidade; });
+      // outras unidades à parte, nos mesmos grupos do TF: carga (interestadual) e, com TF, liberacao/apreensao
+      (sv ? ['carga'] : []).concat(comTFPapel ? [v.medidaPapel] : []).forEach(function (g) { const o = p.outras[g] = p.outras[g] || {}; o[u] = (o[u] || 0) + pr.quantidade; });
     });
-    p.partidas++; if (String(v.tfPapel || '').trim()) p.tfs++; if (String(v.docPapel || '').trim()) p.documentos++;
-    p[v.medidaPapel]++; p[v.medidaPapel + 'T'] += cargaT;
     if (sv === 'intern') p.internT += cargaT; else if (sv === 'estados') p.exportT += cargaT;
+    if (!comTFPapel) return;                                                  // sem TF no papel: só veículo e internalização
+    p.partidas++; p.tfs++; if (String(v.docPapel || '').trim()) p.documentos++;
+    p[v.medidaPapel]++; p[v.medidaPapel + 'T'] += cargaT;
   });
   const tfs = [];
   tfsVivos.forEach(function (f) {
@@ -3464,7 +3467,8 @@ function painelVigConfigSalvar(token, req) {
  * tivesse sido feito no app, na BVA do posto VIGIFITO escolhido: um turno por dia (início na troca do plantão, encerrado) e os veículos —
  * as cargas da lista (placa, tipo, hora, município/UF de origem e destino, transportador, carga, medida, nº do TF, documento) e, para
  * fechar a contagem por tipo do quadro 1, veículos sem placa. Educação sanitária do dia = pessoas (1 por veículo, das cargas para os
- * demais). Os números saem do motor (motorBarreira_): a carga com medida conta como partida fiscalizada (ver o motor).
+ * demais). Os números saem do motor (motorBarreira_): toda carga conta em veículos e na internalização; só a com nº do TF conta como
+ * partida, medida fitossanitária e liberação/apreensão (ver o motor).
  * Carga com hora antes da troca pertence ao plantão do dia anterior (o turno atravessa a meia-noite, como no app).
  * id da importação = posto|1º dia: reimportar o mesmo plantão é recusado (jaImportado), a não ser com substituir = 1 — os veículos da
  * importação anterior ficam excluídos (excluido = 1) e entram os novos; os turnos (mesmos ids) são atualizados.
@@ -3570,8 +3574,8 @@ function plantaoMontar_(cfg, req, s) {
   const resumo = { posto: posto.nome, local: local, de: ordem[0], ate: ordem[ordem.length - 1], dias: ordem.length, turnos: turnos.length, diasVazios: vazios,
     veiculos: veiculos.length, cargas: nCargas.length, semPlaca: veiculos.length - nCargas.length,
     educacao: ordem.reduce(function (a, k) { return a + D[k].educacao; }, 0),
-    liberacao: nCargas.filter(function (v) { return v.medidaPapel === 'liberacao'; }).length,
-    apreensao: nCargas.filter(function (v) { return v.medidaPapel === 'apreensao'; }).length,
+    liberacao: nCargas.filter(function (v) { return v.tfPapel && v.medidaPapel === 'liberacao'; }).length,      // como no motor: só com nº do TF
+    apreensao: nCargas.filter(function (v) { return v.tfPapel && v.medidaPapel === 'apreensao'; }).length,
     tfs: nCargas.filter(function (v) { return v.tfPapel; }).length, avisos: avisos };
   return { id: imp, turnos: turnos, veiculos: veiculos, resumo: resumo };
 }

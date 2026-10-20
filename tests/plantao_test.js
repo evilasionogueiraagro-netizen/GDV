@@ -49,7 +49,7 @@ function relatorio() {
   L[19] = C(dia(0), '15:00', 'BOA VISTA', 'MANAUS', 'CB', 'ABC1D23', 'Fulano Ficticio Teste', 'BANANA', 10.5, 'NF', '123', 'X', null, null);
   L[20] = C(dia(1), '02:30', 'CAROEBE', 'MANAUS', 'CC', 'ABC1D24', 'Transportadora Ficticia Teste', 'MELANCIA', 8, null, null, null, null, null);   // madrugada: plantão do 1º dia; sem ação = liberação
   L[21] = C(dia(1), '09:00', 'RORAINÓPOLIS/RR', 'MANAUS/AM', 'CB', 'ABC1D25', 'Ciclano Ficticio Teste', 'LARANJA', 0.05, null, null, null, 'X', 900);
-  L[22] = C(dia(2), '08:00', 'PORTO VELHO/RO', 'MANAUS', 'UT', 'ABC-1D26', 'Beltrano Ficticio Teste', 'BATATA', 1.2, 'PTV', '55', 'X', null, null);
+  L[22] = C(dia(2), '08:00', 'PORTO VELHO/RO', 'MANAUS', 'UT', 'ABC-1D26', 'Beltrano Ficticio Teste', 'BATATA', 1.2, 'PTV', '55', 'X', null, 901);   // liberação com TF
   L[23] = C(dia(2), '10:00', 'BOA VISTA', 'MANAUS', 'CB', 'ABC1D27', 'Fulano Ficticio Teste', 'PUPUNHA', 3, null, null, 'X', null, null);
   const ws = X.utils.aoa_to_sheet(L.map(l => l || []));
   ws['!merges'] = [4, 13].flatMap(r => [{ s: { r, c: 2 }, e: { r, c: 3 } }, { s: { r, c: 5 }, e: { r, c: 6 } }]);
@@ -69,8 +69,9 @@ function relatorio() {
     'cargas: sem ação = liberação, apreensão com nº do TF, placa sem hífen, UF do texto ou a da BVA, destino AM, documento, tonelada', R.cargas);
   ok(R.avisos.some(a => /1 carga\(s\) sem Liberação nem Apreensão/.test(a.texto)), 'aviso: carga sem ação entra como liberação', R.avisos);
   const PV = PP.previa(R, { troca: '07:00', posto: 'pf-jundia' });
-  ok(PV.totais.veiculos === 24 && PV.totais.cargas === 5 && PV.totais.liberacao === 4 && PV.totais.apreensao === 1 && PV.totais.tfs === 1 && quase(PV.totais.toneladas, 22.75) && !PV.foraDoPlantao.length && PV.totais.diasVazios === 1,
-    'prévia: 24 veículos, 5 cargas (4 liberações, 1 apreensão, 1 TF), 22,75 t; a carga das 02:30 fica no plantão do 1º dia; o 4º dia zerado não vira turno', PV.totais);
+  ok(PV.totais.veiculos === 24 && PV.totais.cargas === 5 && PV.totais.liberacao === 1 && PV.totais.apreensao === 1 && PV.totais.tfs === 2 && quase(PV.totais.toneladas, 22.75) && !PV.foraDoPlantao.length && PV.totais.diasVazios === 1,
+    'prévia: 24 veículos, 5 cargas (22,75 t), 2 com TF (1 liberação, 1 apreensão); a carga das 02:30 fica no plantão do 1º dia; o 4º dia zerado não vira turno', PV.totais);
+  ok(PV.avisos.some(a => /3 carga\(s\) sem nº de TF/.test(a.texto)), 'prévia avisa: cargas sem nº de TF só contam em veículos e internalização', PV.avisos);
   const PVm = PP.previa(R, { troca: '00:00' });
   ok(PVm.avisos.some(a => /carga\(s\) CC na lista e 0 no quadro/.test(a.texto)), 'com a troca à meia-noite, a carga das 02:30 cai no 2º dia e a conferência com o quadro avisa', PVm.avisos);
   ok(PP.postoProvavel([{ id: 'pf-jundia', nome: 'PRESIDENTE FIGUEIREDO - BVA JUNDIÁ', tipo: 'fixa', locais: ['BVA - JUNDIÁ'] }, { id: 'v', nome: 'JUNDIÁ VOLANTE', tipo: 'volante' }], 'Jundiá') === 'pf-jundia', 'posto provável: o fixo com Jundiá no nome');
@@ -93,7 +94,7 @@ function relatorio() {
     await p.click('#adm-plt-gravar');
     await p.waitForFunction(() => /Importado ✓/.test((document.querySelector('[data-msg=pltimp]') || {}).textContent || ''), null, { timeout: 30000 });
     const msg = await p.textContent('[data-msg=pltimp]');
-    ok(/3 turno\(s\), 24 veículo\(s\), 5 carga\(s\) \(4 liberação, 1 apreensão, 1 TF\)/.test(msg), 'importado pelo portal: 3 turnos, 24 veículos, 5 cargas', msg);
+    ok(/3 turno\(s\), 24 veículo\(s\), 5 carga\(s\) \(1 liberação, 1 apreensão, 2 TF\)/.test(msg), 'importado pelo portal: 3 turnos, 24 veículos, 5 cargas', msg);
     ok(!p.errosPag.length, 'portal sem erros de página', p.errosPag);
     await p.context().close();
   } finally { await b.close(); }
@@ -114,8 +115,8 @@ function relatorio() {
   ok(vl.reduce((s, l) => s + Number(vcol(l, 'pessoas')), 0) === 7, 'pessoas (educação sanitária) = 7, como no papel');
   const VD = await post({ action: 'painelVigDados', key: TOK, ano: A }), J = ((VD.apuracao.porPeriodo || {})['pf-jundia'] || {})[P0] || {};
   ok(J.veiculos === 24 && J.educacao === 7 && J.turnos === 3, 'VIGIFITO Jundiá no período: 24 veículos, educação sanitária 7, 3 turnos', J);
-  ok(J.partidas === 5 && J.medidaFito === 5 && J.tfs === 1 && J.documentos === 2, 'partidas e medida fitossanitária = 5 cargas; TF = 1 (nº no papel); documentos = 2', J);
-  ok(J.liberacao === 4 && quase(J.liberacaoT, 22.7) && J.apreensao === 1 && quase(J.apreensaoT, 0.05) && J.autoDestN === 1 && quase(J.autoDestT, 0.05), 'liberação 4 (22,7 t), apreensão 1 (0,05 t) = auto de destruição', J);
+  ok(J.partidas === 2 && J.medidaFito === 2 && J.tfs === 2 && J.documentos === 1, 'só as cargas com nº do TF no papel: 2 TFs = 2 partidas e 2 medidas fitossanitárias; documentos = 1 (a com TF e PTV)', J);
+  ok(J.liberacao === 1 && quase(J.liberacaoT, 1.2) && J.apreensao === 1 && quase(J.apreensaoT, 0.05) && J.autoDestN === 1 && quase(J.autoDestT, 0.05), 'liberação 1 (1,2 t, a com TF; as 3 sem TF não contam), apreensão 1 (0,05 t) = auto de destruição', J);
   ok(J.internN === 5 && quase(J.internT, 22.75) && quase(J.importT, 22.75) && J.cargasEstados === 0, 'internalização: 5 cargas de RR/RO para o AM, 22,75 t (importação)', J);
   ok(!/Ficticio|ABC1D2/.test(JSON.stringify(VD)), 'apuração sem nomes nem placas');
   const CA = await post({ action: 'painelConvApuracao', key: TOK, convenio: '991272-2025', de: dia(0), ate: dia(2) });
@@ -129,7 +130,7 @@ function relatorio() {
   r = await post(Object.assign({}, env, { substituir: 1 }));
   ok(r.ok && r.substituidos === 24 && r.veiculos === 24, 'substituir: os 24 veículos anteriores ficam excluídos e entram os novos', r);
   const J2 = (await post({ action: 'painelVigDados', key: TOK, ano: A })).apuracao.porPeriodo['pf-jundia'][P0];
-  ok(J2.veiculos === 24 && J2.partidas === 5 && J2.turnos === 3, 'depois de substituir: os números não dobram', J2);
+  ok(J2.veiculos === 24 && J2.partidas === 2 && J2.turnos === 3, 'depois de substituir: os números não dobram', J2);
   const vei2 = await get('/__aba?nome=Veiculos');
   ok(vei2.slice(1).filter(l => /^pl/.test(l[0])).length === 48 && vei2.slice(1).filter(l => /^pl/.test(l[0]) && Number(l[vc.indexOf('excluido')]) === 1).length === 24, 'nada apagado: 24 excluídos (lógico) + 24 novos');
   const erro = async (mud, re, m) => { const x = await post(Object.assign({}, env, { substituir: 1 }, mud)); ok(!x.ok && re.test(x.erro || ''), m, x.erro || x); };

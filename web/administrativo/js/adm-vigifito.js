@@ -240,10 +240,10 @@
     pv.appendChild(op);
     A.kpis(pv, [{ rotulo: 'Dias do plantão', valor: F.int(T.dias), detalhe: `${dBR(I.X.de)} a ${dBR(I.X.ate)}${T.diasVazios ? ` · ${T.diasVazios} sem registro` : ''}` },
       { rotulo: 'Veículos', valor: F.int(T.veiculos), detalhe: T.veiculos !== T.quadro ? `quadro do papel: ${F.int(T.quadro)}` : 'quadro 1 do papel' },
-      { rotulo: 'Cargas (partidas)', valor: F.int(T.cargas), detalhe: `${F.num(T.toneladas, 3)} t` },
-      { rotulo: 'Liberação', valor: F.int(T.liberacao), detalhe: `${F.num(T.liberacaoT, 3)} t` },
-      { rotulo: 'Apreensão', valor: F.int(T.apreensao), detalhe: `${F.num(T.apreensaoT, 3)} t`, status: T.apreensao ? 'atencao' : null },
-      { rotulo: 'TFs (nº no papel)', valor: F.int(T.tfs) }, { rotulo: 'Educação sanitária', valor: F.int(T.educacao) }]);
+      { rotulo: 'Cargas na lista', valor: F.int(T.cargas), detalhe: `${F.num(T.toneladas, 3)} t internalizadas` },
+      { rotulo: 'TFs (nº no papel)', valor: F.int(T.tfs), detalhe: 'partidas e medidas fitossanitárias' },
+      { rotulo: 'Liberação (TF)', valor: F.int(T.liberacao), detalhe: `${F.num(T.liberacaoT, 3)} t` },
+      { rotulo: 'Apreensão (TF)', valor: F.int(T.apreensao), detalhe: `${F.num(T.apreensaoT, 3)} t`, status: T.apreensao ? 'atencao' : null }, { rotulo: 'Educação sanitária', valor: F.int(T.educacao) }]);
     const erros = X.erros.map(t => ({ nivel: 'critico', titulo: t })).concat(I.posto ? [] : [{ nivel: 'critico', titulo: 'Escolha o posto do VIGIFITO (a BVA do relatório).' }]);
     A.alertas(pv, erros.concat(X.avisos.map(a => ({ nivel: a.nivel, titulo: a.texto }))), { vazio: 'Nenhum aviso. ✓', max: 15 });
     const det = A.el('details', 'pn-conv-imp-linhas'); det.innerHTML = `<summary>Ver as ${X.envio.cargas.length} cargas</summary>`; pv.appendChild(det);

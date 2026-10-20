@@ -6,7 +6,7 @@
    no navegador, com a data. ?previa=1 (botão do painel): pré-visualização com a credencial de administrador deste navegador. */
 (() => {
   'use strict';
-  const LS_MODO = 'gdv.dashboard.modo', LS_PER = 'gdv.dashboard.periodo', LS_CACHE = 'gdv.dashboard.cache';
+  const LS_MODO = 'gdv.dashboard.modo', LS_PER = 'gdv.dashboard.periodo', LS_CACHE = 'gdv.dashboard.cache', LS_IV = 'gdv.dashboard.intervalo';
   const ATUALIZAR_MS = 5 * 60 * 1000, VIVO_MS = 60 * 1000, API_TEMPO_MS = 45 * 1000;
   const AM_LIMITES = [[-9.9, -73.9], [2.3, -56.0]];
   const $ = s => document.querySelector(s);
@@ -65,14 +65,30 @@
     ls.set(LS_CACHE, JSON.stringify(g));
   }
 
+  /* ---------- intervalo escolhido pelo visitante (de/até) ---------- */
+  const lerIntervalo = () => { try { const o = JSON.parse(ls.get(LS_IV) || '{}') || {}; return { de: String(o.de || ''), ate: String(o.ate || '') }; } catch (e) { return { de: '', ate: '' }; } };
+  function avisoIntervalo(msg) { const a = $('#db-iv-aviso'); if (a) { a.textContent = msg || ''; a.hidden = !msg; } }
+  function desenharIntervalo(r) {
+    const box = $('#db-intervalo'); if (!box) return;
+    const tem = (r.periodos || []).some(p => p.chave === 'intervalo');
+    box.hidden = !(tem && S.periodo === 'intervalo' || tem && S.editandoIv);
+    if (box.hidden) return;
+    const iv = lerIntervalo(), hoje = r.hoje || (r.periodo && r.periodo.ate) || '';
+    box.innerHTML = `<label>De<input type="date" id="db-iv-de" max="${esc(hoje)}" value="${esc(iv.de)}"></label>
+      <label>Até<input type="date" id="db-iv-ate" max="${esc(hoje)}" value="${esc(iv.ate || hoje)}"></label>
+      <button type="button" class="pn-btn pn-btn-prim" id="db-iv-ok">Aplicar</button><p class="db-iv-aviso" id="db-iv-aviso" role="alert" hidden></p>`;
+  }
+
   /* ---------- carga ---------- */
   async function carregar(auto) {
     if (S.carregando) return; S.carregando = true;
     try {
       const corpo = { action: 'publicoDados' };
       if (S.periodo) corpo.periodo = S.periodo;
+      if (S.periodo === 'intervalo') { const iv = lerIntervalo(); corpo.de = iv.de; corpo.ate = iv.ate; }
       if (PREVIA) { corpo.previa = true; corpo.key = ls.get('gdv.painel.token') || ''; }
       let j = await api(corpo);
+      if (j && !j.ok && j.intervaloInvalido) { avisoIntervalo(j.erro); return; }   // datas do intervalo recusadas: fica na tela atual com o aviso
       if (j && !j.ok && Array.isArray(j.periodos) && j.periodos.length) {          // período deixou de ser liberado: volta ao primeiro
         S.periodo = j.periodos[0].chave; corpo.periodo = S.periodo; j = await api(corpo);
       }
@@ -130,7 +146,8 @@
     $('#db-modos').hidden = modos.length < 2;
     $('#db-modos').innerHTML = modos.map(k => `<button type="button" role="tab" class="db-modo" id="db-modo-${k}" data-modo="${k}" aria-selected="${k === S.modo}" aria-controls="db-corpo" tabindex="${k === S.modo ? 0 : -1}">${ICONES[k]}${k === 'mapa' ? 'Mapa' : 'Números'}</button>`).join('');
     $('#db-corpo').setAttribute('aria-labelledby', 'db-modo-' + S.modo);
-    $('#db-periodos').innerHTML = (r.periodos || []).map(p => `<button type="button" class="pn-chip" data-periodo="${esc(p.chave)}" aria-pressed="${p.chave === S.periodo}">${esc(p.rotulo)}</button>`).join('');
+    $('#db-periodos').innerHTML = (r.periodos || []).map(p => `<button type="button" class="pn-chip" data-periodo="${esc(p.chave)}" aria-pressed="${p.chave === S.periodo}">${esc(p.chave === 'intervalo' ? 'Intervalo…' : p.rotulo)}</button>`).join('');
+    desenharIntervalo(r);
     $('#db-status').innerHTML = `<b>${esc(r.periodo.rotulo)}</b> (${fmt.data(r.periodo.de) === '01/01/2000' ? 'todos os registros' : fmt.data(r.periodo.de) + ' a ' + fmt.data(r.periodo.ate)}) · Atualizado em ${esc(fmt.dataHora(r.atualizadoEm))}` +
       (r.supressao ? ` · contagens de 1 a ${r.supressao - 1} por município aparecem como “&lt;${r.supressao}”` : '');
     const u = new URL(location.href); if (u.searchParams.get('modo') !== S.modo) { u.searchParams.set('modo', S.modo); try { history.replaceState(null, '', u); } catch (e) { /* file:// */ } }
@@ -471,7 +488,22 @@
       if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return; const m = modosLiberados(); if (m.length < 2) return;
       e.preventDefault(); trocarModo(m[(m.indexOf(S.modo) + 1) % m.length]);
     });
-    $('#db-periodos').addEventListener('click', e => { const b = e.target.closest('[data-periodo]'); if (!b || b.dataset.periodo === S.periodo) return; S.periodo = b.dataset.periodo; ls.set(LS_PER, S.periodo); carregar(); });
+    $('#db-periodos').addEventListener('click', e => {
+      const b = e.target.closest('[data-periodo]'); if (!b) return;
+      if (b.dataset.periodo === 'intervalo') {                               // abre a escolha das datas; carrega só ao Aplicar
+        S.editandoIv = true; if (S.r) desenharIntervalo(S.r);
+        const iv = lerIntervalo(); if (S.periodo !== 'intervalo' && iv.de && iv.ate) { S.periodo = 'intervalo'; ls.set(LS_PER, S.periodo); carregar(); }
+        return;
+      }
+      if (b.dataset.periodo === S.periodo) return; S.editandoIv = false; S.periodo = b.dataset.periodo; ls.set(LS_PER, S.periodo); carregar();
+    });
+    document.addEventListener('click', e => {
+      if (!e.target.closest('#db-iv-ok')) return;
+      const de = ($('#db-iv-de') || {}).value || '', ate = ($('#db-iv-ate') || {}).value || '';
+      if (!de || !ate) return avisoIntervalo('Escolha as datas de início e de fim.');
+      if (de > ate) return avisoIntervalo('A data de início é depois da data de fim.');
+      avisoIntervalo(''); ls.set(LS_IV, JSON.stringify({ de, ate })); S.periodo = 'intervalo'; ls.set(LS_PER, S.periodo); carregar();
+    });
     const intervalo = () => (S.r && S.r.aoVivo ? VIVO_MS : ATUALIZAR_MS);
     setInterval(() => { if (!document.hidden && Date.now() - S.ultima >= (S.offline ? 60 * 1000 : intervalo())) carregar(true); }, 15 * 1000);
     document.addEventListener('visibilitychange', () => { if (!document.hidden && Date.now() - S.ultima >= intervalo()) carregar(true); });

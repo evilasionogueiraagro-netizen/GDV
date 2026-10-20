@@ -247,6 +247,10 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
   const fBem = await pa.evaluate(() => AdmConvenio.estado().dados.financeiro.filter(x => x.chave === 'bem|991272-2025|pickup-urucurituba'));
   ok(fBem.length === 1 && fBem[0].item === '1.1.4' && fBem[0].natureza === '44.90.52' && fBem[0].valor === 68042 && fBem[0].quantidade === 1 && fBem[0].fonte === 'contrapartida' && fBem[0].origem === 'bem' && fBem[0].documento === 'NF 4521',
     'valor de aquisição virou desembolso no item 1.1.4 (44.90.52, contrapartida, NF)', fBem);
+  const linBem = await pa.$$eval('#adm-tab-conv-lancamentos tbody tr', trs => trs.map(t => t.innerText).filter(x => /Entregue/.test(x) && /Pick-up/.test(x)));
+  ok(linBem.length === 1 && /R\$\s?68\.042,00/.test(linBem[0]) && /\t1\t/.test(linBem[0]), 'lista de lançamentos físicos: o bem entregue mostra valor (R$ 68.042,00) e quantidade (1)', linBem);
+  const linAq = await pa.$$eval('#adm-tab-conv-lancamentos tbody tr', trs => trs.map(t => t.innerText).filter(x => /Em aquisição/.test(x)));
+  ok(linAq.length === 1 && !/R\$/.test(linAq[0]) && !/sem valor/.test(linAq[0]), 'bem "em aquisição": sem valor (não se aplica)', linAq);
   await pa.click('[data-conv=bem][data-id="pickup-urucurituba"]');
   ok(await pa.inputValue('#pn-cl-valor') === '68.042,00', '"Atualizar" o bem traz o valor já lançado', await pa.inputValue('#pn-cl-valor'));
   await pa.selectOption('#pn-cl-etapa', '1.4');

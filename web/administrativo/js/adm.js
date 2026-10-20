@@ -4,7 +4,7 @@
    Os módulos de lançamento se registram com Adm.registrarAba: js/adm-convenio.js (desembolso, físico do convênio, importação da planilha
    de movimentação), js/adm-relatorios.js (linhas manuais do Relatório GDV) e js/adm-vigifito.js (VIGIFITO por posto e importação).
    Login com Google: o navegador obtém o ID token (JWT) e o envia em admLogin {idToken}; o servidor confere no tokeninfo do Google e
-   devolve a sessão (12 h, renovada ao usar). O ID token não é guardado no navegador. Client ID público em CONFIG.adm.googleClientId. */
+   devolve a sessão (30 dias sem uso, renovada ao usar). O ID token não é guardado no navegador. Client ID público em CONFIG.adm.googleClientId. */
 const Adm = (() => {
   'use strict';
   const LS_SESSAO = 'gdv.adm.sessao', LS_NOME = 'gdv.adm.nome', LS_EMAIL = 'gdv.adm.email', LS_ABA = 'gdv.adm.aba', LS_MSG = 'gdv.adm.encerrada';

@@ -165,8 +165,8 @@ const GRUPOS = [{ id: 'citros', colunas: [{ rotulo: 'HLB', pragas: ['HLB', 'Gree
     'quadro PCE (março): 7 visitadas, 5 novas, 2 antigas; acumulado jan–mar 7 distintas (CIT-1 em jan e mar conta uma vez), 6 novas', [linhaQ(S.R, 'propVisitadas'), linhaQ(S.R, 'propNovas')]);
   ok(linhaQ(S.R, 'area').mes === 22 && linhaQ(S.R, 'area').acum === 22, 'área: 22 ha no mês; acumulado jan–mar 22 ha (CIT-1 conta uma vez, com a maior área; não 24 = soma dos meses)', linhaQ(S.R, 'area'));
   const vt = k => S.R.vig.total.find(x => x.chave === k), vfx = k => S.R.vig.fixa.find(x => x.chave === k), vvo = k => S.R.vig.volante.find(x => x.chave === k);
-  ok(vt('veiculos').mes === 5 && vt('veiculos').mes === vfx('veiculos').mes + vvo('veiculos').mes && vt('educacao').mes === 5 && vt('tfs').mes === 4 && vt('liberacaoT').mes === 3.5,
-    'VIGIFITO na tela: total = fixas + volantes (5 veículos, 5 medidas de educação sanitária, 4 TFs, 3,5 t liberadas)', [vt('veiculos'), vt('tfs')]);
+  ok(vt('veiculos').mes === 5 && vt('veiculos').mes === vfx('veiculos').mes + vvo('veiculos').mes && vt('educacao').mes === 53 && vt('tfs').mes === 4 && vt('liberacaoT').mes === 3.5,
+    'VIGIFITO na tela: total = fixas + volantes (5 veículos, 53 medidas de educação sanitária = pessoas a bordo, 4 TFs, 3,5 t liberadas)', [vt('veiculos'), vt('tfs')]);
   const gm = S.R.grupos.find(x => x.g.id === 'moniliase');
   ok(gm.total.propriedades === gm.linhas.reduce((s, l) => s + l.propriedades, 0) && gm.total.det[0] === 1 && S.R.grupos.find(x => x.g.id === 'citros').total.propriedades === 3,
     'tabelas por grupo: o total fecha com a soma das linhas', gm.total);
@@ -211,8 +211,8 @@ const GRUPOS = [{ id: 'citros', colunas: [{ rotulo: 'HLB', pragas: ['HLB', 'Gree
   ok(await p.textContent('.pn-rg-val[data-chave="pce.capacitacao"]') === '2' && /lançado pelo Administrativo em .* por Rita Relatorio Administrativa/.test(await p.getAttribute('.pn-rg-val[data-chave="pce.capacitacao"]', 'title')) &&
     await p.inputValue('[data-txt=introducao]') === 'Introdução do gestor: {municipiosLevantados} municípios em {periodo}.' && /BANANA/.test(await p.textContent('[data-tab="tab.cfo"][data-campo=produto]')),
     'painel: lançamentos (só leitura, com quem/quando), tabela e textos persistem');
-  ok(linhaQ(S.R, 'pce.capacitacao').mes === 2 && linhaQ(S.R, 'cfo').mes === 4 && S.R.grupos.find(x => x.g.id === 'moniliase').total.manual.poda === 8 && S.R.vig.total.find(x => x.chave === 'partidas').mes === 10,
-    'manuais no cálculo: capacitação 2, CFO 4 (da tabela), poda drástica 5 + 3 = 8, partidas do VIGIFITO (substituições por posto) 7 (Jundiá) + 3 (Tabatinga) = 10');
+  ok(linhaQ(S.R, 'pce.capacitacao').mes === 2 && linhaQ(S.R, 'cfo').mes === 4 && S.R.grupos.find(x => x.g.id === 'moniliase').total.manual.poda === 8 && S.R.vig.total.find(x => x.chave === 'partidas').mes === 14,
+    'manuais no cálculo: capacitação 2, CFO 4 (da tabela), poda drástica 5 + 3 = 8, partidas do VIGIFITO: substituições por posto 7 (Jundiá) + 3 (Tabatinga) + 4 TFs dos outros postos (e-GDV) = 14');
   await shot(p, 'aba_mensal');
   // relatório mensal: impressão (texto), PDF e Word
   console.log('3. Relatório mensal (PDF e Word)');

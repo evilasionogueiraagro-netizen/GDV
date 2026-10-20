@@ -6,7 +6,10 @@
    Servidor revogado ou com código vencido pode sair da lista ("Remover": botão no computador; no celular, deslizar a linha para a
    esquerda revela "Remover da lista"). Nada é apagado da planilha (oculto=1); "Mostrar removidos" lista esses e permite Restaurar.
    O cartão da chave gerada some sozinho ~3 s depois de "Copiar mensagem" ou "Enviar pelo WhatsApp" (o código segue na lista, com Reenviar).
-   Usa as actions painelGerarCodigo, painelAcessos, painelRevogar, painelOcultarAcesso, painelRestaurarAcesso e painelPermissoes (Code.gs).
+   Administradores (painel e TV) aparecem com "Mostrar administradores" e também podem ser revogados aqui, menos o próprio acesso
+   (esse sai pelo botão Sair). Código de administrador novo continua só pelo menu da planilha.
+   Usa as actions painelGerarCodigo, painelAcessos, painelRevogar, painelRevogarAdmin, painelOcultarAcesso, painelRestaurarAcesso e
+   painelPermissoes (Code.gs).
    Não depende do período nem dos filtros e não aparece no Modo TV. Usa a API do objeto global Painel (js/painel.js). */
 (() => {
   'use strict';
@@ -69,7 +72,7 @@
     r.innerHTML = `
       <section class="pn-secao">
         <h2>Gerar chave de ativação</h2>
-        <p class="pn-sub">Código do app de campo para um fiscal/servidor: 6 dígitos, uso único, vale 7 dias. Chaves de administrador (painel e TV) continuam só na planilha (e-GDV → Gerar código de administrador).</p>
+        <p class="pn-sub">Código do app de campo para um fiscal/servidor: 6 dígitos, uso único, vale 7 dias. Chaves de administrador (painel e TV) são geradas só na planilha (e-GDV → Gerar código de administrador); para revogar uma, marque <i>Mostrar administradores</i> na lista abaixo.</p>
         <div class="pn-ac-grade">
           <form class="pn-cartao pn-ac-form" id="pn-ac-form" autocomplete="off" novalidate>
             <label for="pn-ac-nome">Nome completo do servidor</label>
@@ -116,7 +119,7 @@
     r.addEventListener('click', e => {
       const b = e.target.closest('button[data-acao]'); if (!b) return;
       if (b.dataset.acao === 'copiar') copiarMensagem(b);
-      else if (b.dataset.acao === 'revogar') revogar(b.dataset.nome, b);
+      else if (b.dataset.acao === 'revogar') revogar(b.dataset.nome, b, b.dataset.perfil === 'admin');
       else if (b.dataset.acao === 'remover') ocultar(b.dataset.nome, b, false);
       else if (b.dataset.acao === 'restaurar') ocultar(b.dataset.nome, b, true);
       else if (b.dataset.acao === 'reenviar') {
@@ -273,7 +276,8 @@
     const b = norm(E.busca);
     const linhas = E.lista.filter(a => (E.admins || a.perfil === 'fiscal') && (!E.situacao || a.situacao === E.situacao) && (!b || norm(a.nome).includes(b)))
       .map(a => Object.assign({}, a, { ordemSit: (SITUACOES[a.situacao] || {}).ordem }));
-    const podeRevogar = a => a.perfil === 'fiscal' && !a.oculto && a.situacao !== 'revogado' && a.situacao !== 'vencido';
+    const proprio = a => a.perfil === 'admin' && norm(a.nome) === norm(P.usuario);   // o próprio acesso sai pelo Sair
+    const podeRevogar = a => !proprio(a) && !a.oculto && a.situacao !== 'revogado' && a.situacao !== 'vencido';
     // "Remover da lista": só servidor sem nenhum aparelho ativo nem código aguardando (todas as linhas dele revogadas/vencidas)
     const vivos = new Set(fiscais.filter(a => a.situacao === 'ativo' || a.situacao === 'aguardando').map(a => norm(a.nome)));
     const podeRemover = a => a.perfil === 'fiscal' && !a.oculto && (a.situacao === 'revogado' || a.situacao === 'vencido') && !vivos.has(norm(a.nome));
@@ -297,11 +301,11 @@
       { chave: 'expiraEm', rotulo: 'Código válido até', num: true, fmt: (v, l) => l.situacao === 'aguardando' || l.situacao === 'vencido' ? dataCurta(v) : '—', csv: v => v ? dataCurta(v) : '' },
       { chave: 'ativadoEm', rotulo: 'Ativado em', num: true, fmt: v => dataCurta(v), csv: v => v ? dataCurta(v) : '' },
       { chave: 'geradoPor', rotulo: 'Gerado por', fmt: (v, l) => l.perfil === 'admin' ? '—' : v === 'planilha' ? 'Planilha (menu)' : (v || '—') },
-      { chave: 'acoes', rotulo: '', csv: () => '', html: (v, l) => podeRevogar(l) ? `<button type="button" class="pn-btn pn-btn-mini pn-ac-revogar" data-acao="revogar" data-nome="${esc(l.nome)}">Revogar</button>`
+      { chave: 'acoes', rotulo: '', csv: () => '', html: (v, l) => podeRevogar(l) ? `<button type="button" class="pn-btn pn-btn-mini pn-ac-revogar" data-acao="revogar" data-nome="${esc(l.nome)}" data-perfil="${esc(l.perfil)}">Revogar</button>`
         : podeRemover(l) ? `<button type="button" class="pn-btn pn-btn-mini pn-ac-remover" data-acao="remover" data-nome="${esc(l.nome)}" title="Tira ${esc(l.nome)} da lista (a planilha guarda o registro)">Remover</button>` +
           `<button type="button" class="pn-ac-desl" data-acao="remover" data-nome="${esc(l.nome)}" tabindex="-1">Remover da lista</button>`
         : l.oculto && l.perfil === 'fiscal' ? `<button type="button" class="pn-btn pn-btn-mini pn-ac-restaurar" data-acao="restaurar" data-nome="${esc(l.nome)}">Restaurar</button>`
-        : l.perfil === 'admin' && l.situacao !== 'revogado' ? '<span class="pn-sub">só pela planilha</span>' : '' }
+        : proprio(l) && l.situacao === 'ativo' ? '<span class="pn-sub">você (use Sair)</span>' : '' }
     ], linhas, { id: 'acessos', csv: 'acessos-servidores.csv', busca: false, limite: 50, ordenar: 'criadoEm', desc: true,
       titulo: E.aviso || undefined,
       subtitulo: `${E.lidoEm ? 'Lista lida às ' + P.horaManaus(E.lidoEm) : ''}${E.erro ? ' · falha ao atualizar: ' + E.erro : ''}`,
@@ -342,14 +346,17 @@
   }
 
   /* ---------- revogar ---------- */
-  async function revogar(nome, b) {
+  async function revogar(nome, b, admin) {
     if (!nome) return;
-    if (!confirm(`Revogar o acesso de ${nome}?\n\nTodos os aparelhos e códigos ainda não usados desse servidor deixam de valer na hora. Para voltar a usar o app, será preciso uma nova chave de ativação.`)) return;
+    if (!confirm(admin
+      ? `Revogar o acesso de administrador de ${nome}?\n\nO painel e a TV desse administrador deixam de funcionar na hora, inclusive códigos ainda não usados. Para voltar, será preciso um novo código de administrador gerado na planilha (e-GDV → Gerar código de administrador).`
+      : `Revogar o acesso de ${nome}?\n\nTodos os aparelhos e códigos ainda não usados desse servidor deixam de valer na hora. Para voltar a usar o app, será preciso uma nova chave de ativação.`)) return;
     if (b) { b.disabled = true; b.textContent = 'Revogando…'; }
     try {
-      const j = await P.chamar({ action: 'painelRevogar', nome });
-      if (E.ultimo && norm(E.ultimo.nome) === norm(nome)) { E.ultimo = null; desenharResultado(); }
-      E.aviso = j.revogados ? `Acesso de ${nome} revogado (${j.revogados} aparelho(s)/código(s)).` : `Nenhum acesso ativo de ${nome} encontrado.`;
+      const j = await P.chamar({ action: admin ? 'painelRevogarAdmin' : 'painelRevogar', nome });
+      if (!admin && E.ultimo && norm(E.ultimo.nome) === norm(nome)) { E.ultimo = null; desenharResultado(); }
+      E.aviso = j.revogados ? `Acesso ${admin ? 'de administrador ' : ''}de ${nome} revogado (${j.revogados} ${admin ? 'acesso(s)/código(s)' : 'aparelho(s)/código(s)'}).`
+        : `Nenhum acesso ativo de ${nome} encontrado.`;
       await carregar();
     } catch (e) {
       if (P.logado) alert('Não foi possível revogar: ' + e.message);

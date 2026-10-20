@@ -40,7 +40,7 @@ ou mudar uma action:
 |---|---|---|---|
 | Fiscal (aparelho) | `key` | `ativar` com código de 6 dígitos | `autenticar_` (+ `exigirModulo_` em TF/PCE) |
 | Administrador (painel/TV) | `key` | `painelAtivar` com código de administrador, ou a chave mestra `ACCESS_KEY` | `adminDoToken_` |
-| Portal do Administrativo | `sessao` | `admLogin` (Google) ou `admCodigo` | `admSessao_` (12 h sem uso expira) |
+| Portal do Administrativo | `sessao` | `admLogin` (Google) ou `admCodigo` | `admSessao_` (30 dias sem uso expira) |
 | Pública | — | — | limitador de taxa e cache próprios |
 
 As credenciais ficam na aba `Fiscais` (coluna `perfil`: vazio = fiscal, `admin` = administrador); as sessões do portal

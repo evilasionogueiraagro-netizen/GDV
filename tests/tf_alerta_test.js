@@ -70,7 +70,7 @@ const geoVivo = eval(fonteTV.slice(fonteTV.indexOf('const geoVivo = p =>') + 'co
   ok(await G.evaluate(() => Notification.permission) === 'granted' && await G.isHidden('#pn-notif'), 'notificação já permitida: botão "Ativar notificações" some');
 
   console.log('2. Fiscal abre o TF do turno → servidor registra "preenchendo" → painel vermelho + aviso + alerta');
-  await A.click('[data-go=tfnovo]'); await A.waitForSelector('#tfForm');
+  await A.evaluate(() => go('tfnovo')); await A.waitForSelector('#tfForm');
   let reg = await ate(async () => { const r = (await doUsuario('Ana Paula Lima')).find(x => x.estado === 'preenchendo' && x.lat !== ''); return r; });
   ok(reg && reg.turnoId === turnoId && reg.local === 'Barreira Porto CEASA' && /CEASA/.test(reg.barreira) && Math.abs(+reg.lat - MANAUS.latitude) < 1e-3 && Math.abs(+reg.lon - MANAUS.longitude) < 1e-3,
     'aba Andamento: preenchendo, turnoId do turno aberto, local, barreira e GPS do aparelho', reg);
@@ -147,13 +147,13 @@ const geoVivo = eval(fonteTV.slice(fonteTV.indexOf('const geoVivo = p =>') + 'co
   ok(await ate(async () => (await doUsuario('Ana Paula Lima')).every(x => x.estado === 'fim')), 'descartar: estado "fim"');
   ok(await atualizar(G, () => document.querySelectorAll('.pn-duo-mapa .leaflet-marker-pane .pn-pin.ok').length === 1 && !document.querySelector('.pn-duo-mapa .leaflet-marker-pane .pn-pin.tf')), 'painel: verde depois do descarte');
   // sair do formulário sem gerar (rascunho fica salvo)
-  await A.click('nav [data-v=home]'); await A.waitForSelector('.contador'); await A.click('[data-go=tfnovo]'); await A.waitForSelector('#tfForm');
+  await A.click('nav [data-v=home]'); await A.waitForSelector('.contador'); await A.evaluate(() => go('tfnovo')); await A.waitForSelector('#tfForm');
   await A.fill('#tf-nome', 'RASCUNHO GUARDADO'); await A.waitForTimeout(900);
   const rid3 = (await ate(async () => (await doUsuario('Ana Paula Lima')).find(x => x.estado === 'preenchendo'))).id;
   await A.click('nav [data-v=home]'); await A.waitForSelector('.contador');
   ok(await ate(async () => (await doUsuario('Ana Paula Lima')).every(x => x.estado === 'fim')), 'saiu do formulário (menu) sem gerar: estado "fim"');
   ok(await atualizar(G, () => !document.querySelector('.pn-duo-mapa .leaflet-marker-pane .pn-pin.tf')), 'painel: deixa de mostrar vermelho');
-  await A.click('[data-go=tfnovo]'); await A.waitForSelector('#tfForm');
+  await A.evaluate(() => go('tfnovo')); await A.waitForSelector('#tfForm');
   ok((await A.inputValue('#tf-nome')) === 'RASCUNHO GUARDADO' && A.dialogos.some(m => /TF não gerado/.test(m)), 'rascunho continua salvo e é restaurado ao reabrir');
   ok(await ate(async () => { const r = (await doUsuario('Ana Paula Lima')).find(x => x.estado === 'preenchendo'); return r && r.id === rid3; }), 'reabrir o rascunho: volta a "preenchendo" com o mesmo id');
   ok(await atualizar(G, () => document.querySelectorAll('.pn-duo-mapa .leaflet-marker-pane .pn-pin.tf').length === 1), 'painel: vermelho de novo');
@@ -200,7 +200,7 @@ const geoVivo = eval(fonteTV.slice(fonteTV.indexOf('const geoVivo = p =>') + 'co
   ok(/TF em preenchimento \(0\)/.test(await T.textContent('.tv-leg')), 'legenda do mapa da TV com o estado TF');
   await T.evaluate(() => PainelTV.ir('alertas')); await T.waitForTimeout(500);
   ok((await T.evaluate(() => PainelTV.estado())).tela === 'alertas', 'TV na tela Alertas');
-  await A.click('[data-go=tfnovo]'); await A.waitForSelector('#tfForm'); await A.check('input[name=tf-proc][value=apreensao]'); await A.fill('#tf-placa', 'QWE4R56');
+  await A.evaluate(() => go('tfnovo')); await A.waitForSelector('#tfForm'); await A.check('input[name=tf-proc][value=apreensao]'); await A.fill('#tf-placa', 'QWE4R56');
   ok(await ate(async () => (await doUsuario('Ana Paula Lima')).find(x => x.estado === 'preenchendo' && x.procedimento === 'apreensao' && x.placa === 'QWE4R56')), 'servidor: apreensão em andamento (Ana, com turno)');
   ok(await atualizar(T, () => !document.querySelector('#tv-tf').hidden), 'TV: faixa vermelha no topo');
   await T.waitForTimeout(600);

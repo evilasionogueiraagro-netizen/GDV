@@ -243,7 +243,7 @@ const Painel = (() => {
   function normalizar(r) {
     const de = r.de || r._de, ate = r.ate || r._ate;
     const barreiras = (r.barreiras || []).map(b => ({ ...b }));
-    const nomeBarreira = {}; barreiras.forEach(b => { nomeBarreira[b.id] = b.nome || b.id; });
+    const nomeBarreira = {}; barreiras.forEach(b => { nomeBarreira[b.id] = b.bva || b.nome || b.id; });
     const vivos = x => x && !(Number(x.excluido) === 1);
     const veicPorTurno = {};
     const veiculos = (r.veiculos || []).filter(vivos).map(v => {
@@ -380,8 +380,10 @@ const Painel = (() => {
     const fis = f.fiscal ? norm(f.fiscal) : '', loc = f.local;
     // nome a nome e por igualdade ("João" não traz "João Carlos"; "Ana Silva" não traz "Juliana Silva")
     const temFiscal = (...nomes) => !fis || nomes.some(n => n && separarNomes(n).some(x => norm(x) === fis));
-    // barreira do cadastro escolhida: casa também com o "local" cadastrado dela (é o texto que vai para o turno no app)
-    const alvos = !loc || loc.tipo !== 'barreira' ? [] : [norm(loc.valor)].concat(N.barreiras.filter(b => norm(b.nome) === norm(loc.valor) && b.local).map(b => norm(b.local)));
+    // barreira do cadastro escolhida: casa também com o "local" cadastrado dela (é o texto que vai para o turno no app); a BVA do app
+    // (ex.: "BVA - CEASA") casa com a barreira do cadastro que é a mesma (nome, id, sufixo e local dela)
+    const alvos = !loc || loc.tipo !== 'barreira' ? [] : [norm(loc.valor)].concat(...N.barreiras.map(b => norm(b.bva) === norm(loc.valor) ? [b.nome, b.id, b.sufixo, b.local]
+      : norm(b.nome) === norm(loc.valor) ? [b.local] : []).map(xs => xs.filter(Boolean).map(norm)));
     const barreiraOk = (...txts) => !loc || loc.tipo !== 'barreira' || txts.some(t => t && alvos.includes(norm(t)));
     const munOk = m => !loc || loc.tipo !== 'municipio' || norm(m) === norm(loc.valor);
     const turnoOk = t => temFiscal(t.fiscal, t.usuario) && barreiraOk(t.local, ...t.barreirasTF) && munOk(t.municipio);
@@ -426,7 +428,7 @@ const Painel = (() => {
     const selF = $('#pn-fiscal');
     selF.innerHTML = '<option value="">Todos</option>' + [...nomes].sort((a, b) => a.localeCompare(b, 'pt-BR')).map(n => `<option ${n === F.fiscal ? 'selected' : ''}>${esc(n)}</option>`).join('');
     const bars = new Set();
-    N.barreiras.forEach(b => b.nome && bars.add(b.nome));
+    N.barreiras.forEach(b => (b.bva || b.nome) && bars.add(b.bva || b.nome));   // a barreira do cadastro que é uma BVA do app aparece com o nome da BVA
     N.turnosTodos.forEach(t => t.local && bars.add(t.local));
     if (F.local && F.local.startsWith('b:')) bars.add(F.local.slice(2));
     const opt = (v, t) => `<option value="${esc(v)}" ${v === F.local ? 'selected' : ''}>${esc(t)}</option>`;

@@ -32,10 +32,10 @@ const CI = !!process.env.CI;
 const PESO = {
   acessos_test: 23, adm_test: 5, arquivo_test: 3, bgsync_test: 47, cargo_outro_test: 2, colunas_dup_test: 1, colunas_test: 1, convenio_test: 16,
   convfin_test: 6, e2e: 88, encerrar_test: 21, gps_pedidos_test: 5, install_check: 5, migra_db: 4, painel_test: 39, pce_antigo_test: 33,
-  pce_campo_test: 12, pce_e2e: 49, pce_laudo_test: 13, pce_moniliase_test: 16, pce_naoassina_test: 5, pce_server_test: 1, pce_visita_test: 6,
-  permissoes_test: 10, proprio_test: 38, publico_test: 12, relgdv_test: 18, responsivo_test: 2, rotinas_test: 7, semplaca_test: 8,
-  server_painel_test: 1, sinal_test: 12, tf_alerta_test: 23, tf_anexos_test: 11, tf_e2e: 17, tf_paginas: 4, tf_server_test: 1, tv_test: 80,
-  vigifito_test: 17
+  pce_campo_test: 12, pce_citros_test: 38, pce_e2e: 49, pce_laudo_test: 13, pce_moniliase_test: 16, pce_naoassina_test: 5, pce_server_test: 1,
+  pce_visita_test: 6, permissoes_test: 10, proprio_test: 38, publico_test: 12, relgdv_test: 18, responsivo_test: 2, rotinas_test: 7,
+  semplaca_test: 8, server_painel_test: 1, sinal_test: 12, tf_alerta_test: 23, tf_anexos_test: 11, tf_e2e: 17, tf_paginas: 4, tf_server_test: 1,
+  tv_test: 80, vigifito_test: 17
 };
 
 // ---------- argumentos ----------

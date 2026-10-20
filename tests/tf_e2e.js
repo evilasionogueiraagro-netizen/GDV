@@ -21,8 +21,8 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
     else { if (!(await p.locator('.modulo').count())) await p.click('nav [data-v=modulos]'); await p.click('.modulo[data-v=tf]'); }
     await p.waitForSelector('button[data-tf=novo]');
   };
-  const novoTF = async p => { await p.click('button[data-tf=novo]'); await p.waitForSelector('#tfForm'); await p.waitForFunction(() => document.querySelector('#tf-numero b'), null, { timeout: 10000 }); };
-  const numeroTela = p => p.textContent('#tf-numero b');
+  const novoTF = async p => { await p.click('button[data-tf=novo]'); await p.waitForSelector('#tfForm'); await p.waitForFunction(() => document.querySelector('#tf-num') && !/Consultando/.test(document.querySelector('#tf-num-dica').textContent), null, { timeout: 10000 }); };
+  const numeroTela = p => p.textContent('#tf-numero');
   async function preencher(p, { doc, nome, placa, produto = 'MANGA', proc = 'apreensao', extra = {} }) {
     await p.fill('#tf-doc', doc); await p.waitForFunction(() => /Novo cadastro|Cadastro encontrado/.test(document.querySelector('#tf-st-doc').textContent), null, { timeout: 8000 });
     if (nome) await p.fill('#tf-nome', nome);
@@ -50,10 +50,12 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   { const P = await aparelho(fA); const tit = await P.locator('.modulo b').allTextContents(); ok(tit.length === 3 && /Educação Sanitária\/Fiscalização de Trânsito/.test(tit[0]) && /Termo de Fiscalização/.test(tit[1]) && tit[2] === 'PCE', 'após ativar: três módulos (veículos, TF, PCE) — ' + tit.join(' | ')); ok(/Olá, Ana/.test(await P.textContent('#view')), 'saudação com o nome vinculado'); await P.ctx.close(); }
   console.log('A) Ana: o número vem da planilha na hora de gerar, num popup editável, antes do PDF');
   const A = await aparelho(fA); await irTF(A); await novoTF(A);
-  ok(/definido ao gerar/.test(await numeroTela(A)), 'no formulário o número ainda não existe: "' + await numeroTela(A) + '"');
+  ok((await A.inputValue('#tf-num')) === '1' && /Próximo nº pela planilha/.test(await numeroTela(A)) && /Nenhum TF desta barreira/.test(await numeroTela(A)), 'no formulário o nº já aparece (1, pela planilha) e é editável: "' + await numeroTela(A) + '"');
   ok((await A.inputValue('#tf-local')) === 'BR-319 PORTO DA CEASA', 'local sugerido pela barreira');
   await A.screenshot({ path: amb.saida('tf_form_topo.png') });
   await preencher(A, { doc: '529.982.247-25', nome: 'josé da silva', placa: 'abc-1d23' });
+  ok((await A.inputValue('#tf-ufOrigem')) === '' && (await A.$$eval('#tf-ufDestino option', os => os.length)) === 29, 'UF de origem/destino: selects opcionais (vazio + 27 UFs + Exterior)');
+  await A.selectOption('#tf-ufOrigem', 'AM'); await A.selectOption('#tf-ufDestino', 'AM');
   ok(/Novo cadastro/.test(await A.textContent('#tf-st-doc')) && /Sem TF anterior/.test(await A.textContent('#tf-st-doc')), 'CPF novo, sem histórico');
   ok((await A.inputValue('#tf-constatacao')).includes('SEM a devida documentação') && (await A.inputValue('#tf-enquadramento')).includes('Lei Federal 9.712'), 'textos sugeridos para apreensão');
   await A.fill('#tf-doc', '123.456.789-00'); await A.waitForTimeout(700); ok(/dígitos inválidos/.test(await A.textContent('#tf-st-doc')), 'CPF com dígitos inválidos é sinalizado');
@@ -65,7 +67,9 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   ok(new RegExp(`0001/${ANO} - BVA - CEASA`).test(await A.textContent('#view')) && /Número confirmado na planilha/.test(await A.textContent('#view')), `TF 0001/${ANO} gerado e confirmado na planilha`);
   let linhas = await tfsPlanilha();
   ok(linhas.length === 1 && linhas[0].numero === 1 && linhas[0].numeroOrigem === 'sistema' && linhas[0].emitidoEm > 0 && linhas[0].usuario === 'Ana Paula Lima', 'planilha já tem o TF 1 (origem "sistema", emitidoEm e usuário gravados), sem esperar a sincronização');
+  ok(linhas[0].origem === 'ITACOATIARA' && linhas[0].ufOrigem === 'AM' && linhas[0].ufDestino === 'AM', 'planilha: UF de origem/destino gravadas nas colunas novas (ufOrigem/ufDestino)');
   let pr = await imprimir(A);
+  ok(pr.texto.includes('ITACOATIARA/AM') && pr.texto.includes('MANAUS/AM'), 'PDF: origem e destino com a UF ("ITACOATIARA/AM", "MANAUS/AM")');
   ok(pr.paginas === 2 && pr.vias.join('|') === '1ª via|2ª via' && pr.texto.includes(`0001/${ANO} - BVA - CEASA`) && pr.texto.includes('JOSÉ DA SILVA') && pr.texto.includes('529.982.247-25') && pr.texto.includes('MANGA - 10 Kg') && pr.texto.includes('☑ Apreensão p/ destruição'), 'PDF em 2 vias com número, nome, CPF formatado, produto e procedimento');
   ok(new RegExp(`TF 0001-${ANO} - BVA - CEASA MANGA APREENSAO`).test(pr.titulo), 'nome sugerido do PDF: ' + pr.titulo);
 
@@ -104,7 +108,7 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   console.log('D) TF ligado ao turno e listado no Termo do turno');
   await A.click('nav [data-v=modulos]'); await A.click('.modulo[data-v=home]'); await A.waitForSelector('#fTurno');
   await A.fill('#nTF', '30'); await A.selectOption('#nPosto', 'Móvel'); await A.fill('#nLocal', 'BR-319 PORTO DA CEASA'); await A.fill('#nUnidade', 'MANAUS'); await A.click('#fTurno button[type=submit]'); await A.waitForSelector('.contador');
-  await A.click('[data-go=tfnovo]'); await A.waitForSelector('#tfForm'); ok((await A.inputValue('#tf-local')) === 'BR-319 PORTO DA CEASA' && await A.locator('nav [data-v=home]').count() === 1, '"Lavrar TF neste turno" abre o TF dentro do módulo de veículos (o menu de veículos continua) com o local do turno'); await A.click('nav [data-v=home]'); await A.waitForSelector('.contador'); await A.waitForTimeout(300);
+  await A.evaluate(() => go('tfnovo')); await A.waitForSelector('#tfForm'); ok((await A.inputValue('#tf-local')) === 'BR-319 PORTO DA CEASA' && await A.locator('nav [data-v=home]').count() === 1, '"Lavrar TF neste turno" abre o TF dentro do módulo de veículos (o menu de veículos continua) com o local do turno'); await A.click('nav [data-v=home]'); await A.waitForSelector('.contador'); await A.waitForTimeout(300);
   await A.click('nav [data-v=registrar]'); await A.waitForSelector('#fVeic'); await A.fill('#placa', 'ZZZ9Z99'); await A.click('#fVeic > button'); await A.waitForTimeout(500);
   await A.click('nav [data-v=lista]'); await A.waitForSelector('[data-tfveic]'); await A.click('[data-tfveic]'); await A.waitForSelector('#tfForm');
   ok((await A.inputValue('#tf-placa')) === 'ZZZ9Z99' && (await A.inputValue('#tf-local')) === 'BR-319 PORTO DA CEASA', '"Lavrar TF" traz a placa do veículo e o local do turno');
@@ -115,20 +119,23 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   await A.evaluate(() => { window.__prints = []; }); await A.click('[data-doc=termo]'); await A.waitForFunction(() => window.__prints && window.__prints.length);
   const termo = (await A.evaluate(() => window.__prints[0])).texto; ok(termo.includes('Termos de Barreira Lavrados: ' + numLigado), `Termo do turno lista o TF ligado: "${numLigado}"`);
 
-  console.log('D2) nº digitado no formulário (talão de papel à frente do sistema)');
+  console.log('D2) nº editado no formulário (talão de papel à frente do sistema): os próximos seguem a partir dele');
   await irTF(A); await novoTF(A);
-  await A.fill('#tf-num', '0150');
-  await A.waitForFunction(() => /^0150\//.test(document.querySelector('#tf-numero b').textContent), null, { timeout: 5000 }).catch(() => {});
-  ok(new RegExp(`0150/${ANO} - BVA - CEASA`).test(await numeroTela(A)), 'formulário mostra o nº digitado: "' + await numeroTela(A) + '"');
+  const sugForm = +(await A.inputValue('#tf-num')); ok(sugForm > 7 && /Próximo nº pela planilha/.test(await numeroTela(A)), 'formulário propõe o próximo da barreira: ' + sugForm);
+  await A.fill('#tf-num', '150');
   await preencher(A, { doc: '529.982.247-25', proc: 'liberacao', produto: 'LARANJA' });
+  ok((await A.inputValue('#tf-num')) === '150', 'nº digitado continua no campo depois de preencher o resto');
   await abrirPopup(A);
-  ok(+(await A.inputValue('#tf-num-m')) === 150, 'popup já vem com o nº digitado (150)');
+  ok(+(await A.inputValue('#tf-num-m')) === 150 && /Número alterado/.test(await A.textContent('#tf-num-edit')), 'popup já vem com o nº digitado (150), marcado como alterado');
   await confirmar(A); await A.waitForSelector('text=TF gerado', { timeout: 10000 });
   linhas = await tfsPlanilha(); const t150 = linhas.find(l => l.numero === 150);
   ok(t150 && t150.numeroOrigem === 'editado' && t150.numeroSugerido > 0 && t150.numeroSugerido !== 150, 'planilha: TF 150 com origem "editado" e a sugestão do sistema guardada para auditoria', t150 && [t150.numeroOrigem, t150.numeroSugerido]);
-  await irTF(A); await novoTF(A); await preencher(A, { doc: '529.982.247-25', proc: 'liberacao', produto: 'LARANJA' });
+  await irTF(A); await novoTF(A);
+  ok((await A.inputValue('#tf-num')) === '151' && /0150/.test(await numeroTela(A)), 'TF seguinte: o formulário já traz 151 (continua do talão)', await numeroTela(A));
+  await A.screenshot({ path: amb.saida('tf_form_numero.png') });
+  await preencher(A, { doc: '529.982.247-25', proc: 'liberacao', produto: 'LARANJA' });
   await abrirPopup(A);
-  ok(+(await A.inputValue('#tf-num-m')) === 151, 'TF seguinte, sem nº digitado: o sistema sugere 151 (continua do talão)');
+  ok(+(await A.inputValue('#tf-num-m')) === 151, 'popup do TF seguinte, sem edição: 151');
   await A.click('#tf-m-cancel'); await A.click('[data-tf=descartar]'); await A.waitForSelector('button[data-tf=novo]');
 
   console.log('E) cancelamento e rascunho');

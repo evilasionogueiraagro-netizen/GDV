@@ -40,7 +40,7 @@ ou mudar uma action:
 |---|---|---|---|
 | Fiscal (aparelho) | `key` | `ativar` com código de 6 dígitos | `autenticar_` (+ `exigirModulo_` em TF/PCE) |
 | Administrador (painel/TV) | `key` | `painelAtivar` com código de administrador, ou a chave mestra `ACCESS_KEY` | `adminDoToken_` |
-| Portal do Administrativo | `sessao` | `admLogin` (Google) ou `admCodigo` | `admSessao_` (12 h sem uso expira) |
+| Portal do Administrativo | `sessao` | `admLogin` (Google) ou `admCodigo` | `admSessao_` (30 dias sem uso expira) |
 | Pública | — | — | limitador de taxa e cache próprios |
 
 As credenciais ficam na aba `Fiscais` (coluna `perfil`: vazio = fiscal, `admin` = administrador); as sessões do portal
@@ -64,7 +64,7 @@ tudo liberado, exceto `antigo`. O mapa `MODULO_DA_ACAO` diz qual módulo cada ac
 | `tfIndiceReincidencia` | tf | `desde` | `agora`, `completo`, `itens` | `tfIndiceReincidencia_` |
 | `pceProximoNumero` | pce | `unidade`, `ano` | `ultimo`, `proximo` | `pceProximoNumero_` |
 | `pceEmitir` | pce | `colheita`, `pessoa`, `propriedade` | como `tfEmitir` (+ `numeroTxt`) | `pceEmitir_` |
-| `pceConsultar` | pce | `doc` | propriedades e contagens do produtor | `pceConsultar_` |
+| `pceConsultar` | pce | `doc` | `pessoa`, `propriedades` (com `cnpj`, `empresa`, `endereco`, `uf`, `viaAcesso`, `comercial`, `tipoPropriedade`), contagens e `cadastrosPce` do produtor | `pceConsultar_` |
 | `pceDocNumero` | pce | `tipo` (`termo`/`cadastro`), `unidade`, `ano`, `programa` | `ultimo`, `proximo` | `pceDocNumero_` |
 | `pceDocRegistrar` | pce | `tipo`, `registro`, `pessoa`, `propriedade` | como `pceEmitir` | `pceDocRegistrar_` |
 | `pceBaixarMunicipio` | pce | `municipios` (lista) | `municipios`, `propriedades`, `pessoas`, `cadastrosPce` | `pceBaixarMunicipio_` |
@@ -72,6 +72,31 @@ tudo liberado, exceto `antigo`. O mapa `MODULO_DA_ACAO` diz qual módulo cada ac
 
 Registros de módulo não liberado (ou `registroAntigo = 1` sem a flag `antigo`) não são gravados no `sync`: voltam em
 `recusados` e ficam pendentes no aparelho.
+
+Levantamento (`levantamentos[]`), campo **`citros`** (coluna `citros` da aba `Levantamentos`): bloco "Cultura do citros" do cadastro de cítricos
+(IN 21/2018, Portaria 317/2021), preenchido só quando o levantamento tem praga de citros; senão `''`. Texto JSON
+`{v: 1, comercial, naoComercial, naoComercialOutros, atividades[], atividadeOutros, situacao, situacaoOutras,
+culturas: [{atividade, cultivar, area, idade, plantas, producao}], entrega, formasEntrega[], compradores[], compradorOutros, beneficia,
+beneficiaTipo, materiais[], origemMaterial, delimitacao: {pintapreta: {tem, tempo, controle, qual}}, deteccao: {hlb|acaro|cancro: {tem, tempo}},
+rt: {nome, conselho}}` (sim/não = `'sim'`/`'nao'`; na detecção `'sim'` = presença e `'nao'` = ausência de sintomas, obrigatória no app para as três;
+códigos das opções em `CONFIG.PCE.citros` e `CITROS_` no `Code.gs`). O servidor normaliza antes de gravar (`citrosTexto_`): só chaves e opções
+conhecidas, textos até 200 caracteres, números ≥ 0 (negativo/inválido = vazio; `idade` e `plantas` inteiros), no máximo 20 linhas em `culturas`;
+`cnpj`/`endereco`/`uf` (app da versão anterior) só se vierem preenchidos (`cnpj` 14 dígitos, `uf` 2 letras); JSON inválido ou sem nada = `''`.
+Campos **`cnpj`**, **`empresa`**, **`endereco`** e **`uf`** (colunas no fim de `Levantamentos`, servidor 2026-10-20a+): identificação do
+produtor/propriedade; o servidor normaliza (`identLev_`: CNPJ só dígitos com 14 ou `''`, UF 2 letras, empresa ≤ 120 e endereço ≤ 200 caracteres).
+`Propriedades` ganha **`empresa`** no fim. Cadastro de citros: `CadastrosPCE` com `programa = 'citros'` (sequência própria por unidade/ano) e
+`dados` = o JSON acima + `levantamentoId`, `codigoPropriedade`, `endereco`, `telefone`, `email`, `empresa`, `culturasAvaliadas[]`, `amostra`.
+Termo de Fiscalização de citros: `TermosPCE` com `programa = 'citros'`, `tipoLocal` = `["<local especificado>"]` e `constatacao` com as frases de
+ausência/presença.
+Registro enviado sem o campo mantém o valor da planilha (como as demais colunas).
+
+TF (`tfs[]` no `sync` e `tf` no `tfEmitir`) e veículo (`veiculos[]`), campos **`ufOrigem`** e **`ufDestino`** (colunas no fim das abas
+`TFs` e `Veiculos`): UF de origem/destino, opcional — sigla de `CONFIG.ufs` (`UFS_` no `Code.gs`: as 27 UFs e `Exterior`). O servidor normaliza
+(`ufNorm_`: maiúscula; desconhecida = `''`); campo não enviado mantém o valor da planilha. No TF elas acompanham o texto livre de `origem`/`destino`;
+TF antigo sem a coluna: o VIGIFITO e o `painelDados` usam a sigla do fim do texto (`ufDoTexto_`, ex.: "PORTO VELHO/RO" → `RO`) e, sem ela, a do
+veículo ligado (`veiculoId`, só no VIGIFITO). O app não envia mais os campos antigos de fiscalização do veículo (`semEducacao`, `medidaFito`,
+`carga`, `produtos`, `partida`, `inspecaoFito`, `docConferido`); ao editar um registro antigo, reenvia os valores que ele já tinha. Esses
+campos ficam na planilha como histórico e não entram em nenhum indicador.
 
 ## Painel do administrador (`key` de administrador)
 
@@ -109,7 +134,7 @@ painel antigo estiver em uso.
 ## Portal do Administrativo (`sessao`)
 
 Login sem sessão: `admLogin` (`idToken` do Google, conferido no tokeninfo; precisa da propriedade `GOOGLE_CLIENT_ID`)
-e `admCodigo` (`codigo` de uso único gerado no painel). Ambos devolvem `sessao`, `nome`, `email`, `expiraEm`, `origem`.
+e `admCodigo` (`codigo` gerado no painel; permanente: vale em todo login até o painel gerar outro para a pessoa ou revogar o acesso). Ambos devolvem `sessao`, `nome`, `email`, `expiraEm`, `origem`.
 
 Toda action que começa com `adm` + maiúscula passa por `admAcao_` → mapa `ADM_ACOES_`, que exige `sessao`. Toda
 gravação entra no histórico (aba `AdmHistorico`, com antes/depois).
@@ -119,7 +144,7 @@ gravação entra no histórico (aba `AdmHistorico`, com antes/depois).
 | `admSair` | — | encerra a sessão |
 | `admDados` | — | dados iniciais do portal: convênios, servidores, lançamentos físicos e financeiros |
 | `admConvLancar` / `admConvExcluir` | `lancamento` / `id` | execução física do convênio |
-| `admConvFinLancar` / `admConvFinExcluir` | `lancamento` / `id` | execução financeira |
+| `admConvFinLancar` / `admConvFinExcluir` | `lancamento` (com `municipio` opcional) / `id` | execução financeira |
 | `admConvFinImportar` | `convenio`, `arquivo`, `itens`, `excluir` (máx. 500 por chamada) | importa a planilha de movimentação |
 | `admRelDados` / `admRelLancar` | `ano` / `ano`, `lancamentos` (máx. 3.000) | linhas manuais do Relatório GDV |
 | `admVigDados` | `ano` | dados do VIGIFITO |

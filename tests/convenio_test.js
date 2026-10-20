@@ -443,6 +443,20 @@ print(json.dumps({'nomes':nomes,'tabelas':x.count('<w:tbl>'),'bordas':x.count('w
   const aba = await p.textContent('#pn-conv');
   ok(!PROIBIDOS.some(x => aba.includes(x)), 'aba sem dados pessoais', PROIBIDOS.filter(x => aba.includes(x)));
   ok(!errosPag.length, 'sem erros de JavaScript na página', errosPag.slice(0, 5));
+  console.log('8. Proteção contra bem lançado duas vezes (desembolso manual + execução física)');
+  const finItem = async it => (await get('/__aba?nome=ConvFinanceiro')).filter((r, i, t) => i && r[t[0].indexOf('item')] === it && Number(r[t[0].indexOf('excluido')]) !== 1);
+  d = await FL({ etapa: '1.1', item: '1.1.1', data: '2026-09-03', valor: 153400, quantidade: 1, documento: 'NE 2026NE0001288; NF 769', descricao: 'Lancha (desembolso manual)' });
+  ok(d.ok, 'desembolso manual da embarcação (NE + NF 769)', d.erro);
+  const idManual = d.lancamento.id;
+  d = await L({ etapa: '1.1', tipo: 'bem', submeta: 'embarcacao-urucurituba', situacao: 'adquirido', data: '2026-09-03', documento: 'NF 769' });
+  ok(d.ok && d.financeiro && d.financeiro.id === idManual && d.financeiro.origem === 'bem' && (d.avisos || []).some(x => /Ligado ao desembolso já lançado/.test(x)),
+    'bem adquirido com a mesma NF, sem valor: liga ao desembolso manual (não cria outro)', d.erro || d.avisos);
+  let rs = await finItem('1.1.1');
+  ok(rs.length === 1 && Number(rs[0][rs[0].length ? 7 : 0]) === 153400, 'item 1.1.1 com um só desembolso (R$ 153.400,00): saldo não desconta duas vezes', rs.length);
+  d = await FL({ etapa: '1.1', item: '1.1.1', data: '2026-09-04', valor: 153400, quantidade: 1, documento: 'NF 999' });
+  ok(d.ok && (d.avisos || []).some(x => /lançada pela execução física com o mesmo valor/.test(x)), 'desembolso manual com o mesmo valor de uma aquisição de bem: aviso de possível duplicidade', d.avisos);
+  d = await L({ etapa: '1.1', tipo: 'bem', submeta: 'embarcacao-nhamunda', situacao: 'adquirido', data: '2026-09-05', documento: 'NF 1234' });
+  ok(!d.ok && /valor de aquisição/.test(d.erro), 'bem sem valor e sem NF já lançada: continua pedindo o valor', d.erro);
   await b.close();
   console.log(falhas ? `FALHOU=${falhas}` : 'OK');
   process.exit(falhas ? 1 : 0);

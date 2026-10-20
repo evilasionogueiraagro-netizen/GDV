@@ -55,7 +55,8 @@ const TABELAS = {
                   'pragas',    // pragas = JSON [{praga, culturas:[{cultura, area, espLinha, espPlanta, resultado, coleta, tipoMaterial, codigoAmostra, destinoAmostra, fotos:[ids]}]}]
                                // (levantamento por praga/doença). culturas/fotos continuam preenchidos (derivados) para registros e relatórios antigos.
                   'tipoLocal', 'origemVisita',   // dados gerais da visita (opcionais; texto da lista CONFIG.PCE.tiposLocal/origensVisita ou o digitado em "Outro")
-                  'citros'],   // formulário de cítricos (IN 21/2018, Portaria 317/2021): JSON normalizado por citrosTexto_; vazio sem praga de citros
+                  'citros',    // cadastro de cítricos (IN 21/2018, Portaria 317/2021): JSON normalizado por citrosTexto_; vazio sem praga de citros
+                  'cnpj', 'empresa', 'endereco', 'uf'],   // identificação do produtor/propriedade (CNPJ só dígitos, empresa/nome fantasia, endereço, UF): identLev_
   Colheitas: ['id', 'unidade', 'ano', 'numero', 'numeroTxt', 'numeroSugerido', 'numeroOrigem', 'conflito', 'emitidoEm', 'levantamentoId',
               'data', 'hora', 'servidor', 'cargo', 'matricula', 'lotacao', 'municipio', 'doc', 'nome', 'endereco', 'lat', 'lon', 'precisao',
               'cultura', 'quantidade', 'analise', 'partes', 'descricao', 'fotos', 'testemunha1Nome', 'testemunha1Doc', 'testemunha2Nome',
@@ -64,14 +65,17 @@ const TABELAS = {
               'laboratorio'],   // resultado laboratorial (JSON {laboratorio, laboratorioOutro, envio, laudo, dataResultado, resultado, praga, obs, atualizadoEm, por});
                                 // registrado depois (app ou painel → painelPceLaudo); o sync mescla pelo atualizadoEm do resultado (nunca apaga um mais novo)
   Propriedades: ['id', 'codigo', 'nome', 'doc', 'municipio', 'situacaoFundiaria', 'lat', 'lon', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
-                 'cnpj', 'viaAcesso', 'comercial', 'tipoPropriedade', 'endereco', 'uf'],   // campos comuns do Cadastro de imóvel (PCE): CNPJ, via de acesso, propriedade comercial (sim/nao) e tipo
-  // Cadastro de imóvel do PCE (1x por propriedade e programa; hoje: monilíase). Numeração por programa + unidade + ano ("001-2026-AUTAZES").
-  // dados = JSON com os campos do programa (culturas/plantas, informações fitossanitárias, levantamento de detecção…); totalPlantas = soma das plantas.
+                 'cnpj', 'viaAcesso', 'comercial', 'tipoPropriedade', 'endereco', 'uf',   // campos comuns do Cadastro de imóvel (PCE): CNPJ, via de acesso, propriedade comercial (sim/nao) e tipo
+                 'empresa'],   // empresa / nome fantasia (levantamento e Termo de Fiscalização do PCE)
+  // Cadastro de imóvel do PCE (1x por propriedade e programa: monilíase e citros). Numeração por programa + unidade + ano ("001-2026-AUTAZES").
+  // dados = JSON com os campos do programa (monilíase: culturas/plantas, informações fitossanitárias, levantamento de detecção…; citros: o bloco
+  // "Cultura do citros" do levantamento + levantamentoId, codigoPropriedade, endereco, telefone, empresa, culturasAvaliadas); totalPlantas = soma das plantas.
   CadastrosPCE: ['id', 'programa', 'unidade', 'ano', 'numero', 'numeroTxt', 'numeroSugerido', 'numeroOrigem', 'conflito', 'emitidoEm', 'propriedadeId',
                  'doc', 'nome', 'propriedade', 'cnpj', 'data', 'hora', 'municipio', 'uf', 'lat', 'lon', 'servidor', 'cargo', 'matricula', 'lotacao', 'local',
                  'dados', 'totalPlantas', 'fotos', 'assinaturas', 'documentos', 'registroAntigo', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
   // Termo de Fiscalização do PCE (1 por visita; NÃO é o TF de Barreira). Numeração por unidade + ano ("001.2026.AUTAZES").
-  // pragas/acoes/tipoLocal/testemunhas = JSON; plantasInspecionadas, amostra e sintomas (sim/nao) alimentam o Relatório de atividades
+  // pragas/acoes/tipoLocal/testemunhas = JSON (programa "citros": tipoLocal = [o local especificado, "ao realizar fiscalização no(a)…"]);
+  // plantasInspecionadas, amostra e sintomas (sim/nao) alimentam o Relatório de atividades
   // (folders/flyers da Educação Sanitária não são anotados por visita: são digitados na geração do relatório); hospedeiros = JSON das culturas do cadastro com plantas (copiado ao salvar).
   TermosPCE: ['id', 'unidade', 'ano', 'numero', 'numeroTxt', 'numeroSugerido', 'numeroOrigem', 'conflito', 'emitidoEm', 'propriedadeId', 'cadastroId', 'programa',
               'doc', 'nome', 'atividade', 'empresa', 'cnpj', 'atividadeEmpresa', 'endereco', 'municipio', 'uf', 'telefone', 'lat', 'lon', 'data', 'hora',
@@ -151,7 +155,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-19e';
+const VERSAO_CODIGO = '2026-10-20a';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -264,6 +268,7 @@ function sincronizar_(req, usuario) {
 
   // levantamento: dados de citros normalizados antes do lock (opções conhecidas, textos curtos, números ≥ 0, até 20 linhas de cultura)
   T.levantamentos.forEach(function (r) { if (r && typeof r === 'object' && ('citros' in r)) r.citros = citrosTexto_(r.citros); });
+  T.levantamentos.forEach(identLev_);   // identificação: CNPJ só dígitos (14), UF com 2 letras, empresa/endereço curtos
   // UF de origem/destino (TF e veículo): sigla conhecida (UFS_) ou vazio; campo não enviado (app antigo) continua não enviado
   T.tfs.concat(T.veiculos).forEach(ufsNorm_);
 
@@ -896,7 +901,8 @@ function pceConsultar_(req, usuario) {
   if (doc.length !== 11 && doc.length !== 14) throw new Error('Informe um CPF/CNPJ completo.');
   const pessoa = lerLeitura_('Pessoas').filter(function (p) { return p.id === doc; })[0];
   const propriedades = lerLeitura_('Propriedades').filter(function (p) { return digitos_(p.doc) === doc; })
-    .map(function (p) { return { id: p.id, codigo: p.codigo, nome: p.nome, doc: p.doc, municipio: p.municipio, situacaoFundiaria: p.situacaoFundiaria, lat: p.lat, lon: p.lon }; });
+    .map(function (p) { return { id: p.id, codigo: p.codigo, nome: p.nome, doc: p.doc, municipio: p.municipio, situacaoFundiaria: p.situacaoFundiaria, lat: p.lat, lon: p.lon,
+                                 cnpj: p.cnpj, empresa: p.empresa, endereco: p.endereco, uf: p.uf, viaAcesso: p.viaAcesso, comercial: p.comercial, tipoPropriedade: p.tipoPropriedade }; });
   const levantamentos = lerLeitura_('Levantamentos').filter(function (r) { return digitos_(r.doc) === doc && r.excluido !== 1; }).length;
   const colheitas = lerLeitura_('Colheitas').filter(function (r) { return digitos_(r.doc) === doc && r.excluido !== 1 && r.cancelado !== 1; }).length;
   const cadastros = lerLeitura_('CadastrosPCE').filter(function (r) { return digitos_(r.doc) === doc && r.excluido !== 1; })
@@ -1650,7 +1656,8 @@ const CITROS_ = {
 /**
  * Dados de citros recebidos do app → texto JSON gravado (ou '' se nada preenchido / inválido). Só as chaves conhecidas; opções fora da
  * lista viram ''; textos com até 200 caracteres (sem quebra de linha nem "=+-@" no início); números ≥ 0 (negativo ou inválido = vazio;
- * idade e plantas inteiros); no máximo 20 linhas na cultura do citros (as demais são descartadas); CNPJ só com 14 dígitos; UF com 2 letras.
+ * idade e plantas inteiros); no máximo 20 linhas na cultura do citros (as demais são descartadas). cnpj/endereco/uf (app da versão anterior,
+ * hoje colunas do levantamento) só se vierem preenchidos: CNPJ só com 14 dígitos; UF com 2 letras. deteccao.tem: sim = presença, nao = ausência.
  */
 function citrosTexto_(v) {
   const o = v && typeof v === 'object' ? v : lerJSONSeguro_(v, null);
@@ -1683,7 +1690,19 @@ function citrosTexto_(v) {
     if (x && typeof x === 'object') return Object.keys(x).some(function (k) { return k !== 'v' && temAlgo(x[k]); });
     return String(x === null || x === undefined ? '' : x) !== '';
   };
+  ['cnpj', 'endereco', 'uf'].forEach(function (k) { if (r[k] === '') delete r[k]; });   // da versão anterior do app (hoje são colunas do levantamento)
   return temAlgo(r) ? JSON.stringify(r) : '';
+}
+/**
+ * Identificação do produtor/propriedade no levantamento (colunas cnpj, empresa, endereco, uf): CNPJ só com 14 dígitos (senão vazio), UF com 2 letras,
+ * empresa até 120 e endereço até 200 caracteres. Campo não enviado (app antigo) continua não enviado.
+ */
+function identLev_(r) {
+  if (!r || typeof r !== 'object') return;
+  if ('cnpj' in r) { const d = digitos_(r.cnpj); r.cnpj = d.length === 14 ? d : ''; }
+  if ('uf' in r) r.uf = String(r.uf || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
+  if ('empresa' in r) r.empresa = textoCurto_(r.empresa, 120);
+  if ('endereco' in r) r.endereco = textoCurto_(r.endereco, 200);
 }
 function culturaPce_(c, resultado) {
   return { cultura: String(c.cultura).trim(), area: numOuNulo_(c.area), espLinha: String(c.espLinha || ''), espPlanta: String(c.espPlanta || ''),

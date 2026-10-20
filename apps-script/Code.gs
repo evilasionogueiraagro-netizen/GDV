@@ -125,7 +125,9 @@ const TABELAS = {
   RelGdvLancamentos: ['id', 'ano', 'mes', 'chave', 'valor', 'lista', 'usuario', 'atualizadoEm', 'admId'],
   // Portal do Administrativo (web/administrativo/): pessoas liberadas (login com Google pelo e-mail ou código de 6 dígitos gerado no
   // painel). Os e-mails ficam SÓ nesta aba (LGPD); os lançamentos guardam o nome e o admId. Gerida no painel → Servidores.
-  Administrativo: ['id', 'email', 'nome', 'ativo', 'criadoEm', 'criadoPor', 'ultimoAcesso', 'codigo', 'codigoExpira', 'atualizadoEm', 'atualizadoPor'],
+  // oculto/ocultoPor/ocultoEm: "Remover" no painel (só revogado, ativo = 0): oculto = 1 some da lista (a linha fica, para auditoria).
+  Administrativo: ['id', 'email', 'nome', 'ativo', 'criadoEm', 'criadoPor', 'ultimoAcesso', 'codigo', 'codigoExpira', 'atualizadoEm', 'atualizadoPor',
+                   'oculto', 'ocultoPor', 'ocultoEm'],
   // Sessões do portal: só o SHA-256 do token (o token em si fica no navegador); 30 dias sem uso, renovada a cada uso; revogado = 1 ao sair.
   AdmSessoes: ['id', 'hash', 'admId', 'origem', 'criadoEm', 'expiraEm', 'ultimoUso', 'revogado'],
   // Histórico de alterações feitas no portal (antes/depois em JSON).
@@ -156,7 +158,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-20e';
+const VERSAO_CODIGO = '2026-10-20f';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -172,8 +174,8 @@ function doPost(e) {
     if (req.action === 'painelSair') return json_(painelSair(req.key));
     if (req.action === 'painelGerarCodigo') return json_(painelGerarCodigo(req.key, req.nome, req.modulos));
     if (req.action === 'painelAcessos') return json_(painelAcessos(req.key, req.ocultos));
-    if (req.action === 'painelOcultarAcesso') return json_(painelOcultarAcesso(req.key, req.nome, false));
-    if (req.action === 'painelRestaurarAcesso') return json_(painelOcultarAcesso(req.key, req.nome, true));
+    if (req.action === 'painelOcultarAcesso') return json_(painelOcultarAcesso(req.key, req.nome, false, req.perfil));
+    if (req.action === 'painelRestaurarAcesso') return json_(painelOcultarAcesso(req.key, req.nome, true, req.perfil));
     if (req.action === 'painelRevogar') return json_(painelRevogar(req.key, req.nome));
     if (req.action === 'painelRevogarAdmin') return json_(painelRevogarAdmin(req.key, req.nome));
     if (req.action === 'painelPermissoes') return json_(painelPermissoes(req.key, req.nome, req));
@@ -197,7 +199,8 @@ function doPost(e) {
     if (req.action === 'painelRelGdvApuracao') return json_(painelRelGdvApuracao(req.key, req));
     if (req.action === 'painelVigDados') return json_(painelVigDados(req.key, req));
     if (req.action === 'painelVigConfigSalvar') return json_(painelVigConfigSalvar(req.key, req));
-    if (req.action === 'painelAdmLista') return json_(painelAdmLista(req.key));
+    if (req.action === 'painelAdmLista') return json_(painelAdmLista(req.key, req.ocultos));
+    if (req.action === 'painelAdmOcultar') return json_(painelAdmOcultar(req.key, req));
     if (req.action === 'painelAdmSalvar') return json_(painelAdmSalvar(req.key, req));
     if (req.action === 'painelAdmCodigo') return json_(painelAdmCodigo(req.key, req));
     // Portal do Administrativo: login (Google ou código) e as demais actions com a sessão do portal (nunca com a credencial do painel/app)
@@ -1145,10 +1148,12 @@ function arquivoEnviar_(req, usuario) {
  *   painelSair   {key}               → revoga a credencial do administrador (botão Sair)
  *   painelGerarCodigo {key, nome}    → gera um código de ativação de FISCAL (aba Servidores): {ok, nome, codigo, expiraEm}
  *   painelAcessos {key, ocultos}     → lista dos acessos (situação, datas, quem gerou; sem credenciais; código só enquanto aguarda ativação);
- *                                       sem as linhas "removidas da lista" (oculto=1), a não ser com ocultos:true (vêm com oculto:1)
- *   painelOcultarAcesso {key, nome}  → "Remover da lista": marca oculto=1/ocultoPor/ocultoEm nas linhas de FISCAL desse nome (não apaga;
- *                                       recusa se houver aparelho ativo ou código aguardando ativação). Nova chave para o nome = volta à lista.
- *   painelRestaurarAcesso {key, nome} → desfaz o "Remover da lista" (oculto=0)
+ *                                       sem as linhas "removidas da lista" (oculto=1, fiscal ou administrador), a não ser com ocultos:true
+ *                                       (vêm com oculto:1); ocultarAdmin:true = este back aceita perfil:'admin' nas duas actions abaixo
+ *   painelOcultarAcesso {key, nome, perfil?} → "Remover da lista": marca oculto=1/ocultoPor/ocultoEm nas linhas de FISCAL desse nome
+ *                                       (perfil:'admin' = nas de ADMINISTRADOR; nunca o próprio acesso). Não apaga; recusa se houver
+ *                                       acesso ativo ou código aguardando ativação. Nova chave/código para o nome = volta à lista.
+ *   painelRestaurarAcesso {key, nome, perfil?} → desfaz o "Remover da lista" (oculto=0)
  *   painelRevogar {key, nome}        → revoga os acessos de FISCAL com esse nome
  *   painelRevogarAdmin {key, nome}   → revoga os acessos de ADMINISTRADOR (painel e TV) com esse nome; o próprio acesso não (botão Sair)
  *   painelPermissoes {key, nome, veiculos, tf, pce, antigo} → módulos em que o FISCAL pode inserir dados (aba Permissoes; pelo menos um
@@ -1395,9 +1400,9 @@ function painelAcessos(token, ocultos) {
   const aps = {};
   lerAparelhos_().forEach(function (ap) { (aps[nomeChave_(ap.usuario)] = aps[nomeChave_(ap.usuario)] || []).push(ap); });
   const comAparelho = {};
-  const lista = lerLeitura_('Fiscais').filter(function (f) { return f.nome && (comOcultos || f.oculto !== 1 || f.perfil === 'admin'); }).map(function (f) {
+  const lista = lerLeitura_('Fiscais').filter(function (f) { return f.nome && (comOcultos || f.oculto !== 1); }).map(function (f) {
     const situacao = situacaoAcesso_(f, agora);
-    if (f.perfil === 'admin') return { nome: f.nome, perfil: 'admin', situacao: situacao };
+    if (f.perfil === 'admin') { const a = { nome: f.nome, perfil: 'admin', situacao: situacao }; if (f.oculto === 1) a.oculto = 1; return a; }
     const o = { nome: f.nome, perfil: 'fiscal', situacao: situacao, criadoEm: f.expiraEm > VALIDADE_CODIGO_MS ? f.expiraEm - VALIDADE_CODIGO_MS : 0,
                 expiraEm: f.expiraEm > VALIDADE_CODIGO_MS ? f.expiraEm : 0, ativadoEm: f.ativadoEm > 1e12 ? f.ativadoEm : 0, geradoPor: f.geradoPor || '',
                 permissoes: permissoesDe_(f.nome, mapa) };                                     // módulos liberados (por nome; padrão: todos, "antigo" desligado)
@@ -1416,7 +1421,7 @@ function painelAcessos(token, ocultos) {
       o.aparelhos = l.map(resumoAparelho_).sort(function (x, y) { return y.ultimoSinal - x.ultimoSinal; }).slice(0, 10);
     });
   lista.sort(function (a, b) { return (b.criadoEm || 0) - (a.criadoEm || 0) || String(a.nome).localeCompare(String(b.nome)); });
-  return { ok: true, agora: agora, acessos: lista };
+  return { ok: true, agora: agora, acessos: lista, ocultarAdmin: true };     // ocultarAdmin: o painel só mostra "Remover" em administrador se o back aceita
 }
 
 /** Painel → "Revogar": tira todos os acessos de FISCAL com esse nome (aparelhos e códigos). Administrador: painelRevogarAdmin. */
@@ -1449,21 +1454,24 @@ function painelRevogarAdmin(token, nome) {
  * Não apaga nada (auditoria): marca oculto = 1, ocultoPor (administrador) e ocultoEm nas linhas de FISCAL desse nome; restaurar volta
  * oculto = 0 (ocultoPor/ocultoEm ficam como registro da última remoção). Recusa ocultar quem ainda tem aparelho ativo ou código
  * aguardando ativação. Uma chave nova para o mesmo nome nasce sem oculto, e o servidor volta à lista normalmente.
+ * perfil = 'admin': o mesmo nas linhas de ADMINISTRADOR (painel e TV) desse nome, com as mesmas verificações; o próprio acesso de
+ * quem está logado nunca sai da lista. Sem perfil (ou outro valor) = só fiscal, como sempre.
  */
-function painelOcultarAcesso(token, nome, restaurar) {
-  const admin = adminDoToken_(token);
+function painelOcultarAcesso(token, nome, restaurar, perfil) {
+  const admin = adminDoToken_(token), deAdmin = perfil === 'admin';
   nome = String(nome || '').trim().replace(/\s+/g, ' ').slice(0, NOME_SERVIDOR_MAX + 20);
-  if (!nome) throw new Error('Informe o nome do servidor.');
+  if (!nome) throw new Error(deAdmin ? 'Informe o nome do administrador.' : 'Informe o nome do servidor.');
   const chave = nomeChave_(nome), quem = String(admin || 'Administrador').replace(/^[=+\-@\s]+/, '').slice(0, 120) || 'Administrador';
+  if (deAdmin && !restaurar && chave === nomeChave_(admin)) throw new Error('Este é o seu próprio acesso: ele não sai da lista. Para sair do painel, use o botão Sair.');
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
     const t = lerTudo_('Fiscais'), agora = Date.now(), linhas = [];
     t.valores.forEach(function (l, i) {
       const f = paraObjeto_(t.cols, l);
-      if (f.perfil !== 'admin' && nomeChave_(f.nome) === chave) linhas.push({ i: i, f: f });
+      if ((f.perfil === 'admin') === deAdmin && nomeChave_(f.nome) === chave) linhas.push({ i: i, f: f });
     });
-    if (!linhas.length) throw new Error('Servidor não encontrado na lista: ' + nome + '.');
+    if (!linhas.length) throw new Error((deAdmin ? 'Administrador' : 'Servidor') + ' não encontrado na lista: ' + nome + '.');
     if (!restaurar) {
       const vivos = linhas.filter(function (x) { const s = situacaoAcesso_(x.f, agora); return s === 'ativo' || s === 'aguardando'; });
       if (vivos.length) {
@@ -3662,14 +3670,40 @@ function admAcao_(req) {
 /* ----- painel → aba Servidores: lista de liberados do Administrativo (só administrador do painel) ----- */
 function admLinhaOut_(a, agora) {
   const pend = !!a.codigo;                                                   // código permanente (até gerar outro ou revogar)
-  return { id: a.id, email: emailNorm_(a.email), nome: a.nome, ativo: a.ativo === 1 ? 1 : 0, criadoEm: a.criadoEm, criadoPor: a.criadoPor, ultimoAcesso: a.ultimoAcesso || 0,
-           codigo: pend ? a.codigo.padStart(6, '0') : '', codigoExpira: 0, atualizadoEm: a.atualizadoEm, atualizadoPor: a.atualizadoPor };
+  const o = { id: a.id, email: emailNorm_(a.email), nome: a.nome, ativo: a.ativo === 1 ? 1 : 0, criadoEm: a.criadoEm, criadoPor: a.criadoPor, ultimoAcesso: a.ultimoAcesso || 0,
+              codigo: pend ? a.codigo.padStart(6, '0') : '', codigoExpira: 0, atualizadoEm: a.atualizadoEm, atualizadoPor: a.atualizadoPor };
+  if (Number(a.oculto) === 1) { o.oculto = 1; o.ocultoPor = a.ocultoPor || ''; o.ocultoEm = Number(a.ocultoEm) || 0; }   // só com ocultos:true ("Mostrar removidos")
+  return o;
 }
-function painelAdmLista(token) {
+/** Lista dos liberados do portal. Sem os "removidos" (oculto = 1), a não ser com ocultos:true (vêm com oculto:1, ocultoPor, ocultoEm).
+ *  ocultar:true = este back tem o painelAdmOcultar (o painel só mostra "Remover" se tiver). */
+function painelAdmLista(token, ocultos) {
   adminDoToken_(token);
-  const agora = Date.now();
-  return { ok: true, max: admMax_(), google: !!admGoogleId_(), url: admUrl_(),
-           liberados: lerLeitura_('Administrativo').filter(function (a) { return a.id; }).map(function (a) { return admLinhaOut_(a, agora); }) };
+  const agora = Date.now(), comOcultos = ocultos === true || ocultos === 1 || ocultos === '1';
+  return { ok: true, max: admMax_(), google: !!admGoogleId_(), url: admUrl_(), ocultar: true,
+           liberados: lerLeitura_('Administrativo').filter(function (a) { return a.id && (comOcultos || a.oculto !== 1); }).map(function (a) { return admLinhaOut_(a, agora); }) };
+}
+/**
+ * Painel → bloco "Portal do Administrativo" → "Remover" (restaurar ausente/falso) ou "Restaurar" (restaurar: true) um liberado REVOGADO
+ * (ativo = 0). Não apaga nada: remover grava oculto = 1, ocultoPor (administrador do painel) e ocultoEm; restaurar volta oculto = 0 e
+ * mantém ocultoPor/ocultoEm como registro da última remoção. Liberado ativo não sai da lista (revogue antes). Reativar pelo
+ * painelAdmSalvar (ativo = 1) também desfaz a remoção. Removido continua sem entrar no portal e fora do limite ADM_MAX (ativo = 0).
+ */
+function painelAdmOcultar(token, req) {
+  const admin = adminDoToken_(token);
+  req = req || {};
+  const id = String(req.id || ''), restaurar = req.restaurar === true || req.restaurar === 1 || req.restaurar === '1';
+  if (!id) throw new Error('Informe o liberado.');
+  const quem = String(admin || 'Administrador').replace(/^[=+\-@\s]+/, '').slice(0, 120) || 'Administrador';   // texto, nunca fórmula
+  return comLock_(function () {
+    const a = lerLinhas_('Administrativo').filter(function (x) { return x.id && x.id === id; })[0];
+    if (!a) throw new Error('Liberado não encontrado.');
+    if (!restaurar && a.ativo === 1) throw new Error(a.nome + ' ainda está liberado no portal. Só sai da lista quem está revogado: revogue o acesso antes.');
+    if (restaurar ? a.oculto === 1 : a.oculto !== 1) {
+      atualizar_('Administrativo', a._linha, restaurar ? { oculto: 0 } : { oculto: 1, ocultoPor: quem, ocultoEm: Date.now() });
+    }
+    return { ok: true, id: a.id, nome: a.nome, oculto: restaurar ? 0 : 1 };
+  });
 }
 /** Inclui/edita um liberado (e-mail Google, nome, ativo). ativo = 0 revoga: a sessão cai na próxima chamada do portal. */
 function painelAdmSalvar(token, req) {
@@ -3692,6 +3726,7 @@ function painelAdmSalvar(token, req) {
     const a = pos >= 0 ? paraObjeto_(t.cols, t.valores[pos]) : { id: Utilities.getUuid(), criadoEm: agora, criadoPor: admin, ultimoAcesso: 0, codigo: '', codigoExpira: 0 };
     a.email = email; a.nome = nome; a.ativo = ativo; a.atualizadoEm = agora; a.atualizadoPor = admin;
     if (!ativo) { a.codigo = ''; a.codigoExpira = 0; }
+    else if (a.oculto === 1) a.oculto = 0;                                       // reativado: volta à lista (ocultoPor/ocultoEm ficam como registro)
     const linha = t.cols.map(function (c) { const v = a[c]; return v === null || v === undefined ? '' : v; });
     if (pos >= 0) t.sh.getRange(pos + 2, 1, 1, t.cols.length).setValues([linha]);
     else t.sh.getRange(t.sh.getLastRow() + 1, 1, 1, t.cols.length).setValues([linha]);
@@ -4982,6 +5017,34 @@ function menuRevogar() {
   if (r.getSelectedButton() !== ui.Button.OK) return;
   const n = revogar_(r.getResponseText());
   ui.alert(n ? 'Acesso revogado em ' + n + ' aparelho(s)/código(s).' : 'Nenhum acesso ativo encontrado com esse nome.');
+}
+
+/* ---------- Acesso ao Google (camada portátil) ----------
+ * Única seção (com "Planilha" abaixo) que fala com os serviços do Google; nomes iguais aos do porte (docs/PORTABILIDADE.md).
+ * Código novo usa só estas funções. O código antigo ainda chama LockService/getRange direto e vai sendo migrado seção por seção. */
+
+/** Roda fn() com o lock do script (gravações concorrentes) e devolve o resultado. Valide tudo antes da primeira gravação. */
+function comLock_(fn) {
+  const lock = LockService.getScriptLock();
+  lock.waitLock(30000);
+  try { return fn(); } finally { lock.releaseLock(); }
+}
+
+/** Linhas da aba como objetos (paraObjeto_), cada uma com _linha = número da linha na planilha (só vale dentro do mesmo lock). */
+function lerLinhas_(nome) {
+  const t = lerTudo_(nome);
+  return t.valores.map(function (l, i) { const o = paraObjeto_(t.cols, l); o._linha = i + 2; return o; });
+}
+
+/** Grava só as colunas informadas (por nome) na linha `linha` da aba. Coluna que não existe em TABELAS é recusada. */
+function atualizar_(nome, linha, campos) {
+  const sh = aba_(nome), cols = TABELAS[nome];
+  Object.keys(campos).forEach(function (c) {
+    const i = cols.indexOf(c);
+    if (i < 0) throw new Error('Coluna desconhecida em ' + nome + ': ' + c);
+    const v = campos[c];
+    sh.getRange(linha, i + 1).setValue(v === null || v === undefined ? '' : v);
+  });
 }
 
 /* ---------- Planilha ---------- */

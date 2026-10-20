@@ -7,7 +7,9 @@
    esquerda revela "Remover da lista"). Nada é apagado da planilha (oculto=1); "Mostrar removidos" lista esses e permite Restaurar.
    O cartão da chave gerada some sozinho ~3 s depois de "Copiar mensagem" ou "Enviar pelo WhatsApp" (o código segue na lista, com Reenviar).
    Administradores (painel e TV) aparecem com "Mostrar administradores" e também podem ser revogados aqui, menos o próprio acesso
-   (esse sai pelo botão Sair). Código de administrador novo continua só pelo menu da planilha.
+   (esse sai pelo botão Sair). Administrador revogado/vencido também tem "Remover" (e Restaurar), nunca o próprio acesso; só aparece
+   se o back avisar que aceita (painelAcessos → ocultarAdmin), para o painel aguentar o Code.gs antigo. Código de administrador novo
+   continua só pelo menu da planilha.
    Usa as actions painelGerarCodigo, painelAcessos, painelRevogar, painelRevogarAdmin, painelOcultarAcesso, painelRestaurarAcesso e
    painelPermissoes (Code.gs).
    Não depende do período nem dos filtros e não aparece no Modo TV. Usa a API do objeto global Painel (js/painel.js). */
@@ -120,8 +122,8 @@
       const b = e.target.closest('button[data-acao]'); if (!b) return;
       if (b.dataset.acao === 'copiar') copiarMensagem(b);
       else if (b.dataset.acao === 'revogar') revogar(b.dataset.nome, b, b.dataset.perfil === 'admin');
-      else if (b.dataset.acao === 'remover') ocultar(b.dataset.nome, b, false);
-      else if (b.dataset.acao === 'restaurar') ocultar(b.dataset.nome, b, true);
+      else if (b.dataset.acao === 'remover') ocultar(b.dataset.nome, b, false, b.dataset.perfil === 'admin');
+      else if (b.dataset.acao === 'restaurar') ocultar(b.dataset.nome, b, true, b.dataset.perfil === 'admin');
       else if (b.dataset.acao === 'reenviar') {
         const a = (E.lista || []).find(x => x.perfil === 'fiscal' && x.codigo === b.dataset.codigo);
         if (a) { E.ultimo = { nome: a.nome, codigo: a.codigo, expiraEm: a.expiraEm, reenvio: true }; desenharResultado(); q('#pn-ac-res').scrollIntoView({ block: 'nearest', behavior: 'smooth' }); }
@@ -256,7 +258,7 @@
     const tab = q('#pn-ac-tab'); if (tab && !E.lista) tab.innerHTML = '<div class="pn-vazio">Carregando acessos…</div>';
     try {
       const j = await P.chamar(E.removidos ? { action: 'painelAcessos', ocultos: true } : { action: 'painelAcessos' });
-      E.lista = Array.isArray(j.acessos) ? j.acessos : []; E.lidoEm = Date.now(); E.erro = '';
+      E.lista = Array.isArray(j.acessos) ? j.acessos : []; E.lidoEm = Date.now(); E.erro = ''; E.ocultarAdmin = !!j.ocultarAdmin;
     } catch (e) { E.erro = e.message; }
     finally { E.carregando = false; if (P.logado) { desenharLista(); if (E.reler) carregar(); } }
   }
@@ -278,9 +280,12 @@
       .map(a => Object.assign({}, a, { ordemSit: (SITUACOES[a.situacao] || {}).ordem }));
     const proprio = a => a.perfil === 'admin' && norm(a.nome) === norm(P.usuario);   // o próprio acesso sai pelo Sair
     const podeRevogar = a => !proprio(a) && !a.oculto && a.situacao !== 'revogado' && a.situacao !== 'vencido';
-    // "Remover da lista": só servidor sem nenhum aparelho ativo nem código aguardando (todas as linhas dele revogadas/vencidas)
-    const vivos = new Set(fiscais.filter(a => a.situacao === 'ativo' || a.situacao === 'aguardando').map(a => norm(a.nome)));
-    const podeRemover = a => a.perfil === 'fiscal' && !a.oculto && (a.situacao === 'revogado' || a.situacao === 'vencido') && !vivos.has(norm(a.nome));
+    // "Remover da lista": só quem não tem nenhum acesso ativo nem código aguardando (todas as linhas do nome, no mesmo perfil, revogadas/vencidas);
+    // administrador só se o back aceitar (ocultarAdmin) e nunca o próprio acesso
+    const chaveP = a => a.perfil + '|' + norm(a.nome);
+    const vivos = new Set(E.lista.filter(a => a.situacao === 'ativo' || a.situacao === 'aguardando').map(chaveP));
+    const podeRemover = a => (a.perfil === 'fiscal' || (a.perfil === 'admin' && E.ocultarAdmin && !proprio(a))) && !a.oculto &&
+      (a.situacao === 'revogado' || a.situacao === 'vencido') && !vivos.has(chaveP(a));
     P.tabela(tab, [
       { chave: 'nome', rotulo: 'Servidor', html: (v, l) => `<b>${esc(v)}</b>${l.perfil === 'admin' ? ' <span class="pn-ac-perfil">administrador</span>' : ''}` },
       { chave: 'situacao', rotulo: 'Situação', ordem: l => l.ordemSit, csv: v => (SITUACOES[v] || {}).rot || v,
@@ -302,9 +307,9 @@
       { chave: 'ativadoEm', rotulo: 'Ativado em', num: true, fmt: v => dataCurta(v), csv: v => v ? dataCurta(v) : '' },
       { chave: 'geradoPor', rotulo: 'Gerado por', fmt: (v, l) => l.perfil === 'admin' ? '—' : v === 'planilha' ? 'Planilha (menu)' : (v || '—') },
       { chave: 'acoes', rotulo: '', csv: () => '', html: (v, l) => podeRevogar(l) ? `<button type="button" class="pn-btn pn-btn-mini pn-ac-revogar" data-acao="revogar" data-nome="${esc(l.nome)}" data-perfil="${esc(l.perfil)}">Revogar</button>`
-        : podeRemover(l) ? `<button type="button" class="pn-btn pn-btn-mini pn-ac-remover" data-acao="remover" data-nome="${esc(l.nome)}" title="Tira ${esc(l.nome)} da lista (a planilha guarda o registro)">Remover</button>` +
-          `<button type="button" class="pn-ac-desl" data-acao="remover" data-nome="${esc(l.nome)}" tabindex="-1">Remover da lista</button>`
-        : l.oculto && l.perfil === 'fiscal' ? `<button type="button" class="pn-btn pn-btn-mini pn-ac-restaurar" data-acao="restaurar" data-nome="${esc(l.nome)}">Restaurar</button>`
+        : podeRemover(l) ? `<button type="button" class="pn-btn pn-btn-mini pn-ac-remover" data-acao="remover" data-nome="${esc(l.nome)}" data-perfil="${esc(l.perfil)}" title="Tira ${esc(l.nome)} da lista (a planilha guarda o registro)">Remover</button>` +
+          `<button type="button" class="pn-ac-desl" data-acao="remover" data-nome="${esc(l.nome)}" data-perfil="${esc(l.perfil)}" tabindex="-1">Remover da lista</button>`
+        : l.oculto ? `<button type="button" class="pn-btn pn-btn-mini pn-ac-restaurar" data-acao="restaurar" data-nome="${esc(l.nome)}" data-perfil="${esc(l.perfil)}">Restaurar</button>`
         : proprio(l) && l.situacao === 'ativo' ? '<span class="pn-sub">você (use Sair)</span>' : '' }
     ], linhas, { id: 'acessos', csv: 'acessos-servidores.csv', busca: false, limite: 50, ordenar: 'criadoEm', desc: true,
       titulo: E.aviso || undefined,
@@ -365,14 +370,16 @@
   }
 
   /* ---------- remover da lista / restaurar (oculto na planilha; nada é apagado) ---------- */
-  async function ocultar(nome, b, restaurar) {
+  async function ocultar(nome, b, restaurar, admin) {
     if (!nome) return;
     fecharDesl();
-    if (!restaurar && !confirm(`Remover ${nome} da lista?\n\nO registro continua guardado na planilha. Se gerar uma nova chave para esse nome, o servidor volta a aparecer.`)) return;
+    if (!restaurar && !confirm(admin
+      ? `Remover ${nome} da lista de administradores?\n\nO registro continua guardado na planilha. Se for gerado um novo código de administrador para esse nome, ele volta a aparecer.`
+      : `Remover ${nome} da lista?\n\nO registro continua guardado na planilha. Se gerar uma nova chave para esse nome, o servidor volta a aparecer.`)) return;
     const rot = b ? b.textContent : '';
     if (b) { b.disabled = true; b.textContent = restaurar ? 'Restaurando…' : 'Removendo…'; }
     try {
-      await P.chamar({ action: restaurar ? 'painelRestaurarAcesso' : 'painelOcultarAcesso', nome });
+      await P.chamar(Object.assign({ action: restaurar ? 'painelRestaurarAcesso' : 'painelOcultarAcesso', nome }, admin ? { perfil: 'admin' } : {}));
       const tr = b && b.closest('tr');
       if (!restaurar && tr && !E.removidos) { tr.classList.add('pn-ac-sumindo'); await new Promise(res => setTimeout(res, 220)); }
       E.aviso = restaurar ? `${nome} voltou para a lista.` : `${nome} saiu da lista (o registro continua na planilha; veja em "Mostrar removidos").`;
@@ -435,7 +442,7 @@
   }
   // outro administrador pode entrar neste aparelho: nada da sessão anterior fica na tela
   P.aoSair(() => { if (E.raiz) E.raiz.remove(); clearTimeout(E.tmRecolher); aberta = null;
-    Object.assign(E, { raiz: null, lista: null, lidoEm: 0, erro: '', ultimo: null, aviso: '', busca: '', situacao: '', admins: false, removidos: false }); });
+    Object.assign(E, { raiz: null, lista: null, lidoEm: 0, erro: '', ultimo: null, aviso: '', busca: '', situacao: '', admins: false, removidos: false, ocultarAdmin: false }); });
 
   P.registrarAba({ id: 'acessos', titulo: 'Servidores', render, semFiltros: true, mensagem, linkWhats });
 })();

@@ -106,8 +106,8 @@ campos ficam na planilha como histórico e não entram em nenhum indicador.
 | `painelSair` | — | revoga a credencial do painel | `painelSair` |
 | `painelDados` | `de`, `ate`, `aoVivo`, `ids` | todos os dados do período (turnos, veículos, TFs, PCE, auditoria da numeração); `aoVivo` = só o que muda (modo TV) | `painelDados` |
 | `painelGerarCodigo` | `nome`, `modulos` | gera código de ativação de fiscal | `painelGerarCodigo` |
-| `painelAcessos` | `ocultos` | lista servidores e situação dos acessos | `painelAcessos` |
-| `painelOcultarAcesso` / `painelRestaurarAcesso` | `nome` | esconde/mostra servidor sem acesso ativo | `painelOcultarAcesso` |
+| `painelAcessos` | `ocultos` | lista servidores e situação dos acessos; `oculto = 1` (fiscal ou administrador) só com `ocultos: true`; resposta traz `ocultarAdmin: true` | `painelAcessos` |
+| `painelOcultarAcesso` / `painelRestaurarAcesso` | `nome`, `perfil` | esconde/mostra servidor sem acesso ativo nem código aguardando (`oculto`/`ocultoPor`/`ocultoEm` na aba `Fiscais`; nada é apagado); sem `perfil` = linhas de fiscal, `perfil: 'admin'` = de administrador (recusa o próprio acesso) | `painelOcultarAcesso` |
 | `painelRevogar` | `nome` | revoga os acessos de um fiscal | `painelRevogar` |
 | `painelRevogarAdmin` | `nome` | revoga os acessos de um administrador (painel e TV); recusa o próprio | `painelRevogarAdmin` |
 | `painelPermissoes` | `nome`, `modulos` | grava os módulos liberados de um fiscal | `painelPermissoes` |
@@ -123,9 +123,10 @@ campos ficam na planilha como histórico e não entram em nenhum indicador.
 | `painelRelGdvApuracao` | `de`, `ate`, `grupos` | apuração do Relatório GDV (até 1 ano) | `painelRelGdvApuracao` → `relGdvApurar_` |
 | `painelVigDados` | `ano` | dados do VIGIFITO | `painelVigDados` → `vigDados_` |
 | `painelVigConfigSalvar` | `config` | postos e escala do VIGIFITO | `painelVigConfigSalvar` |
-| `painelAdmLista` | — | liberados do Portal do Administrativo | `painelAdmLista` |
-| `painelAdmSalvar` | `id`, `nome`, `email`, `ativo` | libera/edita/revoga pessoa no portal | `painelAdmSalvar` |
+| `painelAdmLista` | `ocultos` | liberados do Portal do Administrativo; removidos (`oculto = 1`) só com `ocultos: true` (vêm com `oculto: 1`, `ocultoPor`, `ocultoEm`); resposta traz `ocultar: true` | `painelAdmLista` |
+| `painelAdmSalvar` | `id`, `nome`, `email`, `ativo` | libera/edita/revoga pessoa no portal; `ativo = 1` também desfaz o "Remover" (`oculto = 0`) | `painelAdmSalvar` |
 | `painelAdmCodigo` | `id` | gera código de login do portal | `painelAdmCodigo` |
+| `painelAdmOcultar` | `id`, `restaurar` | "Remover" (só liberado revogado, `ativo = 0`) → `oculto = 1`, `ocultoPor`, `ocultoEm` na aba `Administrativo` (nada é apagado); `restaurar: true` → `oculto = 0` (mantém `ocultoPor`/`ocultoEm`). Resposta `{ok, id, nome, oculto}` | `painelAdmOcultar` |
 
 **Legado**: `painelConvLancar`, `painelConvExcluir`, `painelConvFinLancar`, `painelConvFinImportar` e
 `painelConvFinExcluir` só respondem `MSG_PORTAL` (os lançamentos passaram para o portal). Podem sair quando nenhum

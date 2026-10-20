@@ -978,14 +978,25 @@ const PCEUI = (() => {
         <button class="mini" data-v="pcecads" id="pce-cads">🏡 Cadastros de propriedades</button>
         <button class="mini" data-v="pcetfs" id="pce-tfs">📋 Termos de Fiscalização</button>
         <button class="mini" data-v="pcerel" id="pce-rel">📊 Relatório de atividades</button></div>`}
+      ${todos.length ? `<div class="pce-ordem"><label for="pce-ordem">Organizar por</label> <select id="pce-ordem"><option value="municipio">Município</option><option value="data">Data (mais recentes primeiro)</option></select></div>` : ''}
       <div id="pceItens"></div>`);
     const G = new Map(todos.map(x => [x.id, Docs.pceGrupos(x)]));
     const cads = (await Store.todos('cadastrosPce')).filter(c => !Number(c.excluido)), tfsPce = (await Store.todos('termosPce')).filter(t => !Number(t.excluido));
     const V = new Map(await Promise.all(todos.map(async x => [x.id, await docsDaVisita(x, cads, tfsPce)])));
+    let ordem = (await Store.meta('pceOrdem')) === 'data' ? 'data' : 'municipio';
     if (!mostrar.viva()) return;
     const desenhar = () => {
-      const v = todos;
-      $('#pceItens').innerHTML = v.length ? `<div class="pce-lev-cab" aria-hidden="true"><span>Produtor · propriedade</span><span>Data</span><span>Avaliação</span><span>Resultado</span><span>Ações</span></div>` + v.map(x => {
+      const v = todos, cab = `<div class="pce-lev-cab" aria-hidden="true"><span>Produtor · propriedade</span><span>Data</span><span>Avaliação</span><span>Resultado</span><span>Ações</span></div>`;
+      if (!v.length) { $('#pceItens').innerHTML = '<div class="vazio">Nenhum levantamento neste aparelho.</div>'; return; }
+      if (ordem === 'data') { $('#pceItens').innerHTML = cab + v.map(linha).join(''); return; }
+      // por município (A–Z, "não informado" no fim); dentro de cada um, a ordem de data já vem de "todos"
+      const grupos = new Map();
+      v.forEach(x => { const m = String(x.municipio || '').trim(); if (!grupos.has(m)) grupos.set(m, []); grupos.get(m).push(x); });
+      const muns = [...grupos.keys()].sort((a, b) => (!a) - (!b) || a.localeCompare(b, 'pt', { sensitivity: 'base' }));
+      $('#pceItens').innerHTML = cab + muns.map(m => `<div class="pce-lev-grupo" data-mun="${esc(m)}">📍 ${esc(m || 'Município não informado')} <small>${grupos.get(m).length} levantamento(s)</small></div>`
+        + grupos.get(m).map(linha).join('')).join('');
+    };
+    const linha = x => {
         const g = G.get(x.id), cult = g.pragas.flatMap(p => p.culturas), fotos = lerJSON(x.fotos, []), col = cult.filter(c => c.coleta === 'Sim').length;
         const pend = x.pendente || [...idsArquivos(x)].some(id => pendArq.has(id)), papelSemAut = Number(x.registroAntigo) === 1 && !podeAnt;
         return `<div class="item pce-lev" data-lev="${esc(x.id)}"><div class="topo"><div><div class="placa pce-nome">${esc(x.nome)}</div>
@@ -999,9 +1010,10 @@ const PCEUI = (() => {
           ${botoesVisita(x, V.get(x.id), false)}
           ${Sync.pode('pce') && !papelSemAut ? `<button class="tfbtn" data-pce="termodelev" data-id="${esc(x.id)}"${curto('Colheita', 'Termo de colheita')}>Termo de colheita</button>` : ''}
           <button class="excluir" data-pce="excluirlev" data-id="${esc(x.id)}">Excluir</button></div></div>`;
-      }).join('') : '<div class="vazio">Nenhum levantamento neste aparelho.</div>';
     };
     desenhar();
+    const sel = $('#pce-ordem');
+    if (sel) { sel.value = ordem; sel.onchange = async () => { ordem = sel.value; desenhar(); await Store.setMeta('pceOrdem', ordem); }; }
   }
 
   async function excluirLev(id) {

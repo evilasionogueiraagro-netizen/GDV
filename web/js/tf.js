@@ -408,7 +408,7 @@ const TFUI = (() => {
         <div class="duas"><button class="botao sec" id="tf-m-cancel" type="button">Cancelar</button><button class="botao" id="tf-m-ok" type="button">Confirmar e gerar</button></div></div>`;
       document.body.append(m); const i = m.querySelector('input');
       const prev = () => { const n = +i.value || 0; m.querySelector('#tf-num-prev').innerHTML = `<b>${esc(num4(n))}/${o.ano} - ${esc(o.sufixo)}</b>`;
-        m.querySelector('#tf-num-edit').textContent = n && n !== o.sugerido ? `${icone('editar')} Número alterado (o sistema sugeriu ${num4(o.sugerido)}). Isso fica registrado para auditoria.` : ''; };
+        m.querySelector('#tf-num-edit').textContent = n && n !== o.sugerido ? `Número alterado (o sistema sugeriu ${num4(o.sugerido)}). Isso fica registrado para auditoria.` : ''; };
       i.oninput = prev; prev(); i.focus(); i.select();
       m.querySelector('#tf-m-cancel').onclick = () => { m.remove(); ok(null); };
       m.querySelector('#tf-m-ok').onclick = () => { const n = parseInt(i.value, 10); if (!(n > 0)) { toast('Informe o número do TF.', true); return; } m.remove(); ok(n); };

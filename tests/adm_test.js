@@ -32,7 +32,7 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   const fis = await gerar(SRV), TOKF = (await post({ action: 'ativar', codigo: fis.codigo })).token;
   await gerar('Outro Servidor Campo');
   ok(TOK && TOKF, 'credenciais de administrador do painel e de fiscal');
-  for (const a of ['painelAdmLista', 'painelAdmSalvar', 'painelAdmCodigo']) {
+  for (const a of ['painelAdmLista', 'painelAdmSalvar', 'painelAdmCodigo', 'painelAdmOcultar']) {
     const r = await post({ action: a, key: TOKF, email: 'x@gmail.com', nome: 'Xis Ipsilon', id: 'x' });
     ok(!r.ok && /Acesso restrito/.test(r.erro), `fiscal recusado em ${a}`, r);
   }
@@ -110,6 +110,40 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   r = await post({ action: 'admDados', sessao: S3.sessao }); ok(!r.ok && /Sessão do portal/.test(r.erro), 'revogado: a sessão cai na próxima chamada', r.erro);
   r = await post({ action: 'painelAdmCodigo', key: TOK, id: A3.liberado.id }); ok(!r.ok && /revogado/.test(r.erro), 'revogado não recebe código', r.erro);
   r = await post({ action: 'admCodigo', codigo: C3b.codigo }); ok(!r.ok, 'revogado: o código permanente deixa de valer', r.erro);
+  // "Remover" (oculto = 1; nada é apagado) e "Restaurar"
+  const abaAdm = () => get('/__aba?nome=Administrativo'), linhaAdm = (t, id) => { const c = t[0]; const l = t.find(x => x[0] === id); return l && Object.fromEntries(c.map((k, i) => [k, l[i]])); };
+  let tA = await abaAdm(); const nAdm = tA.length;
+  ok(tA[0].join() === 'id,email,nome,ativo,criadoEm,criadoPor,ultimoAcesso,codigo,codigoExpira,atualizadoEm,atualizadoPor,oculto,ocultoPor,ocultoEm', 'aba Administrativo: oculto/ocultoPor/ocultoEm acrescentadas no fim', tA[0]);
+  r = await post({ action: 'painelAdmOcultar', key: TOK, id: A1.liberado.id }); ok(!r.ok && /ainda está liberado/.test(r.erro) && /revogue/i.test(r.erro), 'liberado ativo não sai da lista (revogue antes)', r.erro);
+  r = await post({ action: 'painelAdmOcultar', key: TOK, id: 'nao-existe' }); ok(!r.ok && /não encontrado/.test(r.erro), 'id inexistente: erro', r.erro);
+  r = await post({ action: 'painelAdmOcultar', key: TOK }); ok(!r.ok && /Informe/.test(r.erro), 'sem id: erro', r.erro);
+  r = await post({ action: 'painelAdmOcultar', key: G.sessao, id: A3.liberado.id }); ok(!r.ok && /Sessão do painel inválida/.test(r.erro), 'sessão do portal não remove ninguém', r.erro);
+  r = await post({ action: 'painelAdmOcultar', key: TOK, id: A3.liberado.id });
+  ok(r.ok && r.oculto === 1 && r.id === A3.liberado.id && r.nome === 'Caio Reis Administrativo', 'revogado removido da lista', r);
+  tA = await abaAdm(); let la3 = linhaAdm(tA, A3.liberado.id);
+  ok(tA.length === nAdm && la3 && la3.oculto === 1 && la3.ocultoPor === 'Gerente Portal' && la3.ocultoEm > Date.now() - 60000 && la3.ativo === 0 && la3.email === 'caio.reis@gmail.com',
+    'planilha: linha continua (oculto=1, ocultoPor, ocultoEm; ainda revogada; nada apagado)', la3);
+  let LL = await post({ action: 'painelAdmLista', key: TOK });
+  ok(LL.ok && LL.ocultar === true && !LL.liberados.some(x => x.id === A3.liberado.id) && !LL.liberados.some(x => 'oculto' in x), 'painelAdmLista não devolve removidos (e avisa ocultar:true)', LL.liberados.map(x => x.nome));
+  LL = await post({ action: 'painelAdmLista', key: TOK, ocultos: true });
+  let x3 = LL.liberados.find(x => x.id === A3.liberado.id);
+  ok(x3 && x3.oculto === 1 && x3.ocultoPor === 'Gerente Portal' && x3.ativo === 0 && LL.liberados.filter(x => x.oculto).length === 1, 'com ocultos:true vem marcado oculto:1 (quem removeu)', x3);
+  r = await post({ action: 'admCodigo', codigo: C3b.codigo }); ok(!r.ok, 'removido continua sem entrar no portal', r.erro);
+  r = await post({ action: 'painelAdmCodigo', key: TOK, id: A3.liberado.id }); ok(!r.ok && /revogado/.test(r.erro), 'removido não recebe código', r.erro);
+  r = await post({ action: 'painelAdmOcultar', key: TOK, id: A3.liberado.id }); ok(r.ok && r.oculto === 1 && linhaAdm(await abaAdm(), A3.liberado.id).ocultoEm === la3.ocultoEm, 'remover de novo: sem efeito (mantém quando foi removido)', r);
+  r = await post({ action: 'painelAdmOcultar', key: TOK, id: A3.liberado.id, restaurar: true });
+  ok(r.ok && r.oculto === 0, 'Restaurar', r);
+  la3 = linhaAdm(await abaAdm(), A3.liberado.id);
+  ok(la3.oculto === 0 && la3.ocultoPor === 'Gerente Portal' && la3.ativo === 0, 'restaurado: oculto=0, ocultoPor/ocultoEm ficam como registro, continua revogado', la3);
+  LL = await post({ action: 'painelAdmLista', key: TOK }); ok(LL.liberados.some(x => x.id === A3.liberado.id && x.ativo === 0 && !('oculto' in x)), 'restaurado volta à lista');
+  // reativar pelo painelAdmSalvar desfaz a remoção
+  await post({ action: 'painelAdmOcultar', key: TOK, id: A3.liberado.id });
+  r = await post({ action: 'painelAdmSalvar', key: TOK, id: A3.liberado.id, email: 'caio.reis@gmail.com', nome: 'Caio Reis Administrativo', ativo: 1 });
+  ok(r.ok && r.liberado.ativo === 1 && !('oculto' in r.liberado) && linhaAdm(await abaAdm(), A3.liberado.id).oculto === 0, 'removido reativado (painelAdmSalvar ativo=1): oculto=0', r);
+  LL = await post({ action: 'painelAdmLista', key: TOK }); ok(LL.liberados.some(x => x.id === A3.liberado.id && x.ativo === 1), 'reativado volta à lista');
+  r = await post({ action: 'painelAdmOcultar', key: TOK, id: A3.liberado.id }); ok(!r.ok && /ainda está liberado/.test(r.erro), 'reativado: não pode ser removido', r.erro);
+  r = await post({ action: 'painelAdmSalvar', key: TOK, id: A3.liberado.id, email: 'caio.reis@gmail.com', nome: 'Caio Reis Administrativo', ativo: 0 }); ok(r.ok && r.liberado.ativo === 0, 'revoga Caio de novo');
+  ok((await abaAdm()).length === nAdm, 'nenhuma linha apagada nem duplicada na aba Administrativo');
 
   /* ================= 4. lançamentos pelo portal ================= */
   console.log('4. Desembolso, físico, linhas de relatório e histórico');
@@ -270,6 +304,20 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   await pp.click('#pn-adm-lista tr:has-text("dani.nova@gmail.com") [data-adm=codigo]'); await pp.waitForSelector('#pn-adm-codigo');
   const cod = (await pp.textContent('#pn-adm-codigo .pn-ac-codigo')).replace(/\D/g, '');
   r = await post({ action: 'admCodigo', codigo: cod }); ok(r.ok && r.nome === 'Dani Nova Administrativa', 'liberar e gerar código pela tela do painel; o código entra no portal', r);
+  // Remover / Mostrar removidos / Restaurar pela tela
+  const trCaio = '#pn-adm-lista tr:has-text("caio.reis@gmail.com")';
+  ok(await pp.isVisible(trCaio + ' [data-adm=remover]') && !(await pp.$('#pn-adm-lista tr:has-text("ana.souza@gmail.com") [data-adm=remover]')), 'botão Remover só na linha revogada (ativo não tem)');
+  pp.dialogos = []; pp.on('dialog', d => pp.dialogos.push(d.message()));
+  await pp.click(trCaio + ' [data-adm=remover]');
+  await pp.waitForFunction(() => !document.querySelector('#pn-adm-lista').textContent.includes('caio.reis@gmail.com'), null, { timeout: 15000 });
+  ok(pp.dialogos.length === 1 && /Remover Caio Reis Administrativo da lista/.test(pp.dialogos[0]) && /saiu da lista/.test(await pp.textContent('[data-msg=adm]')), 'Remover: confirmação, a linha some e aviso', pp.dialogos);
+  ok(linhaAdm(await abaAdm(), A3.liberado.id).oculto === 1, 'planilha: oculto=1 (removido pela tela)');
+  await pp.check('#pn-adm-removidos'); await pp.waitForSelector(trCaio + ' [data-adm=restaurar]', { timeout: 15000 });
+  ok(/removido da lista/.test(await pp.textContent(trCaio)), '"Mostrar removidos": aparece com o selo e Restaurar');
+  await pp.click(trCaio + ' [data-adm=restaurar]'); await pp.waitForSelector(trCaio + ' [data-adm=remover]', { timeout: 15000 });
+  ok(linhaAdm(await abaAdm(), A3.liberado.id).oculto === 0 && await pp.isChecked('#pn-adm-removidos'), 'Restaurar pela tela: oculto=0 e volta com Remover');
+  await pp.uncheck('#pn-adm-removidos'); await pp.waitForTimeout(800);
+  ok(await pp.isVisible(trCaio), 'sem "Mostrar removidos": Caio continua na lista (restaurado)');
   await pp.locator('#pn-adm').screenshot({ path: amb.saida('adm_painel_liberados.png') }); if (SAIDA) fs.copyFileSync(amb.saida('adm_painel_liberados.png'), path.join(SAIDA, 'painel_liberados.png'));
   await b.close();
   console.log(falhas ? `FALHOU=${falhas}` : 'OK');

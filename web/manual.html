@@ -79,19 +79,8 @@ footer { text-align:center; color:var(--mut); font-size:12px; padding:8px 16px 2
     <p><b>Durante o turno</b></p>
     <ul>
       <li><b class="bt">➕ Registrar veículo</b>: placa, tipo, pessoas a bordo e observação. A placa é obrigatória só na BVA CEASA.</li>
-      <li><b>Fiscalização (opcional)</b>, no mesmo formulário — leva poucos toques e alimenta o relatório VIGIFITO sozinho:
-        <ul>
-          <li><b>Orientação de educação sanitária</b>: já vem marcada. Desmarque só se o motorista não foi orientado.</li>
-          <li><b>Medida fitossanitária aplicada</b>: marque se alguma medida foi aplicada no veículo.</li>
-          <li><b>Transporta vegetais/partes</b>: marque se há carga vegetal. Aparecem:
-            <ul>
-              <li><b>Produto</b>, <b>quantidade</b> e <b>unidade</b> (use <b>Kg</b> ou <b>t</b> sempre que puder: só esses entram em toneladas). <b class="bt">➕ Produto</b> adiciona outra linha; <b>✕</b> remove.</li>
-              <li><b>UF de origem</b> e <b>UF de destino</b>: destino AM vindo de outro estado conta como internalização/importação; destino em outro estado conta como carga em trânsito/exportação.</li>
-              <li><b>Partida fiscalizada</b> (já marcada), <b>Inspeção fitossanitária realizada</b> e <b>Documento conferido (NF/PTV/CFO)</b>.</li>
-            </ul>
-          </li>
-        </ul>
-        Nada disso é obrigatório: deixe em branco o que não souber.</li>
+      <li><b>Origem e destino (opcional)</b>, no mesmo formulário: <b>UF de origem</b> e <b>UF de destino</b> do veículo. Destino AM vindo de outro estado conta como internalização; destino em outro estado conta como carga em trânsito. Deixe em branco se não souber.
+        Educação sanitária (uma por pessoa a bordo), medida fitossanitária, partidas, inspeção e documentos conferidos o relatório VIGIFITO calcula sozinho, pelas pessoas a bordo e pelos <b>TFs</b> lavrados — não há nada para marcar.</li>
       <li><b class="bt">📋 Lista de veículos</b>: para corrigir (<b>Editar</b>), excluir ou <b>Lavrar TF</b> de um veículo.</li>
       <li><b class="bt">📊 Resumo e documentos</b>: totais do turno e a <b>Ficha de Campo</b> (só na BVA CEASA).</li>
     </ul>
@@ -114,6 +103,7 @@ footer { text-align:center; color:var(--mut); font-size:12px; padding:8px 16px 2
     <ol>
       <li><b>CPF/CNPJ</b> e <b>placa</b>: o app busca o cadastro e o <b>histórico</b> sozinho. Se aparecer <b>⚠️ REINCIDENTE</b>, o fiscalizado já teve apreensão, rechaço ou auto de infração.</li>
       <li>Marque o procedimento (liberação, apreensão ou rechaço). O texto da constatação e o enquadramento legal são sugeridos, e você pode editar.</li>
+      <li>Em <b>Origem</b> e <b>Destino</b>, escolha também a <b>UF de origem</b> e a <b>UF de destino</b> (lavrando do veículo, já vêm do registro dele). Com elas o VIGIFITO conta a internalização (de outro estado para o AM) e as cargas para outros estados, com as toneladas dos produtos.</li>
       <li>Adicione os <b>produtos</b> e, se quiser, <b>📷 fotos</b> (até 10).</li>
       <li><b>✍️ Assinaturas</b> (opcional): toque em <b class="bt">Assinar na tela</b> para o fiscalizado e para você e assine com o dedo. Se o fiscalizado se recusar, marque <b>“Fiscalizado se recusou a assinar”</b>. Sem assinatura na tela, o PDF sai com a linha para assinar no papel.</li>
       <li>Toque em <b class="bt">📄 Gerar TF</b>, confira o <b>número</b> e confirme. Na janela de impressão, escolha <b>Salvar como PDF</b> ou imprima. Saem 2 vias e, se houver fotos, o anexo fotográfico.</li>

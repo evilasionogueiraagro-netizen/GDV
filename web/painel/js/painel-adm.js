@@ -26,12 +26,12 @@
         <label class="pn-conv-campo">Nome completo<input id="pn-adm-nome" maxlength="80" placeholder="Ex.: Ana Souza"></label>
         <div class="pn-conv-acoes"><button type="submit" class="pn-btn pn-btn-prim" id="pn-adm-liberar">Liberar</button><span class="pn-pub-msg${E.msg.cls ? ' ' + E.msg.cls : ''}" data-msg="adm" role="status">${esc(E.msg.t)}</span></div>
       </form>
-      ${E.codigo ? `<div class="pn-cartao pn-adm-codigo" id="pn-adm-codigo"><p>Código de ativação do portal para <b>${esc(E.codigo.nome)}</b>: <b class="pn-ac-codigo">${esc(E.codigo.codigo.replace(/^(\d{3})(\d{3})$/, '$1 $2'))}</b> — uso único, vale até ${esc(dh(E.codigo.expiraEm))}. Envie junto com o endereço do portal: ${esc(E.codigo.url)}</p></div>` : ''}
+      ${E.codigo ? `<div class="pn-cartao pn-adm-codigo" id="pn-adm-codigo"><p>Código de ativação do portal para <b>${esc(E.codigo.nome)}</b>: <b class="pn-ac-codigo">${esc(E.codigo.codigo.replace(/^(\d{3})(\d{3})$/, '$1 $2'))}</b> — permanente: vale em todo login até você gerar outro código para a pessoa ou revogar o acesso. Envie junto com o endereço do portal: ${esc(E.codigo.url)}</p></div>` : ''}
       <div id="pn-adm-lista"></div>`;
     const box = r.querySelector('#pn-adm-lista');
     if (!d) { P.vazio(box, E.carregando ? 'Carregando…' : 'Sem dados.'); return; }
     P.tabela(box, [{ chave: 'nome', rotulo: 'Nome' }, { chave: 'email', rotulo: 'E-mail Google' },
-      { chave: 'ativo', rotulo: 'Situação', html: (x, l) => x ? `<span class="pn-selo bom">Ativo</span>${l.codigo ? ' <span class="pn-selo atencao">código aguardando</span>' : ''}` : '<span class="pn-selo info">Revogado</span>' },
+      { chave: 'ativo', rotulo: 'Situação', html: (x, l) => x ? `<span class="pn-selo bom">Ativo</span>${l.codigo ? ' <span class="pn-selo info">com código</span>' : ''}` : '<span class="pn-selo info">Revogado</span>' },
       { chave: 'ultimoAcesso', rotulo: 'Último acesso', fmt: dh }, { chave: 'criadoPor', rotulo: 'Liberado por', fmt: (x, l) => `${x || '—'} em ${dh(l.criadoEm)}` },
       { chave: 'id', rotulo: 'Ações', csv: () => '', html: (x, l) => `<span class="pn-conv-acoes-lin">${l.ativo ? `<button type="button" class="pn-btn pn-btn-mini" data-adm="codigo" data-id="${esc(x)}">Gerar código</button><button type="button" class="pn-btn pn-btn-mini pn-btn-encerrar" data-adm="revogar" data-id="${esc(x)}">Revogar</button>` : `<button type="button" class="pn-btn pn-btn-mini" data-adm="reativar" data-id="${esc(x)}">Reativar</button>`}</span>` }],
       d.liberados, { id: 'adm-liberados', titulo: `Liberados (${ativos} ativo(s) de no máximo ${d.max})`, csv: 'portal-administrativo-liberados.csv', limite: 20, busca: false, vazio: 'Ninguém liberado ainda.' });

@@ -211,7 +211,7 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   ok(/fora da vigência/.test(await p.textContent('#adm-fin-avisos')), 'aviso ao vivo: data fora da vigência');
   await p.fill('#pn-cf-data', '2026-09-20'); await p.fill('#pn-cf-doc', 'Memo nº 130/2026');
   ok(await p.locator('#pn-cf-srv-lista option[value="' + SRV + '"]').count() === 1, 'campo do servidor é texto livre com sugestão dos nomes já lançados');
-  await p.fill('#pn-cf-srv', SRV);
+  await p.fill('#pn-cf-srv', SRV); await p.fill('#pn-cf-mun', 'Presidente Figueiredo');
   await shot(p, 'portal_desembolso');
   await p.click('#pn-cf-salvar');
   await p.waitForFunction(() => /Lançado/.test(document.querySelector('[data-msg=fin]').textContent), null, { timeout: 15000 });
@@ -219,6 +219,9 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#adm-tab-conv-fin-lanc [data-csv]')]);
   const csv = fs.readFileSync(await dl.path(), 'utf8');
   ok(csv.includes(SRV) && /Memo nº 130\/2026/.test(csv), 'CSV do portal inclui o servidor', csv.slice(0, 200));
+  const fin = await get('/__aba?nome=ConvFinanceiro'), iMun = fin[0].indexOf('municipio'), iDoc = fin[0].indexOf('documento');
+  ok(iMun === fin[0].length - 1 && fin.some(l => l[iDoc] === 'Memo nº 130/2026' && l[iMun] === 'Presidente Figueiredo'), 'município do desembolso gravado (coluna municipio no fim de ConvFinanceiro)', fin[0].slice(-3));
+  ok((await p.textContent('#adm-tab-conv-fin-lanc')).includes('Presidente Figueiredo') && /Presidente Figueiredo/.test(csv), 'lista e CSV do portal mostram o município');
   // físico
   await PORTAL.aba(p, 'fisico'); await p.waitForSelector('#pn-conv-lanc-form');
   await p.selectOption('#pn-cl-etapa', '1.14'); await p.selectOption('#pn-cl-sub', 'jundia'); await p.fill('#pn-cl-data', '2026-09-15'); await p.fill('#pn-cl-qtd', '1'); await p.fill('#pn-cl-desc', 'Supervisão no Jundiá');

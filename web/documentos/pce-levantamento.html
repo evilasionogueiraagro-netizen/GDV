@@ -24,11 +24,6 @@
 .grupo-fotos{ break-inside:auto; margin:1mm 0 2mm; }
 .grupo-fotos h4{ margin:1mm 0 1mm; font-size:11.5px; break-after:avoid; page-break-after:avoid; }
 .grupo-fotos h4 small{ font-weight:normal; color:#333; }
-.citros-campos{ display:grid; grid-template-columns:1fr 1fr; gap:1mm 4mm; }
-.citros-campos > div{ break-inside:avoid; page-break-inside:avoid; }
-.citros-cult{ margin-top:2mm; }
-.citros-cult td, .citros-cult th{ font-size:11px; }
-.citros-cult caption{ text-align:left; font-weight:bold; font-size:11.5px; padding:1mm 0; }
 </style>
 </head>
 <body>
@@ -102,12 +97,6 @@
       </tr>
     </thead>
     <tbody id="culturasCorpo"></tbody>
-  </table>
-
-  <!-- Dados de citros (formulário de cítricos): só no PDF de praga de citros e se houver algo preenchido; o docs.js remove o quadro nos demais -->
-  <table class="quadro" id="quadroCitros">
-    <thead><tr><td class="titulo">Dados de citros <span style="font-weight:normal;font-size:11px">(formulário de cítricos — IN 21/2018 e Portaria 317/2021)</span></td></tr></thead>
-    <tbody><tr><td><div id="citrosCampos" class="citros-campos"></div><div id="citrosCulturas"></div></td></tr></tbody>
   </table>
 
   <table class="quadro" id="quadroObs">

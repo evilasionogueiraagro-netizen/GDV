@@ -7,6 +7,7 @@ const ARQUIVOS = [
   'documentos/ficha.html', 'documentos/termo.html', 'documentos/tf.html', 'documentos/ficha-campo.css', 'documentos/termo.css',
   'documentos/pce-levantamento.html', 'documentos/pce-colheita.html', 'documentos/pce.css', 'manual.html',
   'documentos/pce-docs.js', 'documentos/pce-termo.html', 'documentos/pce-cadastro-moniliase.html', 'documentos/pce-relatorio.html',
+  'documentos/pce-cadastro-citros.html', 'documentos/pce-termo-citros.html',
   'img/logo-adaf.png', 'img/brasao.png', 'img/sepror.png', 'img/icon-192.png', 'img/icon-512.png',
   // mapa do PCE em campo ("Perto de mim"): a biblioteca e os contornos dos municípios do painel, guardados aqui para abrir sem internet
   'painel/vendor/leaflet/leaflet.js', 'painel/vendor/leaflet/leaflet.css', 'painel/dados/am-municipios.json'

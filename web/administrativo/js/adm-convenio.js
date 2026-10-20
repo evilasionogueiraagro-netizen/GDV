@@ -245,6 +245,7 @@
       <label class="pn-conv-campo" data-se="tipo">Tipo da diária<select id="pn-cf-tipo"><option value="">—</option><option value="NM">NM (nível médio)</option><option value="NS">NS (nível superior)</option><option value="TERC">Terceiros</option></select></label>
       <label class="pn-conv-campo"><span id="pn-cf-qtd-rot">Quantidade</span><input id="pn-cf-qtd" inputmode="decimal" maxlength="12"></label>
       <label class="pn-conv-campo">Fonte<select id="pn-cf-fonte"><option value="concedente">Repasse (concedente)</option><option value="contrapartida">Contrapartida</option></select></label>
+      <label class="pn-conv-campo">Município<input id="pn-cf-mun" list="pn-cf-muns" maxlength="80" autocomplete="off" placeholder="Opcional"><datalist id="pn-cf-muns">${A.municipios.map(m => `<option value="${esc(m)}">`).join('')}</datalist></label>
       <label class="pn-conv-campo">Nº do memorando / empenho / NF / PCDP / OB<input id="pn-cf-doc" maxlength="120" placeholder="Memo nº 560/2026"></label>
       <label class="pn-conv-campo pn-conv-largo2" data-se="srv">Servidor (diária)<input id="pn-cf-srv" list="pn-cf-srv-lista" maxlength="120" autocomplete="off" placeholder="Digite o nome; os já lançados aparecem como sugestão"><datalist id="pn-cf-srv-lista">${(E.d.servidores || []).map(s => `<option value="${esc(s.nome)}">`).join('')}</datalist></label>
       <label class="pn-conv-campo pn-conv-largo">Descrição<textarea id="pn-cf-desc" rows="2" maxlength="1000"></textarea></label>
@@ -257,7 +258,7 @@
       const l = E.d.financeiro.find(x => x.id === E.editandoFin);
       if (l) { const q = s => form.querySelector(s); q('#pn-cf-etapa').value = l.etapa; ajustarFormFin(raiz, true); q('#pn-cf-item').value = l.item; ajustarFormFin(raiz, false); q('#pn-cf-data').value = l.data;
         q('#pn-cf-qtd').value = l.quantidade == null ? '' : String(l.quantidade).replace('.', ','); q('#pn-cf-qtd').dataset.manual = '1'; q('#pn-cf-valor').value = F.num(l.valor, 2).replace(/\./g, '');
-        q('#pn-cf-fonte').value = l.fonte; q('#pn-cf-doc').value = l.documento || ''; q('#pn-cf-desc').value = l.descricao || ''; q('#pn-cf-tipo').value = l.tipoDiaria || ''; q('#pn-cf-srv').value = l.servidorNome || ''; }
+        q('#pn-cf-fonte').value = l.fonte; q('#pn-cf-doc').value = l.documento || ''; q('#pn-cf-desc').value = l.descricao || ''; q('#pn-cf-tipo').value = l.tipoDiaria || ''; q('#pn-cf-srv').value = l.servidorNome || ''; q('#pn-cf-mun').value = l.municipio || ''; }
     }
     vivoFin(raiz);
     secaoImp(raiz, v);
@@ -268,7 +269,7 @@
     const itemNome = l => { const it = itemDe(l.etapa, l.item); return it ? `${it.id} ${it.nome}` : l.item; };
     const lst = E.d.financeiro.filter(l => l.convenio === c.id && (!E.filtroEtapa || l.etapa === E.filtroEtapa)).slice().sort((a, b) => b.data.localeCompare(a.data) || (b.atualizadoEm || 0) - (a.atualizadoEm || 0));
     A.tabela(sl, [{ chave: 'data', rotulo: 'Data', fmt: F.data }, { chave: 'etapa', rotulo: 'Etapa' }, { chave: 'item', rotulo: 'Subetapa', fmt: (x, l) => itemNome(l) },
-      { chave: 'documento', rotulo: 'Documento', fmt: x => x || '—' }, { chave: 'tipoDiaria', rotulo: 'Tipo', fmt: x => x === 'TERC' ? 'Terceiros' : x || '—' },
+      { chave: 'municipio', rotulo: 'Município', fmt: x => x || '—' }, { chave: 'documento', rotulo: 'Documento', fmt: x => x || '—' }, { chave: 'tipoDiaria', rotulo: 'Tipo', fmt: x => x === 'TERC' ? 'Terceiros' : x || '—' },
       { chave: 'quantidade', rotulo: 'Qtd.', num: true, fmt: x => x == null ? '—' : F.num(x, 1) }, { chave: 'valor', rotulo: 'Valor', num: true, fmt: F.moeda, csv: x => x },
       { chave: 'fonte', rotulo: 'Fonte', fmt: x => x === 'contrapartida' ? 'Contrapartida' : 'Repasse' }, { chave: 'servidorNome', rotulo: 'Servidor', fmt: x => x || '—' },
       { chave: 'descricao', rotulo: 'Descrição', fmt: x => x || '—' },
@@ -319,7 +320,7 @@
     const valor = num(q('#pn-cf-valor').value);
     if (valor == null || valor === 0) return msg(raiz, 'fin', 'Informe o valor (ex.: 1.234,56).', 'erro');
     const l = { id: E.editandoFin || '', convenio: cfg().id, etapa: q('#pn-cf-etapa').value, item: q('#pn-cf-item').value, data: q('#pn-cf-data').value,
-      quantidade: numSimples(q('#pn-cf-qtd').value), valor, fonte: q('#pn-cf-fonte').value, documento: q('#pn-cf-doc').value.trim(), descricao: q('#pn-cf-desc').value.trim(),
+      quantidade: numSimples(q('#pn-cf-qtd').value), valor, fonte: q('#pn-cf-fonte').value, documento: q('#pn-cf-doc').value.trim(), descricao: q('#pn-cf-desc').value.trim(), municipio: q('#pn-cf-mun').value.replace(/\s+/g, ' ').trim(),
       tipoDiaria: q('[data-se="tipo"]').hidden ? '' : q('#pn-cf-tipo').value, servidorNome: q('[data-se="srv"]').hidden ? '' : q('#pn-cf-srv').value.replace(/\s+/g, ' ').trim() };
     const b = q('#pn-cf-salvar'); b.disabled = true; msg(raiz, 'fin', 'Salvando…', '');
     try {

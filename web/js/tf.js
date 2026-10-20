@@ -89,7 +89,7 @@ const TFUI = (() => {
     return (a && a.dados) || '';
   }
   /** Cartão das assinaturas: no formulário (st = S) e na tela do TF gerado (st = estado do TF salvo). */
-  const assCardHTML = st => `<div class="card" id="tf-ass-card"><h3>✍️ Assinaturas (opcional)</h3>
+  const assCardHTML = st => `<div class="card" id="tf-ass-card"><h3>${icone('assinatura')} Assinaturas (opcional)</h3>
       <p class="dica" style="text-align:left">Assine na tela, se quiser. Sem assinatura na tela, o TF sai com a linha em branco para assinar no papel.</p>
       ${Object.keys(PAPEIS).map(p => `<div class="tf-ass" id="tf-ass-${p}"></div>`).join('')}
       <label class="chk"><input type="checkbox" id="tf-recusa" ${st.recusa ? 'checked' : ''}> Fiscalizado se recusou a assinar</label></div>`;
@@ -100,7 +100,7 @@ const TFUI = (() => {
       el.innerHTML = `<div class="pce-ass-topo"><span>${PAPEIS[p]}</span></div>
         ${recusou ? '<div class="tf-novo">Recusou-se a assinar: o TF registra a recusa no lugar da assinatura.</div>'
           : `${src ? `<img class="tf-ass-img" src="${esc(src)}" alt="Assinatura: ${PAPEIS[p]}">` : '<div class="dica" style="text-align:left">Sem assinatura na tela (linha em branco no papel).</div>'}
-        <div class="duas"><button type="button" class="botao sec" data-tf="assinar" data-papel="${p}">✍️ ${src ? 'Assinar de novo' : 'Assinar na tela'}</button>
+        <div class="duas"><button type="button" class="botao sec" data-tf="assinar" data-papel="${p}">${icone('assinatura')} ${src ? 'Assinar de novo' : 'Assinar na tela'}</button>
         ${src ? `<button type="button" class="botao sec" data-tf="delass" data-papel="${p}">Remover</button>` : ''}</div>`}`;
     }
   }
@@ -108,7 +108,7 @@ const TFUI = (() => {
   function pedirAssinatura(papel) {
     return new Promise(ok => {
       const m = document.createElement('div'); m.className = 'tf-modal';
-      m.innerHTML = `<div class="tf-modal-box"><h3>✍️ Assinatura: ${esc(PAPEIS[papel])}</h3>
+      m.innerHTML = `<div class="tf-modal-box"><h3>${icone('assinatura')} Assinatura: ${esc(PAPEIS[papel])}</h3>
         <canvas id="tf-canvas" class="pce-canvas tf-canvas" aria-label="Assinatura: ${esc(PAPEIS[papel])}"></canvas>
         <p class="dica">Assine com o dedo dentro do quadro.</p>
         <div class="duas"><button class="botao sec" id="tf-c-limpar" type="button">Limpar</button><button class="botao sec" id="tf-c-cancel" type="button">Cancelar</button></div>
@@ -172,7 +172,7 @@ const TFUI = (() => {
   const selUF = (id, rot, v) => `<label>${rot} <small>(opcional)</small><select id="tf-${id}"><option value="">—</option>${opts(CONFIG.ufs, v)}</select></label>`;
   const linhaProd = (p, i) => `<div class="prod" data-i="${i}"><select><option value=""></option>${opts(T.produtos, p.p)}</select>
     <input type="number" inputmode="decimal" min="0" step="any" placeholder="Qtd." value="${esc(p.q)}"><select>${opts(T.unidades, p.u)}</select>
-    <button type="button" class="mini" data-tf="delprod" data-i="${i}" aria-label="Remover produto">✕</button></div>`;
+    <button type="button" class="mini" data-tf="delprod" data-i="${i}" aria-label="Remover produto">${icone('fechar')}</button></div>`;
 
   function formHTML(D, bars) {
     const d = D.docs;
@@ -219,13 +219,13 @@ const TFUI = (() => {
     <div class="card"><h3>Constatação</h3><label><textarea id="tf-constatacao" rows="5">${esc(D.constatacao)}</textarea></label>
       <h3>Enquadramento legal</h3><label><textarea id="tf-enquadramento" rows="5" placeholder="Leis, decretos, portarias, artigos, incisos e alíneas">${esc(D.enquadramento)}</textarea></label></div>
 
-    <div class="card"><h3>📷 Fotos (opcional)</h3>
-      <label class="pce-arquivo">📷 Tirar foto / escolher da galeria<input type="file" id="tf-fotos" accept="image/*" multiple></label>
+    <div class="card"><h3>${icone('camera')} Fotos (opcional)</h3>
+      <label class="pce-arquivo">${icone('camera')} Tirar foto / escolher da galeria<input type="file" id="tf-fotos" accept="image/*" multiple></label>
       <p class="dica" style="text-align:left">Até ${MAX_FOTOS} fotos. Saem num anexo fotográfico no fim do PDF e vão para o Drive ao sincronizar.</p>
       <div id="tf-fotos-prev" class="pce-fotos"></div></div>
     ${assCardHTML(S)}
 
-    <button class="botao" type="submit">📄 Gerar TF</button>
+    <button class="botao" type="submit">${icone('documento')} Gerar TF</button>
     <button class="botao sec" type="button" data-tf="descartar">Descartar este TF</button></form>`;
   }
 
@@ -244,7 +244,7 @@ const TFUI = (() => {
       const val = st.numEditado && st.numEditado.b === b ? st.numEditado.n : sug.numero;
       el.innerHTML = `<small>Nº do TF</small>
         <div class="tf-num-campo"><input id="tf-num" type="number" inputmode="numeric" min="1" value="${val}" aria-label="Número do TF"><b id="tf-num-suf">/${a} - ${esc(bar.sufixo)}</b></div>
-        <small id="tf-num-dica">${consultando ? '🔎 Consultando a planilha… ' : sug.origem === 'servidor' ? '✓ Próximo nº pela planilha (último usado + 1). ' : '⚠️ Sem conexão: próximo nº pelo que este aparelho conhece (provisório). '}${ult} Pode editar; os próximos seguem a partir dele. Ao gerar, a planilha confere o número.</small>`;
+        <small id="tf-num-dica">${consultando ? 'Consultando a planilha… ' : sug.origem === 'servidor' ? '✓ Próximo nº pela planilha (último usado + 1). ' : 'Sem conexão: próximo nº pelo que este aparelho conhece (provisório). '}${ult} Pode editar; os próximos seguem a partir dele. Ao gerar, a planilha confere o número.</small>`;
       const i = el.querySelector('#tf-num');
       i.oninput = () => { const n = parseInt(i.value, 10); st.numEditado = n > 0 && n !== st.numSug ? { b, n } : null; };
     };
@@ -257,7 +257,7 @@ const TFUI = (() => {
     if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());
     prefill = prefill || {}; clearTimeout(tRasc);
     const bars = await barreiras();
-    if (!bars.length) { view('<div class="card aviso">⚠️ A lista de barreiras ainda não foi carregada. Conecte-se à internet e aguarde a sincronização.</div>'); Sync.sincronizar(); return; }
+    if (!bars.length) { view('<div class="card aviso">A lista de barreiras ainda não foi carregada. Conecte-se à internet e aguarde a sincronização.</div>'); Sync.sincronizar(); return; }
     let D = vazio(); S = { hist: { doc: null, placa: null }, tpl: { constatacao: '', enquadramento: '' }, turnoId: '', veiculoId: '', rid: Store.novoId(),
       id: Store.novoId(), fotos: [], ass: {}, assNovas: {}, recusa: false };
     const rasc = await Store.meta('tfRascunho');
@@ -362,9 +362,9 @@ const TFUI = (() => {
   function histHTML(h, rotulo, r) {
     if (!h) return '';
     const parcial = notaParcial(r, !h.total);
-    if (!h.total) return `<div class="tf-ok">✓ Sem TF anterior ${rotulo}.${parcial ? ` <small>(${parcial})</small>` : ''}</div>`;
+    if (!h.total) return `<div class="tf-ok">${icone('check')} Sem TF anterior ${rotulo}.${parcial ? ` <small>(${parcial})</small>` : ''}</div>`;
     const partes = [h.apreensoes && `${h.apreensoes} apreensão(ões)`, h.rechacos && `${h.rechacos} rechaço(s)`, h.autos && `${h.autos} auto(s) de infração`, h.liberacoes && `${h.liberacoes} liberação(ões)`].filter(Boolean).join(', ');
-    return `<div class="${h.reincidente ? 'tf-alerta' : 'tf-ok'}"><b>${h.reincidente ? '⚠️ REINCIDENTE' : 'ℹ️ Já fiscalizado'} ${rotulo}:</b> ${h.total} TF(s) anterior(es) — ${esc(partes)}.
+    return `<div class="${h.reincidente ? 'tf-alerta' : 'tf-ok'}"><b>${h.reincidente ? 'REINCIDENTE' : 'Já fiscalizado'} ${rotulo}:</b> ${h.total} TF(s) anterior(es) — ${esc(partes)}.
       <ul>${h.ultimos.slice(0, 3).map(u => `<li>${esc(u.numeroTxt)} · ${dBR(u.data)} · ${esc(PROC[u.procedimento] || '—')}${u.placa ? ' · ' + esc(u.placa) : ''}</li>`).join('')}</ul>
       ${parcial ? `<small>(${parcial})</small>` : ''}</div>`;
   }
@@ -375,7 +375,7 @@ const TFUI = (() => {
     let r; try { r = await buscar(d, ''); } catch (e) { st.textContent = ''; return; }
     if (!S || !$('#tf-doc')) return;
     S.hist.doc = r.historicoDoc;
-    let html = docOk(d) ? '' : `<div class="tf-alerta">⚠️ ${d.length === 11 ? 'CPF' : 'CNPJ'} com dígitos inválidos: confira a digitação.</div>`;
+    let html = docOk(d) ? '' : `<div class="tf-alerta">${icone('alerta')} ${d.length === 11 ? 'CPF' : 'CNPJ'} com dígitos inválidos: confira a digitação.</div>`;
     if (r.pessoa) {
       ['nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone'].forEach(k => { const el = $('#tf-' + k); if (el) el.value = r.pessoa[k] || ''; });
       html += '<div class="tf-ok">✓ Cadastro encontrado — dados preenchidos automaticamente.</div>';
@@ -399,16 +399,16 @@ const TFUI = (() => {
       const m = document.createElement('div'); m.className = 'tf-modal';
       const ult = o.ultimoTF ? `Último número usado nesta barreira: <b>${esc(o.ultimoTF.numeroTxt)}</b> (${esc(o.ultimoTF.usuario)}, ${dBR(o.ultimoTF.data)} ${esc(o.ultimoTF.hora)}).`
         : o.ultimo ? `Último número usado: <b>${esc(num4(o.ultimo))}/${o.ano}</b>.` : 'Nenhum TF anterior nesta barreira neste ano.';
-      m.innerHTML = `<div class="tf-modal-box"><h3>📄 Número do TF</h3>
+      m.innerHTML = `<div class="tf-modal-box"><h3>${icone('documento')} Número do TF</h3>
         ${o.aviso ? `<div class="tf-alerta">${esc(o.aviso)}</div>` : ''}
-        ${o.offline ? '<div class="tf-novo">⚠️ Sem conexão: número <b>provisório</b>, calculado a partir do último número que este aparelho conhece. Será conferido na planilha ao sincronizar.</div>' : '<div class="tf-ok">✓ Número obtido na planilha agora.</div>'}
+        ${o.offline ? '<div class="tf-novo">Sem conexão: número <b>provisório</b>, calculado a partir do último número que este aparelho conhece. Será conferido na planilha ao sincronizar.</div>' : '<div class="tf-ok">✓ Número obtido na planilha agora.</div>'}
         <p class="dica">${ult}</p>
         <input id="tf-num-m" type="number" inputmode="numeric" min="1" value="${o.numero}"><div id="tf-num-prev" class="tf-num"></div><div id="tf-num-edit" class="dica"></div>
         <p class="dica">Confira o número. Se necessário, você pode alterá-lo antes de gerar o PDF.</p>
         <div class="duas"><button class="botao sec" id="tf-m-cancel" type="button">Cancelar</button><button class="botao" id="tf-m-ok" type="button">Confirmar e gerar</button></div></div>`;
       document.body.append(m); const i = m.querySelector('input');
       const prev = () => { const n = +i.value || 0; m.querySelector('#tf-num-prev').innerHTML = `<b>${esc(num4(n))}/${o.ano} - ${esc(o.sufixo)}</b>`;
-        m.querySelector('#tf-num-edit').textContent = n && n !== o.sugerido ? `✏️ Número alterado (o sistema sugeriu ${num4(o.sugerido)}). Isso fica registrado para auditoria.` : ''; };
+        m.querySelector('#tf-num-edit').textContent = n && n !== o.sugerido ? `${icone('editar')} Número alterado (o sistema sugeriu ${num4(o.sugerido)}). Isso fica registrado para auditoria.` : ''; };
       i.oninput = prev; prev(); i.focus(); i.select();
       m.querySelector('#tf-m-cancel').onclick = () => { m.remove(); ok(null); };
       m.querySelector('#tf-m-ok').onclick = () => { const n = parseInt(i.value, 10); if (!(n > 0)) { toast('Informe o número do TF.', true); return; } m.remove(); ok(n); };
@@ -425,7 +425,7 @@ const TFUI = (() => {
     if (!D.procedimento && !confirm('Nenhum procedimento (liberação, apreensão ou rechaço) foi marcado. Gerar o TF mesmo assim?')) return;
 
     const btn = document.querySelector('#tfForm button[type=submit]'), rot = btn.textContent;
-    btn.disabled = true; btn.textContent = '🔎 Consultando a planilha…';
+    btn.disabled = true; btn.textContent = 'Consultando a planilha…';
     let sug; try { sug = await sugerirNumero(bar.id, a); } catch (e) { btn.disabled = false; btn.textContent = rot; return toast(e.message, true); }
     btn.disabled = false; btn.textContent = rot;
 
@@ -486,17 +486,17 @@ const TFUI = (() => {
     const t = await Store.obter('tfs', id); if (!t) return go('tf');
     PR = { id: t.id, ass: lerJSON(t.assinaturas, {}) || {}, assNovas: {}, recusa: Number(t.recusaAssinatura) === 1 };
     const nF = (lerJSON(t.fotos, []) || []).length;
-    view(`<div class="card"><h3>✅ TF gerado</h3><div class="tf-num"><b>${esc(t.numeroTxt)}</b></div>
+    view(`<div class="card"><h3>${icone('ok')} TF gerado</h3><div class="tf-num"><b>${esc(t.numeroTxt)}</b></div>
       <p>${esc(t.nome)} · ${esc(fmtDoc(t.doc))}</p><p>${dBR(t.data)} ${esc(t.hora)}${t.placa ? ' · ' + esc(t.placa) : ''}</p>
       ${t.pendente ? '<div class="tf-novo">⏳ Número provisório / aguardando envio: será conferido na planilha ao sincronizar. Se houver repetição, a coordenação é avisada.</div>' : '<div class="tf-ok">✓ Número confirmado na planilha.</div>'}
-      ${t.numeroOrigem === 'editado' ? `<div class="tf-novo">✏️ Número alterado manualmente (o sistema sugeriu ${num4(t.numeroSugerido)}). Registrado para auditoria.</div>` : ''}
-      ${t.reincidente ? `<div class="tf-alerta">⚠️ Fiscalizado reincidente: ${t.tfsAnteriores} TF(s) anterior(es).</div>` : ''}
-      ${t.cancelado ? `<div class="tf-alerta">⛔ CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
-      ${nF ? `<p class="dica" style="text-align:left">📷 ${nF} foto(s): saem no anexo fotográfico, no fim do PDF.</p>` : ''}</div>
+      ${t.numeroOrigem === 'editado' ? `<div class="tf-novo">${icone('editar')} Número alterado manualmente (o sistema sugeriu ${num4(t.numeroSugerido)}). Registrado para auditoria.</div>` : ''}
+      ${t.reincidente ? `<div class="tf-alerta">${icone('alerta')} Fiscalizado reincidente: ${t.tfsAnteriores} TF(s) anterior(es).</div>` : ''}
+      ${t.cancelado ? `<div class="tf-alerta">${icone('proibido')} CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
+      ${nF ? `<p class="dica" style="text-align:left">${icone('camera')} ${nF} foto(s): saem no anexo fotográfico, no fim do PDF.</p>` : ''}</div>
       ${t.cancelado ? '' : assCardHTML(PR)}
-      <button class="botao" data-tf="imprimir" data-id="${esc(t.id)}">🖨️ Imprimir / PDF (2 vias)</button>
-      <button class="botao sec" data-tf="novo">➕ Novo TF</button>
-      ${MODULO === 'veiculos' ? '<button class="botao sec" data-go="lista">↩ Voltar à lista de veículos</button>' : '<button class="botao sec" data-go="tf">📋 Ver lista de TFs</button>'}
+      <button class="botao" data-tf="imprimir" data-id="${esc(t.id)}">${icone('imprimir')} Imprimir / PDF (2 vias)</button>
+      <button class="botao sec" data-tf="novo">${icone('mais')} Novo TF</button>
+      ${MODULO === 'veiculos' ? '<button class="botao sec" data-go="lista">↩ Voltar à lista de veículos</button>' : '<button class="botao sec" data-go="tf">Ver lista de TFs</button>'}
       <p class="dica">Na janela de impressão, escolha “Salvar como PDF” ou imprima direto. As 2 vias saem em páginas separadas${nF ? '; o anexo fotográfico vai uma vez, no fim' : ''}.</p>`);
     await desenharAss(PR);
     const rc = $('#tf-recusa');
@@ -521,15 +521,15 @@ const TFUI = (() => {
     const mostrar = tela();
     const todos = (await Store.todos('tfs')).sort((a, b) => b.criadoEm - a.criadoEm);
     if (!mostrar.viva()) return;
-    view(`<button class="botao" data-tf="novo">➕ Novo TF</button><div class="card"><label>Pesquisar (nº, nome, CPF/CNPJ, placa)<input id="tfQ"></label></div><div id="tfItens"></div>`);
+    view(`<button class="botao" data-tf="novo">${icone('mais')} Novo TF</button><div class="card"><label>Pesquisar (nº, nome, CPF/CNPJ, placa)<input id="tfQ"></label></div><div id="tfItens"></div>`);
     const desenhar = () => {
       const q = $('#tfQ').value.trim().toUpperCase(), qd = digitos(q);
       const v = todos.filter(t => !q || t.numeroTxt.toUpperCase().includes(q) || t.nome.toUpperCase().includes(q) || (qd && digitos(t.doc).includes(qd)) || placaNorm(t.placa).includes(placaNorm(q)));
       $('#tfItens').innerHTML = v.length ? v.map(t => `<div class="item"><div class="topo"><div><div class="placa">${esc(t.numeroTxt)}</div><div class="tipo">${esc(t.nome)}</div></div>
         <div class="hora">${dBR(t.data)}</div></div>
-        <div class="info">${esc(PROC[t.procedimento] || 'Sem procedimento')}${t.placa ? ' · ' + esc(t.placa) : ''}${t.reincidente ? ' · ⚠️ reincidente' : ''}</div>
-        ${t.cancelado ? `<div class="info pend">⛔ CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
-        ${t.conflito ? '<div class="info pend">⚠️ Número duplicado na planilha: confira com a coordenação.</div>' : ''}
+        <div class="info">${esc(PROC[t.procedimento] || 'Sem procedimento')}${t.placa ? ' · ' + esc(t.placa) : ''}${t.reincidente ? ' · reincidente' : ''}</div>
+        ${t.cancelado ? `<div class="info pend">${icone('proibido')} CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
+        ${t.conflito ? '<div class="info pend">Número duplicado na planilha: confira com a coordenação.</div>' : ''}
         ${t.pendente ? `<div class="info pend">⏳ ${t.provisorio ? 'número provisório, será conferido ao sincronizar' : 'aguardando envio'}</div>` : ''}
         <div class="botoes"><button class="editar" data-tf="abrir" data-id="${esc(t.id)}">Abrir</button><button class="editar" data-tf="imprimir" data-id="${esc(t.id)}">Imprimir</button>
         ${t.cancelado ? '' : `<button class="excluir" data-tf="cancelar" data-id="${esc(t.id)}">Cancelar TF</button>`}</div></div>`).join('') : '<div class="vazio">Nenhum TF neste aparelho.</div>';

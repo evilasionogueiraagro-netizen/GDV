@@ -252,9 +252,9 @@ const Campo = (() => {
     const mostrar = tela();
     const m = await lerMeta(), lista = Object.values(m).sort((a, b) => a.municipio.localeCompare(b.municipio, 'pt-BR'));
     if (!mostrar.viva()) return;
-    mostrar(`<div class="card" id="campo-topo"><h3>📥 Dados para o campo</h3>
+    mostrar(`<div class="card" id="campo-topo"><h3>${icone('baixar')} Dados para o campo</h3>
         <p class="dica" style="text-align:left">Antes de sair, <b>com internet</b>, baixe os produtores e as propriedades do(s) município(s) da viagem. Sem internet, a busca por CPF, nome ou código, a ficha e o mapa usam esses dados. Com internet, eles se atualizam sozinhos (a cada 6 h).</p>
-        <p class="dica campo-lgpd" style="text-align:left">🔒 São dados pessoais (LGPD): use só no serviço e <b>apague do aparelho ao voltar</b>.</p></div>
+        <p class="dica campo-lgpd" style="text-align:left">${icone('bloqueio')} São dados pessoais (LGPD): use só no serviço e <b>apague do aparelho ao voltar</b>.</p></div>
       <div class="card" id="campo-baixados"><h3>Neste aparelho</h3>${lista.length ? lista.map(x => `<div class="campo-mun" data-mun="${esc(x.municipio)}">
           <div><b>${esc(x.municipio)}</b> — ${x.nProps} propriedade(s), ${x.nPessoas} produtor(es) <small>— baixado em ${esc(fmtDH(x.baixadoEm))}</small></div>
           <div class="campo-mun-acoes"><button class="mini" data-campo="atualizar" data-mun="${esc(x.municipio)}">Atualizar</button>
@@ -263,10 +263,10 @@ const Campo = (() => {
       <div class="card"><h3>Baixar municípios</h3>
         <label>Filtrar<input id="campo-filtro" placeholder="Nome do município" autocomplete="off"></label>
         <div class="campo-muns" id="campo-muns">${P.municipios.map(x => `<label class="chk"><input type="checkbox" name="campo-mun" value="${esc(x)}" ${m[norm(x)] ? 'checked' : ''}> ${esc(x)}</label>`).join('')}</div>
-        <button class="botao" type="button" data-campo="baixar" id="campo-baixar">📥 Baixar selecionados</button>
+        <button class="botao" type="button" data-campo="baixar" id="campo-baixar">${icone('baixar')} Baixar selecionados</button>
         <div id="campo-st" class="tf-status" aria-live="polite"></div></div>
-      <button class="botao sec" data-v="pcemapa">🗺️ Propriedades perto de mim</button>
-      <button class="botao sec" data-v="pce">📋 Voltar aos levantamentos</button>`);
+      <button class="botao sec" data-v="pcemapa">${icone('mapa')} Propriedades perto de mim</button>
+      <button class="botao sec" data-v="pce">${icone('formulario')} Voltar aos levantamentos</button>`);
     $('#campo-filtro').oninput = e => { const q = norm(e.target.value); document.querySelectorAll('#campo-muns label').forEach(l => { l.hidden = !!q && !norm(l.textContent).includes(q); }); };
   }
   async function executarBaixar(muns) {
@@ -281,7 +281,7 @@ const Campo = (() => {
       toast(`Dados baixados: ${r.map(x => `${x.municipio} (${x.nProps})`).join(', ')}.`);
       if (VIEW_CAMPO() === 'pcecampo') await telaBaixar();
     } catch (e) {
-      if (st && st.isConnected) st.innerHTML = `<div class="tf-alerta">⚠️ ${esc(e.message)}</div>`;
+      if (st && st.isConnected) st.innerHTML = `<div class="tf-alerta">${icone('alerta')} ${esc(e.message)}</div>`;
       toast(e.message, true);
     } finally { if (btn && btn.isConnected) btn.disabled = false; }
   }
@@ -313,15 +313,15 @@ const Campo = (() => {
     if (MAPA) { try { MAPA.map.remove(); } catch (e) { /* tela anterior */ } MAPA = null; }
     Object.assign(S, { D, rota, sel: '', q: '', raio: lsGetC('gdv.campoRaio') || '' });
     const nMun = Object.keys(D.meta).length;
-    mostrar(`<div class="card campo-mapa-card"><h3>🗺️ Propriedades perto de mim</h3>
-        ${nMun ? '' : `<div class="tf-novo" id="campo-semdados">Nenhum município baixado: o mapa mostra só as propriedades já usadas neste aparelho. <button class="mini" data-v="pcecampo">📥 Baixar dados</button></div>`}
+    mostrar(`<div class="card campo-mapa-card"><h3>${icone('mapa')} Propriedades perto de mim</h3>
+        ${nMun ? '' : `<div class="tf-novo" id="campo-semdados">Nenhum município baixado: o mapa mostra só as propriedades já usadas neste aparelho. <button class="mini" data-v="pcecampo">${icone('baixar')} Baixar dados</button></div>`}
         <div id="campo-mapa" class="campo-mapa" role="region" aria-label="Mapa das propriedades"></div>
         <div class="campo-legenda"><span><i class="campo-selo campo-nunca"></i> Nunca levantada ou há mais de ${DIAS_VISITA} dias</span>
           <span><i class="campo-selo campo-deteccao"></i> Última com detecção/suspeita</span><span><i class="campo-selo campo-ok"></i> Levantada há até ${DIAS_VISITA} dias, sem detecção</span>
           <span><i class="campo-selo campo-eu"></i> Você</span></div>
-        <div class="campo-pos"><span id="campo-pos-st" class="dica"></span><button class="mini" data-campo="pos" id="campo-pos">📍 Minha posição</button></div></div>
+        <div class="campo-pos"><span id="campo-pos-st" class="dica"></span><button class="mini" data-campo="pos" id="campo-pos">${icone('local')} Minha posição</button></div></div>
       <div id="campo-cartao"></div>
-      <button class="botao sec" data-v="pcerota" id="campo-rota-btn">🧭 Rota (${rota.ids.length})</button>
+      <button class="botao sec" data-v="pcerota" id="campo-rota-btn">${icone('rota')} Rota (${rota.ids.length})</button>
       <div class="card"><div class="duas"><label>Raio<select id="campo-raio"><option value="">Todas</option>${RAIOS.map(r => `<option value="${r}" ${String(r) === S.raio ? 'selected' : ''}>até ${r} km</option>`).join('')}</select></label>
         <label>Buscar<input id="campo-q" placeholder="Produtor, propriedade ou código" autocomplete="off"></label></div></div>
       <div id="campo-lista"></div>`);
@@ -376,7 +376,7 @@ const Campo = (() => {
     if (!S.D || !$('#campo-lista')) return;
     const v = filtrados(), com = v.filter(x => x.lat != null), sem = v.filter(x => x.lat == null), MAX = 150;
     const st = $('#campo-pos-st');
-    if (st) st.textContent = S.pos ? `📍 Sua posição: ${S.pos.lat.toFixed(5)}, ${S.pos.lng.toFixed(5)} (± ${S.pos.prec} m)` : 'Sem a sua posição: lista por nome.';
+    if (st) st.textContent = S.pos ? `${icone('local')} Sua posição: ${S.pos.lat.toFixed(5)}, ${S.pos.lng.toFixed(5)} (± ${S.pos.prec} m)` : 'Sem a sua posição: lista por nome.';
     if (MAPA) {
       MAPA.pontos.clearLayers();
       const rend = com.length > 800 ? L.canvas() : undefined;              // muitos pontos: desenho em canvas (mais leve)
@@ -399,15 +399,15 @@ const Campo = (() => {
     const item = x => `<button type="button" class="item campo-item${x.id === S.sel ? ' sel' : ''}" data-campo="ver" data-id="${esc(x.id)}">
         <span class="campo-item-topo">${seloHist(x.h)}<b>${esc(nomeProdutor(x))}</b><span class="campo-dist">${x.dist != null ? 'a ' + esc(fmtKm(x.dist)) : x.lat == null ? 'sem localização' : ''}</span></span>
         <span class="campo-item-sub">${esc([x.p.nome || 'Propriedade sem nome', x.p.codigo && 'cód. ' + x.p.codigo, x.p.municipio].filter(Boolean).join(' · '))}</span>
-        <span class="campo-item-hist">${textoHist(x.h)}${S.rota.ids.includes(x.id) ? ' · <b class="campo-narota">🧭 na rota</b>' : ''}</span></button>`;
+        <span class="campo-item-hist">${textoHist(x.h)}${S.rota.ids.includes(x.id) ? ' · <b class="campo-narota">na rota</b>' : ''}</span></button>`;
     const mostra = [...com, ...sem].slice(0, MAX);
     $('#campo-lista').innerHTML = (v.length ? mostra.map(item).join('')
-      : `<div class="vazio">${S.D.itens.length ? 'Nenhuma propriedade com esse filtro.' : 'Nenhuma propriedade neste aparelho. Baixe os dados do município em “📥 Dados para o campo”.'}</div>`)
+      : `<div class="vazio">${S.D.itens.length ? 'Nenhuma propriedade com esse filtro.' : 'Nenhuma propriedade neste aparelho. Baixe os dados do município em “Dados para o campo”.'}</div>`)
       + (v.length > MAX ? `<div class="dica">Mostrando ${MAX} de ${v.length}. Use a busca ou o raio.</div>` : '');
     const ix = mostra.findIndex(x => x.lat == null);
     if (ix > 0) { const el = document.querySelectorAll('#campo-lista .campo-item')[ix]; if (el) el.insertAdjacentHTML('beforebegin', '<div class="campo-sep">Sem localização</div>'); }
     else if (ix === 0) $('#campo-lista').insertAdjacentHTML('afterbegin', '<div class="campo-sep">Sem localização</div>');
-    const rb = $('#campo-rota-btn'); if (rb) rb.textContent = `🧭 Rota (${S.rota.ids.length})`;
+    const rb = $('#campo-rota-btn'); if (rb) rb.textContent = `${icone('rota')} Rota (${S.rota.ids.length})`;
     if (S.sel) cartao();
   }
   function selecionar(id) {
@@ -419,17 +419,17 @@ const Campo = (() => {
     if (!x) { el.replaceChildren(); return; }
     const naRota = S.rota.ids.includes(x.id), doc = digitos(x.p.doc);
     el.innerHTML = `<div class="card campo-cartao" id="campo-cartao-box"><div class="campo-cartao-topo">${seloHist(x.h)}<b>${esc(nomeProdutor(x))}</b>
-        <button class="mini" data-campo="fechar" aria-label="Fechar">✕</button></div>
+        <button class="mini" data-campo="fechar" aria-label="Fechar">${icone('fechar')}</button></div>
       <p>${esc(x.p.nome || 'Propriedade sem nome')}${x.p.codigo ? ' · cód. <b>' + esc(x.p.codigo) + '</b>' : ''}${x.p.municipio ? ' · ' + esc(x.p.municipio) : ''}</p>
-      <p><small>${esc(doc ? fmtDoc(doc) : '')}${x.pe && x.pe.telefone ? ' · ☎ ' + esc(x.pe.telefone) : ''}${x.p.situacaoFundiaria ? ' · ' + esc(x.p.situacaoFundiaria) : ''}</small></p>
+      <p><small>${esc(doc ? fmtDoc(doc) : '')}${x.pe && x.pe.telefone ? ' · ' + esc(x.pe.telefone) : ''}${x.p.situacaoFundiaria ? ' · ' + esc(x.p.situacaoFundiaria) : ''}</small></p>
       <p class="campo-hist">${textoHist(x.h)}</p>
       <p><small>${esc(ROTULO[x.h.st])}${x.dist != null ? ' · a ' + esc(fmtKm(x.dist)) + ' em linha reta' : x.lat == null ? ' · sem localização' : ''}</small></p>
-      <p class="campo-mon"><small>🏡 ${x.cad ? `Cadastro <b>${esc(x.cad.numeroTxt || '')}</b>` : 'Propriedade sem cadastro'}${x.termo ? ` · último Termo de Fiscalização ${esc(x.termo.numeroTxt || '')} em ${esc(dBR(x.termo.data))}` : ''}</small></p>
-      <button class="botao" data-campo="levantar" data-id="${esc(x.id)}" id="campo-levantar">🌱 Fazer levantamento aqui</button>
-      <div class="duas"><button class="botao sec" data-campo="termo" data-id="${esc(x.id)}" id="campo-termo">📋 Termo de Fiscalização aqui</button>
-        ${x.cad ? '' : `<button class="botao sec" data-campo="cadastro" data-id="${esc(x.id)}" id="campo-cadastro">🏡 Cadastrar a propriedade</button>`}</div>
+      <p class="campo-mon"><small>${icone('propriedade')} ${x.cad ? `Cadastro <b>${esc(x.cad.numeroTxt || '')}</b>` : 'Propriedade sem cadastro'}${x.termo ? ` · último Termo de Fiscalização ${esc(x.termo.numeroTxt || '')} em ${esc(dBR(x.termo.data))}` : ''}</small></p>
+      <button class="botao" data-campo="levantar" data-id="${esc(x.id)}" id="campo-levantar">${icone('broto')} Fazer levantamento aqui</button>
+      <div class="duas"><button class="botao sec" data-campo="termo" data-id="${esc(x.id)}" id="campo-termo">${icone('formulario')} Termo de Fiscalização aqui</button>
+        ${x.cad ? '' : `<button class="botao sec" data-campo="cadastro" data-id="${esc(x.id)}" id="campo-cadastro">${icone('propriedade')} Cadastrar a propriedade</button>`}</div>
       ${x.lat == null ? '<p class="dica">Sem coordenadas: não entra na rota. Ao fazer o levantamento, o GPS da visita fica registrado.</p>'
-        : `<button class="botao sec" data-campo="rota" data-id="${esc(x.id)}" id="campo-incluir">${naRota ? '✓ Na rota — remover' : '➕ Incluir na rota'}</button>`}</div>`;
+        : `<button class="botao sec" data-campo="rota" data-id="${esc(x.id)}" id="campo-incluir">${naRota ? '✓ Na rota — remover' : 'Incluir na rota'}</button>`}</div>`;
   }
 
   /* ================= tela: rota ================= */
@@ -443,16 +443,16 @@ const Campo = (() => {
     let total = 0, ant = pos ? { lat: pos.lat, lon: pos.lng } : null;
     const trechos = itens.map(x => { const d = ant ? haversine(ant, x) : null; if (d != null) total += d; ant = x; return d; });
     const urls = urlsGoogle(pos, itens);
-    mostrar(`<div class="card" id="campo-rota"><h3>🧭 Rota (${itens.length})</h3>
+    mostrar(`<div class="card" id="campo-rota"><h3>${icone('rota')} Rota (${itens.length})</h3>
         ${itens.length ? `<p class="dica" style="text-align:left">${r.manual ? 'Ordem escolhida por você.' : 'Ordem sugerida: a mais próxima primeiro, a partir da sua posição.'} ${pos ? '' : 'Sem a sua posição, a rota começa na 1ª propriedade.'}</p>
         <ol class="campo-rota-lista">${itens.map((x, i) => `<li data-id="${esc(x.id)}"><div><b>${esc(nomeProdutor(x))}</b><br><small>${esc([x.p.nome, x.p.codigo && 'cód. ' + x.p.codigo, x.p.municipio].filter(Boolean).join(' · '))}${trechos[i] != null ? ` · ${esc(fmtKm(trechos[i]))} ${i ? 'da anterior' : 'de você'}` : ''}</small></div>
-          <div class="campo-rota-acoes"><button class="mini" data-campo="subir" data-i="${i}" aria-label="Subir" ${i ? '' : 'disabled'}>↑</button><button class="mini" data-campo="descer" data-i="${i}" aria-label="Descer" ${i < itens.length - 1 ? '' : 'disabled'}>↓</button><button class="mini" data-campo="tirar" data-i="${i}" aria-label="Remover da rota">✕</button></div></li>`).join('')}</ol>
+          <div class="campo-rota-acoes"><button class="mini" data-campo="subir" data-i="${i}" aria-label="Subir" ${i ? '' : 'disabled'}>↑</button><button class="mini" data-campo="descer" data-i="${i}" aria-label="Descer" ${i < itens.length - 1 ? '' : 'disabled'}>↓</button><button class="mini" data-campo="tirar" data-i="${i}" aria-label="Remover da rota">${icone('fechar')}</button></div></li>`).join('')}</ol>
         <p id="campo-rota-total"><b>Total em linha reta: ${esc(fmtKm(total))}</b> <small>(a distância pela estrada é maior)</small></p>` : '<div class="vazio">Nenhuma propriedade na rota. No mapa, toque numa propriedade e em “Incluir na rota”.</div>'}</div>
-      ${urls.map((u, i) => `<a class="botao campo-gmaps" href="${esc(u)}" target="_blank" rel="noopener">🗺️ Abrir no Google Maps${urls.length > 1 ? ` — Trecho ${i + 1}/${urls.length}` : ''}</a>`).join('')}
-      ${urls.length ? `<p class="dica" style="text-align:left">💡 O Google Maps funciona sem internet se você baixar o mapa da região nele antes (Google Maps → foto do perfil → <b>Mapas off-line</b>).${urls.length > 1 ? ' O Google Maps aceita até 9 paradas por vez: a rota foi dividida em trechos.' : ''}</p>` : ''}
-      ${itens.length > 1 ? '<button class="botao sec" data-campo="sugerir">🔀 Sugerir ordem (a mais próxima primeiro)</button>' : ''}
-      ${itens.length ? '<button class="botao sec" data-campo="limparrota">🗑️ Limpar rota</button>' : ''}
-      <button class="botao sec" data-v="pcemapa">🗺️ Voltar ao mapa</button>`);
+      ${urls.map((u, i) => `<a class="botao campo-gmaps" href="${esc(u)}" target="_blank" rel="noopener">${icone('mapa')} Abrir no Google Maps${urls.length > 1 ? ` — Trecho ${i + 1}/${urls.length}` : ''}</a>`).join('')}
+      ${urls.length ? `<p class="dica" style="text-align:left">${icone('dica')} O Google Maps funciona sem internet se você baixar o mapa da região nele antes (Google Maps → foto do perfil → <b>Mapas off-line</b>).${urls.length > 1 ? ' O Google Maps aceita até 9 paradas por vez: a rota foi dividida em trechos.' : ''}</p>` : ''}
+      ${itens.length > 1 ? '<button class="botao sec" data-campo="sugerir">Sugerir ordem (a mais próxima primeiro)</button>' : ''}
+      ${itens.length ? '<button class="botao sec" data-campo="limparrota">Limpar rota</button>' : ''}
+      <button class="botao sec" data-v="pcemapa">${icone('mapa')} Voltar ao mapa</button>`);
   }
   async function mexerRota(acao, i) {
     const r = await lerRota();
@@ -475,9 +475,9 @@ const Campo = (() => {
         toast(`${mun}: dados apagados do aparelho${r.mantidas ? ` (${r.mantidas} propriedade(s) com registro pendente ficaram)` : ''}.`);
         telaBaixar();
       } else if (a === 'pos') {
-        $('#campo-pos-st').textContent = '📍 Obtendo localização…';
+        $('#campo-pos-st').textContent = 'Obtendo localização…';
         const g = await pegarLocal();
-        if (!g) { $('#campo-pos-st').textContent = '⚠️ GPS indisponível ou permissão negada.'; return; }
+        if (!g) { $('#campo-pos-st').textContent = 'GPS indisponível ou permissão negada.'; return; }
         S.pos = g; desenhar(true);
       } else if (a === 'ver') selecionar(id);
       else if (a === 'fechar') { S.sel = ''; desenhar(); }

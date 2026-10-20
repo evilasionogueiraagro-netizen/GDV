@@ -91,7 +91,7 @@
         </section>
         <section class="pn-cartao pn-pub-cartao" aria-labelledby="pn-pub-t2">
           <h3 id="pn-pub-t2">O que aparece</h3>
-          ${GRUPOS.map(([g, it]) => `<fieldset class="pn-pub-fs"><legend>${esc(g)}</legend>${it.map(([k, t, d]) => caixa(k, t, d, 'data-bloco') + (k === 'aoVivo' ? `<p class="pn-pub-vivo" id="pn-pub-vivo-aviso" role="note">⚠️ ${esc(AVISO_VIVO)}</p>` : '')).join('')}</fieldset>`).join('')}
+          ${GRUPOS.map(([g, it]) => `<fieldset class="pn-pub-fs"><legend>${esc(g)}</legend>${it.map(([k, t, d]) => caixa(k, t, d, 'data-bloco') + (k === 'aoVivo' ? `<p class="pn-pub-vivo" id="pn-pub-vivo-aviso" role="note">${icone('alerta')} ${esc(AVISO_VIVO)}</p>` : '')).join('')}</fieldset>`).join('')}
         </section>
       </div>
       <div class="pn-cartao pn-pub-rodape">

@@ -242,11 +242,11 @@
   function versaoHTML(l) {
     const ap = l.aparelho; if (!ap) return '<span class="pn-sub">—</span>';
     const v = ap.legado || !ap.versao ? 'anterior a esta função' : ap.versao;
-    return `${desatualizado(ap) ? `<span class="pn-ac-velha" title="Versão publicada: ${esc(versaoReferencia() || '?')}">⚠️ ${esc(v)} (desatualizada)</span>` : esc(v)}<br><span class="pn-sub">${esc(PLAT[ap.plataforma] || (ap.legado ? '' : 'outro'))}${ap.standalone ? ' · instalado' : ''}</span>`;
+    return `${desatualizado(ap) ? `<span class="pn-ac-velha" title="Versão publicada: ${esc(versaoReferencia() || '?')}">${icone('alerta')} ${esc(v)} (desatualizada)</span>` : esc(v)}<br><span class="pn-sub">${esc(PLAT[ap.plataforma] || (ap.legado ? '' : 'outro'))}${ap.standalone ? ' · instalado' : ''}</span>`;
   }
   function erroHTML(l) {
     const ap = l.aparelho; if (!ap || !ap.ultimoErro) return '<span class="pn-sub">—</span>';
-    return `<span class="pn-ac-erro">${ap.erroAtual ? '⚠️ ' : ''}${esc(ap.ultimoErro)}</span><span class="pn-sub">${esc(fmt.rel(ap.ultimoErroEm))}${ap.erroAtual ? ' · ainda sem envio' : ' · depois enviou normalmente'}</span>`;
+    return `<span class="pn-ac-erro">${ap.erroAtual ? '' : ''}${esc(ap.ultimoErro)}</span><span class="pn-sub">${esc(fmt.rel(ap.ultimoErroEm))}${ap.erroAtual ? ' · ainda sem envio' : ' · depois enviou normalmente'}</span>`;
   }
 
   /* ---------- lista ---------- */

@@ -156,7 +156,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-20d';
+const VERSAO_CODIGO = '2026-10-20e';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -2303,11 +2303,11 @@ function convLancar_(autor, l) {
     let fin = null;
     if (tipo === 'bem' && (o.situacao === 'adquirido' || o.situacao === 'entregue')) {
       fin = convBemFinanceiro_(autor, cfg, e, o, bemValor, bemFonte, agora, bemQtd);
-      if (!fin) throw new Error('Informe o valor de aquisição do bem (entra no financeiro da etapa ' + e.id + ').');
+      if (!fin) throw new Error('Informe o valor de aquisição do bem (entra no financeiro da etapa ' + e.id + '), ou o mesmo nº de NF/NE do desembolso já lançado.');
     }
     convGravar_('ConvLancamentos', o);
     return { ok: true, lancamento: convLancOut_(paraObjeto_(TABELAS.ConvLancamentos, TABELAS.ConvLancamentos.map(function (c) { return o[c]; }))), antes: ant,
-             financeiro: fin && fin.lancamento, finAntes: fin && fin.antes };
+             financeiro: fin && fin.lancamento, finAntes: fin && fin.antes, avisos: fin && fin.aviso ? [fin.aviso] : [] };
   } finally { lock.releaseLock(); }
 }
 
@@ -2323,23 +2323,40 @@ const convChaveBem_ = function (cfg, bemId) { return 'bem|' + cfg.id + '|' + bem
  * Desembolso da aquisição de um bem (dentro do lock de convLancar_), com a quantidade adquirida (padrão 1). valor null = mantém o já lançado (ex.: "entregue" depois de "adquirido").
  * Devolve {lancamento, antes} ou null se não há valor nem lançamento anterior.
  */
+/** Nº de documento normalizado para comparar (sem "Memo nº", "NF", "NE"… nem zeros à esquerda). */
+function convDocN_(v) { return normPub_(v).replace(/^(memo|memorando|empenho|ne|nf|pcdp|ob)\s*(n|no|nº)?\s*/, '').replace(/^0+(?=\d)/, ''); }
+/** Desembolso MANUAL vivo do mesmo item com o mesmo documento (NF/NE/memo) do lançamento do bem: é a mesma aquisição já lançada. */
+function convDesembolsoDoDoc_(cfg, itemId, documento) {
+  // documento pode ter várias partes ("NE 2026NE0001288; NF 769"): basta uma parte igual
+  const partes = function (v) { return String(v || '').split(/[;,/]| e /).map(convDocN_).filter(Boolean); };
+  const meus = partes(documento); if (!meus.length) return null;
+  return lerLeitura_('ConvFinanceiro').filter(function (r) {
+    return r.id && r.excluido !== 1 && r.convenio === cfg.id && r.item === itemId && String(r.chave || '').indexOf('bem|') !== 0 &&
+      partes(r.documento).some(function (x) { return meus.indexOf(x) >= 0; });
+  })[0] || null;
+}
 function convBemFinanceiro_(autor, cfg, e, lanc, valor, fonte, agora, qtd) {
   const b = (e.bens || []).filter(function (x) { return x.id === lanc.submeta; })[0];
   const item = convItemDoBem_(e, b);
   if (!item) throw new Error('O bem "' + b.nome + '" não tem item no plano de aplicação da etapa ' + e.id + '.');
   const chave = convChaveBem_(cfg, b.id);
   const ant = lerLeitura_('ConvFinanceiro').filter(function (r) { return r.id && r.chave === chave; })[0] || null;
-  const vivo = ant && ant.excluido !== 1;
+  let vivo = ant && ant.excluido !== 1, base = vivo ? ant : null, vinculado = null;
+  // proteção contra lançamento dobrado: já existe desembolso manual deste item com a mesma NF/NE/memo → é a mesma aquisição:
+  // o bem passa a usar essa linha (vira "Bem (aquisição)") em vez de criar outra
+  if (!vivo) { vinculado = convDesembolsoDoDoc_(cfg, item.id, lanc.documento); if (vinculado) { vivo = true; base = vinculado; } }
   if (valor === null && !vivo) return null;
-  const o = vivo ? JSON.parse(JSON.stringify(ant)) : { id: ant ? ant.id : Utilities.getUuid(), criadoEm: ant ? ant.criadoEm : agora };
+  const o = vivo ? JSON.parse(JSON.stringify(base)) : { id: ant ? ant.id : Utilities.getUuid(), criadoEm: ant ? ant.criadoEm : agora };
   Object.assign(o, { convenio: cfg.id, etapa: e.id, item: item.id, natureza: item.natureza, chave: chave, origem: 'bem',
-                     descricao: 'Aquisição: ' + b.nome + ' – ' + b.local, municipio: b.local || '', usuario: autor.nome, admId: autor.admId || '', atualizadoEm: agora, excluido: 0 });
+                     descricao: vinculado && vinculado.descricao ? vinculado.descricao : 'Aquisição: ' + b.nome + ' – ' + b.local,
+                     municipio: (vinculado && vinculado.municipio) || b.local || '', usuario: autor.nome, admId: autor.admId || '', atualizadoEm: agora, excluido: 0 });
   if (valor !== null) { o.valor = valor; o.fonte = fonte; }
   if (qtd !== null && qtd !== undefined) o.quantidade = qtd; else if (!vivo) o.quantidade = 1;
-  if (!vivo || valor !== null) { o.data = lanc.data; if (lanc.documento) o.documento = lanc.documento; }
+  if (!vinculado && (!vivo || valor !== null)) { o.data = lanc.data; if (lanc.documento) o.documento = lanc.documento; }
   if (!o.fonte) o.fonte = 'concedente';
   convGravar_('ConvFinanceiro', o);
-  return { lancamento: convFinOutAdm_(paraObjeto_(TABELAS.ConvFinanceiro, TABELAS.ConvFinanceiro.map(function (c) { return o[c]; }))), antes: vivo ? ant : null };
+  return { lancamento: convFinOutAdm_(paraObjeto_(TABELAS.ConvFinanceiro, TABELAS.ConvFinanceiro.map(function (c) { return o[c]; }))), antes: vivo ? base : null,
+           aviso: vinculado ? 'Ligado ao desembolso já lançado (' + (vinculado.documento || 'mesmo documento') + '): o valor não foi contado de novo.' : '' };
 }
 const CONV_TIPOS_DIARIA = ['NM', 'NS', 'TERC'];
 /**
@@ -2388,6 +2405,9 @@ function convFinLancar_(autor, l) {
     const docN = function (v) { return normPub_(v).replace(/^(memo|memorando|empenho|ne|nf|pcdp|ob)\s*(n|no|nº)?\s*/, '').replace(/^0+(?=\d)/, ''); };
     const avisos = [];
     if (o.documento && vivos.some(function (r) { return docN(r.documento) && docN(r.documento) === docN(o.documento); })) avisos.push('Documento/memorando ' + o.documento + ' já lançado neste item (possível duplicidade).');
+    // proteção contra lançamento dobrado de bem: o item já tem aquisição lançada pela execução física (Bem (aquisição)) com o mesmo valor
+    const bemIgual = vivos.filter(function (r) { return String(r.chave || '').indexOf('bem|') === 0 && Math.abs(Number(r.valor) - Number(o.valor)) < 0.005; })[0];
+    if (bemIgual && String(o.chave || '').indexOf('bem|') !== 0) avisos.push('Este item já tem a aquisição de um bem lançada pela execução física com o mesmo valor (' + (bemIgual.descricao || bemIgual.documento || '') + '): confira se não é o mesmo bem lançado duas vezes (o saldo desconta os dois).');
     if (ConvNatDiarias_.indexOf(item.natureza) >= 0 && qtd !== '') {
       const usadas = vivos.reduce(function (t, r) { return t + (numOuNulo_(r.quantidade) || 0); }, 0) + Number(qtd);
       if (usadas > Number(item.quantidade || 0)) avisos.push('Diárias do item ' + item.id + ': ' + (Math.round(usadas * 10) / 10) + ' de ' + item.quantidade + ' previstas (acima do previsto).');

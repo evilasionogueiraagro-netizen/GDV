@@ -44,6 +44,10 @@ publicado no GitHub Pages                            Web App do Apps Script     
 - **Permissões**: actions de TF/PCE passam por `exigirModulo_` (mapa `MODULO_DA_ACAO`); registros de módulo não
   liberado voltam em `recusados`. Painel = credencial de perfil `admin` (`adminDoToken_`); portal = sessão própria
   (`admSessao_`) — uma credencial nunca vale no lugar da outra.
+- **Repositório público: nenhum dado pessoal real versionado.** Código, testes, exemplos, placeholders, docs e commits usam
+  só dados fictícios (nome "Fulano Ficticio Teste", CPF de teste como 529.982.247-25, placa ABC1D23). Nada de nome, CPF,
+  endereço, telefone ou matrícula de produtor, fiscal ou servidor de verdade, nem trecho de planilha ou relatório real.
+  Planilhas reais para importar ficam fora do repositório. O histórico do Git é público: o que entrar não sai mais.
 - **LGPD**: nada público expõe CPF, nome completo, placa inteira ou coordenada exata (dashboard e `verificar.html`
   mascaram). Os testes conferem isso; não afrouxe.
 - **Fuso**: datas de negócio em `America/Manaus` (UTC−4). Use `hojeManaus_()`, `tsManaus_()`; nada de `new Date()` cru
@@ -84,8 +88,8 @@ Drive da conta anterior.
    10 minutos depois do front: se o front depende de action ou coluna nova, ele precisa aguentar o back antigo nesse
    intervalo (ou mande o back antes, em PR próprio). Não edite código no editor do Apps Script (a publicação seguinte
    sobrescreve). Configuração, serviço novo do Google e como voltar versão: [docs/PUBLICACAO-BACK.md](docs/PUBLICACAO-BACK.md).
-   Enquanto os segredos `CLASPRC_JSON` e `APPS_SCRIPT_ID` não estiverem no repositório, o workflow falha e a publicação é manual:
-   colar o `Code.gs` → Implantar → Gerenciar implantações → editar a implantação atual → Nova versão.
+   Workflow "Publicar Apps Script" falhou: o back no ar fica para trás do front sem ninguém perceber. Confira a versão no ar
+   (`GET /exec`) e veja "Quando o workflow falha" no mesmo documento.
 
 O CI de testes (`testes.yml`) roda em push/PR para `main` e `claude/**`.
 

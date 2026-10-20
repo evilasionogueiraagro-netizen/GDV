@@ -78,14 +78,18 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   /* ================= 3. código, sessão expirada/revogada, isolamento ================= */
   console.log('3. Código de ativação, sessão e isolamento');
   const C2 = await post({ action: 'painelAdmCodigo', key: TOK, id: A2.liberado.id });
-  ok(C2.ok && /^\d{6}$/.test(C2.codigo) && C2.expiraEm > Date.now() + 6 * 864e5, 'painel gera código de 6 dígitos (7 dias) para o liberado', C2);
+  ok(C2.ok && /^\d{6}$/.test(C2.codigo) && C2.expiraEm === 0 && C2.permanente === true, 'painel gera código de 6 dígitos, permanente, para o liberado', C2);
   const S2 = await post({ action: 'admCodigo', codigo: C2.codigo });
   ok(S2.ok && S2.nome === 'Bia Lima Administrativa' && S2.origem === 'codigo', 'login por código → mesma sessão do portal', S2);
-  r = await post({ action: 'admCodigo', codigo: C2.codigo }); ok(!r.ok && /incorreto ou já usado/.test(r.erro), 'código de uso único', r.erro);
+  r = await post({ action: 'admCodigo', codigo: C2.codigo }); ok(r.ok && r.sessao !== S2.sessao, 'código permanente: o mesmo código entra de novo (nova sessão)', r.erro || r.origem);
+  const lst = await post({ action: 'painelAdmLista', key: TOK });
+  ok(lst.liberados.find(x => x.id === A2.liberado.id).codigo === C2.codigo, 'painel continua mostrando o código depois do uso');
   const C3 = await post({ action: 'painelAdmCodigo', key: TOK, id: A3.liberado.id });
-  await get(`/__editar?aba=Administrativo&col=codigoExpira&valor=1&onde=id:${A3.liberado.id}`);
-  r = await post({ action: 'admCodigo', codigo: C3.codigo }); ok(!r.ok && /expirado/.test(r.erro), 'código vencido recusado', r.erro);
-  const C3b = await post({ action: 'painelAdmCodigo', key: TOK, id: A3.liberado.id }), S3 = await post({ action: 'admCodigo', codigo: C3b.codigo });
+  await get(`/__editar?aba=Administrativo&col=codigoExpira&valor=1&onde=id:${A3.liberado.id}`);   // validade antiga (7 dias) vencida
+  r = await post({ action: 'admCodigo', codigo: C3.codigo }); ok(r.ok, 'código com a validade antiga vencida continua valendo (sem expiração)', r.erro);
+  const C3b = await post({ action: 'painelAdmCodigo', key: TOK, id: A3.liberado.id });
+  r = await post({ action: 'admCodigo', codigo: C3.codigo }); ok(!r.ok && /substituído/.test(r.erro), 'gerar outro código invalida o anterior', r.erro);
+  const S3 = await post({ action: 'admCodigo', codigo: C3b.codigo });
   ok(S3.ok, 'novo código para Caio');
   // isolamento
   r = await post({ action: 'painelConvenios', key: G.sessao }); ok(!r.ok && /Sessão do painel inválida/.test(r.erro), 'sessão do portal não vale no painel', r.erro);
@@ -95,9 +99,9 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   r = await post({ action: 'admDados' }); ok(!r.ok && /Sessão do portal/.test(r.erro), 'sem sessão: recusado', r.erro);
   // expirada
   const sesTab = await get('/__aba?nome=AdmSessoes'), iAdm = sesTab[0].indexOf('admId');
-  ok(sesTab.length === 4 && sesTab.slice(1).every(l => /^[0-9a-f]{64}$/.test(l[1])), 'aba AdmSessoes: 3 sessões, só com hash', sesTab.length);
+  ok(sesTab.length === 6 && sesTab.slice(1).every(l => /^[0-9a-f]{64}$/.test(l[1])), 'aba AdmSessoes: 5 sessões, só com hash', sesTab.length);
   await get(`/__editar?aba=AdmSessoes&col=expiraEm&valor=1&onde=admId:${A2.liberado.id}`);
-  r = await post({ action: 'admDados', sessao: S2.sessao }); ok(!r.ok && /expirada/.test(r.erro), 'sessão expirada (12 h) recusada', r.erro);
+  r = await post({ action: 'admDados', sessao: S2.sessao }); ok(!r.ok && /expirada/.test(r.erro), 'sessão expirada (30 dias sem uso) recusada', r.erro);
   void iAdm;
   // revogada
   r = await post({ action: 'admDados', sessao: S3.sessao }); ok(r.ok, 'Caio usa o portal');
@@ -105,6 +109,7 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   ok(r.ok && r.liberado.ativo === 0, 'painel revoga Caio');
   r = await post({ action: 'admDados', sessao: S3.sessao }); ok(!r.ok && /Sessão do portal/.test(r.erro), 'revogado: a sessão cai na próxima chamada', r.erro);
   r = await post({ action: 'painelAdmCodigo', key: TOK, id: A3.liberado.id }); ok(!r.ok && /revogado/.test(r.erro), 'revogado não recebe código', r.erro);
+  r = await post({ action: 'admCodigo', codigo: C3b.codigo }); ok(!r.ok, 'revogado: o código permanente deixa de valer', r.erro);
 
   /* ================= 4. lançamentos pelo portal ================= */
   console.log('4. Desembolso, físico, linhas de relatório e histórico');
@@ -206,7 +211,7 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   ok(/fora da vigência/.test(await p.textContent('#adm-fin-avisos')), 'aviso ao vivo: data fora da vigência');
   await p.fill('#pn-cf-data', '2026-09-20'); await p.fill('#pn-cf-doc', 'Memo nº 130/2026');
   ok(await p.locator('#pn-cf-srv-lista option[value="' + SRV + '"]').count() === 1, 'campo do servidor é texto livre com sugestão dos nomes já lançados');
-  await p.fill('#pn-cf-srv', SRV);
+  await p.fill('#pn-cf-srv', SRV); await p.fill('#pn-cf-mun', 'Presidente Figueiredo');
   await shot(p, 'portal_desembolso');
   await p.click('#pn-cf-salvar');
   await p.waitForFunction(() => /Lançado/.test(document.querySelector('[data-msg=fin]').textContent), null, { timeout: 15000 });
@@ -214,6 +219,9 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#adm-tab-conv-fin-lanc [data-csv]')]);
   const csv = fs.readFileSync(await dl.path(), 'utf8');
   ok(csv.includes(SRV) && /Memo nº 130\/2026/.test(csv), 'CSV do portal inclui o servidor', csv.slice(0, 200));
+  const fin = await get('/__aba?nome=ConvFinanceiro'), iMun = fin[0].indexOf('municipio'), iDoc = fin[0].indexOf('documento');
+  ok(iMun === fin[0].length - 1 && fin.some(l => l[iDoc] === 'Memo nº 130/2026' && l[iMun] === 'Presidente Figueiredo'), 'município do desembolso gravado (coluna municipio no fim de ConvFinanceiro)', fin[0].slice(-3));
+  ok((await p.textContent('#adm-tab-conv-fin-lanc')).includes('Presidente Figueiredo') && /Presidente Figueiredo/.test(csv), 'lista e CSV do portal mostram o município');
   // físico
   await PORTAL.aba(p, 'fisico'); await p.waitForSelector('#pn-conv-lanc-form');
   await p.selectOption('#pn-cl-etapa', '1.14'); await p.selectOption('#pn-cl-sub', 'jundia'); await p.fill('#pn-cl-data', '2026-09-15'); await p.fill('#pn-cl-qtd', '1'); await p.fill('#pn-cl-desc', 'Supervisão no Jundiá');

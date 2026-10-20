@@ -1,5 +1,6 @@
-// PCE — documentos do Cadastro de imóvel (monilíase), do Termo de Fiscalização do PCE e do Relatório de atividades.
-// Usado em três lugares: dentro dos modelos (pce-cadastro-moniliase.html, pce-termo.html, pce-relatorio.html), no app de campo
+// PCE — documentos do Cadastro de imóvel (monilíase), do Cadastro de citros, do Termo de Fiscalização do PCE (o de citros tem modelo próprio)
+// e do Relatório de atividades. Usado em três lugares: dentro dos modelos (pce-cadastro-moniliase.html, pce-cadastro-citros.html, pce-termo.html,
+// pce-termo-citros.html, pce-relatorio.html), no app de campo
 // (docs.js abre o modelo num iframe e chama PCEDocs.montar) e no painel (relatório). Sem dependências: só DOM e dados.
 //
 // Os modelos são HTML declarativo: [data-c="campo"] recebe o texto; [data-m="campo=valor"] vira "(X)" ou "( )" (cadastro, como no papel);
@@ -66,6 +67,41 @@ const PCEDocs = (() => {
       dataTxt: dataBR(c.data), servCargo: c.cargo || '', servMat: c.matricula ? 'Matrícula: ' + c.matricula : '', servLot: c.lotacao ? 'Lotação: ' + c.lotacao : '' };
   }
 
+  /* ---------- Citros: Cadastro de imóveis de produção comercial de cítricos e Termo de Fiscalização de citros ---------- */
+  // rótulos da tabela "Cultura do citros" (os códigos são os de CONFIG.PCE.citros.atividades; o modelo roda sem o config do app)
+  const ATIV_CITROS = { viveiro_mudas: 'Viveiro – produção de mudas', viveiro_semorigem: 'Viveiro – material de propagação sem origem genética comprovada',
+    viveiro_portaenxerto: 'Viveiro – porta-enxerto', viveiro_clonal: 'Viveiro – jardins clonais e borbulheiras', frutos: 'Produção comercial de frutos', outros: 'Outros' };
+  const obj = x => (x && typeof x === 'object' && !Array.isArray(x) ? x : {});
+  const arr = x => (Array.isArray(x) ? x : []);
+  const numTxt = v => (v === '' || v == null ? '' : String(v).replace('.', ','));
+  function valoresCadastroCitros(c) {
+    const d = lerJSON(c.dados, {}), dl = obj(d.delimitacao), dt = obj(d.deteccao);
+    const det = {}; ['cancro', 'hlb', 'acaro'].forEach(k => { const x = obj(dt[k]); det[k] = { tem: x.tem || '', tempo: x.tem === 'sim' ? x.tempo || '' : '' }; });
+    const pp = obj(dl.pintapreta);
+    const culturas = arr(d.culturas).filter(x => x && typeof x === 'object').map(x => ({ atividade: x.atividade === 'outros' && d.atividadeOutros ? d.atividadeOutros : ATIV_CITROS[x.atividade] || '',
+      cultivar: x.cultivar || '', area: numTxt(x.area), idade: numTxt(x.idade), plantas: numTxt(x.plantas), producao: numTxt(x.producao) }));
+    return { ...c, d: { ...d, atividades: arr(d.atividades), formasEntrega: arr(d.formasEntrega), compradores: arr(d.compradores), materiais: arr(d.materiais),
+      deteccao: det, delimitacao: { pintapreta: { tem: pp.tem || '', tempo: pp.tempo || '', controle: pp.controle || '', qual: pp.qual || '' } }, rt: { nome: '', conselho: '', ...obj(d.rt) },
+      compradorOutrosTxt: arr(d.compradores).includes('outros') && d.compradorOutros ? '(' + d.compradorOutros + ')' : '' }, culturas,
+      cpf: digitos(c.doc).length === 14 ? '' : fmtDoc(c.doc), cnpjTxt: fmtDoc(c.cnpj || (digitos(c.doc).length === 14 ? c.doc : '')),
+      latTxt: c.lat === '' || c.lat == null ? '' : String(c.lat).replace('.', ','), lonTxt: c.lon === '' || c.lon == null ? '' : String(c.lon).replace('.', ','),
+      dataTxt: dataBR(c.data), servCargo: c.cargo || '', servMat: c.matricula ? 'Matrícula: ' + c.matricula : '', servLot: c.lotacao ? 'Lotação: ' + c.lotacao : '' };
+  }
+  function valoresTermoCitros(t) {
+    const v = valoresTermo(t), h = String(t.hora || '').slice(0, 5).split(':');
+    return { ...v, localAcao: String(lerJSON(t.tipoLocal, [])[0] || ''), horaH: h[0] || '', horaM: h[1] || '', coordLat: t.lat === '' || t.lat == null ? '' : String(t.lat).replace('.', ','),
+      coordLon: t.lon === '' || t.lon == null ? '' : String(t.lon).replace('.', ',') };
+  }
+  /** Linhas da tabela "Cultura do citros" (no mínimo 4, como no papel). */
+  function linhasCulturas(pg, culturas) {
+    const tb = pg.querySelector('[data-lista=culturasCitros]'); if (!tb) return;
+    const doc = pg.ownerDocument, l = culturas.slice();
+    while (l.length < 4) l.push(null);
+    tb.textContent = '';
+    l.forEach(c => { const tr = doc.createElement('tr'); tr.className = c ? 'cheia' : 'vazia';
+      ['atividade', 'cultivar', 'area', 'idade', 'plantas', 'producao'].forEach(k => { const td = doc.createElement('td'); td.textContent = c ? c[k] : ''; tr.append(td); }); tb.append(tr); });
+  }
+
   /* ---------- Relatório de atividades ---------- */
   /**
    * Agregados do relatório a partir dos Termos de Fiscalização do PCE (e dos cadastros ligados).
@@ -110,7 +146,11 @@ const PCEDocs = (() => {
   }
 
   /* ---------- montagem no documento (dentro do iframe do modelo) ---------- */
-  const TEMPLATES = { termo: 'pce-termo.html', cadastro: 'pce-cadastro-moniliase.html', relatorio: 'pce-relatorio.html' };
+  const TEMPLATES = { termo: 'pce-termo.html', cadastro: 'pce-cadastro-moniliase.html', relatorio: 'pce-relatorio.html',
+    termoCitros: 'pce-termo-citros.html', cadastroCitros: 'pce-cadastro-citros.html' };
+  /** Modelo de um termo/cadastro conforme o programa (citros tem modelo próprio). */
+  const tipoDoRegistro = (tipo, reg) => (reg && reg.programa === 'citros' && (tipo === 'termo' || tipo === 'cadastro') ? tipo + 'Citros' : tipo);
+  const VALORES = { termo: valoresTermo, cadastro: valoresCadastro, termoCitros: valoresTermoCitros, cadastroCitros: valoresCadastroCitros, relatorio: valoresRelatorio };
   const cacheModelo = {};
   /** Página modelo (.a4) de outro arquivo de documentos (para anexar termos/cadastros ao relatório); o <style> dele vem junto, uma vez. */
   async function modeloDe(doc, tipo) {
@@ -122,8 +162,9 @@ const PCEDocs = (() => {
     return doc.importNode(pg, true);
   }
   function preencherPagina(pg, tipo, dados, arquivos) {
-    const r = tipo === 'termo' ? valoresTermo(dados) : tipo === 'cadastro' ? valoresCadastro(dados) : valoresRelatorio(dados);
+    const r = VALORES[tipo](dados);
     preencher(pg, r);
+    if (tipo === 'cadastroCitros') linhasCulturas(pg, r.culturas);
     if (tipo === 'relatorio') {
       const ul = pg.querySelector('[data-lista=servidores]');
       if (ul) { ul.textContent = ''; (dados.servidores || []).forEach(s => { const li = pg.ownerDocument.createElement('div'); li.textContent = [s.nome, s.funcao].filter(Boolean).join(' - '); ul.append(li); }); }
@@ -132,23 +173,29 @@ const PCEDocs = (() => {
     return pg;
   }
   /**
-   * Preenche o documento aberto (doc = documento do modelo). tipo: termo | cadastro | relatorio.
-   * opcoes.arquivos = {id: arquivo} (assinaturas); no relatório, opcoes.anexos = {termos:[...], cadastros:[...]} vira páginas depois do relatório.
+   * Preenche o documento aberto (doc = documento do modelo). tipo: termo | cadastro | termoCitros | cadastroCitros | relatorio.
+   * opcoes.arquivos = {id: arquivo} (assinaturas); no relatório, opcoes.anexos = {termos:[...], cadastros:[...]} vira páginas depois do relatório
+   * (termo/cadastro de citros com o modelo de citros); opcoes.extras = [{tipo, dados, arquivos, antes}] = outras páginas antes/depois (citros:
+   * Cadastro de citros + Termo de Fiscalização da visita no mesmo PDF).
    */
   async function montar(doc, tipo, dados, opcoes) {
     opcoes = opcoes || {};
     const pg = doc.querySelector('.a4');
     preencherPagina(pg, tipo, dados, opcoes.arquivos);
+    let ult = pg, prim = pg;
     if (tipo === 'relatorio' && opcoes.anexos) {
-      let ult = pg;
-      for (const [t, lista] of [['termo', opcoes.anexos.termos || []], ['cadastro', opcoes.anexos.cadastros || []]]) {
-        for (const reg of lista) { const n = preencherPagina(await modeloDe(doc, t), t, reg, (opcoes.arquivosPorReg || {})[reg.id]); n.classList.add('anexo'); ult.after(n); ult = n; }
+      for (const [t0, lista] of [['termo', opcoes.anexos.termos || []], ['cadastro', opcoes.anexos.cadastros || []]]) {
+        for (const reg of lista) { const t = tipoDoRegistro(t0, reg), n = preencherPagina(await modeloDe(doc, t), t, reg, (opcoes.arquivosPorReg || {})[reg.id]); n.classList.add('anexo'); ult.after(n); ult = n; }
       }
+    }
+    for (const x of opcoes.extras || []) {
+      const n = preencherPagina(await modeloDe(doc, x.tipo), x.tipo, x.dados, x.arquivos);
+      if (x.antes) { prim.before(n); prim = n; } else { ult.after(n); ult = n; }
     }
     await Promise.all([...doc.images].map(im => (im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; }))));
     return doc.querySelectorAll('.a4').length;
   }
 
-  return { montar, preencher, calcularRelatorio, valoresTermo, valoresCadastro, totalPlantas, coordTxt, fmtDoc, dataBR, HOSP, nomeHosp, norm, listaE, lerJSON };
+  return { montar, preencher, calcularRelatorio, valoresTermo, valoresCadastro, valoresTermoCitros, valoresCadastroCitros, tipoDoRegistro, totalPlantas, coordTxt, fmtDoc, dataBR, HOSP, nomeHosp, norm, listaE, lerJSON };
 })();
 if (typeof window !== 'undefined') window.PCEDocs = PCEDocs;

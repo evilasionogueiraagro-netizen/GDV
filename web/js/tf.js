@@ -516,15 +516,21 @@ const TFUI = (() => {
     await desenharAss(st); Sync.sincronizar();
     toast(recusa !== undefined ? (rec ? 'Recusa registrada.' : 'Recusa desmarcada.') : img ? 'Assinatura salva.' : 'Assinatura removida.');
   }
+  let verRemovidos = false;
   async function lista() {
     if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());
     const mostrar = tela();
     const todos = (await Store.todos('tfs')).sort((a, b) => b.criadoEm - a.criadoEm);
+    // TF cancelado e já enviado pode sair da lista deste aparelho (só aqui: na planilha, no painel e na auditoria continua, com o número usado)
+    const removidos = new Set((await Store.meta('tfsRemovidos')) || []);
     if (!mostrar.viva()) return;
-    view(`<button class="botao" data-tf="novo">➕ Novo TF</button><div class="card"><label>Pesquisar (nº, nome, CPF/CNPJ, placa)<input id="tfQ"></label></div><div id="tfItens"></div>`);
+    const nRem = todos.filter(t => removidos.has(t.id)).length;
+    if (!nRem) verRemovidos = false;
+    view(`<button class="botao" data-tf="novo">➕ Novo TF</button><div class="card"><label>Pesquisar (nº, nome, CPF/CNPJ, placa)<input id="tfQ"></label>
+      ${nRem ? `<label class="chk"><input type="checkbox" id="tfVerRem" ${verRemovidos ? 'checked' : ''}> Mostrar os excluídos da lista (${nRem})</label>` : ''}</div><div id="tfItens"></div>`);
     const desenhar = () => {
       const q = $('#tfQ').value.trim().toUpperCase(), qd = digitos(q);
-      const v = todos.filter(t => !q || t.numeroTxt.toUpperCase().includes(q) || t.nome.toUpperCase().includes(q) || (qd && digitos(t.doc).includes(qd)) || placaNorm(t.placa).includes(placaNorm(q)));
+      const v = todos.filter(t => verRemovidos || !removidos.has(t.id)).filter(t => !q || t.numeroTxt.toUpperCase().includes(q) || t.nome.toUpperCase().includes(q) || (qd && digitos(t.doc).includes(qd)) || placaNorm(t.placa).includes(placaNorm(q)));
       $('#tfItens').innerHTML = v.length ? v.map(t => `<div class="item"><div class="topo"><div><div class="placa">${esc(t.numeroTxt)}</div><div class="tipo">${esc(t.nome)}</div></div>
         <div class="hora">${dBR(t.data)}</div></div>
         <div class="info">${esc(PROC[t.procedimento] || 'Sem procedimento')}${t.placa ? ' · ' + esc(t.placa) : ''}${t.reincidente ? ' · ⚠️ reincidente' : ''}</div>
@@ -532,9 +538,12 @@ const TFUI = (() => {
         ${t.conflito ? '<div class="info pend">⚠️ Número duplicado na planilha: confira com a coordenação.</div>' : ''}
         ${t.pendente ? `<div class="info pend">⏳ ${t.provisorio ? 'número provisório, será conferido ao sincronizar' : 'aguardando envio'}</div>` : ''}
         <div class="botoes"><button class="editar" data-tf="abrir" data-id="${esc(t.id)}">Abrir</button><button class="editar" data-tf="imprimir" data-id="${esc(t.id)}">Imprimir</button>
-        ${t.cancelado ? '' : `<button class="excluir" data-tf="cancelar" data-id="${esc(t.id)}">Cancelar TF</button>`}</div></div>`).join('') : '<div class="vazio">Nenhum TF neste aparelho.</div>';
+        ${t.cancelado ? '' : `<button class="excluir" data-tf="cancelar" data-id="${esc(t.id)}">Cancelar TF</button>`}
+        ${t.cancelado && !t.pendente ? (removidos.has(t.id) ? `<button class="editar" data-tf="restaurar" data-id="${esc(t.id)}">Voltar para a lista</button>`
+          : `<button class="excluir" data-tf="tirar" data-id="${esc(t.id)}">Excluir da lista</button>`) : ''}</div></div>`).join('') : '<div class="vazio">Nenhum TF neste aparelho.</div>';
     };
     desenhar(); $('#tfQ').oninput = desenhar;
+    if ($('#tfVerRem')) $('#tfVerRem').onchange = e => { verRemovidos = e.target.checked; desenhar(); };
   }
 
   /* ---------- ações (cliques) ---------- */
@@ -553,6 +562,13 @@ const TFUI = (() => {
         else if (PR && $('#tf-ass-card')) await gravarAssinatura(PR, papel, img);
       }
       else if (a === 'imprimir') await Docs.tf(id);
+      else if (a === 'tirar' || a === 'restaurar') {
+        const t = await Store.obter('tfs', id); if (!t) return;
+        if (a === 'tirar' && (!t.cancelado || t.pendente)) return toast('Só TF cancelado e já enviado à planilha pode sair da lista.', true);
+        if (a === 'tirar' && !confirm(`Excluir o TF ${t.numeroTxt} (cancelado) da lista deste aparelho?\n\nEle continua na planilha e na auditoria, com o número usado.`)) return;
+        const r = new Set((await Store.meta('tfsRemovidos')) || []); if (a === 'tirar') r.add(id); else r.delete(id);
+        await Store.setMeta('tfsRemovidos', [...r]); toast(a === 'tirar' ? 'TF excluído da lista.' : 'TF de volta à lista.'); lista();
+      }
       else if (a === 'cancelar') {
         const motivo = prompt('Motivo do cancelamento (o número do TF continua usado):'); if (motivo == null) return;
         const t = await Store.obter('tfs', id); await Store.salvar('tfs', { ...t, cancelado: 1, motivoCancel: motivo.trim().slice(0, 300) });

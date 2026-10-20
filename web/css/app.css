@@ -234,6 +234,12 @@ input:disabled { background:#eef1f6; color:#99a; }
   #toast { bottom:28px; left:calc(50% + 108px); }
   #pceItens, #lista, .lista-itens { display:grid; grid-template-columns:repeat(auto-fill, minmax(420px, 1fr)); gap:12px; align-items:start; }
   #pceItens > .item, #pceItens > .card { margin:0; } #pceItens > .dica, #pceItens > .vazio { grid-column:1 / -1; }
+  /* levantamentos do PCE: um por linha, dados à esquerda e botões à direita */
+  #pceItens { grid-template-columns:1fr; gap:8px; }
+  #pceItens > .pce-lev { display:grid; grid-template-columns:minmax(0, 1fr) minmax(0, 1.25fr); column-gap:18px; align-items:center; padding:10px 14px; }
+  .pce-lev > :not(.pce-acoes) { grid-column:1; } .pce-lev .placa.pce-nome { font-size:18px; letter-spacing:.5px; }
+  .pce-lev > .pce-acoes { grid-column:2; grid-row:1 / span 4; margin:0; display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:6px; }
+  .pce-lev > .pce-acoes button { padding:7px 6px; font-size:13.5px; }
 }
 @media (min-width:1400px) { main { max-width:1120px; } main:has(> form) { max-width:940px; } }
 /* PCE: atalhos para cadastros, termos de fiscalização e relatório (o fluxo principal é a visita: levantamento → termo) */

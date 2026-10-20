@@ -245,7 +245,7 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
   ok(!d.ok && /valor de aquisição/i.test(d.erro), 'servidor: bem adquirido sem valor recusado', d.erro);
   ok(/Lançado/.test(await lancar({ etapa: '1.1', bem: 'pickup-urucurituba', sit: 'entregue', data: '2026-09-02', doc: 'NF 4521', valor: '68.042,00', qtdbem: '1', fonte: 'contrapartida' })), 'bem 1.1: pick-up entregue (setembro) com valor de aquisição');
   const fBem = await pa.evaluate(() => AdmConvenio.estado().dados.financeiro.filter(x => x.chave === 'bem|991272-2025|pickup-urucurituba'));
-  ok(fBem.length === 1 && fBem[0].item === '1.1.4' && fBem[0].natureza === '44.90.52' && fBem[0].valor === 68042 && fBem[0].quantidade === 1 && fBem[0].fonte === 'contrapartida' && fBem[0].origem === 'bem' && fBem[0].documento === 'NF 4521',
+  ok(fBem.length === 1 && fBem[0].item === '1.1.4' && fBem[0].natureza === '44.90.52' && fBem[0].valor === 68042 && fBem[0].quantidade === 1 && fBem[0].municipio === 'Urucurituba' && fBem[0].fonte === 'contrapartida' && fBem[0].origem === 'bem' && fBem[0].documento === 'NF 4521',
     'valor de aquisição virou desembolso no item 1.1.4 (44.90.52, contrapartida, NF)', fBem);
   const linBem = await pa.$$eval('#adm-tab-conv-lancamentos tbody tr', trs => trs.map(t => t.innerText).filter(x => /Entregue/.test(x) && /Pick-up/.test(x)));
   ok(linBem.length === 1 && /R\$\s?68\.042,00/.test(linBem[0]) && /\t1\t/.test(linBem[0]), 'lista de lançamentos físicos: o bem entregue mostra valor (R$ 68.042,00) e quantidade (1)', linBem);

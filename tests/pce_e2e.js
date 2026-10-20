@@ -110,6 +110,7 @@ const ANO = new Date().getFullYear();
   ok(await A.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), 'formulário sem rolagem horizontal no celular');
   await assinar(A, '#pce-ass-servidor'); await A.waitForTimeout(700);
   await A.fill('#pce-obs', 'Plantas com sintomas de murcha.');
+  for (const k of ['hlb', 'acaro', 'cancro']) await A.click(`#pce-citros label:has(input[name="pce-ci-det-${k}-tem"][value="nao"])`);   // praga de citros: detecção obrigatória
   await A.click('#pce-salvar'); await A.waitForSelector('#pce-lev-pronto');
   ok(await A.locator('#pce-lev-pronto').count() === 1 && /Fusarium R4T/.test(await A.textContent('#pce-lev-pronto')) && /Mosca-negra-dos-citros/.test(await A.textContent('#pce-lev-pronto')), 'depois de salvar: tela com o resumo por praga');
   const botoesPdf = await A.locator('[data-pce=imprimirlev]').allTextContents();
@@ -263,7 +264,8 @@ const ANO = new Date().getFullYear();
   ok(pr.cancelado && /TERMO CANCELADO – digitação errada/.test(pr.texto) && pr.paginas === 2, 'PDF do cancelado com faixa CANCELADO nas 2 vias');
 
   console.log('9) rascunhos automáticos');
-  await A.click('nav [data-v=pcelev]'); await A.waitForSelector('#pceLevForm'); await A.fill('#pce-nome', 'RASCUNHO PCE');
+  await A.click('nav [data-v=pcelev]'); await A.waitForSelector('#pceLevForm');
+  await A.fill('#pce-doc', '12345678909'); await A.fill('#pce-nome', 'RASCUNHO PCE');   // os dados do produtor abrem depois do CPF/CNPJ
   await A.selectOption(PR(0) + ' >> .p-praga', 'HLB / Greening'); await A.selectOption(CU(0, 0) + ' >> .c-cultura', 'Açaí'); await A.click(CU(0, 0) + ' >> .pce-res-suspeita');
   await A.setInputFiles(CU(0, 0) + ' >> .c-fotos', [{ name: 'r.jpg', mimeType: 'image/jpeg', buffer: await imagem(A, 300, 200, '#33c') }]); await A.waitForSelector(CU(0, 0) + ' >> .pce-foto img');
   await A.waitForTimeout(900);
@@ -346,6 +348,7 @@ const ANO = new Date().getFullYear();
   await Cd.fill('#pce-nome', 'Agro Longo Ltda'); await Cd.fill('#pce-propriedade', 'Sítio Nossa Senhora Aparecida do Rio Preto da Eva km 32 ramal do Pau Rosa');
   await Cd.selectOption(PR(0) + ' >> .p-praga', 'Cancro Cítrico'); await Cd.click(CU(0, 0) + ' >> .pce-res-nao_detectada');
   await Cd.selectOption(CU(0, 0) + ' >> .c-cultura', 'Banana'); ok(await Cd.getAttribute(CU(0, 0) + ' >> .c-area', 'maxlength') === '60' && await Cd.getAttribute(PR(0) + ' >> .p-outra', 'maxlength') === '80', 'campos livres das culturas e da praga com tamanho máximo');
+  for (const k of ['hlb', 'acaro', 'cancro']) await Cd.click(`#pce-citros label:has(input[name="pce-ci-det-${k}-tem"][value="nao"])`);   // praga de citros: detecção obrigatória
   await Cd.fill('#pce-data', ''); await Cd.click('#pce-salvar'); await Cd.waitForTimeout(300);
   ok(/Informe a data/.test(await Cd.textContent('#toast')) && await Cd.locator('#pceLevForm').count() === 1, 'levantamento sem data não é salvo');
   await Cd.fill('#pce-data', '2026-10-09');

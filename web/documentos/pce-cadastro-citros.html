@@ -1,0 +1,140 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Cadastro de imóveis de produção comercial de cítricos</title>
+<link rel="stylesheet" href="pce.css">
+<style>
+/* Cadastro de imóveis de produção comercial de cítricos — layout do modelo de papel da ADAF/GDV (1 folha A4; IN 21/2018 e Portaria 317/2021).
+   Estilos com prefixo .doc-cci (o Termo de Fiscalização de citros e o relatório anexam esta página). Caixas: [data-x] ganha "on" = X. */
+@page{ size:A4 portrait; margin:8mm 7mm; }
+.doc-cci{ font-family:Calibri, Carlito, Arial, Helvetica, sans-serif; font-size:9.4px; }
+.doc-cci .cab{ text-align:center; line-height:1.3; margin-bottom:1.5mm; }
+.doc-cci .cab img{ height:44px; }
+.doc-cci .cab div{ font-family:Arial, Helvetica, sans-serif; font-size:11.5px; }
+.doc-cci .cq{ border:1.2px solid #000; }
+.doc-cci table.ln{ width:100%; border-collapse:collapse; table-layout:fixed; }
+.doc-cci table.ln + table.ln{ margin-top:-1px; }
+.doc-cci table.ln td{ border:1px solid #000; padding:1px 3px; font-size:9.4px; vertical-align:middle; line-height:1.25; }
+.doc-cci table.ln td.tit{ text-align:center; font-weight:bold; font-size:16px; padding:3px; font-family:Arial, Helvetica, sans-serif; }
+.doc-cci table.ln td.tit2{ text-align:center; font-weight:bold; font-size:13.5px; padding:2px 3px 0; font-family:Arial, Helvetica, sans-serif; }
+.doc-cci .tit2 .num{ display:inline-block; min-width:44mm; border-bottom:1px solid #000; font-size:12px; font-family:'Courier New', monospace; text-align:center; }
+.doc-cci .tit2 .leg{ font-size:9px; text-align:right; padding-right:30mm; letter-spacing:.2px; }
+.doc-cci table.ln td.atend{ text-align:center; font-style:italic; font-size:8.6px; line-height:1.3; }
+.doc-cci table.ln td.sec{ text-align:center; font-weight:bold; font-size:12.5px; padding:1px 3px; }
+.doc-cci table.ln td.sec.esq{ text-align:left; font-weight:normal; }
+.doc-cci .b{ font-weight:bold; }
+.doc-cci .m{ font-family:'Courier New', monospace; font-weight:bold; white-space:nowrap; }
+.doc-cci .v{ font-family:'Courier New', monospace; font-weight:bold; font-size:10px; border-bottom:1px solid #000; display:inline-block; min-width:16mm; padding:0 2px; vertical-align:bottom; line-height:1.2; overflow-wrap:anywhere; }
+.doc-cci .v.l{ min-width:96mm; } .doc-cci .v.m2{ min-width:34mm; } .doc-cci .v.s{ min-width:8mm; } .doc-cci .v.c{ min-width:22mm; }
+.doc-cci table.ln.dados td, .doc-cci table.ln tr.dados td{ line-height:1.95; font-size:9.4px; }
+.doc-cci td.bx{ width:4.2mm; position:relative; }
+.doc-cci td.bx.on::after{ content:'X'; position:absolute; left:0; right:0; top:50%; transform:translateY(-50%); text-align:center; font-weight:bold; font-size:10px; }
+.doc-cci .vert{ text-align:center; font-weight:bold; line-height:1.05; width:4.5mm; }
+.doc-cci .viv td{ height:5.2mm; }
+.doc-cci .cult th{ border:1px solid #000; font-size:9.4px; font-weight:bold; text-align:center; background:none; padding:1px; line-height:1.2; }
+.doc-cci table.ln.cult td{ height:7.5mm; text-align:center; font-family:'Courier New', monospace; font-weight:bold; font-size:9.6px; overflow-wrap:anywhere; }
+.doc-cci table.ln.cult tr.cheia td{ height:6mm; }
+.doc-cci table.ln.op td{ height:5.2mm; }
+.doc-cci .tx{ font-family:'Courier New', monospace; font-weight:bold; font-size:9.8px; }
+.doc-cci table.ln.assin td{ border:1px solid #000; padding:1mm 4mm 1mm; }
+.doc-cci .assin .cols{ display:flex; justify-content:space-between; align-items:flex-start; }
+.doc-cci .assin .col{ width:34%; text-align:center; font-weight:bold; font-size:9.4px; }
+.doc-cci .assin .ass-img{ height:11mm; display:flex; align-items:flex-end; justify-content:center; }
+.doc-cci .assin .ass-img img{ max-height:12mm; max-width:95%; }
+.doc-cci .assin .linha{ border-top:1px solid #000; padding-top:1px; }
+.doc-cci .assin .serv{ font-weight:normal; font-size:8.6px; line-height:1.2; }
+.doc-cci .assin .data{ text-align:center; font-size:9.4px; margin-top:1.5mm; }
+.doc-cci .vias{ display:flex; justify-content:space-around; font-size:9.4px; margin-top:1px; }
+.doc-cci .rodape{ margin-top:2mm; }
+</style>
+</head>
+<body>
+<div class="a4 doc-cci">
+  <div class="via"></div>
+  <div class="cab"><img src="../img/brasao.png" alt="">
+    <div>GOVERNO DO ESTADO DO AMAZONAS</div>
+    <div>Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM</div>
+    <div>Gerência de Defesa Vegetal – GDV</div></div>
+  <div class="cq">
+  <table class="ln"><tr><td class="tit">CADASTRO DE IMÓVEIS DE PRODUÇÃO COMERCIAL DE CÍTRICOS</td></tr>
+    <tr><td class="tit2">CADASTRO DA PROPRIEDADE Nº <span class="num" data-c="numeroTxt"></span>
+      <div class="leg">Nº sequencial &nbsp;&nbsp; Ano &nbsp;&nbsp;&nbsp; Unidade</div></td></tr>
+    <tr><td class="atend">(ATENDIMENTO A IN N°21 DE 25/04/2018 - Cancro cítrico e Portaria Nº 317 de 21/05/2021 - HLB)<br>LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS DE CITROS</td></tr>
+    <tr><td style="height:3mm"></td></tr></table>
+  <table class="ln"><colgroup><col style="width:31.5%"><col style="width:15.5%"><col></colgroup>
+    <tr><td class="b" style="font-size:12px">PROPRIEDADE COMERCIAL?</td>
+      <td><span class="m" data-m="d.comercial=sim"></span> SIM &nbsp;<span class="m" data-m="d.comercial=nao"></span> NÃO</td>
+      <td>Marcada opção “NÃO” preencher apenas itens 1, 4 e 5.</td></tr>
+    <tr><td colspan="3" style="font-size:8.6px">Propriedade não comercial: <span class="m" data-m="d.naoComercial=sitio"></span> sítio; <span class="m" data-m="d.naoComercial=residencia"></span> residência;
+      <span class="m" data-m="d.naoComercial=vegetacao"></span> vegetação espontânea; <span class="m" data-m="d.naoComercial=publica"></span> área pública;
+      <span class="m" data-m="d.naoComercial=outros"></span>outros: <span class="tx" data-c="d.naoComercialOutros"></span></td></tr></table>
+  <table class="ln"><tr><td class="sec">1. &nbsp; DADOS DO PRODUTOR/PROPRIETÁRIO</td></tr>
+    <tr class="dados"><td>
+      NOME DO PRODUTOR <span class="v l" data-c="nome"></span> CPF: <span class="v m2" data-c="cpf"></span><br>
+      NOME DA PROPRIEDADE: <span class="v l" data-c="propriedade"></span> CNPJ: <span class="v m2" data-c="cnpjTxt"></span><br>
+      CÓDIGO DA PROPRIEDADE (CONFORME IN N°33/2016): <span class="v m2" data-c="d.codigoPropriedade"></span> GEORREFERENCIAMENTO: Lat.: <span class="v c" data-c="latTxt"></span> Lon.: <span class="v c" data-c="lonTxt"></span><br>
+      ENDEREÇO: <span class="v l" data-c="d.endereco"></span> MUNICIPIO: <span class="v m2" data-c="municipio"></span> UF: <span class="v s" data-c="uf"></span></td></tr>
+    <tr><td class="sec">2. &nbsp; TIPO DE ATIVIDADE</td></tr></table>
+  <table class="ln viv"><colgroup><col style="width:4.5%"><col style="width:4.5%"><col style="width:51%"><col style="width:4.5%"><col></colgroup>
+    <tr><td class="vert" rowspan="4">V<br>I<br>V<br>E<br>I<br>R<br>O</td><td class="bx" data-x="d.atividades=viveiro_mudas"></td><td class="b">Produção de Mudas</td>
+      <td class="bx" rowspan="2" data-x="d.atividades=frutos"></td><td class="b" rowspan="2">Produção comercial de Frutos</td></tr>
+    <tr><td class="bx" data-x="d.atividades=viveiro_semorigem"></td><td class="b">Fornecedor de Material de Propagação sem origem genética comprovada</td></tr>
+    <tr><td class="bx" data-x="d.atividades=viveiro_portaenxerto"></td><td class="b">Campos de Produção de Porta-Enxerto</td>
+      <td class="bx" rowspan="2" data-x="d.atividades=outros"></td><td class="b" rowspan="2">Outros (especificar): <span class="tx" data-c="d.atividadeOutros"></span></td></tr>
+    <tr><td class="bx" data-x="d.atividades=viveiro_clonal"></td><td class="b">Jardins Clonais e Borbulheiras</td></tr></table>
+  <table class="ln op"><colgroup><col style="width:12.7%"><col style="width:3%"><col style="width:15.9%"><col style="width:2.4%"><col style="width:14.3%"><col style="width:2.4%"><col style="width:11.4%"><col style="width:2.4%"><col></colgroup>
+    <tr><td class="b">SITUAÇÃO FUNDIÁRIA:</td><td class="bx" data-x="d.situacao=proprietario"></td><td>PROPRIETÁRIO</td><td class="bx" data-x="d.situacao=arrendatario"></td><td>ARRENDATÁRIO</td>
+      <td class="bx" data-x="d.situacao=cooperativa"></td><td>COOPERATIVA</td><td class="bx" data-x="d.situacao=outras"></td><td>OUTRAS (ESPECIFICAR): <span class="tx" data-c="d.situacaoOutras"></span></td></tr></table>
+  <table class="ln"><tr><td class="sec">3. &nbsp; CULTURA DO CITROS</td></tr></table>
+  <table class="ln cult"><colgroup><col style="width:28.2%"><col style="width:22.3%"><col style="width:8.8%"><col style="width:9.2%"><col style="width:17.4%"><col></colgroup>
+    <thead><tr><th>TIPO DE ATIVIDADE</th><th>CULTIVAR</th><th>ÁREA<br>(ha)</th><th>IDADE<br>(Ano)</th><th>QUANTIDADE (plantas)</th><th>PRODUÇÃO<br>(tonelada/Ano)</th></tr></thead>
+    <tbody data-lista="culturasCitros"></tbody></table>
+  <table class="ln op"><colgroup><col style="width:15.7%"><col style="width:3%"><col style="width:3.9%"><col style="width:2.6%"><col style="width:4.2%"><col style="width:10.3%"><col style="width:2.6%"><col style="width:5.2%"><col style="width:3.1%"><col style="width:4.8%"><col style="width:2.6%"><col></colgroup>
+    <tr><td>Entrega na propriedade:</td><td class="bx" data-x="d.entrega=sim"></td><td>sim</td><td class="bx" data-x="d.entrega=nao"></td><td>Não</td><td>De que forma:</td>
+      <td class="bx" data-x="d.formasEntrega=saco"></td><td>saco</td><td class="bx" data-x="d.formasEntrega=caixa"></td><td>caixa</td><td class="bx" data-x="d.formasEntrega=granel"></td><td>a granel</td></tr></table>
+  <table class="ln op"><colgroup><col style="width:15.7%"><col style="width:3%"><col style="width:9.6%"><col style="width:3.3%"><col style="width:10.7%"><col style="width:2.6%"><col style="width:5.7%"><col style="width:3.5%"><col style="width:9.1%"><col style="width:2.7%"><col></colgroup>
+    <tr><td>Com quem comercializa:</td><td class="bx" data-x="d.compradores=atravessador"></td><td>atravessador</td><td class="bx" data-x="d.compradores=supermercado"></td><td>supermercado</td>
+      <td class="bx" data-x="d.compradores=feira"></td><td>feira</td><td class="bx" data-x="d.compradores=cooperativa"></td><td>cooperativa</td><td class="bx" data-x="d.compradores=outros"></td>
+      <td>outros <span class="tx" data-c="d.compradorOutrosTxt"></span></td></tr></table>
+  <table class="ln op"><colgroup><col style="width:15.7%"><col style="width:3%"><col style="width:3.9%"><col style="width:2.6%"><col style="width:5.3%"><col></colgroup>
+    <tr><td>Beneficia o fruto:</td><td class="bx" data-x="d.beneficia=sim"></td><td>sim</td><td class="bx" data-x="d.beneficia=nao"></td><td>não</td><td>Tipo: <span class="tx" data-c="d.beneficiaTipo"></span></td></tr></table>
+  <table class="ln op"><colgroup><col style="width:15.7%"><col style="width:3%"><col style="width:6.6%"><col style="width:3%"><col style="width:7.5%"><col style="width:2.6%"><col style="width:7.9%"><col style="width:2.2%"><col></colgroup>
+    <tr><td>Material de propagação:</td><td class="bx" data-x="d.materiais=muda"></td><td>muda</td><td class="bx" data-x="d.materiais=borbulha"></td><td>borbulha</td>
+      <td class="bx" data-x="d.materiais=cavalinho"></td><td>cavalinho</td><td class="bx" data-x="d.materiais=semente"></td><td>semente</td></tr></table>
+  <table class="ln op"><colgroup><col style="width:18.6%"><col></colgroup>
+    <tr><td>Origem do material genético:</td><td class="tx" data-c="d.origemMaterial"></td></tr></table>
+  <table class="ln"><tr><td class="sec">4. &nbsp; LEVANTAMENTO DE DELIMITAÇÃO</td></tr></table>
+  <table class="ln op"><colgroup><col style="width:13.4%"><col style="width:3.9%"><col style="width:6.6%"><col style="width:4.3%"><col style="width:4.8%"><col></colgroup>
+    <tr><td class="b">Pinta Preta</td><td class="bx" data-x="d.delimitacao.pintapreta.tem=sim"></td><td>sim</td><td class="bx" data-x="d.delimitacao.pintapreta.tem=nao"></td><td>não</td>
+      <td>Há quanto tempo: <span class="tx" data-c="d.delimitacao.pintapreta.tempo"></span></td></tr>
+    <tr><td>Utiliza met. controle:</td><td class="bx" data-x="d.delimitacao.pintapreta.controle=sim"></td><td>sim</td><td class="bx" data-x="d.delimitacao.pintapreta.controle=nao"></td><td>não</td>
+      <td>Qual: <span class="tx" data-c="d.delimitacao.pintapreta.qual"></span></td></tr></table>
+  <table class="ln"><tr><td class="sec">5. &nbsp; LEVANTAMENTO DE DETECÇÃO</td></tr></table>
+  <table class="ln op det"><colgroup><col style="width:13.4%"><col style="width:3.9%"><col style="width:6.6%"><col style="width:4.3%"><col style="width:4.8%"><col></colgroup>
+    <tr><td class="b">Cancro Cítrico</td><td class="bx" data-x="d.deteccao.cancro.tem=sim"></td><td>sim</td><td class="bx" data-x="d.deteccao.cancro.tem=nao"></td><td>não</td>
+      <td>Há quanto tempo: <span class="tx" data-c="d.deteccao.cancro.tempo"></span></td></tr>
+    <tr><td class="b">HLB</td><td class="bx" data-x="d.deteccao.hlb.tem=sim"></td><td>sim</td><td class="bx" data-x="d.deteccao.hlb.tem=nao"></td><td>não</td>
+      <td>Há quanto tempo: <span class="tx" data-c="d.deteccao.hlb.tempo"></span></td></tr>
+    <tr><td class="b">Ácaro Hindustânico</td><td class="bx" data-x="d.deteccao.acaro.tem=sim"></td><td>sim</td><td class="bx" data-x="d.deteccao.acaro.tem=nao"></td><td>não</td>
+      <td>Há quanto tempo: <span class="tx" data-c="d.deteccao.acaro.tempo"></span></td></tr></table>
+  <table class="ln op"><colgroup><col style="width:77.7%"><col></colgroup>
+    <tr><td>NOME DO RESPONSAVEL TÉCNICO: <span class="tx" data-c="d.rt.nome"></span></td><td>N° CONSELHO: <span class="tx" data-c="d.rt.conselho"></span></td></tr></table>
+  <table class="ln assin"><tr><td>
+    <div class="cols">
+      <div class="col" data-ass="servidor"><div class="ass-img"></div><div class="linha">SERVIDOR DA ADAF-AM</div>
+        <div class="serv"><b data-c="servidor"></b><br><span data-c="servCargo"></span><br><span data-c="servMat"></span> <span data-c="servLot"></span></div></div>
+      <div class="col" data-ass="produtor"><div class="ass-img"></div><div class="linha">PRODUTOR/PROPRIETÁRIO</div><div class="serv" data-c="nome"></div></div></div>
+    <div class="data">DATA: <span class="v m2" data-c="dataTxt"></span></div></td></tr></table>
+  </div>
+  <div class="vias"><span>1ª via: Unidade Local</span><span>2ª via: ADAF Central (E-mail)</span></div>
+  <div class="rodape">
+    <div class="rodape-esquerda" style="font-size:10px">Avenida Carlos Drummond de Andrade, 1460 Japiim<br>Conj. Atílio Andreazza. ULBRA, Bloco G, 1º andar<br>
+      Fone: (92) 99192-3067 / 99983-1176<br>Manaus-AM-CEP 69077-730<br>E-mail: gabinete@adaf.am.gov.br</div>
+    <div class="rodape-centro"><img src="../img/logo-adaf.png" alt="ADAF"></div>
+    <div class="rodape-direita" style="font-size:11px">Secretaria de Produção Rural do Estado do Amazonas – SEPROR/AM</div>
+  </div>
+</div>
+<script src="pce-docs.js"></script>
+</body>
+</html>

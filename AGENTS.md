@@ -11,7 +11,7 @@ publicado no GitHub Pages                            Web App do Apps Script     
 ```
 
 - **Front** (`web/`): app do fiscal (`index.html`, `js/`; IndexedDB + `sw.js` com Background Sync), painel (`painel/`),
-  portal (`administrativo/`), dashboard público (`dashboard/`), modelos de documento (`documentos/`), `verificar.html`.
+  portal (`administrativo/`), dashboard público (`dashboard/`), página inicial com os atalhos (`inicio/`), modelos de documento (`documentos/`), `verificar.html`.
 - **Back** (`apps-script/Code.gs`, arquivo único ~4.900 linhas): um endpoint, `doPost`, que despacha por `req.action`.
   Contrato completo em [docs/API.md](docs/API.md). Seções marcadas com `/* ---------- Título ---------- */`.
 - **Banco**: `TABELAS` (topo do `Code.gs`) define cada aba e suas colunas. Células em texto puro (`'@'`).

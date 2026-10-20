@@ -376,7 +376,7 @@ const Campo = (() => {
     if (!S.D || !$('#campo-lista')) return;
     const v = filtrados(), com = v.filter(x => x.lat != null), sem = v.filter(x => x.lat == null), MAX = 150;
     const st = $('#campo-pos-st');
-    if (st) st.textContent = S.pos ? `${icone('local')} Sua posição: ${S.pos.lat.toFixed(5)}, ${S.pos.lng.toFixed(5)} (± ${S.pos.prec} m)` : 'Sem a sua posição: lista por nome.';
+    if (st) st.textContent = S.pos ? `Sua posição: ${S.pos.lat.toFixed(5)}, ${S.pos.lng.toFixed(5)} (± ${S.pos.prec} m)` : 'Sem a sua posição: lista por nome.';
     if (MAPA) {
       MAPA.pontos.clearLayers();
       const rend = com.length > 800 ? L.canvas() : undefined;              // muitos pontos: desenho em canvas (mais leve)
@@ -407,7 +407,7 @@ const Campo = (() => {
     const ix = mostra.findIndex(x => x.lat == null);
     if (ix > 0) { const el = document.querySelectorAll('#campo-lista .campo-item')[ix]; if (el) el.insertAdjacentHTML('beforebegin', '<div class="campo-sep">Sem localização</div>'); }
     else if (ix === 0) $('#campo-lista').insertAdjacentHTML('afterbegin', '<div class="campo-sep">Sem localização</div>');
-    const rb = $('#campo-rota-btn'); if (rb) rb.textContent = `${icone('rota')} Rota (${S.rota.ids.length})`;
+    const rb = $('#campo-rota-btn'); if (rb) rb.textContent = `Rota (${S.rota.ids.length})`;
     if (S.sel) cartao();
   }
   function selecionar(id) {

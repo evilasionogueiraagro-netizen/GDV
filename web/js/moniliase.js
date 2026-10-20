@@ -83,7 +83,7 @@ const PCEMon = (() => {
     const g = await pegarLocal(); if (!$('#' + pref + 'lat')) return;
     if (!g) { if (st) st.textContent = 'GPS indisponível ou permissão negada.'; return; }
     $('#' + pref + 'lat').value = String(g.lat).replace('.', ','); $('#' + pref + 'lon').value = String(g.lng).replace('.', ',');
-    if (st) st.textContent = `${icone('check')} GPS (precisão ~${g.prec} m)`; mostrarCoord(pref); agendar();
+    if (st) st.textContent = `✓ GPS (precisão ~${g.prec} m)`; mostrarCoord(pref); agendar();
   }
 
   /* ---------- peças do formulário (botões grandes sim/não, caixas, números) ---------- */

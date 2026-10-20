@@ -398,7 +398,7 @@ const PCEUI = (() => {
     if (!form.isConnected) return;
     if (!g) { st.textContent = automatico ? 'Toque em “Atualizar GPS” para registrar a localização.' : 'GPS indisponível ou permissão negada. Toque em “Atualizar GPS” para tentar de novo.'; return; }
     $('#' + pref + 'lat').value = g.lat; $('#' + pref + 'lon').value = g.lng; $('#' + pref + 'precisao').value = g.prec;
-    st.textContent = `${icone('check')} Localização obtida (precisão aproximada: ${g.prec} m).`;
+    st.textContent = `✓ Localização obtida (precisão aproximada: ${g.prec} m).`;
     agendarRascunho();
   }
   const gpsHTML = (pref, D) => `<div class="duas"><label>Latitude<input id="${pref}lat" readonly value="${esc(D.lat)}"></label>
@@ -1239,7 +1239,7 @@ const PCEUI = (() => {
         <div class="duas"><button class="botao sec" id="pce-m-cancel" type="button">Cancelar</button><button class="botao" id="pce-m-ok" type="button">Confirmar e gerar</button></div></div>`;
       document.body.append(m); const i = m.querySelector('input');
       const prev = () => { const n = +i.value || 0; m.querySelector('#pce-num-prev').innerHTML = `<b>${esc(numTxt(n, o.ano, o.unidade))}</b>`;
-        m.querySelector('#pce-num-edit').textContent = n && n !== o.sugerido ? `${icone('editar')} Número alterado (o sistema sugeriu ${num3(o.sugerido)}). Isso fica registrado para auditoria.` : ''; };
+        m.querySelector('#pce-num-edit').textContent = n && n !== o.sugerido ? `Número alterado (o sistema sugeriu ${num3(o.sugerido)}). Isso fica registrado para auditoria.` : ''; };
       i.oninput = prev; prev(); i.focus(); i.select();
       m.querySelector('#pce-m-cancel').onclick = () => { m.remove(); ok(null); };
       m.querySelector('#pce-m-ok').onclick = () => { const n = parseInt(i.value, 10); if (!(n > 0)) { toast('Informe o número do termo.', true); return; } m.remove(); ok(n); };

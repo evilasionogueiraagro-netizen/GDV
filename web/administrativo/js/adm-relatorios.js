@@ -109,7 +109,7 @@
     try {
       const j = await A.chamar({ action: 'admRelLancar', ano: E.ano, lancamentos: lancs });
       E.dados[E.ano] = await A.chamar({ action: 'admRelDados', ano: E.ano }); iniciar();
-      E.msg = { t: `Gravado ${icone('check')} (${j.gravados} linha(s) alterada(s))`, cls: 'ok' }; desenhar();
+      E.msg = { t: `Gravado ✓ (${j.gravados} linha(s) alterada(s))`, cls: 'ok' }; desenhar();
     } catch (e) { if (A.logado) setMsg('Não gravou: ' + e.message, 'erro'); }
   }
   function montar() {

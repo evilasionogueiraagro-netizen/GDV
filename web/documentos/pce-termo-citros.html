@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Termo de Fiscalização (citros)</title>
+<link rel="stylesheet" href="pce.css">
+<style>
+/* Termo de Fiscalização do PCE — citros: layout do modelo de papel da ADAF (1 folha A4). Prefixo .doc-tci (o Cadastro de citros e o relatório anexam
+   esta página). A descrição da ação traz data, hora, o local especificado e as frases de ausência/presença de HLB, Ácaro Hindustânico e Cancro Cítrico. */
+@page{ size:A4 portrait; margin:8mm 7mm; }
+.doc-tci{ font-family:Arial, Helvetica, sans-serif; }
+.doc-tci .cab{ text-align:center; line-height:1.3; margin-bottom:3mm; }
+.doc-tci .cab img{ height:58px; }
+.doc-tci .cab .gov{ font-size:12px; font-weight:bold; }
+.doc-tci .cab .ag{ font-size:12px; font-weight:bold; }
+.doc-tci table.tq{ width:100%; border-collapse:collapse; border:1.2px solid #000; table-layout:fixed; }
+.doc-tci table.tq td{ border:1px solid #000; padding:2px 6px; font-size:14px; vertical-align:top; }
+.doc-tci table.tq td.tit{ font-size:25px; font-weight:bold; padding:6px 8px 2px; white-space:nowrap; }
+.doc-tci .tit .num{ display:inline-block; min-width:62mm; border-bottom:1px solid #000; font-size:17px; text-align:center; margin-left:6mm; font-family:'Courier New', monospace; }
+.doc-tci .tit .leg{ font-size:10.5px; font-weight:bold; text-align:right; padding-right:7mm; }
+.doc-tci table.tq td.sec, .doc-tci .sec{ font-size:15px; font-weight:bold; padding-top:2px; }
+.doc-tci .sec small{ font-size:10.5px; font-weight:normal; }
+.doc-tci .gap{ height:4mm; }
+.doc-tci .v{ font-family:'Courier New', monospace; font-weight:bold; font-size:13px; overflow-wrap:anywhere; }
+.doc-tci table.tq td.desc{ text-align:justify; line-height:2; font-size:14px; padding:6px 8px; }
+.doc-tci .desc u{ text-decoration:none; border-bottom:1px dotted #000; padding:0 4px; font-family:'Courier New', monospace; font-weight:bold; font-size:13px; }
+.doc-tci .desc .local{ display:inline; }
+.doc-tci .peq{ font-size:9.5px; text-align:center; line-height:1.2; }
+.doc-tci .linhas{ background-image:linear-gradient(to bottom, transparent 21px, #555 21px, #555 22px); background-size:100% 22px; background-position:0 -1px; line-height:22px;
+  font-family:'Courier New', monospace; font-weight:bold; font-size:13px; white-space:pre-wrap; overflow-wrap:anywhere; min-height:110px; text-align:left; }
+.doc-tci .enq{ min-height:58px; font-size:14px; }
+.doc-tci .tst .lin{ font-size:14px; margin-top:8px; }
+.doc-tci .tst .lin u{ text-decoration:none; display:inline-block; min-width:52mm; border-bottom:1px solid #000; font-family:'Courier New', monospace; font-weight:bold; font-size:12px; }
+.doc-tci .ass{ text-align:center; font-size:14px; margin-top:2px; }
+.doc-tci .ass .ass-img{ height:15mm; display:flex; align-items:flex-end; justify-content:center; }
+.doc-tci .ass .ass-img img{ max-height:15mm; max-width:90%; }
+.doc-tci .ass .linha{ border-top:1px solid #000; margin:0 4mm; padding-top:1px; }
+.doc-tci .ass.b{ font-weight:bold; }
+.doc-tci .ass .ident{ font-size:10px; font-weight:normal; }
+.doc-tci .vias{ display:flex; justify-content:space-around; font-size:12.5px; margin-top:3mm; }
+.doc-tci .cancelado-faixa{ margin:2mm 0; }
+</style>
+</head>
+<body>
+<div class="a4 doc-tci">
+  <div class="via"></div>
+  <div class="cab"><img src="../img/brasao.png" alt="">
+    <div class="gov">GOVERNO DO ESTADO DO AMAZONAS</div>
+    <div class="ag">Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM</div></div>
+  <div class="cancelado-faixa" data-c="cancelado"></div>
+  <table class="tq">
+    <tr><td class="tit">TERMO DE FISCALIZAÇÃO N° <span class="num" data-c="numeroTxt"></span>
+      <div class="leg">N° sequencial &nbsp;&nbsp;&nbsp;&nbsp; Ano &nbsp;&nbsp;&nbsp;&nbsp;&nbsp; Unidade</div></td></tr>
+    <tr><td style="height:3mm"></td></tr>
+    <tr><td class="sec">1- Identificação</td></tr>
+  </table>
+  <div class="gap"></div>
+  <table class="tq">
+    <colgroup><col style="width:33.5%"><col style="width:3.9%"><col style="width:11.4%"><col style="width:8.9%"><col style="width:10.4%"><col></colgroup>
+    <tr><td colspan="2">Nome:<br><span class="v" data-c="nome"></span></td><td colspan="3">CPF:<br><span class="v" data-c="cpf"></span></td><td>Atividade:<br><span class="v" data-c="atividade"></span></td></tr>
+    <tr><td colspan="2">Empresa / Fantasia:<br><span class="v" data-c="empresa"></span></td><td colspan="3">CNPJ:<br><span class="v" data-c="cnpjTxt"></span></td><td>Atividade:<br><span class="v" data-c="atividadeEmpresa"></span></td></tr>
+    <tr><td colspan="6">Endereço: <span class="v" data-c="endereco"></span></td></tr>
+    <tr><td>Município: <span class="v" data-c="municipio"></span></td><td colspan="3">UF: <span class="v" data-c="uf"></span></td><td colspan="2">Telefone: <span class="v" data-c="telefone"></span></td></tr>
+    <tr><td colspan="6">Coordenadas Geográficas: <span class="v" data-c="coordLat"></span> <b>/</b> <span class="v" data-c="coordLon"></span></td></tr>
+    <tr><td colspan="6" class="sec">2 – Descrição da Ação</td></tr>
+    <tr><td colspan="6" class="desc">Em <u data-c="dataTxt"></u> às <u data-c="horaH"></u> : <u data-c="horaM"></u> hora(s) ao realizar fiscalização no(a) <u class="local" data-c="localAcao"></u> constatei
+      <div class="peq">(especificar o local)</div>
+      <div class="linhas" data-c="constatacao"></div>
+      <div class="peq">(descrever a situação constatada)</div></td></tr>
+    <tr><td colspan="6" class="sec">3 – Enquadramento Legal <small>(citar leis, decretos, resoluções, portarias, instruções normativas, artigos, incisos e alíneas)</small></td></tr>
+    <tr><td colspan="6"><div class="v enq" data-c="enquadramento"></div></td></tr>
+    <tr class="tst">
+      <td colspan="3" rowspan="3" style="width:48.8%"><div class="sec" style="padding:0">4 – Testemunhas</div>
+        <div class="peq">(necessário apenas quando o autuado se negar em assinar o documento ou quando estiver ausente).</div>
+        <div class="lin">Nome: <u data-c="t1nome"></u></div><div class="lin">CPF/RG: <u data-c="t1doc"></u></div>
+        <div class="ass" data-ass="testemunha1"><div class="ass-img"></div><div class="linha">Assinatura</div></div>
+        <div class="lin">Nome: <u data-c="t2nome"></u></div><div class="lin">CPF/RG: <u data-c="t2doc"></u></div>
+        <div class="ass" data-ass="testemunha2"><div class="ass-img"></div><div class="linha">Assinatura</div></div></td>
+      <td colspan="3" style="height:26mm"><b>Recebi a 2ª via deste Termo em:</b><div style="font-size:9.5px">(Data, hora e local).</div>
+        <div class="v" style="font-size:12px" data-c="recebidoEm"></div></td></tr>
+    <tr><td colspan="3"><div class="ass b" data-ass="produtor"><div class="ass-img"></div><div class="linha">Assinatura</div></div></td></tr>
+    <tr><td colspan="3"><div class="ass b" data-ass="servidor"><div class="ass-img"></div><div class="linha">Assinatura e Identificação do Servidor da ADAF</div>
+      <div class="ident" data-c="servidorIdent"></div></div></td></tr>
+  </table>
+  <div class="vias"><span>1ª via: Interessado</span><span>2ª via: ADAF Central</span><span>3ª via: Unidade Local</span></div>
+  <div class="rodape">
+    <div class="rodape-esquerda" style="font-size:10px">Avenida Carlos Drummond de Andrade, 1460 Japiim<br>Conj. Atílio Andreazza. ULBRA, Bloco G, 1º andar<br>
+      Fone: (92) 99192-3067 / 99983-1176<br>Manaus-AM-CEP 69077-730<br>E-mail: gabinete@adaf.am.gov.br</div>
+    <div class="rodape-centro"><img src="../img/logo-adaf.png" alt="ADAF"></div>
+    <div class="rodape-direita" style="font-size:11px">Secretaria de Produção Rural do Estado do Amazonas – SEPROR/AM</div>
+  </div>
+</div>
+<script src="pce-docs.js"></script>
+</body>
+</html>

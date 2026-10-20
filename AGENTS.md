@@ -60,7 +60,8 @@ publicado no GitHub Pages                            Web App do Apps Script     
 
 ```sh
 cd tests && npm ci && npx playwright-core install chromium   # uma vez
-node run.js                     # suíte inteira (~10 min)
+node run.js --paralelo 4        # suíte inteira em 4 partes ao mesmo tempo (~6 min): rode antes de cada push
+node run.js                     # suíte inteira em fila (~11 min)
 node run.js painel_test tf_e2e  # só alguns
 node run.js --lista             # nomes disponíveis
 ```
@@ -91,7 +92,9 @@ Drive da conta anterior.
    Workflow "Publicar Apps Script" falhou: o back no ar fica para trás do front sem ninguém perceber. Confira a versão no ar
    (`GET /exec`) e veja "Quando o workflow falha" no mesmo documento.
 
-O CI de testes (`testes.yml`) roda em push/PR para `main` e `claude/**`.
+O CI de testes (`testes.yml`) roda uma vez por mudança: no PR para a `main` (testa o resultado do merge) e no push da `main`, em 4 partes
+ao mesmo tempo (`--parte N/4`, ~4 min). Branch sem PR: Actions → Testes automáticos → Run workflow. Teste novo ou que mudou muito de
+tempo: atualize o `PESO` do `run.js` (tempo no CI, no resumo do log), senão as partes ficam desequilibradas.
 
 ## Onde achar contexto
 

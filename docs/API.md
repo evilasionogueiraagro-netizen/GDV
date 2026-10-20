@@ -157,7 +157,7 @@ gravação entra no histórico (aba `AdmHistorico`, com antes/depois).
 | Action | Parâmetros | O que faz | Proteções |
 |---|---|---|---|
 | `tfVerificar` | `id` (UUID do TF) | autenticidade do TF (`verificar.html`, QR code) | placa mascarada; máx. 30 ids inválidos/min |
-| `publicoDados` | `periodo`, `previa` (+ `key` de admin para pré-visualizar) | números agregados do dashboard público | cache de 5 min, limite de recálculos, números < 3 suprimidos, grade de ~11 km |
+| `publicoDados` | `periodo` (`15d`, `30d`, `ano`, `anoAnterior`, `tudo`, `intervalo` + `de`/`ate` AAAA-MM-DD; intervalo inválido → `{ok:false, intervaloInvalido:true, erro}`), `previa` (+ `key` de admin para pré-visualizar) | números agregados do dashboard público | cache de 5 min, limite de recálculos, números < 3 suprimidos, grade de ~11 km |
 
 ## Funções fora do `doPost`
 

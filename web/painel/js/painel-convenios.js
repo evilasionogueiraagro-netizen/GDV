@@ -307,13 +307,17 @@
     lista.innerHTML = '';
     P.tabela(lista, [{ chave: 'data', rotulo: 'Data', fmt: F.data }].concat(sel ? [] : [{ chave: 'etapa', rotulo: 'Etapa' }]).concat(sel && E.finItem ? [] : [{ chave: 'item', rotulo: 'Item', fmt: (v, l) => itemNome(l) }]).concat([
       { chave: 'natureza', rotulo: 'Natureza' }, { chave: 'quantidade', rotulo: 'Qtd.', num: true, fmt: v => v == null ? '—' : F.num(v) },
-      { chave: 'valor', rotulo: 'Valor', num: true, fmt: F.moeda, csv: v => v }, { chave: 'municipio', rotulo: 'Município', fmt: v => v || '—' }, { chave: 'documento', rotulo: 'Documento', fmt: v => v || '—' },
+      { chave: 'valor', rotulo: 'Valor', num: true, fmt: F.moeda, csv: v => v }, { chave: 'municipio', rotulo: 'Município', fmt: (v, l) => munFin(l) || '—', csv: (v, l) => munFin(l) }, { chave: 'documento', rotulo: 'Documento', fmt: v => v || '—' },
       { chave: 'fonte', rotulo: 'Fonte', fmt: v => v === 'contrapartida' ? 'Contrapartida' : 'Repasse' }, { chave: 'servidorNome', rotulo: 'Servidor', fmt: v => v || '—' }, { chave: 'descricao', rotulo: 'Descrição', fmt: v => v || '—' },
       { chave: 'origem', rotulo: 'Origem', fmt: (v, l) => v === 'planilha' ? `Planilha${l.importadoEm ? ' ' + F.data(new Date(l.importadoEm - 4 * 3600e3).toISOString()) : ''}` : v === 'bem' ? 'Bem (aquisição)' : 'Manual' },
       { chave: 'usuario', rotulo: 'Lançado pelo Administrativo', fmt: lancadoEm }]),
       lst, { id: 'conv-fin-lanc', titulo, subtitulo: `${lst.length} lançamento${lst.length === 1 ? '' : 's'} · ${F.moeda(soma(lst))}${diarias ? ` · ${F.num(diarias, 1)} diárias` : ''}`,
         csv: `convenio-${c.id}-financeiro-lancamentos${sel ? '-' + sel.e.id + (E.finItem ? '-' + E.finItem : '') : ''}.csv`, limite: 30, vazio: 'Nenhum lançamento financeiro ainda.' });
   }
+
+  // município do desembolso: o lançado; aquisição de bem (chave bem|<convênio>|<bem>) sem município = local do bem
+  const munFin = l => { if (l.municipio) return l.municipio; const m = /^bem\|[^|]*\|(.+)$/.exec(l.chave || ''); if (!m) return '';
+    const b = cfg().etapas.flatMap(e => e.bens || []).find(x => x.id === m[1]); return b ? b.local || '' : ''; };
 
   /* ---------------- Relatório ---------------- */
   function visaoRel(v) {

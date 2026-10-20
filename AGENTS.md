@@ -21,6 +21,7 @@ por área; `Code.gs` tem o `doPost`, `TABELAS` e `VERSAO_CODIGO`. Testes em `tes
 | Modelo de dados (diagrama de classes) | [docs/arquitetura.md](docs/arquitetura.md) |
 | Decisões tomadas e em aberto | [docs/decisoes/](docs/decisoes/README.md) |
 | Ideias para depois | [docs/IDEIAS.md](docs/IDEIAS.md) |
+| Branches, commits e PRs | [docs/FLUXO-GIT.md](docs/FLUXO-GIT.md) |
 
 ## Regras que não podem ser quebradas (detalhes em docs/regras.md)
 

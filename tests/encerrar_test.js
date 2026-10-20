@@ -47,7 +47,7 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
     'planilha: encerrado=1, fim, encerradoPor, encerradoEm, atualizadoEm=srv_ts=agora', { encerrado: L1.encerrado, fim: L1.fim, por: L1.encerradoPor });
   ok(L1.usuario === 'Fiscal Encerra Souza', 'a linha continua do fiscal (usuario) — é ele quem recebe no sync');
   const cab = (await get('/__aba?nome=Turnos'))[0];
-  ok(cab.slice(-3).join() === 'semPlaca,encerradoPor,encerradoEm', 'colunas novas no FIM da aba Turnos', cab.slice(-4));
+  ok(cab.slice(-4).join() === 'semPlaca,encerradoPor,encerradoEm,importacao', 'colunas novas no FIM da aba Turnos (depois, a da importação do relatório de plantão)', cab.slice(-5));
   r = await enc(ADM, 's1', '12:00'); ok(!r.ok && /já está encerrado/.test(r.erro) && r.erro.includes(fim1) && /Gerente Encerra Silva/.test(r.erro), 'já encerrado: recusado com mensagem clara', r.erro);
   // turno que passou da meia-noite: 22:00 → 02:00 = 4 h
   r = await enc(ADM, 's3', '02:00'); ok(r.ok && r.turno.fimTs - r.turno.inicioTs === 4 * 3600e3, 'fim antes do início = dia seguinte (22:00 → 02:00 = 4 h)', r.turno && (r.turno.fimTs - r.turno.inicioTs) / 3600e3);

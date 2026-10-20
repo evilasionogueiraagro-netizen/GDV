@@ -22,14 +22,19 @@ const TABELAS = {
   Turnos: ['id', 'numeroTF', 'data', 'letra', 'inicio', 'fim', 'fiscal', 'local', 'unidade', 'posto',
            'encerrado', 'criadoEm', 'atualizadoEm', 'srv_ts',
            'latIni', 'lngIni', 'precIni', 'latFim', 'lngFim', 'precFim', 'usuario', 'semPlaca',   // colunas novas ficam sempre no fim (semPlaca=1: placa opcional no turno)
-           'encerradoPor', 'encerradoEm'],   // turno encerrado fora do aparelho: nome do administrador (painel) ou "Automático (12 h)", e quando (ms)
+           'encerradoPor', 'encerradoEm',    // turno encerrado fora do aparelho: nome do administrador (painel) ou "Automático (12 h)", e quando (ms)
+           'importacao'],                    // turno criado pela importação do relatório de plantão do papel (portal): id da importação
   Veiculos: ['id', 'turnoId', 'hora', 'placa', 'tipo', 'pessoas', 'obs',
              'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
              // ufOrigem/ufDestino: "Origem e destino (opcional)" do formulário do veículo (sigla de CONFIG.ufs ou "Exterior"; vazio = não
              // informado) — entram no VIGIFITO (internalização / cargas para outros estados) quando o veículo não tem TF ligado.
              // HISTÓRICO (o formulário não grava mais; não entram mais em nenhum cálculo; colunas mantidas pelos dados antigos):
              // semEducacao, medidaFito, carga, produtos (JSON ["PRODUTO - 10 Kg", …]), partida, inspecaoFito, docConferido
-             'semEducacao', 'medidaFito', 'carga', 'produtos', 'ufOrigem', 'ufDestino', 'partida', 'inspecaoFito', 'docConferido'],
+             'semEducacao', 'medidaFito', 'carga', 'produtos', 'ufOrigem', 'ufDestino', 'partida', 'inspecaoFito', 'docConferido',
+             // relatório de plantão do papel importado no portal (admPlantaoImportar; o app não grava): município de origem/destino,
+             // transportador, carga (JSON [{p, q, u}], como os produtos do TF), medida (liberacao | apreensao), nº do TF do papel,
+             // documento apresentado e o id da importação. Veículo com medidaPapel conta no VIGIFITO como partida fiscalizada (motorBarreira_).
+             'origemMun', 'destinoMun', 'transportador', 'cargaPapel', 'medidaPapel', 'tfPapel', 'docPapel', 'importacao'],
   Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm', 'perfil',   // perfil: vazio = fiscal, 'admin' = administrador
             'geradoPor',                                                             // quem gerou o código: nome do administrador (painel) ou "planilha" (menu)
             'oculto', 'ocultoPor', 'ocultoEm'],                                      // "Remover da lista" no painel: oculto=1 some da aba Servidores (a linha fica, para auditoria)
@@ -149,7 +154,7 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criad
                           'semEducacao', 'medidaFito', 'carga', 'partida', 'inspecaoFito', 'docConferido'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, pragas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000,
-                        dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000, citros: 20000 };   // demais colunas: 500
+                        dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000, citros: 20000, cargaPapel: 3000 };   // demais colunas: 500
 // culturas/fotos/assinaturas são JSON: cortar o texto invalidaria o JSON (e apagaria as referências no aparelho). Os limites acima
 // cabem numa célula (50.000 caracteres) e o app limita a quantidade de culturas/fotos e o tamanho dos campos para nunca chegar neles.
 const VALIDADE_CODIGO_MS = 7 * 24 * 3600 * 1000;      // código de ativação vale 7 dias
@@ -158,7 +163,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-20g';
+const VERSAO_CODIGO = '2026-10-20h';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -3134,7 +3139,10 @@ function ufDoTexto_(t) {
  *   destino a outra UF; outras unidades desses TFs à parte (outrasUnidades.carga). Veículo SEM TF ligado (TFs.veiculoId) com UF
  *   informada também conta em internN/cargasEstados (sem toneladas); com TF ligado, só o TF conta (nunca duas vezes).
  *   Os campos antigos de fiscalização do veículo (semEducacao, medidaFito, carga, produtos, partida, inspecaoFito, docConferido) não
- *   entram mais em nenhum número. */
+ *   entram mais em nenhum número.
+ *   Relatório de plantão do papel (importado no portal): o veículo com medidaPapel é uma partida fiscalizada sem TF no e-GDV e conta
+ *   como o TF de barreira contaria — partidas, medidaFito, liberação/apreensão (+ t da cargaPapel), auto de destruição (apreensão),
+ *   internT/importT ou exportT pelo sentido, documentos (docPapel) e tfs só quando o papel traz o nº do TF (tfPapel). */
 function motorBarreira_(de, ate) {
   const noPer = function (d) { d = String(d || '').slice(0, 10); return d >= de && d <= ate; };
   const tipoDe = function (t) { const p = normPub_(t.posto); return p.indexOf('mov') >= 0 || p.indexOf('volante') >= 0 ? 'volante' : 'fixa'; };
@@ -3142,7 +3150,7 @@ function motorBarreira_(de, ate) {
   lerLeitura_('Turnos').forEach(function (t) {
     if (!t.id) return;
     const o = { id: t.id, data: String(t.data || '').slice(0, 10), posto: t.posto, tipo: tipoDe(t), local: t.local, unidade: t.unidade, veiculos: 0, pessoas: 0,
-                educacao: 0, cargasEstados: 0, internN: 0 };
+                educacao: 0, cargasEstados: 0, internN: 0, papel: null };
     todos[t.id] = o;
     if (noPer(o.data)) turnos.push(o);
   });
@@ -3163,6 +3171,19 @@ function motorBarreira_(de, ate) {
     if (comTF[v.id]) return;                                                  // veículo com TF: a origem/destino conta pelo TF
     const sv = sentido(ori, des);
     if (sv === 'intern') t.internN++; else if (sv === 'estados') t.cargasEstados++;
+    if (v.medidaPapel !== 'liberacao' && v.medidaPapel !== 'apreensao') return;
+    const p = t.papel = t.papel || { partidas: 0, tfs: 0, documentos: 0, liberacao: 0, liberacaoT: 0, apreensao: 0, apreensaoT: 0, internT: 0, exportT: 0, outras: {} };
+    let cargaT = 0;
+    produtosTF_(v.cargaPapel).forEach(function (pr) {
+      if (pr.quantidade === null) return;
+      const tt = toneladas_(pr.quantidade, pr.unidade), u = pr.unidade || 'sem unidade';
+      if (tt !== null) { cargaT += tt; return; }
+      // outras unidades à parte, nos mesmos grupos do TF: liberacao/apreensao e carga (interestadual)
+      [v.medidaPapel].concat(sv ? ['carga'] : []).forEach(function (g) { const o = p.outras[g] = p.outras[g] || {}; o[u] = (o[u] || 0) + pr.quantidade; });
+    });
+    p.partidas++; if (String(v.tfPapel || '').trim()) p.tfs++; if (String(v.docPapel || '').trim()) p.documentos++;
+    p[v.medidaPapel]++; p[v.medidaPapel + 'T'] += cargaT;
+    if (sv === 'intern') p.internT += cargaT; else if (sv === 'estados') p.exportT += cargaT;
   });
   const tfs = [];
   tfsVivos.forEach(function (f) {
@@ -3269,6 +3290,11 @@ function vigApurar_(cfg, de, ate) {
     celulas(pid, t.data).forEach(function (x) {
       x.turnos++; if (t.tipo === 'volante') x.abordagem++; x.veiculos += t.veiculos; x.pessoas += t.pessoas;
       x.educacao += t.educacao; x.internN += t.internN; x.cargasEstados += t.cargasEstados;   // veículos sem TF ligado (motorBarreira_)
+      const p = t.papel; if (!p) return;                                      // partidas do relatório de plantão do papel
+      x.partidas += p.partidas; x.medidaFito += p.partidas; x.tfs += p.tfs; x.documentos += p.documentos;
+      x.liberacao += p.liberacao; x.liberacaoT += p.liberacaoT; x.apreensao += p.apreensao; x.apreensaoT += p.apreensaoT;
+      x.autoDestN += p.apreensao; x.autoDestT += p.apreensaoT; x.internT += p.internT; x.importT += p.internT; x.exportT += p.exportT;
+      Object.keys(p.outras).forEach(function (g) { const o = x.outrasUnidades[g] = x.outrasUnidades[g] || {}; Object.keys(p.outras[g]).forEach(function (u) { o[u] = (o[u] || 0) + p.outras[g][u]; }); });
     });
   });
   const cadB = {}; lerLeitura_('Barreiras').forEach(function (b) { if (b.id) cadB[b.id] = b; });
@@ -3430,6 +3456,156 @@ function painelVigConfigSalvar(token, req) {
   try { convGravar_('VigConfig', { id: 'vigifito', config: JSON.stringify(o), atualizadoEm: o.atualizadoEm, atualizadoPor: admin }); }
   finally { lock.releaseLock(); }
   return { ok: true, config: o };
+}
+
+/* ---------- Relatório de plantão do papel (portal → VIGIFITO → "Importar relatório de plantão") ----------
+ * O portal lê no navegador o "Relatório Diário de Trânsito Interestadual" da BVA (.xls; web/administrativo/js/plantao-planilha.js) e manda
+ * os dias do plantão (veículos por tipo e educação sanitária do quadro 1/2) e a lista de cargas. O servidor grava como se o plantão
+ * tivesse sido feito no app, na BVA do posto VIGIFITO escolhido: um turno por dia (início na troca do plantão, encerrado) e os veículos —
+ * as cargas da lista (placa, tipo, hora, município/UF de origem e destino, transportador, carga, medida, nº do TF, documento) e, para
+ * fechar a contagem por tipo do quadro 1, veículos sem placa. Educação sanitária do dia = pessoas (1 por veículo, das cargas para os
+ * demais). Os números saem do motor (motorBarreira_): a carga com medida conta como partida fiscalizada (ver o motor).
+ * Carga com hora antes da troca pertence ao plantão do dia anterior (o turno atravessa a meia-noite, como no app).
+ * id da importação = posto|1º dia: reimportar o mesmo plantão é recusado (jaImportado), a não ser com substituir = 1 — os veículos da
+ * importação anterior ficam excluídos (excluido = 1) e entram os novos; os turnos (mesmos ids) são atualizados.
+ */
+const PLANTAO_TIPOS_ = ['PA', 'UT', 'CC', 'CB', 'ON', 'MT'];
+const PLANTAO_MAX_CARGAS_ = 3000, PLANTAO_MAX_VEICULOS_ = 20000;
+/** Texto do papel: espaços normalizados, limite de tamanho e sem virar fórmula na planilha. */
+function plantaoTexto_(v, max) {
+  const t = String(v === null || v === undefined ? '' : v).replace(/\s+/g, ' ').trim().slice(0, max);
+  return /^[=+\-@]/.test(t) ? "'" + t : t;
+}
+function plantaoInt_(v, max, rot) {
+  const n = v === '' || v === null || v === undefined ? 0 : Number(v);
+  if (!isFinite(n) || n < 0 || Math.round(n) !== n || n > max) throw new Error(rot + ': número inteiro de 0 a ' + max + '.');
+  return n;
+}
+/** Valida o envio e monta turnos e veículos (sem gravar nada). */
+function plantaoMontar_(cfg, req, s) {
+  const posto = cfg.postos.filter(function (p) { return p.id === String(req.posto || '') && p.tipo === 'fixa'; })[0];
+  if (!posto) throw new Error('Escolha um posto fixo (BVA) do VIGIFITO.');
+  const local = String((posto.locais || [])[0] || '').trim();
+  if (!local) throw new Error('O posto ' + posto.nome + ' não tem BVA ligada (painel → Relatórios → VIGIFITO → postos).');
+  const troca = String(req.troca || '');
+  if (!RE_HM_.test(troca)) throw new Error('Horário da troca do plantão inválido (HH:MM, ex.: 07:00).');
+  const fiscal = plantaoTexto_(req.fiscal, 120) || 'Relatório de plantão (papel)', hoje = hojeManaus_();
+  const dias = Array.isArray(req.dias) ? req.dias : [];
+  if (!dias.length || dias.length > 31) throw new Error('O plantão precisa ter de 1 a 31 dias.');
+  const D = {}, ordem = [];
+  dias.forEach(function (d, i) {
+    const data = String((d && d.data) || ''), rot = 'Dia ' + (i + 1);
+    if (!diaValido_(data)) throw new Error(rot + ': data inválida.');
+    if (data > hoje) throw new Error(rot + ': data no futuro (' + data + ').');
+    if (D[data]) throw new Error(rot + ': dia repetido (' + data + ').');
+    const tipos = {};
+    PLANTAO_TIPOS_.forEach(function (k) { tipos[k] = plantaoInt_(d.tipos && d.tipos[k], 5000, rot + ', ' + k); });
+    D[data] = { data: data, tipos: tipos, educacao: plantaoInt_(d.educacao, 20000, rot + ', educação sanitária'), cargas: [] };
+    ordem.push(data);
+  });
+  ordem.sort();
+  const cargas = Array.isArray(req.cargas) ? req.cargas : [];
+  if (cargas.length > PLANTAO_MAX_CARGAS_) throw new Error('No máximo ' + PLANTAO_MAX_CARGAS_ + ' cargas por plantão.');
+  cargas.forEach(function (c, i) {
+    const rot = 'Carga ' + (i + 1);
+    if (!c || typeof c !== 'object') throw new Error(rot + ': inválida.');
+    const data = String(c.data || ''), hora = String(c.hora || '');
+    if (!diaValido_(data)) throw new Error(rot + ': data inválida.');
+    if (!RE_HM_.test(hora)) throw new Error(rot + ': hora inválida (HH:MM).');
+    const dia = hora < troca ? somarDias_(data, -1) : data;        // antes da troca = plantão do dia anterior
+    if (!D[dia]) throw new Error(rot + ' (' + data.split('-').reverse().join('/') + ' ' + hora + '): fora dos dias do plantão.');
+    let tipo = String(c.tipo || '').trim().toUpperCase(); if (tipo === 'MO') tipo = 'MT';
+    if (PLANTAO_TIPOS_.indexOf(tipo) < 0) throw new Error(rot + ': tipo de veículo inválido (' + (c.tipo || 'vazio') + ').');
+    const medida = String(c.medida || '');
+    if (medida !== 'liberacao' && medida !== 'apreensao') throw new Error(rot + ': medida liberacao ou apreensao.');
+    let q = '';
+    if (c.quantidade !== '' && c.quantidade !== null && c.quantidade !== undefined) {
+      const n = Number(c.quantidade);
+      if (!isFinite(n) || n < 0 || n > 1e6) throw new Error(rot + ': quantidade inválida.');
+      q = String(Math.round(n * 1e6) / 1e6).replace('.', ',');     // vírgula decimal: "1,5" t nunca vira mil e quinhentos
+    }
+    const produto = plantaoTexto_(c.produto, 120), u = plantaoTexto_(c.unidade, 10);
+    D[dia].cargas.push({ hora: hora, tipo: tipo, placa: plantaoTexto_(c.placa, 10).toUpperCase().replace(/[\s-]/g, ''),
+      origemMun: plantaoTexto_(c.origemMun, 80), ufOrigem: ufNorm_(c.ufOrigem), destinoMun: plantaoTexto_(c.destinoMun, 80), ufDestino: ufNorm_(c.ufDestino),
+      transportador: plantaoTexto_(c.transportador, 120), cargaPapel: produto || q ? JSON.stringify([{ p: produto || 'NÃO INFORMADO', q: q, u: u }]) : '',
+      medidaPapel: medida, tfPapel: plantaoTexto_(c.tf, 30), docPapel: plantaoTexto_(c.documento, 120) });
+  });
+  const agora = Date.now(), base = 'pl' + agora.toString(36) + '-', imp = 'pl|' + posto.id + '|' + ordem[0];
+  const turnos = [], veiculos = [], avisos = [], vazios = [];
+  let seq = 0;
+  const fimTurno = (Number(troca.slice(0, 2)) * 60 + Number(troca.slice(3)) + 1439) % 1440;
+  const fim = ('0' + Math.floor(fimTurno / 60)).slice(-2) + ':' + ('0' + fimTurno % 60).slice(-2);   // 1 minuto antes da troca seguinte
+  ordem.forEach(function (data) {
+    const d = D[data], tid = 'pl-' + posto.id + '-' + data.replace(/-/g, '');
+    // dia todo zerado (ex.: o dia da troca, que no papel fecha a coluna do 10º dia): não vira turno (seria uma ação vazia)
+    if (!d.cargas.length && !d.educacao && PLANTAO_TIPOS_.every(function (k) { return !d.tipos[k]; })) { vazios.push(data); return; }
+    turnos.push({ id: tid, numeroTF: '', data: data, letra: Number(troca.slice(0, 2)) >= 4 && Number(troca.slice(0, 2)) < 12 ? 'A' : 'B',
+      inicio: troca, fim: fim, fiscal: fiscal, local: local, unidade: local, posto: 'Fixa', encerrado: 1, criadoEm: agora, atualizadoEm: agora,
+      srv_ts: agora, usuario: 'Portal: ' + s.nome, semPlaca: 1, encerradoPor: 'Relatório de plantão (papel)', encerradoEm: agora, importacao: imp });
+    const vs = [];
+    d.cargas.sort(function (a, b) { return a.hora < b.hora ? -1 : a.hora > b.hora ? 1 : 0; });
+    d.cargas.forEach(function (c) { vs.push(c); });
+    PLANTAO_TIPOS_.forEach(function (k) {
+      const nC = d.cargas.filter(function (c) { return c.tipo === k; }).length, falta = d.tipos[k] - nC;
+      if (falta < 0) avisos.push(data.split('-').reverse().join('/') + ': ' + nC + ' carga(s) ' + k + ' na lista e ' + d.tipos[k] + ' no quadro de veículos — vale a lista.');
+      for (let i = 0; i < falta; i++) vs.push({ hora: '', tipo: k });
+    });
+    let edu = d.educacao;
+    vs.forEach(function (c, i) {
+      const pessoas = i === vs.length - 1 ? edu : Math.min(1, edu); edu -= pessoas;
+      seq++;
+      veiculos.push({ id: base + seq, turnoId: tid, hora: c.hora, placa: c.placa || '', tipo: c.tipo, pessoas: pessoas,
+        obs: c.medidaPapel ? 'Relatório de plantão (papel)' : 'Relatório de plantão (papel): veículo do quadro, sem placa', excluido: 0,
+        criadoEm: agora, atualizadoEm: agora, srv_ts: agora, usuario: 'Portal: ' + s.nome,
+        ufOrigem: c.ufOrigem || '', ufDestino: c.ufDestino || '', origemMun: c.origemMun || '', destinoMun: c.destinoMun || '',
+        transportador: c.transportador || '', cargaPapel: c.cargaPapel || '', medidaPapel: c.medidaPapel || '', tfPapel: c.tfPapel || '',
+        docPapel: c.docPapel || '', importacao: imp });
+    });
+    if (edu > 0) avisos.push(data.split('-').reverse().join('/') + ': educação sanitária sem veículo no dia (' + edu + ').');
+  });
+  if (veiculos.length > PLANTAO_MAX_VEICULOS_) throw new Error('Veículos demais num plantão (' + veiculos.length + ').');
+  const nCargas = veiculos.filter(function (v) { return v.medidaPapel; });
+  if (!turnos.length) throw new Error('O plantão não tem nenhum veículo nem educação sanitária.');
+  if (vazios.length) avisos.push('Dia(s) sem nenhum registro, sem turno: ' + vazios.map(function (x) { return x.split('-').reverse().join('/'); }).join(', ') + '.');
+  const resumo = { posto: posto.nome, local: local, de: ordem[0], ate: ordem[ordem.length - 1], dias: ordem.length, turnos: turnos.length, diasVazios: vazios,
+    veiculos: veiculos.length, cargas: nCargas.length, semPlaca: veiculos.length - nCargas.length,
+    educacao: ordem.reduce(function (a, k) { return a + D[k].educacao; }, 0),
+    liberacao: nCargas.filter(function (v) { return v.medidaPapel === 'liberacao'; }).length,
+    apreensao: nCargas.filter(function (v) { return v.medidaPapel === 'apreensao'; }).length,
+    tfs: nCargas.filter(function (v) { return v.tfPapel; }).length, avisos: avisos };
+  return { id: imp, turnos: turnos, veiculos: veiculos, resumo: resumo };
+}
+function admPlantaoImportar_(s, req) {
+  const m = plantaoMontar_(vigConfig_(), req || {}, s), arquivo = plantaoTexto_(req.arquivo, 200);
+  return comLock_(function () {
+    const turnosPl = lerLinhas_('Turnos'), ant = turnosPl.filter(function (t) { return t.importacao === m.id; });
+    if (ant.length && Number(req.substituir) !== 1) {
+      return { ok: false, jaImportado: true, importadoEm: ant[0].criadoEm, por: String(ant[0].usuario || '').replace(/^Portal: /, ''), resumo: m.resumo };
+    }
+    // turnos do app no mesmo local e dias (não deveria haver: o plantão é do papel) — avisa, não mistura
+    const dias = {}; m.turnos.forEach(function (t) { dias[t.data] = 1; });
+    const doApp = turnosPl.filter(function (t) { return !t.importacao && dias[String(t.data).slice(0, 10)] && localCanon_(t.local) === localCanon_(m.resumo.local); }).length;
+    let excluidos = 0;
+    if (ant.length) {
+      const vAnt = lerLinhas_('Veiculos').filter(function (v) { return v.importacao === m.id && v.excluido !== 1; });
+      atualizarColuna_('Veiculos', 'excluido', vAnt.map(function (v) { return v._linha; }), 1);
+      atualizarColuna_('Veiculos', 'atualizadoEm', vAnt.map(function (v) { return v._linha; }), Date.now());
+      excluidos = vAnt.length;
+    }
+    const linhaDe = {}; turnosPl.forEach(function (t) { linhaDe[t.id] = t._linha; });
+    const novos = [];
+    m.turnos.forEach(function (t) {
+      if (!linhaDe[t.id]) { novos.push(t); return; }
+      atualizar_('Turnos', linhaDe[t.id], { fiscal: t.fiscal, inicio: t.inicio, fim: t.fim, letra: t.letra, atualizadoEm: t.atualizadoEm, srv_ts: t.srv_ts,
+        usuario: t.usuario, encerrado: 1, encerradoPor: t.encerradoPor, encerradoEm: t.encerradoEm, importacao: m.id });
+    });
+    inserir_('Turnos', novos);
+    inserir_('Veiculos', m.veiculos);
+    const r = Object.assign({ ok: true, id: m.id, substituidos: excluidos, turnosDoApp: doApp }, m.resumo);
+    admHistLote_(s, ant.length ? 'substituir' : 'importar', 'Turnos', [['plantão ' + m.id + (arquivo ? ' · arquivo: ' + arquivo : ''), '',
+      { dias: r.dias, veiculos: r.veiculos, cargas: r.cargas, liberacao: r.liberacao, apreensao: r.apreensao, tfs: r.tfs, educacao: r.educacao, substituidos: excluidos }]]);
+    return r;
+  });
 }
 
 /* ---------- Portal do Administrativo (web/administrativo/; login com Google ou código de ativação) ----------
@@ -3658,7 +3834,8 @@ function admHistorico_(s, req) {
 const ADM_ACOES_ = {
   admSair: admSair_, admDados: admDados_, admConvLancar: admConvLancar_, admConvExcluir: admConvExcluir_, admConvFinLancar: admConvFinLancar_,
   admConvFinExcluir: admConvFinExcluir_, admConvFinImportar: admConvFinImportar_, admRelDados: admRelDados_, admRelLancar: admRelLancar_,
-  admHistorico: admHistorico_, admVigDados: admVigDados_, admVigLancar: admVigLancar_, admVigImportar: admVigImportar_
+  admHistorico: admHistorico_, admVigDados: admVigDados_, admVigLancar: admVigLancar_, admVigImportar: admVigImportar_,
+  admPlantaoImportar: admPlantaoImportar_
 };
 /** Roteador das actions do portal: sessão obrigatória (o token do painel/app não vale aqui). */
 function admAcao_(req) {
@@ -5068,6 +5245,24 @@ function atualizar_(nome, linha, campos) {
     const v = campos[c];
     sh.getRange(linha, i + 1).setValue(v === null || v === undefined ? '' : v);
   });
+}
+
+/** Acrescenta objetos no fim da aba (colunas por nome; coluna ausente fica vazia). Uma escrita só. */
+function inserir_(nome, objs) {
+  if (!objs || !objs.length) return;
+  const sh = aba_(nome), cols = TABELAS[nome];
+  const linhas = objs.map(function (o) { return cols.map(function (c) { const v = o[c]; return v === null || v === undefined ? '' : v; }); });
+  sh.getRange(sh.getLastRow() + 1, 1, linhas.length, cols.length).setValues(linhas);
+}
+
+/** Grava o mesmo valor na coluna `coluna` (por nome) das linhas informadas: lê a coluna e grava de volta numa escrita só. */
+function atualizarColuna_(nome, coluna, linhas, valor) {
+  if (!linhas || !linhas.length) return;
+  const sh = aba_(nome), j = TABELAS[nome].indexOf(coluna);
+  if (j < 0) throw new Error('Coluna desconhecida em ' + nome + ': ' + coluna);
+  const de = Math.min.apply(null, linhas), ate = Math.max.apply(null, linhas), r = sh.getRange(de, j + 1, ate - de + 1, 1), v = r.getValues();
+  linhas.forEach(function (l) { v[l - de][0] = valor; });
+  r.setValues(v);
 }
 
 /* ---------- Planilha ---------- */

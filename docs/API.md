@@ -150,6 +150,7 @@ gravação entra no histórico (aba `AdmHistorico`, com antes/depois).
 | `admRelDados` / `admRelLancar` | `ano` / `ano`, `lancamentos` (máx. 3.000) | linhas manuais do Relatório GDV |
 | `admVigDados` | `ano` | dados do VIGIFITO |
 | `admVigLancar` / `admVigImportar` | `lancamentos` / `arquivo`, `itens` | valores manuais do VIGIFITO |
+| `admPlantaoImportar` | `posto` (posto fixo do VIGIFITO), `troca` (HH:MM), `fiscal`, `arquivo`, `dias` [{`data`, `tipos` {PA, UT, CC, CB, ON, MT}, `educacao`}], `cargas` [{`data`, `hora`, `tipo`, `placa`, `origemMun`, `ufOrigem`, `destinoMun`, `ufDestino`, `transportador`, `produto`, `quantidade`, `unidade`, `documento`, `medida` (liberacao/apreensao), `tf`}] (máx. 3.000), `substituir` | relatório de plantão do papel da BVA → turnos e veículos (abas `Turnos`/`Veiculos`, coluna `importacao`); mesmo plantão de novo → `{ok:false, jaImportado, importadoEm, por, resumo}` (com `substituir: 1`: veículos anteriores excluídos, entram os novos); devolve `{ok, turnos, veiculos, cargas, liberacao, apreensao, tfs, educacao, substituidos, turnosDoApp, avisos}` |
 | `admHistorico` | `aba`, `registro` | últimas 300 alterações |
 
 ## Públicas (sem credencial)

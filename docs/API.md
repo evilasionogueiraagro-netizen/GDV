@@ -64,7 +64,7 @@ tudo liberado, exceto `antigo`. O mapa `MODULO_DA_ACAO` diz qual módulo cada ac
 | `tfIndiceReincidencia` | tf | `desde` | `agora`, `completo`, `itens` | `tfIndiceReincidencia_` |
 | `pceProximoNumero` | pce | `unidade`, `ano` | `ultimo`, `proximo` | `pceProximoNumero_` |
 | `pceEmitir` | pce | `colheita`, `pessoa`, `propriedade` | como `tfEmitir` (+ `numeroTxt`) | `pceEmitir_` |
-| `pceConsultar` | pce | `doc` | propriedades e contagens do produtor | `pceConsultar_` |
+| `pceConsultar` | pce | `doc` | `pessoa`, `propriedades` (com `cnpj`, `empresa`, `endereco`, `uf`, `viaAcesso`, `comercial`, `tipoPropriedade`), contagens e `cadastrosPce` do produtor | `pceConsultar_` |
 | `pceDocNumero` | pce | `tipo` (`termo`/`cadastro`), `unidade`, `ano`, `programa` | `ultimo`, `proximo` | `pceDocNumero_` |
 | `pceDocRegistrar` | pce | `tipo`, `registro`, `pessoa`, `propriedade` | como `pceEmitir` | `pceDocRegistrar_` |
 | `pceBaixarMunicipio` | pce | `municipios` (lista) | `municipios`, `propriedades`, `pessoas`, `cadastrosPce` | `pceBaixarMunicipio_` |
@@ -73,14 +73,21 @@ tudo liberado, exceto `antigo`. O mapa `MODULO_DA_ACAO` diz qual módulo cada ac
 Registros de módulo não liberado (ou `registroAntigo = 1` sem a flag `antigo`) não são gravados no `sync`: voltam em
 `recusados` e ficam pendentes no aparelho.
 
-Levantamento (`levantamentos[]`), campo **`citros`** (coluna `citros`, a última da aba `Levantamentos`): dados do formulário de cítricos
-(IN 21/2018, Portaria 317/2021), preenchidos só quando o levantamento tem praga de citros; senão `''`. Texto JSON
-`{v: 1, comercial, naoComercial, naoComercialOutros, cnpj, endereco, uf, atividades[], atividadeOutros, situacao, situacaoOutras,
+Levantamento (`levantamentos[]`), campo **`citros`** (coluna `citros` da aba `Levantamentos`): bloco "Cultura do citros" do cadastro de cítricos
+(IN 21/2018, Portaria 317/2021), preenchido só quando o levantamento tem praga de citros; senão `''`. Texto JSON
+`{v: 1, comercial, naoComercial, naoComercialOutros, atividades[], atividadeOutros, situacao, situacaoOutras,
 culturas: [{atividade, cultivar, area, idade, plantas, producao}], entrega, formasEntrega[], compradores[], compradorOutros, beneficia,
-beneficiaTipo, materiais[], origemMaterial, delimitacao: {pintapreta: {tem, tempo, controle, qual}}, deteccao: {cancro|hlb|acaro: {tem, tempo}},
-rt: {nome, conselho}}` (sim/não = `'sim'`/`'nao'`; códigos das opções em `CONFIG.PCE.citros` e `CITROS_` no `Code.gs`). O servidor normaliza
-antes de gravar (`citrosTexto_`): só chaves e opções conhecidas, textos até 200 caracteres, números ≥ 0 (negativo/inválido = vazio; `idade` e
-`plantas` inteiros), no máximo 20 linhas em `culturas`, `cnpj` só com 14 dígitos, `uf` com 2 letras; JSON inválido ou sem nada preenchido = `''`.
+beneficiaTipo, materiais[], origemMaterial, delimitacao: {pintapreta: {tem, tempo, controle, qual}}, deteccao: {hlb|acaro|cancro: {tem, tempo}},
+rt: {nome, conselho}}` (sim/não = `'sim'`/`'nao'`; na detecção `'sim'` = presença e `'nao'` = ausência de sintomas, obrigatória no app para as três;
+códigos das opções em `CONFIG.PCE.citros` e `CITROS_` no `Code.gs`). O servidor normaliza antes de gravar (`citrosTexto_`): só chaves e opções
+conhecidas, textos até 200 caracteres, números ≥ 0 (negativo/inválido = vazio; `idade` e `plantas` inteiros), no máximo 20 linhas em `culturas`;
+`cnpj`/`endereco`/`uf` (app da versão anterior) só se vierem preenchidos (`cnpj` 14 dígitos, `uf` 2 letras); JSON inválido ou sem nada = `''`.
+Campos **`cnpj`**, **`empresa`**, **`endereco`** e **`uf`** (colunas no fim de `Levantamentos`, servidor 2026-10-20a+): identificação do
+produtor/propriedade; o servidor normaliza (`identLev_`: CNPJ só dígitos com 14 ou `''`, UF 2 letras, empresa ≤ 120 e endereço ≤ 200 caracteres).
+`Propriedades` ganha **`empresa`** no fim. Cadastro de citros: `CadastrosPCE` com `programa = 'citros'` (sequência própria por unidade/ano) e
+`dados` = o JSON acima + `levantamentoId`, `codigoPropriedade`, `endereco`, `telefone`, `email`, `empresa`, `culturasAvaliadas[]`, `amostra`.
+Termo de Fiscalização de citros: `TermosPCE` com `programa = 'citros'`, `tipoLocal` = `["<local especificado>"]` e `constatacao` com as frases de
+ausência/presença.
 Registro enviado sem o campo mantém o valor da planilha (como as demais colunas).
 
 TF (`tfs[]` no `sync` e `tf` no `tfEmitir`) e veículo (`veiculos[]`), campos **`ufOrigem`** e **`ufDestino`** (colunas no fim das abas

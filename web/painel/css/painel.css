@@ -63,11 +63,13 @@ a { color: var(--marca2); }
 .pn-instalar-x:hover { background: var(--sf2); }
 
 /* Login */
-.pn-login { display: flex; justify-content: center; padding: 40px 16px; }
+.pn-login { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: center; gap: 16px; padding: 40px 16px; }   /* celular: os cartões de login empilham */
 .pn-login-form { width: 100%; max-width: 400px; }
 .pn-login-form h2 { margin: 0 0 6px; font-size: 20px; }
 .pn-login-form label { display: block; font-size: 13px; color: var(--ink2); margin: 16px 0 6px; }
 .pn-login-form input { width: 100%; font-size: 28px; letter-spacing: 8px; text-align: center; padding: 10px; border: 1px solid var(--base); border-radius: 10px; background: var(--sf); }
+/* usuário e senha: texto normal (o estilo grande e espaçado acima é só do código de 6 dígitos); 16px evita o zoom no iPhone */
+.pn-login-form input:not([inputmode="numeric"]) { font-size: 16px; letter-spacing: normal; text-align: left; padding: 12px; }
 .pn-botao { display: block; width: 100%; margin-top: 14px; background: var(--marca2); color: #fff; border: 0; border-radius: 10px; padding: 13px; font-weight: 600; cursor: pointer; }
 .pn-botao:disabled { opacity: .6; cursor: wait; }
 .pn-erro { color: var(--critico); background: color-mix(in srgb, var(--critico) 10%, transparent); border-radius: 8px; padding: 10px; margin: 12px 0 0; font-size: 14px; }

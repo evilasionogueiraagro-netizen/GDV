@@ -38,6 +38,7 @@ Contrato das actions: ao criar, mudar ou remover uma, atualize esta tabela. Regr
 | `pceDocNumero` | pce | `tipo` (`termo`/`cadastro`), `unidade`, `ano`, `programa` | `ultimo`, `proximo` |
 | `pceDocRegistrar` | pce | `tipo`, `registro`, `pessoa`, `propriedade` | como `pceEmitir` |
 | `pceBaixarMunicipio` | pce | `municipios` (lista) | `agora`, `municipios`, `propriedades`, `pessoas`, `cadastrosPce` |
+| `pceMapaGeral` | pce | — | `propriedades` com coordenadas (`id`, `codigo`, `nome`, `municipio`, `lat`, `lon`, `resumoLev`; sem produtor nem CPF/CNPJ) |
 | `arquivoEnviar` | tf/pce | `arquivo` {`id` (UUID), `dono`, `donoId`, `tipo`, `papel`, `mime`, `rotulo`}, `base64` | `id`, `url`, `driveId`, `existente` |
 
 ### Campos nos registros

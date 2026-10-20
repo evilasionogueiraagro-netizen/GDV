@@ -227,23 +227,10 @@ function pceBaixarMunicipio_(req, usuario) {
     throw new Error('São ' + props.length + ' propriedades nesse(s) município(s); o limite é ' + CAMPO_MAX_PROPS.toLocaleString('pt-BR') +
       ' por vez. Baixe menos municípios de cada vez.');
   }
-  // histórico: levantamentos ligados à propriedade pelo código ou por produtor (doc) + nome da propriedade
-  const chaveCod = function (c) { const s = normPub_(c); return s ? 'C:' + s : ''; };
-  const chaveNome = function (doc, nome) { const d = digitos_(doc), n = normPub_(nome); return d && n ? 'N:' + d + '|' + n : ''; };
-  const levs = {};
-  lerLeitura_('Levantamentos').forEach(function (r) {
-    if (!r.id || r.excluido === 1) return;
-    [chaveCod(r.codigoPropriedade), chaveNome(r.doc, r.propriedade)].forEach(function (k) { if (k) (levs[k] = levs[k] || []).push(r); });
-  });
+  const resumoLev = resumidorLevantamentos_();
   const docs = {}, porMun = {};
   props.forEach(function (p) {
-    const vistos = {}, lista = [];
-    [chaveCod(p.codigo), chaveNome(p.doc, p.nome)].forEach(function (k) {
-      (levs[k] || []).forEach(function (r) { if (!vistos[r.id]) { vistos[r.id] = 1; lista.push(r); } });
-    });
-    lista.sort(function (a, b) { return String(b.data + ' ' + b.hora).localeCompare(String(a.data + ' ' + a.hora)); });
-    const ult = lista[0];
-    p.resumoLev = { n: lista.length, ultimo: ult ? ult.data : '', ultimoHora: ult ? ult.hora : '', pragas: ult ? deteccoesLev_(ult) : [] };
+    p.resumoLev = resumoLev(p);
     const k = normPub_(p.municipio);
     p.campoMun = alvo[k];
     const d = digitos_(p.doc);
@@ -274,6 +261,48 @@ function pceBaixarMunicipio_(req, usuario) {
   c.getRange(c.getLastRow() + 1, 1, 1, 5).setValues([[Date.now(), usuario, '', '',
     ('PCE campo: ' + municipios.map(function (m) { return m.municipio + ' (' + m.nProps + ')'; }).join(', ')).slice(0, 480)]]);
   return { ok: true, agora: Date.now(), municipios: municipios, propriedades: props, pessoas: pessoas, cadastrosPce: cadastrosPce };
+}
+
+/**
+ * Resumo do histórico de cada propriedade: levantamentos ligados a ela pelo código ou por produtor (doc) + nome da propriedade.
+ * Lê a aba Levantamentos uma vez e devolve a função p → {n, ultimo, ultimoHora, pragas}.
+ */
+function resumidorLevantamentos_() {
+  const chaveCod = function (c) { const s = normPub_(c); return s ? 'C:' + s : ''; };
+  const chaveNome = function (doc, nome) { const d = digitos_(doc), n = normPub_(nome); return d && n ? 'N:' + d + '|' + n : ''; };
+  const levs = {};
+  lerLeitura_('Levantamentos').forEach(function (r) {
+    if (!r.id || r.excluido === 1) return;
+    [chaveCod(r.codigoPropriedade), chaveNome(r.doc, r.propriedade)].forEach(function (k) { if (k) (levs[k] = levs[k] || []).push(r); });
+  });
+  return function (p) {
+    const vistos = {}, lista = [];
+    [chaveCod(p.codigo), chaveNome(p.doc, p.nome)].forEach(function (k) {
+      (levs[k] || []).forEach(function (r) { if (!vistos[r.id]) { vistos[r.id] = 1; lista.push(r); } });
+    });
+    lista.sort(function (a, b) { return String(b.data + ' ' + b.hora).localeCompare(String(a.data + ' ' + a.hora)); });
+    const ult = lista[0];
+    return { n: lista.length, ultimo: ult ? ult.data : '', ultimoHora: ult ? ult.hora : '', pragas: ult ? deteccoesLev_(ult) : [] };
+  };
+}
+
+/**
+ * Mapa "Perto de mim" com internet: todas as propriedades com coordenadas, para os municípios que o servidor ainda não baixou.
+ * Só o que o mapa precisa (id, código, nome, município, lat/lon e o resumo do histórico): sem produtor, CPF/CNPJ ou telefone —
+ * esses só vêm no download do município. O app não guarda esta resposta. Só módulo PCE; cada consulta fica na aba Consultas.
+ */
+function pceMapaGeral_(req, usuario) {
+  const num = function (v) { const s = String(v == null ? '' : v).trim().replace(',', '.'), n = Number(s); return s !== '' && isFinite(n) ? n : null; };
+  const resumoLev = resumidorLevantamentos_(), out = [];
+  lerLeitura_('Propriedades').forEach(function (p) {
+    if (!p.id) return;
+    const lat = num(p.lat), lon = num(p.lon);
+    if (lat == null || lon == null || Math.abs(lat) > 90 || Math.abs(lon) > 180 || (lat === 0 && lon === 0)) return;
+    out.push({ id: p.id, codigo: p.codigo, nome: p.nome, municipio: p.municipio, lat: lat, lon: lon, resumoLev: resumoLev(p) });
+  });
+  const c = aba_('Consultas');
+  c.getRange(c.getLastRow() + 1, 1, 1, 5).setValues([[Date.now(), usuario, '', '', 'PCE mapa geral: ' + out.length + ' propriedade(s)']]);
+  return { ok: true, agora: Date.now(), propriedades: out };
 }
 
 const ARQ_MIMES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'application/pdf': 'pdf' };

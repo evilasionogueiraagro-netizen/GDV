@@ -24,6 +24,10 @@ https://evilasionogueiraagro-netizen.github.io/GDV/administrativo/ (manual: [doc
 **Dashboard público.** Página sem login, ligada pelo gerente, com mapa e números só de contagens e somas, sem nenhum dado
 pessoal. Endereço: https://evilasionogueiraagro-netizen.github.io/GDV/dashboard/ (manual: [docs/apps/dashboard.md](docs/apps/dashboard.md)).
 
+**Página inicial (atalhos para tudo):** https://evilasionogueiraagro-netizen.github.io/GDV/inicio/ leva ao painel, ao app de campo,
+ao Portal do Administrativo e ao dashboard público, cada um com uma linha de como entrar. Não usa login nem chama a API
+(`web/inicio/index.html`). A raiz `/GDV/` continua sendo o app de campo, que já está instalado nos celulares.
+
 A página pública `verificar.html` confere a autenticidade de um TF pelo QR code impresso ([docs/modulos/tf.md](docs/modulos/tf.md)).
 
 ## Arquitetura

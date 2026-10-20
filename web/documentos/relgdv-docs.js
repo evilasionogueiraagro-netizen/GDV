@@ -182,7 +182,7 @@ const RelGdvDocs = (() => {
     // outras unidades de liberação/apreensão (sem conversão para toneladas)
     const outrasUn = {};
     ['fixa', 'volante'].forEach(b => (tipo === 'mensal' ? [mm] : meses).forEach(m => { const x = vigMes(b, m); if (!x) return;
-      Object.keys(x.outrasUnidades || {}).forEach(p => Object.keys(x.outrasUnidades[p]).forEach(u => { const k = `${p === 'apreensao' ? 'Apreensão' : p === 'carga' ? 'Carga dos veículos' : 'Liberação'}|${u}`; outrasUn[k] = (outrasUn[k] || 0) + x.outrasUnidades[p][u]; })); }));
+      Object.keys(x.outrasUnidades || {}).forEach(p => Object.keys(x.outrasUnidades[p]).forEach(u => { const k = `${p === 'apreensao' ? 'Apreensão' : p === 'carga' ? 'Cargas interestaduais (TF)' : 'Liberação'}|${u}`; outrasUn[k] = (outrasUn[k] || 0) + x.outrasUnidades[p][u]; })); }));
 
     /* ---- Seção I: tabelas por grupo e município ---- */
     const mesesGrupo = tipo === 'mensal' ? [mm] : meses;

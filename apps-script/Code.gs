@@ -25,10 +25,10 @@ const TABELAS = {
            'encerradoPor', 'encerradoEm'],   // turno encerrado fora do aparelho: nome do administrador (painel) ou "Automático (12 h)", e quando (ms)
   Veiculos: ['id', 'turnoId', 'hora', 'placa', 'tipo', 'pessoas', 'obs',
              'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
-             // fiscalização e carga (formulário do veículo, tudo opcional; alimentam o VIGIFITO): semEducacao = 1 se NÃO houve orientação de
-             // educação sanitária (vazio = houve: registros antigos contam como orientados); medidaFito; carga (transporta vegetais/partes);
-             // produtos = JSON ["PRODUTO - 10 Kg", …] (como no TF); UF de origem/destino; partida fiscalizada; inspeção fitossanitária;
-             // documento conferido (NF/PTV/CFO)
+             // ufOrigem/ufDestino: "Origem e destino (opcional)" do formulário do veículo (sigla de CONFIG.ufs ou "Exterior"; vazio = não
+             // informado) — entram no VIGIFITO (internalização / cargas para outros estados) quando o veículo não tem TF ligado.
+             // HISTÓRICO (o formulário não grava mais; não entram mais em nenhum cálculo; colunas mantidas pelos dados antigos):
+             // semEducacao, medidaFito, carga, produtos (JSON ["PRODUTO - 10 Kg", …]), partida, inspecaoFito, docConferido
              'semEducacao', 'medidaFito', 'carga', 'produtos', 'ufOrigem', 'ufDestino', 'partida', 'inspecaoFito', 'docConferido'],
   Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm', 'perfil',   // perfil: vazio = fiscal, 'admin' = administrador
             'geradoPor',                                                             // quem gerou o código: nome do administrador (painel) ou "planilha" (menu)
@@ -39,7 +39,8 @@ const TABELAS = {
         'procedimento', 'fiel', 'auto', 'advertencia', 'documentos', 'produtos', 'constatacao', 'enquadramento',
         'reincidente', 'tfsAnteriores', 'cancelado', 'motivoCancel', 'conflito', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
         'numeroSugerido', 'numeroOrigem', 'emitidoEm',   // auditoria da numeração (colunas novas ficam sempre no fim)
-        'fotos', 'assinaturas', 'recusaAssinatura'],    // fotos = JSON [ids]; assinaturas = JSON {fiscalizado, servidor} (ids na aba Arquivos); recusaAssinatura = 1: fiscalizado se recusou
+        'fotos', 'assinaturas', 'recusaAssinatura',    // fotos = JSON [ids]; assinaturas = JSON {fiscalizado, servidor} (ids na aba Arquivos); recusaAssinatura = 1: fiscalizado se recusou
+        'ufOrigem', 'ufDestino'],                     // UF de origem/destino da carga (sigla de UFS_ ou "Exterior"; vazio = não informada; TF antigo: ufDoTexto_ de origem/destino)
   Pessoas: ['id', 'tipo', 'nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
             'email'],                                                                                                              // id = CPF/CNPJ (só dígitos)
   Placas: ['id', 'doc', 'nome', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],                                                    // id = placa
@@ -53,7 +54,9 @@ const TABELAS = {
                   'registroAntigo', 'documentos',   // registroAntigo=1: digitado do papel (só para o app reabrir no formulário certo); documentos = PDFs (JSON de ids)
                   'pragas',    // pragas = JSON [{praga, culturas:[{cultura, area, espLinha, espPlanta, resultado, coleta, tipoMaterial, codigoAmostra, destinoAmostra, fotos:[ids]}]}]
                                // (levantamento por praga/doença). culturas/fotos continuam preenchidos (derivados) para registros e relatórios antigos.
-                  'tipoLocal', 'origemVisita'],   // dados gerais da visita (opcionais; texto da lista CONFIG.PCE.tiposLocal/origensVisita ou o digitado em "Outro")
+                  'tipoLocal', 'origemVisita',   // dados gerais da visita (opcionais; texto da lista CONFIG.PCE.tiposLocal/origensVisita ou o digitado em "Outro")
+                  'citros',    // cadastro de cítricos (IN 21/2018, Portaria 317/2021): JSON normalizado por citrosTexto_; vazio sem praga de citros
+                  'cnpj', 'empresa', 'endereco', 'uf'],   // identificação do produtor/propriedade (CNPJ só dígitos, empresa/nome fantasia, endereço, UF): identLev_
   Colheitas: ['id', 'unidade', 'ano', 'numero', 'numeroTxt', 'numeroSugerido', 'numeroOrigem', 'conflito', 'emitidoEm', 'levantamentoId',
               'data', 'hora', 'servidor', 'cargo', 'matricula', 'lotacao', 'municipio', 'doc', 'nome', 'endereco', 'lat', 'lon', 'precisao',
               'cultura', 'quantidade', 'analise', 'partes', 'descricao', 'fotos', 'testemunha1Nome', 'testemunha1Doc', 'testemunha2Nome',
@@ -62,14 +65,17 @@ const TABELAS = {
               'laboratorio'],   // resultado laboratorial (JSON {laboratorio, laboratorioOutro, envio, laudo, dataResultado, resultado, praga, obs, atualizadoEm, por});
                                 // registrado depois (app ou painel → painelPceLaudo); o sync mescla pelo atualizadoEm do resultado (nunca apaga um mais novo)
   Propriedades: ['id', 'codigo', 'nome', 'doc', 'municipio', 'situacaoFundiaria', 'lat', 'lon', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
-                 'cnpj', 'viaAcesso', 'comercial', 'tipoPropriedade', 'endereco', 'uf'],   // campos comuns do Cadastro de imóvel (PCE): CNPJ, via de acesso, propriedade comercial (sim/nao) e tipo
-  // Cadastro de imóvel do PCE (1x por propriedade e programa; hoje: monilíase). Numeração por programa + unidade + ano ("001-2026-AUTAZES").
-  // dados = JSON com os campos do programa (culturas/plantas, informações fitossanitárias, levantamento de detecção…); totalPlantas = soma das plantas.
+                 'cnpj', 'viaAcesso', 'comercial', 'tipoPropriedade', 'endereco', 'uf',   // campos comuns do Cadastro de imóvel (PCE): CNPJ, via de acesso, propriedade comercial (sim/nao) e tipo
+                 'empresa'],   // empresa / nome fantasia (levantamento e Termo de Fiscalização do PCE)
+  // Cadastro de imóvel do PCE (1x por propriedade e programa: monilíase e citros). Numeração por programa + unidade + ano ("001-2026-AUTAZES").
+  // dados = JSON com os campos do programa (monilíase: culturas/plantas, informações fitossanitárias, levantamento de detecção…; citros: o bloco
+  // "Cultura do citros" do levantamento + levantamentoId, codigoPropriedade, endereco, telefone, empresa, culturasAvaliadas); totalPlantas = soma das plantas.
   CadastrosPCE: ['id', 'programa', 'unidade', 'ano', 'numero', 'numeroTxt', 'numeroSugerido', 'numeroOrigem', 'conflito', 'emitidoEm', 'propriedadeId',
                  'doc', 'nome', 'propriedade', 'cnpj', 'data', 'hora', 'municipio', 'uf', 'lat', 'lon', 'servidor', 'cargo', 'matricula', 'lotacao', 'local',
                  'dados', 'totalPlantas', 'fotos', 'assinaturas', 'documentos', 'registroAntigo', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
   // Termo de Fiscalização do PCE (1 por visita; NÃO é o TF de Barreira). Numeração por unidade + ano ("001.2026.AUTAZES").
-  // pragas/acoes/tipoLocal/testemunhas = JSON; plantasInspecionadas, amostra e sintomas (sim/nao) alimentam o Relatório de atividades
+  // pragas/acoes/tipoLocal/testemunhas = JSON (programa "citros": tipoLocal = [o local especificado, "ao realizar fiscalização no(a)…"]);
+  // plantasInspecionadas, amostra e sintomas (sim/nao) alimentam o Relatório de atividades
   // (folders/flyers da Educação Sanitária não são anotados por visita: são digitados na geração do relatório); hospedeiros = JSON das culturas do cadastro com plantas (copiado ao salvar).
   TermosPCE: ['id', 'unidade', 'ano', 'numero', 'numeroTxt', 'numeroSugerido', 'numeroOrigem', 'conflito', 'emitidoEm', 'propriedadeId', 'cadastroId', 'programa',
               'doc', 'nome', 'atividade', 'empresa', 'cnpj', 'atividadeEmpresa', 'endereco', 'municipio', 'uf', 'telefone', 'lat', 'lon', 'data', 'hora',
@@ -106,7 +112,8 @@ const TABELAS = {
                    'usuario', 'criadoEm', 'atualizadoEm', 'excluido', 'chave', 'origem', 'arquivo', 'importadoEm',
                    // desembolso lançado no portal: tipo da diária (NM/NS/TERC), servidor que recebeu (id da lista de servidores e o NOME — o nome
                    // fica só aqui e no portal; o painel e os relatórios nunca recebem) e quem lançou (admId)
-                   'tipoDiaria', 'servidorId', 'servidorNome', 'admId'],
+                   'tipoDiaria', 'servidorId', 'servidorNome', 'admId',
+                   'municipio'],   // município do desembolso (opcional; lançado no portal)
   // Textos do relatório mensal (id = convenio|AAAA-MM): textos = JSON {etapas:{"1.4":{evidencias, justificativa, fator, providencia, situacao}},
   // gerais:{fatores, providencias, analise, conclusao}}
   ConvRelatorios: ['id', 'convenio', 'mes', 'numero', 'textos', 'usuario', 'atualizadoEm'],
@@ -119,7 +126,7 @@ const TABELAS = {
   // Portal do Administrativo (web/administrativo/): pessoas liberadas (login com Google pelo e-mail ou código de 6 dígitos gerado no
   // painel). Os e-mails ficam SÓ nesta aba (LGPD); os lançamentos guardam o nome e o admId. Gerida no painel → Servidores.
   Administrativo: ['id', 'email', 'nome', 'ativo', 'criadoEm', 'criadoPor', 'ultimoAcesso', 'codigo', 'codigoExpira', 'atualizadoEm', 'atualizadoPor'],
-  // Sessões do portal: só o SHA-256 do token (o token em si fica no navegador); 12 h, renovada a cada uso; revogado = 1 ao sair.
+  // Sessões do portal: só o SHA-256 do token (o token em si fica no navegador); 30 dias sem uso, renovada a cada uso; revogado = 1 ao sair.
   AdmSessoes: ['id', 'hash', 'admId', 'origem', 'criadoEm', 'expiraEm', 'ultimoUso', 'revogado'],
   // Histórico de alterações feitas no portal (antes/depois em JSON).
   AdmHistorico: ['em', 'admId', 'nome', 'acao', 'aba', 'registro', 'antes', 'depois'],
@@ -140,7 +147,7 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criad
                           'semEducacao', 'medidaFito', 'carga', 'partida', 'inspecaoFito', 'docConferido'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, pragas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000,
-                        dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000 };   // demais colunas: 500
+                        dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000, citros: 20000 };   // demais colunas: 500
 // culturas/fotos/assinaturas são JSON: cortar o texto invalidaria o JSON (e apagaria as referências no aparelho). Os limites acima
 // cabem numa célula (50.000 caracteres) e o app limita a quantidade de culturas/fotos e o tamanho dos campos para nunca chegar neles.
 const VALIDADE_CODIGO_MS = 7 * 24 * 3600 * 1000;      // código de ativação vale 7 dias
@@ -149,7 +156,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-16f';
+const VERSAO_CODIGO = '2026-10-20d';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -168,6 +175,7 @@ function doPost(e) {
     if (req.action === 'painelOcultarAcesso') return json_(painelOcultarAcesso(req.key, req.nome, false));
     if (req.action === 'painelRestaurarAcesso') return json_(painelOcultarAcesso(req.key, req.nome, true));
     if (req.action === 'painelRevogar') return json_(painelRevogar(req.key, req.nome));
+    if (req.action === 'painelRevogarAdmin') return json_(painelRevogarAdmin(req.key, req.nome));
     if (req.action === 'painelPermissoes') return json_(painelPermissoes(req.key, req.nome, req));
     if (req.action === 'painelEncerrarTurno') return json_(painelEncerrarTurno(req.key, req.turnoId, req.fim));
     if (req.action === 'tfVerificar') return json_(tfVerificar_(req));                      // página pública verificar.html: sem credencial
@@ -258,6 +266,12 @@ function sincronizar_(req, usuario) {
       recusados[campo] = (recusados[campo] || []).concat(fora.map(function (r) { return r.id ? String(r.id).slice(0, 64) : ''; }).filter(Boolean));
     });
   }
+
+  // levantamento: dados de citros normalizados antes do lock (opções conhecidas, textos curtos, números ≥ 0, até 20 linhas de cultura)
+  T.levantamentos.forEach(function (r) { if (r && typeof r === 'object' && ('citros' in r)) r.citros = citrosTexto_(r.citros); });
+  T.levantamentos.forEach(identLev_);   // identificação: CNPJ só dígitos (14), UF com 2 letras, empresa/endereço curtos
+  // UF de origem/destino (TF e veículo): sigla conhecida (UFS_) ou vazio; campo não enviado (app antigo) continua não enviado
+  T.tfs.concat(T.veiculos).forEach(ufsNorm_);
 
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -487,6 +501,7 @@ function emitir_(req, usuario) {
   const barreira = String(tf.barreira || ''), ano = Number(tf.ano) || 0, numero = Number(tf.numero) || 0;
   if (!tf.id || !barreira || !ano || numero < 1) throw new Error('Dados do TF incompletos.');
   if (!listarBarreiras_().some(function (b) { return b.id === barreira; })) throw new Error('Barreira desconhecida: ' + barreira);
+  ufsNorm_(tf);
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
@@ -887,7 +902,8 @@ function pceConsultar_(req, usuario) {
   if (doc.length !== 11 && doc.length !== 14) throw new Error('Informe um CPF/CNPJ completo.');
   const pessoa = lerLeitura_('Pessoas').filter(function (p) { return p.id === doc; })[0];
   const propriedades = lerLeitura_('Propriedades').filter(function (p) { return digitos_(p.doc) === doc; })
-    .map(function (p) { return { id: p.id, codigo: p.codigo, nome: p.nome, doc: p.doc, municipio: p.municipio, situacaoFundiaria: p.situacaoFundiaria, lat: p.lat, lon: p.lon }; });
+    .map(function (p) { return { id: p.id, codigo: p.codigo, nome: p.nome, doc: p.doc, municipio: p.municipio, situacaoFundiaria: p.situacaoFundiaria, lat: p.lat, lon: p.lon,
+                                 cnpj: p.cnpj, empresa: p.empresa, endereco: p.endereco, uf: p.uf, viaAcesso: p.viaAcesso, comercial: p.comercial, tipoPropriedade: p.tipoPropriedade }; });
   const levantamentos = lerLeitura_('Levantamentos').filter(function (r) { return digitos_(r.doc) === doc && r.excluido !== 1; }).length;
   const colheitas = lerLeitura_('Colheitas').filter(function (r) { return digitos_(r.doc) === doc && r.excluido !== 1 && r.cancelado !== 1; }).length;
   const cadastros = lerLeitura_('CadastrosPCE').filter(function (r) { return digitos_(r.doc) === doc && r.excluido !== 1; })
@@ -1133,7 +1149,8 @@ function arquivoEnviar_(req, usuario) {
  *   painelOcultarAcesso {key, nome}  → "Remover da lista": marca oculto=1/ocultoPor/ocultoEm nas linhas de FISCAL desse nome (não apaga;
  *                                       recusa se houver aparelho ativo ou código aguardando ativação). Nova chave para o nome = volta à lista.
  *   painelRestaurarAcesso {key, nome} → desfaz o "Remover da lista" (oculto=0)
- *   painelRevogar {key, nome}        → revoga os acessos de FISCAL com esse nome (administradores só pelo menu da planilha)
+ *   painelRevogar {key, nome}        → revoga os acessos de FISCAL com esse nome
+ *   painelRevogarAdmin {key, nome}   → revoga os acessos de ADMINISTRADOR (painel e TV) com esse nome; o próprio acesso não (botão Sair)
  *   painelPermissoes {key, nome, veiculos, tf, pce, antigo} → módulos em que o FISCAL pode inserir dados (aba Permissoes; pelo menos um
  *                                       entre veiculos/tf/pce; antigo = "Digitar do papel", padrão 0, exige pce=1)
  *   painelGerarCodigo aceita também modulos:{veiculos, tf, pce, antigo} (gravados junto); painelAcessos devolve permissoes de cada fiscal.
@@ -1402,16 +1419,29 @@ function painelAcessos(token, ocultos) {
   return { ok: true, agora: agora, acessos: lista };
 }
 
-/** Painel → "Revogar": tira todos os acessos de FISCAL com esse nome (aparelhos e códigos). Administrador só pela planilha. */
+/** Painel → "Revogar": tira todos os acessos de FISCAL com esse nome (aparelhos e códigos). Administrador: painelRevogarAdmin. */
 function painelRevogar(token, nome) {
   adminDoToken_(token);
   nome = String(nome || '').trim().replace(/\s+/g, ' ').slice(0, NOME_SERVIDOR_MAX + 20);
   if (!nome) throw new Error('Informe o nome do servidor.');
-  const n = revogar_(nome, true);
+  const n = revogar_(nome, 'fiscal');
   if (!n && lerLeitura_('Fiscais').some(function (f) { return f.perfil === 'admin' && f.ativo === 1 && nomeChave_(f.nome) === nomeChave_(nome); })) {
-    throw new Error('Acesso de administrador não é retirado pelo painel. Use o menu e-GDV da planilha.');
+    throw new Error(nome + ' é administrador: marque "Mostrar administradores" e use o Revogar da linha de administrador.');
   }
   return { ok: true, nome: nome, revogados: n };
+}
+
+/**
+ * Painel → "Revogar" na linha de um administrador: tira os acessos de ADMINISTRADOR com esse nome (painel e TV; credenciais e
+ * códigos ainda não usados). Não toca em acessos de fiscal do mesmo nome. O próprio acesso não sai por aqui (use Sair), para
+ * ninguém se trancar fora do painel. Novo acesso de administrador continua só pelo menu da planilha.
+ */
+function painelRevogarAdmin(token, nome) {
+  const admin = adminDoToken_(token);
+  nome = String(nome || '').trim().replace(/\s+/g, ' ').slice(0, NOME_SERVIDOR_MAX + 20);
+  if (!nome) throw new Error('Informe o nome do administrador.');
+  if (nomeChave_(nome) === nomeChave_(admin)) throw new Error('Este é o seu próprio acesso. Para sair do painel, use o botão Sair.');
+  return { ok: true, nome: nome, revogados: revogar_(nome, 'admin') };
 }
 
 /**
@@ -1508,8 +1538,40 @@ function painelAtivar(codigo) {
 function lerLeitura_(nome) {                       // leitura pura: não cria abas nem colunas
   const sh = planilha_().getSheetByName(nome), cols = TABELAS[nome];
   if (!sh || sh.getLastRow() < 2) return [];
-  return sh.getRange(2, 1, sh.getLastRow() - 1, cols.length).getValues()
+  const linhas = sh.getRange(2, 1, sh.getLastRow() - 1, cols.length).getValues()
     .map(function (l) { return paraObjeto_(cols, l); });
+  // painel e relatórios: a mesma BVA fixa com um nome só (no volante o local é o endereço e fica como está)
+  if (nome === 'Turnos') linhas.forEach(function (t) { const p = normPub_(t.posto); if (p.indexOf('mov') < 0 && p.indexOf('volante') < 0) t.local = localCanon_(t.local); });
+  return linhas;
+}
+
+/**
+ * Nomes diferentes da mesma BVA fixa (turnos antigos digitados à mão, cadastro de barreiras do TF) → o nome do app (CONFIG.bvas).
+ * Vale só na leitura (painel, relatórios, convênio, VIGIFITO, página pública): a planilha e os aparelhos ficam como estão.
+ * Compara sem acento/caixa/pontuação e sem as palavras "BVA", "Barreira", "da/de/do": "BVA Porto da Ceasa" = "Barreira Porto CEASA".
+ */
+const BVA_APELIDOS_ = {
+  'BVA - CEASA': ['Porto da CEASA', 'BR-319 Porto da CEASA']
+};
+function chaveBva_(s) {
+  return normPub_(s).split(' ').filter(function (w) { return w && !/^(bva|barreira|da|de|do|das|dos)$/.test(w); }).join(' ');
+}
+let apelidosBva_ = null;
+function localCanon_(local) {
+  if (!apelidosBva_) {
+    apelidosBva_ = {};
+    Object.keys(BVA_APELIDOS_).forEach(function (nome) {
+      [nome].concat(BVA_APELIDOS_[nome]).forEach(function (a) { const k = chaveBva_(a); if (k) apelidosBva_[k] = nome; });
+    });
+  }
+  const k = chaveBva_(local);
+  return (k && apelidosBva_[k]) || local;
+}
+/** Barreira do cadastro do TF que é uma BVA do app (pelo id, nome, sufixo ou local) → o nome da BVA; senão ''. */
+function bvaDoCadastro_(b) {
+  const nomes = [b.sufixo, b.nome, b.id, b.local];
+  for (let i = 0; i < nomes.length; i++) { const c = localCanon_(nomes[i]); if (c && c !== nomes[i] || BVA_APELIDOS_[c]) return c; }
+  return '';
 }
 
 /* --- auxiliares do painel (sem efeitos colaterais) --- */
@@ -1583,6 +1645,66 @@ function contarAssinaturas_(v) {
  * resultado = detectada | nao_detectada | suspeita. Registro anterior (sem "pragas"): cada cultura da coluna "culturas" vira um item da praga
  * dela (resultado "detectada") ou da praga '' = "Sem praga informada" (resultado "nao_detectada"). Detectada e suspeita contam como detecção. */
 const RESULTADOS_PCE = ['detectada', 'nao_detectada', 'suspeita'];
+/* Formulário de cítricos no levantamento (coluna "citros"): códigos das opções iguais aos de CONFIG.PCE.citros (web/js/config.js). */
+const CITROS_ = {
+  naoComercial: ['sitio', 'residencia', 'vegetacao', 'publica', 'outros'],
+  atividades: ['viveiro_mudas', 'viveiro_semorigem', 'viveiro_portaenxerto', 'viveiro_clonal', 'frutos', 'outros'],
+  situacoes: ['proprietario', 'arrendatario', 'cooperativa', 'outras'],
+  formasEntrega: ['saco', 'caixa', 'granel'], compradores: ['atravessador', 'supermercado', 'feira', 'cooperativa', 'outros'],
+  materiais: ['muda', 'borbulha', 'cavalinho', 'semente'], delimitacao: ['pintapreta'], deteccao: ['cancro', 'hlb', 'acaro'],
+  maxCulturas: 20, maxTexto: 200
+};
+/**
+ * Dados de citros recebidos do app → texto JSON gravado (ou '' se nada preenchido / inválido). Só as chaves conhecidas; opções fora da
+ * lista viram ''; textos com até 200 caracteres (sem quebra de linha nem "=+-@" no início); números ≥ 0 (negativo ou inválido = vazio;
+ * idade e plantas inteiros); no máximo 20 linhas na cultura do citros (as demais são descartadas). cnpj/endereco/uf (app da versão anterior,
+ * hoje colunas do levantamento) só se vierem preenchidos: CNPJ só com 14 dígitos; UF com 2 letras. deteccao.tem: sim = presença, nao = ausência.
+ */
+function citrosTexto_(v) {
+  const o = v && typeof v === 'object' ? v : lerJSONSeguro_(v, null);
+  if (!o || typeof o !== 'object' || Array.isArray(o)) return '';
+  const X = CITROS_, t = function (x) { return textoCurto_(x, X.maxTexto); };
+  const um = function (x, l) { return l.indexOf(x) >= 0 ? x : ''; }, sn = function (x) { return um(x, ['sim', 'nao']); };
+  const varios = function (x, l) { return (Array.isArray(x) ? x : []).filter(function (y, i, a) { return l.indexOf(y) >= 0 && a.indexOf(y) === i; }); };
+  const num = function (x, inteiro) {
+    if (x === '' || x === null || x === undefined) return '';
+    const n = Number(String(x).replace(',', '.'));
+    if (!isFinite(n) || n < 0) return '';
+    return inteiro ? Math.round(n) : Math.round(n * 1000) / 1000;
+  };
+  const sub = function (x) { return x && typeof x === 'object' && !Array.isArray(x) ? x : {}; };
+  const culturas = (Array.isArray(o.culturas) ? o.culturas : []).filter(function (c) { return c && typeof c === 'object'; }).map(function (c) {
+    return { atividade: um(c.atividade, X.atividades), cultivar: t(c.cultivar), area: num(c.area), idade: num(c.idade, true), plantas: num(c.plantas, true), producao: num(c.producao) };
+  }).filter(function (c) { return Object.keys(c).some(function (k) { return c[k] !== ''; }); }).slice(0, X.maxCulturas);
+  const delimitacao = {}, deteccao = {}, dl = sub(o.delimitacao), dt = sub(o.deteccao);
+  X.delimitacao.forEach(function (k) { const d = sub(dl[k]); delimitacao[k] = { tem: sn(d.tem), tempo: t(d.tempo), controle: sn(d.controle), qual: t(d.qual) }; });
+  X.deteccao.forEach(function (k) { const d = sub(dt[k]); deteccao[k] = { tem: sn(d.tem), tempo: t(d.tempo) }; });
+  const cnpj = digitos_(o.cnpj), rt = sub(o.rt);
+  const r = { v: 1, comercial: sn(o.comercial), naoComercial: um(o.naoComercial, X.naoComercial), naoComercialOutros: t(o.naoComercialOutros),
+              cnpj: cnpj.length === 14 ? cnpj : '', endereco: t(o.endereco), uf: String(o.uf || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2),
+              atividades: varios(o.atividades, X.atividades), atividadeOutros: t(o.atividadeOutros), situacao: um(o.situacao, X.situacoes), situacaoOutras: t(o.situacaoOutras),
+              culturas: culturas, entrega: sn(o.entrega), formasEntrega: varios(o.formasEntrega, X.formasEntrega), compradores: varios(o.compradores, X.compradores),
+              compradorOutros: t(o.compradorOutros), beneficia: sn(o.beneficia), beneficiaTipo: t(o.beneficiaTipo), materiais: varios(o.materiais, X.materiais),
+              origemMaterial: t(o.origemMaterial), delimitacao: delimitacao, deteccao: deteccao, rt: { nome: t(rt.nome), conselho: t(rt.conselho) } };
+  const temAlgo = function (x) {
+    if (Array.isArray(x)) return x.some(temAlgo);
+    if (x && typeof x === 'object') return Object.keys(x).some(function (k) { return k !== 'v' && temAlgo(x[k]); });
+    return String(x === null || x === undefined ? '' : x) !== '';
+  };
+  ['cnpj', 'endereco', 'uf'].forEach(function (k) { if (r[k] === '') delete r[k]; });   // da versão anterior do app (hoje são colunas do levantamento)
+  return temAlgo(r) ? JSON.stringify(r) : '';
+}
+/**
+ * Identificação do produtor/propriedade no levantamento (colunas cnpj, empresa, endereco, uf): CNPJ só com 14 dígitos (senão vazio), UF com 2 letras,
+ * empresa até 120 e endereço até 200 caracteres. Campo não enviado (app antigo) continua não enviado.
+ */
+function identLev_(r) {
+  if (!r || typeof r !== 'object') return;
+  if ('cnpj' in r) { const d = digitos_(r.cnpj); r.cnpj = d.length === 14 ? d : ''; }
+  if ('uf' in r) r.uf = String(r.uf || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
+  if ('empresa' in r) r.empresa = textoCurto_(r.empresa, 120);
+  if ('endereco' in r) r.endereco = textoCurto_(r.endereco, 200);
+}
 function culturaPce_(c, resultado) {
   return { cultura: String(c.cultura).trim(), area: numOuNulo_(c.area), espLinha: String(c.espLinha || ''), espPlanta: String(c.espPlanta || ''),
            resultado: resultado, coleta: c.coleta === 'Sim' ? 'Sim' : 'Não', tipoMaterial: String(c.tipoMaterial || ''),
@@ -1703,7 +1825,8 @@ function dadosPainel_(admin, filtro) {
     if (v.srv_ts > a.ts) a.ts = v.srv_ts;
     if (String(v.hora) > a.hora) a.hora = String(v.hora);
     const o = { id: v.id, turnoId: v.turnoId, hora: v.hora, placa: v.placa, tipo: v.tipo, pessoas: v.pessoas, srv_ts: v.srv_ts, usuario: v.usuario };
-    if (v.carga === 1) { o.carga = 1; o.produtos = produtosTF_(v.produtos).map(function (p) { return p.texto; }).join('; '); o.ufOrigem = v.ufOrigem || ''; o.ufDestino = v.ufDestino || ''; }
+    if (v.ufOrigem || v.ufDestino) { o.ufOrigem = v.ufOrigem || ''; o.ufDestino = v.ufDestino || ''; }        // origem/destino (opcional)
+    if (v.carga === 1) { o.carga = 1; o.produtos = produtosTF_(v.produtos).map(function (p) { return p.texto; }).join('; '); }   // registro antigo
     return o;
   });
   // sinal dos aparelhos: vale para o turno o aparelho do fiscal com este turno aberto (turnoAtual) ou encerrado sem enviar
@@ -1749,6 +1872,7 @@ function dadosPainel_(admin, filtro) {
     return { id: r.id, barreira: r.barreira, ano: r.ano, numero: r.numero, numeroTxt: r.numeroTxt, numeroSugerido: r.numeroSugerido,
              numeroOrigem: r.numeroOrigem, conflito: r.conflito, emitidoEm: r.emitidoEm, turnoId: r.turnoId, veiculoId: r.veiculoId,
              data: r.data, hora: r.hora, fiscal: r.fiscal, local: r.local, placa: r.placa, origem: r.origem, destino: r.destino,
+             ufOrigem: ufNorm_(r.ufOrigem) || ufDoTexto_(r.origem), ufDestino: ufNorm_(r.ufDestino) || ufDoTexto_(r.destino),
              doc: mascararDoc_(r.doc), tipoDoc: tipoDoc_(r.doc), nome: r.nome, municipio: r.municipio, uf: r.uf, relacao: r.relacao,
              inspecao: r.inspecao, coleta: r.coleta, amostras: r.amostras, procedimento: r.procedimento, fiel: r.fiel, auto: r.auto,
              advertencia: r.advertencia, documentos: documentosTF_(r.documentos), produtos: produtosTF_(r.produtos),
@@ -1846,7 +1970,7 @@ function dadosPainel_(admin, filtro) {
     termosPce: termosPce,
     cadastrosPce: cadastrosPce,
     barreiras: lerLeitura_('Barreiras').filter(function (b) { return b.id; })
-      .map(function (b) { return { id: b.id, nome: b.nome, sufixo: b.sufixo, local: b.local, ativo: b.ativo === 1 }; }),
+      .map(function (b) { return { id: b.id, nome: b.nome, sufixo: b.sufixo, local: b.local, ativo: b.ativo === 1, bva: bvaDoCadastro_(b) }; }),
     auditoria: { tf: auditar('TF', todosTFs, tfsPer), pce: auditar('PCE', todasColheitas, colPer),
                  termosPce: auditar('TPCE', todosTermosPce, termosPcePer), cadastrosPce: auditar('CPCE', todosCadastrosPce, todosCadastrosPce.filter(noPeriodo)) }
   };
@@ -2010,7 +2134,7 @@ function convLancOut_(r) {
 function convFinOut_(r) {
   return { id: r.id, convenio: r.convenio, etapa: r.etapa, item: r.item, natureza: r.natureza, data: r.data, quantidade: numOuNulo_(r.quantidade),
            valor: numOuNulo_(r.valor) || 0, documento: r.documento, descricao: r.descricao, fonte: r.fonte, usuario: r.usuario, criadoEm: r.criadoEm, atualizadoEm: r.atualizadoEm,
-           chave: r.chave, origem: r.origem || 'manual', arquivo: r.arquivo, importadoEm: r.importadoEm || 0, tipoDiaria: r.tipoDiaria || '' };
+           chave: r.chave, origem: r.origem || 'manual', arquivo: r.arquivo, importadoEm: r.importadoEm || 0, tipoDiaria: r.tipoDiaria || '', municipio: r.municipio || '' };
 }
 /** Para o Portal do Administrativo: o mesmo e o servidor que recebeu (id e nome — o nome NUNCA vai ao painel nem aos relatórios). */
 function convFinOutAdm_(r) {
@@ -2209,7 +2333,7 @@ function convBemFinanceiro_(autor, cfg, e, lanc, valor, fonte, agora, qtd) {
   if (valor === null && !vivo) return null;
   const o = vivo ? JSON.parse(JSON.stringify(ant)) : { id: ant ? ant.id : Utilities.getUuid(), criadoEm: ant ? ant.criadoEm : agora };
   Object.assign(o, { convenio: cfg.id, etapa: e.id, item: item.id, natureza: item.natureza, chave: chave, origem: 'bem',
-                     descricao: 'Aquisição: ' + b.nome + ' – ' + b.local, usuario: autor.nome, admId: autor.admId || '', atualizadoEm: agora, excluido: 0 });
+                     descricao: 'Aquisição: ' + b.nome + ' – ' + b.local, municipio: b.local || '', usuario: autor.nome, admId: autor.admId || '', atualizadoEm: agora, excluido: 0 });
   if (valor !== null) { o.valor = valor; o.fonte = fonte; }
   if (qtd !== null && qtd !== undefined) o.quantidade = qtd; else if (!vivo) o.quantidade = 1;
   if (!vivo || valor !== null) { o.data = lanc.data; if (lanc.documento) o.documento = lanc.documento; }
@@ -2235,7 +2359,8 @@ function convFinLancar_(autor, l) {
   const qtd = l.quantidade === '' || l.quantidade === null || l.quantidade === undefined ? '' : convNumero_(l.quantidade, 'Quantidade');
   if (qtd !== '' && (qtd < 0 || qtd > 1e7)) throw new Error('Quantidade inválida.');
   const o = { convenio: cfg.id, etapa: e.id, item: item.id, natureza: item.natureza, data: convDataNaVigencia_(cfg, String(l.data || '')), quantidade: qtd,
-              valor: valor, documento: convTexto_(l.documento, 120, 'Documento'), descricao: convTexto_(l.descricao, 1000, 'Descrição'), fonte: fonte, origem: 'manual' };
+              valor: valor, documento: convTexto_(l.documento, 120, 'Documento'), descricao: convTexto_(l.descricao, 1000, 'Descrição'), fonte: fonte, origem: 'manual',
+              municipio: convTexto_(String(l.municipio || '').replace(/\s+/g, ' ').trim(), 80, 'Município') };
   if (valor < 0 && o.descricao.length < 5) throw new Error('Valor negativo (estorno) exige descrição.');
   o.tipoDiaria = String(l.tipoDiaria || '').toUpperCase();
   if (o.tipoDiaria && CONV_TIPOS_DIARIA.indexOf(o.tipoDiaria) < 0) throw new Error('Tipo de diária inválido (NM, NS ou terceiros).');
@@ -2331,6 +2456,7 @@ function convFinImportar_(autor, req) {
           a.o.item === n.item && String(a.o.quantidade) === String(n.quantidade) && a.o.fonte === n.fonte &&
           (!n.servidorNome || a.o.servidorNome === n.servidorNome)) { res.iguais++; return; }
       if (a && !n.servidorNome && a.o.servidorNome) { n.servidorNome = a.o.servidorNome; n.servidorId = a.o.servidorId; }   // sem nome no envio: mantém o já gravado
+      if (a && a.o.municipio) n.municipio = a.o.municipio;                         // a planilha não traz município: mantém o lançado no portal
       const o = Object.assign({}, n, { usuario: autor.nome, admId: autor.admId || '', atualizadoEm: agora, importadoEm: agora, excluido: 0 });
       if (a) {
         o.id = a.o.id; o.criadoEm = a.o.criadoEm || agora;
@@ -2942,13 +3068,45 @@ function relGdvApurar_(de, ate, grupos) {
            vigifito: V };
 }
 
+/* ---------- UF de origem/destino (veículo e TF) ---------- */
+const UFS_ = ['AC', 'AL', 'AM', 'AP', 'BA', 'CE', 'DF', 'ES', 'GO', 'MA', 'MG', 'MS', 'MT', 'PA', 'PB', 'PE', 'PI', 'PR', 'RJ', 'RN', 'RO', 'RR', 'RS', 'SC',
+              'SE', 'SP', 'TO', 'Exterior'];   // = CONFIG.ufs do app
+/** UF informada (select do app): sigla conhecida (maiúscula) ou "Exterior"; qualquer outra coisa = vazio. */
+function ufNorm_(v) {
+  const s = String(v == null ? '' : v).trim().toUpperCase();
+  if (s === 'EXTERIOR') return 'Exterior';
+  return s.length === 2 && UFS_.indexOf(s) >= 0 ? s : '';
+}
+/** Normaliza ufOrigem/ufDestino de um registro recebido (TF ou veículo), só nos campos que vieram. */
+function ufsNorm_(r) {
+  if (!r || typeof r !== 'object') return;
+  ['ufOrigem', 'ufDestino'].forEach(function (c) { if (c in r) r[c] = ufNorm_(r[c]); });
+}
+/** TF antigo (sem coluna de UF): UF no fim do texto de origem/destino — "PORTO VELHO/RO", "BOA VISTA - RR", "MANAUS (AM)", "RR",
+ *  "LIMA, EXTERIOR". Sigla precisa estar separada (espaço, /, -, vírgula, parêntese): "MANAUS" não vira "US". Sem sigla válida = vazio. */
+function ufDoTexto_(t) {
+  const s = String(t == null ? '' : t).trim().toUpperCase();
+  if (!s) return '';
+  const m = /(?:^|[\s\/\-–—,.(])(EXTERIOR|[A-Z]{2})\)?\.?$/.exec(s);
+  return m ? ufNorm_(m[1]) : '';
+}
+
 /* ---------- Motor de indicadores das barreiras (fonte única para VIGIFITO, Relatório GDV e convênio 1.9/1.10) ----------
  * Cada número das barreiras é definido UMA vez aqui (fonte + regra) e usado por todos os relatórios: o VIGIFITO por posto, o bloco
  * VIGIFITO do Relatório GDV/consolidado (soma dos postos por tipo) e as etapas 1.9/1.10 do convênio — o mesmo número nunca diverge.
  * Regras: turno = registro de barreira (data = data de INÍCIO do turno: um turno que começa no dia da troca da escala conta no
  * período que começa nesse dia); veículos = registros não excluídos do turno; pessoas = soma do campo pessoas (estimativa por tipo de
  * veículo); TF = não cancelado, contado pela data do turno em que foi lavrado (TF sem turno: data do TF, como BVA fixa); posto
- * "Móvel"/"volante" = volante, senão fixa; toneladas = produtos em kg (÷ 1.000) ou t; outras unidades à parte, sem conversão. */
+ * "Móvel"/"volante" = volante, senão fixa; toneladas = produtos em kg (÷ 1.000) ou t; outras unidades à parte, sem conversão.
+ * Indicadores de fiscalização (regras da gerência, 2026-10):
+ *   educacao     = pessoas a bordo dos veículos do turno (cada pessoa recebe a orientação de educação sanitária);
+ *   medidaFito, partidas = 1 por TF de barreira; inspecaoFito = TF com "Inspeção" marcada; documentos = TF com documento preenchido;
+ *   UF do TF = coluna ufOrigem/ufDestino; TF antigo: UF no fim do texto de origem/destino (ufDoTexto_); senão a do veículo ligado;
+ *   internN/internT/importT = TF de outra UF (ou do exterior) com destino ao AM (t = produtos do TF); cargasEstados/exportT = TF com
+ *   destino a outra UF; outras unidades desses TFs à parte (outrasUnidades.carga). Veículo SEM TF ligado (TFs.veiculoId) com UF
+ *   informada também conta em internN/cargasEstados (sem toneladas); com TF ligado, só o TF conta (nunca duas vezes).
+ *   Os campos antigos de fiscalização do veículo (semEducacao, medidaFito, carga, produtos, partida, inspecaoFito, docConferido) não
+ *   entram mais em nenhum número. */
 function motorBarreira_(de, ate) {
   const noPer = function (d) { d = String(d || '').slice(0, 10); return d >= de && d <= ate; };
   const tipoDe = function (t) { const p = normPub_(t.posto); return p.indexOf('mov') >= 0 || p.indexOf('volante') >= 0 ? 'volante' : 'fixa'; };
@@ -2956,47 +3114,46 @@ function motorBarreira_(de, ate) {
   lerLeitura_('Turnos').forEach(function (t) {
     if (!t.id) return;
     const o = { id: t.id, data: String(t.data || '').slice(0, 10), posto: t.posto, tipo: tipoDe(t), local: t.local, unidade: t.unidade, veiculos: 0, pessoas: 0,
-                educacao: 0, medidaFito: 0, partidas: 0, inspecaoFito: 0, docVeic: {}, cargasEstados: 0, internN: 0, internT: 0, importT: 0, exportT: 0, outrasCarga: {} };
+                educacao: 0, cargasEstados: 0, internN: 0 };
     todos[t.id] = o;
     if (noPer(o.data)) turnos.push(o);
   });
   const dentro = {}; turnos.forEach(function (t) { dentro[t.id] = t; });
   const uf = String(PropertiesService.getScriptProperties().getProperty('UF_LOCAL') || 'AM').toUpperCase();
+  // interestadual: destino AM vindo de outra UF = internalização; destino em outra UF = trânsito para outros estados
+  const sentido = function (ori, des) { return des === uf && ori && ori !== uf ? 'intern' : des && des !== uf ? 'estados' : ''; };
+  const tfsVivos = lerLeitura_('TFs').filter(function (f) { return f.id && f.cancelado !== 1; }), comTF = {};
+  tfsVivos.forEach(function (f) { if (f.veiculoId) comTF[f.veiculoId] = 1; });
+  const ufVeic = {};
   lerLeitura_('Veiculos').forEach(function (v) {
-    const t = dentro[v.turnoId]; if (!t || !v.id || v.excluido === 1) return;
+    if (!v.id) return;
+    const ori = ufNorm_(v.ufOrigem), des = ufNorm_(v.ufDestino);
+    ufVeic[v.id] = { ori: ori, des: des };
+    const t = dentro[v.turnoId]; if (!t || v.excluido === 1) return;
     t.veiculos++; t.pessoas += Number(v.pessoas) || 0;
-    if (v.semEducacao !== 1) t.educacao++;                                   // padrão: houve orientação (registros antigos também)
-    if (v.medidaFito === 1) t.medidaFito++;
-    if (v.carga !== 1) return;
-    if (v.partida === 1) t.partidas++;
-    if (v.inspecaoFito === 1) t.inspecaoFito++;
-    if (v.docConferido === 1) t.docVeic[v.id] = 1;
-    const ori = String(v.ufOrigem || '').toUpperCase(), des = String(v.ufDestino || '').toUpperCase();
-    let ton = 0;
-    produtosTF_(v.produtos).forEach(function (pr) {
-      if (pr.quantidade === null) return;
-      const tt = toneladas_(pr.quantidade, pr.unidade);
-      if (tt !== null) ton += tt; else { const u = pr.unidade || 'sem unidade'; t.outrasCarga[u] = (t.outrasCarga[u] || 0) + pr.quantidade; }
-    });
-    if (des === uf && ori && ori !== uf) { t.internN++; t.internT += ton; t.importT += ton; }      // entra no estado: internalização/importação
-    else if (des && des !== uf) { t.cargasEstados++; t.exportT += ton; }                           // vai para outro estado: trânsito/exportação
+    t.educacao += Number(v.pessoas) || 0;                                     // educação sanitária: por pessoa a bordo
+    if (comTF[v.id]) return;                                                  // veículo com TF: a origem/destino conta pelo TF
+    const sv = sentido(ori, des);
+    if (sv === 'intern') t.internN++; else if (sv === 'estados') t.cargasEstados++;
   });
   const tfs = [];
-  lerLeitura_('TFs').forEach(function (f) {
-    if (!f.id || f.cancelado === 1) return;
+  tfsVivos.forEach(function (f) {
     const t = f.turnoId ? todos[f.turnoId] : null, data = t ? t.data : String(f.data || '').slice(0, 10);
     if (!noPer(data)) return;
+    const vu = ufVeic[f.veiculoId] || {};
+    const ori = ufNorm_(f.ufOrigem) || ufDoTexto_(f.origem) || vu.ori || '', des = ufNorm_(f.ufDestino) || ufDoTexto_(f.destino) || vu.des || '';
     const o = { id: f.id, turnoId: t ? t.id : '', veiculoId: f.veiculoId || '', data: data, tipo: t ? t.tipo : 'fixa', local: f.local, barreira: f.barreira, procedimento: f.procedimento,
                 documentos: documentosTF_(f.documentos).length > 0, coleta: f.coleta === 1, amostras: f.coleta === 1 ? Number(f.amostras) || 0 : 0,
-                inspecao: f.inspecao === 1, advertencia: f.advertencia === 1, fiel: f.fiel === 1, auto: f.auto === 1, liberacaoT: 0, apreensaoT: 0, outras: {} };
-    if (o.procedimento === 'liberacao' || o.procedimento === 'apreensao') {
-      produtosTF_(f.produtos).forEach(function (pr) {
-        if (pr.quantidade === null) return;
-        const tt = toneladas_(pr.quantidade, pr.unidade);
-        if (tt !== null) o[o.procedimento + 'T'] += tt;
-        else { const u = pr.unidade || 'sem unidade'; o.outras[u] = (o.outras[u] || 0) + pr.quantidade; }
-      });
-    }
+                inspecao: f.inspecao === 1, advertencia: f.advertencia === 1, fiel: f.fiel === 1, auto: f.auto === 1, liberacaoT: 0, apreensaoT: 0, outras: {},
+                ufOrigem: ori, ufDestino: des, sentido: sentido(ori, des), cargaT: 0, outrasCarga: {} };
+    produtosTF_(f.produtos).forEach(function (pr) {
+      if (pr.quantidade === null) return;
+      const tt = toneladas_(pr.quantidade, pr.unidade), u = pr.unidade || 'sem unidade';
+      if (tt !== null) o.cargaT += tt; else o.outrasCarga[u] = (o.outrasCarga[u] || 0) + pr.quantidade;
+      if (o.procedimento === 'liberacao' || o.procedimento === 'apreensao') {
+        if (tt !== null) o[o.procedimento + 'T'] += tt; else o.outras[u] = (o.outras[u] || 0) + pr.quantidade;
+      }
+    });
     tfs.push(o);
   });
   return { turnos: turnos, tfs: tfs };
@@ -3056,8 +3213,9 @@ function vigApurar_(cfg, de, ate) {
   const munN = function (s) { return normPub_(s).replace(/ (am|amazonas)$/, ''); };
   const fixas = cfg.postos.filter(function (p) { return p.tipo === 'fixa'; }), vols = cfg.postos.filter(function (p) { return p.tipo === 'volante'; });
   const fixaDe = function (local, unidade) {
-    const a = normPub_(local), b = normPub_(unidade);
-    for (let i = 0; i < fixas.length; i++) if ((fixas[i].locais || []).some(function (l) { const n = normPub_(l); return n && (n === a || n === b); })) return fixas[i].id;
+    // apelidos da mesma BVA (localCanon_) valem dos dois lados: posto configurado com "Barreira Porto da CEASA" pega os turnos "BVA - CEASA"
+    const alvos = [normPub_(local), normPub_(localCanon_(local)), normPub_(unidade)].filter(Boolean);
+    for (let i = 0; i < fixas.length; i++) if ((fixas[i].locais || []).some(function (l) { return [normPub_(l), normPub_(localCanon_(l))].some(function (n) { return n && alvos.indexOf(n) >= 0; }); })) return fixas[i].id;
     return null;
   };
   const volanteDe = function (t) {
@@ -3065,7 +3223,7 @@ function vigApurar_(cfg, de, ate) {
     for (let i = 0; i < vols.length; i++) { const m = munN(vols[i].municipio); if (m && (u === m || l.indexOf(' ' + m + ' ') >= 0)) return vols[i].id; }
     return null;
   };
-  const porMes = {}, porPeriodo = {}, postoTurno = {}, nao = {}, docVeicTurno = {};
+  const porMes = {}, porPeriodo = {}, postoTurno = {}, nao = {};
   const celulas = function (pid, data) {
     const mes = data.slice(0, 7), per = vigPeriodo_(cfg, data);
     const a = porMes[pid] = porMes[pid] || {}, b = porPeriodo[pid] = porPeriodo[pid] || {};
@@ -3082,11 +3240,8 @@ function vigApurar_(cfg, de, ate) {
     postoTurno[t.id] = pid;
     celulas(pid, t.data).forEach(function (x) {
       x.turnos++; if (t.tipo === 'volante') x.abordagem++; x.veiculos += t.veiculos; x.pessoas += t.pessoas;
-      ['educacao', 'medidaFito', 'partidas', 'inspecaoFito', 'cargasEstados', 'internN', 'internT', 'importT', 'exportT'].forEach(function (k) { x[k] += t[k]; });
-      x.documentos += Object.keys(t.docVeic).length;
-      Object.keys(t.outrasCarga).forEach(function (u) { const o = x.outrasUnidades.carga = x.outrasUnidades.carga || {}; o[u] = (o[u] || 0) + t.outrasCarga[u]; });
+      x.educacao += t.educacao; x.internN += t.internN; x.cargasEstados += t.cargasEstados;   // veículos sem TF ligado (motorBarreira_)
     });
-    docVeicTurno[t.id] = t.docVeic;
   });
   const cadB = {}; lerLeitura_('Barreiras').forEach(function (b) { if (b.id) cadB[b.id] = b; });
   M.tfs.forEach(function (f) {
@@ -3094,9 +3249,12 @@ function vigApurar_(cfg, de, ate) {
     if (!pid && !f.turnoId) { const c = cadB[f.barreira] || {}; pid = fixaDe(f.local, '') || fixaDe(c.nome, c.local) || VIG_OUTRAS.fixa.id; }
     if (!pid) pid = VIG_OUTRAS[f.tipo].id;
     celulas(pid, f.data).forEach(function (x) {
-      x.tfs++;
-      // exame de documentos: veículos com documento conferido + TFs com documentos, sem contar duas vezes o mesmo veículo
-      if (f.documentos && !(f.veiculoId && (docVeicTurno[f.turnoId] || {})[f.veiculoId])) x.documentos++;
+      x.tfs++; x.medidaFito++; x.partidas++;                                  // cada TF de barreira = medida fitossanitária e partida fiscalizada
+      if (f.documentos) x.documentos++;                                       // exame de documentos: TF com NF/PTV/GTA/… preenchido
+      if (f.inspecao) x.inspecaoFito++;                                       // inspeção fitossanitária = "Inspeção" do TF (16.1)
+      if (f.sentido === 'intern') { x.internN++; x.internT += f.cargaT; x.importT += f.cargaT; }
+      else if (f.sentido === 'estados') { x.cargasEstados++; x.exportT += f.cargaT; }
+      if (f.sentido) Object.keys(f.outrasCarga).forEach(function (u) { const o = x.outrasUnidades.carga = x.outrasUnidades.carga || {}; o[u] = (o[u] || 0) + f.outrasCarga[u]; });
       if (f.inspecao) x.inspecao++; if (f.advertencia) x.advertencia++; if (f.fiel) x.fiel++; if (f.auto) x.infracao++;
       if (f.procedimento === 'apreensao') { x.autoDestN++; x.autoDestT += f.apreensaoT; }      // no e-GDV a apreensão é a apreensão para destruição
       if (f.coleta) { x.coleta++; x.amostras += f.amostras; }
@@ -3254,12 +3412,13 @@ function painelVigConfigSalvar(token, req) {
  * Login: o navegador obtém o ID token do Google (Google Identity Services) e chama admLogin {idToken}; o servidor confere o token no
  * tokeninfo do Google (aud = propriedade GOOGLE_CLIENT_ID, iss, exp, email_verified), o e-mail (minúsculas) na lista de liberados (aba
  * Administrativo, gerida no painel → Servidores) e devolve um token de SESSÃO do portal (aleatório; na planilha só o SHA-256), válido
- * por 12 h e renovado ao usar. Sem Google configurado: código de 6 dígitos gerado no painel (admCodigo {codigo}) → a mesma sessão.
+ * por 30 dias sem uso e renovado ao usar. Sem Google configurado: código de 6 dígitos gerado no painel (admCodigo {codigo}) → a mesma sessão;
+ * o código é permanente (serve para entrar de novo quando a sessão vence) até o gerente gerar outro ou revogar o acesso.
  * A sessão do portal não vale no painel nem no app (e as credenciais deles não valem aqui). O ID token nunca é gravado nem registrado.
  * Revogar no painel (ativo = 0) derruba a sessão na próxima chamada. Logins recusados: 10 em 15 min bloqueiam (CacheService).
  * LGPD: os e-mails ficam só na aba Administrativo (e no painel do administrador); lançamentos e histórico guardam o nome e o admId.
  */
-const ADM_SESSAO_MS = 12 * 3600 * 1000;
+const ADM_SESSAO_MS = 30 * 24 * 3600 * 1000;                 // sessão do portal: 30 dias sem uso (Sair ou revogar derruba na hora)
 const ADM_MAX_PADRAO = 10;                                    // liberados ativos (propriedade do script ADM_MAX troca)
 const ADM_MAX_FALHAS = 10;                                    // logins recusados (Google ou código) antes de bloquear 15 min
 const ADM_ISS = ['accounts.google.com', 'https://accounts.google.com'];
@@ -3312,7 +3471,8 @@ function admLogin_(req) {
   } finally { lock.releaseLock(); }
 }
 
-/** Login por código de 6 dígitos (gerado no painel para um liberado; uso único, 7 dias). */
+/** Login por código de 6 dígitos (gerado no painel para um liberado). Permanente: vale em todo login até o gerente gerar outro
+ * código para a pessoa ou revogar o acesso (as colunas codigoExpira antigas são ignoradas). */
 function admCodigo_(req) {
   admBloqueado_();
   const cod = String(req.codigo || '').replace(/\D/g, '');
@@ -3324,12 +3484,9 @@ function admCodigo_(req) {
       const a = paraObjeto_(t.cols, t.valores[i]);
       if (!a.id || !a.codigo || a.codigo.padStart(6, '0') !== cod) continue;
       if (a.ativo !== 1) admFalhou_('Este acesso foi revogado pelo gerente.');
-      if (a.codigoExpira <= agora) admFalhou_('Código expirado. Peça um novo código ao gerente.');
-      a.codigo = ''; a.codigoExpira = 0;                                      // uso único
-      t.sh.getRange(i + 2, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return a[c]; })]);
       return admNovaSessao_(a, 'codigo');
     }
-    admFalhou_('Código incorreto ou já usado. Peça um novo código ao gerente.');
+    admFalhou_('Código incorreto ou substituído por um novo. Confira com o gerente.');
   } finally { lock.releaseLock(); }
 }
 
@@ -3347,7 +3504,7 @@ function admMarcarAcesso_(id, agora) {
   for (let i = 0; i < t.valores.length; i++) if (String(t.valores[i][0]) === String(id)) { t.sh.getRange(i + 2, iu + 1).setValue(agora); return; }
 }
 
-/** Valida o token de sessão do portal; renova a validade (12 h a partir do uso). Liberado revogado = sessão recusada. */
+/** Valida o token de sessão do portal; renova a validade (30 dias a partir do uso). Liberado revogado = sessão recusada. */
 function admSessao_(tok) {
   tok = String(tok || '');
   if (!/^[0-9a-f]{64}$/.test(tok)) throw new Error('Sessão do portal inválida. Entre de novo.');
@@ -3356,7 +3513,7 @@ function admSessao_(tok) {
     if (String(t.valores[i][ih]) !== h) continue;
     const s = paraObjeto_(t.cols, t.valores[i]);
     if (s.revogado === 1) break;
-    if (s.expiraEm <= agora) throw new Error('Sessão do portal expirada (12 h sem uso). Entre de novo.');
+    if (s.expiraEm <= agora) throw new Error('Sessão do portal expirada (30 dias sem uso). Entre de novo com o mesmo código de ativação.');
     const a = lerLeitura_('Administrativo').filter(function (x) { return x.id === s.admId; })[0];
     if (!a || a.ativo !== 1) throw new Error('Sessão do portal revogada: o acesso foi retirado pelo gerente.');
     if (s.expiraEm - agora < ADM_SESSAO_MS - 5 * 60 * 1000) {                 // renova (no máximo uma escrita a cada 5 min)
@@ -3484,9 +3641,9 @@ function admAcao_(req) {
 
 /* ----- painel → aba Servidores: lista de liberados do Administrativo (só administrador do painel) ----- */
 function admLinhaOut_(a, agora) {
-  const pend = a.codigo && a.codigoExpira > agora;
+  const pend = !!a.codigo;                                                   // código permanente (até gerar outro ou revogar)
   return { id: a.id, email: emailNorm_(a.email), nome: a.nome, ativo: a.ativo === 1 ? 1 : 0, criadoEm: a.criadoEm, criadoPor: a.criadoPor, ultimoAcesso: a.ultimoAcesso || 0,
-           codigo: pend ? a.codigo.padStart(6, '0') : '', codigoExpira: pend ? a.codigoExpira : 0, atualizadoEm: a.atualizadoEm, atualizadoPor: a.atualizadoPor };
+           codigo: pend ? a.codigo.padStart(6, '0') : '', codigoExpira: 0, atualizadoEm: a.atualizadoEm, atualizadoPor: a.atualizadoPor };
 }
 function painelAdmLista(token) {
   adminDoToken_(token);
@@ -3525,22 +3682,22 @@ function painelAdmSalvar(token, req) {
     return { ok: true, liberado: admLinhaOut_(a, agora) };
   } finally { lock.releaseLock(); }
 }
-/** Código de ativação do portal (6 dígitos, uso único, 7 dias) para um liberado ativo — alternativa ao login com Google. */
+/** Código de ativação do portal (6 dígitos, permanente: vale até gerar outro ou revogar) para um liberado ativo — alternativa ao login com Google. */
 function painelAdmCodigo(token, req) {
   const admin = adminDoToken_(token);
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     const t = lerTudo_('Administrativo'), agora = Date.now(), id = String((req && req.id) || ''), emUso = {};
     let pos = -1;
-    t.valores.forEach(function (l, i) { const a = paraObjeto_(t.cols, l); if (a.codigo && a.codigoExpira > agora) emUso[a.codigo.padStart(6, '0')] = 1; if (a.id && a.id === id) pos = i; });
+    t.valores.forEach(function (l, i) { const a = paraObjeto_(t.cols, l); if (a.codigo) emUso[a.codigo.padStart(6, '0')] = 1; if (a.id && a.id === id) pos = i; });
     if (pos < 0) throw new Error('Liberado não encontrado.');
     const a = paraObjeto_(t.cols, t.valores[pos]);
     if (a.ativo !== 1) throw new Error('Acesso revogado: reative antes de gerar o código.');
     let codigo;
     do { codigo = String(parseInt(Utilities.getUuid().replace(/-/g, '').slice(0, 8), 16) % 1000000).padStart(6, '0'); } while (emUso[codigo]);
-    a.codigo = codigo; a.codigoExpira = agora + VALIDADE_CODIGO_MS; a.atualizadoEm = agora; a.atualizadoPor = admin;
+    a.codigo = codigo; a.codigoExpira = 0; a.atualizadoEm = agora; a.atualizadoPor = admin;
     t.sh.getRange(pos + 2, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return a[c]; })]);
-    return { ok: true, id: a.id, nome: a.nome, codigo: codigo, expiraEm: a.codigoExpira, url: admUrl_() };
+    return { ok: true, id: a.id, nome: a.nome, codigo: codigo, expiraEm: 0, permanente: true, url: admUrl_() };
   } finally { lock.releaseLock(); }
 }
 
@@ -4005,8 +4162,11 @@ function gerarCodigo_(nome, perfil, geradoPor) {
   }
 }
 
-/** Revoga todos os aparelhos/códigos de um fiscal (pelo nome). Devolve quantos foram revogados. soFiscais: não toca em administradores (painel). */
-function revogar_(nome, soFiscais) {
+/**
+ * Revoga todos os aparelhos/códigos com esse nome. Devolve quantos foram revogados.
+ * perfil: 'fiscal' = só acessos de fiscal (painelRevogar), 'admin' = só de administrador (painelRevogarAdmin), vazio = todos (menu).
+ */
+function revogar_(nome, perfil) {
   nome = nomeChave_(nome);
   if (!nome) return 0;
   const lock = LockService.getScriptLock();
@@ -4015,7 +4175,7 @@ function revogar_(nome, soFiscais) {
     const t = lerTudo_('Fiscais'); let n = 0;
     t.valores.forEach(function (l, i) {
       const f = paraObjeto_(t.cols, l);
-      if (nomeChave_(f.nome) === nome && f.ativo === 1 && !(soFiscais && f.perfil === 'admin')) {
+      if (nomeChave_(f.nome) === nome && f.ativo === 1 && (!perfil || (perfil === 'admin') === (f.perfil === 'admin'))) {
         f.ativo = 0;
         t.sh.getRange(i + 2, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return f[c]; })]);
         n++;

@@ -906,12 +906,14 @@ const PCEUI = (() => {
   /** Pior resultado da praga (detectada > suspeita > não detectada). */
   const resultadoPraga = g => g.culturas.map(c => c.resultado).sort((a, b) => ORDEM_RES[a] - ORDEM_RES[b])[0] || 'nao_detectada';
   const seloRes = r => `<span class="pce-selo-res ${esc(r)}">${esc(RES[r] || '')}</span>`;
+  /** Rótulo curto do botão na lista em tabela do PC (o CSS mostra data-curto; o texto inteiro fica no title). */
+  const curto = (c, t) => ` data-curto="${esc(c.trim())}" title="${esc(t.trim())}"`;
   /** Botões "PDF: <praga>" (um por praga) e "Imprimir todos". grande = tela depois de salvar. */
   function botoesPdf(id, G, grande) {
     const cls = grande ? 'botao' : 'editar';
-    return G.pragas.map((g, i) => `<button class="${cls} pce-pdf" data-pce="imprimirlev" data-id="${esc(id)}" data-g="${i}">${grande ? '🖨️ ' : ''}PDF: ${esc(nomePraga(g.praga))}</button>`).join('')
-      + (G.pragas.length > 1 ? `<button class="${grande ? 'botao sec' : 'editar'} pce-pdf-todos" data-pce="imprimirtodos" data-id="${esc(id)}">🖨️ Imprimir todos (${G.pragas.length} PDFs)</button>` : '')
-      + (!G.pragas.length ? `<button class="${cls} pce-pdf" data-pce="imprimirlev" data-id="${esc(id)}" data-g="0">Ficha (PDF)</button>` : '');
+    return G.pragas.map((g, i) => `<button class="${cls} pce-pdf" data-pce="imprimirlev" data-id="${esc(id)}" data-g="${i}"${grande ? '' : curto('PDF ' + nomePraga(g.praga).split(' ')[0], 'PDF: ' + nomePraga(g.praga))}>${grande ? '🖨️ ' : ''}PDF: ${esc(nomePraga(g.praga))}</button>`).join('')
+      + (G.pragas.length > 1 ? `<button class="${grande ? 'botao sec' : 'editar'} pce-pdf-todos" data-pce="imprimirtodos" data-id="${esc(id)}"${grande ? '' : curto('PDF todos', 'Imprimir todos os PDFs')}>🖨️ Imprimir todos (${G.pragas.length} PDFs)</button>` : '')
+      + (!G.pragas.length ? `<button class="${cls} pce-pdf" data-pce="imprimirlev" data-id="${esc(id)}" data-g="0"${grande ? '' : curto('Ficha', 'Ficha (PDF)')}>Ficha (PDF)</button>` : '');
   }
   const amostrasDe = G => G.pragas.flatMap(g => g.culturas.filter(c => c.coleta === 'Sim').map(c => ({ praga: g.praga, cultura: c.cultura, tipoMaterial: c.tipoMaterial || '', codigoAmostra: c.codigoAmostra || '' })));
 
@@ -929,9 +931,9 @@ const PCEUI = (() => {
   function botoesVisita(r, v, grande) {
     if (!Sync.pode('pce') || (Number(r.registroAntigo) === 1 && !podeAntigo())) return '';
     const id = x => (grande ? `id="${x}"` : ''), ci = v.programa === 'citros';
-    const cad = v.cadastro ? '' : `<button class="${grande ? 'botao' : 'editar'}" data-pce="cadvisita" data-id="${esc(r.id)}" ${id('pce-pronto-cad')}>${ci ? '🍊 Cadastro de citros' : '🏡 Cadastrar a propriedade'}${grande ? ' e fazer o Termo' : ''}</button>`;
-    const tf = v.termo ? `<button class="${grande ? 'botao sec' : 'editar'}" data-pce="abrirtfvisita" data-id="${esc(v.termo.id)}" ${id('pce-pronto-tf')}>📋 Termo de Fiscalização ${esc(v.termo.numeroTxt || '')}</button>`
-      : `<button class="${grande ? (cad ? 'botao sec' : 'botao') : 'tfbtn'}" data-pce="tfvisita" data-id="${esc(r.id)}" ${id('pce-pronto-tf')}>📋 ${grande ? (cad ? 'Só o Termo de Fiscalização (sem cadastro)' : 'Fazer o Termo de Fiscalização da visita') : 'Termo de Fiscalização'}</button>`;
+    const cad = v.cadastro ? '' : `<button class="${grande ? 'botao' : 'editar'}" data-pce="cadvisita" data-id="${esc(r.id)}" ${grande ? id('pce-pronto-cad') : curto(ci ? 'Cadastro citros' : 'Cadastro', ci ? 'Cadastro de citros' : 'Cadastrar a propriedade')}>${ci ? '🍊 Cadastro de citros' : '🏡 Cadastrar a propriedade'}${grande ? ' e fazer o Termo' : ''}</button>`;
+    const tf = v.termo ? `<button class="${grande ? 'botao sec' : 'editar'}" data-pce="abrirtfvisita" data-id="${esc(v.termo.id)}" ${grande ? id('pce-pronto-tf') : curto('TF ' + (v.termo.numeroTxt || ''), 'Termo de Fiscalização ' + (v.termo.numeroTxt || ''))}>📋 Termo de Fiscalização ${esc(v.termo.numeroTxt || '')}</button>`
+      : `<button class="${grande ? (cad ? 'botao sec' : 'botao') : 'tfbtn'}" data-pce="tfvisita" data-id="${esc(r.id)}" ${grande ? id('pce-pronto-tf') : curto('TF', 'Fazer o Termo de Fiscalização')}>📋 ${grande ? (cad ? 'Só o Termo de Fiscalização (sem cadastro)' : 'Fazer o Termo de Fiscalização da visita') : 'Termo de Fiscalização'}</button>`;
     return cad + tf;
   }
   /** Tela depois de salvar: resumo por praga e os PDFs (um por praga). */
@@ -983,18 +985,19 @@ const PCEUI = (() => {
     if (!mostrar.viva()) return;
     const desenhar = () => {
       const v = todos;
-      $('#pceItens').innerHTML = v.length ? v.map(x => {
+      $('#pceItens').innerHTML = v.length ? `<div class="pce-lev-cab" aria-hidden="true"><span>Produtor · propriedade</span><span>Data</span><span>Avaliação</span><span>Resultado</span><span>Ações</span></div>` + v.map(x => {
         const g = G.get(x.id), cult = g.pragas.flatMap(p => p.culturas), fotos = lerJSON(x.fotos, []), col = cult.filter(c => c.coleta === 'Sim').length;
         const pend = x.pendente || [...idsArquivos(x)].some(id => pendArq.has(id)), papelSemAut = Number(x.registroAntigo) === 1 && !podeAnt;
         return `<div class="item pce-lev" data-lev="${esc(x.id)}"><div class="topo"><div><div class="placa pce-nome">${esc(x.nome)}</div>
           <div class="tipo">${esc(x.propriedade || 'Propriedade não informada')} · ${esc(x.municipio)}</div></div><div class="hora">${esc(dBR(x.data))}<br>${esc(x.hora)}</div></div>
-          <div class="info">${g.pragas.length} praga(s)/doença(s) · ${cult.length} cultura(s) avaliada(s)${col ? ` · ${col} com coleta` : ''} · ${fotos.length} foto(s)</div>
+          <div class="info pce-lev-av">${g.pragas.length} praga(s)/doença(s) · ${cult.length} cultura(s) avaliada(s)${col ? ` · ${col} com coleta` : ''} · ${fotos.length} foto(s)</div>
+          <div class="info pce-lev-av-pc" aria-hidden="true">${g.pragas.length} praga(s) · ${cult.length} cultura(s)<br>${fotos.length} foto(s)${col ? ` · ${col} coleta(s)` : ''}</div>
           ${g.pragas.length ? `<div class="info pce-res-resumo">${g.pragas.map(p => `<span>${esc(nomePraga(p.praga))} ${seloRes(resultadoPraga(p))}</span>`).join(' ')}</div>` : ''}
           ${pend ? `<div class="info pend">⏳ aguardando envio${papelSemAut ? ' — registro do papel: sem autorização, fica guardado neste aparelho' : ''}</div>` : ''}
           <div class="botoes pce-acoes">${papelSemAut ? '' : `<button class="editar" data-pce="abrirlev" data-id="${esc(x.id)}">Abrir</button>`}
           ${botoesPdf(x.id, g, false)}
           ${botoesVisita(x, V.get(x.id), false)}
-          ${Sync.pode('pce') && !papelSemAut ? `<button class="tfbtn" data-pce="termodelev" data-id="${esc(x.id)}">Termo de colheita</button>` : ''}
+          ${Sync.pode('pce') && !papelSemAut ? `<button class="tfbtn" data-pce="termodelev" data-id="${esc(x.id)}"${curto('Colheita', 'Termo de colheita')}>Termo de colheita</button>` : ''}
           <button class="excluir" data-pce="excluirlev" data-id="${esc(x.id)}">Excluir</button></div></div>`;
       }).join('') : '<div class="vazio">Nenhum levantamento neste aparelho.</div>';
     };

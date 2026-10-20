@@ -147,6 +147,7 @@ const EU = [-2.63, -56.74];
     await C.setInputFiles(CU(0, 0) + ' >> .c-fotos', Array.from({ length: 14 }, (_, i) => ({ name: `f${i}.jpg`, mimeType: 'image/jpeg', buffer: foto })));
     await C.waitForFunction(() => document.querySelectorAll('.pce-praga .pce-foto img').length === 14, null, { timeout: 20000 });
     await C.click('#pce-addpraga'); await C.selectOption(PR(1) + ' >> .p-praga', 'HLB / Greening'); await C.selectOption(CU(1, 0) + ' >> .c-cultura', 'Laranja'); await C.click(CU(1, 0) + ' >> .pce-res-nao_detectada');
+    for (const k of ['hlb', 'acaro', 'cancro']) await C.click(`#pce-citros label:has(input[name="pce-ci-det-${k}-tem"][value="nao"])`);   // praga de citros: detecção obrigatória
     await C.click('#pce-salvar'); await C.waitForSelector('#pce-lev-pronto');
     const levLocal = await C.evaluate(async () => (await Store.todos('levantamentos')).map(l => ({ cod: l.codigoPropriedade, doc: l.doc, pend: l.pendente, prop: l.propriedade })));
     // o GPS da visita passa a ser a coordenada da propriedade (como antes desta mudança)

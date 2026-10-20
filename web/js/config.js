@@ -73,9 +73,10 @@ const CONFIG = {
     pragas: ['Bactrocera carambolae', 'Schizotetranychus hindustanicus', 'Phakopsora pachyrhizi', 'HLB / Greening', 'Cancro Cítrico',
       'Fusarium R4T', 'Monilíase do Cacaueiro', 'Vassoura de Bruxa da Mandioca', 'Amaranthus palmeri', 'Diaphorina citri (vetor do HLB)',
       'Pinta Preta dos Citros', 'Leprose dos Citros'],
-    // Formulário de cítricos (CADASTRO DE IMÓVEIS DE PRODUÇÃO COMERCIAL DE CÍTRICOS; IN 21/2018 cancro cítrico, Portaria 317/2021 HLB): no levantamento,
-    // o card "Dados de citros" aparece quando há card de praga de citros (nome da lista abaixo ou "Outra" digitada com um dos termos; sem acento/maiúsculas).
-    // Gravado na coluna "citros" (JSON) do levantamento. Códigos (1º item de cada par) não mudam: vão para a planilha; o texto é só o rótulo.
+    // Cadastro de cítricos (CADASTRO DE IMÓVEIS DE PRODUÇÃO COMERCIAL DE CÍTRICOS; IN 21/2018 cancro cítrico, Portaria 317/2021 HLB): no levantamento,
+    // o bloco "🍊 Cultura do citros" (um só, dentro de "Pragas e doenças") aparece quando há card de praga de citros (nome da lista abaixo ou "Outra"
+    // digitada com um dos termos; sem acento/maiúsculas). Gravado na coluna "citros" (JSON) do levantamento; vira o Cadastro de citros (programa
+    // "citros") e o Termo de Fiscalização da visita. Códigos (1º item de cada par) não mudam: vão para a planilha; o texto é só o rótulo.
     citros: {
       pragas: ['HLB / Greening', 'Cancro Cítrico', 'Schizotetranychus hindustanicus', 'Diaphorina citri (vetor do HLB)', 'Pinta Preta dos Citros', 'Leprose dos Citros'],
       termos: ['citr', 'cancro', 'hlb', 'greening', 'pinta preta', 'leprose', 'hindustan', 'diaphorina'],
@@ -87,8 +88,13 @@ const CONFIG = {
       compradores: [['atravessador', 'Atravessador'], ['supermercado', 'Supermercado'], ['feira', 'Feira'], ['cooperativa', 'Cooperativa'], ['outros', 'Outros']],
       materiais: [['muda', 'Muda'], ['borbulha', 'Borbulha'], ['cavalinho', 'Cavalinho'], ['semente', 'Semente']],
       delimitacao: [['pintapreta', 'Pinta Preta']],
-      deteccao: [['cancro', 'Cancro Cítrico'], ['hlb', 'HLB'], ['acaro', 'Ácaro Hindustânico']],
-      // card de praga com resultado "Detectada" → pré-marca "Sim" no item (só se o fiscal ainda não marcou). Diaphorina (vetor) não marca HLB.
+      // levantamento de detecção: as três são obrigatórias (Ausência = "nao", Presença = "sim"); o nome é o do Termo (CONFIG.PCE.termo.pragas)
+      deteccao: [['hlb', 'HLB'], ['acaro', 'Ácaro Hindustânico'], ['cancro', 'Cancro Cítrico']],
+      // frases da "Descrição da ação" do Termo de Fiscalização (uma por doença; {praga} = nome acima; {culturas} = culturas de citros avaliadas)
+      frases: { nao: 'Ausência de sintomas de {praga} nos frutos e folhas da cultura{culturas}.', sim: 'Presença de sintomas de {praga} nos frutos e folhas da cultura{culturas}.' },
+      // enquadramento legal padrão do Termo de Fiscalização de citros (editável no formulário do Termo)
+      enquadramento: 'PORTARIA MAPA SDA Nº 1326, DE 4 DE JULHO DE 2025, ART. 23, INCISOS I E II, E ART. 26.',
+      // card de praga com resultado "Detectada" → pré-marca "Presença" no item (só se o fiscal ainda não marcou). Diaphorina (vetor) não marca HLB.
       marcarPor: { cancro: ['cancro'], hlb: ['hlb', 'greening', 'liberibacter'], acaro: ['hindustan', 'schizotetranychus'], pintapreta: ['pinta preta', 'guignardia', 'phyllosticta'] },
       naoMarcar: ['diaphorina'],
       cultivares: ['Laranja Pera', 'Laranja Lima', 'Laranja Valência', 'Laranja Natal', 'Limão Tahiti', 'Limão Galego', 'Tangerina Ponkan', 'Tangerina Murcote',

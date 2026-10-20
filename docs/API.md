@@ -144,7 +144,7 @@ gravação entra no histórico (aba `AdmHistorico`, com antes/depois).
 | `admSair` | — | encerra a sessão |
 | `admDados` | — | dados iniciais do portal: convênios, servidores, lançamentos físicos e financeiros |
 | `admConvLancar` / `admConvExcluir` | `lancamento` / `id` | execução física do convênio |
-| `admConvFinLancar` / `admConvFinExcluir` | `lancamento` / `id` | execução financeira |
+| `admConvFinLancar` / `admConvFinExcluir` | `lancamento` (com `municipio` opcional) / `id` | execução financeira |
 | `admConvFinImportar` | `convenio`, `arquivo`, `itens`, `excluir` (máx. 500 por chamada) | importa a planilha de movimentação |
 | `admRelDados` / `admRelLancar` | `ano` / `ano`, `lancamentos` (máx. 3.000) | linhas manuais do Relatório GDV |
 | `admVigDados` | `ano` | dados do VIGIFITO |

@@ -70,6 +70,17 @@ const EU = [-2.63, -56.74];
   ok(!r.ok && r.semPermissao === 'pce' && /Sem autorização para o módulo PCE/.test(r.erro), 'fiscal sem o módulo PCE: servidor recusa (' + r.erro + ')');
   r = await post({ action: 'pceBaixarMunicipio', key: fC.token, municipios: [] }); ok(!r.ok && /município/.test(r.erro), 'sem município: recusado');
 
+  console.log('1b) servidor: pceMapaGeral (mapa com todas as propriedades)');
+  r = await post({ action: 'pceMapaGeral', key: fC.token });
+  const idsG = (r.propriedades || []).map(p => p.id).sort();
+  ok(r.ok && JSON.stringify(idsG) === JSON.stringify(['MAN-001', 'PRP-001', 'PRP-002', 'PRP-003', 'PRP-004']), 'todas as propriedades com coordenadas, de todos os municípios (a sem GPS fica de fora): ' + idsG.join(', '));
+  ok(!r.propriedades.some(p => 'doc' in p || 'telefone' in p) && !/52998224725|71428793860|JOSÉ DA SILVA|ANA MANAUARA/.test(JSON.stringify(r)), 'sem produtor, CPF/CNPJ nem telefone');
+  const man = r.propriedades.find(p => p.id === 'MAN-001');
+  ok(man.lat === -3.1 && man.lon === -60 && man.municipio === 'Manaus' && man.resumoLev.n === 1 && man.resumoLev.pragas[0].praga === 'Fusarium R4T', 'coordenadas em número e histórico junto (MAN-001: Fusarium R4T)');
+  ok((await get('/__aba?nome=Consultas')).some(l => l[1] === fC.nome && /PCE mapa geral: 5 propriedade/.test(l[4])), 'consulta registrada na aba Consultas');
+  r = await post({ action: 'pceMapaGeral', key: fD.token });
+  ok(!r.ok && r.semPermissao === 'pce', 'fiscal sem o módulo PCE: recusado');
+
   // ---------- app ----------
   const b = await amb.lancar();
   const aparelho = async ({ token, nome }) => {
@@ -269,6 +280,18 @@ const EU = [-2.63, -56.74];
     ok(await C.evaluate(() => Campo.atualizarSozinho()) === false, 'recente: não baixa de novo');
     const hist = await C.evaluate(async () => { const p = await Store.obter('propriedades', 'PRP-001'); return p.resumoLev; });
     ok(hist.n === 2 && hist.ultimo, 'resumo atualizado com o levantamento novo (2 levantamentos)');
+    // com internet, o mapa mostra também as propriedades dos municípios não baixados (Manaus), sem produtor
+    await C.click('nav [data-v=pcemapa]'); await C.waitForSelector('#campo-mapa .leaflet-container, #campo-mapa.leaflet-container', { timeout: 15000 });
+    await C.waitForSelector('.campo-item[data-id=MAN-001]', { timeout: 15000 });
+    ok(/1 propriedade\(s\) dos municípios não baixados/.test(await C.textContent('#campo-geral')) && await C.locator('#campo-semdados').count() === 0, 'com internet: aviso de que o mapa inclui as propriedades dos municípios não baixados');
+    ok(await C.locator('path.campo-ponto').count() === 5, 'mapa com as 4 de Parintins (baixado) + 1 de Manaus (geral)');
+    await C.click('.campo-item[data-id=MAN-001]'); await C.waitForSelector('#campo-cartao-box');
+    const cartG = (await C.textContent('#campo-cartao-box')).replace(/\s+/g, ' ');
+    ok(/Sítio Manauara/.test(cartG) && /Manaus ainda não foi baixado/.test(cartG) && !/ANA MANAUARA|714\.287/.test(cartG) && await C.locator('#campo-baixar-mun').count() === 1 && await C.locator('#campo-levantar').count() === 0,
+      'cartão da propriedade não baixada: sem produtor, com "Baixar dados do município" e sem "Fazer levantamento aqui"');
+    await C.click('.campo-item[data-id=PRP-003]'); await C.waitForSelector('#campo-levantar');
+    ok(/PEDRO SANTOS/.test(await C.textContent('#campo-cartao-box')), 'propriedade do município baixado continua com o produtor');
+    await C.screenshot({ path: amb.saida('pce_campo_mapa_geral.png'), fullPage: true });
     // a gerência tira o PCE: os dados baixados saem do aparelho na próxima sincronização (LGPD)
     r = await post({ action: 'painelPermissoes', key: 'segredo', nome: fC.nome, veiculos: 1, tf: 1, pce: 0 }); if (!r.ok) throw new Error(r.erro);
     await C.evaluate(() => Sync.sincronizar());

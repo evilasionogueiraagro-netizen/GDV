@@ -68,6 +68,7 @@ tudo liberado, exceto `antigo`. O mapa `MODULO_DA_ACAO` diz qual módulo cada ac
 | `pceDocNumero` | pce | `tipo` (`termo`/`cadastro`), `unidade`, `ano`, `programa` | `ultimo`, `proximo` | `pceDocNumero_` |
 | `pceDocRegistrar` | pce | `tipo`, `registro`, `pessoa`, `propriedade` | como `pceEmitir` | `pceDocRegistrar_` |
 | `pceBaixarMunicipio` | pce | `municipios` (lista) | `municipios`, `propriedades`, `pessoas`, `cadastrosPce` | `pceBaixarMunicipio_` |
+| `pceMapaGeral` | pce | — | `propriedades` (todas com coordenadas: `id`, `codigo`, `nome`, `municipio`, `lat`, `lon`, `resumoLev`; sem produtor nem CPF/CNPJ) | `pceMapaGeral_` |
 | `arquivoEnviar` | tf se `arquivo.dono = 'tfs'`, senão pce | `arquivo` {`id` UUID, `dono`, `donoId`, `tipo` (`foto`/`assinatura`/`documento`), `papel`, `mime`, `rotulo`}, `base64` | `id`, `url`, `driveId`, `existente` | `arquivoEnviar_` |
 
 Registros de módulo não liberado (ou `registroAntigo = 1` sem a flag `antigo`) não são gravados no `sync`: voltam em

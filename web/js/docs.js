@@ -196,13 +196,16 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
       const alvo = d.getElementById(id); alvo.textContent = ''; alvo.append(tb);
     };
     const docs = json(t.documentos, {}), prods = json(t.produtos, []);
+    // origem/destino com a UF escolhida no TF ("ITACOATIARA/AM"); texto que já termina na sigla fica como está; TF antigo: só o texto
+    const comUF = (txt, uf) => { const x = String(txt || '').trim(), u = String(uf || '').trim(); if (!u) return x; if (!x) return u;
+      if (new RegExp(`(^|[\\s/\\-–,(])${u}\\)?$`, 'i').test(x)) return x; return u.length === 2 ? `${x}/${u}` : `${x} (${u})`; };
     set('tf_numero', t.numeroTxt); set('nome', t.nome); set('cpf', fmtDoc(t.doc)); set('rg', t.rg); set('endereco', t.endereco);
     set('relacao', t.relacao); set('municipio', t.municipio); set('uf', t.uf); set('telefone', t.telefone);
     grade('acao_realizada', [[{ w: 50, t: `${marca(t.inspecao)} Inspeção` }, { w: 50, t: `${marca(t.coleta)} Coleta de amostra${t.coleta && t.amostras ? ' – Qtd.: ' + t.amostras : ''}` }]]);
     grade('procedimentos', [
       [{ w: 33, t: `${marca(t.procedimento === 'liberacao')} Liberação` }, { w: 33, t: `${marca(t.procedimento === 'apreensao')} Apreensão p/ destruição` }, { w: 34, t: `${marca(t.procedimento === 'rechaco')} Rechaço` }],
       [{ w: 33, t: `${marca(t.fiel)} Fiel depositário` }, { w: 33, t: `${marca(t.auto)} Auto de Infração` }, { w: 34, t: `${marca(t.advertencia)} Advertência` }]]);
-    set('local', t.local); set('data', t.data ? dataBR(t.data) : ''); set('hora', t.hora); set('placa', t.placa); set('origem', t.origem); set('destino', t.destino);
+    set('local', t.local); set('data', t.data ? dataBR(t.data) : ''); set('hora', t.hora); set('placa', t.placa); set('origem', comUF(t.origem, t.ufOrigem)); set('destino', comUF(t.destino, t.ufDestino));
     const dc = (rot, k) => ({ w: 25, t: `${marca(docs[k])} ${rot} ${docs[k] || '____________'}` });
     grade('documentos', [[dc('NF Nº', 'nf'), dc('SIF Nº', 'sif'), dc('PTV Nº', 'ptv'), dc('SIE Nº', 'sie')], [dc('SIM Nº', 'sim'), dc('GTA Nº', 'gta'), dc('LACRE', 'lacre'), dc('OUTROS', 'outros')]]);
     set('produtos', prods.join('\n')); set('constatacao', t.constatacao); set('enquadramento', t.enquadramento);
@@ -403,12 +406,16 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     imprimir(f, nomeT);
   }
 
-  /* ---------- PCE: Cadastro de imóvel (monilíase), Termo de Fiscalização do PCE e Relatório de atividades ----------
-     Modelos declarativos (documentos/pce-termo.html, pce-cadastro-moniliase.html, pce-relatorio.html) preenchidos por documentos/pce-docs.js
-     (o mesmo script do painel). modo 'arquivo': devolve o PDF gerado no aparelho (pdf.js) em vez de abrir a impressão. */
-  const MODELO_MON = { termo: 'pce-termo.html', cadastro: 'pce-cadastro-moniliase.html', relatorio: 'pce-relatorio.html' };
+  /* ---------- PCE: Cadastro de imóvel (monilíase), Cadastro de citros, Termo de Fiscalização do PCE e Relatório de atividades ----------
+     Modelos declarativos (documentos/pce-termo.html, pce-termo-citros.html, pce-cadastro-moniliase.html, pce-cadastro-citros.html, pce-relatorio.html)
+     preenchidos por documentos/pce-docs.js (o mesmo script do painel). modo 'arquivo': devolve o PDF gerado no aparelho (pdf.js) em vez de abrir a impressão.
+     opcoes.extras: outras páginas no mesmo PDF (citros: Cadastro de citros + Termo de Fiscalização da visita). */
+  const MODELO_MON = { termo: 'pce-termo.html', cadastro: 'pce-cadastro-moniliase.html', relatorio: 'pce-relatorio.html',
+    termoCitros: 'pce-termo-citros.html', cadastroCitros: 'pce-cadastro-citros.html' };
   function nomePdfMon(tipo, r) {
     if (tipo === 'termo') return nomeArquivo('Termo_Fiscalizacao_' + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));
+    if (tipo === 'termoCitros') return nomeArquivo('TF_Citros_' + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));
+    if (tipo === 'cadastroCitros') return nomeArquivo('Cadastro_Citros_' + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));
     if (tipo === 'cadastro') return nomeArquivo('Cadastro_Moniliase_' + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));
     return nomeArquivo(`Relatorio_Atividades_${r.localArq || r.local || ''}_${dataPce(r.de).replace(/\//g, '-')}_a_${dataPce(r.ate).replace(/\//g, '-')}`);
   }

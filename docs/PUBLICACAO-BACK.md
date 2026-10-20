@@ -42,8 +42,15 @@ Precisa da conta dona do script (**adafegdv@gmail.com**) e do dono do repositór
    Compare com o repositório: deve haver só `Code.gs` e `appsscript.json`, e o `appsscript.json` deve ser igual ao do
    repositório. Arquivo a mais (ex.: o `Painel.html` antigo) será apagado na primeira publicação; se ele ainda for usado,
    traga-o para `apps-script/` antes.
-5. **No GitHub**: **Settings → Secrets and variables → Actions → New repository secret**, duas vezes:
-   - `CLASPRC_JSON`: o conteúdo inteiro do `clasprc-gdv.json`;
+   O navegador termina numa página `localhost` com "Logged in! You may close this page.": é isso mesmo, a credencial não
+   aparece na tela, fica no arquivo. Para conferir (tem que responder `true`):
+   ```sh
+   jq -e '.tokens.default.refresh_token | length > 0' clasprc-gdv.json
+   ```
+5. **No GitHub**: **Settings → Secrets and variables → Actions → New repository secret** (ou o lápis, se já existe), duas vezes:
+   - `CLASPRC_JSON`: o conteúdo inteiro do `clasprc-gdv.json`. Não selecione o texto à mão no terminal (é fácil pegar pela
+     metade ou com texto a mais): copie o arquivo para a área de transferência com `xclip -sel clip < clasprc-gdv.json`
+     (Linux) ou `pbcopy < clasprc-gdv.json` (macOS) e cole com Ctrl+V;
    - `APPS_SCRIPT_ID`: o ID do script do passo 2.
 
    Depois apague o `clasprc-gdv.json` do computador. Segredo do repositório fica disponível para os workflows de qualquer
@@ -65,7 +72,23 @@ Precisa da conta dona do script (**adafegdv@gmail.com**) e do dono do repositór
 - **Voltar uma versão**: reverta o commit na `main`; o `VERSAO_CODIGO` antigo é diferente do que está no ar, então o
   workflow publica o código anterior. Na pressa: **Implantar → Gerenciar implantações → lápis → Versão** e escolha a
   anterior (o próximo merge com versão nova publica de novo).
-- **Workflow falhou na credencial** (senha da conta trocada, acesso revogado): refaça o passo 3 e atualize o segredo
-  `CLASPRC_JSON`.
+- **Vários projetos "SISTEMA GDV" em script.google.com**: o backup diário copia a planilha inteira, e o Google copia junto o
+  script ligado a ela (um por dia, até os 30 backups guardados). Só o da planilha de produção vale: para achar o ID, abra
+  a planilha → **Extensões → Apps Script**, nunca pela lista.
 - **Publicar à mão** continua possível, como antes (colar o `Code.gs` → Nova versão). Mude o `VERSAO_CODIGO` do
   repositório junto, senão o próximo merge publica o que estiver no repositório.
+
+## Quando o workflow falha
+
+O passo que falhou diz a causa:
+
+- **"Enviar o código" com `Unexpected non-whitespace character after JSON at position N`** (ou `... is not valid JSON`): o
+  segredo `CLASPRC_JSON` não é um JSON inteiro (colado pela metade ou com texto a mais). Refaça os passos 3 e 5. Foi o que
+  deixou o back parado em `2026-10-16f` de 16 a 20/10/2026 enquanto o front seguia publicando.
+- **`invalid_grant`, `invalid_client` ou erro de autorização**: senha da conta trocada ou acesso revogado. Refaça os passos 3
+  e 5.
+- **"Nova versão na implantação atual" falhou**: o `APPS_SCRIPT_ID` não é o do projeto que tem a implantação da URL `/exec`
+  (ex.: ID de uma cópia de backup). Pegue o ID pela planilha, como no item acima.
+
+Depois de corrigir: **Actions → Publicar Apps Script → Run workflow** (branch `main`), ou o próximo merge na `main` publica
+sozinho (o workflow compara a versão do repositório com a do ar, não com a do merge anterior).

@@ -307,7 +307,7 @@
     lista.innerHTML = '';
     P.tabela(lista, [{ chave: 'data', rotulo: 'Data', fmt: F.data }].concat(sel ? [] : [{ chave: 'etapa', rotulo: 'Etapa' }]).concat(sel && E.finItem ? [] : [{ chave: 'item', rotulo: 'Item', fmt: (v, l) => itemNome(l) }]).concat([
       { chave: 'natureza', rotulo: 'Natureza' }, { chave: 'quantidade', rotulo: 'Qtd.', num: true, fmt: v => v == null ? '—' : F.num(v) },
-      { chave: 'valor', rotulo: 'Valor', num: true, fmt: F.moeda, csv: v => v }, { chave: 'documento', rotulo: 'Documento', fmt: v => v || '—' },
+      { chave: 'valor', rotulo: 'Valor', num: true, fmt: F.moeda, csv: v => v }, { chave: 'municipio', rotulo: 'Município', fmt: v => v || '—' }, { chave: 'documento', rotulo: 'Documento', fmt: v => v || '—' },
       { chave: 'fonte', rotulo: 'Fonte', fmt: v => v === 'contrapartida' ? 'Contrapartida' : 'Repasse' }, { chave: 'servidorNome', rotulo: 'Servidor', fmt: v => v || '—' }, { chave: 'descricao', rotulo: 'Descrição', fmt: v => v || '—' },
       { chave: 'origem', rotulo: 'Origem', fmt: (v, l) => v === 'planilha' ? `Planilha${l.importadoEm ? ' ' + F.data(new Date(l.importadoEm - 4 * 3600e3).toISOString()) : ''}` : v === 'bem' ? 'Bem (aquisição)' : 'Manual' },
       { chave: 'usuario', rotulo: 'Lançado pelo Administrativo', fmt: lancadoEm }]),

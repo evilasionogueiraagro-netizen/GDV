@@ -93,11 +93,23 @@ hr { border:0; border-top:1px solid var(--linha); margin:10px 0; }
 .pce-praga [hidden] { display:none !important; }
 .pce-praga .pce-cult { margin:8px 0; }
 .pce-addcult { margin-top:4px; }
-/* PCE — card "Dados de citros" (formulário de cítricos): só aparece com praga de citros no levantamento */
-.pce-citros h3 small { font-weight:400; font-size:13px; color:var(--mut); }
+/* PCE — bloco "🍊 Cultura do citros" (cadastro de cítricos): um só, dentro do card "Pragas e doenças", com praga de citros no levantamento */
+.pce-citros { border:2px solid #f0b46a; border-radius:12px; padding:10px; margin:12px 0; background:#fffaf2; }
+.pce-citros h4 { margin:0 0 4px; font-size:16px; color:#8a4b00; } .pce-citros h4 small { display:block; font-weight:400; font-size:12.5px; color:var(--mut); }
 .pce-citros [hidden] { display:none !important; }
-.pce-ci-cult { border:1px solid var(--linha); border-radius:10px; padding:10px; margin:8px 0; background:#f8fafd; }
-.pce-ci-end { grid-template-columns:1fr 72px; }
+.pce-citros .obrig { color:#b00020; font-weight:700; }
+.pce-ci-det { border-top:1px solid #f3d6ae; padding-top:4px; }
+.pce-ci-cult { border:1px solid var(--linha); border-radius:10px; padding:10px; margin:8px 0; background:#fff; }
+/* PCE — dados do produtor fechados até informar o CPF/CNPJ (consulta ao cadastro) */
+.pce-prod { border:0; padding:0; margin:0; min-width:0; }
+.pce-prod:disabled { opacity:.55; }
+.pce-mun-uf { grid-template-columns:1fr 72px; }
+#pce-uf { text-transform:uppercase; }
+/* Cadastro de citros (conferência dos dados que vieram do levantamento) */
+.pce-ci-resumo { margin:0; display:grid; gap:4px; } .pce-ci-resumo > div { display:grid; grid-template-columns:42% 1fr; gap:6px; border-bottom:1px dashed var(--linha); padding:3px 0; }
+.pce-ci-resumo dt { color:var(--mut); font-size:13px; } .pce-ci-resumo dd { margin:0; font-weight:600; overflow-wrap:anywhere; }
+.pce-ci-tab { width:100%; border-collapse:collapse; margin-top:8px; font-size:13px; } .pce-ci-tab th, .pce-ci-tab td { border:1px solid var(--linha); padding:4px; text-align:left; }
+.mon-prog { display:inline-block; font-size:12px; font-weight:700; color:#8a4b00; background:#fff1dc; border-radius:8px; padding:0 6px; }
 .pce-res { border:0; padding:0; margin:6px 0 10px; min-width:0; } .pce-res legend { padding:0; font-size:13px; color:var(--mut); margin-bottom:4px; }
 .pce-res-op { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
 .pce-res-op label { position:relative; color:#23324a; flex-direction:row; align-items:center; justify-content:center; gap:4px; margin:0; padding:9px 4px; border:1.5px solid var(--linha); border-radius:10px; background:#fff; font-size:13.5px; font-weight:600; text-align:center; cursor:pointer; line-height:1.15; }

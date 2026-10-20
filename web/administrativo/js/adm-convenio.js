@@ -269,7 +269,7 @@
     const itemNome = l => { const it = itemDe(l.etapa, l.item); return it ? `${it.id} ${it.nome}` : l.item; };
     const lst = E.d.financeiro.filter(l => l.convenio === c.id && (!E.filtroEtapa || l.etapa === E.filtroEtapa)).slice().sort((a, b) => b.data.localeCompare(a.data) || (b.atualizadoEm || 0) - (a.atualizadoEm || 0));
     A.tabela(sl, [{ chave: 'data', rotulo: 'Data', fmt: F.data }, { chave: 'etapa', rotulo: 'Etapa' }, { chave: 'item', rotulo: 'Subetapa', fmt: (x, l) => itemNome(l) },
-      { chave: 'municipio', rotulo: 'Município', fmt: x => x || '—' }, { chave: 'documento', rotulo: 'Documento', fmt: x => x || '—' }, { chave: 'tipoDiaria', rotulo: 'Tipo', fmt: x => x === 'TERC' ? 'Terceiros' : x || '—' },
+      { chave: 'municipio', rotulo: 'Município', fmt: (x, l) => munFin(l) || '—', csv: (x, l) => munFin(l) }, { chave: 'documento', rotulo: 'Documento', fmt: x => x || '—' }, { chave: 'tipoDiaria', rotulo: 'Tipo', fmt: x => x === 'TERC' ? 'Terceiros' : x || '—' },
       { chave: 'quantidade', rotulo: 'Qtd.', num: true, fmt: x => x == null ? '—' : F.num(x, 1) }, { chave: 'valor', rotulo: 'Valor', num: true, fmt: F.moeda, csv: x => x },
       { chave: 'fonte', rotulo: 'Fonte', fmt: x => x === 'contrapartida' ? 'Contrapartida' : 'Repasse' }, { chave: 'servidorNome', rotulo: 'Servidor', fmt: x => x || '—' },
       { chave: 'descricao', rotulo: 'Descrição', fmt: x => x || '—' },
@@ -332,6 +332,10 @@
       desenhar(raiz, visao);
     } catch (err) { if (!A.logado) return; msg(raiz, 'fin', 'Não salvou: ' + err.message, 'erro'); b.disabled = false; }
   }
+
+  // município do desembolso: o lançado; aquisição de bem (chave bem|<convênio>|<bem>) sem município = local do bem
+  const munFin = l => { if (l.municipio) return l.municipio; const m = /^bem\|[^|]*\|(.+)$/.exec(l.chave || ''); if (!m) return '';
+    const b = cfg().etapas.flatMap(e => e.bens || []).find(x => x.id === m[1]); return b ? b.local || '' : ''; };
 
   /* ---------------- importação da planilha de movimentação ---------------- */
   function secaoImp(raiz, v) {

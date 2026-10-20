@@ -156,7 +156,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-20e';
+const VERSAO_CODIGO = '2026-10-20f';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -219,6 +219,7 @@ function doPost(e) {
     if (req.action === 'pceDocNumero') return json_(pceDocNumero_(req));
     if (req.action === 'pceDocRegistrar') return json_(pceDocRegistrar_(req, usuario));
     if (req.action === 'pceBaixarMunicipio') return json_(pceBaixarMunicipio_(req, usuario));
+    if (req.action === 'pceMapaGeral') return json_(pceMapaGeral_(req, usuario));
     if (req.action === 'arquivoEnviar') return json_(arquivoEnviar_(req, usuario));
     if (req.action === 'tfAndamento') return json_(tfAndamento_(req, usuario));
     if (req.action === 'tfIndiceReincidencia') return json_(tfIndiceReincidencia_(req));
@@ -984,23 +985,10 @@ function pceBaixarMunicipio_(req, usuario) {
     throw new Error('São ' + props.length + ' propriedades nesse(s) município(s); o limite é ' + CAMPO_MAX_PROPS.toLocaleString('pt-BR') +
       ' por vez. Baixe menos municípios de cada vez.');
   }
-  // histórico: levantamentos ligados à propriedade pelo código ou por produtor (doc) + nome da propriedade
-  const chaveCod = function (c) { const s = normPub_(c); return s ? 'C:' + s : ''; };
-  const chaveNome = function (doc, nome) { const d = digitos_(doc), n = normPub_(nome); return d && n ? 'N:' + d + '|' + n : ''; };
-  const levs = {};
-  lerLeitura_('Levantamentos').forEach(function (r) {
-    if (!r.id || r.excluido === 1) return;
-    [chaveCod(r.codigoPropriedade), chaveNome(r.doc, r.propriedade)].forEach(function (k) { if (k) (levs[k] = levs[k] || []).push(r); });
-  });
+  const resumoLev = resumidorLevantamentos_();
   const docs = {}, porMun = {};
   props.forEach(function (p) {
-    const vistos = {}, lista = [];
-    [chaveCod(p.codigo), chaveNome(p.doc, p.nome)].forEach(function (k) {
-      (levs[k] || []).forEach(function (r) { if (!vistos[r.id]) { vistos[r.id] = 1; lista.push(r); } });
-    });
-    lista.sort(function (a, b) { return String(b.data + ' ' + b.hora).localeCompare(String(a.data + ' ' + a.hora)); });
-    const ult = lista[0];
-    p.resumoLev = { n: lista.length, ultimo: ult ? ult.data : '', ultimoHora: ult ? ult.hora : '', pragas: ult ? deteccoesLev_(ult) : [] };
+    p.resumoLev = resumoLev(p);
     const k = normPub_(p.municipio);
     p.campoMun = alvo[k];
     const d = digitos_(p.doc);
@@ -1031,6 +1019,48 @@ function pceBaixarMunicipio_(req, usuario) {
   c.getRange(c.getLastRow() + 1, 1, 1, 5).setValues([[Date.now(), usuario, '', '',
     ('PCE campo: ' + municipios.map(function (m) { return m.municipio + ' (' + m.nProps + ')'; }).join(', ')).slice(0, 480)]]);
   return { ok: true, agora: Date.now(), municipios: municipios, propriedades: props, pessoas: pessoas, cadastrosPce: cadastrosPce };
+}
+
+/**
+ * Resumo do histórico de cada propriedade: levantamentos ligados a ela pelo código ou por produtor (doc) + nome da propriedade.
+ * Lê a aba Levantamentos uma vez e devolve a função p → {n, ultimo, ultimoHora, pragas}.
+ */
+function resumidorLevantamentos_() {
+  const chaveCod = function (c) { const s = normPub_(c); return s ? 'C:' + s : ''; };
+  const chaveNome = function (doc, nome) { const d = digitos_(doc), n = normPub_(nome); return d && n ? 'N:' + d + '|' + n : ''; };
+  const levs = {};
+  lerLeitura_('Levantamentos').forEach(function (r) {
+    if (!r.id || r.excluido === 1) return;
+    [chaveCod(r.codigoPropriedade), chaveNome(r.doc, r.propriedade)].forEach(function (k) { if (k) (levs[k] = levs[k] || []).push(r); });
+  });
+  return function (p) {
+    const vistos = {}, lista = [];
+    [chaveCod(p.codigo), chaveNome(p.doc, p.nome)].forEach(function (k) {
+      (levs[k] || []).forEach(function (r) { if (!vistos[r.id]) { vistos[r.id] = 1; lista.push(r); } });
+    });
+    lista.sort(function (a, b) { return String(b.data + ' ' + b.hora).localeCompare(String(a.data + ' ' + a.hora)); });
+    const ult = lista[0];
+    return { n: lista.length, ultimo: ult ? ult.data : '', ultimoHora: ult ? ult.hora : '', pragas: ult ? deteccoesLev_(ult) : [] };
+  };
+}
+
+/**
+ * Mapa "Perto de mim" com internet: todas as propriedades com coordenadas, para os municípios que o servidor ainda não baixou.
+ * Só o que o mapa precisa (id, código, nome, município, lat/lon e o resumo do histórico): sem produtor, CPF/CNPJ ou telefone —
+ * esses só vêm no download do município. O app não guarda esta resposta. Só módulo PCE; cada consulta fica na aba Consultas.
+ */
+function pceMapaGeral_(req, usuario) {
+  const num = function (v) { const s = String(v == null ? '' : v).trim().replace(',', '.'), n = Number(s); return s !== '' && isFinite(n) ? n : null; };
+  const resumoLev = resumidorLevantamentos_(), out = [];
+  lerLeitura_('Propriedades').forEach(function (p) {
+    if (!p.id) return;
+    const lat = num(p.lat), lon = num(p.lon);
+    if (lat == null || lon == null || Math.abs(lat) > 90 || Math.abs(lon) > 180 || (lat === 0 && lon === 0)) return;
+    out.push({ id: p.id, codigo: p.codigo, nome: p.nome, municipio: p.municipio, lat: lat, lon: lon, resumoLev: resumoLev(p) });
+  });
+  const c = aba_('Consultas');
+  c.getRange(c.getLastRow() + 1, 1, 1, 5).setValues([[Date.now(), usuario, '', '', 'PCE mapa geral: ' + out.length + ' propriedade(s)']]);
+  return { ok: true, agora: Date.now(), propriedades: out };
 }
 
 const ARQ_MIMES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'application/pdf': 'pdf' };
@@ -1256,7 +1286,7 @@ const MODULOS = ['veiculos', 'tf', 'pce'];
 const NOME_MODULO = { veiculos: 'Educação Sanitária/Fiscalização de Trânsito', tf: 'TF de Barreira', pce: 'PCE' };
 // actions do app que pertencem a um módulo (o servidor recusa se o módulo não estiver liberado para quem chama)
 const MODULO_DA_ACAO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf', tfIndiceReincidencia: 'tf',
-                         pceProximoNumero: 'pce', pceEmitir: 'pce', pceConsultar: 'pce', pceBaixarMunicipio: 'pce', arquivoEnviar: 'pce',
+                         pceProximoNumero: 'pce', pceEmitir: 'pce', pceConsultar: 'pce', pceBaixarMunicipio: 'pce', pceMapaGeral: 'pce', arquivoEnviar: 'pce',
                          pceDocNumero: 'pce', pceDocRegistrar: 'pce' };
 const tudoLiberado_ = function () { return { veiculos: 1, tf: 1, pce: 1, antigo: 0 }; };   // "antigo" (Digitar do papel): desligado por padrão
 const MSG_SEM_ANTIGO = 'Sem autorização para digitar registros antigos (do papel). Fale com a gerência.';

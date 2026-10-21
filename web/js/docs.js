@@ -58,16 +58,27 @@ const Docs = (() => {
     return 0;
   }
 
-  // Campo "Coordenadas Geográficas" do Termo: usa a coordenada FINAL (encerramento) em graus decimais;
-  // se ela não foi capturada, usa a do início.
-  function textoCoordenadas(t) {
+  // Campo "Coordenadas Geográficas" do Termo: usa a coordenada FINAL (encerramento); se ela não foi capturada, usa a do início.
+  // Sai em graus, minutos e segundos como no modelo de papel (03° 08' 06.21" S / 59° 56' 20.86" W), com os graus decimais entre parênteses.
+  function coordTurno(t) {
     for (const suf of ['Fim', 'Ini']) {
       const la = parseFloat(t['lat' + suf]), ln = parseFloat(t['lng' + suf]);
-      if (!isNaN(la) && !isNaN(ln)) return `${la.toFixed(5)}, ${ln.toFixed(5)}`;
+      if (!isNaN(la) && !isNaN(ln)) return [la, ln];
     }
-    return '';
+    return null;
+  }
+  function gmsTermo(v, pos, neg) {
+    const a = Math.abs(v); let d = Math.floor(a), m = Math.floor((a - d) * 60), sg = Math.round(((a - d) * 60 - m) * 6000) / 100;
+    if (sg >= 60) { sg = 0; m++; } if (m >= 60) { m = 0; d++; }
+    return `${String(d).padStart(2, '0')}° ${String(m).padStart(2, '0')}' ${sg.toFixed(2).padStart(5, '0')}" ${v < 0 ? neg : pos}`;
+  }
+  function textoCoordenadas(t) {
+    const c = coordTurno(t); if (!c) return '';
+    return `${gmsTermo(c[0], 'N', 'S')} / ${gmsTermo(c[1], 'E', 'W')} (${c[0].toFixed(5)}, ${c[1].toFixed(5)})`;
   }
 
+  /** Termo de Fiscalização do turno (modelo padrão ADAF 2026): identificação do posto, descrição da ação com os números do turno,
+   *  enquadramento legal, testemunhas, recebimento da 2ª via e assinatura do servidor. */
   async function termo(turnoId) {
     const { turno, veiculos } = await dadosDoTurno(turnoId);
     const f = await abrirModelo('termo.html'), d = f.contentDocument;
@@ -77,32 +88,28 @@ const Docs = (() => {
     set('numeroTF', partes[1] + '-' + partes[2]);
     set('ano', partes[3] || ano);
     set('unidade', turno.unidade || CONFIG.unidadePadrao);
-    const coords = textoCoordenadas(turno), caixa = d.querySelector('.coordenadas');
-    if (coords && caixa) {
-      const v = d.createElement('span');
-      v.className = 'valor'; v.textContent = coords; v.style.whiteSpace = 'nowrap';
-      caixa.appendChild(v);
-    }
+    const volante = /m[óo]vel|volante/i.test(turno.posto || ''), bva = (CONFIG.bvas || []).find(b => b.nome === turno.local) || {};
+    set('idNome', volante ? 'AÇÃO VOLANTE – ' + (turno.unidade || '') : turno.local);
+    set('idAtividade', 'FISCALIZAÇÃO / EDUCAÇÃO SANITÁRIA');
+    set('idEndereco', volante ? turno.local : (bva.endereco || ''));
+    set('idMunicipio', (volante ? turno.unidade : bva.municipio || turno.unidade || '').toUpperCase());
+    set('idUf', 'AMAZONAS');
+    set('idCoordenadas', textoCoordenadas(turno));
+    set('servidorNome', turno.fiscal);
     const pessoas = veiculos.reduce((s, v) => s + (Number(v.pessoas) || 0), 0);
     const lavrados = (await Store.todos('tfs')).filter(x => x.turnoId === turnoId && !x.cancelado).sort((a, b) => a.numero - b.numero).map(x => x.numeroTxt);
-    const linhasTF = lavrados.length ? `<strong>${esc(lavrados.join('; '))}</strong>`
-      : '____________________________________________________<br>____________________________________________________';
-    const ini = turno.inicio || '__:__';
-    const fim = turno.fim || '__:__';
+    const ini = turno.inicio || '__:__', fim = turno.fim || '__:__';
     d.getElementById('descricaoTexto').innerHTML = `
-<p>Aos <strong>${Number(dia)}</strong> dias do mês de <strong>${MESES[Number(mes) - 1]}</strong> de <strong>${esc(ano)}</strong>,
-das <strong>${esc(ini)}</strong> horas às <strong>${esc(fim)}</strong> horas,
-foram executadas as atividades de <strong>Fiscalização / Educação Sanitária Vegetal</strong>,
-pelo(s) servidor(es) <strong>${esc(turno.fiscal)}</strong>, realizada no <strong>${esc(turno.local)}</strong>,
-onde procedeu(ram) à inspeção de veículos, cargas, bagagens, pessoas e demais materiais sujeitos ao controle da Defesa Agropecuária.</p>
-<p>Durante a ação foram abordados <strong>${veiculos.length}</strong> veículos, fiscalizadas <strong>${pessoas}</strong> pessoas.<br><br>
-Termos de Barreira Lavrados:<br>${linhasTF}</p>
-<p>Na inspeção foram verificadas cargas contendo produtos, subprodutos e outros artigos regulamentados, observando-se as exigências
-previstas na legislação federal e estadual referente ao trânsito agropecuário e às medidas de defesa vegetal.</p>
+<p>Em <strong>${esc(dia)}/${esc(mes)}/${esc(ano)}</strong>, das <strong>${esc(ini)}</strong> às <strong>${esc(fim)}</strong> hora(s), ao realizar fiscalização no(a)
+<strong>${esc(turno.local)}</strong>, pelo(s) servidor(es) <strong>${esc(turno.fiscal)}</strong>, constatou-se:</p>
+<p>Foram fiscalizados <strong>${veiculos.length}</strong> veículos e realizadas <strong>${pessoas}</strong> ações de educação sanitária (pessoas orientadas),
+com inspeção de veículos, cargas, bagagens, pessoas e demais materiais sujeitos ao controle da Defesa Agropecuária.</p>
+<p>Termos de Fiscalização de Barreira lavrados: ${lavrados.length ? `<strong>${esc(lavrados.join('; '))}</strong>` : '<strong>nenhum</strong>'}.</p>
 <p>Foram prestadas orientações aos usuários quanto às normas fitossanitárias vigentes, especialmente sobre os riscos de introdução e
-dispersão de pragas quarentenárias, com destaque para a <strong>Mosca-da-Carambola (Bactrocera carambolae)</strong>, bem como sobre
+dispersão de pragas quarentenárias, com destaque para a <strong>Mosca-da-Carambola (<i>Bactrocera carambolae</i>)</strong>, e sobre
 a obrigatoriedade da apresentação da documentação fitossanitária quando exigida.</p>
 <p>Nada mais havendo a registrar, lavrou-se o presente Termo de Fiscalização para fins de comprovação da atividade desenvolvida.</p>`;
+    set('enquadramentoTexto', ((CONFIG.TF && CONFIG.TF.textoLegal) || '').replace(/\s*\n\s*/g, ' '));
     imprimir(f, 'Termo ' + turno.numeroTF);
   }
 

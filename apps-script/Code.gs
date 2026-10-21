@@ -13,7 +13,8 @@
  *   Sem linha = tudo liberado. O sync não grava registros de módulo não liberado (devolve em "recusados"; o app os mantém
  *   pendentes) e as actions do TF/PCE respondem "Sem autorização para o módulo …".
  *   Coluna "antigo" (Digitar do papel): ao contrário dos módulos, vem DESLIGADA por padrão (vazio ou sem linha = 0). Só com
- *   antigo=1 (e PCE liberado) o servidor aceita levantamentos/termos com registroAntigo=1 e PDFs escaneados (arquivo "documento").
+ *   antigo=1 (e PCE liberado) o servidor aceita levantamentos/termos e TFs (com o TF liberado) com registroAntigo=1 e PDFs escaneados
+ *   (arquivo "documento").
  *
  * Opcional (compatibilidade): Propriedades do script → ACCESS_KEY = chave mestra (administrador).
  */
@@ -45,7 +46,8 @@ const TABELAS = {
         'reincidente', 'tfsAnteriores', 'cancelado', 'motivoCancel', 'conflito', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
         'numeroSugerido', 'numeroOrigem', 'emitidoEm',   // auditoria da numeração (colunas novas ficam sempre no fim)
         'fotos', 'assinaturas', 'recusaAssinatura',    // fotos = JSON [ids]; assinaturas = JSON {fiscalizado, servidor} (ids na aba Arquivos); recusaAssinatura = 1: fiscalizado se recusou
-        'ufOrigem', 'ufDestino'],                     // UF de origem/destino da carga (sigla de UFS_ ou "Exterior"; vazio = não informada; TF antigo: ufDoTexto_ de origem/destino)
+        'ufOrigem', 'ufDestino',                      // UF de origem/destino da carga (sigla de UFS_ ou "Exterior"; vazio = não informada; TF antigo: ufDoTexto_ de origem/destino)
+        'registroAntigo', 'pdfs'],                    // TF digitado do papel (Digitar do papel): registroAntigo = 1, pdfs = JSON [ids] dos PDFs escaneados (aba Arquivos)
   Pessoas: ['id', 'tipo', 'nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
             'email'],                                                                                                              // id = CPF/CNPJ (só dígitos)
   Placas: ['id', 'doc', 'nome', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],                                                    // id = placa
@@ -163,7 +165,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-20i';
+const VERSAO_CODIGO = '2026-10-21a';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -267,7 +269,7 @@ function sincronizar_(req, usuario) {
   };
   // registros antigos (digitados do papel) só com a permissão "antigo": os demais do mesmo lote entram normalmente
   if (!perm.antigo) {
-    ['levantamentos', 'colheitas', 'cadastrosPce', 'termosPce'].forEach(function (campo) {
+    ['levantamentos', 'colheitas', 'cadastrosPce', 'termosPce', 'tfs'].forEach(function (campo) {
       const fora = T[campo].filter(function (r) { return r && Number(r.registroAntigo) === 1; });
       if (!fora.length) return;
       T[campo] = T[campo].filter(function (r) { return !(r && Number(r.registroAntigo) === 1); });
@@ -509,6 +511,11 @@ function emitir_(req, usuario) {
   const barreira = String(tf.barreira || ''), ano = Number(tf.ano) || 0, numero = Number(tf.numero) || 0;
   if (!tf.id || !barreira || !ano || numero < 1) throw new Error('Dados do TF incompletos.');
   if (!listarBarreiras_().some(function (b) { return b.id === barreira; })) throw new Error('Barreira desconhecida: ' + barreira);
+  if (Number(tf.registroAntigo) === 1) {                                         // TF digitado do papel: só com "Digitar do papel"; data do papel, nunca no futuro
+    exigirAntigo_(usuario);
+    if (!diaValido_(String(tf.data || '')) || String(tf.data) > hojeManaus_()) throw new Error('TF do papel: data inválida ou no futuro.');
+    if (Number(String(tf.data).slice(0, 4)) !== ano) throw new Error('TF do papel: o ano do número (' + ano + ') é diferente do ano da data.');
+  }
   ufsNorm_(tf);
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
@@ -1080,7 +1087,6 @@ function arquivoEnviar_(req, usuario) {
   if (!donoId || donoId.length > 64) throw new Error('Arquivo sem registro de origem válido.');
   if (tipo !== 'foto' && tipo !== 'assinatura' && tipo !== 'documento') throw new Error('Tipo de arquivo inválido.');
   if (['', 'servidor', 'produtor', 'testemunha1', 'testemunha2', 'fiscalizado'].indexOf(papel) < 0) throw new Error('Papel da assinatura inválido.');
-  if (dono === 'tfs' && tipo === 'documento') throw new Error('TF não aceita documento (PDF).');
   if (!ARQ_MIMES[mime]) throw new Error('Formato não aceito (somente JPEG, PNG ou PDF).');
   const pdf = mime === 'application/pdf';
   if (pdf !== (tipo === 'documento')) throw new Error(pdf ? 'PDF só pode ser enviado como documento.' : 'Documento só pode ser PDF.');
@@ -3143,7 +3149,8 @@ function ufDoTexto_(t) {
  *   Relatório de plantão do papel (importado no portal): toda carga (medidaPapel) soma as toneladas da cargaPapel em internT/importT
  *   ou exportT pelo sentido (o internN/cargasEstados já vem da UF do veículo, como acima). Só a carga com nº do TF no papel (tfPapel)
  *   conta como o TF de barreira contaria — tfs, partidas, medidaFito, liberação/apreensão (+ t), auto de destruição (apreensão) e
- *   documentos (docPapel): a mesma regra do app (medida = TF lavrado; decisão da gerência, 2026-10). */
+ *   documentos (docPapel): a mesma regra do app (medida = TF lavrado; decisão da gerência, 2026-10). Se o TF dessa carga também está
+ *   na aba TFs (mesmo nº, ano e placa — ex.: TF antigo digitado do papel), a carga conta só como veículo: o resto vem do TF. */
 function motorBarreira_(de, ate) {
   const noPer = function (d) { d = String(d || '').slice(0, 10); return d >= de && d <= ate; };
   const tipoDe = function (t) { const p = normPub_(t.posto); return p.indexOf('mov') >= 0 || p.indexOf('volante') >= 0 ? 'volante' : 'fixa'; };
@@ -3159,8 +3166,8 @@ function motorBarreira_(de, ate) {
   const uf = String(PropertiesService.getScriptProperties().getProperty('UF_LOCAL') || 'AM').toUpperCase();
   // interestadual: destino AM vindo de outra UF = internalização; destino em outra UF = trânsito para outros estados
   const sentido = function (ori, des) { return des === uf && ori && ori !== uf ? 'intern' : des && des !== uf ? 'estados' : ''; };
-  const tfsVivos = lerLeitura_('TFs').filter(function (f) { return f.id && f.cancelado !== 1; }), comTF = {};
-  tfsVivos.forEach(function (f) { if (f.veiculoId) comTF[f.veiculoId] = 1; });
+  const tfsVivos = lerLeitura_('TFs').filter(function (f) { return f.id && f.cancelado !== 1; }), comTF = {}, tfNumPlaca = {};
+  tfsVivos.forEach(function (f) { if (f.veiculoId) comTF[f.veiculoId] = 1; if (f.numero > 0 && f.placa) tfNumPlaca[f.ano + '|' + f.numero + '|' + placaNorm_(f.placa)] = 1; });
   const ufVeic = {};
   lerLeitura_('Veiculos').forEach(function (v) {
     if (!v.id) return;
@@ -3170,6 +3177,8 @@ function motorBarreira_(de, ate) {
     t.veiculos++; t.pessoas += Number(v.pessoas) || 0;
     t.educacao += Number(v.pessoas) || 0;                                     // educação sanitária: por pessoa a bordo
     if (comTF[v.id]) return;                                                  // veículo com TF: a origem/destino conta pelo TF
+    // carga do relatório de plantão cujo TF (mesmo nº, ano e placa) já está na aba TFs (ex.: TF antigo digitado do papel): conta pelo TF
+    if (v.tfPapel && tfNumPlaca[t.data.slice(0, 4) + '|' + Number(String(v.tfPapel).replace(/\D/g, '')) + '|' + placaNorm_(v.placa)]) return;
     const sv = sentido(ori, des);
     if (sv === 'intern') t.internN++; else if (sv === 'estados') t.cargasEstados++;
     if (v.medidaPapel !== 'liberacao' && v.medidaPapel !== 'apreensao') return;

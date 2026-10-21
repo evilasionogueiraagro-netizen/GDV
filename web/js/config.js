@@ -10,9 +10,10 @@ const CONFIG = {
   // ficha: true = gera a Ficha de Campo (nas demais BVAs e no volante, só o Termo).
   // Posto volante (móvel): local preenchido pelo endereço da coordenada (editável) e placa opcional.
   bvas: [
-    { nome: 'BVA - CEASA', placa: true, ficha: true },
-    { nome: 'BVA - JUNDIÁ', placa: false, ficha: false },
-    { nome: 'BVA - AEROPORTO', placa: false, ficha: false }
+    // endereco/municipio: identificação do posto no Termo de Fiscalização do turno (vazio = linha em branco para preencher à mão)
+    { nome: 'BVA - CEASA', placa: true, ficha: true, endereco: 'Av. Ministro Mário Andreazza, 913, Vila Buriti (próximo ao Mauazinho), CEP 69075-390', municipio: 'Manaus' },
+    { nome: 'BVA - JUNDIÁ', placa: false, ficha: false, endereco: 'BR-174, km 75', municipio: 'Presidente Figueiredo' },
+    { nome: 'BVA - AEROPORTO', placa: false, ficha: false, endereco: 'Av. Santos Dumont, 1350 – Tarumã', municipio: 'Manaus' }
   ],
   // Os horários do turno são capturados do relógio do aparelho (ao iniciar e ao encerrar).
   // A letra do TF / quadradinho da Ficha é deduzida da hora de início: das 04:00 às 11:59 = A; demais = B.

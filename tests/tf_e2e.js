@@ -117,7 +117,7 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   ok(await A.locator('button[data-go=lista]').count() === 1 && await A.locator('button[data-go=tf]').count() === 0, 'TF aberto a partir do veículo: o botão volta para a lista de veículos (TF embutido no módulo)');
   await A.click('nav [data-v=resumo]'); await A.waitForSelector('#encerrar'); await A.click('#encerrar'); await A.waitForSelector('[data-doc=termo]');
   await A.evaluate(() => { window.__prints = []; }); await A.click('[data-doc=termo]'); await A.waitForFunction(() => window.__prints && window.__prints.length);
-  const termo = (await A.evaluate(() => window.__prints[0])).texto; ok(termo.includes('Termos de Barreira Lavrados: ' + numLigado), `Termo do turno lista o TF ligado: "${numLigado}"`);
+  const termo = (await A.evaluate(() => window.__prints[0])).texto; ok(termo.includes('Termos de Fiscalização de Barreira lavrados: ' + numLigado), `Termo do turno lista o TF ligado: "${numLigado}"`);
 
   console.log('D2) nº editado no formulário (talão de papel à frente do sistema): os próximos seguem a partir dele');
   await irTF(A); await novoTF(A);

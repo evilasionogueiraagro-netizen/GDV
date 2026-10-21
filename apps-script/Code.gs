@@ -24,7 +24,9 @@ const TABELAS = {
            'encerrado', 'criadoEm', 'atualizadoEm', 'srv_ts',
            'latIni', 'lngIni', 'precIni', 'latFim', 'lngFim', 'precFim', 'usuario', 'semPlaca',   // colunas novas ficam sempre no fim (semPlaca=1: placa opcional no turno)
            'encerradoPor', 'encerradoEm',    // turno encerrado fora do aparelho: nome do administrador (painel) ou "Automático (12 h)", e quando (ms)
-           'importacao'],                    // turno criado pela importação do relatório de plantão do papel (portal): id da importação
+           'importacao',                     // turno criado pela importação do relatório de plantão do papel (portal): id da importação
+           'pessoasEducacao', 'soPessoas'],  // turno que não conta veículos (soPessoas = 1; ex.: volante de Tabatinga, educação sanitária da monilíase):
+                                             // pessoas orientadas contadas no próprio turno
   Veiculos: ['id', 'turnoId', 'hora', 'placa', 'tipo', 'pessoas', 'obs',
              'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
              // ufOrigem/ufDestino: "Origem e destino (opcional)" do formulário do veículo (sigla de CONFIG.ufs ou "Exterior"; vazio = não
@@ -153,7 +155,7 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criad
                           'standalone', 'online', 'ultimoSinal', 'ultimoErroEm', 'primeiroSinal', 'recusaAssinatura',
                           'totalPlantas', 'plantasInspecionadas', 'importadoEm',
                           'ultimoAcesso', 'codigoExpira', 'ultimoUso', 'revogado', 'substitui',
-                          'semEducacao', 'medidaFito', 'carga', 'partida', 'inspecaoFito', 'docConferido'];   // lat/lon/precisao ficam como texto (como em Turnos)
+                          'semEducacao', 'medidaFito', 'carga', 'partida', 'inspecaoFito', 'docConferido', 'pessoasEducacao', 'soPessoas'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, pragas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000,
                         dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000, citros: 20000, cargaPapel: 3000 };   // demais colunas: 500
@@ -165,7 +167,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-21a';
+const VERSAO_CODIGO = '2026-10-21b';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -1876,7 +1878,7 @@ function dadosPainel_(admin, filtro) {
              criadoEm: t.criadoEm, atualizadoEm: t.atualizadoEm, srv_ts: t.srv_ts, encerradoPor: t.encerradoPor, encerradoEm: t.encerradoEm || null,
              latIni: numOuNulo_(t.latIni), lngIni: numOuNulo_(t.lngIni), precIni: numOuNulo_(t.precIni),
              latFim: numOuNulo_(t.latFim), lngFim: numOuNulo_(t.lngFim), precFim: numOuNulo_(t.precFim),
-             inicioTs: ini, fimTs: fim, nVeiculos: a.n, nPessoas: a.pessoas,
+             inicioTs: ini, fimTs: fim, nVeiculos: a.n, nPessoas: a.pessoas + (t.pessoasEducacao || 0), pessoasEducacao: t.pessoasEducacao || 0, soPessoas: t.soPessoas === 1 ? 1 : 0,
              ultimoVeiculoHora: a.hora, ultimoVeiculoTs: a.ts || null, ultimoSinal: Math.max(t.srv_ts, a.ts, sa ? sa.ultimoSinal : 0) || null,
              aparelho: sa, encerradoNoCelular: sa ? sa.encerradoNoCelular : 0, fimNoCelular: sa ? sa.fimNoCelular : '' };
   });
@@ -3138,7 +3140,8 @@ function ufDoTexto_(t) {
  * veículo); TF = não cancelado, contado pela data do turno em que foi lavrado (TF sem turno: data do TF, como BVA fixa); posto
  * "Móvel"/"volante" = volante, senão fixa; toneladas = produtos em kg (÷ 1.000) ou t; outras unidades à parte, sem conversão.
  * Indicadores de fiscalização (regras da gerência, 2026-10):
- *   educacao     = pessoas a bordo dos veículos do turno (cada pessoa recebe a orientação de educação sanitária);
+ *   educacao     = pessoas a bordo dos veículos do turno (cada pessoa recebe a orientação de educação sanitária) + pessoas orientadas
+ *                  contadas no próprio turno (Turnos.pessoasEducacao: turno que não conta veículos, ex.: volante de Tabatinga, monilíase);
  *   medidaFito, partidas = 1 por TF de barreira; inspecaoFito = TF com "Inspeção" marcada; documentos = TF com documento preenchido;
  *   UF do TF = coluna ufOrigem/ufDestino; TF antigo: UF no fim do texto de origem/destino (ufDoTexto_); senão a do veículo ligado;
  *   internN/internT/importT = TF de outra UF (ou do exterior) com destino ao AM (t = produtos do TF); cargasEstados/exportT = TF com
@@ -3157,8 +3160,9 @@ function motorBarreira_(de, ate) {
   const todos = {}, turnos = [];
   lerLeitura_('Turnos').forEach(function (t) {
     if (!t.id) return;
-    const o = { id: t.id, data: String(t.data || '').slice(0, 10), posto: t.posto, tipo: tipoDe(t), local: t.local, unidade: t.unidade, veiculos: 0, pessoas: 0,
-                educacao: 0, cargasEstados: 0, internN: 0, papel: null };
+    const pe = Number(t.pessoasEducacao) || 0;                                // turno sem contagem de veículos: pessoas orientadas no turno
+    const o = { id: t.id, data: String(t.data || '').slice(0, 10), posto: t.posto, tipo: tipoDe(t), local: t.local, unidade: t.unidade, veiculos: 0, pessoas: pe,
+                educacao: pe, cargasEstados: 0, internN: 0, papel: null };
     todos[t.id] = o;
     if (noPer(o.data)) turnos.push(o);
   });
@@ -4176,6 +4180,7 @@ function publicoCalcular_(cfg, per) {
     b.acoes++; t._bar = b;
   });
   let veiculos = 0, pessoas = 0; const tipos = {};
+  todosTurnos.forEach(function (t) { if (t._per) pessoas += Number(t.pessoasEducacao) || 0; });   // turno sem veículos: pessoas orientadas no turno
   lerLeitura_('Veiculos').forEach(function (v) {
     const t = turnoPorId[v.turnoId];
     if (!v.id || v.excluido === 1 || !t || !t._per) return;

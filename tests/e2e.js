@@ -52,7 +52,7 @@ const assert = require('assert');
   console.log('tela encerrado:', (await page.textContent('main')).replace(/\s+/g, ' ').slice(0, 120), '| início capturado:', t0);
   t0 = await page.evaluate(async () => { const ts = await Store.todos('turnos'); return ts.sort((a, b) => b.criadoEm - a.criadoEm)[0].inicio; });   // início real gravado pelo app
   docs.termo = await cap('[data-doc=termo]');
-  const m = docs.termo.match(/das (\d\d:\d\d) horas às (\d\d:\d\d) horas/); console.log('TERMO horários:', m && m[1], m && m[2]);
+  const m = docs.termo.match(/das (\d\d:\d\d) às (\d\d:\d\d) hora\(s\)/); console.log('TERMO horários:', m && m[1], m && m[2]);
   assert.equal(m[1], t0); assert.ok(m[2] > m[1]);
   // coordenadas NÃO podem aparecer em nenhuma tela do app
   const vazou = async pg => { const t = await pg.evaluate(() => document.body.innerText); return /-3\.1190|-60\.0217|📍 (Início|Encerramento|Local)|Local de início/.test(t); };
@@ -63,7 +63,7 @@ const assert = require('assert');
   assert.equal(await page.locator('#reabrir').count(), 0, 'não deve haver botão de reabrir');
   assert.ok(docs.termo.includes('-3.11903, -60.02173'), 'Termo deve ter a coordenada final');
   console.log('título na impressão:', await page.evaluate(() => window.__titulo), '| título depois:', await page.evaluate(() => document.title));
-  console.log('TERMO:', docs.termo.match(/Aos .*?pessoas\./)?.[0]);
+  console.log('TERMO:', docs.termo.match(/Foram fiscalizados .*?orientadas\)/)?.[0]);
   console.log('FICHA tem placas:', /ABC1D23|XYZ9K88|QQQ1A11/.test(docs.ficha), '| total:', docs.ficha.match(/Total de ve.culos parados:\s*(\d+)/)?.[1]);
   // servidor ainda vazio?
   console.log('servidor off, linhas na planilha:', (await dump().catch(() => 'sem resposta (esperado)')));

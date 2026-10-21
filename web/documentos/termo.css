@@ -39,7 +39,8 @@ table.interna .c-mun { width: 40%; } table.interna .c-uf { width: 23%; }
 /* descrição e enquadramento */
 #descricaoTexto { height: 72mm; font-size: 10pt; line-height: 1.5; text-align: justify; padding: 2mm 2.4mm; }
 #descricaoTexto p + p { margin-top: 1.6mm; }
-#enquadramentoTexto { height: 22mm; font-size: 8.4pt; line-height: 1.45; text-align: justify; padding: 1.6mm 2.4mm; }
+#enquadramentoTexto { height: 22mm; padding: 1.6mm 2.4mm; }   /* em branco: preenchido à mão */
+.pontilhado { border-bottom: 1pt dotted #000; height: 8mm; }
 
 /* testemunhas, recebimento e servidor */
 #blocoFinal td { padding: 1.2mm 2mm; }

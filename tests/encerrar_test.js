@@ -47,7 +47,7 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
     'planilha: encerrado=1, fim, encerradoPor, encerradoEm, atualizadoEm=srv_ts=agora', { encerrado: L1.encerrado, fim: L1.fim, por: L1.encerradoPor });
   ok(L1.usuario === 'Fiscal Encerra Souza', 'a linha continua do fiscal (usuario) — é ele quem recebe no sync');
   const cab = (await get('/__aba?nome=Turnos'))[0];
-  ok(cab.slice(-4).join() === 'semPlaca,encerradoPor,encerradoEm,importacao', 'colunas novas no FIM da aba Turnos (depois, a da importação do relatório de plantão)', cab.slice(-5));
+  ok(cab.slice(-6).join() === 'semPlaca,encerradoPor,encerradoEm,importacao,pessoasEducacao,soPessoas', 'colunas novas no FIM da aba Turnos (depois, a da importação do plantão e as do turno só de educação sanitária)', cab.slice(-7));
   r = await enc(ADM, 's1', '12:00'); ok(!r.ok && /já está encerrado/.test(r.erro) && r.erro.includes(fim1) && /Gerente Encerra Silva/.test(r.erro), 'já encerrado: recusado com mensagem clara', r.erro);
   // turno que passou da meia-noite: 22:00 → 02:00 = 4 h
   r = await enc(ADM, 's3', '02:00'); ok(r.ok && r.turno.fimTs - r.turno.inicioTs === 4 * 3600e3, 'fim antes do início = dia seguinte (22:00 → 02:00 = 4 h)', r.turno && (r.turno.fimTs - r.turno.inicioTs) / 3600e3);
@@ -213,7 +213,7 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
   await p.click(`.turno-linha [data-doc=termo][data-id="${id1}"]`);
   await p.waitForFunction(() => window.__prints && window.__prints.length, null, { timeout: 8000 }).catch(() => {});
   const termo = await p.evaluate(() => (window.__prints || []).pop() || '');
-  ok(new RegExp(`às ${fimG} horas`).test(termo), 'Termo gerado com o horário final da gerência', (termo.match(/das \d\d:\d\d horas às \d\d:\d\d horas/) || [])[0]);
+  ok(new RegExp(`às ${fimG} hora\\(s\\)`).test(termo), 'Termo gerado com o horário final da gerência', (termo.match(/das \d\d:\d\d às \d\d:\d\d hora\(s\)/) || [])[0]);
   await p.screenshot({ path: DIR + 'encerrar_app_historico.png' });
   // "Entendi" tira o aviso
   await p.click('nav [data-v=home]'); await p.waitForSelector('#avisoEncerrado'); await p.click('#avisoEncerrado [data-avisook]');

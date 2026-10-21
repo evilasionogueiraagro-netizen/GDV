@@ -71,7 +71,7 @@
   /** Indicadores do módulo (aba e modo TV). Cada item: {chave, rotulo, valor, detalhe, status}. */
   function indicadores(d) {
     const turnos = d.turnos, veiculos = d.veiculos, abertos = d.emAndamento;
-    const min = horasDe(turnos), pessoas = veiculos.reduce((s, v) => s + v.pessoas, 0);
+    const min = horasDe(turnos), pessoas = veiculos.reduce((s, v) => s + v.pessoas, 0) + turnos.reduce((s, t) => s + (Number(t.pessoasEducacao) || 0), 0);   // + BVA sem veículos
     const encerrados = turnos.filter(t => t.encerrado), ruins = abertos.filter(t => t.situacao !== 'ok');
     const longas = abertos.filter(t => t.situacao === 'longa').length;
     return [

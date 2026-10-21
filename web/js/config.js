@@ -15,6 +15,12 @@ const CONFIG = {
     { nome: 'BVA - JUNDIÁ', placa: false, ficha: false, endereco: 'BR-174, km 75', municipio: 'Presidente Figueiredo' },
     { nome: 'BVA - AEROPORTO', placa: false, ficha: false, endereco: 'Av. Santos Dumont, 1350 – Tarumã', municipio: 'Manaus' }
   ],
+  // Volante que não conta veículos, por município (unidade do turno, em maiúsculas): o turno conta só as pessoas orientadas na educação
+  // sanitária (tema = assunto da orientação, no app e no Termo); local = texto sugerido para o "Local / Posto (volante)".
+  volantesSoPessoas: {
+    TABATINGA: { tema: 'Monilíase do Cacaueiro (Moniliophthora roreri)',
+      local: 'Porto Hidroviário de Tabatinga, Comunidades de Benjamin Constant, Cidade Nova-BC, Feijoal BC e Prosperidade II-BC' }
+  },
   // Os horários do turno são capturados do relógio do aparelho (ao iniciar e ao encerrar).
   // A letra do TF / quadradinho da Ficha é deduzida da hora de início: das 04:00 às 11:59 = A; demais = B.
   turnos: {

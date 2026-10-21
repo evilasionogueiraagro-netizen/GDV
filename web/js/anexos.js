@@ -6,6 +6,7 @@ const Anexos = (() => {
 
   /** Ids de arquivos ligados a um registro (fotos, PDFs escaneados e assinaturas). */
   const idsArquivos = rec => new Set(rec ? [...lerJSON(rec.fotos, []), ...(Array.isArray(lerJSON(rec.documentos, null)) ? lerJSON(rec.documentos, []) : []),
+    ...(Array.isArray(lerJSON(rec.pdfs, null)) ? lerJSON(rec.pdfs, []) : []),                      // TF digitado do papel: PDFs escaneados
     ...Object.values(lerJSON(rec.assinaturas, {}))].filter(x => typeof x === 'string' && x) : []);
   /** Apaga do aparelho os arquivos ainda não enviados (os já enviados ficam: o Drive guarda para auditoria). */
   async function apagarSeNaoEnviado(ids) {

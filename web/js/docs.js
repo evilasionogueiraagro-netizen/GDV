@@ -96,17 +96,21 @@ const Docs = (() => {
     set('idUf', 'AMAZONAS');
     set('idCoordenadas', textoCoordenadas(turno));
     set('servidorNome', turno.fiscal);
-    const pessoas = veiculos.reduce((s, v) => s + (Number(v.pessoas) || 0), 0);
+    const pessoas = veiculos.reduce((s, v) => s + (Number(v.pessoas) || 0), 0) + (Number(turno.pessoasEducacao) || 0);
     const lavrados = (await Store.todos('tfs')).filter(x => x.turnoId === turnoId && !x.cancelado).sort((a, b) => a.numero - b.numero).map(x => x.numeroTxt);
     const ini = turno.inicio || '__:__', fim = turno.fim || '__:__';
+    // turno que só conta pessoas orientadas (volante de Tabatinga: educação sanitária da monilíase)
+    const soPes = Number(turno.soPessoas) === 1, temaCfg = ((CONFIG.volantesSoPessoas || {})[String(turno.unidade || '').toUpperCase()] || {}).tema;
+    const tema = temaCfg ? esc(temaCfg).replace(/\(([^)]+)\)/, '(<i>$1</i>)') : '';
     d.getElementById('descricaoTexto').innerHTML = `
 <p>Em <strong>${esc(dia)}/${esc(mes)}/${esc(ano)}</strong>, das <strong>${esc(ini)}</strong> às <strong>${esc(fim)}</strong> hora(s), ao realizar fiscalização no(a)
 <strong>${esc(turno.local)}</strong>, pelo(s) servidor(es) <strong>${esc(turno.fiscal)}</strong>, constatou-se:</p>
-<p>Foram fiscalizados <strong>${veiculos.length}</strong> veículos e realizadas <strong>${pessoas}</strong> ações de educação sanitária (pessoas orientadas),
-com inspeção de veículos, cargas, bagagens, pessoas e demais materiais sujeitos ao controle da Defesa Agropecuária.</p>
+${soPes ? `<p>Foram realizadas <strong>${pessoas}</strong> ações de educação sanitária (pessoas orientadas)${tema ? ` sobre a <strong>${tema}</strong>` : ''}.</p>`
+  : `<p>Foram fiscalizados <strong>${veiculos.length}</strong> veículos e realizadas <strong>${pessoas}</strong> ações de educação sanitária (pessoas orientadas),
+com inspeção de veículos, cargas, bagagens, pessoas e demais materiais sujeitos ao controle da Defesa Agropecuária.</p>`}
 <p>Termos de Fiscalização de Barreira lavrados: ${lavrados.length ? `<strong>${esc(lavrados.join('; '))}</strong>` : '<strong>nenhum</strong>'}.</p>
 <p>Foram prestadas orientações aos usuários quanto às normas fitossanitárias vigentes, especialmente sobre os riscos de introdução e
-dispersão de pragas quarentenárias, com destaque para a <strong>Mosca-da-Carambola (<i>Bactrocera carambolae</i>)</strong>, e sobre
+dispersão de pragas quarentenárias, com destaque para a <strong>${soPes && tema ? tema : 'Mosca-da-Carambola (<i>Bactrocera carambolae</i>)'}</strong>, e sobre
 a obrigatoriedade da apresentação da documentação fitossanitária quando exigida.</p>
 <p>Nada mais havendo a registrar, lavrou-se o presente Termo de Fiscalização para fins de comprovação da atividade desenvolvida.</p>`;
     imprimir(f, 'Termo ' + turno.numeroTF);

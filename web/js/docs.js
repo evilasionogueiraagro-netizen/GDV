@@ -78,7 +78,7 @@ const Docs = (() => {
   }
 
   /** Termo de Fiscalização do turno (modelo padrão ADAF 2026): identificação do posto, descrição da ação com os números do turno,
-   *  enquadramento legal, testemunhas, recebimento da 2ª via e assinatura do servidor. */
+   *  enquadramento legal em branco (linhas para preencher à mão), testemunhas, recebimento da 2ª via e assinatura do servidor. */
   async function termo(turnoId) {
     const { turno, veiculos } = await dadosDoTurno(turnoId);
     const f = await abrirModelo('termo.html'), d = f.contentDocument;
@@ -109,7 +109,6 @@ com inspeção de veículos, cargas, bagagens, pessoas e demais materiais sujeit
 dispersão de pragas quarentenárias, com destaque para a <strong>Mosca-da-Carambola (<i>Bactrocera carambolae</i>)</strong>, e sobre
 a obrigatoriedade da apresentação da documentação fitossanitária quando exigida.</p>
 <p>Nada mais havendo a registrar, lavrou-se o presente Termo de Fiscalização para fins de comprovação da atividade desenvolvida.</p>`;
-    set('enquadramentoTexto', ((CONFIG.TF && CONFIG.TF.textoLegal) || '').replace(/\s*\n\s*/g, ' '));
     imprimir(f, 'Termo ' + turno.numeroTF);
   }
 

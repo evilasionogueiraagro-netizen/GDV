@@ -59,7 +59,7 @@ tudo liberado, exceto `antigo`. O mapa `MODULO_DA_ACAO` diz qual módulo cada ac
 | `sync` | por registro | `since`, `aparelho`, listas `turnos`, `veiculos`, `tfs`, `pessoas`, `placas`, `levantamentos`, `colheitas`, `propriedades`, `cadastrosPce`, `termosPce` (máx. 2.000 cada) | `agora`; as mudanças desde `since` das mesmas listas (só do próprio fiscal); `barreiras`, `ultimos`, `ultimosPce`, `ultimosDocPce`, `permissoes`, `recusados` | `sincronizar_` |
 | `tfConsultar` | tf | `doc` (CPF/CNPJ) e/ou `placa` | `pessoa`, `placa`, `historicoDoc`, `historicoPlaca` | `consultar_` |
 | `tfProximoNumero` | tf | `barreira`, `ano` | `ultimo`, `proximo` | `proximoNumero_` |
-| `tfEmitir` | tf | `tf`, `pessoa`, `placa` | `emitido: true, numero, emitidoEm, srv_ts` ou `emitido: false, ocupadoPor` | `emitir_` |
+| `tfEmitir` | tf | `tf`, `pessoa` (opcional), `placa` (opcional); TF do papel: `tf.registroAntigo = 1` (exige "Digitar do papel"; data não pode ser futura e o ano da data = `tf.ano`), `tf.pdfs` (JSON de ids), `tf.numeroOrigem = 'papel'` | `emitido: true, numero, emitidoEm, srv_ts` ou `emitido: false, ocupadoPor` | `emitir_` |
 | `tfAndamento` | tf | `rascunhoId`, `estado` (`preenchendo`/`fim`), `barreira`, `turnoId`, `placa`, `procedimento`, `local`, `lat`, `lon` | — | `tfAndamento_` |
 | `tfIndiceReincidencia` | tf | `desde` | `agora`, `completo`, `itens` | `tfIndiceReincidencia_` |
 | `pceProximoNumero` | pce | `unidade`, `ano` | `ultimo`, `proximo` | `pceProximoNumero_` |

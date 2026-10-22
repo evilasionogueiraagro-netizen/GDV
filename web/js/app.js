@@ -72,7 +72,7 @@ const soPessoas = t => !!(t && Number(t.soPessoas) === 1);
 const cfgSoPessoas = unidade => ((CONFIG.volantesSoPessoas || {})[String(unidade || '').trim().toUpperCase()]) || null;
 const pessoasDoTurno = (t, v) => (v || []).reduce((s, x) => s + (Number(x.pessoas) || 0), 0) + (Number(t && t.pessoasEducacao) || 0);
 /* ---------- módulos e navegação ---------- */
-// Depois de instalar e ativar o aparelho, o fiscal escolhe um módulo: Educação Sanitária/Fiscalização de Trânsito (turnos e veículos), TF ou PCE.
+// Depois de instalar o app e entrar (matrícula e senha), o fiscal escolhe um módulo: Educação Sanitária/Fiscalização de Trânsito (turnos e veículos), TF ou PCE.
 // Dentro da Educação Sanitária/Fiscalização de Trânsito o TF também está embutido (botão "Lavrar TF"); o menu de baixo muda conforme o módulo.
 let MODULO = 'hub';
 const NAVS = {
@@ -144,7 +144,7 @@ async function modulos() {
 const view = html => { $('#view').innerHTML = bannerInstalar() + html; };
 
 /* ---------- instalação: Adicionar à tela inicial (iOS / Android) ---------- */
-// Ordem em celulares: 1) instalar na tela inicial → 2) ativar com o código → 3) iniciar turno.
+// Ordem em celulares: 1) instalar na tela inicial → 2) entrar com matrícula e senha → 3) iniciar turno.
 const UA = navigator.userAgent;
 const ehIOS = /iPad|iPhone|iPod/.test(UA) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
 const ehAndroid = /Android/i.test(UA);
@@ -161,7 +161,7 @@ function bannerInstalar() {
     <button class="botao sec" data-instalar="continuar">Continuar no navegador mesmo assim</button></div>`;
   if (lsGet('gdv.instalado')) {
     return `<div id="bInstalar" class="card instalar"><h3>✅ App instalado</h3>
-      <p>Agora <b>feche esta página</b> e abra o app pelo <b>ícone</b> na ${ehIOS ? 'Tela de Início' : 'tela inicial'}. Ele vai pedir o código de ativação e, em seguida, liberar o início do turno.</p>${saida}</div>`;
+      <p>Agora <b>feche esta página</b> e abra o app pelo <b>ícone</b> na ${ehIOS ? 'Tela de Início' : 'tela inicial'}. Ele vai pedir a matrícula e a senha e, em seguida, liberar o início do turno.</p>${saida}</div>`;
   }
   const passos = ehIOS
     ? ['Toque no botão <b>Compartilhar</b> (quadrado com seta para cima ⬆️): fica na barra de baixo do Safari (no Chrome, no topo, ao lado do endereço).',
@@ -170,10 +170,10 @@ function bannerInstalar() {
     : ['Toque no menu <b>⋮</b> do navegador (canto superior direito).', 'Toque em <b>Adicionar à tela inicial</b> (ou <b>Instalar app</b>).',
        'Confirme em <b>Instalar</b> / <b>Adicionar</b>.', 'Abra o app pelo <b>ícone</b> na tela inicial.'];
   return `<div id="bInstalar" class="card instalar"><h3>📲 Passo 1: instale o app</h3>
-    <p>Instale na tela inicial para abrir como aplicativo e funcionar mesmo sem internet. Depois de instalar, abra pelo ícone: o app pede o <b>código de ativação</b> e só então libera o <b>início do turno</b>.</p>
+    <p>Instale na tela inicial para abrir como aplicativo e funcionar mesmo sem internet. Depois de instalar, abra pelo ícone: o app pede a <b>matrícula e a senha</b> e só então libera o <b>início do turno</b>.</p>
     <ol>${passos.map(p => `<li>${p}</li>`).join('')}</ol>
     ${eventoInstalar ? '<button class="botao" data-instalar="agora">Instalar agora</button>' : ''}
-    ${ehIOS ? '<p class="dica" style="text-align:left">No iPhone o app instalado guarda os dados separados do Safari; por isso a ativação é feita depois, dentro do app instalado.' + (Sync.ativado() ? ' Este aparelho já estava ativado no navegador: no app instalado será preciso ativar de novo, com um código novo.' : '') + '</p>' : ''}
+    ${ehIOS ? '<p class="dica" style="text-align:left">No iPhone o app instalado guarda os dados separados do Safari; por isso a entrada é feita depois, dentro do app instalado.' + (Sync.ativado() ? ' Este aparelho já estava com acesso no navegador: no app instalado será preciso entrar de novo.' : '') + '</p>' : ''}
     ${saida}</div>`;
 }
 const atualizarBannerInstalar = () => { const el = $('#bInstalar'); if (el) el.outerHTML = bannerInstalar(); };
@@ -225,14 +225,10 @@ window.addEventListener('gdv-turno-encerrado', e => {
 
 /* ---------- Início / novo turno ---------- */
 const avisoAtivacao = () => {
-  const revog = localStorage.getItem('gdv.revogado');
-  if (Sync.ativado() && !revog) return '';
-  if (precisaInstalar()) return '';   // passo 1 ainda pendente: só as instruções de instalação aparecem
-  return `<form class="card aviso" id="fAtivar"><h3>${revog ? '⛔ Acesso revogado' : '🔑 Ativar este aparelho'}</h3>
-    <p>${revog ? 'Peça um novo código de ativação ao administrador.' : 'Digite o código de 6 dígitos enviado pelo administrador. Só esta etapa exige internet.'}</p>
-    ${CONFIG.sync.url ? '' : '<label>Endereço do servidor<input id="aUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" required></label>'}
-    <label>Código de ativação<input id="aCod" inputmode="numeric" maxlength="7" autocomplete="off" placeholder="000 000" required></label>
-    <button class="botao">Ativar</button></form>`;
+  const sit = Sync.situacao();
+  if (sit === 'ok') return '';
+  if (sit === 'entrar' && precisaInstalar()) return '';   // passo 1 ainda pendente: só as instruções de instalação aparecem
+  return Login.tela();                                     // Entrar (matrícula e senha) ou Trocar senha: login.js
 };
 async function home() {
   const mostrar = tela();
@@ -289,7 +285,7 @@ function novoTurno() {
     <label>Tipo de posto<select id="nPosto">${CONFIG.postos.map(p => `<option value="${p}" ${localStorage.getItem('gdv.posto') === p ? 'selected' : ''}>${p === 'Móvel' ? 'Volante (móvel)' : p}</option>`).join('')}</select></label>
     <div id="nLocalBox"></div>
     <label>Unidade (Termo) <small id="nUnidadeInfo"></small><input id="nUnidade" required autocomplete="off"></label>
-    <label>Fiscal 1 — nome completo *${Sync.nome() ? ' <small>(vinculado a este aparelho)</small>' : ''}<input id="nFiscal1" autocomplete="off" ${Sync.nome() ? 'readonly' : ''} value="${Sync.nome() ? esc(Sync.nome()) : ls('fiscal1')}" placeholder="Nome e sobrenome"></label>
+    <label>Fiscal 1 — nome completo *${Sync.nome() ? ` <small>(${Sync.usuario() ? 'da sua conta' : 'vinculado a este aparelho'})</small>` : ''}<input id="nFiscal1" autocomplete="off" ${Sync.nome() ? 'readonly' : ''} value="${Sync.nome() ? esc(Sync.nome()) : ls('fiscal1')}" placeholder="Nome e sobrenome"></label>
     <label>Fiscal 2 — nome completo (opcional)<input id="nFiscal2" autocomplete="off" value="${ls('fiscal2')}" placeholder="Nome e sobrenome"></label>
     <button class="botao" type="submit">Iniciar turno</button></form>`);
   // Fixa: lista das BVAs (CONFIG.bvas). Volante: endereço da coordenada, editável. A placa só é obrigatória onde a BVA exige.
@@ -610,15 +606,17 @@ function barras(pares) {
 /* ---------- Status da sincronização ---------- */
 async function config() {
   const mostrar = tela();
-  const ult = await Store.meta('ultimaSync');
+  const ult = await Store.meta('ultimaSync'), ret = await Sync.retidos();
   if (!mostrar.viva()) return;
+  const u = Sync.usuario();
   view(`${avisoAtivacao()}<div class="card"><h3>Sincronização</h3>
     <p>Aparelho: ${Sync.ativado() ? '✅ ativado' : '⚠️ não ativado'}</p>
-    ${Sync.nome() ? `<p>Fiscal vinculado: <b>${esc(Sync.nome())}</b></p>` : ''}<p id="cEst"></p>
+    ${u ? `<p>Entrou como: <b>${esc(u.nome)}</b> (matrícula ${esc(u.matricula)})</p>` : Sync.nome() ? `<p>Fiscal vinculado: <b>${esc(Sync.nome())}</b></p>` : ''}<p id="cEst"></p>
+    ${ret.length ? `<p>Guardados neste aparelho, de outras pessoas (só são enviados quando elas entrarem de novo): ${ret.map(r => `${esc(r.nome)} (${r.n})`).join(', ')}.</p>` : ''}
     <p>Última sincronização: ${ult ? new Date(ult).toLocaleString('pt-BR') : 'nunca'}</p>
     <p class="dica">A sincronização é automática quando há internet (a cada 20 s com turno aberto; sem turno, a cada minuto). Para forçar agora, toque no selo no topo da tela.</p>
     <p><a href="manual.html">📖 Manual do fiscal</a></p>
-    ${Sync.ativado() ? '<button class="botao sec" id="desativar">Desativar este aparelho / trocar de fiscal</button>' : ''}</div>`);
+    ${u ? '<button class="botao sec" data-sair="1">Sair</button>' : Sync.ativado() ? '<button class="botao sec" id="desativar">Desativar este aparelho / trocar de fiscal</button>' : ''}</div>`);
   const e = Sync.estado();
   $('#cEst').textContent = (navigator.onLine ? 'Online' : 'Offline') + ' · pendentes de envio: ' + (e.pend || 0) + (e.pend ? avisoEnvio() : '') + (e.tipo === 'erro' ? ' · erro: ' + e.msg : '');
   if ($('#desativar')) $('#desativar').onclick = () => {
@@ -626,17 +624,6 @@ async function config() {
     Sync.desativar(); toast('Aparelho desativado.'); config();
   };
 }
-
-document.addEventListener('submit', async e => {            // ativação por código (formulário aparece quando o aparelho não está ativado)
-  if (e.target.id !== 'fAtivar') return;
-  e.preventDefault();
-  const btn = e.target.querySelector('button'); btn.disabled = true; btn.textContent = 'Ativando…';
-  try {
-    const nome = await Sync.ativar($('#aCod').value, $('#aUrl') ? $('#aUrl').value : '');
-    toast(`Aparelho ativado para ${nome}.`); Sync.sincronizar(); go(VIEW === 'editar' ? 'home' : VIEW);
-    pegarLocal();                                                   // pede a permissão de localização uma vez, logo na ativação
-  } catch (err) { toast(err.message, true); btn.disabled = false; btn.textContent = 'Ativar'; }
-});
 
 /* ---------- eventos globais ---------- */
 document.addEventListener('click', async e => {

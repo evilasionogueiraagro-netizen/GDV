@@ -1,76 +1,210 @@
 const amb = require('./lib/amb');
-// Login com usuário e senha (aba Usuarios/Sessoes): servidor (Code.gs real via fakegas) + app do fiscal + painel (aba Usuários) + portal.
+const crypto = require('crypto');
+// Conta única com código de acesso (abas Administrativo/AdmSessoes): servidor (Code.gs real via fakegas) + app do fiscal + painel (aba Servidores) + portal.
+// Um código por pessoa, sem expirar, revogável; o perfil decide o que cada um abre e a sessão vale só no app em que foi aberta.
 const { API, PAINEL, APP, ORIGEM } = amb;
-const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
+
+const hexSha = s => crypto.createHash('sha256').update(String(s), 'utf8').digest('hex');
+const tokensConhecidos = new Set(['segredo']);
+let leakHashEncontrado = false;
+
+function checarLeak(obj) {
+  const str = JSON.stringify(obj || {});
+  if (str.includes('codigoHash')) {
+    leakHashEncontrado = true;
+    console.error('LEAK codigoHash detectado na resposta da API:', str);
+  }
+  for (const t of tokensConhecidos) {
+    const h = hexSha(t);
+    if (str.includes(h)) {
+      leakHashEncontrado = true;
+      console.error('LEAK hash de token detectado na resposta da API:', h, str);
+    }
+  }
+}
+
+const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json()).then(r => {
+  if (r && r.token) tokensConhecidos.add(r.token);
+  if (r && r.sessao) tokensConhecidos.add(r.sessao);
+  checarLeak(r);
+  return r;
+});
 const get = p => fetch(API + p).then(r => r.json());
 let falhas = 0;
 const ok = (cond, msg, extra) => { console.log((cond ? '  ✓ ' : '  ✗ ') + msg + (extra !== undefined ? ' -> ' + (typeof extra === 'string' ? extra : JSON.stringify(extra)) : '')); if (!cond) falhas++; };
 const erro = (j, re) => j && j.ok === false && re.test(j.erro || '');
+const entrar = (codigo, escopo) => post({ action: 'entrar', codigo, escopo, aparelho: 'teste ' + escopo });
 
 (async () => {
-  /* ================= servidor ================= */
-  console.log('1. Servidor: o gerente cria os usuários');
+  console.log('1. Contas: o gerente cria, o código sai uma vez só');
   const g = await get('/__gerar?nome=' + encodeURIComponent('Gerente Legado') + '&perfil=admin');
   const LEG = (await post({ action: 'painelAtivar', codigo: g.codigo })).token;
-  const salvar = b => post({ action: 'painelUsuarioSalvar', key: LEG, ...b });
-  let r = await salvar({ login: 'Ger.Teste', nome: 'Gerente Teste Silva', perfis: ['gerente'], senha: 'provisoria1' });
-  ok(r.ok && r.novo && r.usuario.login === 'ger.teste' && r.usuario.trocarSenha === 1, 'gerente (credencial antiga do painel) cria usuário; login em minúsculas; senha provisória', r.usuario || r.erro);
-  const fis = await salvar({ login: 'fis.teste', nome: 'Fiscal Teste Souza', perfis: ['fiscal'], modulos: { veiculos: 1, tf: 0, pce: 1, antigo: 0 }, senha: 'provisoria2' });
-  const adm = await salvar({ login: 'adm.teste', nome: 'Administrativo Teste Lima', perfis: ['administrativo'], senha: 'provisoria3' });
-  ok(fis.ok && adm.ok, 'fiscal (Veículos e PCE) e administrativo criados');
-  ok(erro(await salvar({ login: 'fis.teste', nome: 'Outro Fiscal Nome', perfis: ['fiscal'], modulos: { veiculos: 1 }, senha: 'provisoria9' }), /Já existe/), 'login repetido recusado');
-  ok(erro(await salvar({ login: 'novo.um', nome: 'Novo Um Teste', perfis: ['fiscal'], modulos: { veiculos: 1 } }), /senha provis/), 'usuário novo sem senha recusado');
-  ok(erro(await salvar({ login: 'novo.dois', nome: 'Novo Dois Teste', perfis: ['fiscal'], modulos: { veiculos: 1 }, senha: 'curta' }), /8 caracteres/), 'senha curta recusada');
-  ok(erro(await salvar({ login: 'a', nome: 'Login Curto Teste', perfis: ['fiscal'], modulos: { veiculos: 1 }, senha: 'provisoria4' }), /Usuário inválido/), 'login inválido recusado');
-  ok(erro(await post({ action: 'painelUsuarioSalvar', key: 'x'.repeat(64), login: 'z.z', nome: 'Z Z', perfis: ['fiscal'], senha: 'provisoria5' }), /Sess|inv/i), 'sem credencial de gerente: recusado');
-  const linhas = (await get('/__aba?nome=Usuarios')) || [];
-  ok(linhas.length === 4 && !JSON.stringify(linhas).includes('provisoria'), 'planilha: 3 usuários e nenhuma senha em texto puro');
-  const perm = ((await get('/__aba?nome=Permissoes')) || []).find(l => l[0] === 'Fiscal Teste Souza');
+  const criar = (key, b) => post({ action: 'painelUsuarioSalvar', key, ...b });
+  ok(erro(await criar(LEG, { nome: 'Gerente Ficticio Teste', perfis: ['gerente'] }), /próprio código/), 'credencial antiga de administrador não cria gerente');
+  const menu = await get('/__fn?nome=salvarUsuario_&args=' + encodeURIComponent(JSON.stringify([{ nome: 'planilha', id: '', perfis: [], conta: false, planilha: true }, { nome: 'Gerente Ficticio Teste', perfis: ['gerente'] }])));
+  ok(menu.r && /^\d{6}$/.test(menu.r.codigo) && menu.r.usuario.temCodigo, 'menu da planilha cria a conta do gerente e mostra o código', menu.r && menu.r.usuario);
+  const COD_G = menu.r.codigo;
+  let r = await entrar(COD_G, 'painel');
+  ok(r.ok && r.conta && /^[0-9a-f]{64}$/.test(r.token) && r.nome === 'Gerente Ficticio Teste', 'gerente entra no painel com o código');
+  const G = r.token;
+  r = await criar(G, { nome: 'Fiscal Ficticio Teste', perfis: ['fiscal'], modulos: { veiculos: 1, tf: 0, pce: 1, antigo: 0 } });
+  ok(r.ok && r.novo && /^\d{6}$/.test(r.codigo), 'gerente cria o fiscal e recebe o código', r.erro);
+  const COD_F = r.codigo, idFis = r.usuario.id;
+  r = await criar(G, { nome: 'Administrativo Ficticio Teste', perfis: ['administrativo'] });
+  const COD_A = r.codigo, idAdm = r.usuario.id;
+  ok(r.ok && COD_A !== COD_F, 'administrativo criado com outro código');
+  ok(erro(await criar(G, { nome: 'fiscal  FICTÍCIO teste', perfis: ['fiscal'], modulos: { veiculos: 1 } }), /Já existe uma conta/), 'nome repetido (sem acento/maiúsculas/espaços) recusado: uma pessoa, uma conta');
+  ok(erro(await criar(G, { nome: 'Dev Ficticio Teste', perfis: ['dev'] }), /Só um dev/), 'gerente não cria dev');
+  const linhas = JSON.stringify((await get('/__aba?nome=Administrativo')) || []);
+  ok(!linhas.includes(COD_F) && !linhas.includes(COD_G) && !linhas.includes(COD_A), 'planilha: nenhum código em texto, só o hash');
+  const perm = ((await get('/__aba?nome=Permissoes')) || []).find(l => l[0] === 'Fiscal Ficticio Teste');
   ok(perm && perm[1] === 1 && perm[2] === 0 && perm[3] === 1, 'módulos do fiscal gravados na aba Permissoes', perm);
 
-  console.log('2. Login, senha provisória e troca');
-  ok(erro(await post({ action: 'login', login: 'fis.teste', senha: 'errada123' }), /incorretos/), 'senha errada recusada');
-  r = await post({ action: 'login', login: 'FIS.TESTE', senha: 'provisoria2', aparelho: 'teste' });
-  ok(r.ok && /^[0-9a-f]{64}$/.test(r.token) && r.trocarSenha === true && r.nome === 'Fiscal Teste Souza' && r.perfis.join() === 'fiscal', 'login certo: token, senha provisória a trocar', r);
+  console.log('2. Controle de acesso por app');
+  r = await entrar(COD_F, 'app');
+  ok(r.ok && r.nome === 'Fiscal Ficticio Teste' && JSON.stringify(r.perfis) === '["fiscal"]', 'fiscal entra no app de campo');
   const F1 = r.token;
-  ok(erro(await post({ action: 'trocarSenha', key: F1, atual: 'errada', nova: 'minhasenha1' }), /atual não confere/), 'troca com a senha atual errada recusada');
-  r = await post({ action: 'trocarSenha', key: F1, atual: 'provisoria2', nova: 'minhasenha1' });
-  ok(r.ok, 'senha trocada');
-  ok(erro(await post({ action: 'login', login: 'fis.teste', senha: 'provisoria2' }), /incorretos/) && (await post({ action: 'login', login: 'fis.teste', senha: 'minhasenha1' })).trocarSenha === false,
-    'depois da troca: a provisória não vale mais; a nova entra sem pedir troca');
-  const sessoes = (await get('/__aba?nome=Sessoes')) || [];
-  ok(sessoes.length >= 3 && !JSON.stringify(sessoes).includes(F1), 'sessões guardadas só como hash');
+  ok((await post({ action: 'ping', key: F1 })).ok, 'token do fiscal vale no app');
+  ok(erro(await entrar(COD_F, 'painel'), /não inclui o painel/), 'fiscal não entra no painel');
+  ok(erro(await entrar(COD_F, 'portal'), /não inclui o Portal/), 'fiscal não entra no portal');
+  ok(erro(await post({ action: 'painelDados', key: F1 }), /inválida|revogada|restrito/), 'token do app não abre o painel');
+  ok(erro(await entrar(COD_A, 'app'), /não inclui o app de campo/), 'administrativo não entra no app de campo');
+  r = await entrar(COD_A, 'portal');
+  ok(r.ok && r.sessao === r.token, 'administrativo entra no portal (sessão = token da conta)');
+  ok((await post({ action: 'admDados', sessao: r.sessao })).ok !== false, 'sessão do portal vale nas ações do portal');
+  r = await criar(G, { nome: 'Gerente E Fiscal Teste', perfis: ['gerente', 'fiscal'], modulos: { veiculos: 1, tf: 1, pce: 1 } });
+  const COD_GF = r.codigo;
+  const tApp = (await entrar(COD_GF, 'app')).token;
+  ok(erro(await post({ action: 'painelUsuarios', key: tApp }), /inválida|revogada/), 'mesmo com os dois perfis, a sessão aberta no app não abre o painel');
+  ok((await post({ action: 'painelUsuarios', key: (await entrar(COD_GF, 'painel')).token })).ok, 'entrando pelo painel, abre o painel');
 
-  console.log('3. Perfis: cada login abre só o que é dele');
-  r = await post({ action: 'sync', key: F1, since: 0 });
-  ok(r.ok && JSON.stringify(r.permissoes) === '{"veiculos":1,"tf":0,"pce":1,"antigo":0}', 'fiscal sincroniza com os módulos do usuário', r.permissoes || r.erro);
-  ok(erro(await post({ action: 'painelDados', key: F1, de: '2026-01-01', ate: '2026-01-02' }), /gerente/), 'fiscal não abre o painel');
-  ok(erro(await post({ action: 'admDados', sessao: F1 }), /administrativo/), 'fiscal não abre o portal');
-  const G = (await post({ action: 'login', login: 'ger.teste', senha: 'provisoria1' })).token;
-  ok((await post({ action: 'painelUsuarios', key: G })).usuarios.length === 3, 'gerente (usuário e senha) lista os usuários');
-  ok(erro(await post({ action: 'ping', key: G }), /perfil de fiscal/), 'gerente sem perfil fiscal não usa o app');
-  const A = (await post({ action: 'login', login: 'adm.teste', senha: 'provisoria3' })).token;
-  r = await post({ action: 'admDados', sessao: A });
-  ok(r.ok && r.nome === 'Administrativo Teste Lima', 'administrativo abre o portal com o mesmo token', r.erro);
-  ok(erro(await post({ action: 'painelUsuarios', key: A }), /gerente/), 'administrativo não controla acessos');
+  console.log('3. Revogar, gerar outro código, aparelhos');
+  r = await post({ action: 'painelUsuarios', key: G });
+  const fis = r.usuarios.find(u => u.id === idFis);
+  ok(r.ok && fis.aparelhos.length === 1 && fis.aparelhos[0].escopo === 'app' && !JSON.stringify(r).includes('codigoHash'), 'lista: aparelhos de cada conta, sem hash', fis && fis.aparelhos);
+  r = await post({ action: 'painelUsuarioCodigo', key: G, id: idFis });
+  ok(r.ok && /^\d{6}$/.test(r.codigo) && r.codigo !== COD_F, 'gerar outro código');
+  const COD_F2 = r.codigo;
+  ok(erro(await entrar(COD_F, 'app'), /./) && (await entrar(COD_F2, 'app')).ok, 'o código antigo parou de valer; o novo entra');
+  ok((await post({ action: 'ping', key: F1 })).ok, 'aparelho já conectado continua (trocar o código não derruba)');
+  const ap = (await post({ action: 'painelUsuarios', key: G })).usuarios.find(u => u.id === idFis).aparelhos;
+  r = await post({ action: 'painelSessaoRevogar', key: G, id: ap[0].id });
+  ok(r.ok && erro(await post({ action: 'ping', key: ap[0].id === ap[0].id ? F1 : '' }), /revogado|inv[aá]lido/), 'tirar um aparelho: ele perde o acesso');
 
-  console.log('4. Controle de acesso do gerente');
-  const idFis = fis.usuario.id;
-  r = await post({ action: 'painelUsuarioSalvar', key: G, id: idFis, login: 'fis.teste', nome: 'Fiscal Teste Souza', perfis: ['fiscal'], modulos: { veiculos: 1, tf: 0, pce: 1 }, ativo: 0 });
-  ok(r.ok && r.usuario.ativo === 0, 'gerente desativa o fiscal');
-  r = await post({ action: 'ping', key: F1 });
-  ok(erro(r, /revogado|inv[aá]lido/), 'aparelho do fiscal desativado perde o acesso (o app mostra "acesso revogado")', r.erro);
-  ok(erro(await post({ action: 'login', login: 'fis.teste', senha: 'minhasenha1' }), /desativado/), 'desativado não entra');
-  await post({ action: 'painelUsuarioSalvar', key: G, id: idFis, login: 'fis.teste', nome: 'Fiscal Teste Souza', perfis: ['fiscal'], modulos: { veiculos: 1, tf: 0, pce: 1 }, ativo: 1, senha: 'redefinida1' });
-  r = await post({ action: 'login', login: 'fis.teste', senha: 'redefinida1' });
-  ok(r.ok && r.trocarSenha === true, 'reativado com senha nova provisória (troca obrigatória de novo)');
-  ok(erro(await post({ action: 'ping', key: F1 }), /revogado|inv[aá]lido/), 'sessão antiga continua encerrada');
-  r = await post({ action: 'sair', key: r.token });
+  const sessoesLinhas = (await get('/__aba?nome=AdmSessoes')) || [];
+  const colsSes = sessoesLinhas[0];
+  const linhaSes = sessoesLinhas.slice(1).find(l => l[colsSes.indexOf('id')] === ap[0].id);
+  ok(
+    linhaSes &&
+    linhaSes[colsSes.indexOf('revogado')] === 1 &&
+    Number(linhaSes[colsSes.indexOf('revogadoEm')]) > 0 &&
+    !!linhaSes[colsSes.indexOf('revogadoPor')],
+    'AdmSessoes: revogado=1, revogadoEm>0 e revogadoPor preenchido após revogação',
+    linhaSes
+  );
+
+  r = await criar(G, { id: idAdm, nome: 'Administrativo Ficticio Teste', perfis: ['administrativo', 'fiscal'], modulos: { veiculos: 1, tf: 0, pce: 0 } });
+  ok(r.ok && r.usuario.perfis.includes('fiscal'), 'gerente altera perfil do usuário');
+
+  r = await criar(G, { id: idFis, nome: 'Fiscal Ficticio Teste', perfis: ['fiscal'], modulos: { veiculos: 1, tf: 0, pce: 1 }, ativo: 0 });
+  ok(r.ok && r.usuario.ativo === 0, 'gerente revoga o acesso do fiscal');
+  ok(erro(await entrar(COD_F2, 'app'), /revogado/), 'código de conta revogada não entra');
+  r = await criar(G, { id: idFis, nome: 'Fiscal Ficticio Teste', perfis: ['fiscal'], modulos: { veiculos: 1, tf: 0, pce: 1 } });
+  ok(r.ok && r.usuario.ativo === 0, 'editar sem mandar "ativo" não reativa');
+
+  const histLinhas = (await get('/__aba?nome=AdmHistorico')) || [];
+  const colsH = histLinhas[0];
+  const colunasEsperadas = ['em', 'admId', 'nome', 'acao', 'aba', 'registro', 'antes', 'depois'];
+  ok(JSON.stringify(colsH) === JSON.stringify(colunasEsperadas), 'AdmHistorico: colunas corretas (em, admId, nome, acao, aba, registro, antes, depois)', colsH);
+  const idxHAcao = colsH.indexOf('acao'), idxHReg = colsH.indexOf('registro'), idxHAdmId = colsH.indexOf('admId'), idxHEm = colsH.indexOf('em');
+
+  const hCodigo = histLinhas.slice(1).find(l => l[idxHAcao] === 'usuario_codigo' && l[idxHReg] === idFis);
+  ok(hCodigo && Number(hCodigo[idxHEm]) > 0 && !!hCodigo[idxHAdmId], 'AdmHistorico registra gerar código', hCodigo);
+
+  const hRevogar = histLinhas.slice(1).find(l => l[idxHAcao] === 'sessao_revogar' && l[idxHReg] === ap[0].id);
+  ok(hRevogar && Number(hRevogar[idxHEm]) > 0 && !!hRevogar[idxHAdmId], 'AdmHistorico registra revogar aparelho', hRevogar);
+
+  const hPerfil = histLinhas.slice(1).find(l => l[idxHAcao] === 'usuario_editar' && l[idxHReg] === idAdm);
+  ok(hPerfil && Number(hPerfil[idxHEm]) > 0 && !!hPerfil[idxHAdmId], 'AdmHistorico registra mudar perfil', hPerfil);
+
+  const hDesativar = histLinhas.slice(1).find(l => l[idxHAcao] === 'usuario_editar' && l[idxHReg] === idFis);
+  ok(hDesativar && Number(hDesativar[idxHEm]) > 0 && !!hDesativar[idxHAdmId], 'AdmHistorico registra desativar', hDesativar);
+
+  r = await post({ action: 'sair', key: (await entrar(COD_GF, 'painel')).token });
   ok(r.ok && r.saiu === true, 'Sair encerra a sessão no servidor');
-  for (let i = 0; i < 10; i++) await post({ action: 'login', login: 'adm.teste', senha: 'errada' + i });
-  ok(erro(await post({ action: 'login', login: 'adm.teste', senha: 'provisoria3' }), /Aguarde 15 minutos/), '10 senhas erradas: o usuário espera 15 min (mesmo com a senha certa)');
-  ok(erro(await post({ action: 'login', login: 'ger.teste', senha: 'errada' }), /incorretos/), 'o bloqueio é por usuário: outro usuário segue normal');
+
+  console.log('4. Proteções');
+  const idG = (await post({ action: 'painelUsuarios', key: G })).usuarios.find(u => u.nome === 'Gerente Ficticio Teste').id;
+  ok(erro(await criar(G, { id: idG, nome: 'Gerente Ficticio Teste', perfis: ['gerente'], ativo: 0 }), /próprio acesso/), 'gerente não revoga a si mesmo');
+  ok(erro(await criar(G, { id: idG, nome: 'Gerente Ficticio Teste', perfis: ['fiscal'], modulos: { veiculos: 1 } }), /próprio acesso/), 'gerente não tira o próprio perfil de gerente');
+  ok(erro(await post({ action: 'painelUsuarioCodigo', key: LEG, id: idG }), /próprio código/), 'credencial antiga não troca o código de um gerente');
+  for (let i = 0; i < 20; i++) await entrar(String(100000 + i), 'app');
+  ok(erro(await entrar(COD_A, 'portal'), /Aguarde 15 minutos/), '20 códigos errados: entrada por código bloqueada por 15 min (1 milhão de combinações)');
+  await fetch(API + '/__cache?del=falhas_codigo'); await fetch(API + '/__cache?del=falhas_ativacao');   // as tentativas também contam no bloqueio dos códigos antigos
+  ok((await entrar(COD_A, 'portal')).ok, 'passado o bloqueio, o código certo entra');
   ok((await post({ action: 'painelUsuarios', key: LEG })).ok, 'credencial antiga do painel continua valendo');
+
+  console.log('5. Acessos antigos: o mesmo "entrar" aceita e o painel traz para as contas');
+  const velho = await get('/__gerar?nome=' + encodeURIComponent('Fiscal Antigo Teste'));
+  r = await entrar(velho.codigo, 'app');
+  ok(r.ok && !r.conta && r.nome === 'Fiscal Antigo Teste', 'código antigo de fiscal entra pelo mesmo "entrar" do app');
+  r = await post({ action: 'painelUsuariosImportar', key: G });
+  ok(r.ok && r.criados.includes('Fiscal Antigo Teste'), 'trazer os acessos antigos: cria a conta do fiscal antigo', r);
+  const imp = (await post({ action: 'painelUsuarios', key: G })).usuarios.find(u => u.nome === 'Fiscal Antigo Teste');
+  ok(imp && imp.temCodigo === false && imp.perfis.join() === 'fiscal', 'conta trazida sem código (o gerente gera)');
+  ok((await post({ action: 'painelUsuariosImportar', key: G })).criados.length === 0, 'rodar de novo não duplica');
+
+  ok(!leakHashEncontrado, 'nenhuma resposta da API contém codigoHash ou hash de token');
+
+  console.log('6. Rastreabilidade: autor e edições em Turnos auditados no AdmHistorico');
+  const rRast = await criar(G, { nome: 'Fiscal Rastreavel Teste', perfis: ['fiscal'], modulos: { veiculos: 1, tf: 1, pce: 1 } });
+  const codRast = rRast.codigo, idRast = rRast.usuario.id;
+  const tFis = (await entrar(codRast, 'app')).token;
+  const idTurno = 'turno-rastreavel-' + Date.now();
+  const agoraT = Date.now();
+  const turnoNovo = {
+    id: idTurno,
+    numeroTF: 'TF-001-A-2026',
+    data: '2026-10-21',
+    letra: 'A',
+    inicio: '08:00',
+    fim: '16:00',
+    fiscal: 'Fiscal Rastreavel Teste',
+    local: 'CEASA',
+    unidade: 'MANAUS',
+    posto: 'Fixa',
+    encerrado: 0,
+    criadoEm: agoraT,
+    atualizadoEm: agoraT
+  };
+  const sync1 = await post({ action: 'sync', key: tFis, turnos: [turnoNovo] });
+  ok(sync1.ok, 'fiscal sincroniza turno criado');
+
+  const turnosAba1 = (await get('/__aba?nome=Turnos')) || [];
+  const colsT = turnosAba1[0];
+  const idxTId = colsT.indexOf('id'), idxTUs = colsT.indexOf('usuario'), idxTUId = colsT.indexOf('usuarioId');
+  const rowT1 = turnosAba1.slice(1).find(l => l[idxTId] === idTurno);
+  ok(rowT1 && rowT1[idxTUs] === 'Fiscal Rastreavel Teste' && rowT1[idxTUId] === idRast, 'Turnos: usuario = nome e usuarioId = id da conta', rowT1);
+
+  const turnoEditado = Object.assign({}, turnoNovo, {
+    fim: '17:00',
+    atualizadoEm: agoraT + 5000
+  });
+  const sync2 = await post({ action: 'sync', key: 'segredo', turnos: [turnoEditado] });
+  ok(sync2.ok, 'dev com key segredo sincroniza edição no turno');
+
+  const turnosAba2 = (await get('/__aba?nome=Turnos')) || [];
+  const rowT2 = turnosAba2.slice(1).find(l => l[idxTId] === idTurno);
+  ok(rowT2 && rowT2[idxTUs] === 'Fiscal Rastreavel Teste' && rowT2[idxTUId] === idRast, 'usuario/usuarioId continuam os do autor após edição por dev segredo', rowT2);
+
+  const histAba = (await get('/__aba?nome=AdmHistorico')) || [];
+  const colsHAba = histAba[0];
+  const hEdicaoTurno = histAba.slice(1).find(l =>
+    l[colsHAba.indexOf('acao')] === 'editar_registro' &&
+    l[colsHAba.indexOf('aba')] === 'Turnos' &&
+    l[colsHAba.indexOf('registro')] === idTurno
+  );
+  ok(hEdicaoTurno && hEdicaoTurno[colsHAba.indexOf('admId')] === 'dev-ronald' && hEdicaoTurno[colsHAba.indexOf('nome')] === 'Administrador', 'AdmHistorico ganha linha acao editar_registro aba Turnos com admId dev-ronald e nome Administrador', hEdicaoTurno);
 
   /* ================= telas ================= */
   const b = await amb.lancar();
@@ -80,49 +214,39 @@ const erro = (j, re) => j && j.ok === false && re.test(j.erro || '');
     const p = await c.newPage(); p.erros = []; p.on('pageerror', e => p.erros.push(e.message)); p.on('dialog', d => d.accept());
     await p.goto(url); return p;
   };
-  console.log('5. App do fiscal: entrar e criar a senha');
-  await salvar({ login: 'campo.um', nome: 'Fiscal Campo Um', perfis: ['fiscal'], modulos: { veiculos: 1, tf: 1, pce: 1 }, senha: 'provisoria6' });
+  console.log('7. App do fiscal: entrar com o código');
+  r = await criar(G, { nome: 'Fiscal Campo Teste', perfis: ['fiscal'], modulos: { veiculos: 1, tf: 1, pce: 1 } });
   let p = await pagina(APP);
-  await p.waitForSelector('#fLogin', { timeout: 15000 });
-  ok(await p.isVisible('#fAtivar'), 'o formulário de código continua (para quem ainda tem um)');
-  await p.fill('#lUser', 'campo.um'); await p.fill('#lSenha', 'provisoria6'); await p.click('#fLogin button');
-  await p.waitForSelector('#fTrocaSenha', { timeout: 15000 });
-  ok(!(await p.evaluate(() => localStorage.getItem('gdv.key'))), 'senha provisória: o aparelho ainda não guarda a credencial');
-  await p.fill('#tsNova', 'campoum123'); await p.fill('#tsNova2', 'campoum123'); await p.click('#fTrocaSenha button');
-  await p.waitForFunction(() => !!localStorage.getItem('gdv.key') && !document.querySelector('#fLogin'), null, { timeout: 15000 });
-  ok(await p.evaluate(() => localStorage.getItem('gdv.nome')) === 'Fiscal Campo Um', 'senha criada: aparelho lembrado com o nome do fiscal');
-  ok((await post({ action: 'login', login: 'campo.um', senha: 'campoum123' })).ok, 'a senha criada no app vale no servidor');
+  await p.waitForSelector('#fAtivar', { timeout: 15000 });
+  ok(await p.locator('#lUser, #lSenha').count() === 0, 'sem usuário e senha: só o código de acesso');
+  await p.fill('#aCod', r.codigo); await p.click('#fAtivar button');
+  await p.waitForFunction(() => !!localStorage.getItem('gdv.key') && !document.querySelector('#fAtivar'), null, { timeout: 15000 });
+  ok(await p.evaluate(() => localStorage.getItem('gdv.nome')) === 'Fiscal Campo Teste', 'aparelho lembrado com o nome do fiscal');
   ok(!p.erros.length, 'app sem erros de JavaScript', p.erros);
   await p.context().close();
 
-  console.log('6. Painel: entrar como gerente e criar usuário pela aba Usuários');
+  console.log('8. Painel: entrar como gerente, criar conta e ver o código');
   p = await pagina(PAINEL, 1280);
-  await p.waitForSelector('#pn-login-senha', { timeout: 15000 });
-  await p.fill('#pn-login-usuario', 'ger.teste'); await p.fill('#pn-senha', 'provisoria1'); await p.click('#pn-entrar-senha');
-  await p.waitForSelector('#pn-troca:not([hidden])', { timeout: 15000 });
-  await p.fill('#pn-senha-nova', 'gerente123'); await p.fill('#pn-senha-nova2', 'gerente123'); await p.click('#pn-entrar-senha');
+  await p.waitForSelector('#pn-login-form', { timeout: 15000 });
+  await p.fill('#pn-codigo', COD_G); await p.click('#pn-entrar');
   await p.waitForSelector('#pn-app:not([hidden])', { timeout: 20000 });
-  ok(/Gerente Teste Silva/.test(await p.textContent('#pn-nome')), 'painel aberto com o nome do gerente');
-  await p.click('.pn-aba[data-aba=usuarios]'); await p.waitForSelector('#pn-us-form');
-  await p.waitForFunction(() => /fis\.teste/.test(document.querySelector('#pn-us').textContent), null, { timeout: 15000 });
-  ok(await p.isVisible('#pn-us-mods'), 'módulos aparecem para o perfil fiscal');
-  await p.fill('#pn-us-login', 'campo.dois'); await p.fill('#pn-us-nome', 'Fiscal Campo Dois'); await p.fill('#pn-us-senha', 'provisoria7');
-  await p.click('#pn-us-salvar');
-  await p.waitForFunction(() => /campo\.dois/.test(document.querySelector('#pn-us').textContent), null, { timeout: 15000 });
-  ok((await post({ action: 'login', login: 'campo.dois', senha: 'provisoria7' })).trocarSenha === true, 'usuário criado pela tela entra com a senha provisória');
-  await p.locator('[data-us=desativar]').first().click();
-  await p.waitForFunction(() => /desativado/.test(document.querySelector('#pn-us-msg').textContent), null, { timeout: 15000 });
-  ok(/Desativado/.test(await p.textContent('#pn-us')), 'gerente desativa pela tela');
+  await p.click('.pn-aba[data-aba=acessos]'); await p.waitForSelector('#pn-us-form');
+  await p.waitForFunction(() => /Fiscal Ficticio Teste/.test(document.querySelector('#pn-us').textContent), null, { timeout: 15000 });
+  ok(await p.isVisible('#pn-us-mods') && await p.locator('#pn-us-login, #pn-us-senha').count() === 0, 'formulário só com nome, perfis e módulos');
+  await p.fill('#pn-us-nome', 'Fiscal Tela Teste'); await p.click('#pn-us-salvar');
+  await p.waitForSelector('#pn-us-codigo', { timeout: 15000 });
+  const codTela = (await p.textContent('#pn-us-codigo-num')).replace(/\D/g, '');
+  ok(/^\d{6}$/.test(codTela) && (await entrar(codTela, 'app')).ok, 'conta criada pela tela: código mostrado e válido no app');
+  await p.click('[data-us=fechar-codigo]');
+  ok(await p.locator('#pn-us-codigo').count() === 0, '"Já enviei" esconde o código');
   ok(!p.erros.length, 'painel sem erros de JavaScript', p.erros);
   await p.context().close();
 
-  console.log('7. Portal: entrar como administrativo');
-  await salvar({ login: 'adm.dois', nome: 'Administrativo Dois Teste', perfis: ['administrativo'], senha: 'provisoria8' });
+  console.log('9. Portal: entrar como administrativo');
   p = await pagina(ORIGEM + '/administrativo/', 1280);
-  await p.waitForSelector('#adm-senha-form', { timeout: 15000 });
-  await p.fill('#adm-login-usuario', 'adm.dois'); await p.fill('#adm-senha', 'provisoria8'); await p.click('#adm-entrar-senha');
-  await p.waitForSelector('#adm-troca:not([hidden])', { timeout: 15000 });
-  await p.fill('#adm-senha-nova', 'admdois123'); await p.fill('#adm-senha-nova2', 'admdois123'); await p.click('#adm-entrar-senha');
+  await p.waitForSelector('#adm-cod-form', { state: 'attached', timeout: 15000 });
+  await p.evaluate(() => { const d = document.querySelector('#adm-cod-form').closest('details'); if (d) d.open = true; });
+  await p.fill('#adm-codigo', COD_A); await p.click('#adm-entrar');
   await p.waitForSelector('#adm-app:not([hidden])', { timeout: 20000 });
   ok(await p.isVisible('#adm-app'), 'portal aberto para o administrativo');
   ok(!p.erros.length, 'portal sem erros de JavaScript', p.erros);

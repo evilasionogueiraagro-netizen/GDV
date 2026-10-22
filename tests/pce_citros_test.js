@@ -142,7 +142,7 @@ const guardar = nome => { if (COPIA) { fs.mkdirSync(COPIA, { recursive: true });
   const lev = await p.evaluate(id => Store.obter('levantamentos', id), lid);
   await sync();
   const cab = (await get('/__aba?nome=Levantamentos'))[0];
-  ok(cab.slice(-5).join() === 'citros,cnpj,empresa,endereco,uf', 'aba Levantamentos: colunas novas no fim (cnpj, empresa, endereco, uf)', cab.slice(-6));
+  ok(cab.slice(-6).join() === 'citros,cnpj,empresa,endereco,uf,usuarioId', 'aba Levantamentos: colunas novas no fim (cnpj, empresa, endereco, uf, usuarioId)', cab.slice(-7));
   let L = await linhaDe('Levantamentos', lid), J = json(L && L.citros);
   ok(L && L.cnpj === '11222333000181' && L.empresa === 'Citros Ficticio Ltda' && L.endereco === 'Ramal Ficticio, km 3' && L.uf === 'AM', 'planilha: CNPJ (só dígitos), empresa, endereço e UF do levantamento', L && [L.cnpj, L.empresa, L.endereco, L.uf]);
   ok(J && J.deteccao.hlb.tem === 'nao' && J.deteccao.acaro.tem === 'nao' && J.deteccao.cancro.tem === 'sim' && J.deteccao.cancro.tempo === '3 semanas' && J.deteccao.hlb.tempo === '',

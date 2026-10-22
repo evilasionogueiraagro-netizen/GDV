@@ -439,6 +439,7 @@
     c.appendChild(E.raiz);
     if (!E.lista || (!E.carregando && Date.now() - E.lidoEm > RECARREGAR_MS)) carregar();
     if (window.PainelAdm) PainelAdm.anexar(c);                 // bloco "Portal do Administrativo" (js/painel-adm.js)
+    if (window.PainelContas) PainelContas.anexar(c);           // bloco "Contas de acesso" no topo (js/painel-contas.js)
   }
   // outro administrador pode entrar neste aparelho: nada da sessão anterior fica na tela
   P.aoSair(() => { if (E.raiz) E.raiz.remove(); clearTimeout(E.tmRecolher); aberta = null;

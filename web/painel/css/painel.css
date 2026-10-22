@@ -783,3 +783,12 @@ body.tv .pn-erro { font-size: 2.1vh; padding: 1.4vh; }
 .pn-conv-portal { display: flex; flex-wrap: wrap; gap: 10px 16px; align-items: center; justify-content: space-between; margin-bottom: 12px; background: var(--sel); }
 .pn-conv-portal p { margin: 0; flex: 1 1 320px; font-size: 14px; }
 .pn-conv-portal a.pn-btn { text-decoration: none; }
+
+/* aba Servidores → bloco "Contas de acesso" (js/painel-contas.js) */
+.pn-us { margin-bottom: 18px; }
+.pn-us-form fieldset { border: 1px solid var(--borda, #d0d7de); border-radius: 8px; margin: 10px 0; padding: 8px 12px; }
+.pn-us-caixa { display: inline-flex; align-items: center; gap: 6px; margin: 4px 14px 4px 0; }
+.pn-us-campos input { width: 100%; max-width: 420px; }
+.pn-us-botoes { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; margin: 10px 0; }
+.pn-us-codigo { margin-bottom: 12px; }
+.pn-us-ap { white-space: nowrap; }

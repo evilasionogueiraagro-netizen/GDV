@@ -22,14 +22,14 @@ const TABELAS = {
   Turnos: ['id', 'numeroTF', 'data', 'letra', 'inicio', 'fim', 'fiscal', 'local', 'unidade', 'posto',
            'encerrado', 'criadoEm', 'atualizadoEm', 'srv_ts',
            'latIni', 'lngIni', 'precIni', 'latFim', 'lngFim', 'precFim', 'usuario', 'semPlaca',   // colunas novas ficam sempre no fim (semPlaca=1: placa opcional no turno)
-           'encerradoPor', 'encerradoEm'],   // turno encerrado fora do aparelho: nome do administrador (painel) ou "Automático (12 h)", e quando (ms)
+           'encerradoPor', 'encerradoEm', 'usuarioId'],   // turno encerrado fora do aparelho: nome do administrador (painel) ou "Automático (12 h)", e quando (ms)
   Veiculos: ['id', 'turnoId', 'hora', 'placa', 'tipo', 'pessoas', 'obs',
              'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
              // ufOrigem/ufDestino: "Origem e destino (opcional)" do formulário do veículo (sigla de CONFIG.ufs ou "Exterior"; vazio = não
              // informado) — entram no VIGIFITO (internalização / cargas para outros estados) quando o veículo não tem TF ligado.
              // HISTÓRICO (o formulário não grava mais; não entram mais em nenhum cálculo; colunas mantidas pelos dados antigos):
              // semEducacao, medidaFito, carga, produtos (JSON ["PRODUTO - 10 Kg", …]), partida, inspecaoFito, docConferido
-             'semEducacao', 'medidaFito', 'carga', 'produtos', 'ufOrigem', 'ufDestino', 'partida', 'inspecaoFito', 'docConferido'],
+             'semEducacao', 'medidaFito', 'carga', 'produtos', 'ufOrigem', 'ufDestino', 'partida', 'inspecaoFito', 'docConferido', 'usuarioId'],
   Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm', 'perfil',   // perfil: vazio = fiscal, 'admin' = administrador
             'geradoPor',                                                             // quem gerou o código: nome do administrador (painel) ou "planilha" (menu)
             'oculto', 'ocultoPor', 'ocultoEm'],                                      // "Remover da lista" no painel: oculto=1 some da aba Servidores (a linha fica, para auditoria)
@@ -40,13 +40,13 @@ const TABELAS = {
         'reincidente', 'tfsAnteriores', 'cancelado', 'motivoCancel', 'conflito', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
         'numeroSugerido', 'numeroOrigem', 'emitidoEm',   // auditoria da numeração (colunas novas ficam sempre no fim)
         'fotos', 'assinaturas', 'recusaAssinatura',    // fotos = JSON [ids]; assinaturas = JSON {fiscalizado, servidor} (ids na aba Arquivos); recusaAssinatura = 1: fiscalizado se recusou
-        'ufOrigem', 'ufDestino'],                     // UF de origem/destino da carga (sigla de UFS_ ou "Exterior"; vazio = não informada; TF antigo: ufDoTexto_ de origem/destino)
+        'ufOrigem', 'ufDestino', 'usuarioId'],                     // UF de origem/destino da carga (sigla de UFS_ ou "Exterior"; vazio = não informada; TF antigo: ufDoTexto_ de origem/destino)
   Pessoas: ['id', 'tipo', 'nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
-            'email'],                                                                                                              // id = CPF/CNPJ (só dígitos)
-  Placas: ['id', 'doc', 'nome', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],                                                    // id = placa
+            'email', 'usuarioId'],                                                                                                              // id = CPF/CNPJ (só dígitos)
+  Placas: ['id', 'doc', 'nome', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario', 'usuarioId'],                                                    // id = placa
   Barreiras: ['id', 'nome', 'sufixo', 'local', 'ativo'],                                                                            // cadastro feito direto na planilha
   Numeracao: ['id', 'barreira', 'ano', 'ultimo', 'atualizadoEm'],                                                                    // ponto de partida definido pelo administrador (id = barreira|ano)
-  Consultas: ['em', 'usuario', 'doc', 'placa', 'resultado'],
+  Consultas: ['em', 'usuario', 'doc', 'placa', 'resultado', 'usuarioId'],
   // Módulo PCE: Levantamento fitossanitário e Termo de Colheita de Amostras
   Levantamentos: ['id', 'data', 'hora', 'servidor', 'cargo', 'matricula', 'lotacao', 'doc', 'nome', 'telefone', 'email',
                   'propriedade', 'codigoPropriedade', 'situacaoFundiaria', 'municipio', 'lat', 'lon', 'precisao',
@@ -56,23 +56,23 @@ const TABELAS = {
                                // (levantamento por praga/doença). culturas/fotos continuam preenchidos (derivados) para registros e relatórios antigos.
                   'tipoLocal', 'origemVisita',   // dados gerais da visita (opcionais; texto da lista CONFIG.PCE.tiposLocal/origensVisita ou o digitado em "Outro")
                   'citros',    // cadastro de cítricos (IN 21/2018, Portaria 317/2021): JSON normalizado por citrosTexto_; vazio sem praga de citros
-                  'cnpj', 'empresa', 'endereco', 'uf'],   // identificação do produtor/propriedade (CNPJ só dígitos, empresa/nome fantasia, endereço, UF): identLev_
+                  'cnpj', 'empresa', 'endereco', 'uf', 'usuarioId'],   // identificação do produtor/propriedade (CNPJ só dígitos, empresa/nome fantasia, endereço, UF): identLev_
   Colheitas: ['id', 'unidade', 'ano', 'numero', 'numeroTxt', 'numeroSugerido', 'numeroOrigem', 'conflito', 'emitidoEm', 'levantamentoId',
               'data', 'hora', 'servidor', 'cargo', 'matricula', 'lotacao', 'municipio', 'doc', 'nome', 'endereco', 'lat', 'lon', 'precisao',
               'cultura', 'quantidade', 'analise', 'partes', 'descricao', 'fotos', 'testemunha1Nome', 'testemunha1Doc', 'testemunha2Nome',
               'testemunha2Doc', 'assinaturas', 'local', 'cancelado', 'motivoCancel', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
               'registroAntigo', 'documentos',
-              'laboratorio'],   // resultado laboratorial (JSON {laboratorio, laboratorioOutro, envio, laudo, dataResultado, resultado, praga, obs, atualizadoEm, por});
+              'laboratorio', 'usuarioId'],   // resultado laboratorial (JSON {laboratorio, laboratorioOutro, envio, laudo, dataResultado, resultado, praga, obs, atualizadoEm, por});
                                 // registrado depois (app ou painel → painelPceLaudo); o sync mescla pelo atualizadoEm do resultado (nunca apaga um mais novo)
   Propriedades: ['id', 'codigo', 'nome', 'doc', 'municipio', 'situacaoFundiaria', 'lat', 'lon', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
                  'cnpj', 'viaAcesso', 'comercial', 'tipoPropriedade', 'endereco', 'uf',   // campos comuns do Cadastro de imóvel (PCE): CNPJ, via de acesso, propriedade comercial (sim/nao) e tipo
-                 'empresa'],   // empresa / nome fantasia (levantamento e Termo de Fiscalização do PCE)
+                 'empresa', 'usuarioId'],   // empresa / nome fantasia (levantamento e Termo de Fiscalização do PCE)
   // Cadastro de imóvel do PCE (1x por propriedade e programa: monilíase e citros). Numeração por programa + unidade + ano ("001-2026-AUTAZES").
   // dados = JSON com os campos do programa (monilíase: culturas/plantas, informações fitossanitárias, levantamento de detecção…; citros: o bloco
   // "Cultura do citros" do levantamento + levantamentoId, codigoPropriedade, endereco, telefone, empresa, culturasAvaliadas); totalPlantas = soma das plantas.
   CadastrosPCE: ['id', 'programa', 'unidade', 'ano', 'numero', 'numeroTxt', 'numeroSugerido', 'numeroOrigem', 'conflito', 'emitidoEm', 'propriedadeId',
                  'doc', 'nome', 'propriedade', 'cnpj', 'data', 'hora', 'municipio', 'uf', 'lat', 'lon', 'servidor', 'cargo', 'matricula', 'lotacao', 'local',
-                 'dados', 'totalPlantas', 'fotos', 'assinaturas', 'documentos', 'registroAntigo', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
+                 'dados', 'totalPlantas', 'fotos', 'assinaturas', 'documentos', 'registroAntigo', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario', 'usuarioId'],
   // Termo de Fiscalização do PCE (1 por visita; NÃO é o TF de Barreira). Numeração por unidade + ano ("001.2026.AUTAZES").
   // pragas/acoes/tipoLocal/testemunhas = JSON (programa "citros": tipoLocal = [o local especificado, "ao realizar fiscalização no(a)…"]);
   // plantasInspecionadas, amostra e sintomas (sim/nao) alimentam o Relatório de atividades
@@ -81,11 +81,11 @@ const TABELAS = {
               'doc', 'nome', 'atividade', 'empresa', 'cnpj', 'atividadeEmpresa', 'endereco', 'municipio', 'uf', 'telefone', 'lat', 'lon', 'data', 'hora',
               'servidor', 'cargo', 'matricula', 'lotacao', 'pragas', 'tipoLocal', 'acoes', 'constatacao', 'enquadramento', 'testemunhas', 'recebidoEm',
               'plantasInspecionadas', 'amostra', 'sintomas', 'hospedeiros', 'fotos', 'assinaturas', 'documentos', 'registroAntigo',
-              'cancelado', 'motivoCancel', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
+              'cancelado', 'motivoCancel', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario', 'usuarioId'],
   Arquivos: ['id', 'dono', 'donoId', 'tipo', 'papel', 'nome', 'mime', 'tamanho', 'driveId', 'url', 'usuario', 'criadoEm',  // fotos/assinaturas/PDFs no Drive
-             'rotulo'],   // rotulo = "praga – cultura" da foto do levantamento (vai também no nome do arquivo)
+             'rotulo', 'usuarioId'],   // rotulo = "praga – cultura" da foto do levantamento (vai também no nome do arquivo)
   // TF de Barreira em preenchimento no aparelho (alerta "apreensão em andamento" no painel). id = usuario|rascunhoId. Sem CPF/nome do fiscalizado.
-  Andamento: ['id', 'usuario', 'fiscal', 'turnoId', 'placa', 'procedimento', 'local', 'barreira', 'lat', 'lon', 'estado', 'inicioTs', 'atualizadoTs'],
+  Andamento: ['id', 'usuario', 'fiscal', 'turnoId', 'placa', 'procedimento', 'local', 'barreira', 'lat', 'lon', 'estado', 'inicioTs', 'atualizadoTs', 'usuarioId'],
   // Módulos que cada servidor pode usar para INSERIR dados (por nome; vale para todos os aparelhos dele). 1 = liberado, 0 = sem autorização.
   // Servidor sem linha aqui = os três módulos liberados (padrão). Editada pelo painel (aba Servidores) ou à mão na planilha.
   // antigo = "Digitar do papel" (registros antigos digitados do papel + PDF escaneado): 1 = autorizado; vazio/sem linha = NÃO autorizado.
@@ -96,7 +96,7 @@ const TABELAS = {
   // celular sem chegar à planilha); fimPendentes = JSON {id: "HH:MM"}; situacao = 'ok' (último contato foi um envio bem-sucedido) ou
   // 'erro' (último contato foi o aviso de uma falha); ultimoErro/ultimoErroEm = último erro relatado pelo aparelho (histórico).
   Aparelhos: ['id', 'usuario', 'versao', 'plataforma', 'standalone', 'online', 'ultimoSinal', 'pendentes', 'turnoAtual',
-              'turnosEncerradosPendentes', 'fimPendentes', 'ultimoErro', 'ultimoErroEm', 'origem', 'situacao', 'cred', 'primeiroSinal'],
+              'turnosEncerradosPendentes', 'fimPendentes', 'ultimoErro', 'ultimoErroEm', 'origem', 'situacao', 'cred', 'primeiroSinal', 'usuarioId'],
   // Convênios (aba "Convênios" do painel; só administrador). config = JSON do convênio (etapas, metas, sub-metas, plano de aplicação,
   // assinaturas e regras de apuração); sem linha = semente embutida no código (convSemente_).
   Convenios: ['id', 'config', 'atualizadoEm', 'atualizadoPor'],
@@ -116,33 +116,26 @@ const TABELAS = {
                    'municipio'],   // município do desembolso (opcional; lançado no portal)
   // Textos do relatório mensal (id = convenio|AAAA-MM): textos = JSON {etapas:{"1.4":{evidencias, justificativa, fator, providencia, situacao}},
   // gerais:{fatores, providencias, analise, conclusao}}
-  ConvRelatorios: ['id', 'convenio', 'mes', 'numero', 'textos', 'usuario', 'atualizadoEm'],
+  ConvRelatorios: ['id', 'convenio', 'mes', 'numero', 'textos', 'usuario', 'atualizadoEm', 'usuarioId'],
   // Relatório GDV (painel → aba Relatórios; só administrador). Textos editáveis por relatório: id = "mensal|AAAA|MM" ou "anual|AAAA|"
   // (textos = JSON {introducao, ..., assinaturas, local}). Lançamentos manuais: UMA linha por mês e linha do quadro (id = "AAAA|MM|chave"):
   // valor numérico (quadros PCE/VIGIFITO, colunas manuais por município) ou lista = JSON (tabelas de CFO/CFOC, PTV e educação sanitária do mês).
   // O anual soma os meses. Quem/quando em cada linha (auditável na planilha).
-  RelGdvTextos: ['id', 'tipo', 'ano', 'mes', 'textos', 'usuario', 'atualizadoEm'],
+  RelGdvTextos: ['id', 'tipo', 'ano', 'mes', 'textos', 'usuario', 'atualizadoEm', 'usuarioId'],
   RelGdvLancamentos: ['id', 'ano', 'mes', 'chave', 'valor', 'lista', 'usuario', 'atualizadoEm', 'admId'],
-  // Portal do Administrativo (web/administrativo/): pessoas liberadas (login com Google pelo e-mail ou código de 6 dígitos gerado no
-  // painel). Os e-mails ficam SÓ nesta aba (LGPD); os lançamentos guardam o nome e o admId. Gerida no painel → Servidores.
-  // oculto/ocultoPor/ocultoEm: "Remover" no painel (só revogado, ativo = 0): oculto = 1 some da lista (a linha fica, para auditoria).
+  // Contas de todas as pessoas (campo, painel, portal). perfis: 'fiscal,administrativo,gerente,dev'; modulos: JSON {veiculos, tf, pce, antigo}; codigoHash: HMAC do código de 6 dígitos.
+  // Gerida no painel → Servidores. oculto/ocultoPor/ocultoEm: "Remover" no painel (só revogado, ativo = 0): oculto = 1 some da lista (a linha fica, para auditoria).
   Administrativo: ['id', 'email', 'nome', 'ativo', 'criadoEm', 'criadoPor', 'ultimoAcesso', 'codigo', 'codigoExpira', 'atualizadoEm', 'atualizadoPor',
-                   'oculto', 'ocultoPor', 'ocultoEm'],
-  // Sessões do portal: só o SHA-256 do token (o token em si fica no navegador); 30 dias sem uso, renovada a cada uso; revogado = 1 ao sair.
-  AdmSessoes: ['id', 'hash', 'admId', 'origem', 'criadoEm', 'expiraEm', 'ultimoUso', 'revogado'],
-  // Histórico de alterações feitas no portal (antes/depois em JSON).
+                   'oculto', 'ocultoPor', 'ocultoEm', 'perfis', 'modulos', 'codigoHash'],
+  // Sessões ativas de todos os apps (campo, painel, portal): só o SHA-256 do token. expiraEm = 0 (vale até sair ou o gerente revogar); revogado = 1 ao sair.
+  AdmSessoes: ['id', 'hash', 'admId', 'origem', 'criadoEm', 'expiraEm', 'ultimoUso', 'revogado', 'aparelho', 'escopo', 'revogadoEm', 'revogadoPor'],
+  // Histórico de alterações e auditoria de ações sensíveis (antes/depois em JSON).
   AdmHistorico: ['em', 'admId', 'nome', 'acao', 'aba', 'registro', 'antes', 'depois'],
   // VIGIFITO: configuração (postos e a escala dos períodos de 10 dias; sem linha = semente vigSemente_) e valores lançados por
   // posto × mês (periodo = AAAA-MM) ou por período de 10 dias (periodo = P<AAAA-MM-DD do início>). Uma linha por célula
   // (id = periodo|posto|indicador); substitui = 1: valor que substitui o apurado pelo e-GDV (com justificativa).
   VigConfig: ['id', 'config', 'atualizadoEm', 'atualizadoPor'],
-  VigLancamentos: ['id', 'ano', 'periodo', 'posto', 'indicador', 'valor', 'substitui', 'justificativa', 'origem', 'arquivo', 'usuario', 'admId', 'atualizadoEm', 'excluido'],
-  // Login com usuário e senha (um login para app, painel e portal). perfis = "fiscal,administrativo,gerente,dev"; modulos = JSON
-  // {veiculos, tf, pce, antigo} do fiscal (copiado para a aba Permissoes). Senha: só o hash e o salt. trocarSenha = 1: senha provisória.
-  Usuarios: ['id', 'login', 'nome', 'perfis', 'modulos', 'senhaHash', 'senhaSalt', 'trocarSenha', 'ativo', 'criadoEm', 'criadoPor',
-             'atualizadoEm', 'atualizadoPor', 'ultimoAcesso'],
-  // Uma sessão por aparelho/navegador; só o SHA-256 do token. Vale até sair, trocar a senha ou o gerente revogar.
-  Sessoes: ['id', 'hash', 'usuarioId', 'aparelho', 'criadoEm', 'ultimoUso', 'revogado']
+  VigLancamentos: ['id', 'ano', 'periodo', 'posto', 'indicador', 'valor', 'substitui', 'justificativa', 'origem', 'arquivo', 'usuario', 'admId', 'atualizadoEm', 'excluido']
 };
 const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
                           'expiraEm', 'ativo', 'ativadoEm', 'oculto', 'ocultoEm',
@@ -152,7 +145,7 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criad
                           'standalone', 'online', 'ultimoSinal', 'ultimoErroEm', 'primeiroSinal', 'recusaAssinatura',
                           'totalPlantas', 'plantasInspecionadas', 'importadoEm',
                           'ultimoAcesso', 'codigoExpira', 'ultimoUso', 'revogado', 'substitui',
-                          'semEducacao', 'medidaFito', 'carga', 'partida', 'inspecaoFito', 'docConferido', 'trocarSenha'];   // lat/lon/precisao ficam como texto (como em Turnos)
+                          'semEducacao', 'medidaFito', 'carga', 'partida', 'inspecaoFito', 'docConferido', 'revogadoEm'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, pragas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000,
                         dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000, citros: 20000 };   // demais colunas: 500
@@ -162,6 +155,7 @@ const VALIDADE_CODIGO_MS = 7 * 24 * 3600 * 1000;      // código de ativação v
 const MAX_FALHAS_ATIVACAO = 10;                        // tentativas erradas antes de bloquear por 15 min
 const MAX_FALHAS_ADMIN = 5;                            // idem para o código de administrador do painel (contador próprio)
 const MAX_LINHAS_POR_ENVIO = 2000;
+const CARENCIA_LEGADO_ATE = 0;                         // 0 = sem expiração por tempo, revogação apenas explícita
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
 const VERSAO_CODIGO = '2026-10-20h';
@@ -210,32 +204,36 @@ function doPost(e) {
     if (req.action === 'painelAdmSalvar') return json_(painelAdmSalvar(req.key, req));
     if (req.action === 'painelAdmCodigo') return json_(painelAdmCodigo(req.key, req));
     // Usuário e senha: um login para app, painel e portal (o que cada um abre depende dos perfis)
-    if (req.action === 'login') return json_(login_(req));
+    if (req.action === 'entrar') return json_(entrar_(req));
     if (req.action === 'sair') return json_({ ok: true, saiu: sairSessao_(req.key) });
-    if (req.action === 'trocarSenha') return json_(trocarSenha_(req));
     if (req.action === 'painelUsuarios') return json_(painelUsuarios(req.key));
     if (req.action === 'painelUsuarioSalvar') return json_(painelUsuarioSalvar(req.key, req));
+    if (req.action === 'painelUsuarioCodigo') return json_(painelUsuarioCodigo(req.key, req));
+    if (req.action === 'painelSessaoRevogar') return json_(painelSessaoRevogar(req.key, req));
+    if (req.action === 'painelUsuariosImportar') return json_(painelUsuariosImportar(req.key));
     // Portal do Administrativo: login (Google ou código) e as demais actions com a sessão do portal (nunca com a credencial do painel/app)
     if (req.action === 'admLogin') return json_(admLogin_(req));
     if (req.action === 'admCodigo') return json_(admCodigo_(req));
     if (/^adm[A-Z]/.test(String(req.action || ''))) return json_(admAcao_(req));
-    const usuario = autenticar_(req.key);
+    const auth = autenticar_(req.key);
+    const usuario = auth.nome;
+    const usuarioId = auth.id;
     // TF/PCE: o servidor confere a autorização do módulo (foto/assinatura de TF = módulo TF; as demais, PCE)
     const modulo = req.action === 'arquivoEnviar' && req.arquivo && req.arquivo.dono === 'tfs' ? 'tf' : MODULO_DA_ACAO[req.action];
     if (modulo) exigirModulo_(usuario, modulo);
-    if (req.action === 'ping') return json_(ping_(req, usuario));
-    if (req.action === 'sync') return json_(sincronizar_(req, usuario));
-    if (req.action === 'tfConsultar') return json_(consultar_(req, usuario));
+    if (req.action === 'ping') return json_(ping_(req, usuario, usuarioId));
+    if (req.action === 'sync') return json_(sincronizar_(req, usuario, usuarioId));
+    if (req.action === 'tfConsultar') return json_(consultar_(req, usuario, usuarioId));
     if (req.action === 'tfProximoNumero') return json_(proximoNumero_(req));
-    if (req.action === 'tfEmitir') return json_(emitir_(req, usuario));
+    if (req.action === 'tfEmitir') return json_(emitir_(req, usuario, usuarioId));
     if (req.action === 'pceProximoNumero') return json_(pceProximoNumero_(req));
-    if (req.action === 'pceEmitir') return json_(pceEmitir_(req, usuario));
-    if (req.action === 'pceConsultar') return json_(pceConsultar_(req, usuario));
+    if (req.action === 'pceEmitir') return json_(pceEmitir_(req, usuario, usuarioId));
+    if (req.action === 'pceConsultar') return json_(pceConsultar_(req, usuario, usuarioId));
     if (req.action === 'pceDocNumero') return json_(pceDocNumero_(req));
-    if (req.action === 'pceDocRegistrar') return json_(pceDocRegistrar_(req, usuario));
-    if (req.action === 'pceBaixarMunicipio') return json_(pceBaixarMunicipio_(req, usuario));
-    if (req.action === 'arquivoEnviar') return json_(arquivoEnviar_(req, usuario));
-    if (req.action === 'tfAndamento') return json_(tfAndamento_(req, usuario));
+    if (req.action === 'pceDocRegistrar') return json_(pceDocRegistrar_(req, usuario, usuarioId));
+    if (req.action === 'pceBaixarMunicipio') return json_(pceBaixarMunicipio_(req, usuario, usuarioId));
+    if (req.action === 'arquivoEnviar') return json_(arquivoEnviar_(req, usuario, usuarioId));
+    if (req.action === 'tfAndamento') return json_(tfAndamento_(req, usuario, usuarioId));
     if (req.action === 'tfIndiceReincidencia') return json_(tfIndiceReincidencia_(req));
     throw new Error('Ação inválida.');
   } catch (err) {
@@ -245,7 +243,7 @@ function doPost(e) {
   }
 }
 
-function sincronizar_(req, usuario) {
+function sincronizar_(req, usuario, usuarioId) {
   const turnos = lista_(req.turnos);
   const veiculos = lista_(req.veiculos);
   const tfs = lista_(req.tfs);
@@ -292,14 +290,14 @@ function sincronizar_(req, usuario) {
   lock.waitLock(30000);
   try {
     const agora = Date.now();
-    gravar_('Turnos', T.turnos, agora, usuario);
-    gravar_('Veiculos', T.veiculos, agora, usuario);
+    gravar_('Turnos', T.turnos, agora, usuario, usuarioId);
+    gravar_('Veiculos', T.veiculos, agora, usuario, usuarioId);
     T.tfs.forEach(function (t) { if (t && !t.emitidoEm) t.emitidoEm = agora; });            // momento em que a planilha recebeu o TF
-    gravar_('TFs', T.tfs, agora, usuario);
+    gravar_('TFs', T.tfs, agora, usuario, usuarioId);
     if (T.tfs.length) marcarConflitosTFs_(T.tfs, agora);
-    gravar_('Pessoas', T.pessoas, agora, usuario);
-    gravar_('Placas', T.placas, agora, usuario);
-    gravar_('Levantamentos', T.levantamentos, agora, usuario);
+    gravar_('Pessoas', T.pessoas, agora, usuario, usuarioId);
+    gravar_('Placas', T.placas, agora, usuario, usuarioId);
+    gravar_('Levantamentos', T.levantamentos, agora, usuario, usuarioId);
     const jaGravadas = {};                                                            // termos que a planilha já tem: mantêm o emitidoEm gravado
     if (T.colheitas.length) lerLeitura_('Colheitas').forEach(function (l) { jaGravadas[l.id] = true; });
     T.colheitas.forEach(function (c) {
@@ -312,9 +310,9 @@ function sincronizar_(req, usuario) {
         else c.emitidoEm = agora;                                                       // momento em que a planilha recebeu o termo
       }
     });
-    gravar_('Colheitas', T.colheitas, agora, usuario);
+    gravar_('Colheitas', T.colheitas, agora, usuario, usuarioId);
     if (T.colheitas.length) marcarConflitos_('PCE', T.colheitas, agora);
-    gravar_('Propriedades', T.propriedades, agora, usuario);
+    gravar_('Propriedades', T.propriedades, agora, usuario, usuarioId);
     // Cadastro de imóvel e Termo de Fiscalização do PCE: nº em texto no formato do papel; número repetido = conflito (o mais antigo vale)
     [['cadastro', 'cadastrosPce'], ['termo', 'termosPce']].forEach(function (x) {
       const regs = T[x[1]], D = DOCS_PCE[x[0]];
@@ -325,7 +323,7 @@ function sincronizar_(req, usuario) {
         normalizarDocPce_(x[0], r);
         if (!r.emitidoEm) { if (ja[r.id]) delete r.emitidoEm; else r.emitidoEm = agora; }
       });
-      gravar_(D.aba, regs, agora, usuario);
+      gravar_(D.aba, regs, agora, usuario, usuarioId);
       marcarConflitos_(D.seq, regs, agora);
     });
     // sinal do aparelho (melhor esforço: nunca derruba o envio). Desconta o que acabou de chegar.
@@ -333,7 +331,7 @@ function sincronizar_(req, usuario) {
     T.turnos.forEach(function (t) { if (t && t.id && Number(t.encerrado) === 1) encerrados[String(t.id)] = true; });
     try {
       registrarAparelho_(req.aparelho, usuario, agora, req.key, 'ok', { turnos: T.turnos.length, veiculos: T.veiculos.length, tfs: T.tfs.length,
-        levantamentos: T.levantamentos.length, colheitas: T.colheitas.length, encerrados: encerrados });
+        levantamentos: T.levantamentos.length, colheitas: T.colheitas.length, encerrados: encerrados }, usuarioId);
     } catch (e) { /* aba Aparelhos com problema: o envio dos registros continua valendo */ }
     return {
       ok: true,
@@ -371,12 +369,12 @@ function textoCurto_(v, n) {
  * "ping" autenticado. Com {aparelho}: só grava o sinal, marcando situacao = 'erro' quando o aparelho relata um erro (o app chama
  * isto UMA vez quando o sync completo falha por erro do servidor, para o painel ver o motivo). Sem aparelho: teste de conexão.
  */
-function ping_(req, usuario) {
+function ping_(req, usuario, usuarioId) {
   const agora = Date.now();
   if (req.aparelho && typeof req.aparelho === 'object') {
     const lock = LockService.getScriptLock();
     lock.waitLock(30000);
-    try { registrarAparelho_(req.aparelho, usuario, agora, req.key, req.aparelho.ultimoErro ? 'erro' : 'ok', null); }
+    try { registrarAparelho_(req.aparelho, usuario, agora, req.key, req.aparelho.ultimoErro ? 'erro' : 'ok', null, usuarioId); }
     finally { lock.releaseLock(); }
   }
   return { ok: true, nome: usuario, agora: agora };
@@ -387,7 +385,7 @@ function ping_(req, usuario) {
  * registra só "sincronizou agora" numa linha "legado-"). aceitos = quantos registros de cada tipo chegaram neste envio (descontados
  * dos pendentes informados, que o app conta antes de enviar) e os ids dos turnos encerrados aceitos.
  */
-function registrarAparelho_(a, usuario, agora, key, situacao, aceitos) {
+function registrarAparelho_(a, usuario, agora, key, situacao, aceitos, usuarioId) {
   const cred = String(key || '').slice(0, 8);
   let o;
   if (a && typeof a === 'object' && RE_ID_APARELHO_.test(String(a.id || ''))) {
@@ -406,11 +404,11 @@ function registrarAparelho_(a, usuario, agora, key, situacao, aceitos) {
           standalone: a.standalone ? 1 : 0, online: a.online === false ? 0 : 1, ultimoSinal: agora, pendentes: JSON.stringify(pend),
           turnoAtual: textoCurto_(a.turnoAtual, 64), turnosEncerradosPendentes: JSON.stringify(enc), fimPendentes: JSON.stringify(fim),
           ultimoErro: textoCurto_(a.ultimoErro, 200), ultimoErroEm: a.ultimoErro ? (errEm > 1e12 && errEm < agora + 864e5 ? errEm : agora) : 0,
-          origem: a.origem === 'segundo-plano' ? 'segundo-plano' : 'app', situacao: situacao === 'erro' ? 'erro' : 'ok', cred: cred };
+          origem: a.origem === 'segundo-plano' ? 'segundo-plano' : 'app', situacao: situacao === 'erro' ? 'erro' : 'ok', cred: cred, usuarioId: usuarioId || '' };
   } else {
     if (!cred) return;
     o = { id: 'legado-' + cred, usuario: usuario, versao: '', plataforma: '', standalone: 0, online: 1, ultimoSinal: agora, pendentes: '',
-          turnoAtual: '', turnosEncerradosPendentes: '[]', fimPendentes: '{}', ultimoErro: '', ultimoErroEm: 0, origem: 'app', situacao: 'ok', cred: cred };
+          turnoAtual: '', turnosEncerradosPendentes: '[]', fimPendentes: '{}', ultimoErro: '', ultimoErroEm: 0, origem: 'app', situacao: 'ok', cred: cred, usuarioId: usuarioId || '' };
   }
   const t = lerTudo_('Aparelhos'), cols = t.cols;
   let idx = -1;
@@ -418,6 +416,7 @@ function registrarAparelho_(a, usuario, agora, key, situacao, aceitos) {
   if (idx >= 0) {
     const atual = paraObjeto_(cols, t.valores[idx]);
     o.primeiroSinal = atual.primeiroSinal || agora;
+    if (!o.usuarioId && atual.usuarioId) o.usuarioId = atual.usuarioId;
     if (!o.ultimoErro) { o.ultimoErro = atual.ultimoErro; o.ultimoErroEm = atual.ultimoErroEm; }   // o último erro fica como histórico
     t.sh.getRange(idx + 2, 1, 1, cols.length).setValues([cols.map(function (c) { return o[c]; })]);
   } else {
@@ -511,7 +510,7 @@ function proximoNumero_(req) {
  * Emissão: grava o TF só se o número ainda estiver livre (sob lock). Se outro fiscal usou o número nesse
  * intervalo, devolve emitido = false e o próximo livre, ANTES de qualquer impressão.
  */
-function emitir_(req, usuario) {
+function emitir_(req, usuario, usuarioId) {
   const tf = req.tf || {};
   const barreira = String(tf.barreira || ''), ano = Number(tf.ano) || 0, numero = Number(tf.numero) || 0;
   if (!tf.id || !barreira || !ano || numero < 1) throw new Error('Dados do TF incompletos.');
@@ -529,9 +528,9 @@ function emitir_(req, usuario) {
     }
     const agora = Date.now(), antes = todos.filter(function (r) { return r.id === tf.id; })[0];
     tf.emitidoEm = (antes && antes.emitidoEm) || agora;                          // reenvio do mesmo TF não muda a data de emissão
-    gravar_('TFs', [tf], agora, usuario);
-    if (req.pessoa) gravar_('Pessoas', [req.pessoa], agora, usuario);
-    if (req.placa) gravar_('Placas', [req.placa], agora, usuario);
+    gravar_('TFs', [tf], agora, usuario, usuarioId);
+    if (req.pessoa) gravar_('Pessoas', [req.pessoa], agora, usuario, usuarioId);
+    if (req.placa) gravar_('Placas', [req.placa], agora, usuario, usuarioId);
     return { ok: true, emitido: true, numero: numero, emitidoEm: tf.emitidoEm, srv_ts: agora };
   } finally {
     lock.releaseLock();
@@ -603,7 +602,7 @@ function resumoTFs_(rows) {
 }
 
 /** Cadastro + histórico (reincidência) por CPF/CNPJ e por placa. */
-function consultar_(req, usuario) {
+function consultar_(req, usuario, usuarioId) {
   const doc = digitos_(req.doc), placa = placaNorm_(req.placa);
   if (doc.length !== 11 && doc.length !== 14 && placa.length < 7) throw new Error('Informe um CPF/CNPJ completo ou uma placa.');
   const pessoa = doc ? lerLeitura_('Pessoas').filter(function (p) { return p.id === doc; })[0] : null;
@@ -612,8 +611,8 @@ function consultar_(req, usuario) {
   const porDoc = doc ? resumoTFs_(tfs.filter(function (t) { return digitos_(t.doc) === doc; })) : null;
   const porPlaca = placa ? resumoTFs_(tfs.filter(function (t) { return placaNorm_(t.placa) === placa; })) : null;
   const mask = doc ? doc.slice(0, 3) + '***' + doc.slice(-2) : '';
-  const c = aba_('Consultas');
-  c.getRange(c.getLastRow() + 1, 1, 1, 5).setValues([[Date.now(), usuario, mask, placa, (pessoa || (porDoc && porDoc.total)) ? 'encontrado' : 'novo']]);
+  const c = aba_('Consultas'), cols = TABELAS.Consultas;
+  c.getRange(c.getLastRow() + 1, 1, 1, cols.length).setValues([[Date.now(), usuario, mask, placa, (pessoa || (porDoc && porDoc.total)) ? 'encontrado' : 'novo', usuarioId || '']]);
   return {
     ok: true,
     pessoa: pessoa ? { id: pessoa.id, tipo: pessoa.tipo, nome: pessoa.nome, rg: pessoa.rg, endereco: pessoa.endereco, municipio: pessoa.municipio, uf: pessoa.uf, telefone: pessoa.telefone } : null,
@@ -728,7 +727,7 @@ const PROCEDIMENTOS_TF = ['liberacao', 'apreensao', 'rechaco'];
  * ou que deixou de estar ("fim": gerado, descartado ou o fiscal saiu do formulário). Upsert por usuario|rascunhoId (melhor esforço:
  * sem internet o app não envia nada). Grava só o necessário para o alerta: placa, procedimento, local/barreira e coordenada.
  */
-function tfAndamento_(req, usuario) {
+function tfAndamento_(req, usuario, usuarioId) {
   const estado = String(req.estado || ''), rid = String(req.rascunhoId || '');
   if (estado !== 'preenchendo' && estado !== 'fim') throw new Error('Estado inválido.');
   if (!/^[\w-]{1,64}$/.test(rid)) throw new Error('Rascunho inválido.');
@@ -750,7 +749,7 @@ function tfAndamento_(req, usuario) {
       o = { id: id, usuario: usuario, fiscal: usuario, turnoId: txt(req.turnoId, 64), placa: placaNorm_(req.placa).slice(0, 8),
             procedimento: PROCEDIMENTOS_TF.indexOf(req.procedimento) >= 0 ? req.procedimento : '', local: txt(req.local), barreira: txt(req.barreira),
             lat: temGps ? lat : (antes ? antes.lat : ''), lon: temGps ? lon : (antes ? antes.lon : ''), estado: 'preenchendo',
-            inicioTs: continua ? antes.inicioTs : agora, atualizadoTs: agora };
+            inicioTs: continua ? antes.inicioTs : agora, atualizadoTs: agora, usuarioId: usuarioId || (antes ? antes.usuarioId : '') || '' };
     }
     const linha = [t.cols.map(function (c) { return o[c] === undefined || o[c] === null ? '' : o[c]; })];
     if (idx >= 0) t.sh.getRange(idx + 2, 1, 1, t.cols.length).setValues(linha);
@@ -804,7 +803,7 @@ function pceProximoNumero_(req) {
 }
 
 /** Emissão do Termo de Colheita: grava só se o número ainda estiver livre (sob lock), como no TF. */
-function pceEmitir_(req, usuario) {
+function pceEmitir_(req, usuario, usuarioId) {
   const c = req.colheita || {};
   if (Number(c.registroAntigo) === 1) exigirAntigo_(usuario);                  // termo digitado do papel: só com a permissão "Digitar do papel"
   c.unidade = unidadePce_(c.unidade);
@@ -823,9 +822,9 @@ function pceEmitir_(req, usuario) {
     }
     const agora = Date.now(), antes = todos.filter(function (r) { return r.id === c.id; })[0];
     c.emitidoEm = (antes && antes.emitidoEm) || agora;                            // reenvio do mesmo termo não muda a data de emissão
-    gravar_('Colheitas', [c], agora, usuario);
-    if (req.pessoa) gravar_('Pessoas', [req.pessoa], agora, usuario);
-    if (req.propriedade) gravar_('Propriedades', [req.propriedade], agora, usuario);
+    gravar_('Colheitas', [c], agora, usuario, usuarioId);
+    if (req.pessoa) gravar_('Pessoas', [req.pessoa], agora, usuario, usuarioId);
+    if (req.propriedade) gravar_('Propriedades', [req.propriedade], agora, usuario, usuarioId);
     return { ok: true, emitido: true, numero: numero, numeroTxt: c.numeroTxt, emitidoEm: c.emitidoEm, srv_ts: agora };
   } finally {
     lock.releaseLock();
@@ -885,7 +884,7 @@ function normalizarDocPce_(tipo, r) {
   return r;
 }
 /** Grava o Termo/Cadastro só se o número ainda estiver livre (sob lock). Também grava o produtor e a propriedade. */
-function pceDocRegistrar_(req, usuario) {
+function pceDocRegistrar_(req, usuario, usuarioId) {
   const tipo = tipoDocPce_(req.tipo), D = DOCS_PCE[tipo], r = normalizarDocPce_(tipo, req.registro || {});
   if (Number(r.registroAntigo) === 1) exigirAntigo_(usuario);                     // digitado do papel: só com a permissão "Digitar do papel"
   const unidade = r.unidade, ano = Number(r.ano) || 0, numero = Number(r.numero) || 0, grupo = grupoDocPce_(tipo, unidade, r.programa);
@@ -902,9 +901,9 @@ function pceDocRegistrar_(req, usuario) {
     }
     const agora = Date.now(), antes = todos.filter(function (x) { return x.id === r.id; })[0];
     r.emitidoEm = (antes && antes.emitidoEm) || agora;
-    gravar_(D.aba, [r], agora, usuario);
-    if (req.pessoa) gravar_('Pessoas', [req.pessoa], agora, usuario);
-    if (req.propriedade) gravar_('Propriedades', [req.propriedade], agora, usuario);
+    gravar_(D.aba, [r], agora, usuario, usuarioId);
+    if (req.pessoa) gravar_('Pessoas', [req.pessoa], agora, usuario, usuarioId);
+    if (req.propriedade) gravar_('Propriedades', [req.propriedade], agora, usuario, usuarioId);
     return { ok: true, emitido: true, numero: numero, numeroTxt: r.numeroTxt, emitidoEm: r.emitidoEm, srv_ts: agora };
   } finally {
     lock.releaseLock();
@@ -912,7 +911,7 @@ function pceDocRegistrar_(req, usuario) {
 }
 
 /** Cadastro do produtor (pessoa + propriedades) e quantos levantamentos/termos já existem para o CPF/CNPJ. */
-function pceConsultar_(req, usuario) {
+function pceConsultar_(req, usuario, usuarioId) {
   const doc = digitos_(req.doc);
   if (doc.length !== 11 && doc.length !== 14) throw new Error('Informe um CPF/CNPJ completo.');
   const pessoa = lerLeitura_('Pessoas').filter(function (p) { return p.id === doc; })[0];
@@ -924,8 +923,8 @@ function pceConsultar_(req, usuario) {
   const cadastros = lerLeitura_('CadastrosPCE').filter(function (r) { return digitos_(r.doc) === doc && r.excluido !== 1; })
     .map(function (r) { const o = {}; TABELAS.CadastrosPCE.forEach(function (c) { if (c !== 'srv_ts' && c !== 'usuario') o[c] = r[c]; }); o.pendente = 0; return o; });
   const achou = pessoa || propriedades.length || levantamentos || colheitas || cadastros.length;
-  const c = aba_('Consultas');
-  c.getRange(c.getLastRow() + 1, 1, 1, 5).setValues([[Date.now(), usuario, doc.slice(0, 3) + '***' + doc.slice(-2), '', achou ? 'PCE: encontrado' : 'PCE: novo']]);
+  const c = aba_('Consultas'), cols = TABELAS.Consultas;
+  c.getRange(c.getLastRow() + 1, 1, 1, cols.length).setValues([[Date.now(), usuario, doc.slice(0, 3) + '***' + doc.slice(-2), '', achou ? 'PCE: encontrado' : 'PCE: novo', usuarioId || '']]);
   return {
     ok: true,
     pessoa: pessoa ? { id: pessoa.id, tipo: pessoa.tipo, nome: pessoa.nome, rg: pessoa.rg, endereco: pessoa.endereco, municipio: pessoa.municipio,
@@ -1198,23 +1197,23 @@ function painelHtml_() {
 
 /**
  * Valida a credencial do painel e devolve o nome do administrador.
- * Aceita a chave mestra (ACCESS_KEY) e credenciais de perfil "admin"; credencial de fiscal recebe "Acesso restrito".
+ * Valida usuarioDaSessao_(token, 'painel') com perfil gerente ou dev. Fallback para token legado em Fiscais com perfil === 'admin'.
  */
 function adminDoToken_(token) {
   token = String(token || '');
   if (token) {
-    const mestra = PropertiesService.getScriptProperties().getProperty('ACCESS_KEY');
-    if (mestra && token === mestra) return 'Administrador';
-    const us = usuarioDaSessao_(token);                                       // usuário e senha (perfil gerente)
+    const us = usuarioDaSessao_(token, 'painel');                             // conta aberta no painel (perfil gerente ou dev)
     if (us) {
-      if (temPerfil_(us.u, ['gerente'])) return us.u.nome;
+      if (temPerfil_(us.u, ['gerente', 'dev'])) return us.u.nome;
       throw new Error('Acesso restrito ao gerente. Seu usuário não tem o perfil de gerente.');
     }
-    const t = lerLeitura_('Fiscais');
-    for (let i = 0; i < t.length; i++) {
-      if (t[i].token !== token || t[i].ativo !== 1) continue;
-      if (t[i].perfil === 'admin') return t[i].nome;
-      throw new Error('Acesso restrito ao administrador. Entre com um código de administrador (e-GDV → Gerar código de administrador).');
+    if (!CARENCIA_LEGADO_ATE || Date.now() <= CARENCIA_LEGADO_ATE) {
+      const t = lerLeitura_('Fiscais');
+      for (let i = 0; i < t.length; i++) {
+        if (t[i].token !== token || t[i].ativo !== 1) continue;
+        if (t[i].perfil === 'admin') return t[i].nome;
+        throw new Error('Acesso restrito ao administrador. Entre com um código de administrador (e-GDV → Gerar código de administrador).');
+      }
     }
   }
   throw new Error('Sessão do painel inválida ou revogada. Entre com um código de administrador.');
@@ -1223,9 +1222,8 @@ function adminDoToken_(token) {
 /** Botão "Sair" do painel: revoga a credencial de administrador no servidor (a cópia local deixa de valer em qualquer lugar). */
 function painelSair(token) {
   token = String(token || '');
-  const mestra = PropertiesService.getScriptProperties().getProperty('ACCESS_KEY');
-  if (!token || (mestra && token === mestra)) return { ok: true };            // chave mestra não é revogada por aqui
-  if (sairSessao_(token)) return { ok: true };                                // sessão de usuário e senha
+  if (!token) return { ok: true };
+  if (sairSessao_(token)) return { ok: true };
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
@@ -3539,9 +3537,10 @@ function admCodigo_(req) {
 /** Nova sessão do portal (o chamador segura o lock): token aleatório devolvido uma vez; na planilha, só o SHA-256. */
 function admNovaSessao_(a, origem) {
   const tok = (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').toLowerCase(), agora = Date.now();
-  const s = { id: Utilities.getUuid(), hash: hexSha_(tok), admId: a.id, origem: origem, criadoEm: agora, expiraEm: agora + ADM_SESSAO_MS, ultimoUso: agora, revogado: 0 };
+  const s = { id: Utilities.getUuid(), hash: hexSha_(tok), admId: a.id, origem: origem, criadoEm: agora, expiraEm: agora + ADM_SESSAO_MS, ultimoUso: agora, revogado: 0,
+              aparelho: '', escopo: 'portal', revogadoEm: 0, revogadoPor: '' };
   const sh = aba_('AdmSessoes'), cols = TABELAS.AdmSessoes;
-  sh.getRange(sh.getLastRow() + 1, 1, 1, cols.length).setValues([cols.map(function (c) { return s[c]; })]);
+  sh.getRange(sh.getLastRow() + 1, 1, 1, cols.length).setValues([cols.map(function (c) { return s[c] !== undefined ? s[c] : ''; })]);
   admMarcarAcesso_(a.id, agora);
   return { ok: true, sessao: tok, nome: a.nome, email: emailNorm_(a.email), expiraEm: s.expiraEm, origem: origem };
 }
@@ -3553,28 +3552,30 @@ function admMarcarAcesso_(id, agora) {
 /** Valida o token de sessão do portal; renova a validade (30 dias a partir do uso). Liberado revogado = sessão recusada. */
 function admSessao_(tok) {
   tok = String(tok || '');
-  if (!/^[0-9a-f]{64}$/.test(tok)) throw new Error('Sessão do portal inválida. Entre de novo.');
-  const us = usuarioDaSessao_(tok);                                           // usuário e senha (perfil administrativo)
+  if (!tok) throw new Error('Sessão do portal inválida. Entre de novo.');
+  const us = usuarioDaSessao_(tok, 'portal');                                 // conta aberta no portal (perfil administrativo ou dev)
   if (us) {
-    if (!temPerfil_(us.u, ['administrativo'])) throw new Error('Seu usuário não tem o perfil de administrativo. Peça ao gerente para liberar o portal.');
-    return { admId: 'u:' + us.u.id, nome: us.u.nome, email: '', expiraEm: Date.now() + ADM_SESSAO_MS };
+    if (!temPerfil_(us.u, ['administrativo', 'dev'])) throw new Error('Seu usuário não tem o perfil de administrativo. Peça ao gerente para liberar o portal.');
+    return { admId: us.u.id, nome: us.u.nome, email: emailNorm_(us.u.email), expiraEm: us.s.expiraEm || 0 };
   }
   const h = hexSha_(tok), t = lerTudo_('AdmSessoes'), agora = Date.now(), ih = t.cols.indexOf('hash');
   for (let i = t.valores.length - 1; i >= 0; i--) {
     if (String(t.valores[i][ih]) !== h) continue;
     const s = paraObjeto_(t.cols, t.valores[i]);
-    if (s.revogado === 1) break;
-    if (s.expiraEm <= agora) throw new Error('Sessão do portal expirada (30 dias sem uso). Entre de novo com o mesmo código de ativação.');
+    const escopos = String(s.escopo || 'portal').split(',').map(function (x) { return x.trim(); });
+    if (escopos.indexOf('portal') < 0) continue;
+    if (s.revogado === 1 || (s.revogadoEm && Number(s.revogadoEm) > 0)) break;
+    if (s.expiraEm > 0 && s.expiraEm <= agora) throw new Error('Sessão do portal expirada (30 dias sem uso). Entre de novo com o mesmo código de ativação.');
     const a = lerLeitura_('Administrativo').filter(function (x) { return x.id === s.admId; })[0];
-    if (!a || a.ativo !== 1) throw new Error('Sessão do portal revogada: o acesso foi retirado pelo gerente.');
-    if (s.expiraEm - agora < ADM_SESSAO_MS - 5 * 60 * 1000) {                 // renova (no máximo uma escrita a cada 5 min)
+    if (!a || a.ativo !== 1 || a.oculto === 1) throw new Error('Sessão do portal revogada: o acesso foi retirado pelo gerente.');
+    if (s.expiraEm > 0 && s.expiraEm - agora < ADM_SESSAO_MS - 5 * 60 * 1000) {                 // renova (no máximo uma escrita a cada 5 min)
       s.expiraEm = agora + ADM_SESSAO_MS; s.ultimoUso = agora;
       t.sh.getRange(i + 2, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return s[c]; })]);
       admMarcarAcesso_(a.id, agora);
     }
-    return { admId: a.id, nome: a.nome, email: emailNorm_(a.email), expiraEm: s.expiraEm };
+    return { admId: a.id, nome: a.nome, email: emailNorm_(a.email), expiraEm: s.expiraEm || 0 };
   }
-  throw new Error('Sessão do portal encerrada. Entre de novo.');
+  throw new Error('Sessão do portal inválida ou revogada. Entre de novo.');
 }
 
 /** Sair: a sessão é revogada no servidor (cópias do token deixam de valer). */
@@ -3749,6 +3750,15 @@ function painelAdmSalvar(token, req) {
     if (ativo && outros >= admMax_()) throw new Error('Limite de ' + admMax_() + ' pessoas liberadas no Portal do Administrativo. Revogue alguém antes.');
     const a = pos >= 0 ? paraObjeto_(t.cols, t.valores[pos]) : { id: Utilities.getUuid(), criadoEm: agora, criadoPor: admin, ultimoAcesso: 0, codigo: '', codigoExpira: 0 };
     a.email = email; a.nome = nome; a.ativo = ativo; a.atualizadoEm = agora; a.atualizadoPor = admin;
+    if (!a.perfis) {
+      a.perfis = 'administrativo';
+    } else {
+      const p = perfisDe_(a);
+      if (p.indexOf('administrativo') < 0) {
+        p.push('administrativo');
+        a.perfis = p.join(',');
+      }
+    }
     if (!ativo) { a.codigo = ''; a.codigoExpira = 0; }
     else if (a.oculto === 1) a.oculto = 0;                                       // reativado: volta à lista (ocultoPor/ocultoEm ficam como registro)
     const linha = t.cols.map(function (c) { const v = a[c]; return v === null || v === undefined ? '' : v; });
@@ -4143,182 +4153,410 @@ function publicoDados_(req) {
   return r;
 }
 
-/* ---------- Usuários e login (usuário + senha; um login para app, painel e portal) ----------
- * O gerente cria o usuário no painel (perfis, módulos e senha provisória) e controla o acesso: desativar ou trocar a senha revoga as
- * sessões de todos os aparelhos. Perfis: fiscal (app), administrativo (portal), gerente (painel e controle de acesso), dev (tudo).
- * As credenciais antigas (códigos de ativação: abas Fiscais e AdmSessoes) continuam valendo até cada pessoa entrar com usuário e senha. */
+/* ---------- Conta única e código de acesso (um código por pessoa para app, painel e portal) ----------
+ * O gerente cria a conta no painel (nome, perfis, módulos do fiscal) e o sistema gera um código de 6 dígitos para a pessoa. O código não
+ * expira: vale até o gerente gerar outro ou revogar o acesso. Na planilha fica só o hash do código (com um segredo das propriedades do
+ * script, então a planilha vazada não revela o código). Controle de acesso por app: o perfil decide o que a pessoa abre (fiscal → app de
+ * campo; administrativo → portal; gerente → painel e controle de acesso; dev → tudo) e a sessão vale só no app em que foi aberta.
+ * Os códigos antigos (abas Fiscais e Administrativo) continuam valendo pelo mesmo "entrar" até cada pessoa receber o código da conta. */
 const PERFIS_ = ['fiscal', 'administrativo', 'gerente', 'dev'];
-const SENHA_ITER = 1000, SENHA_MIN = 8, MAX_FALHAS_LOGIN = 10;
-const RE_LOGIN_ = /^[a-z0-9][a-z0-9._-]{2,39}$/;
+const PERFIL_DO_APP_ = { app: ['fiscal'], painel: ['gerente'], portal: ['administrativo'] };     // dev abre todos (temPerfil_)
+const NOME_DO_APP_ = { app: 'app de campo', painel: 'painel', portal: 'Portal do Administrativo' };
+const MAX_FALHAS_CODIGO = 20;                   // códigos errados (no sistema todo) em 15 min antes de bloquear: 1 milhão de códigos possíveis
 
-const loginNorm_ = function (v) { return String(v || '').trim().toLowerCase(); };
-/** SHA-256 iterado sobre salt + senha (só o hash e o salt ficam na planilha). */
-function hashSenha_(senha, salt) {
-  let h = hexSha_(salt + '|' + senha);
-  for (let i = 1; i < SENHA_ITER; i++) h = hexSha_(salt + h);
-  return h;
-}
 function perfisDe_(u) {
-  return String(u.perfis || '').split(',').map(function (p) { return p.trim(); }).filter(function (p) { return PERFIS_.indexOf(p) >= 0; });
+  if (!u) return [];
+  const raw = String(u.perfis || '').trim();
+  if (!raw) return ['administrativo'];
+  return raw.split(',').map(function (p) { return p.trim(); }).filter(function (p) { return PERFIS_.indexOf(p) >= 0; });
 }
 /** dev tem todos os perfis. */
 function temPerfil_(u, lista) {
   const p = perfisDe_(u);
   return p.indexOf('dev') >= 0 || lista.some(function (x) { return p.indexOf(x) >= 0; });
 }
+const ehAlto_ = function (perfis) { return perfis.indexOf('gerente') >= 0 || perfis.indexOf('dev') >= 0; };
 function modulosDe_(u) {
   try { const m = JSON.parse(u.modulos || '{}'); return { veiculos: m.veiculos ? 1 : 0, tf: m.tf ? 1 : 0, pce: m.pce ? 1 : 0, antigo: m.antigo ? 1 : 0 }; }
   catch (e) { return { veiculos: 0, tf: 0, pce: 0, antigo: 0 }; }
 }
 function novoToken_() { return (Utilities.getUuid() + Utilities.getUuid()).replace(/-/g, '').toLowerCase(); }
 
-/** Sessão de usuário e senha válida para o token → {u, s}; null se o token não for de uma sessão (credencial antiga) ou foi revogada. */
-function usuarioDaSessao_(tok) {
-  tok = String(tok || '');
-  if (!/^[0-9a-f]{64}$/.test(tok)) return null;
-  const h = hexSha_(tok), s = lerLeitura_('Sessoes').filter(function (x) { return x.hash === h; })[0];
-  if (!s || s.revogado === 1) return null;
-  const u = lerLeitura_('Usuarios').filter(function (x) { return x.id === s.usuarioId; })[0];
-  return u && u.ativo === 1 ? { u: u, s: s } : null;
+/** Segredo do hash dos códigos (propriedade CODIGO_SEGREDO, criada na primeira vez). Sem ele, o hash da planilha não serve para nada. */
+function segredoCodigo_() {
+  const pr = PropertiesService.getScriptProperties();
+  let s = pr.getProperty('CODIGO_SEGREDO');
+  if (!s) { s = novoToken_(); pr.setProperty('CODIGO_SEGREDO', s); }
+  return s;
 }
-/** Sessão revogada para o token (botão Sair). true se era uma sessão de usuário e senha. */
-function sairSessao_(tok) {
-  tok = String(tok || '');
-  if (!/^[0-9a-f]{64}$/.test(tok)) return false;
-  const h = hexSha_(tok), lock = LockService.getScriptLock(); lock.waitLock(30000);
-  try {
-    const t = lerTudo_('Sessoes'), ih = t.cols.indexOf('hash'), ir = t.cols.indexOf('revogado');
-    for (let i = 0; i < t.valores.length; i++) if (String(t.valores[i][ih]) === h) { t.sh.getRange(i + 2, ir + 1).setValue(1); return true; }
-    return false;
-  } finally { lock.releaseLock(); }
-}
-/** Revoga todas as sessões de um usuário (desativado ou senha trocada). O chamador segura o lock. */
-function revogarSessoesDe_(usuarioId, menosHash) {
-  const t = lerTudo_('Sessoes'), iu = t.cols.indexOf('usuarioId'), ih = t.cols.indexOf('hash'), ir = t.cols.indexOf('revogado');
+function hashCodigo_(cod) { return hexSha_(segredoCodigo_() + '|' + cod); }
+const nomeConta_ = function (v) { return normPub_(v); };       // nome sem acento/maiúsculas/espaços extras: uma pessoa, uma conta
+
+/** Grava só os campos pedidos na linha de id (por nome de coluna). O chamador segura o lock. */
+function gravarCampos_(aba, id, campos) {
+  const t = lerTudo_(aba), ii = t.cols.indexOf('id');
   for (let i = 0; i < t.valores.length; i++) {
-    if (String(t.valores[i][iu]) === usuarioId && String(t.valores[i][ih]) !== menosHash && Number(t.valores[i][ir]) !== 1) t.sh.getRange(i + 2, ir + 1).setValue(1);
+    if (String(t.valores[i][ii]) !== id) continue;
+    Object.keys(campos).forEach(function (c) { const j = t.cols.indexOf(c); if (j >= 0) t.sh.getRange(i + 2, j + 1).setValue(campos[c]); });
+    return true;
   }
+  return false;
 }
 function atualizarUsuario_(u) {
-  const t = lerTudo_('Usuarios');
-  for (let i = 0; i < t.valores.length; i++) {
-    if (String(t.valores[i][0]) === u.id) { t.sh.getRange(i + 2, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return u[c]; })]); return; }
-  }
-  t.sh.getRange(t.sh.getLastRow() + 1, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return u[c]; })]);
+  if (gravarCampos_('Administrativo', u.id, (function () {
+    const o = {};
+    TABELAS.Administrativo.forEach(function (c) { if (c !== 'id') o[c] = u[c] !== undefined ? u[c] : ''; });
+    return o;
+  })())) return;
+  const sh = aba_('Administrativo'), cols = TABELAS.Administrativo;
+  sh.getRange(sh.getLastRow() + 1, 1, 1, cols.length).setValues([cols.map(function (c) { return u[c] !== undefined ? u[c] : ''; })]);
 }
 function usuarioOut_(u) {
-  return { id: u.id, login: u.login, nome: u.nome, perfis: perfisDe_(u), modulos: modulosDe_(u), ativo: u.ativo, trocarSenha: u.trocarSenha,
+  return { id: u.id, nome: u.nome, email: u.email || '', perfis: perfisDe_(u), modulos: modulosDe_(u), ativo: u.ativo, temCodigo: !!u.codigoHash,
            criadoEm: u.criadoEm, criadoPor: u.criadoPor, atualizadoEm: u.atualizadoEm, atualizadoPor: u.atualizadoPor, ultimoAcesso: u.ultimoAcesso };
 }
 
-/** Entrar: {login, senha, aparelho} → token da sessão (guardado no aparelho) + nome e perfis. 10 erros seguidos no mesmo usuário = 15 min de espera. */
-function login_(req) {
-  const login = loginNorm_(req.login), senha = String(req.senha || '');
-  if (!login || !senha) throw new Error('Informe o usuário e a senha.');
-  const cache = CacheService.getScriptCache(), kf = 'falhas_login_' + login;
-  if (Number(cache.get(kf) || 0) >= MAX_FALHAS_LOGIN) throw new Error('Muitas tentativas erradas para este usuário. Aguarde 15 minutos ou peça ao gerente uma senha nova.');
-  const u = lerLeitura_('Usuarios').filter(function (x) { return x.id && loginNorm_(x.login) === login; })[0];
-  if (!u || u.ativo !== 1 || !u.senhaSalt || hashSenha_(senha, u.senhaSalt) !== u.senhaHash) {
-    cache.put(kf, String(Number(cache.get(kf) || 0) + 1), 900);
-    throw new Error(u && u.ativo !== 1 ? 'Este usuário foi desativado pelo gerente.' : 'Usuário ou senha incorretos.');
+/** Sessão da conta válida para o token → {u, s}; null se não for sessão da conta (credencial antiga), foi revogada ou é de outro app. */
+function usuarioDaSessao_(tok, escopo) {
+  tok = String(tok || '');
+  if (!tok) return null;
+  const h = hexSha_(tok);
+  const s = lerLeitura_('AdmSessoes').filter(function (x) {
+    return x.hash === h && x.revogado !== 1 && (!x.revogadoEm || Number(x.revogadoEm) === 0);
+  })[0];
+  if (!s) return null;
+  if (s.expiraEm > 0 && Number(s.expiraEm) <= Date.now()) return null;
+  if (escopo) {
+    const escopos = String(s.escopo || 'portal').split(',').map(function (x) { return x.trim(); });
+    if (escopos.indexOf(escopo) < 0) return null;
   }
-  cache.remove(kf);
-  const tok = novoToken_(), agora = Date.now();
-  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+  const u = lerLeitura_('Administrativo').filter(function (x) { return x.id === s.admId; })[0];
+  if (!u || u.ativo !== 1 || u.oculto === 1) return null;
+  const agora = Date.now();
+  if (agora - (Number(s.ultimoUso) || 0) > 5 * 60 * 1000) {
+    const patch = { ultimoUso: agora };
+    if (s.expiraEm > 0 && s.expiraEm - agora < ADM_SESSAO_MS - 5 * 60 * 1000) {
+      patch.expiraEm = agora + ADM_SESSAO_MS;
+      s.expiraEm = patch.expiraEm;
+    }
+    gravarCampos_('AdmSessoes', s.id, patch);
+  }
+  return { u: u, s: s };
+}
+/** Sessão revogada para o token (botão Sair). true se era uma sessão da conta. */
+function sairSessao_(tok) {
+  tok = String(tok || '');
+  if (!tok) return false;
+  const h = hexSha_(tok), agora = Date.now(), lock = LockService.getScriptLock(); lock.waitLock(30000);
   try {
-    const s = { id: Utilities.getUuid(), hash: hexSha_(tok), usuarioId: u.id, aparelho: String(req.aparelho || '').slice(0, 80), criadoEm: agora, ultimoUso: agora, revogado: 0 };
-    const sh = aba_('Sessoes'), cols = TABELAS.Sessoes;
-    sh.getRange(sh.getLastRow() + 1, 1, 1, cols.length).setValues([cols.map(function (c) { return s[c]; })]);
-    u.ultimoAcesso = agora; atualizarUsuario_(u);
+    const t = lerTudo_('AdmSessoes'), ih = t.cols.indexOf('hash'), ir = t.cols.indexOf('revogado'), ire = t.cols.indexOf('revogadoEm');
+    for (let i = 0; i < t.valores.length; i++) {
+      if (String(t.valores[i][ih]) === h) {
+        t.sh.getRange(i + 2, ir + 1).setValue(1);
+        if (ire >= 0) t.sh.getRange(i + 2, ire + 1).setValue(agora);
+        return true;
+      }
+    }
+    return false;
   } finally { lock.releaseLock(); }
-  return { ok: true, token: tok, nome: u.nome, login: u.login, perfis: perfisDe_(u), modulos: modulosDe_(u), trocarSenha: u.trocarSenha === 1 };
+}
+/** Revoga todas as sessões de um usuário (acesso revogado). O chamador segura o lock. */
+function revogarSessoesDe_(usuarioId, revogadoPor) {
+  const agora = Date.now();
+  const t = lerTudo_('AdmSessoes'), iu = t.cols.indexOf('admId'), ir = t.cols.indexOf('revogado');
+  const ire = t.cols.indexOf('revogadoEm'), irp = t.cols.indexOf('revogadoPor');
+  for (let i = 0; i < t.valores.length; i++) {
+    if (String(t.valores[i][iu]) === String(usuarioId) && Number(t.valores[i][ir]) !== 1) {
+      t.sh.getRange(i + 2, ir + 1).setValue(1);
+      if (ire >= 0) t.sh.getRange(i + 2, ire + 1).setValue(agora);
+      if (irp >= 0 && revogadoPor) t.sh.getRange(i + 2, irp + 1).setValue(String(revogadoPor));
+    }
+  }
 }
 
-/** Trocar a senha (obrigatório depois de uma senha provisória): {key, atual, nova}. As outras sessões do usuário são revogadas. */
-function trocarSenha_(req) {
-  const us = usuarioDaSessao_(req.key);
-  if (!us) throw new Error('Sessão inválida ou revogada. Entre de novo.');
-  const nova = String(req.nova || '');
-  if (hashSenha_(String(req.atual || ''), us.u.senhaSalt) !== us.u.senhaHash) throw new Error('A senha atual não confere.');
-  if (nova.length < SENHA_MIN) throw new Error('A senha nova precisa ter pelo menos ' + SENHA_MIN + ' caracteres.');
-  if (nova === String(req.atual || '')) throw new Error('A senha nova precisa ser diferente da atual.');
-  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+/** Registra evento sensível na trilha de auditoria (AdmHistorico). */
+function registrarHistorico_(admId, nome, acao, aba, registro, antes, depois) {
   try {
-    const u = us.u, agora = Date.now();
-    u.senhaSalt = novoToken_().slice(0, 32); u.senhaHash = hashSenha_(nova, u.senhaSalt); u.trocarSenha = 0;
-    u.atualizadoEm = agora; u.atualizadoPor = u.nome;
-    atualizarUsuario_(u);
-    revogarSessoesDe_(u.id, us.s.hash);
-  } finally { lock.releaseLock(); }
-  return { ok: true };
+    const lim = function (o) {
+      if (o === null || o === undefined || o === '') return '';
+      const j = typeof o === 'string' ? o : JSON.stringify(o);
+      return (j.length > 3000 ? j.slice(0, 2990) + '…' : j).replace(/^[=+\-@]/, "'$&");
+    };
+    const sh = aba_('AdmHistorico'), cols = TABELAS.AdmHistorico, agora = Date.now();
+    const reg = {
+      em: agora,
+      admId: String(admId || ''),
+      nome: String(nome || ''),
+      acao: String(acao || ''),
+      aba: String(aba || ''),
+      registro: String(registro || '').slice(0, 200),
+      antes: lim(antes),
+      depois: lim(depois)
+    };
+    sh.getRange(sh.getLastRow() + 1, 1, 1, cols.length).setValues([cols.map(function (c) { return reg[c] !== undefined ? reg[c] : ''; })]);
+  } catch (e) { /* auditoria em melhor esforço */ }
 }
 
-/** Painel → Usuários (só gerente): lista sem senha. */
+/* --- entrar --- */
+const falhasCodigo_ = function () { return Number(CacheService.getScriptCache().get('falhas_codigo') || 0); };
+function falhouCodigo_() {
+  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try { CacheService.getScriptCache().put('falhas_codigo', String(falhasCodigo_() + 1), 900); } finally { lock.releaseLock(); }
+}
+/**
+ * Entrar com o código: {codigo, escopo: 'app' | 'painel' | 'portal', aparelho}. Primeiro a conta única (Administrativo); se o código não é de
+ * nenhuma conta, o código antigo daquele app (ativar_ no app, código de administrador no painel, admCodigo_ no portal), para ninguém ficar
+ * sem acesso na troca. Devolve token (e sessao, no portal), nome, perfis e módulos.
+ */
+function entrar_(req) {
+  const escopo = PERFIL_DO_APP_[req.escopo] ? req.escopo : 'app';
+  const cod = String(req.codigo || '').replace(/\D/g, '');
+  if (cod.length !== 6) throw new Error('O código tem 6 dígitos.');
+  if (falhasCodigo_() >= MAX_FALHAS_CODIGO) throw new Error('Muitas tentativas com código errado. Aguarde 15 minutos e tente de novo.');
+  const r = entrarNaConta_(cod, escopo, req.aparelho);
+  if (r) return r;
+  try {
+    if (escopo === 'painel') return painelAtivar(cod);
+    if (escopo === 'portal') return admCodigo_({ codigo: cod });
+    return ativar_({ codigo: cod });
+  } catch (e) { falhouCodigo_(); throw e; }
+}
+function entrarNaConta_(cod, escopo, aparelho) {
+  const h = hashCodigo_(cod);
+  const u0 = lerLeitura_('Administrativo').filter(function (x) { return x.id && x.codigoHash === h && x.oculto !== 1; })[0];
+  if (!u0) return null;
+  if (u0.ativo !== 1) { falhouCodigo_(); throw new Error('Este código foi revogado pelo gerente.'); }
+  if (!temPerfil_(u0, PERFIL_DO_APP_[escopo])) throw new Error('Seu acesso não inclui o ' + NOME_DO_APP_[escopo] + '. Peça ao gerente para liberar.');
+  const tok = novoToken_(), agora = Date.now(), lock = LockService.getScriptLock(); lock.waitLock(30000);
+  let u;
+  try {
+    u = lerLeitura_('Administrativo').filter(function (x) { return x.id === u0.id; })[0];     // relê dentro do lock: o gerente pode ter revogado agora
+    if (!u || u.ativo !== 1 || u.oculto === 1 || u.codigoHash !== h) throw new Error('Este código foi revogado pelo gerente.');
+    const s = {
+      id: Utilities.getUuid(),
+      hash: hexSha_(tok),
+      admId: u.id,
+      origem: 'codigo',
+      criadoEm: agora,
+      expiraEm: 0,
+      ultimoUso: agora,
+      revogado: 0,
+      aparelho: textoCurto_(aparelho, 80),
+      escopo: escopo,
+      revogadoEm: 0,
+      revogadoPor: ''
+    };
+    const sh = aba_('AdmSessoes'), cols = TABELAS.AdmSessoes;
+    sh.getRange(sh.getLastRow() + 1, 1, 1, cols.length).setValues([cols.map(function (c) { return s[c] !== undefined ? s[c] : ''; })]);
+    gravarCampos_('Administrativo', u.id, { ultimoAcesso: agora });
+    registrarHistorico_(u.id, u.nome, 'login_codigo', 'AdmSessoes', s.id, '', JSON.stringify({ escopo: escopo, aparelho: s.aparelho }));
+  } finally { lock.releaseLock(); }
+  const out = { ok: true, conta: true, token: tok, nome: u.nome, perfis: perfisDe_(u), modulos: modulosDe_(u), escopo: escopo };
+  if (escopo === 'portal') { out.sessao = tok; out.expiraEm = 0; }
+  return out;
+}
+
+/* --- controle de acesso (gerente) --- */
+/** Gerente: sessão da conta aberta no painel (perfil gerente) ou credencial antiga de administrador. → {nome, id, perfis, conta}. */
+function exigirGerente_(token) {
+  const us = usuarioDaSessao_(token, 'painel');
+  if (us) {
+    if (temPerfil_(us.u, ['gerente', 'dev'])) return { nome: us.u.nome, id: us.u.id, perfis: perfisDe_(us.u), conta: true };
+    throw new Error('Só o gerente controla o acesso.');
+  }
+  return { nome: adminDoToken_(token), id: '', perfis: ['gerente'], conta: false };
+}
+/** Gerente e dev só são criados/alterados por quem entrou com a própria conta de gerente (ou pelo menu da planilha); dev só por dev. */
+function podeMexer_(g, perfisNovos, antes) {
+  const alto = ehAlto_(perfisNovos) || (antes && ehAlto_(perfisDe_(antes)));
+  if (alto && !g.conta && !g.planilha) throw new Error('Gerente e dev só podem ser criados ou alterados por um gerente que entrou com o próprio código.');
+  const dev = perfisNovos.indexOf('dev') >= 0 || (antes && perfisDe_(antes).indexOf('dev') >= 0);
+  if (dev && !g.planilha && g.perfis.indexOf('dev') < 0) throw new Error('Só um dev cria ou altera outro dev.');
+}
+/** Novo código de 6 dígitos que não é de nenhuma conta nem igual a um código antigo em uso. */
+function novoCodigo_(todos) {
+  const usados = {};
+  todos.forEach(function (u) { if (u.codigoHash) usados[u.codigoHash] = 1; });
+  const antigos = {};
+  lerLeitura_('Fiscais').forEach(function (f) { if (f.codigo) antigos[String(f.codigo).padStart(6, '0')] = 1; });
+  lerLeitura_('Administrativo').forEach(function (a) { if (a.codigo) antigos[String(a.codigo).padStart(6, '0')] = 1; });
+  for (let i = 0; i < 50; i++) {
+    const c = String(parseInt(Utilities.getUuid().replace(/-/g, '').slice(0, 8), 16) % 1000000).padStart(6, '0');
+    if (!antigos[c] && !usados[hashCodigo_(c)]) return c;
+  }
+  throw new Error('Não foi possível gerar um código livre. Tente de novo.');
+}
+
+/** Painel → Usuários (só gerente): contas (sem hash) e os aparelhos com sessão aberta de cada uma. */
 function painelUsuarios(token) {
   exigirGerente_(token);
-  return { ok: true, perfis: PERFIS_, usuarios: lerLeitura_('Usuarios').filter(function (u) { return u.id; }).map(usuarioOut_) };
-}
-/** Controle de acesso é do gerente: credencial de administrador antiga (código do painel) ou usuário com perfil gerente. */
-function exigirGerente_(token) {
-  const us = usuarioDaSessao_(token);
-  if (us) { if (temPerfil_(us.u, ['gerente'])) return us.u.nome; throw new Error('Só o gerente controla o acesso.'); }
-  return adminDoToken_(token);
+  const sessoes = {};
+  lerLeitura_('AdmSessoes').forEach(function (s) {
+    if (!s.id || s.revogado === 1 || (s.revogadoEm && Number(s.revogadoEm) > 0)) return;
+    (sessoes[s.admId] = sessoes[s.admId] || []).push({ id: s.id, aparelho: s.aparelho || '', escopo: s.escopo || 'portal', criadoEm: s.criadoEm || 0, ultimoUso: s.ultimoUso || 0 });
+  });
+  return { ok: true, perfis: PERFIS_, usuarios: lerLeitura_('Administrativo').filter(function (u) { return u.id && u.oculto !== 1; })
+    .map(function (u) { const o = usuarioOut_(u); o.aparelhos = sessoes[u.id] || []; return o; }) };
 }
 
 /**
- * Painel → Usuários → salvar (só gerente): {id?, login, nome, perfis[], modulos{}, ativo, senha?}.
- * Novo: login único e senha provisória obrigatória (a pessoa troca no 1º acesso). senha preenchida na edição = nova senha provisória.
- * Desativar ou trocar a senha revoga as sessões de todos os aparelhos. Fiscal: os módulos vão também para a aba Permissoes (pelo nome).
+ * Painel → Usuários → salvar (só gerente): {id?, nome, perfis[], modulos{}, ativo?}. Conta nova: o código é gerado e devolvido uma vez só
+ * (codigo). Nome único (sem acento/maiúsculas). Revogar (ativo 0) derruba as sessões de todos os aparelhos. Ninguém tira o próprio acesso
+ * de gerente, e o sistema não fica sem gerente ativo. Fiscal: os módulos vão também para a aba Permissoes (pelo nome).
  */
 function painelUsuarioSalvar(token, req) {
   return salvarUsuario_(exigirGerente_(token), req);
 }
-function salvarUsuario_(gerente, req) {
-  const login = loginNorm_(req.login), nome = nomeServidor_(req.nome);
-  if (!RE_LOGIN_.test(login)) throw new Error('Usuário inválido: de 3 a 40 letras minúsculas, números, ponto, hífen ou sublinhado (ex.: ronald.vieira).');
+function salvarUsuario_(g, req) {
+  const nome = nomeServidor_(req.nome);
   const perfis = (Array.isArray(req.perfis) ? req.perfis : String(req.perfis || '').split(',')).map(function (p) { return String(p).trim(); })
     .filter(function (p, i, a) { return PERFIS_.indexOf(p) >= 0 && a.indexOf(p) === i; });
   if (!perfis.length) throw new Error('Marque pelo menos um perfil.');
   const ehFiscal = perfis.indexOf('fiscal') >= 0;                         // dev sem módulos marcados: tudo liberado (como hoje sem linha em Permissoes)
   const modulos = ehFiscal ? modulosValidos_(req.modulos || {}) : null;
-  const senha = String(req.senha || ''), ativo = req.ativo === 0 || req.ativo === false || req.ativo === '0' ? 0 : 1;
-  if (senha && senha.length < SENHA_MIN) throw new Error('A senha provisória precisa ter pelo menos ' + SENHA_MIN + ' caracteres.');
   const lock = LockService.getScriptLock(); lock.waitLock(30000);
-  let u, novo;
+  let u, novo, codigo = '';
   try {
-    const todos = lerLeitura_('Usuarios').filter(function (x) { return x.id; }), agora = Date.now();
-    if (todos.some(function (x) { return loginNorm_(x.login) === login && x.id !== req.id; })) throw new Error('Já existe um usuário "' + login + '".');
+    const todos = lerLeitura_('Administrativo').filter(function (x) { return x.id; }), agora = Date.now();
     const antes = req.id ? todos.filter(function (x) { return x.id === req.id; })[0] : null;
     if (req.id && !antes) throw new Error('Usuário não encontrado.');
+    if (todos.some(function (x) { return x.id !== req.id && x.oculto !== 1 && nomeConta_(x.nome) === nomeConta_(nome); })) throw new Error('Já existe uma conta com o nome "' + nome + '". Uma pessoa, uma conta.');
+    podeMexer_(g, perfis, antes);
     novo = !antes;
-    if (novo && !senha) throw new Error('Defina a senha provisória (a pessoa troca no primeiro acesso).');
-    u = antes || { id: Utilities.getUuid(), criadoEm: agora, criadoPor: gerente, ultimoAcesso: 0, senhaHash: '', senhaSalt: '', trocarSenha: 1 };
-    Object.assign(u, { login: login, nome: nome, perfis: perfis.join(','), modulos: JSON.stringify(modulos || {}), ativo: ativo, atualizadoEm: agora, atualizadoPor: gerente });
-    if (senha) { u.senhaSalt = novoToken_().slice(0, 32); u.senhaHash = hashSenha_(senha, u.senhaSalt); u.trocarSenha = 1; }
-    atualizarUsuario_(u);
-    if (!novo && (senha || !ativo)) revogarSessoesDe_(u.id, '');
+    const ativo = req.ativo === undefined || req.ativo === null || req.ativo === '' ? (antes ? antes.ativo : 1)
+      : (req.ativo === 0 || req.ativo === false || req.ativo === '0' ? 0 : 1);
+    if (antes && g.id && antes.id === g.id && (ativo !== 1 || !temPerfil_({ perfis: perfis.join(',') }, ['gerente']))) throw new Error('Você não pode tirar o seu próprio acesso de gerente.');
+    const gerentesDepois = todos.filter(function (x) { return x.id !== req.id && x.ativo === 1 && x.oculto !== 1 && temPerfil_(x, ['gerente']); }).length
+      + (ativo === 1 && temPerfil_({ perfis: perfis.join(',') }, ['gerente']) ? 1 : 0);
+    if (antes && antes.ativo === 1 && temPerfil_(antes, ['gerente']) && gerentesDepois === 0) throw new Error('O sistema precisa de pelo menos um gerente ativo.');
+    if (antes) {
+      u = antes;
+      const antesJson = JSON.stringify(usuarioOut_(antes));
+      Object.assign(u, { nome: nome, perfis: perfis.join(','), modulos: JSON.stringify(modulos || {}), ativo: ativo, atualizadoEm: agora, atualizadoPor: g.nome });
+      if (req.email !== undefined) u.email = emailNorm_(req.email);
+      atualizarUsuario_(u);
+      if (ativo !== 1) revogarSessoesDe_(u.id, g.nome);
+      registrarHistorico_(g.id || g.nome, g.nome, 'usuario_editar', 'Administrativo', u.id, antesJson, JSON.stringify(usuarioOut_(u)));
+    } else {
+      codigo = novoCodigo_(todos);
+      u = { id: Utilities.getUuid(), email: req.email ? emailNorm_(req.email) : '', nome: nome, ativo: ativo, criadoEm: agora, criadoPor: g.nome,
+            ultimoAcesso: 0, codigo: '', codigoExpira: 0, atualizadoEm: agora, atualizadoPor: g.nome, oculto: 0, ocultoPor: '', ocultoEm: 0,
+            perfis: perfis.join(','), modulos: JSON.stringify(modulos || {}), codigoHash: hashCodigo_(codigo) };
+      atualizarUsuario_(u);
+      registrarHistorico_(g.id || g.nome, g.nome, 'usuario_criar', 'Administrativo', u.id, '', JSON.stringify(usuarioOut_(u)));
+    }
   } finally { lock.releaseLock(); }
-  if (modulos) gravarPermissoes_(nome, modulos, gerente);
-  return { ok: true, novo: novo, usuario: usuarioOut_(u) };
+  if (modulos) gravarPermissoes_(nome, modulos, g.nome);
+  return { ok: true, novo: novo, codigo: codigo, usuario: usuarioOut_(u) };
+}
+/** Painel → Usuários → gerar outro código: {id, revogarAparelhos?}. O código anterior para de valer na hora; volta o novo uma vez só. */
+function painelUsuarioCodigo(token, req) {
+  const g = exigirGerente_(token);
+  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    const todos = lerLeitura_('Administrativo').filter(function (x) { return x.id && x.oculto !== 1; }),
+          u = todos.filter(function (x) { return x.id === String(req.id || ''); })[0];
+    if (!u) throw new Error('Usuário não encontrado.');
+    podeMexer_(g, perfisDe_(u), u);
+    if (u.ativo !== 1) throw new Error('Acesso revogado: reative a conta antes de gerar o código.');
+    const codigo = novoCodigo_(todos), agora = Date.now();
+    gravarCampos_('Administrativo', u.id, { codigoHash: hashCodigo_(codigo), atualizadoEm: agora, atualizadoPor: g.nome });
+    if (req.revogarAparelhos) revogarSessoesDe_(u.id, g.nome);
+    registrarHistorico_(g.id || g.nome, g.nome, 'usuario_codigo', 'Administrativo', u.id, '', JSON.stringify({ revogarAparelhos: !!req.revogarAparelhos }));
+    return { ok: true, codigo: codigo, nome: u.nome };
+  } finally { lock.releaseLock(); }
+}
+/**
+ * Painel → Usuários → trazer os acessos antigos (só gerente): cria uma conta por pessoa a partir das abas Fiscais (fiscais ativos, com os
+ * módulos da aba Permissoes) e Administrativo (liberados ativos), juntando a mesma pessoa (nome sem acento/maiúsculas) numa conta só com os
+ * dois perfis. Conta que já existe ganha o perfil que faltava. Códigos de administrador (painel e TV) não viram conta. As contas novas
+ * ficam sem código: o gerente gera o de cada pessoa e os códigos antigos continuam valendo até lá. Pode rodar mais de uma vez.
+ */
+function painelUsuariosImportar(token) {
+  const g = exigirGerente_(token), perm = mapaPermissoes_();
+  const pessoas = {};                                                      // nome normalizado → {nome, perfis{}, modulos}
+  const juntar = function (nome, perfil, modulos) {
+    let n;
+    try { n = nomeServidor_(nome); } catch (e) { return; }
+    const k = nomeConta_(n); if (!k) return;
+    const p = pessoas[k] = pessoas[k] || { nome: n, perfis: {}, modulos: null };
+    p.perfis[perfil] = 1; if (modulos) p.modulos = modulos;
+  };
+  lerLeitura_('Fiscais').forEach(function (f) { if (f.nome && f.ativo === 1 && f.perfil !== 'admin' && f.oculto !== 1) juntar(f.nome, 'fiscal', perm[nomeChave_(f.nome)] || tudoLiberado_()); });
+  lerLeitura_('Administrativo').forEach(function (a) { if (a.nome && a.ativo === 1 && a.oculto !== 1) juntar(a.nome, 'administrativo', null); });
+  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+  const criados = [], atualizados = [];
+  try {
+    const todos = lerLeitura_('Administrativo').filter(function (x) { return x.id; }), agora = Date.now(), porNome = {};
+    todos.forEach(function (u) { porNome[nomeConta_(u.nome)] = u; });
+    Object.keys(pessoas).forEach(function (k) {
+      const p = pessoas[k], perfisNovos = Object.keys(p.perfis), u = porNome[k];
+      if (u) {
+        const atuais = perfisDe_(u), falta = perfisNovos.filter(function (x) { return atuais.indexOf(x) < 0; });
+        if (!falta.length) return;
+        const campos = { perfis: atuais.concat(falta).join(','), atualizadoEm: agora, atualizadoPor: g.nome };
+        if (falta.indexOf('fiscal') >= 0 && p.modulos) campos.modulos = JSON.stringify(p.modulos);
+        gravarCampos_('Administrativo', u.id, campos);
+        registrarHistorico_(g.id || g.nome, g.nome, 'usuario_importar_atualizar', 'Administrativo', u.id, JSON.stringify({ perfis: atuais.join(',') }), JSON.stringify(campos));
+        atualizados.push(u.nome);
+        return;
+      }
+      const novoId = Utilities.getUuid();
+      const novoU = { id: novoId, email: '', nome: p.nome, ativo: 1, criadoEm: agora, criadoPor: g.nome, ultimoAcesso: 0, codigo: '', codigoExpira: 0,
+                      atualizadoEm: agora, atualizadoPor: g.nome, oculto: 0, ocultoPor: '', ocultoEm: 0, perfis: perfisNovos.join(','), modulos: JSON.stringify(p.modulos || {}), codigoHash: '' };
+      atualizarUsuario_(novoU);
+      registrarHistorico_(g.id || g.nome, g.nome, 'usuario_importar_criar', 'Administrativo', novoId, '', JSON.stringify(usuarioOut_(novoU)));
+      criados.push(p.nome);
+    });
+  } finally { lock.releaseLock(); }
+  return { ok: true, criados: criados, atualizados: atualizados };
+}
+/** Painel → Usuários → tirar um aparelho: {id da sessão}. Para celular perdido ou trocado. */
+function painelSessaoRevogar(token, req) {
+  const g = exigirGerente_(token);
+  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    const s = lerLeitura_('AdmSessoes').filter(function (x) { return x.id === String(req.id || ''); })[0];
+    if (!s) throw new Error('Aparelho não encontrado.');
+    const u = lerLeitura_('Administrativo').filter(function (x) { return x.id === s.admId; })[0];
+    if (u) podeMexer_(g, perfisDe_(u), u);
+    const agora = Date.now();
+    gravarCampos_('AdmSessoes', s.id, { revogado: 1, revogadoEm: agora, revogadoPor: g.id || g.nome });
+    registrarHistorico_(g.id || g.nome, g.nome, 'sessao_revogar', 'AdmSessoes', s.id, JSON.stringify({ aparelho: s.aparelho, escopo: s.escopo }), JSON.stringify({ revogado: 1, revogadoPor: g.id || g.nome }));
+    return { ok: true };
+  } finally { lock.releaseLock(); }
 }
 
 /* ---------- Segurança ---------- */
 
-/** Valida a credencial e devolve o nome do usuário (fiscal ou "Administrador"). */
+/** Valida a credencial e devolve { id, nome, perfis, modulos, escopo }. */
 function autenticar_(key) {
   key = String(key || '');
   if (!key) throw new Error('Aparelho não ativado.');
-  const mestra = PropertiesService.getScriptProperties().getProperty('ACCESS_KEY');
-  if (mestra && key === mestra) return 'Administrador';
-  const us = usuarioDaSessao_(key);                                           // usuário e senha (perfil fiscal)
+  const us = usuarioDaSessao_(key, 'app');                                    // conta única aberta no app (perfil fiscal)
   if (us) {
-    if (temPerfil_(us.u, ['fiscal'])) return us.u.nome;
+    if (temPerfil_(us.u, ['fiscal'])) return { id: us.u.id, nome: us.u.nome, perfis: perfisDe_(us.u), modulos: modulosDe_(us.u), escopo: us.s.escopo || 'app' };
     throw new Error('Seu usuário não tem o perfil de fiscal. Peça ao gerente para liberar o app.');
   }
-  const t = lerTudo_('Fiscais');
-  for (let i = 0; i < t.valores.length; i++) {
-    const f = paraObjeto_(t.cols, t.valores[i]);
-    if (f.token && f.token === key && f.ativo === 1) return f.nome;
+  if (!CARENCIA_LEGADO_ATE || Date.now() <= CARENCIA_LEGADO_ATE) {
+    const t = lerLeitura_('Fiscais');
+    for (let i = 0; i < t.length; i++) {
+      const f = t[i];
+      if (f.token && f.token === key && f.ativo === 1) {
+        const adm = lerLeitura_('Administrativo').filter(function (x) {
+          return x.ativo === 1 && x.oculto !== 1 && nomeConta_(x.nome) === nomeConta_(f.nome);
+        })[0];
+        const perfis = f.perfil === 'admin' ? ['gerente', 'fiscal'] : ['fiscal'];
+        const mod = adm ? modulosDe_(adm) : (mapaPermissoes_()[nomeChave_(f.nome)] || tudoLiberado_());
+        return {
+          id: adm ? adm.id : ('fiscal:' + f.nome),
+          nome: f.nome,
+          perfis: (adm && adm.perfis) ? perfisDe_(adm) : perfis,
+          modulos: mod,
+          escopo: 'app'
+        };
+      }
+    }
   }
   throw new Error('Acesso revogado ou inválido. Ative o aparelho novamente com um novo código.');
 }
@@ -4631,7 +4869,7 @@ function anoAtualManaus_() { return Number(hojeManaus_().slice(0, 4)); }
 
 /** Chave de idempotência da linha: o id (1ª coluna); Consultas não têm id → a linha inteira. */
 function chaveArq_(nome, linha) {
-  return nome === 'Consultas' ? linha.slice(0, TABELAS.Consultas.length).map(function (v) { return String(v === null || v === undefined ? '' : v); }).join('|')
+  return nome === 'Consultas' ? TABELAS.Consultas.map(function (_, i) { return String(linha[i] === null || linha[i] === undefined ? '' : linha[i]); }).join('|')
     : String(linha[0] === null || linha[0] === undefined ? '' : linha[0]);
 }
 
@@ -4712,7 +4950,7 @@ function arquivarLote_(nome, limite, agora, max) {
     const sel = [];
     t.valores.forEach(function (l, i) {
       const k = chaveArq_(nome, l);
-      if (!k || k === '||||') return;                                             // linha vazia
+      if (!k || /^\|*$/.test(k)) return;                                          // linha vazia
       const ano = anoArquivo_(nome, paraObjeto_(cols, l), ctx);
       if (ano) sel.push({ i: i, ano: ano, k: k, l: l });
     });
@@ -5008,7 +5246,7 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('e-GDV')
     .addItem('Gerar código de ativação', 'menuGerarCodigo')
     .addItem('Gerar código de administrador (painel)', 'menuGerarCodigoAdmin')
-    .addItem('Criar usuário do gerente (login e senha)', 'menuCriarGerente')
+    .addItem('Criar conta de gerente (código de acesso)', 'menuCriarGerente')
     .addItem('Definir último nº de TF usado (barreira)', 'menuDefinirSequencia')
     .addItem('Auditar numeração de TF (lacunas e duplicidades)', 'menuAuditarNumeracao')
     .addItem('Definir último nº de Termo de Colheita (PCE)', 'menuDefinirSequenciaPce')
@@ -5106,13 +5344,13 @@ function menuGerarCodigo() {
 /** Primeiro acesso com usuário e senha: o dono da planilha cria o usuário do gerente (perfil gerente); o resto o gerente faz no painel. */
 function menuCriarGerente() {
   const ui = SpreadsheetApp.getUi();
-  const p = function (t, m) { const r = ui.prompt(t, m, ui.ButtonSet.OK_CANCEL); return r.getSelectedButton() === ui.Button.OK ? r.getResponseText().trim() : null; };
-  const nome = p('Criar usuário do gerente', 'Nome completo do gerente:'); if (nome === null) return;
-  const login = p('Criar usuário do gerente', 'Usuário para entrar (ex.: joao.silva; letras minúsculas, números e ponto):'); if (login === null) return;
-  const senha = p('Criar usuário do gerente', 'Senha provisória (pelo menos ' + SENHA_MIN + ' caracteres; ele troca no primeiro acesso):'); if (senha === null) return;
+  const r = ui.prompt('Criar conta de gerente', 'Nome completo do gerente:', ui.ButtonSet.OK_CANCEL);
+  if (r.getSelectedButton() !== ui.Button.OK) return;
   try {
-    const r = salvarUsuario_('planilha', { login: login, nome: nome, perfis: ['gerente'], senha: senha });
-    ui.alert('Usuário criado', 'Usuário: ' + r.usuario.login + '\nPerfil: gerente\n\nEntre no painel com esse usuário e a senha provisória (ela será trocada no primeiro acesso). No painel, aba Usuários, o gerente cria e controla os demais usuários.', ui.ButtonSet.OK);
+    const c = salvarUsuario_({ nome: 'planilha', id: '', perfis: [], conta: false, planilha: true }, { nome: r.getResponseText().trim(), perfis: ['gerente'] });
+    ui.alert('Conta de gerente criada para ' + c.usuario.nome, 'Código de acesso: ' + c.codigo.slice(0, 3) + ' ' + c.codigo.slice(3) +
+      '\n\nAbra o painel em ' + painelUrl_() + ' e digite o código. Ele não expira: vale até um gerente gerar outro ou revogar. Anote agora: ' +
+      'o código não fica guardado em lugar nenhum. No painel, aba Usuários, o gerente cria e controla as outras contas.', ui.ButtonSet.OK);
   } catch (e) { ui.alert('Não foi possível criar', String(e.message || e), ui.ButtonSet.OK); }
 }
 
@@ -5336,10 +5574,17 @@ function paraObjeto_(cols, linha) {
 }
 
 const CAMPOS_ENCERRAMENTO_ = ['encerrado', 'fim', 'latFim', 'lngFim', 'precFim', 'encerradoPor', 'encerradoEm'];
-function gravar_(nome, recebidos, ts, usuario) {
+/**
+ * Grava os registros recebidos do app (última edição vence). Autor x editor: usuario/usuarioId são definidos pelo servidor na criação
+ * e NÃO mudam nas edições (o autor continua dono do registro). Edição feita por outra pessoa vai para a aba AdmHistorico
+ * (acao 'editar_registro', admId = id de quem editou).
+ */
+function gravar_(nome, recebidos, ts, usuario, usuarioId) {
   if (!recebidos.length) return;
   const t = lerTudo_(nome), cols = t.cols, idx = {};
   t.valores.forEach(function (l, i) { idx[String(l[0])] = i; });
+  const iUs = cols.indexOf('usuario'), iUid = cols.indexOf('usuarioId');
+  const edicoes = [];                        // edições de registro de outra pessoa (vão para AdmHistorico no fim)
 
   const porId = {}, brutos = {};             // dedup no lote: vale o mais recente
   recebidos.forEach(function (r) {
@@ -5353,14 +5598,22 @@ function gravar_(nome, recebidos, ts, usuario) {
     const o = porId[id], r = brutos[id];
     o.srv_ts = ts;
     o.usuario = usuario;                       // quem sincronizou (definido pelo servidor, não pelo app)
+    if (iUid >= 0) o.usuarioId = usuarioId || '';
     const linha = cols.map(function (c) { return o[c]; });
     if (idx[id] === undefined) {
       novas.push(linha);
     } else {
       const atual = paraObjeto_(cols, t.valores[idx[id]]);
+      // autor preservado: quem criou continua em usuario/usuarioId (linha antiga sem usuarioId recebe o do autor só se for a mesma pessoa)
+      if (iUs >= 0 && atual.usuario) {
+        linha[iUs] = atual.usuario;
+        if (iUid >= 0) linha[iUid] = atual.usuarioId || (atual.usuario === usuario ? (usuarioId || '') : '');
+      }
+      const deOutro = !!atual.usuario && atual.usuario !== usuario;
       if (o.atualizadoEm >= atual.atualizadoEm) {   // última edição vence
+        if (deOutro) edicoes.push([id, { usuario: atual.usuario, atualizadoEm: atual.atualizadoEm }, { editor: usuario, atualizadoEm: o.atualizadoEm }]);
         // campo que o app NÃO enviou (ex.: TF não conhece o e-mail da pessoa, versão antiga do app) mantém o valor da planilha
-        cols.forEach(function (c, i) { if (c !== 'srv_ts' && c !== 'usuario' && !(c in r)) linha[i] = t.valores[idx[id]][i]; });
+        cols.forEach(function (c, i) { if (c !== 'srv_ts' && c !== 'usuario' && c !== 'usuarioId' && !(c in r)) linha[i] = t.valores[idx[id]][i]; });
         // turno já encerrado na planilha não reabre: um envio do aparelho com encerrado = 0 (edição local feita antes de saber do
         // encerramento) mantém o encerramento; encerrado pela gerência, o horário final e quem encerrou também não mudam
         if (nome === 'Turnos' && atual.encerrado === 1 && (o.encerrado !== 1 || atual.encerradoPor)) {
@@ -5389,6 +5642,9 @@ function gravar_(nome, recebidos, ts, usuario) {
   });
   if (novas.length) {
     t.sh.getRange(t.sh.getLastRow() + 1, 1, novas.length, cols.length).setValues(novas);
+  }
+  if (edicoes.length) {
+    try { admHistLote_({ admId: usuarioId || '', nome: usuario }, 'editar_registro', nome, edicoes); } catch (e) { /* auditoria em melhor esforço */ }
   }
 }
 

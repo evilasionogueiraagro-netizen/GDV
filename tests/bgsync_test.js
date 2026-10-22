@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // Envio em segundo plano (Background Sync): o service worker envia os pendentes com o app FECHADO quando a rede volta.
 const { chromium } = require('playwright-core');
 const { API, APP, ORIGEM } = amb;
@@ -18,11 +19,11 @@ const gravarIDB = (pg, store, rec) => pg.evaluate(([s, r]) => new Promise((ok, n
   const b = await amb.lancar();
   const erros = [];
   async function abrirCtx(nome, semSuporte) {
-    const g = await get('/__gerar?nome=' + encodeURIComponent(nome)), a = await post({ action: 'ativar', codigo: g.codigo });
+    const a = await U.fiscal(nome);
     const c = await b.newContext({ viewport: { width: 400, height: 820 }, timezoneId: 'America/Manaus', locale: 'pt-BR', permissions: ['geolocation', 'background-sync'], geolocation: { latitude: -3.119, longitude: -60.021, accuracy: 10 } });
     await c.route('https://nominatim.openstreetmap.org/**', rt => rt.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
-    await c.addInitScript(([k, n]) => { if (!localStorage.getItem('__init')) { localStorage.setItem('__init', 1); localStorage.setItem('gdv.url', window.__GDV_API);
-      localStorage.setItem('gdv.key', k); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } }, [a.token, nome]);
+    await c.addInitScript(([k]) => { if (!localStorage.getItem('__init')) { localStorage.setItem('__init', 1); localStorage.setItem('gdv.url', window.__GDV_API);
+      Object.entries(k).forEach(([c, v]) => localStorage.setItem(c, v)); } }, [a.ls, nome]);
     if (semSuporte) await c.addInitScript(() => { try { delete window.SyncManager; delete ServiceWorkerRegistration.prototype.sync; delete ServiceWorkerRegistration.prototype.periodicSync; } catch (e) {} });
     const p = await c.newPage();
     p.on('pageerror', e => erros.push('pageerror: ' + e.message)); p.on('console', m => { if (m.type() === 'error') erros.push(m.text() + ' @' + JSON.stringify(m.location())); });

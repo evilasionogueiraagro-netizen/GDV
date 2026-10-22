@@ -12,7 +12,7 @@ const { API } = amb;
 const PORTAL = require('./lib/portal');
 const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 const get = p => fetch(API + p).then(r => r.json());
-const gerar = (nome, perfil) => get('/__gerar?nome=' + encodeURIComponent(nome) + (perfil ? '&perfil=' + perfil : ''));
+const gerar = (nome, perfil) => perfil === 'admin' ? amb.gerente(nome) : amb.usuario(nome);   // conta pronta e token (atalho /__usuario)
 let falhas = 0;
 const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x === undefined ? '' : ' → ' + (typeof x === 'string' ? x : JSON.stringify(x)).slice(0, 600))); if (!c) falhas++; };
 const SAIDA = process.env.GDV_SAIDA_CONVENIO || '';
@@ -41,7 +41,7 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
   /* ================= 1. servidor ================= */
   console.log('1. Servidor: dados, permissões, validações e apuração');
   const MON = 'Monilíase do Cacaueiro';
-  let d = await post({ action: 'sync', key: 'segredo', since: 0,
+  let d = await post({ action: 'sync', key: await amb.carga(), since: 0,
     turnos: [T('j1', '2026-03-10', 'BVA - JUNDIÁ', 'Fixa', 'BVA - JUNDIÁ'), T('j2', '2026-09-05', 'BVA - JUNDIÁ', 'Fixa', 'BVA - JUNDIÁ'),
       T('c1', '2026-09-12', 'BVA - CEASA', 'Fixa', 'BVA - CEASA'), T('a1', '2026-09-12', 'BVA - AEROPORTO', 'Fixa', 'BVA - AEROPORTO'),
       T('v1', '2026-08-20', 'Porto de Tabatinga', 'Móvel', 'TABATINGA'), T('v2', '2026-09-21', 'Porto Público', 'Móvel', 'TABATINGA'),
@@ -59,8 +59,8 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
     termosPce: [TPCE('p1', '2026-09-18', 'Autazes'), TPCE('p2', '2026-09-19', 'Coari', { cancelado: 1, motivoCancel: 'erro' })] });
   ok(d.ok, 'dados de teste sincronizados (turnos, veículos, TFs, levantamentos e termos PCE)', d.erro);
   await fetch(API + '/__fn?nome=desativarRotinasAutomaticas_');
-  const adm = await gerar('Gerente Convênio', 'admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
-  const fis = await gerar('Fiscal Curioso'), TOKF = (await post({ action: 'ativar', codigo: fis.codigo })).token;
+  const adm = await gerar('Gerente Convênio', 'admin'), TOK = adm.token;
+  const fis = await gerar('Fiscal Curioso'), TOKF = fis.token;
   ok(TOK && TOKF, 'credenciais de administrador e de fiscal');
   const SA = await PORTAL.sessao(TOK, 'adm.convenio@gmail.com', 'Ana Convenio Administrativa');
   ok(SA.sessao, 'sessão do Portal do Administrativo (quem lança)');

@@ -78,7 +78,7 @@ function relatorio() {
 
   console.log('2. Importação pelo portal (navegador)');
   await fetch(API + '/__fn?nome=desativarRotinasAutomaticas_');
-  const adm = await get('/__gerar?nome=' + encodeURIComponent('Gerente Plantao Teste') + '&perfil=admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
+  const TOK = (await amb.gerente('Gerente Plantao Teste')).token;
   const SA = await PORTAL.sessao(TOK, 'plantao.adm@gmail.com', 'Fulano Ficticio Teste');
   const b = await amb.lancar();
   try {

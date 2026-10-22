@@ -21,8 +21,7 @@ const guardar = nome => { if (COPIA) { fs.mkdirSync(COPIA, { recursive: true });
 
 (async () => {
   const b = await amb.lancar(), err = [];
-  const g = await get('/__gerar?nome=' + encodeURIComponent('Ciclano Ficticio Teste'));
-  const TOKF = (await post({ action: 'ativar', codigo: g.codigo })).token;
+  const TOKF = (await amb.usuario('Ciclano Ficticio Teste')).token;
   const agora = Date.now();
   // produtor e propriedade já no banco (cadastro anterior): o levantamento novo autopreenche pelo CPF
   let r = await post({ action: 'sync', key: TOKF, since: 0,

@@ -11,8 +11,9 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
       Object.entries(dados).forEach(([s, recs]) => recs.forEach(r => t.objectStore(s).put(r)));
       t.oncomplete = () => { d.close(); ok(); }; };
     rq.onerror = () => no(rq.error); }), [versao, stores, dados]);
+  const tokApp = (await amb.usuario('Ana Lima')).token;
   const abrirApp = async p => {
-    await p.addInitScript(() => { localStorage.setItem('gdv.semInstalar', '1'); localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', 'segredo'); localStorage.setItem('gdv.nome', 'Ana Lima'); });
+    await p.addInitScript(t => { localStorage.setItem('gdv.semInstalar', '1'); localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', 'Ana Lima'); }, tokApp);
     await p.goto(amb.APP); await p.waitForSelector('#view *', { state: 'attached' }); await p.waitForTimeout(1000);
   };
   const estrutura = p => p.evaluate(() => new Promise(ok => { const q = indexedDB.open('gdv'); q.onsuccess = () => { const d = q.result;

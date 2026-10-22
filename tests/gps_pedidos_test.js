@@ -4,8 +4,7 @@ const { API, APP } = amb;
 const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) process.exitCode = 1; };
 (async () => {
   const b = await amb.lancar();
-  const g = await (await fetch(API + '/__gerar?nome=' + encodeURIComponent('Ana Paula Lima'))).json();
-  const r = await (await fetch(API, { method: 'POST', body: JSON.stringify({ action: 'ativar', codigo: g.codigo }) })).json();
+  const r = await amb.usuario('Ana Paula Lima');
   const c = await b.newContext({ viewport: { width: 400, height: 900 } });                // SEM permissão de localização (estado "prompt")
   await c.addInitScript(([t]) => {
     if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', 'Ana Paula Lima'); localStorage.setItem('gdv.semInstalar', '1'); }

@@ -5,8 +5,7 @@ let falhas = 0;
 const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== undefined ? ' -> ' + JSON.stringify(x) : '')); if (!c) falhas++; };
 (async () => {
   const b = await amb.lancar();
-  const g = await (await fetch(API + '/__gerar?nome=' + encodeURIComponent('Estagiaria Teste Silva'))).json();
-  const r = await (await fetch(API, { method: 'POST', body: JSON.stringify({ action: 'ativar', codigo: g.codigo }) })).json();
+  const r = await amb.usuario('Estagiaria Teste Silva');
   const c = await b.newContext({ viewport: { width: 400, height: 900 } });
   await c.addInitScript(([t]) => { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', 'Estagiaria Teste Silva'); localStorage.setItem('gdv.semInstalar', '1'); } }, [r.token]);
   const p = await c.newPage(); const err = []; p.on('pageerror', e => err.push(e.message));

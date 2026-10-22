@@ -27,7 +27,8 @@ const ok = (c, m, extra) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (extra
   p = await novo(devices['Pixel 7'], () => { const mm = window.matchMedia.bind(window); window.matchMedia = q => q.includes('standalone') ? { matches: true, media: q, addEventListener() {}, removeEventListener() {} } : mm(q); });
   await confere(p, SO_ATIVAR, 'Android com o app instalado: ativação');
   // aparelho já ativado (legado) aberto no navegador: banner, mas pode iniciar turno
-  p = await novo(devices['Pixel 7'], () => { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', 'segredo'); });
+  const tokApp = (await amb.usuario('Ana Instala Lima')).token;
+  p = await novo(devices['Pixel 7'], `localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', ${JSON.stringify(tokApp)});`);
   await confere(p, 'instalar:SIM | ativação:não | módulos:SIM', 'Android já ativado no navegador: aviso de instalar, mas módulos liberados');
   // "continuar no navegador mesmo assim" libera a ativação
   p = await novo(devices['Pixel 7']); await p.click('[data-instalar=continuar]'); await p.waitForSelector('#fAtivar');

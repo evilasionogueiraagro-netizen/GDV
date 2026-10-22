@@ -29,7 +29,10 @@ const MSG_LOGIN_ERRADO_ = 'Matrícula ou senha incorreta.';
 const MSG_BLOQUEIO_LOGIN_ = 'Muitas tentativas incorretas. Aguarde 15 minutos e tente de novo.';
 const MSG_TROCAR_SENHA_ = 'Troque a senha provisória para continuar.';
 const MSG_SESSAO_ = 'Sessão encerrada ou inválida. Entre com sua matrícula e senha.';
-const MSG_SESSAO_APP_ = 'Acesso revogado ou inválido. Entre com sua matrícula e senha.';   // app de campo: o texto que ele já reconhece
+// sessão inválida em cada app: o texto que a tela atual já reconhece (o sinal certo é entrar = 1 na resposta)
+const MSG_SESSAO_APP_ = 'Acesso revogado ou inválido. Entre com sua matrícula e senha.';
+const MSG_SESSAO_PAINEL_ = 'Sessão do painel inválida ou revogada. Entre com sua matrícula e senha.';
+const MSG_SESSAO_PORTAL_ = 'Sessão do portal encerrada ou inválida. Entre com sua matrícula e senha.';
 const MSG_SO_GERENCIA_ = 'Só a gerência pode fazer esta alteração (o seu acesso ao painel é só de leitura).';
 
 /* ---------- Utilidades ---------- */
@@ -233,14 +236,14 @@ function usuarioDoApp_(token) {
 
 /** Painel: nome do usuário. Exige `painel`; com `gravar`, exige `gerencia` (painel só lê). */
 function usuarioDoPainel_(token, gravar) {
-  const s = sessaoNova_(token, { permissao: 'painel' });
+  const s = sessaoNova_(token, { permissao: 'painel', invalida: MSG_SESSAO_PAINEL_ });
   if (gravar && s.lista.indexOf('gerencia') < 0) throw new Error(MSG_SO_GERENCIA_);
   return s.usuario.nome;
 }
 
 /** Portal do Administrativo: {admId (= id do usuário), nome, email: '', expiraEm: 0}. Exige `administracao`. */
 function usuarioDoPortal_(token) {
-  const s = sessaoNova_(token, { permissao: 'administracao' });
+  const s = sessaoNova_(token, { permissao: 'administracao', invalida: MSG_SESSAO_PORTAL_ });
   return { admId: s.usuario.id, nome: s.usuario.nome, email: '', expiraEm: 0 };
 }
 
@@ -354,6 +357,7 @@ function gerenciaDe_(req) {
 
 function usuarioSaida_(u, lista) { return { id: u.id, matricula: u.matricula, nome: u.nome, ativo: u.ativo === 1 ? 1 : 0, permissoes: lista || [] }; }
 
+/** usuariosListar: contas com permissões, último acesso, sessões abertas e o sinal dos aparelhos (aparelho, nAparelhos, aparelhos). */
 function usuariosListar_(req) {
   gerenciaDe_(req);
   const por = permissoesAtivasPorUsuario_(lerLeitura_('PermissoesDosUsuarios')), ultimo = {}, abertas = {};
@@ -362,9 +366,13 @@ function usuariosListar_(req) {
     ultimo[s.usuarioId] = Math.max(ultimo[s.usuarioId] || 0, s.ultimoUso || s.criadaEm || 0);
     if (!s.encerradaEm) abertas[s.usuarioId] = (abertas[s.usuarioId] || 0) + 1;
   });
+  const aps = {};   // sinal dos aparelhos (aba Aparelhos, pelo nome): o mais recente primeiro
+  lerAparelhos_().forEach(function (ap) { (aps[nomeChave_(ap.usuario)] = aps[nomeChave_(ap.usuario)] || []).push(ap); });
   const usuarios = lerLeitura_('Usuarios').filter(function (u) { return u.id; }).map(function (u) {
     const o = usuarioSaida_(u, por[u.id]);
     o.senhaProvisoria = u.senhaProvisoria === 1 ? 1 : 0; o.criadoEm = u.criadoEm; o.ultimoAcesso = ultimo[u.id] || 0; o.sessoesAbertas = abertas[u.id] || 0;
+    const l = (aps[nomeChave_(u.nome)] || []).slice().sort(function (x, y) { return y.ultimoSinal - x.ultimoSinal; });
+    if (l.length) { o.aparelho = resumoAparelho_(l[0]); o.nAparelhos = l.length; o.aparelhos = l.slice(0, 10).map(resumoAparelho_); }
     return o;
   }).sort(function (a, b) { return String(a.nome).localeCompare(String(b.nome)); });
   return { ok: true, usuarios: usuarios };

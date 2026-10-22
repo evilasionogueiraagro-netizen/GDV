@@ -17,8 +17,8 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
 
 (async () => {
   const b = await amb.lancar();
-  const gerar = (nome, perfil = '') => get('/__gerar?nome=' + encodeURIComponent(nome) + '&perfil=' + perfil);
-  const credencial = async nome => { const g = await gerar(nome); const r = await post({ action: 'ativar', codigo: g.codigo }); return { token: r.token, nome }; };
+  const gerar = (nome, perfil = '') => perfil === 'admin' ? amb.gerente(nome) : amb.usuario(nome);   // conta pronta e token (atalho /__usuario)
+  const credencial = async nome => ({ token: (await gerar(nome)).token, nome });
   const aparelho = async ({ token, nome }, vp = { width: 1366, height: 800 }) => {
     const c = await b.newContext({ viewport: vp, permissions: ['geolocation'], geolocation: { latitude: -3.60, longitude: -59.15, accuracy: 9 }, acceptDownloads: true });
     await c.addInitScript(([t, n]) => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } } catch (e) {} }, [token, nome]);
@@ -37,9 +37,9 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
 
   /* ================= 1. leitura de coordenadas e do número do papel ================= */
   console.log('1) coordenadas por campo e número do papel');
-  const adm = await gerar('Gestor Moniliase Painel', 'admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
+  const adm = await gerar('Gestor Moniliase Painel', 'admin'), TOK = adm.token;
   const E = await credencial('Carla Mendes Estagiaria');
-  let r = await post({ action: 'painelPermissoes', key: TOK, nome: E.nome, veiculos: 0, tf: 0, pce: 1, antigo: 1 });
+  let r = await amb.modulos(TOK, E.nome, { veiculos: 0, tf: 0, pce: 1, antigo: 1 });
   ok(r.ok && r.permissoes.antigo === 1, 'painel: estagiária com PCE + Digitar do papel');
   const A = await aparelho(E);
   const C = await A.evaluate(() => { const L = PCEMon.lerEixo, N = PCEMon.lerNumeroDoc;

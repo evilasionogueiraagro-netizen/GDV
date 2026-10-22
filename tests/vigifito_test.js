@@ -18,7 +18,7 @@ const PORTAL = require('./lib/portal');
 const { API } = amb;
 const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 const get = p => fetch(API + p).then(r => r.json());
-const gerar = (nome, perfil) => get('/__gerar?nome=' + encodeURIComponent(nome) + (perfil ? '&perfil=' + perfil : ''));
+const gerar = (nome, perfil) => perfil === 'admin' ? amb.gerente(nome) : amb.usuario(nome);   // conta pronta e token (atalho /__usuario)
 let falhas = 0;
 const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x === undefined ? '' : ' → ' + (typeof x === 'string' ? x : JSON.stringify(x)).slice(0, 700))); if (!c) falhas++; };
 const SAIDA = process.env.GDV_SAIDA_VIGIFITO || '';
@@ -72,7 +72,7 @@ function planilhaVig() {
   console.log(`1. Dados de ${A}, apuração por posto (mês e período de 10 dias)`);
   const P1 = per(d(1, 13)), P2 = per(d(1, 14));
   ok(P2 === d(1, 14) && P1 < P2, `escala: ${d(1, 14)} (dia da troca) abre um período; ${d(1, 13)} fica no anterior`, [P1, P2]);
-  let r = await post({ action: 'sync', key: 'segredo', since: 0,
+  let r = await post({ action: 'sync', key: await amb.carga(), since: 0,
     turnos: [T('j1', d(1, 14), 'BVA - JUNDIÁ', 'Fixa', 'BVA - JUNDIÁ'), T('j2', d(1, 13), 'BVA - JUNDIÁ', 'Fixa', 'BVA - JUNDIÁ'), T('j3', d(3, 10), 'BVA - JUNDIÁ', 'Fixa', 'BVA - JUNDIÁ'),
       T('v1', d(2, 5), 'Porto de Tabatinga', 'Móvel', 'TABATINGA'), T('v2', d(8, 20), 'Porto Público', 'Móvel', 'TABATINGA'), T('c1', d(3, 5), 'BVA - CEASA', 'Fixa', 'BVA - CEASA')],
     // veículos: pessoas a bordo (educação sanitária) e UF opcional. a1 RR→AM tem o TF f1 ligado (conta só pelo TF); a2 AM→PA sem TF (carga para
@@ -95,9 +95,9 @@ function planilhaVig() {
       lat: '-4.2', lon: '-69.9', culturas: '[]', pragas: JSON.stringify([{ praga: 'Monilíase do Cacaueiro', culturas: [{ cultura: 'Cacau', area: '2', resultado: 'detectada', coleta: 'Sim' }] }]), fotos: '[]', assinaturas: '{}', excluido: 0, criadoEm: agora, atualizadoEm: agora }] });
   ok(r.ok, 'turnos, veículos, TFs e levantamento sincronizados', r.erro);
   await fetch(API + '/__fn?nome=desativarRotinasAutomaticas_');
-  const adm = await gerar('Gerente Vigifito', 'admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
+  const adm = await gerar('Gerente Vigifito', 'admin'), TOK = adm.token;
   const SA = await PORTAL.sessao(TOK, 'vigi.adm@gmail.com', 'Vera Vigifito Administrativa');
-  const fis = await gerar('Fiscal Curioso'), TOKF = (await post({ action: 'ativar', codigo: fis.codigo })).token;
+  const fis = await gerar('Fiscal Curioso'), TOKF = fis.token;
   r = await post({ action: 'painelVigDados', key: TOKF, ano: A }); ok(!r.ok && /Acesso restrito/.test(r.erro), 'fiscal recusado em painelVigDados', r.erro);
   const VDp = await post({ action: 'painelVigDados', key: TOK, ano: A });
   const ap = VDp.apuracao, pm = (p, m) => (ap.porMes[p] || {})[`${A}-${String(m).padStart(2, '0')}`] || {};
@@ -356,7 +356,7 @@ print(json.dumps({'tabelas':x.count('<w:tbl>'),'paisagem':x.count('w:orient="lan
   /* ================= 5. app de campo: veículo (UF opcional) e TF lavrado dele ================= */
   console.log('5. App das barreiras: veículo sem o bloco de fiscalização, UF opcional, TF do veículo → VIGIFITO calculado');
   const ca = await b.newContext({ viewport: { width: 400, height: 860 }, permissions: ['geolocation'], geolocation: { latitude: -2.05, longitude: -60.02, accuracy: 10 }, timezoneId: 'America/Manaus', locale: 'pt-BR' });
-  await ca.addInitScript(() => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', 'segredo'); } } catch (e) { /* */ } });
+  await ca.addInitScript(t => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); } } catch (e) { /* */ } }, await amb.carga());
   const pg = await ca.newPage(); const errosApp = [];
   pg.on('pageerror', e => errosApp.push(e.message)); pg.on('dialog', dd => dd.accept());
   await pg.goto(amb.APP); await pg.waitForSelector('.modulo'); await pg.click('.modulo[data-v=home]'); await pg.waitForSelector('#fTurno');

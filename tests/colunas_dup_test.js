@@ -17,7 +17,7 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== und
   await ap('Levantamentos', lin('lev-a', '', '').concat(['1', '["doc-1"]']));       // valor só na cópia
   await ap('Levantamentos', lin('lev-b', '0', '').concat(['1', '']));              // oficial preenchido: não muda
   const agora = Date.now();
-  const d = await post({ action: 'sync', key: 'segredo', since: 0, turnos: [{ id: 'c1', numeroTF: 'TF-1', data: '2026-10-14', letra: 'A', inicio: '05:52', fim: '', fiscal: 'Fulano de Tal',
+  const d = await post({ action: 'sync', key: await amb.carga(), since: 0, turnos: [{ id: 'c1', numeroTF: 'TF-1', data: '2026-10-14', letra: 'A', inicio: '05:52', fim: '', fiscal: 'Fulano de Tal',
     local: 'BVA - CEASA', unidade: 'MANAUS', posto: 'Fixa', encerrado: 0, criadoEm: agora, atualizadoEm: agora }] });
   ok(d.ok, 'envio não trava com "registroAntigo"/"documentos" repetidos na coluna 31', d.erro);
   const L = await (await fetch(API + '/__aba?nome=Levantamentos')).json();
@@ -25,7 +25,7 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== und
   const a = L.find(r => r[0] === 'lev-a'), b = L.find(r => r[0] === 'lev-b');
   ok(String(a[27]) === '1' && a[28] === '["doc-1"]' && a[37] === '1', 'valor que só existia na cópia foi para a coluna oficial (e a cópia continua lá)', a.slice(27));
   ok(String(b[27]) === '0', 'coluna oficial já preenchida não é sobrescrita pela cópia', b.slice(27));
-  const d2 = await post({ action: 'sync', key: 'segredo', since: 0 });
+  const d2 = await post({ action: 'sync', key: await amb.carga(), since: 0 });
   const L2 = await (await fetch(API + '/__aba?nome=Levantamentos')).json();
   ok(d2.ok && L2[0].length === L[0].length && L2[0][30] === 'tipoLocal', 'segunda sincronização normal, sem mexer de novo no cabeçalho', d2.erro || L2[0].slice(27));
   process.exit(falhas ? 1 : 0);

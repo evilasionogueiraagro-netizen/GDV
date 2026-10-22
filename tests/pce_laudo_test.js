@@ -15,8 +15,7 @@ const linhaDe = async (aba, id) => { const t = await get('/__aba?nome=' + aba); 
 
 (async () => {
   const b = await amb.lancar(), err = [];
-  const g = await get('/__gerar?nome=' + encodeURIComponent('Ana Paula Lima'));
-  const TOKF = (await post({ action: 'ativar', codigo: g.codigo })).token;
+  const TOKF = (await amb.usuario('Ana Paula Lima')).token;
   const c = await b.newContext({ viewport: { width: 420, height: 900 }, permissions: ['geolocation'], geolocation: { latitude: -3.12, longitude: -60.02, accuracy: 9 }, timezoneId: 'America/Manaus' });
   await c.addInitScript(([t]) => {
     if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', 'Ana Paula Lima'); localStorage.setItem('gdv.semInstalar', '1'); }
@@ -83,7 +82,7 @@ const linhaDe = async (aba, id) => { const t = await get('/__aba?nome=' + aba); 
   await p.screenshot({ path: amb.saida('pce_laudo_app.png'), fullPage: true });
 
   console.log('3. Painel: colunas, registro do resultado e alertas');
-  const adm = await get('/__gerar?nome=Gerente%20Lab&perfil=admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
+  const adm = await amb.gerente('Gerente Lab Teste'), TOK = adm.token;
   const pc = await b.newContext({ viewport: { width: 1366, height: 900 }, timezoneId: 'America/Manaus', serviceWorkers: 'block', acceptDownloads: true });
   await pc.addInitScript(([tok, url, de, ate]) => { if (!sessionStorage.getItem('__i')) { sessionStorage.setItem('__i', 1); localStorage.setItem('gdv.url', url); localStorage.setItem('gdv.painel.token', tok); localStorage.setItem('gdv.painel.nome', 'Gerente Lab');
     localStorage.setItem('gdv.painel.filtro', JSON.stringify({ preset: 'custom', de, ate })); localStorage.setItem('gdv.painel.aba', 'pce'); } }, [TOK, amb.API_URL, dia(60), dia(0)]);

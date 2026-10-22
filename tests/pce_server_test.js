@@ -5,7 +5,7 @@ const post = b => fetch(B + '/', { method: 'POST', body: JSON.stringify(b) }).th
 const get = p => fetch(B + p).then(r => r.json());
 const fn = (nome, ...args) => get('/__fn?nome=' + nome + '&args=' + encodeURIComponent(JSON.stringify(args)));
 const aba = nome => get('/__aba?nome=' + encodeURIComponent(nome));
-const ativar = async nome => { const g = await get('/__gerar?nome=' + encodeURIComponent(nome)); const r = await post({ action: 'ativar', codigo: g.codigo }); assert.ok(r.ok); return r.token; };
+const ativar = async nome => { const r = await amb.usuario(nome); assert.ok(r.ok); return r.token; };
 const append = (a, row) => fetch(B + '/__append?aba=' + a + '&row=' + encodeURIComponent(JSON.stringify(row)));
 let falhas = 0;
 const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) falhas++; };
@@ -16,7 +16,7 @@ const uuid = () => require('crypto').randomUUID();
   await append('Pessoas', CAB_ANTIGO);
   await append('Pessoas', ['52998224725', 'PF', 'JOSE DA SILVA', '123', 'RUA X', 'MANAUS', 'AM', '92999990000', 1, 1, 1, 'Antigo Fiscal']);
 
-  const A = await ativar('Ana Paula Lima'), Bk = await ativar('Bruno Costa Souza'), ADM = 'segredo';
+  const A = await ativar('Ana Paula Lima'), Bk = await ativar('Bruno Costa Souza'), ADM = await amb.carga();
   const agora = Date.now(); const ANO = new Date().getFullYear();
   const hojeM = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10);   // hoje em Manaus (UTC−4)
   const C = (id, numero, extra = {}) => ({ id, unidade: 'MANAUS', ano: ANO, numero, numeroTxt: String(numero).padStart(3, '0') + '/' + ANO + '/MANAUS', numeroSugerido: numero,
@@ -99,7 +99,7 @@ const uuid = () => require('crypto').randomUUID();
   ok(r.colheitas.every(t => t.usuario === 'Bruno Costa Souza') && r.colheitas.length >= 2, 'Bruno recebe só os próprios termos (' + r.colheitas.length + ')');
   r = await post({ action: 'sync', key: A, since: 0 });
   ok(r.colheitas.every(t => t.usuario === 'Ana Paula Lima'), 'Ana recebe só os próprios termos');
-  r = await post({ action: 'sync', key: ADM, since: 0 }); ok(r.levantamentos.length === 2 && r.colheitas.length === 7, 'Administrador recebe todos (' + r.levantamentos.length + ' lev, ' + r.colheitas.length + ' termos)');
+  r = await post({ action: 'sync', key: ADM, since: 0 }); ok(r.levantamentos.length === 0 && r.colheitas.length === 0, 'gerente também recebe no sync só os próprios registros (' + r.levantamentos.length + ' lev, ' + r.colheitas.length + ' termos); o painel mostra todos');
   const s1 = r.agora; r = await post({ action: 'sync', key: A, since: s1 }); ok(r.levantamentos.length === 0 && r.colheitas.length === 0, 'sync incremental: nada novo depois de "agora"');
   r = await post({ action: 'sync', key: A, since: 0, levantamentos: [{ ...gA1, excluido: 1, atualizadoEm: agora + 50 }] });
   ok(r.levantamentos.find(l => l.id === 'gA1').excluido === 1, 'exclusão (soft delete) do levantamento sincronizada');

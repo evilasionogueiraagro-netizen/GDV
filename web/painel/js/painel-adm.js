@@ -1,6 +1,7 @@
-/* Painel gerencial do GDV — aba "Servidores", bloco "Portal do Administrativo": lista de pessoas liberadas no portal de lançamentos
-   (e-mail da conta Google, nome, ativo/revogado, último acesso; máximo configurável, padrão 10), código de ativação de 6 dígitos (para
-   entrar sem o login com Google) e revogar/reativar. Actions painelAdmLista / painelAdmSalvar / painelAdmCodigo / painelAdmOcultar
+/* Painel gerencial do GDV — aba "Servidores", bloco "Portal do Administrativo" (acesso antigo): lista de pessoas liberadas no portal de
+   lançamentos (e-mail, nome, ativo/revogado, último acesso; máximo configurável, padrão 10), código de ativação de 6 dígitos (o login
+   antigo do portal, até o gerente desligar os acessos antigos) e revogar/reativar. Quem entra com matrícula e senha é gerido no bloco Usuários
+   (permissão "Portal do Administrativo"). Actions painelAdmLista / painelAdmSalvar / painelAdmCodigo / painelAdmOcultar
    (só administrador). Os e-mails aparecem só aqui (e na aba Administrativo da planilha). Revogar derruba a sessão do portal na próxima
    chamada. Revogado pode sair da lista ("Remover": nada é apagado, oculto = 1 na planilha); "Mostrar removidos" lista esses com
    Restaurar; Reativar também traz de volta. "Remover" só aparece se o back avisar que tem a action (painelAdmLista → ocultar). */
@@ -23,10 +24,10 @@
     const r = E.raiz; if (!r) return;
     const d = E.d, ativos = d ? d.liberados.filter(x => x.ativo).length : 0;
     r.innerHTML = `<h2>Portal do Administrativo</h2>
-      <p class="pn-sub">Quem lança os dados administrativos (desembolso e físico do convênio, linhas manuais dos relatórios, VIGIFITO) no portal <a href="../administrativo/" target="_blank" rel="noopener">${esc(d ? d.url : '../administrativo/')}</a>. Entrada com a conta Google do e-mail liberado${d && !d.google ? ' (<b>login com Google ainda não configurado</b>: use o código de ativação)' : ''} ou com um código de 6 dígitos gerado aqui. Até ${d ? d.max : 10} pessoas ativas.</p>
+      <p class="pn-sub">Quem lança os dados administrativos (desembolso e físico do convênio, linhas manuais dos relatórios, VIGIFITO) no portal <a href="../administrativo/" target="_blank" rel="noopener">${esc(d ? d.url : '../administrativo/')}</a>. Acesso antigo: entrada com um código de 6 dígitos gerado aqui (quem tem matrícula e senha entra por ela; veja Usuários). Até ${d ? d.max : 10} pessoas ativas.</p>
       ${E.erro ? `<p class="pn-erro">${esc(E.erro)}${antigo(E.erro) ? ANTIGO : ''}</p>` : ''}
       <form class="pn-cartao pn-conv-form" id="pn-adm-form" novalidate>
-        <label class="pn-conv-campo">E-mail (conta Google)<input id="pn-adm-email" type="email" maxlength="120" placeholder="nome@gmail.com" autocomplete="off"></label>
+        <label class="pn-conv-campo">E-mail<input id="pn-adm-email" type="email" maxlength="120" placeholder="nome@gmail.com" autocomplete="off"></label>
         <label class="pn-conv-campo">Nome completo<input id="pn-adm-nome" maxlength="80" placeholder="Ex.: Ana Souza"></label>
         <div class="pn-conv-acoes"><button type="submit" class="pn-btn pn-btn-prim" id="pn-adm-liberar">Liberar</button><span class="pn-pub-msg${E.msg.cls ? ' ' + E.msg.cls : ''}" data-msg="adm" role="status">${esc(E.msg.t)}</span></div>
       </form>
@@ -35,7 +36,7 @@
       <div id="pn-adm-lista"></div>`;
     const box = r.querySelector('#pn-adm-lista');
     if (!d) { P.vazio(box, E.carregando ? 'Carregando…' : 'Sem dados.'); return; }
-    P.tabela(box, [{ chave: 'nome', rotulo: 'Nome' }, { chave: 'email', rotulo: 'E-mail Google' },
+    P.tabela(box, [{ chave: 'nome', rotulo: 'Nome' }, { chave: 'email', rotulo: 'E-mail' },
       { chave: 'ativo', rotulo: 'Situação', html: (x, l) => x ? `<span class="pn-selo bom">Ativo</span>${l.codigo ? ' <span class="pn-selo info">com código</span>' : ''}`
         : `<span class="pn-selo info">Revogado</span>${l.oculto ? ` <span class="pn-ac-perfil pn-ac-removido" title="Removido por ${esc(l.ocultoPor || '—')} em ${esc(dh(l.ocultoEm))}">removido da lista</span>` : ''}` },
       { chave: 'ultimoAcesso', rotulo: 'Último acesso', fmt: dh }, { chave: 'criadoPor', rotulo: 'Liberado por', fmt: (x, l) => `${x || '—'} em ${dh(l.criadoEm)}` },

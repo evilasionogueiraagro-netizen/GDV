@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // Volante que não conta veículos (CONFIG.volantesSoPessoas: Tabatinga, educação sanitária da monilíase no porto, meta 1.9 do convênio):
 // app real (Chromium) + Code.gs real. Confere: no volante com unidade TABATINGA o "Só educação sanitária" vem marcado e o local do porto
 // sugerido; o turno mostra o contador de pessoas orientadas (+1/+5/+10/corrigir) no lugar de "Registrar veículo"; o total vai para a
@@ -15,7 +16,7 @@ const diaManaus = ms => new Date(ms - 4 * 3600e3).toISOString().slice(0, 10);
 (async () => {
   const b = await amb.lancar();
   try {
-    const g = await get('/__gerar?nome=' + encodeURIComponent('Fiscal Ficticio Teste')), F = await post({ action: 'ativar', codigo: g.codigo });
+    const F = await U.fiscal('Fiscal Ficticio Teste');
     const ctx = await b.newContext({ viewport: { width: 400, height: 860 }, permissions: ['geolocation'], geolocation: { latitude: -4.2316, longitude: -69.9406, accuracy: 10 } });
     await ctx.addInitScript(([t, n]) => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } } catch (e) {} }, [F.token, 'Fiscal Ficticio Teste']);
     await ctx.addInitScript(() => { if (window !== window.top) window.print = () => { window.top.__prints = window.top.__prints || []; window.top.__prints.push(document.body.innerText.replace(/\s+/g, ' ')); }; });

@@ -82,7 +82,7 @@ const h16 = t => crypto.createHash('sha256').update(t, 'utf8').digest('hex').sli
   const ass1 = json(t1.assinaturas, {}), fotos1 = json(t1.fotos, []);
   ok(tfs1.length === 1 && fotos1.length === 2 && ass1.fiscalizado && ass1.servidor && t1.recusaAssinatura === 0, 'planilha (aba TFs): colunas fotos (2 ids), assinaturas {fiscalizado, servidor} e recusaAssinatura = 0');
   const cab = (await get('/__aba?nome=TFs'))[0];
-  ok(cab.slice(-6).join(',') === 'fotos,assinaturas,recusaAssinatura,ufOrigem,ufDestino,usuarioId', 'colunas novas no fim da aba TFs: ' + cab.slice(-7).join(','));
+  ok(cab.slice(-8).join(',') === 'fotos,assinaturas,recusaAssinatura,ufOrigem,ufDestino,registroAntigo,pdfs,usuarioId', 'colunas novas no fim da aba TFs (as do TF do papel e a do usuário por último): ' + cab.slice(-9).join(','));
   await sync(A);
   const dr = await get('/__drive'), noTF = dr.arquivos.filter(x => x.caminho === `GDV - Arquivos/TF/${ANO}`);
   ok(noTF.length === 4 && noTF.filter(x => x.mime === 'image/jpeg').length === 2 && noTF.filter(x => x.mime === 'image/png').length === 2 && noTF.every(x => !x.compartilhado && x.nome.startsWith(t1.id)),
@@ -202,7 +202,7 @@ print(json.dumps([[('Testemunha' in pg.extract_text()), ('Anexo fotogr' in pg.ex
   ok(!r1.ok && r1.semPermissao === 'tf' && r2.ok, 'arquivoEnviar: foto de TF exige o módulo TF (a do PCE continua pelo PCE)');
   r1 = await post({ action: 'tfIndiceReincidencia', key: fB.token }); ok(!r1.ok && r1.semPermissao === 'tf', 'tfIndiceReincidencia exige o módulo TF');
   r1 = await post({ action: 'arquivoEnviar', key: fA.token, arquivo: { id: crypto.randomUUID(), dono: 'tfs', donoId: 'x1', tipo: 'documento', papel: '', mime: 'application/pdf' }, base64: Buffer.from('%PDF-1.4 x').toString('base64') });
-  ok(!r1.ok, 'TF não aceita PDF: ' + r1.erro);
+  ok(!r1.ok && r1.semPermissao === 'antigo', 'PDF de TF só com "Digitar do papel" (TF do papel): ' + r1.erro);
   let bloqueou = 0;
   for (let i = 0; i < 70 && !bloqueou; i++) { const r = await post({ action: 'tfVerificar', id: 'nao-existe-' + i }); if (!r.ok && /Muitas consultas/.test(r.erro)) bloqueou = i + 1; }
   ok(bloqueou >= 29 && bloqueou <= 61, `tfVerificar: depois de 30 consultas inválidas no minuto (somando a do item E), recusa ("Muitas consultas") — bloqueou na ${bloqueou}ª`);

@@ -113,7 +113,7 @@ const Sync = (() => {
     const aTF = p.aTF || [], aPCE = (p.a || []).filter(id => !aTF.includes(id));                                // arquivos: fotos/assinaturas do TF ou do PCE
     if (aTF.length && !pode('tf')) m.add('tf');
     if (aPCE.length && !pode('pce')) m.add('pce');
-    if (!pode('antigo') && pode('pce') && ([...(p.g || []), ...(p.c || []), ...(p.k || []), ...(p.m || [])].some(Envio.ehAntigo)               // registro do papel guardado
+    if (!pode('antigo') && (pode('pce') || pode('tf')) && ([...(p.g || []), ...(p.c || []), ...(p.k || []), ...(p.m || []), ...(p.f || [])].some(Envio.ehAntigo)               // registro do papel guardado
       || (await arquivosPendentes(null, { ...PERM, antigo: 1 })).length > (await arquivosPendentes(null, PERM)).length)) m.add('antigo');   // ou PDF/foto dele ainda não enviado
     return [...m];
   }
@@ -182,7 +182,7 @@ const Sync = (() => {
   /** Consulta rápida: último nº usado e próximo, direto na planilha. */
   const proximoNumero = (barreira, ano) => chamar({ action: 'tfProximoNumero', barreira, ano }, 9000);
   /** Emissão: a planilha só grava o TF se o número ainda estiver livre. */
-  const emitirTF = (tf, pessoa, placa) => chamar({ action: 'tfEmitir', tf: limpo(tf), pessoa: limpo(pessoa), placa: placa ? limpo(placa) : undefined }, 20000);
+  const emitirTF = (tf, pessoa, placa) => chamar({ action: 'tfEmitir', tf: limpo(tf), pessoa: pessoa ? limpo(pessoa) : undefined, placa: placa ? limpo(placa) : undefined }, 20000);   // TF do papel sem fiscalizado identificado: sem pessoa
   /**
    * Sinal "TF em preenchimento" para o painel (melhor esforço): sem internet ou sem ativação não envia nada; erro nunca aparece
    * para o fiscal e não entra em fila. Tempo limite curto (8 s). Os envios saem um de cada vez, na ordem (um "fim" nunca chega

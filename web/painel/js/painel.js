@@ -268,7 +268,7 @@ const Painel = (() => {
       // ordem de chegada (sinal do servidor) e, no empate, pela hora: o "último veículo" fica certo em turno que passa da meia-noite
       const vs = (veicPorTurno[t.id] || []).sort((a, b) => (a.sinal || 0) - (b.sinal || 0) || String(a.hora).localeCompare(String(b.hora)));
       vs.forEach(v => { v.data = t.data; v.local = t.local; v.fiscal = t.fiscal; v.posto = t.posto; v.letra = t.letra; v.turnoAberto = t.emAndamento; v.dia = diaDoVeiculo(v, t); });
-      t.veiculosLista = vs; t.nVeiculos = vs.length; t.nPessoas = vs.reduce((s, v) => s + v.pessoas, 0);
+      t.veiculosLista = vs; t.nVeiculos = vs.length; t.nPessoas = vs.reduce((s, v) => s + v.pessoas, 0) + (num(t.pessoasEducacao) || 0);   // + pessoas orientadas contadas no turno (BVA sem veículos)
       t.ultimoVeiculo = vs.length ? vs[vs.length - 1] : null;
       t.ultimoSinal = Math.max(num(t.ultimoSinal) || 0, num(t.srv_ts) || 0, num(t.atualizadoEm) || 0, num(t.criadoEm) || 0, ...vs.map(v => v.sinal || 0)) || null;
       // sinal do aparelho do fiscal (heartbeat a cada sincronização, mesmo sem veículo novo) e "encerrado no celular, aguardando envio"

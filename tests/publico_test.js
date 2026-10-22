@@ -167,7 +167,19 @@ const PROIBIDOS = [CPF, CNPJ, CPF2, '529.982.247-25', '***.982', 'Fulano Secreto
   d = await post({ action: 'publicoDados', periodo: 'anoAnterior' });
   ok(d.ok && d.periodo.de.endsWith('-01-01') && d.periodo.ate.endsWith('-12-31') && d.numeros.acoes === 0 && d.numeros.serie.passo === 'mes' && d.numeros.serie.pontos.length === 12, 'ano anterior: zeros e 12 meses', d.periodo);
   d = await post({ action: 'publicoDados', periodo: 'tudo' }); ok(d.ok && d.numeros.veiculos === 8, 'desde o início (liberado no painel)');
-  d = await post({ action: 'publicoDados', periodo: '7d' }); ok(!d.ok && /não está disponível/.test(d.erro) && d.periodos.length === 4, 'período não liberado: erro amigável + lista', d.erro);
+  d = await post({ action: 'publicoDados', periodo: '7d' }); ok(!d.ok && /não está disponível/.test(d.erro) && d.periodos.length === 6, 'período não liberado: erro amigável + lista', d.erro);
+  // 15 dias e intervalo escolhido pelo visitante (liberados por padrão)
+  d = await post({ action: 'publicoDados', periodo: '15d' });
+  ok(d.ok && d.periodo.rotulo === 'Últimos 15 dias' && Math.round((Date.parse(d.periodo.ate) - Date.parse(d.periodo.de)) / 864e5) === 14 && d.periodos.some(p => p.chave === '15d') && d.periodos.some(p => p.chave === 'intervalo'),
+    'últimos 15 dias (de = hoje − 14) e intervalo na lista de períodos', d.periodo);
+  const hojeIv = d.periodo.ate, deIv = d.periodo.de;
+  d = await post({ action: 'publicoDados', periodo: 'intervalo', de: deIv, ate: hojeIv });
+  ok(d.ok && d.periodo.chave === 'intervalo' && d.periodo.de === deIv && d.periodo.ate === hojeIv && /^De \d{2}\/\d{2}\/\d{4} a \d{2}\/\d{2}\/\d{4}$/.test(d.periodo.rotulo) && d.numeros,
+    'intervalo de/até: período e rótulo "De dd/mm/aaaa a dd/mm/aaaa"', d.periodo);
+  d = await post({ action: 'publicoDados', periodo: 'intervalo', de: hojeIv, ate: deIv });
+  ok(!d.ok && d.intervaloInvalido && /depois da data de fim/.test(d.erro), 'intervalo com início depois do fim: recusado', d.erro);
+  d = await post({ action: 'publicoDados', periodo: 'intervalo', de: 'x' });
+  ok(!d.ok && d.intervaloInvalido, 'intervalo sem datas válidas: recusado', d.erro);
 
   /* ================= 5. página pública: mapa e números ================= */
   console.log('5. Página pública');
@@ -214,6 +226,15 @@ const PROIBIDOS = [CPF, CNPJ, CPF2, '529.982.247-25', '***.982', 'Fulano Secreto
   await pd.click('[data-periodo=anoAnterior]'); await pd.waitForFunction(() => /Ano anterior/.test(document.querySelector('#db-status').textContent), null, { timeout: 15000 });
   ok(await kpi('acoes') === '0', 'troca de período (ano anterior: 0 ações)');
   await pd.click('[data-periodo="30d"]'); await pd.waitForFunction(() => /Últimos 30 dias/.test(document.querySelector('#db-status').textContent), null, { timeout: 15000 });
+  await pd.click('[data-periodo="intervalo"]'); await pd.waitForSelector('#db-iv-de');
+  ok(await pd.isVisible('#db-iv-de') && await pd.isVisible('#db-iv-ate'), 'página: "Intervalo…" abre as datas de início e fim');
+  await pd.fill('#db-iv-de', hojeIv); await pd.fill('#db-iv-ate', deIv); await pd.click('#db-iv-ok');
+  ok(/depois da data de fim/.test(await pd.textContent('#db-iv-aviso')), 'página: início depois do fim avisa sem recarregar');
+  await pd.fill('#db-iv-de', deIv); await pd.fill('#db-iv-ate', hojeIv); await pd.click('#db-iv-ok');
+  await pd.waitForFunction(() => /^De \d{2}\/\d{2}\/\d{4} a /.test(document.querySelector('#db-status').textContent), null, { timeout: 15000 });
+  ok(true, 'página: intervalo aplicado (status "De … a …")');
+  await pd.click('[data-periodo="15d"]'); await pd.waitForFunction(() => /Últimos 15 dias/.test(document.querySelector('#db-status').textContent), null, { timeout: 15000 });
+  ok(await pd.isHidden('#db-intervalo'), 'página: últimos 15 dias e as datas do intervalo se escondem');
   // sem conexão: últimos dados guardados no navegador
   await fetch(API + '/__off');
   await pd.reload(); await pd.waitForSelector('#db-offline:not([hidden])', { timeout: 60000 });

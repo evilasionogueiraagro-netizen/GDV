@@ -144,8 +144,8 @@ classDiagram
     class Levantamento {
       +String id
       +String propriedadeId
-      +String praga
       +Data data
+      +pragasAchadas() Lista
       +validado() Bool
     }
     class Praga {
@@ -169,6 +169,7 @@ classDiagram
     class TermoPCE {
       +String id
       +String levantamentoId
+      +String praga
       +String cadastroId
       +String doc
     }
@@ -200,8 +201,8 @@ classDiagram
   Propriedade "1" --> "*" PCE : inscrita em
   Programa "1" --> "*" PCE : inscreve
   Programa "1" --> "*" Praga : tem
-  Levantamento "*" --> "1" Praga : de
-  TermoPCE "1" --> "1" Levantamento : valida
+  TermoPCE "*" --> "1" Praga : de
+  TermoPCE "*" --> "1" Levantamento : valida
   TermoPCE "*" --> "1" PCE : do cadastro
   TermoPCE "*" --> "1" Proprietario : fiscalizado
   Propriedade "*" --> "1" Proprietario : dono
@@ -221,10 +222,11 @@ barreira é só `Pessoa`). Os dois ficam na aba `Pessoas` (id = CPF/CNPJ); propr
 alguma `Propriedade`. É pelo CPF/CNPJ que se conta quantos TFs uma pessoa levou (`tfsRecebidos`); a reincidência
 de hoje olha só o TF de Barreira.
 
-**PCE (modelo combinado em 22/10/2026):** o levantamento é de **uma** praga, numa propriedade; o Termo de
-Fiscalização do PCE **valida** o levantamento (um termo por levantamento; sem termo, o levantamento não está
-validado). Cada programa tem as suas pragas. **O código ainda difere:** a aba `Levantamentos` guarda uma visita com
-várias pragas (um cartão e uma ficha por praga) e `TermosPCE` não aponta para o levantamento. Decisões em
+**PCE (modelo combinado em 22/10/2026):** o levantamento é a visita à propriedade e pode achar **várias** pragas.
+Para cada praga sai **um** Termo de Fiscalização do PCE, que é o levantamento daquela praga e o **valida**. Cada
+programa tem as suas pragas. **O código ainda difere:** `Levantamentos` já guarda várias pragas por visita (um cartão
+e uma ficha por praga), mas `TermosPCE` tem um termo por visita com uma lista de pragas, sem apontar para o
+levantamento. Decisões em
 [decisoes/modelo.md](decisoes/modelo.md).
 
 `PCE` = aba `CadastrosPCE`: a ligação de uma propriedade com um programa, no máximo uma por par (o cadastro do

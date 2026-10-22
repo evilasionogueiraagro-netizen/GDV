@@ -4,11 +4,12 @@ Sistema da ADAF (defesa agropecuária do Amazonas) para barreiras fitossanitári
 tudo: código, comentários, commits e interface.
 
 ```
-web/ (HTML/JS/CSS, sem build) --POST JSON--> apps-script/Code.gs --> Planilha Google (uma aba por tabela) + Drive
+web/ (HTML/JS/CSS, sem build) --POST JSON--> apps-script/*.gs --> Planilha Google (uma aba por tabela) + Drive
 GitHub Pages                                 um endpoint (doPost, req.action)
 ```
 
-Apps em `web/`: campo (raiz), `painel/`, `administrativo/`, `dashboard/` (público), `inicio/`. Testes em `tests/`
+Apps em `web/`: campo (raiz), `painel/`, `administrativo/`, `dashboard/` (público), `inicio/`. Back em `apps-script/`, um `.gs`
+por área; `Code.gs` tem o `doPost`, `TABELAS` e `VERSAO_CODIGO`. Testes em `tests/`
 (`fakegas.js` roda o `Code.gs` real no Node). Porte do back para Hono + PostgreSQL no repositório Sistema_Adaf.
 
 ## Onde achar

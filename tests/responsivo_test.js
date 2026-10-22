@@ -1,12 +1,12 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // App de campo em tablet e computador: menu embaixo (celular/tablet) ou na lateral (PC), sem rolagem horizontal, módulos em grade.
 const { API, APP } = amb;
 let falhas = 0;
 const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== undefined ? ' -> ' + JSON.stringify(x) : '')); if (!c) falhas++; };
 (async () => {
   const b = await amb.lancar();
-  const g = await (await fetch(API + '/__gerar?nome=' + encodeURIComponent('Pessoa Ficticia Alfa'))).json();
-  const r = await (await fetch(API, { method: 'POST', body: JSON.stringify({ action: 'ativar', codigo: g.codigo }) })).json();
+  const r = await U.fiscal('Pessoa Ficticia Alfa');
   const c = await b.newContext({ viewport: { width: 390, height: 844 } });
   await c.addInitScript(([t]) => { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', 'Pessoa Ficticia Alfa'); localStorage.setItem('gdv.semInstalar', '1'); } }, [r.token]);
   const p = await c.newPage(); const err = []; p.on('pageerror', e => err.push(e.message));

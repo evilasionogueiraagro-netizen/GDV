@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // Sinal do aparelho (heartbeat) em toda sincronização, "ping" de erro, estado "Encerrado no celular, aguardando envio" no painel,
 // aba Servidores (último sinal / versão / pendentes / erro) e o status do encerramento no app (⏳ / ✅ / ⚠️ + Tentar enviar agora).
 const { chromium } = require('playwright-core');
@@ -18,7 +19,7 @@ const editar = (aba, col, valor, onde) => fetch(`${API}/__editar?aba=${aba}&col=
   const AG = Date.now();
   const gAdm = await get('/__gerar?nome=' + encodeURIComponent('Gerente Sinal Lima') + '&perfil=admin');
   const ADM = (await post({ action: 'painelAtivar', codigo: gAdm.codigo })).token;
-  const ativar = async n => (await post({ action: 'ativar', codigo: (await get('/__gerar?nome=' + encodeURIComponent(n))).codigo })).token;
+  const ULS = {}, ativar = async n => { const f = await U.fiscal(n); ULS[n] = f.ls; return f.token; };
   const FA = await ativar('Fiscal Sinal Alves'), FB = await ativar('Fiscal Antigo Barros'), FC = await ativar('Fiscal Celular Costa');
   ok(ADM && FA && FB && FC, 'credenciais');
   const ini = AG - 3 * 3600e3;
@@ -110,7 +111,7 @@ const editar = (aba, col, valor, onde) => fetch(`${API}/__editar?aba=${aba}&col=
     p.on('dialog', d2 => d2.accept());
     await p.goto(url); return p;
   }
-  const app = await abrir(APP, { 'gdv.key': FC, 'gdv.nome': 'Fiscal Celular Costa', 'gdv.semInstalar': '1' },
+  const app = await abrir(APP, ULS['Fiscal Celular Costa'],
     { viewport: { width: 400, height: 820 }, permissions: ['geolocation'], geolocation: { latitude: -3.119, longitude: -60.021, accuracy: 10 } });
   const sync = () => app.evaluate(async () => { await Sync.sincronizar(); return Sync.estado(); });
   await app.waitForSelector('.modulo');

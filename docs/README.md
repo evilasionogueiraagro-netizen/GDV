@@ -6,6 +6,7 @@ Ache a linha do assunto e leia só aquele arquivo. Mapa geral e regras curtas: [
 |---|---|
 | Regras do projeto (banco, back, front, LGPD, publicação, docs) | [regras.md](regras.md) |
 | Modelo de dados: diagrama de classes, acesso novo | [arquitetura.md](arquitetura.md) |
+| Abas da planilha como banco relacional (proposta) | [banco.md](banco.md) |
 | Decisões tomadas e em aberto | [decisoes/](decisoes/README.md) |
 | App de campo: turno, veículos, offline, sincronização | [apps/campo.md](apps/campo.md) |
 | Painel do gestor, Modo TV, gerente pelo celular | [apps/painel.md](apps/painel.md) |

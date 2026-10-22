@@ -5,77 +5,58 @@ uma aba à outra. Colunas completas: `TABELAS`. O GitHub desenha os diagramas (M
 
 ## 1. Acesso (proposta, a implementar)
 
-Decisões em [decisoes/acesso.md](decisoes/acesso.md). Substitui as abas `Fiscais`, `Permissoes`, `Administrativo` e
-`AdmSessoes`, que ficam congeladas depois da migração (nada é apagado).
+Decisões em [decisoes/acesso.md](decisoes/acesso.md); abas em [banco.md](banco.md).
 
 ```mermaid
 classDiagram
   direction LR
   class Usuario {
     +String id
-    +String cpf
+    +String matricula
     +String nome
-    +Bool gerente
     +String senhaHash
     +Bool senhaProvisoria
-    +String codigoHash
     +Bool ativo
-    +Data criadoEm
-    +String criadoPor
-    +podeAcessar(recurso) Bool
+    +podeUsar(permissao) Bool
   }
-  class Acesso {
+  class Permissao {
     +String usuarioId
-    +String recurso
-    +Data liberadoEm
-    +String liberadoPor
-    +Data revogadoEm
-    +String revogadoPor
+    +String permissao
+    +Data concedidaEm
+    +String concedidaPor
+    +Data revogadaEm
   }
   class Sessao {
     +String id
     +String usuarioId
-    +String hash
-    +String app
+    +String tokenHash
+    +String aplicativo
     +String aparelhoId
-    +Data criadoEm
     +Data ultimoUso
-    +Data revogadoEm
-    +String revogadoPor
-    +valida() Bool
+    +Data encerradaEm
   }
   class Aparelho {
     +String id
-    +String versao
     +Data ultimoSinal
   }
-  class Auditoria {
+  class HistoricoDeAlteracoes {
     +Data em
     +String usuarioId
     +String acao
-    +String alvo
+    +String tabela
     +String antes
     +String depois
   }
-  Usuario "1" --> "*" Acesso : tem
+  Usuario "1" --> "*" Permissao : tem
   Usuario "1" --> "*" Sessao : entra por
   Sessao "*" --> "1" Aparelho : roda em
-  Usuario "1" --> "*" Auditoria : fez
+  Usuario "1" --> "*" HistoricoDeAlteracoes : fez
 ```
 
-| Campo | Regra |
-|---|---|
-| `Usuario.cpf` | único (bloqueia conta duplicada), dígitos conferidos, mascarado nas telas e exportações |
-| `Usuario.gerente` | 1 = acesso a tudo, inclusive ao app de campo; entra com usuário e senha |
-| `Usuario.senhaHash` | só gerente; `senhaProvisoria = 1` obriga a troca no primeiro acesso (conferido no servidor) |
-| `Usuario.codigoHash` | os demais: código de 6 dígitos, não expira, o gerente revoga e gera outro |
-| `Acesso.recurso` | `campo`, `painel` ou `administrativo`; o dashboard é público e fica fora |
-| `Sessao.app` | `campo`, `painel`, `tv` ou `administrativo`; revogar uma sessão derruba só aquele aparelho |
-| `Auditoria` | toda mudança de acesso: quem, quando, o quê, antes e depois |
-
-**A cada chamada** o servidor faz: token → `Sessao` (hash existe e não foi revogada) → `Usuario` ativo → `gerente = 1`
-ou uma linha de `Acesso` com o recurso do app, sem `revogadoEm`. Falhou um passo: "sem acesso". O app de campo
-funciona sem internet, então lá a checagem acontece no envio; registro de quem perdeu o acesso volta recusado.
+**A cada chamada** o servidor faz: token → `Sessao` (hash existe, não encerrada) → `Usuario` ativo e sem senha
+provisória pendente → `Permissao` do app ou módulo, não revogada (`gerencia` vale tudo). Falhou um passo: "sem
+acesso". O app de campo funciona sem internet: lá a checagem acontece no envio, e o registro de quem perdeu o
+acesso volta recusado.
 
 ## 2. Dados do trabalho (o que existe hoje)
 

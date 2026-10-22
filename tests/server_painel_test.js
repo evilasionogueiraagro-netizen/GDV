@@ -56,11 +56,10 @@ const HOJE = manaus();
   ok(vigTurnos('p-ceasa') > 0 && !vigTurnos('_outras-fixas'), 'VIGIFITO: posto configurado com "Barreira Porto da CEASA" continua pegando os turnos (agora BVA - CEASA)', { posto: vigTurnos('p-ceasa'), outras: vigTurnos('_outras-fixas') });
   ok(canon['BVA - JUNDIÁ'] === 'BVA - JUNDIÁ' && canon['Barreira Estrada Porto da Ceasa'] === 'Barreira Estrada Porto da Ceasa' && canon[''] === '', 'outros locais ficam como estão', canon);
 
-  // ---------- rota antiga ----------
-  console.log('Rota antiga ?p=painel');
-  const dg = await get('/__doget?p=painel'); ok(dg.kind === 'html', 'doGet ?p=painel devolve página HTML mínima (não mais Painel.html)', dg);
-  const ph = await fn('painelHtml_'); ok(ph.r && /github\.io\/GDV\/painel\//.test(ph.r.content), 'página mínima aponta para o painel no GitHub Pages');
-  const dg2 = await get('/__doget?p='); ok(/"ok":true/.test(dg2.json || ''), 'doGet sem parâmetro continua respondendo JSON');
+  // ---------- doGet ----------
+  console.log('doGet');
+  const dg = await get('/__doget?p=painel'); ok(/"ok":true/.test(dg.json || '') && /"versao"/.test(dg.json || ''), 'doGet com ?p=painel (rota antiga, removida) responde só o JSON da versão, sem página HTML', dg);
+  const dg2 = await get('/__doget?p='); ok(/"ok":true/.test(dg2.json || ''), 'doGet sem parâmetro responde JSON');
 
   // ---------- painelAtivar ----------
   console.log('painelAtivar');

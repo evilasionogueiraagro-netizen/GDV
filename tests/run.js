@@ -35,7 +35,7 @@ const PESO = {
   pce_campo_test: 12, pce_citros_test: 38, pce_e2e: 49, pce_laudo_test: 13, pce_moniliase_test: 16, pce_naoassina_test: 5, pce_server_test: 1,
   pce_visita_test: 6, permissoes_test: 10, proprio_test: 38, publico_test: 12, relgdv_test: 18, responsivo_test: 2, rotinas_test: 7,
   semplaca_test: 8, server_painel_test: 1, sinal_test: 12, tf_alerta_test: 23, tf_anexos_test: 11, tf_e2e: 17, tf_paginas: 4, tf_server_test: 1,
-  inicio_test: 2, tv_test: 80, vigifito_test: 17, plantao_test: 4, tf_papel_test: 12, tabatinga_test: 8
+  inicio_test: 2, tv_test: 80, vigifito_test: 17, plantao_test: 4, tf_papel_test: 12, tabatinga_test: 8, reincidencia_test: 2
 };
 
 // ---------- argumentos ----------

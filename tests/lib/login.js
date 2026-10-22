@@ -10,7 +10,7 @@ let serie = 0;
 
 /** Entra (action entrar) e, com senha provisória, troca pela senha nova. Devolve {token, permissoes}. */
 async function entrarPronto(matricula, senhaProvisoria, senhaNova, aplicativo = 'painel') {
-  const e = await post({ action: 'entrar', matricula, senha: senhaProvisoria, aplicativo, aparelhoId: 'teste' });
+  const e = await post({ action: 'entrar', matricula, senha: senhaProvisoria, aplicativo, aparelhoId: 'Teste-aparelho' });
   if (!e.ok) throw new Error('entrar: ' + e.erro);
   if (e.trocarSenha) {
     const t = await post({ action: 'trocarSenha', key: e.token, senhaAtual: senhaProvisoria, senhaNova });
@@ -41,7 +41,8 @@ async function criar(nome, opcoes = {}) {
   if (!r.ok) throw new Error('usuarioCriar: ' + r.erro);
   const u = { id: r.usuario.id, matricula: r.usuario.matricula, nome, permissoes, provisoria: r.senhaProvisoria };
   if (opcoes.trocar === false) return u;
-  const s = await entrarPronto(u.matricula, r.senhaProvisoria, SENHA, opcoes.aplicativo || 'painel');
+  const app = opcoes.aplicativo || (permissoes.includes('gerencia') || permissoes.includes('painel') ? 'painel' : permissoes.includes('administracao') ? 'administracao' : 'campo');
+  const s = await entrarPronto(u.matricula, r.senhaProvisoria, SENHA, app);
   return Object.assign(u, { senha: SENHA, token: s.token });
 }
 
@@ -50,7 +51,7 @@ const painel = async (nome, opcoes) => (await criar(nome, opcoes)).token;
 /** Conta só com a permissão Painel (a TV da sala, ou quem só consulta). */
 const soLeitura = (nome, opcoes) => criar(nome, Object.assign({ permissoes: ['painel'] }, opcoes));
 /** Conta do Portal do Administrativo. */
-const portal = (nome, opcoes) => criar(nome, Object.assign({ permissoes: ['administracao'], aplicativo: 'administracao' }, opcoes));
+const portal = (nome, opcoes) => criar(nome, Object.assign({ permissoes: ['administracao'] }, opcoes));
 
 /** Chaves do localStorage do painel para abrir já logado. */
 const lsPainel = (u, extra = {}) => Object.assign({ 'gdv.painel.token': u.token, 'gdv.painel.nome': u.nome, 'gdv.painel.perm': JSON.stringify(u.permissoes || []) }, extra);

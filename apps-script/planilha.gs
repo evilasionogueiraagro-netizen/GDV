@@ -145,7 +145,7 @@ function lerMudancas_(nome, since, usuario) {
   const t = lerTudo_(nome), i = t.cols.indexOf('srv_ts');
   return t.valores.filter(function (l) { return Number(l[i]) > since; })
                   .map(function (l) { return paraObjeto_(t.cols, l); })
-                  .filter(function (o) { return !usuario || usuario === 'Administrador' || o.usuario === usuario; });
+                  .filter(function (o) { return o.usuario === usuario; });   // cada usuário recebe só os próprios registros
 }
 
 function limpar_(cols, r) {

@@ -50,6 +50,7 @@ Principais (a lista completa é `node run.js --lista`):
 - `vigifito_test`: VIGIFITO, central de relatórios e app de campo.
 - `adm_test`: Portal do Administrativo (`adm*`, `painelAdm*`).
 - `lib/portal.js`: libera uma pessoa no portal e abre a sessão (usado pelos testes do portal).
+- `lib/usuarios.js`: cria contas (`fiscal`, `criar`), troca permissões, revoga sessões e semeia o navegador com o login (substitui os códigos de ativação).
 
 ## Escrever um teste novo
 1. Crie `tests/<nome>_test.js` (o `run.js` pega todo `.js` da pasta, exceto `fakegas.js` e `run.js`). Comece com `const amb = require('./lib/amb');`:

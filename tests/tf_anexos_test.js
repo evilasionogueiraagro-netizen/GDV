@@ -82,7 +82,7 @@ const h16 = t => crypto.createHash('sha256').update(t, 'utf8').digest('hex').sli
   const ass1 = json(t1.assinaturas, {}), fotos1 = json(t1.fotos, []);
   ok(tfs1.length === 1 && fotos1.length === 2 && ass1.fiscalizado && ass1.servidor && t1.recusaAssinatura === 0, 'planilha (aba TFs): colunas fotos (2 ids), assinaturas {fiscalizado, servidor} e recusaAssinatura = 0');
   const cab = (await get('/__aba?nome=TFs'))[0];
-  ok(cab.slice(-5).join(',') === 'fotos,assinaturas,recusaAssinatura,ufOrigem,ufDestino', 'colunas novas no fim da aba TFs: ' + cab.slice(-6).join(','));
+  ok(cab.slice(-6).join(',') === 'fotos,assinaturas,recusaAssinatura,ufOrigem,ufDestino,usuarioId', 'colunas novas no fim da aba TFs: ' + cab.slice(-7).join(','));
   await sync(A);
   const dr = await get('/__drive'), noTF = dr.arquivos.filter(x => x.caminho === `GDV - Arquivos/TF/${ANO}`);
   ok(noTF.length === 4 && noTF.filter(x => x.mime === 'image/jpeg').length === 2 && noTF.filter(x => x.mime === 'image/png').length === 2 && noTF.every(x => !x.compartilhado && x.nome.startsWith(t1.id)),

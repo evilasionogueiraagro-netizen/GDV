@@ -44,9 +44,10 @@ publicado no GitHub Pages                            Web App do Apps Script     
 - **Permissões**: actions de TF/PCE passam por `exigirModulo_` (mapa `MODULO_DA_ACAO`); registros de módulo não
   liberado voltam em `recusados`. Painel = credencial de perfil `admin` (`adminDoToken_`); portal = sessão própria
   (`admSessao_`) — uma credencial nunca vale no lugar da outra.
-- **Login**: usuário e senha (abas `Usuarios` e `Sessoes`) é o caminho principal; o mesmo token abre app, painel e portal
-  conforme os perfis (`fiscal`, `administrativo`, `gerente`, `dev`). Senha e token ficam só como hash. O controle de acesso
-  é do gerente (`exigirGerente_`). Os códigos de 6 dígitos são legado: continuam valendo, mas não crie fluxo novo com eles.
+- **Acesso**: conta única (abas `Usuarios` e `Sessoes`), um código de acesso de 6 dígitos por pessoa, sem expirar, revogável pelo
+  gerente; só o hash fica na planilha. O perfil (`fiscal`, `administrativo`, `gerente`, `dev`) decide qual app a pessoa abre e a
+  sessão vale só no app em que foi aberta (`usuarioDaSessao_(token, escopo)`). Entrada única: action `entrar`. Os códigos antigos
+  (abas `Fiscais` e `Administrativo`) continuam valendo pelo mesmo `entrar`; não crie fluxo novo com eles.
 - **Repositório público: nenhum dado pessoal real versionado.** Código, testes, exemplos, placeholders, docs e commits usam
   só dados fictícios (nome "Fulano Ficticio Teste", CPF de teste como 529.982.247-25, placa ABC1D23). Nada de nome, CPF,
   endereço, telefone ou matrícula de produtor, fiscal ou servidor de verdade, nem trecho de planilha ou relatório real.

@@ -35,13 +35,23 @@
   .in-entrar b { color: var(--ink2); font-weight: 600; }
   .in-mais { margin: 20px 0 0; display: flex; flex-wrap: wrap; gap: 8px 20px; font-size: 14px; }
   .in-rodape { padding: 12px 16px; font-size: 12.5px; color: var(--mut); text-align: center; }
+  .in-cartao-login { margin: 0 0 16px; padding: 16px; border-radius: 12px; background: var(--sf); border: 1px solid var(--borda); box-shadow: var(--sombra); }
+  .in-cartao-login label { display: block; font-size: 16px; font-weight: 650; color: var(--marca2); margin: 0 0 4px; }
+  .in-form-dica { margin: 0 0 10px; font-size: 13.5px; color: var(--ink2); }
+  .in-form-linha { display: flex; gap: 8px; max-width: 340px; }
+  .in-form-linha input { flex: 1; min-width: 0; font: 700 18px ui-monospace, Menlo, Consolas, monospace; letter-spacing: .1em; text-align: center; padding: 8px 12px; border: 1px solid var(--borda); border-radius: 8px; background: var(--base); color: var(--ink); }
+  .in-form-linha input:focus { outline: 2px solid var(--marca2); outline-offset: 1px; }
+  .in-btn { background: var(--marca); color: #fff; border: 0; border-radius: 8px; padding: 0 18px; font-size: 15px; font-weight: 600; cursor: pointer; flex: none; }
+  .in-btn:hover { background: var(--marca2); }
+  .in-btn:disabled { opacity: .6; cursor: wait; }
+  .in-erro { margin: 10px 0 0; font-size: 13.5px; color: var(--critico); font-weight: 600; }
   /* escuro: o azul da marca some no fundo escuro; títulos, ícones e links usam o azul claro da paleta */
   @media (prefers-color-scheme: dark) {
     :root:not([data-theme="light"]) .in-icone { background: var(--sf2); color: var(--s1); }
-    :root:not([data-theme="light"]) .in-cartao h2, :root:not([data-theme="light"]) .in-mais a { color: var(--s1); }
+    :root:not([data-theme="light"]) .in-cartao h2, :root:not([data-theme="light"]) .in-mais a, :root:not([data-theme="light"]) .in-cartao-login label { color: var(--s1); }
   }
   :root[data-theme="dark"] .in-icone { background: var(--sf2); color: var(--s1); }
-  :root[data-theme="dark"] .in-cartao h2, :root[data-theme="dark"] .in-mais a { color: var(--s1); }
+  :root[data-theme="dark"] .in-cartao h2, :root[data-theme="dark"] .in-mais a, :root[data-theme="dark"] .in-cartao-login label { color: var(--s1); }
 </style>
 </head>
 <body class="in">
@@ -53,14 +63,25 @@
   </div>
 </header>
 <main class="in-conteudo">
-  <p class="in-texto">Escolha onde entrar. Salve esta página nos favoritos: ela leva a todas as partes do sistema.</p>
+  <p class="in-texto">Escolha onde entrar. Salve esta página nos favoritos: ela leva a todas as partes do sistema. Cada pessoa tem um código de acesso só, gerado pelo gerente; ele abre as partes que o seu perfil libera.</p>
+  <section class="in-cartao-login" aria-label="Entrar com código">
+    <form id="in-form" class="in-form" autocomplete="off">
+      <label for="in-codigo">Entrar com código de acesso</label>
+      <p class="in-form-dica">Digite o código de 6 dígitos gerado pelo gerente para entrar diretamente no seu módulo liberado.</p>
+      <div class="in-form-linha">
+        <input id="in-codigo" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" autocomplete="off" required>
+        <button type="submit" id="in-entrar" class="in-btn">Entrar</button>
+      </div>
+      <p class="in-erro" id="in-erro" role="alert" hidden></p>
+    </form>
+  </section>
   <nav class="in-grade" aria-label="Partes do e-GDV">
     <a class="in-cartao" href="../painel/" id="in-painel">
       <span class="in-icone" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg></span>
       <div class="in-cartao-txt">
         <h2>Painel da gerência</h2>
         <p class="in-para">Barreiras, TF, PCE, convênios, relatórios e acesso dos servidores.</p>
-        <p class="in-entrar"><b>Como entrar:</b> código de administrador (6 dígitos), gerado na planilha do e-GDV (menu e-GDV → Gerar código de administrador).</p>
+        <p class="in-entrar"><b>Como entrar:</b> o seu código de acesso (6 dígitos), com o perfil de gerente.</p>
       </div>
     </a>
     <a class="in-cartao" href="../" id="in-app">
@@ -68,7 +89,7 @@
       <div class="in-cartao-txt">
         <h2>App de campo</h2>
         <p class="in-para">Turnos e veículos nas barreiras, TF de barreira e PCE. Funciona sem internet.</p>
-        <p class="in-entrar"><b>Como entrar:</b> chave de ativação de fiscal, gerada no painel (aba Servidores).</p>
+        <p class="in-entrar"><b>Como entrar:</b> o seu código de acesso (6 dígitos), com o perfil de fiscal.</p>
       </div>
     </a>
     <a class="in-cartao" href="../administrativo/" id="in-adm">
@@ -76,7 +97,7 @@
       <div class="in-cartao-txt">
         <h2>Portal do Administrativo</h2>
         <p class="in-para">Lançamentos administrativos: diárias, convênio e execução financeira.</p>
-        <p class="in-entrar"><b>Como entrar:</b> código gerado no painel (Servidores → Portal do Administrativo).</p>
+        <p class="in-entrar"><b>Como entrar:</b> o seu código de acesso (6 dígitos), com o perfil de administrativo.</p>
       </div>
     </a>
     <a class="in-cartao" href="../dashboard/" id="in-dash">
@@ -91,5 +112,103 @@
   <p class="in-mais"><a href="../manual.html">Manual do fiscal</a><a href="../verificar.html">Verificar autenticidade de um TF</a></p>
 </main>
 <footer class="in-rodape">e-GDV · ADAF/AM</footer>
+<script src="../js/config.js"></script>
+<script>
+(() => {
+  'use strict';
+  const $ = s => document.querySelector(s);
+  const urlOficial = () => (typeof CONFIG !== 'undefined' && CONFIG.sync && CONFIG.sync.url) || '';
+  const urlApi = () => {
+    try {
+      const u = localStorage.getItem('gdv.url');
+      if (u && /^(localhost|127\.0\.0\.1)$/.test(location.hostname)) return u;
+      return urlOficial() || u || '';
+    } catch (e) { return urlOficial(); }
+  };
+  async function api(corpo) {
+    const url = urlApi();
+    if (!url) throw new Error('Servidor não configurado.');
+    let r, j;
+    try {
+      r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(corpo), redirect: 'follow' });
+      j = await r.json();
+    } catch (e) { throw new Error('Sem conexão com o servidor.'); }
+    if (!j || !j.ok) throw new Error((j && j.erro) || 'Erro no servidor.');
+    return j;
+  }
+  async function tentarEntrar(cod, escopo) {
+    return await api({ action: 'entrar', codigo: cod, escopo: escopo, aparelho: 'inicio ' + navigator.userAgent.slice(0, 50) });
+  }
+  const f = $('#in-form');
+  if (f) {
+    $('#in-codigo').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6); });
+    f.addEventListener('submit', async ev => {
+      ev.preventDefault();
+      const inp = $('#in-codigo'), err = $('#in-erro'), btn = $('#in-entrar');
+      const cod = inp.value.replace(/\D/g, '');
+      err.hidden = true; err.textContent = '';
+      if (cod.length !== 6) { err.textContent = 'O código tem 6 dígitos.'; err.hidden = false; return; }
+      btn.disabled = true; btn.textContent = 'Entrando…';
+      try {
+        let j = null, escopoUsado = 'app';
+        try {
+          j = await tentarEntrar(cod, 'app');
+          escopoUsado = 'app';
+        } catch (e1) {
+          if (/não inclui o app de campo/i.test(e1.message || '')) {
+            try {
+              j = await tentarEntrar(cod, 'painel');
+              escopoUsado = 'painel';
+            } catch (e2) {
+              if (/não inclui o painel/i.test(e2.message || '')) {
+                j = await tentarEntrar(cod, 'portal');
+                escopoUsado = 'portal';
+              } else { throw e2; }
+            }
+          } else { throw e1; }
+        }
+        if (!j) throw new Error('Não foi possível entrar com este código.');
+        const perfis = Array.isArray(j.perfis) ? j.perfis : [];
+        const url = urlApi();
+        if (perfis.indexOf('dev') >= 0 || perfis.indexOf('gerente') >= 0 || escopoUsado === 'painel') {
+          try {
+            localStorage.setItem('gdv.painel.token', j.token);
+            localStorage.setItem('gdv.painel.nome', j.nome || 'Gerente');
+            localStorage.removeItem('gdv.painel.encerrada');
+            if (url) localStorage.setItem('gdv.url', url);
+          } catch (e) {}
+          location.href = '../painel/';
+          return;
+        }
+        if (perfis.indexOf('fiscal') >= 0 || escopoUsado === 'app') {
+          try {
+            localStorage.setItem('gdv.key', j.token);
+            localStorage.setItem('gdv.nome', j.nome || 'Fiscal');
+            localStorage.removeItem('gdv.revogado');
+            if (url) localStorage.setItem('gdv.url', url);
+          } catch (e) {}
+          location.href = '../';
+          return;
+        }
+        if (perfis.indexOf('administrativo') >= 0 || escopoUsado === 'portal') {
+          try {
+            localStorage.setItem('gdv.adm.sessao', j.sessao || j.token);
+            localStorage.setItem('gdv.adm.nome', j.nome || 'Administrativo');
+            if (url) localStorage.setItem('gdv.url', url);
+          } catch (e) {}
+          location.href = '../administrativo/';
+          return;
+        }
+        location.href = '../';
+      } catch (err2) {
+        err.textContent = err2.message || 'Código inválido ou revogado.';
+        err.hidden = false;
+      } finally {
+        btn.disabled = false; btn.textContent = 'Entrar';
+      }
+    });
+  }
+})();
+</script>
 </body>
 </html>

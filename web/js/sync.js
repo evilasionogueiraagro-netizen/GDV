@@ -17,13 +17,13 @@ const Sync = (() => {
   /** Troca o código de 6 dígitos por uma credencial própria do aparelho, vinculada ao nome do fiscal. */
   async function ativar(codigo, urlManual) {
     const url = (urlManual || cfg().url || '').trim();
-    if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url)) throw new Error('Endereço do servidor inválido.');
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url) && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(url)) throw new Error('Endereço do servidor inválido.');
     const cod = String(codigo || '').replace(/\D/g, '');
     if (cod.length !== 6) throw new Error('O código tem 6 dígitos.');
     let j;
     try {
       const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'ativar', codigo: cod }), redirect: 'follow' });
+        body: JSON.stringify({ action: 'entrar', escopo: 'app', codigo: cod, aparelho: 'app ' + navigator.userAgent.slice(0, 60) }), redirect: 'follow' });   // conta única ou código antigo do fiscal
       j = await r.json();
     } catch (e) { throw new Error('Sem internet ou servidor indisponível. A ativação precisa de conexão.'); }
     if (!j.ok) throw new Error(j.erro || 'Falha na ativação.');
@@ -32,39 +32,8 @@ const Sync = (() => {
     await espelharCred();
     return j.nome;
   }
-  /** Entrar com usuário e senha (o gerente cria o usuário no painel). Devolve {nome, trocarSenha}. */
-  async function entrar(login, senha, urlManual) {
-    const url = (urlManual || cfg().url || '').trim();
-    if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url) && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/.test(url)) throw new Error('Endereço do servidor inválido.');
-    let j;
-    try {
-      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'login', login: String(login || '').trim(), senha: String(senha || ''), aparelho: 'app ' + navigator.userAgent.slice(0, 60) }), redirect: 'follow' });
-      j = await r.json();
-    } catch (e) { throw new Error('Sem internet ou servidor indisponível. Entrar precisa de conexão.'); }
-    if (!j.ok) throw new Error(j.erro || 'Não foi possível entrar.');
-    if (j.trocarSenha) return { ...j, pendente: { url, token: j.token, nome: j.nome } };   // senha provisória: só guarda depois da troca
-    await guardarCred(url, j.token, j.nome);
-    return j;
-  }
-  async function guardarCred(url, token, nome) {
-    localStorage.setItem('gdv.url', url); localStorage.setItem('gdv.key', token);
-    localStorage.setItem('gdv.nome', nome); localStorage.removeItem('gdv.revogado');
-    await espelharCred();
-  }
-  /** Troca a senha provisória ({url, token, nome} devolvido por entrar) e só então guarda a credencial no aparelho. */
-  async function trocarSenha(pendente, atual, nova) {
-    let j;
-    try {
-      const r = await fetch(pendente.url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'trocarSenha', key: pendente.token, atual, nova }), redirect: 'follow' });
-      j = await r.json();
-    } catch (e) { throw new Error('Sem internet ou servidor indisponível.'); }
-    if (!j.ok) throw new Error(j.erro || 'Não foi possível trocar a senha.');
-    await guardarCred(pendente.url, pendente.token, pendente.nome);
-  }
   function desativar() {
-    const { url, key } = cfg();                                       // sessão de usuário e senha: revoga no servidor também (se houver internet)
+    const { url, key } = cfg();                                       // sessão da conta única: revoga no servidor também (se houver internet)
     if (url && key) fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'sair', key }) }).catch(() => {});
     ['gdv.key', 'gdv.nome', 'gdv.revogado'].forEach(k => localStorage.removeItem(k)); espelharCred();
   }
@@ -427,7 +396,7 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, ativar, entrar, trocarSenha, desativar, consultar, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
+  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, ativar, desativar, consultar, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
     pceProximoNumero, pceEmitir, pceConsultar, pceBaixarMunicipio, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

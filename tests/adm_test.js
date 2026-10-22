@@ -47,7 +47,7 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   r = await post({ action: 'painelAdmSalvar', key: TOK, email: 'quarta@gmail.com', nome: 'Quarta Pessoa Teste' }); ok(!r.ok && /Limite de 3/.test(r.erro), 'máximo configurável (ADM_MAX = 3): a 4ª pessoa ativa é recusada', r.erro);
   await fetch(API + '/__props?set=ADM_MAX');
   const L = await post({ action: 'painelAdmLista', key: TOK });
-  ok(L.ok && L.liberados.length === 3 && L.max === 10 && L.google === false, 'lista: 3 liberados, máximo padrão 10, Google ainda não configurado', L);
+  ok(L.ok && L.liberados.length === 4 && L.max === 10 && L.google === false, 'lista: 4 liberados (3 do teste + dev), máximo padrão 10, Google ainda não configurado', L);
 
   /* ================= 2. login com Google (simulado) ================= */
   console.log('2. Login com Google (tokeninfo simulado) e bloqueio');
@@ -99,7 +99,7 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   r = await post({ action: 'admDados' }); ok(!r.ok && /Sessão do portal/.test(r.erro), 'sem sessão: recusado', r.erro);
   // expirada
   const sesTab = await get('/__aba?nome=AdmSessoes'), iAdm = sesTab[0].indexOf('admId');
-  ok(sesTab.length === 6 && sesTab.slice(1).every(l => /^[0-9a-f]{64}$/.test(l[1])), 'aba AdmSessoes: 5 sessões, só com hash', sesTab.length);
+  ok(sesTab.length === 7 && sesTab.slice(1).every(l => /^[0-9a-f]{64}$/.test(l[1])), 'aba AdmSessoes: 6 sessões (5 do teste + dev), só com hash', sesTab.length);
   await get(`/__editar?aba=AdmSessoes&col=expiraEm&valor=1&onde=admId:${A2.liberado.id}`);
   r = await post({ action: 'admDados', sessao: S2.sessao }); ok(!r.ok && /expirada/.test(r.erro), 'sessão expirada (30 dias sem uso) recusada', r.erro);
   void iAdm;
@@ -113,7 +113,7 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   // "Remover" (oculto = 1; nada é apagado) e "Restaurar"
   const abaAdm = () => get('/__aba?nome=Administrativo'), linhaAdm = (t, id) => { const c = t[0]; const l = t.find(x => x[0] === id); return l && Object.fromEntries(c.map((k, i) => [k, l[i]])); };
   let tA = await abaAdm(); const nAdm = tA.length;
-  ok(tA[0].join() === 'id,email,nome,ativo,criadoEm,criadoPor,ultimoAcesso,codigo,codigoExpira,atualizadoEm,atualizadoPor,oculto,ocultoPor,ocultoEm', 'aba Administrativo: oculto/ocultoPor/ocultoEm acrescentadas no fim', tA[0]);
+  ok(tA[0].join() === 'id,email,nome,ativo,criadoEm,criadoPor,ultimoAcesso,codigo,codigoExpira,atualizadoEm,atualizadoPor,oculto,ocultoPor,ocultoEm,perfis,modulos,codigoHash', 'aba Administrativo: oculto/ocultoPor/ocultoEm e perfis/modulos/codigoHash no fim', tA[0]);
   r = await post({ action: 'painelAdmOcultar', key: TOK, id: A1.liberado.id }); ok(!r.ok && /ainda está liberado/.test(r.erro) && /revogue/i.test(r.erro), 'liberado ativo não sai da lista (revogue antes)', r.erro);
   r = await post({ action: 'painelAdmOcultar', key: TOK, id: 'nao-existe' }); ok(!r.ok && /não encontrado/.test(r.erro), 'id inexistente: erro', r.erro);
   r = await post({ action: 'painelAdmOcultar', key: TOK }); ok(!r.ok && /Informe/.test(r.erro), 'sem id: erro', r.erro);
@@ -219,7 +219,7 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   const pl = await ctxL.newPage(); const errL = []; pl.on('pageerror', e => errL.push(e.message));
   await pl.goto(amb.ORIGEM + '/administrativo/');
   await pl.waitForSelector('#gis-btn', { timeout: 15000 });
-  ok(await pl.isVisible('#adm-google') && /código de ativação/.test(await pl.textContent('#adm-cod-box summary')), 'tela de login: botão "Entrar com o Google" e a alternativa do código');
+  ok(await pl.isVisible('#adm-google') && /código de (ativação|acesso)/.test(await pl.textContent('#adm-cod-box summary')), 'tela de login: botão "Entrar com o Google" e a alternativa do código');
   await shot(pl, 'portal_login', false);
   await pl.click('#gis-btn');
   await pl.waitForSelector('#adm-abas .pn-aba', { timeout: 15000 });

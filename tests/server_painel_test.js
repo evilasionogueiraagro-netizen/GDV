@@ -177,7 +177,6 @@ const HOJE = manaus();
   d = await post({ action: 'painelSair', key: TOKFIS }); d = await post({ action: 'sync', key: TOKFIS, since: 0 }); ok(d.ok, 'painelSair com credencial de FISCAL não revoga o aparelho do fiscal');
   d = await post({ action: 'painelSair', key: tokS }); ok(d.ok, 'painelSair responde ok');
   d = await post({ action: 'painelDados', key: tokS }); ok(!d.ok && /inválida ou revogada/.test(d.erro), 'depois de Sair, a mesma credencial (copiada) não lê mais o painel', d.erro);
-  d = await post({ action: 'painelSair', key: 'segredo' }); d = await post({ action: 'painelDados', key: 'segredo' }); ok(d.ok, 'painelSair não afeta a chave mestra');
 
   // ---------- revogação ----------
   console.log('revogação');

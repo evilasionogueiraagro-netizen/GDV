@@ -38,25 +38,28 @@ ou mudar uma action:
 
 | Tipo | Campo | Como se obtém | Validado por |
 |---|---|---|---|
-| **Usuário e senha** (app, painel e portal) | `key` (app/painel) ou `sessao` (portal): o mesmo token | `login` | `usuarioDaSessao_` dentro de `autenticar_` (perfil fiscal), `adminDoToken_` (gerente) e `admSessao_` (administrativo); `dev` vale para tudo |
+| **Conta única** (app, painel e portal) | `key` (app/painel) ou `sessao` (portal): token da sessão | `entrar` com o código de acesso | `usuarioDaSessao_(token, escopo)` dentro de `autenticar_` (app, perfil fiscal), `adminDoToken_` (painel, gerente) e `admSessao_` (portal, administrativo); `dev` vale para tudo |
 | Fiscal (aparelho) | `key` | `ativar` com código de 6 dígitos | `autenticar_` (+ `exigirModulo_` em TF/PCE) |
 | Administrador (painel/TV) | `key` | `painelAtivar` com código de administrador, ou a chave mestra `ACCESS_KEY` | `adminDoToken_` |
 | Portal do Administrativo | `sessao` | `admLogin` (Google) ou `admCodigo` | `admSessao_` (30 dias sem uso expira) |
 | Pública | — | — | limitador de taxa e cache próprios |
 
-**Usuário e senha** (aba `Usuarios`, sessões na aba `Sessoes`, só hash): o gerente cria o usuário com perfis (`fiscal`,
-`administrativo`, `gerente`, `dev`), módulos do fiscal e senha provisória; a pessoa troca a senha no primeiro acesso. A sessão
-vale até `sair`, troca de senha ou o gerente desativar o usuário. Os perfis decidem o que o mesmo token abre.
+**Conta única** (aba `Usuarios`, sessões na aba `Sessoes`): uma conta por pessoa, com perfis (`fiscal`, `administrativo`,
+`gerente`, `dev`) e os módulos do fiscal. O código de acesso tem 6 dígitos, não expira e vale até o gerente gerar outro ou revogar;
+na planilha fica só o hash (com o segredo `CODIGO_SEGREDO` das propriedades do script). Controle de acesso por app: o perfil decide o
+que a pessoa abre e a sessão vale só no app em que foi aberta (`escopo`). Revogar a conta derruba as sessões de todos os aparelhos.
 
 | Action | Credencial | Parâmetros | Resposta |
 |---|---|---|---|
-| `login` | — | `login`, `senha`, `aparelho` | `token`, `nome`, `login`, `perfis`, `modulos`, `trocarSenha` (10 erros seguidos no mesmo usuário = 15 min de espera) |
-| `trocarSenha` | `key` | `atual`, `nova` (mín. 8) | — (revoga as outras sessões do usuário) |
+| `entrar` | — | `codigo`, `escopo` (`app`, `painel` ou `portal`), `aparelho` | `token` (e `sessao` no portal), `nome`, `perfis`, `modulos`, `conta: true`. Código que não é de conta: tenta o código antigo daquele app (`ativar`, `painelAtivar`, `admCodigo`). 20 códigos errados no sistema em 15 min bloqueiam a entrada por código |
 | `sair` | `key` | — | `saiu` |
-| `painelUsuarios` | gerente | — | `usuarios` (sem senha), `perfis` |
-| `painelUsuarioSalvar` | gerente | `id?`, `login`, `nome`, `perfis`, `modulos`, `ativo`, `senha?` | `usuario`, `novo` (senha = nova provisória; senha ou desativar revoga as sessões) |
+| `painelUsuarios` | gerente | — | `usuarios` (sem hash; `temCodigo`, `aparelhos` com `escopo` e `ultimoUso`), `perfis` |
+| `painelUsuarioSalvar` | gerente | `id?`, `nome`, `perfis`, `modulos`, `ativo?` | `usuario`, `novo`, `codigo` (só na conta nova, uma vez). Nome único; ninguém tira o próprio acesso de gerente; gerente e dev só com conta de gerente; dev só por dev |
+| `painelUsuarioCodigo` | gerente | `id`, `revogarAparelhos?` | `codigo` novo (o anterior para de valer) |
+| `painelSessaoRevogar` | gerente | `id` (da sessão) | — (tira um aparelho) |
+| `painelUsuariosImportar` | gerente | — | `criados`, `atualizados`: contas a partir das abas `Fiscais` e `Administrativo` (a mesma pessoa vira uma conta), sem código |
 
-Credenciais antigas (códigos de 6 dígitos), que continuam valendo até cada pessoa entrar com usuário e senha:
+Credenciais antigas (códigos de 6 dígitos), que continuam valendo até cada pessoa receber o código da conta:
 as credenciais ficam na aba `Fiscais` (coluna `perfil`: vazio = fiscal, `admin` = administrador); as sessões do portal
 ficam na aba `AdmSessoes`, guardadas só como hash. Uma credencial nunca vale no lugar de outra: `key` de fiscal recebe
 "Acesso restrito" no painel, e a `key` do painel não abre o portal.

@@ -18,11 +18,11 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== und
     local: 'BVA - CEASA', unidade: 'MANAUS', posto: 'Fixa', encerrado: 0, criadoEm: agora, atualizadoEm: agora }] });
   ok(d.ok, 'sincronização não trava com a coluna de fora na posição 30', d.erro);
   const L = await (await fetch(API + '/__aba?nome=Levantamentos')).json();
-  ok(L[0][29] === 'pragas' && L[0][30] === 'tipoLocal' && L[0][31] === 'origemVisita' && L[0][32] === 'citros' && L[0].slice(33, 37).join() === 'cnpj,empresa,endereco,uf' && L[0][37] === 'Anotação da gerência', 'cabeçalho: "pragas", "tipoLocal", "origemVisita", "citros" e cnpj/empresa/endereco/uf nas colunas 30–37, a anotação andou para a 38', L[0].slice(27));
-  ok(L[1][0] === 'lev-velho' && L[1][37] === 'conferido pelo chefe' && L[1][29] === '', 'dados da anotação continuam na coluna dela; "pragas" vazio no registro antigo', L[1].slice(27));
+  ok(L[0][29] === 'pragas' && L[0][30] === 'tipoLocal' && L[0][31] === 'origemVisita' && L[0][32] === 'citros' && L[0].slice(33, 38).join() === 'cnpj,empresa,endereco,uf,usuarioId' && L[0][38] === 'Anotação da gerência', 'cabeçalho: "pragas", "tipoLocal", "origemVisita", "citros", cnpj/empresa/endereco/uf e usuarioId nas colunas 30–38, a anotação andou para a 39', L[0].slice(27));
+  ok(L[1][0] === 'lev-velho' && L[1][38] === 'conferido pelo chefe' && L[1][29] === '', 'dados da anotação continuam na coluna dela; "pragas" vazio no registro antigo', L[1].slice(27));
   const d2 = await post({ action: 'sync', key: 'segredo', since: 0 });
   ok(d2.ok, 'segunda sincronização normal', d2.erro);
   const L2 = await (await fetch(API + '/__aba?nome=Levantamentos')).json();
-  ok(L2[0].filter(c => c === 'pragas').length === 1 && L2[0][37] === 'Anotação da gerência', 'nada muda de novo na segunda vez (sem coluna duplicada)', L2[0].slice(27));
+  ok(L2[0].filter(c => c === 'pragas').length === 1 && L2[0][38] === 'Anotação da gerência', 'nada muda de novo na segunda vez (sem coluna duplicada)', L2[0].slice(27));
   process.exit(falhas ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

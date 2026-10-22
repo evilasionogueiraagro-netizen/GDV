@@ -39,6 +39,19 @@ sheets.Turnos._rows.push(['antigo-1','TF-001-A-' + diaManaus(3).slice(0, 4),diaM
 sheets.Fiscais = mkSheet('Fiscais');
 sheets.Fiscais._rows.push(['nome','codigo','expiraEm','ativo','token','ativadoEm']);
 sheets.Fiscais._rows.push(['Antigo Fiscal','',1,1,'tok-antigo',1]);
+
+const hexSha = s => require('crypto').createHash('sha256').update(String(s), 'utf8').digest('hex');
+const colsAdm = ['id', 'email', 'nome', 'ativo', 'criadoEm', 'criadoPor', 'ultimoAcesso', 'codigo', 'codigoExpira', 'atualizadoEm', 'atualizadoPor', 'oculto', 'ocultoPor', 'ocultoEm', 'perfis', 'modulos', 'codigoHash'];
+const devRonald = { id: 'dev-ronald', nome: 'Administrador', email: 'admin@adaf.am.gov.br', ativo: 1, criadoEm: 1700000000000, criadoPor: 'sistema', ultimoAcesso: 0, codigo: '', codigoExpira: 0, atualizadoEm: 1700000000000, atualizadoPor: 'sistema', oculto: 0, ocultoPor: '', ocultoEm: 0, perfis: 'dev,gerente,fiscal', modulos: '{"veiculos":1,"tf":1,"pce":1,"antigo":1}', codigoHash: '' };
+sheets.Administrativo = mkSheet('Administrativo');
+sheets.Administrativo._rows.push(colsAdm);
+sheets.Administrativo._rows.push(colsAdm.map(c => devRonald[c] ?? ''));
+
+const colsAdmSes = ['id', 'hash', 'admId', 'origem', 'criadoEm', 'expiraEm', 'ultimoUso', 'revogado', 'aparelho', 'escopo', 'revogadoEm', 'revogadoPor'];
+const sessDev = { id: 'sess-dev-segredo', hash: hexSha('segredo'), admId: 'dev-ronald', origem: 'fakegas', criadoEm: 1700000000000, expiraEm: 0, ultimoUso: 1700000000000, revogado: 0, aparelho: 'Test Runner', escopo: 'app,painel', revogadoEm: 0, revogadoPor: '' };
+sheets.AdmSessoes = mkSheet('AdmSessoes');
+sheets.AdmSessoes._rows.push(colsAdmSes);
+sheets.AdmSessoes._rows.push(colsAdmSes.map(c => sessDev[c] ?? ''));
 // Planilhas (a principal "fake" e as criadas com SpreadsheetApp.create, ex.: arquivo anual). id → {nome, sheets, api}
 const planilhas = {};
 function mkSS(id, nome, shs) {

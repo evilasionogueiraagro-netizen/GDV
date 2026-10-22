@@ -122,6 +122,9 @@ hr { border:0; border-top:1px solid var(--linha); margin:10px 0; }
 .pce-fotos-cult { margin-top:6px; }
 .pce-selo-res { display:inline-block; padding:1px 7px; border-radius:9px; font-size:12px; font-weight:700; white-space:nowrap; }
 .pce-selo-res.detectada { background:#fbe3e1; color:#8c1d16; } .pce-selo-res.suspeita { background:#fff1c7; color:#6b4b00; } .pce-selo-res.nao_detectada { background:#dff2e6; color:#155c33; }
+.pce-lev-cab, .pce-lev-av-pc { display:none; }
+.pce-ordem { display:flex; align-items:center; gap:8px; margin:0 0 10px; font-size:14px; color:var(--mut); } .pce-ordem select { width:auto; margin:0; padding:6px 8px; }
+.pce-lev-grupo { font-weight:700; color:var(--azul); margin:14px 2px 6px; font-size:15px; } .pce-lev-grupo small { font-weight:400; color:var(--mut); font-size:12.5px; margin-left:6px; }
 .pce-res-resumo { display:flex; flex-wrap:wrap; gap:4px 10px; }
 .pce-res-lista { margin:8px 0 0; padding-left:18px; } .pce-res-lista li { margin:6px 0; } .pce-res-lista small { color:var(--mut); }
 .pce-pdfs .botao { margin-top:8px; }
@@ -234,6 +237,27 @@ input:disabled { background:#eef1f6; color:#99a; }
   #toast { bottom:28px; left:calc(50% + 108px); }
   #pceItens, #lista, .lista-itens { display:grid; grid-template-columns:repeat(auto-fill, minmax(420px, 1fr)); gap:12px; align-items:start; }
   #pceItens > .item, #pceItens > .card { margin:0; } #pceItens > .dica, #pceItens > .vazio { grid-column:1 / -1; }
+  /* levantamentos do PCE em tabela: cabeçalho + uma linha baixa por levantamento */
+  #pceItens:has(> .pce-lev) { display:block; background:#fff; border-radius:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); overflow:hidden; }
+  #pceItens > .pce-lev-cab, #pceItens > .pce-lev { display:grid; grid-template-columns:minmax(0, 1.3fr) 76px 128px minmax(0, 1fr) minmax(0, 2.2fr); column-gap:14px; align-items:center; padding:7px 14px; }
+  #pceItens > .pce-lev-cab { font-size:12.5px; color:var(--mut); font-weight:600; padding:10px 14px 8px; border-bottom:2px solid var(--linha); }
+  #pceItens > .pce-lev { margin:0; border-radius:0; box-shadow:none; border-bottom:1px solid var(--linha); }
+  #pceItens > .pce-lev-grupo { margin:0; padding:8px 14px 6px; background:#f2f6fc; border-bottom:1px solid var(--linha); font-size:13.5px; }
+  #pceItens > .pce-lev:last-child { border-bottom:0; } #pceItens > .pce-lev:hover { background:#f7f9fc; }
+  .pce-lev .topo { display:contents; } .pce-lev .topo > div:first-child { grid-column:1; grid-row:1; min-width:0; }
+  .pce-lev .placa.pce-nome { font-size:14px; letter-spacing:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pce-lev .tipo, .pce-lev .info, .pce-lev .hora { font-size:12.5px; line-height:1.35; }
+  .pce-lev .tipo { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .pce-lev .hora { grid-column:2; grid-row:1; text-align:left; }
+  .pce-lev > .pce-lev-av { display:none; } .pce-lev > .pce-lev-av-pc { display:block; grid-column:3; grid-row:1; white-space:nowrap; } .pce-lev > .pce-res-resumo { grid-column:4; grid-row:1; gap:2px 6px; font-size:12.5px; }
+  .pce-lev > .info.pend { grid-column:1 / 5; grid-row:2; }
+  .pce-lev > .pce-acoes { grid-column:5; grid-row:1 / span 2; margin:0; display:flex; flex-wrap:wrap; gap:4px; justify-content:flex-end; }
+  .pce-lev > .pce-acoes button { flex:0 0 auto; padding:4px 9px; font-size:12px; border-radius:6px; background:#fff; border:1px solid currentColor; line-height:1.3; }
+  .pce-lev > .pce-acoes button[data-curto] { font-size:0; } .pce-lev > .pce-acoes button[data-curto]::after { content:attr(data-curto); font-size:12px; }
+  .pce-lev > .pce-acoes .editar { color:var(--azul2); } .pce-lev > .pce-acoes .tfbtn { color:#198754; } .pce-lev > .pce-acoes .excluir { color:var(--verm); }
+  .pce-lev > .pce-acoes .editar:hover { background:var(--azul2); color:#fff; border-color:var(--azul2); }
+  .pce-lev > .pce-acoes .tfbtn:hover { background:#198754; color:#fff; border-color:#198754; }
+  .pce-lev > .pce-acoes .excluir:hover { background:var(--verm); color:#fff; border-color:var(--verm); }
 }
 @media (min-width:1400px) { main { max-width:1120px; } main:has(> form) { max-width:940px; } }
 /* PCE: atalhos para cadastros, termos de fiscalização e relatório (o fluxo principal é a visita: levantamento → termo) */

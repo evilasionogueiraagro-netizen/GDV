@@ -1,42 +1,25 @@
 # App de campo (fiscais nas barreiras)
 
-Como o app do fiscal funciona (`web/index.html`, `web/js/`, `web/sw.js`): turno, registro de veículos, modo offline,
-sincronização, envio em segundo plano, Ficha de Campo e limites conhecidos. Veja também: [TF de Barreira](../modulos/tf.md),
-[barreiras em andamento e sinal do aparelho](../modulos/barreiras-ao-vivo.md), [ativação e módulos](../modulos/acessos.md), [PCE](../modulos/pce.md).
+App do fiscal (`web/`). Veja: [TF](../modulos/tf.md), [barreiras](../modulos/barreiras-ao-vivo.md), [acessos](../modulos/acessos.md).
 
-## Como funciona
+## Regras
+- Offline primeiro (IndexedDB). Sobe ao voltar a internet, após cada registro, a cada 20 s com turno aberto (1 min sem).
+- Entre aparelhos vence o `atualizadoEm` mais novo; o encerramento sempre chega à planilha.
+- Turno: horários do relógio do aparelho (data e hora automáticas); encerrado não reabre. Letra do TF: início 04:00–11:59 = A, demais = B.
+- Fiscais: um dos dois campos de nome é obrigatório.
+- GPS (`latIni`…`precFim`) é opcional; o Termo usa a final, ou a inicial.
+- Localização: pedida na ativação e depois só em turno (início/fim), posto volante e GPS do PCE; leitura de até 2 min é reaproveitada.
+- Posto fixo: `CONFIG.bvas`. Volante: endereço da coordenada (Nominatim).
+- Placa obrigatória só onde `placa: true` (hoje CEASA); senão `Turnos.semPlaca = 1`.
+- Pessoas por veículo: estimativa por tipo em `CONFIG`, editável.
+- Origem e destino opcionais, só UF (`Veiculos.ufOrigem`/`ufDestino`).
+- Volante de educação sanitária: `Turnos.soPessoas = 1`, contador `Turnos.pessoasEducacao`, sem veículos; marcado em `CONFIG.volantesSoPessoas` (hoje TABATINGA). Conta em VIGIFITO, painel, relatório, dashboard e convênio (1.9).
+- Excluir é lógico. "Limpar histórico" só remove turnos encerrados e enviados.
+- Ficha: 50 veículos por folha (`CONFIG.linhasFicha`); o Termo conta todos.
 
-```
- Celular do fiscal (PWA, funciona SEM internet)          Google
- ┌─────────────────────────────────────────┐   quando há    ┌──────────────────────┐
- │ web/  → banco local (IndexedDB)          │   internet     │ apps-script/Code.gs  │
- │        registra, lista, resumo, PDFs     │ ─────────────► │ grava na planilha    │
- │        histórico e dashboard             │ ◄───────────── │ (Turnos / Veiculos)  │
- └─────────────────────────────────────────┘   sincroniza   └──────────────────────┘
-```
+## Código
+- `web/js/`: `app.js`, `campo.js`, `tf.js`, `pce.js`, `sync.js`, `envio.js` (também no `sw.js`), `store.js`, `config.js`.
+- `Code.gs`: actions `ativar`, `sync`.
 
-- **Fluxo do fiscal:** abre o link → recebe as instruções para **instalar** (iOS/Android) → abre o app instalado e informa o **código de ativação** → cai na tela de **Módulos**, com os cartões: **Educação Sanitária/Fiscalização de Trânsito** (turno, registro, lista, resumo, histórico, Termo e Ficha) e **Termo de Fiscalização de Barreira** (TF isolado). Dentro da Educação Sanitária/Fiscalização de Trânsito também é possível lavrar o TF (botão *Lavrar TF* em cada veículo da lista), sem sair do módulo. O item *Módulos* do menu volta sempre para essa tela.
-- **Offline primeiro:** tudo é salvo no aparelho. Ao voltar a conexão (ou a cada 60 s online) o app envia o que está pendente e baixa o que mudou. O selo no topo mostra 🟢 Online / 🔴 Offline e quantos registros aguardam envio.
-- **Um fiscal por turno** lança os dados; vários aparelhos/barreiras podem usar a mesma planilha (cada registro tem ID único; em conflito vale a edição mais recente).
-- **Volante só de educação sanitária (ex.: Tabatinga, monilíase no porto — meta 1.9):** no turno *Volante (móvel)*, a caixa **Só educação sanitária** troca o registro de veículos por um **contador de pessoas orientadas** (+1, +5, +10 e *Corrigir total*) na tela do turno. Ela vem marcada, com o local do porto sugerido, quando a unidade é um município de `CONFIG.volantesSoPessoas` (hoje TABATINGA: "Porto Hidroviário de Tabatinga, Comunidades de Benjamin Constant, Cidade Nova-BC, Feijoal BC e Prosperidade II-BC", tema Monilíase do Cacaueiro). O total fica no turno (`Turnos.pessoasEducacao`, com `soPessoas = 1`; colunas no fim da aba) e conta como educação sanitária no VIGIFITO (posto TABATINGA - BVA VOLANTE), no painel, no relatório mensal e no dashboard público; o turno conta como uma ação volante (abordagem itinerante e etapa **1.9** do convênio), sem veículos. O Termo do turno diz "Foram realizadas N ações de educação sanitária (pessoas orientadas) sobre a Monilíase do Cacaueiro" e destaca a monilíase na orientação.
-- **Horários do turno:** o início é o instante em que o fiscal toca em *Iniciar turno* e o fim, o instante de *Encerrar turno* (relógio do aparelho; mantenha data/hora automáticas). Ambos vão para o Termo. Na Ficha de Campo, o campo *Turno* traz esses horários reais (das HH:MM às HH:MM). A letra do TF é deduzida do início: 04:00–11:59 = A, demais = B. O Termo é liberado após encerrar. O encerramento é definitivo (não há como reabrir o turno).
-- **Permissão de localização:** o app pede a localização na ativação do aparelho e só volta a usá-la quando o fiscal faz algo que precisa dela (iniciar/encerrar turno, posto volante, botão *Atualizar GPS* do PCE). Abrir um TF ou um levantamento não abre o pedido de permissão (usa a coordenada do turno ou espera o toque em *Atualizar GPS*). Leituras seguidas em até 2 minutos reaproveitam a mesma posição. **iPhone:** para não ser perguntado de novo, em *Ajustes → Privacidade e Segurança → Serviços de Localização → Sites do Safari* escolha *Durante o Uso do App*, e em *Ajustes → Safari → Localização* escolha *Permitir*.
-- **Coordenadas:** ao iniciar e ao encerrar o turno o app grava latitude, longitude e precisão (m) do GPS do aparelho (funciona sem internet; o navegador pede permissão de localização na primeira vez). Se o GPS falhar ou for negado, o turno segue normalmente, sem coordenadas. No Termo, o campo *Coordenadas Geográficas* recebe a coordenada **final** (encerramento; se ela faltar, a do início). Ficam **ocultas no app**: são usadas só para preencher o Termo e para gravar na planilha (`Turnos`).
-- **Excluir** apenas marca como excluído (some das telas e relatórios, permanece na planilha para auditoria).
-- **Histórico/Dashboard** funcionam offline, a partir dos dados já sincronizados no aparelho. O botão **Limpar histórico deste aparelho** remove do celular os turnos já encerrados (não apaga a planilha, não afeta o turno em andamento e só funciona se tudo já tiver sido enviado).
-- **Sincronização automática:** a cada minuto, ao voltar a internet, ao reabrir o app e após cada registro. Tocar no selo do topo força na hora. A tela *Status* só mostra o estado e permite desativar o aparelho / trocar de fiscal.
-- **Tablet e computador:** no tablet o conteúdo fica mais largo e os módulos em 2 colunas; no computador (≥ 1024 px) o menu vai para a **lateral esquerda**, os módulos ficam em 3 colunas, as listas do PCE em grade e os formulários com até 880 px de largura (bom para digitar os registros do papel).
-- **Envio em segundo plano (Android):** se o fiscal lança dados ou encerra o turno sem internet e fecha o app, os pendentes sobem sozinhos quando a conexão voltar, **mesmo com o app fechado** (Background Sync do Chrome/Android). Sempre que algo fica pendente, o app pede ao navegador o envio `gdv-enviar`; quando há conexão, o Android acorda o service worker (`web/sw.js`), que envia os turnos/veículos/TFs/PCE pendentes e as fotos/assinaturas/PDFs do PCE e do TF (algumas rodadas, até ~2 min por vez). É só a subida: as mudanças da planilha são baixadas quando o app abrir. Se o envio falhar por rede, o navegador tenta de novo mais tarde; se a credencial tiver sido revogada, ele para e o app pede um novo código ao abrir.
-  - **Quem decide o momento é o Android:** pode levar alguns minutos depois de a internet voltar; a economia de bateria / modo de economia de dados pode atrasar (ou adiar até o celular ser usado), e depois de algumas falhas seguidas o navegador desiste até o próximo registro ou a próxima abertura do app. Se o app estiver instalado e for usado com frequência, o Chrome pode também liberar o envio periódico (`gdv-enviar-periodico`, a cada 15 min ou mais) — o app nunca pede essa permissão.
-  - **iPhone (Safari/iOS) não tem Background Sync:** os dados só sobem com o app aberto e com internet. A tela do turno encerrado e a tela *Status* dizem qual é o caso do aparelho ("será enviado automaticamente quando houver internet" ou "abra o app com internet para enviar").
-  - Técnica: o service worker não lê o `localStorage`, então o app copia a credencial (`gdv.url`/`gdv.key`/`gdv.nome`) para a meta `cred` do IndexedDB ao abrir, ao ativar, ao desativar (a cópia é apagada) e ao detectar revogação. O núcleo do envio (montar o lote respeitando as permissões e os limites por rodada, marcar enviados só se `atualizadoEm` não mudou, recusados, arquivos) fica em `web/js/envio.js`, usado pela página e pelo service worker (`importScripts`). Enviar duas vezes (app aberto + service worker) não duplica nada: o servidor é idempotente pelo id.
-- **Fiscais:** dois campos de nome completo (nome e sobrenome); pelo menos um é obrigatório. No Termo e na Ficha aparecem como “Nome 1 e Nome 2”.
-- **Local / Posto:** com posto **Fixa**, o fiscal escolhe a BVA numa lista (`CONFIG.bvas` em `web/js/config.js`: BVA - CEASA, BVA - JUNDIÁ, BVA - AEROPORTO). Com posto **Volante (móvel)**, o local é preenchido pelo endereço da coordenada do GPS (OpenStreetMap/Nominatim; botão *Atualizar pela localização*) e pode ser editado. **Placa do veículo:** obrigatória só onde a BVA exige (`placa: true` — hoje só a CEASA); nas demais BVAs e no volante é opcional e o veículo conta normalmente (a lista mostra "sem placa"). Coluna `semPlaca` na aba `Turnos`.
-- **Ficha de Campo:** 50 veículos por folha; acima disso o app acrescenta folhas com a numeração continuando (51, 52…) e "FOLHA 1/2" no título.
-- A quantidade de **pessoas** é uma estimativa por tipo de veículo (padrões em `web/js/config.js`), editável em cada registro.
-- **Origem e destino (opcional), no registro do veículo:** só **UF de origem** e **UF de destino** (`CONFIG.ufs`, inclui "Exterior"; colunas `ufOrigem`/`ufDestino` da aba `Veiculos`). O bloco antigo "Fiscalização (opcional)" (educação sanitária, medida fitossanitária, carga/produtos, partida, inspeção, documento conferido) saiu do formulário em 10/2026: educação sanitária passou a contar **por pessoa a bordo** e os demais indicadores saem dos **TFs** (ver [VIGIFITO](../modulos/vigifito.md)). Registros antigos guardam esses campos na planilha (histórico; editar um registro antigo não os apaga), mas eles não entram mais em nenhum número.
-
-## Limites conhecidos
-- A **Ficha de Campo** tem 50 linhas; acima disso o app avisa e os excedentes ficam fora da ficha (o Termo conta todos).
-- Em caso de relógios de aparelho muito errados, a regra “edição mais recente vence” pode escolher a edição errada; mantenha data/hora automáticas ativadas. (O encerramento de turno é exceção: chega à planilha mesmo com `atualizadoEm` mais antigo que o gravado, e uma edição no aparelho nunca recebe `atualizadoEm` menor que a anterior.)
-- Atualizações do app: a cada publicação o workflow troca `VERSAO` em `web/sw.js` (e `VERSAO_APP` em `web/js/versao.js`, que o app manda no sinal do aparelho) pelo hash do commit; os aparelhos baixam a versão nova ao abrir com internet (sempre revalidando com o servidor) e, se o app estiver aberto, mostram a faixa “Nova versão disponível — Atualizar agora”.
+## Envio
+- Android: sobe com o app fechado (`gdv-enviar`). iPhone: só com o app aberto e internet. Reenvio é seguro (id idempotente). Credencial revogada: o envio para e o app pede novo código ao abrir.

@@ -1,40 +1,38 @@
 # Publicação inicial e acessos
 
-Montar o sistema do zero (planilha, Apps Script, GitHub Pages), ativar e revogar fiscais com o código de 6 dígitos, e os
-módulos autorizados por servidor (aba `Permissoes`, inclusive "Digitar do papel"). Veja também: [painel, aba Servidores](../apps/painel.md),
-[publicação do back](../PUBLICACAO-BACK.md), [rotinas automáticas](rotinas.md), [app de campo](../apps/campo.md).
+O acesso vai mudar: decisões em [../decisoes/acesso.md](../decisoes/acesso.md).
 
-## Publicação (uma vez)
+Montar do zero, fiscais, módulos por servidor e a aba Servidores. Veja também: [publicação do back](../PUBLICACAO-BACK.md), [rotinas](rotinas.md).
 
-### 1. Banco de dados e API (Google)
-1. Crie uma planilha no Google Sheets (ex.: “e-GDV – Banco de dados”).
-2. **Extensões → Apps Script**. Cole `apps-script/Code.gs`; em *Configurações do projeto* ative “Mostrar arquivo de manifesto” e cole `apps-script/appsscript.json`.
-3. Recarregue a planilha: aparece o menu **GDV** (na primeira vez ele pede autorização). *Opcional:* em **Configurações do projeto → Propriedades do script**, `ACCESS_KEY` = chave mestra de administrador (mantém aparelhos antigos funcionando; não é necessária para o código de ativação).
-4. **Implantar → Nova implantação → App da Web**: executar como *Eu*, acesso *Qualquer pessoa*. Copie a URL que termina em `/exec`.
-   > O acesso é “qualquer pessoa” para o app funcionar sem login Google no campo; a proteção é a credencial de cada fiscal (ou a `ACCESS_KEY`). Ao alterar o `Code.gs`, o merge na `main` publica sozinho uma nova versão da implantação, se o `VERSAO_CODIGO` mudou (ver [docs/PUBLICACAO-BACK.md](../PUBLICACAO-BACK.md)); sem essa configuração, cole o código novo e faça uma nova versão (Gerenciar implantações → lápis → Nova versão). As colunas novas são acrescentadas sozinhas na planilha existente.
-   > O código de ativação é de 6 dígitos, uso único e vale 7 dias; após 10 tentativas erradas a ativação fica bloqueada por 15 minutos.
-5. Com a conta **dona da planilha**: menu **e-GDV → Ativar rotinas automáticas** (uma vez; pede autorização para gatilhos, Drive e e-mail) — encerramento de turno esquecido (12 h), backup diário, relatório mensal e arquivamento anual. Ver [Rotinas automáticas](rotinas.md#rotinas-automáticas).
+## Montar do zero (uma vez)
+1. Planilha nova. Extensões → Apps Script: cole `apps-script/Code.gs` e o manifesto `apps-script/appsscript.json`.
+2. Recarregue a planilha (menu e-GDV). Opcional: propriedade `ACCESS_KEY` (chave mestra de administrador).
+3. Implantar → Nova implantação → App da Web: executar como Eu, acesso Qualquer pessoa. A URL `/exec` vai em `CONFIG.sync.url` (`web/js/config.js`); não é segredo.
+4. Depois disso, o back publica sozinho a cada merge na `main` que mude o `VERSAO_CODIGO` ([PUBLICACAO-BACK](../PUBLICACAO-BACK.md)).
+5. GitHub: Settings → Pages → Source: GitHub Actions (o merge na `main` publica `web/`).
+6. Com a conta dona da planilha: e-GDV → Ativar rotinas automáticas.
 
-### 2. O app (GitHub Pages)
-1. No GitHub: **Settings → Pages → Source: GitHub Actions**.
-2. Faça merge na `main`; o workflow `.github/workflows/pages.yml` publica a pasta `web/`.
-3. **Ativar cada fiscal (código de 6 dígitos, um por pessoa):**
-   1. Na planilha: menu **e-GDV → Gerar código de ativação** e informe o **nome completo** do fiscal. O código aparece na tela (uso único, vale 7 dias). Os acessos ficam na aba `Fiscais`. Também dá para gerar pelo **painel do administrador**, aba **Servidores → Gerar chave de ativação** (com botões para copiar a mensagem ou enviar pelo WhatsApp).
-   2. Envie o código ao fiscal. No app, ele digita o código uma vez (precisa de internet só nesse momento). O aparelho passa a ter uma credencial própria, **vinculada ao nome**, e o campo *Fiscal 1* do turno já vem preenchido com ele.
-   3. Para tirar o acesso (celular perdido, desligamento): **e-GDV → Revogar acesso de um fiscal** (ou **Revogar** na aba Servidores do painel). O aparelho deixa de sincronizar e passa a pedir novo código.
-   4. **Módulos de cada servidor** (opcional): no painel, aba **Servidores**, cada servidor tem três caixas — **Fiscalização** (Educação Sanitária/Fiscalização de Trânsito), **TF** (TF de Barreira) e **PCE** — que dizem em quais módulos ele pode **inserir dados**. Veja [Módulos autorizados por servidor](#módulos-autorizados-por-servidor).
-   5. Para gerar outro acesso ao mesmo fiscal (novo celular), gere um novo código com o mesmo nome.
-   - O endereço do servidor (`…/exec`, não é segredo) fica em `CONFIG.sync.url` (`web/js/config.js`); se estiver vazio, o app pede o endereço junto com o código.
-   - A planilha registra em cada turno/veículo, na coluna `usuario`, quem sincronizou.
-   - **Ordem no celular (iOS e Android):** 1) o app mostra primeiro as instruções para **adicionar à tela inicial** (e, no Android, o botão *Instalar agora*); 2) aberto pelo ícone, pede o **código de ativação**; 3) só depois libera o **início do turno**. Enquanto não estiver instalado, não aparece o campo do código. Há a saída *Continuar no navegador mesmo assim* para casos em que a instalação não é possível.
-   - No iPhone, o app instalado guarda os dados separados do Safari, por isso a ativação é feita depois da instalação (o código é de uso único). Abra o app uma vez com internet para ele ser guardado no aparelho.
+## Fiscais
+- Gerar: e-GDV → Gerar código de ativação (nome completo), ou painel → Servidores. Código de 6 dígitos, uso único, vale 7 dias. Após 10 erros, bloqueio de 15 min. Outro celular do mesmo fiscal: novo código, mesmo nome.
+- O fiscal digita o código uma vez, com internet, no app instalado na tela inicial. O aparelho ganha credencial própria, vinculada ao nome.
+- Revogar: e-GDV → Revogar acesso (ou Revogar no painel). O aparelho para e pede novo código.
+- Aba `Fiscais`: `nome`, `codigo`, `token`, `ativo`, `expiraEm`, `perfil` (`admin` = administrador), `geradoPor`, `oculto`.
 
-### Módulos autorizados por servidor
+## Módulos por servidor
+- Aba `Permissoes`: `nome`, `veiculos` (Fiscalização), `tf`, `pce`, `antigo` (Papel). 1 = liberado; 0 = bloqueado. Sem linha ou célula vazia = liberado (padrão).
+- Pelo menos um módulo; para tirar tudo, Revogar.
+- Papel (`antigo`) vem desligado: só `1`, `sim` ou `true` liberam, e exige PCE (`antigo = 1` com `pce = 0` vale 0).
+- Editar: painel → Servidores (salva na hora). O servidor aplica (`exigirModulo_`, `MODULO_DA_ACAO`): o `sync` recusa o bloqueado (volta em `recusados`); actions de TF/PCE respondem `semPermissao`.
+- No app, o módulo bloqueado fica cinza. O que já foi feito sobe quando liberar.
 
-- **Por nome**: vale para todos os aparelhos do servidor (nome comparado sem diferenciar maiúsculas e espaços, como no Revogar). Ficam na aba **`Permissoes`** da planilha (`nome`, `veiculos`, `tf`, `pce`, `atualizadoEm`, `atualizadoPor`, `antigo`; 1 = liberado, 0 = sem autorização), criada sozinha na primeira alteração (planilhas antigas ganham a coluna `antigo` no fim, sozinhas).
-- **Padrão: tudo liberado.** Servidor sem linha na aba `Permissoes` usa os três módulos (ninguém que já usa o app é travado). Editada à mão, célula vazia também conta como liberado (só `0`, `não`/`nao` ou `false` bloqueiam).
-- **Exceção: "Digitar do papel" (`antigo`) vem DESLIGADO.** É a 4ª caixa (curta: **Papel**) e libera o modo [Registro antigo (digitar do papel)](pce-papel.md) — só para quem a gerência autorizar (o estagiário, ou o próprio gerente usando uma chave de fiscal). Sem linha, célula vazia ou qualquer valor diferente de `1`/`sim`/`true` = **não autorizado**. Exige o PCE: no painel, marcar **Papel** marca o **PCE** junto e desmarcar o **PCE** desmarca **Papel**; pela API, `painelPermissoes`/`painelGerarCodigo` com `antigo: 1` e `pce: 0` são **recusados** ("“Digitar do papel” só vale com o módulo PCE…") e, editado à mão, `antigo=1` com `pce=0` vale como 0. A regra "pelo menos um módulo" continua só sobre Fiscalização/TF/PCE. `antigo` omitido na chamada (painel antigo) mantém o valor gravado. A chave mestra (`ACCESS_KEY`) tem tudo, inclusive `antigo`.
-- **No painel**: na tabela de acessos, marcar/desmarcar uma caixa salva na hora (aparece "Salvando…" e "Salvo ✓", ou "Não salvou: …" e a caixa volta). No formulário **Gerar chave**, as três caixas de módulo vêm marcadas (e **Digitar do papel**, desmarcada) e são gravadas junto com o código (se o nome já existe, o formulário mostra os módulos atuais dele). Pelo menos um módulo precisa ficar marcado — para tirar todo o acesso, use **Revogar**. Administradores não têm caixas.
-- **O servidor (Apps Script) aplica**, sem confiar só no app: o `sync` devolve `permissoes: {veiculos, tf, pce}` e **não grava** registros de módulo não liberado — turnos/veículos (`veiculos=0`), TFs/placas (`tf=0`), levantamentos/termos de colheita/propriedades (`pce=0`); pessoas (cadastro do fiscalizado/produtor, usado pelo TF e pelo PCE) entram se TF **ou** PCE estiver liberado. Os ids não gravados voltam em `recusados: {turnos: [...], ...}` e o app os mantém **pendentes no aparelho** (nada é apagado). As actions do TF (`tfEmitir`, `tfProximoNumero`, `tfConsultar`, `tfAndamento`, `tfIndiceReincidencia` e `arquivoEnviar` de foto/assinatura de TF — `dono: "tfs"`) e do PCE (`pceProximoNumero`, `pceEmitir`, `pceConsultar`, `arquivoEnviar` dos levantamentos/termos) respondem `{ok:false, erro: "Sem autorização para o módulo … Fale com a gerência.", semPermissao, permissoes}`. Com `antigo=0`: o `sync` também deixa de fora (em `recusados`) levantamentos e termos com `registroAntigo=1` (os outros do mesmo lote entram), e `pceEmitir` de termo com `registroAntigo=1` e `arquivoEnviar` de PDF (`tipo: "documento"`) respondem `{ok:false, erro: "Sem autorização para digitar registros antigos (do papel). Fale com a gerência.", semPermissao: "antigo", permissoes}`.
-- **No app do fiscal**: as permissões recebidas ficam guardadas no aparelho (sem internet vale a última conhecida). Módulo sem autorização aparece **cinza** na tela de módulos ("🔒 Sem autorização — fale com a gerência") e não abre; os botões que levam a ele somem (**Lavrar TF** por veículo, **Termo de colheita** a partir do levantamento). Se o fiscal estiver dentro do módulo quando a permissão é retirada, no próximo sync o app volta para a tela de módulos com o aviso. Registros feitos antes (ex.: turno aberto, veículos registrados sem internet, rascunho de TF) **continuam no aparelho**, com o aviso "Sem autorização para o módulo X — fale com a gerência"; não dá para registrar novos, e tudo sobe sozinho quando a gerência liberar de novo.
-- **Digitar do papel no app**: os botões **📄 Registro antigo (digitar do papel)** / **📄 Termo antigo (digitar do papel)** / **Digitar outro termo do papel**, a opção **"Só vou digitar registros antigos do papel"** na identificação do servidor e a reabertura de registros do papel (botão **Abrir** e **Termo de colheita** desses registros) só aparecem com a permissão (padrão: não). Sem a permissão, quem tinha marcado "Só vou digitar…" vê o aviso no PCE e precisa completar cargo e lotação em **Meus dados** para fazer vistorias. Se a permissão for retirada com registro do papel (ou o PDF dele) ainda não enviado, ele **fica guardado no aparelho** com o aviso "Sem autorização para digitar registros antigos (do papel) — fale com a gerência" e sobe sozinho quando a gerência liberar; rascunho do papel não salvo só é descartado se o servidor confirmar. Recusa do servidor (ex.: permissão tirada enquanto o aparelho estava sem internet) aparece como esse mesmo aviso.
+## Aba Servidores do painel
+- Gerar chave: nome completo (até 80 caracteres); código visível só até a ativação.
+- Revogar: tira na hora aparelhos e códigos. Administradores: "Mostrar administradores". Seu próprio acesso não tem Revogar.
+- Remover da lista (revogado ou vencido, sem aparelho ativo): só marca `oculto` em `Fiscais`; não apaga. Restaurar desfaz.
+- Código de administrador: só pelo menu da planilha.
+- Actions (parâmetros em [API](../API.md)): `painelGerarCodigo`, `painelAcessos`, `painelRevogar`, `painelRevogarAdmin`, `painelOcultarAcesso`, `painelRestaurarAcesso`, `painelPermissoes`.
+
+## Proteção do painel
+- Página sem dados; só administrador (ou `ACCESS_KEY`) os recebe. Fiscal vê "Acesso restrito ao administrador".
+- 5 códigos de administrador errados: painel bloqueado por 15 min (contador próprio).
+- Credenciais nunca saem do servidor.

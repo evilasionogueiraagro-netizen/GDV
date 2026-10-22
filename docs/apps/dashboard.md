@@ -1,26 +1,22 @@
 # Dashboard público (sem login)
 
-Página pública de números agregados (`web/dashboard/`): o que mostra, como o gerente liga, a action `publicoDados`, cache e as
-decisões de LGPD. Veja também: [painel](painel.md) (aba Dashboard público), [API](../API.md).
+Números agregados (`web/dashboard/`), visíveis para quem tem o link. Vem desligado: o gerente liga no painel. Veja: [painel](painel.md), [API](../API.md).
 
-**Endereço:** **https://evilasionogueiraagro-netizen.github.io/GDV/dashboard/** (pasta `web/dashboard/`: `index.html`, `js/dashboard.js`, `css/dashboard.css`; usa as bibliotecas, o estilo e a malha municipal do painel por caminho relativo, sem copiar arquivos). Qualquer pessoa com o link vê a página; não há login. **Vem desligado**: até o gerente ligar, o link mostra "Dashboard temporariamente indisponível".
+## Regras
+- Ligar: painel → Dashboard público (só administrador): Publicar, blocos, períodos, modos e Salvar. Pré-visualizar (`?previa=1`) mostra o salvo mesmo desligado.
+- Períodos: últimos 15 dias, últimos 30 dias (abre nele, se liberado), ano atual, ano anterior, desde o início e intervalo (de/até, entre 01/01/2000 e hoje).
+- Atualiza a cada 5 min (1 min com "barreiras agora"). Cache de 5 min por período; no máximo 12 recálculos por minuto no total; acima disso, cópia de até 6 h.
+- Com "Ocultar números pequenos" (padrão), 1 e 2 viram "<3" em levantamentos e detecções; células de calor com menos de 3 somem.
+- Padrão da configuração: agregados ligados; `calor` e `aoVivo` desligados; `supressaoPequenos` ligada.
+- "Barreiras agora" vem desligado: mostra só BVAs fixas abertas há menos de 12 h, pelo risco de ajudar quem quer evitar a fiscalização.
+- Sem servidor, mostra o último dado guardado no navegador, com a data.
 
-**O que mostra** (só os blocos ligados pelo gerente), em dois modos alternados por botões grandes no topo (lembrado no aparelho e na URL `?modo=mapa|numeros`):
-- **Mapa:** mapa interativo do Amazonas (62 municípios, zoom/arraste; sem os mapas do OpenStreetMap continua com contornos e fundo neutro). Municípios coloridos pelo indicador escolhido (veículos abordados, ações de barreira, TFs, levantamentos PCE, detecções de pragas), pontos das **BVAs fixas**, mapa de calor de detecções (opcional) e — **desligado por padrão** — "Barreiras fixas em funcionamento agora". Clicar num município (ou escolher na lista) abre o cartão com os números dele; tabela por município como alternativa acessível; legenda e fonte.
-- **Números:** indicadores e gráficos — ações de barreira (turnos), horas, veículos abordados, pessoas orientadas, veículos por barreira e por tipo; TFs lavrados, por procedimento, autos de infração, produtos mais apreendidos (nº de apreensões e quantidade/unidade); levantamentos PCE, municípios cobertos ("X de 62"), detecções e suspeitas por praga, amostras e termos de colheita; evolução diária (períodos de até 31 dias) ou mensal, em gráficos separados (um eixo cada). Todo gráfico tem "Ver dados" (tabela) e texto alternativo.
-- Período entre os liberados (últimos 30 dias, ano atual, ano anterior, desde o início = o que está na planilha principal), "Atualizado em DD/MM HH:MM", atualização sozinha a cada 5 min com a aba visível (1 min com "barreiras agora" ligado). Sem servidor: mostra os últimos dados guardados no navegador, com a data. Claro/escuro pelo sistema; funciona de 360 px a 1920 px.
+## LGPD
+- Resposta só com contagens e somas. Nunca nomes, CPF/CNPJ, placas, propriedades, servidores, fiscais, telefones, endereços, fotos, observações ou coordenadas de levantamento e de propriedade.
+- Barreiras no mapa: coordenada do turno arredondada a 0,1° (~11 km). Postos volantes nunca são ponto, e o endereço deles não sai.
+- BVAs fixas: média das coordenadas de início dos turnos (3 casas, ~100 m). Calor em células de 0,1°, não no centroide do município.
 
-**Como ligar:** painel → aba **Dashboard público** (só administrador; não aparece no Modo TV): marque **Publicar dashboard**, ajuste título e apresentação, modos, períodos, os blocos (Barreiras / TF de Barreira / PCE / Gráficos e mapa) e **Ocultar números pequenos**, e clique **Salvar** (mostra quem salvou e quando). **Copiar link** / **Abrir**; **Pré-visualizar** abre `dashboard/?previa=1`, que usa a credencial do painel deste navegador para mostrar a configuração **salva** mesmo com o dashboard desligado (faixa amarela "não está publicado"). O item "Barreiras agora" tem o aviso: *Mostra publicamente onde há barreira fixa em funcionamento agora. Pode ajudar quem quer evitar a fiscalização.*
-
-**Servidor (`Code.gs`):** action pública **`publicoDados {periodo?, de?, ate?}`** (períodos: últimos 15 dias, últimos 30 dias — o padrão ao abrir —, ano atual, ano anterior, desde o início e **intervalo**, em que o visitante escolhe as datas `de`/`ate`, até hoje; cada um liga/desliga no painel; períodos novos entram ligados uma vez na configuração já salva) (sem credencial, atendida antes da checagem, como `tfVerificar`) → `{ok, ativo, titulo, texto, modos, blocos, periodos, periodo, atualizadoEm, supressao, numeros?, mapa?, aoVivo?}`; desligado → `{ok: true, ativo: false}`; período não liberado → erro amigável com a lista. Configuração na propriedade do script **`PUBLICO_CONFIG`** (JSON: `ativo` — padrão `false` —, `titulo`, `texto`, `periodos`, `modos {mapa, numeros}`, `blocos {acoes, horas, veiculos, pessoas, porBarreira, tiposVeiculo, tfs, procedimentos, autos, produtos, levantamentos, municipios, deteccoes, amostras, mensal, coropletico, bvas, calor, aoVivo, supressaoPequenos}`, `versao`, `atualizadoPor`, `atualizadoEm`); padrão: agregados ligados, `calor` e `aoVivo` desligados, `supressaoPequenos` ligada. Ações de administrador `painelPublicoConfig {key}` e `painelPublicoSalvar {key, config}` (valida chaves, períodos e modos; grava quem/quando; troca a `versao`, o que invalida o cache público). Opcional: `PUBLICO_URL` troca o endereço mostrado.
-- **Cache:** resultado de cada (versão, período) fica 5 min no `CacheService`; "barreiras agora", 1 min. **Limitador global:** no máximo 12 recálculos por minuto (todas as origens); acima disso serve a última cópia guardada (até 6 h) ou responde "Muitos acessos ao mesmo tempo. Tente de novo em um minuto.".
-
-**LGPD / privacidade (decisões):** a resposta pública tem **só contagens e somas**. Nunca: nomes, CPF/CNPJ, placas, propriedades, servidores/fiscais, telefones, endereços, fotos, observações, nem coordenadas de levantamentos ou propriedades.
-- PCE por município: pelo município digitado no levantamento; com **Ocultar números pequenos** (padrão) contagens de 1 e 2 por município aparecem como **"<3"** (levantamentos e detecções).
-- Barreiras no mapa: o servidor não tem a malha municipal, então manda a coordenada do turno **arredondada a 0,1° (~11 km)** com as contagens (ou a unidade, sem GPS) e o navegador soma por município. Postos **volantes nunca aparecem como ponto** e o endereço deles nunca sai (no gráfico por barreira viram "Postos volantes").
-- BVAs fixas: ponto = média das coordenadas de início dos turnos fixos daquela BVA (3 casas, ~100 m) — é a localização de uma instalação pública.
-- Calor (desligado por padrão): células de 0,1° com o número de detecções; com a supressão, células com menos de 3 somem. Preferimos a célula à centroide do município porque mostra onde se concentra a praga sem identificar propriedade (uma célula tem dezenas a centenas de km²).
-- "Barreiras agora": só BVAs fixas abertas há menos de 12 h, com nome e quantas equipes; volantes nunca; desligado por padrão pelo risco de ajudar quem quer evitar a fiscalização.
-- Produtos apreendidos e pragas vêm só com o nome do produto/praga e números.
-
-**Para publicar:** cole o `Code.gs` novo e crie uma **nova versão da implantação**; publique `web/` (o workflow do Pages já inclui `web/dashboard/`). Depois, ligue pelo painel.
+## Código
+- `web/dashboard/`: `index.html`, `js/dashboard.js`, `css/dashboard.css`.
+- `Code.gs`: action `publicoDados` (`publicoDados_`), `painelPublicoConfig`, `painelPublicoSalvar`; propriedades `PUBLICO_CONFIG` e `PUBLICO_URL`.
+- Publicar: automático pelo merge na `main` ([PUBLICACAO-BACK](../PUBLICACAO-BACK.md)). Depois, ligar pelo painel.

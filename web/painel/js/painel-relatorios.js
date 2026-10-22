@@ -199,7 +199,7 @@
         <div class="pn-conv-sel">
           <label>Relatório<select id="pn-rg-rel">${RELS.map(([k, t]) => `<option value="${k}" ${E.rel === k ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
           ${ctl}
-          <div class="pn-conv-botoes"><button type="button" class="pn-btn" data-rg="atualizar" id="pn-rg-atualizar">Atualizar</button>${E.rel === 'vigifito' ? '<button type="button" class="pn-btn" data-rg="postos" id="pn-vig-postos">Postos do VIGIFITO</button>' : ''}</div>
+          <div class="pn-conv-botoes"><button type="button" class="pn-btn" data-rg="atualizar" id="pn-rg-atualizar">Atualizar</button>${E.rel === 'vigifito' && P.gerencia ? '<button type="button" class="pn-btn" data-rg="postos" id="pn-vig-postos">Postos do VIGIFITO</button>' : ''}</div>
         </div>
         <h3 class="pn-conv-nome" id="pn-rg-titulo">${esc(titulo())}</h3>
         <p class="pn-sub">${esc(sub)} Apuração no servidor, independente do período carregado nas outras abas; números manuais lançados no <a href="../administrativo/" target="_blank" rel="noopener">Portal do Administrativo</a>.${ap && ap.apuradoEm ? ` Apurado em ${esc(P.fmt.dataHora(ap.apuradoEm))}.` : ''}</p>
@@ -315,7 +315,7 @@
   }
   function barra(c, xlsx, semTextos) {
     const bar = P.el('div', 'pn-cartao pn-conv-rel-acoes pn-rg-acoes');
-    bar.innerHTML = `${semTextos ? '' : '<button type="button" class="pn-btn" data-rg="salvar" id="pn-rg-salvar">Salvar textos</button>'}
+    bar.innerHTML = `${semTextos || !P.gerencia ? '' : '<button type="button" class="pn-btn" data-rg="salvar" id="pn-rg-salvar">Salvar textos</button>'}
       <button type="button" class="pn-btn pn-btn-prim" data-rg="docx" id="pn-rg-docx">Baixar Word (.docx)</button>
       <button type="button" class="pn-btn pn-btn-prim" data-rg="pdf" id="pn-rg-pdf">Baixar PDF</button>
       ${xlsx ? '<button type="button" class="pn-btn pn-btn-prim" data-rg="xlsx" id="pn-rg-xlsx">Baixar Excel (.xlsx)</button>' : ''}
@@ -408,7 +408,7 @@
 
   /* ---------------- salvar e gerar ---------------- */
   async function salvar(silencioso) {
-    if (E.rel === 'convenio') return true;
+    if (E.rel === 'convenio' || !P.gerencia) return true;         // sem gerência o painel é só de leitura: gera o relatório sem guardar os textos
     if (!silencioso) setMsg('Salvando…', '');
     try {
       const t = { ...E.textos, assinaturas: (E.textos.assinaturas || []).slice(0, 3) };

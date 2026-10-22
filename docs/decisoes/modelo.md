@@ -11,7 +11,7 @@ PCE ainda não está no código.
 | 22/10/2026 | Todo proprietário é pessoa, mas nem toda pessoa é proprietária (quem só passa na barreira é só pessoa). Chave: CPF/CNPJ | contar quantos TFs uma pessoa levou |
 | 22/10/2026 | Programa (monilíase, citros, banana, mandioca, soja...) tem as suas pragas | o levantamento é sempre de uma praga de um programa |
 | 22/10/2026 | O cadastro do imóvel (`PCE`) é a ligação de uma propriedade com um programa, no máximo um por par | já é assim no código |
-| 22/10/2026 | No PCE, o levantamento é a visita e pode achar várias pragas; para cada praga sai **um** Termo de Fiscalização do PCE, que **valida** o levantamento daquela praga | regra do trabalho de campo |
+| 22/10/2026 | No PCE, o levantamento é a visita e pode achar várias pragas; para cada praga sai **um** Termo de Fiscalização do PCE, que **valida** o levantamento daquela praga (e não um termo por visita, como o código faz hoje) | regra do trabalho de campo; um termo por praga é mais claro |
 
 ## Em aberto
 

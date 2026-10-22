@@ -814,6 +814,21 @@ const PCEMon = (() => {
       plantas: String(PCECitros.totalPlantas(fo.citros) || ''), sintomas: PCECitros.temPresenca(fo.citros) ? 'sim' : 'nao',
       amostra: fo.lev ? (G.some(x => x.culturas.some(k => k.coleta === 'Sim')) ? 'sim' : 'nao') : (dc.amostra || '') });
   }
+  /**
+   * Identificação do Termo a partir do levantamento da visita (monilíase; o de citros usa preencherTfCitros): nome, CPF, empresa, CNPJ,
+   * endereço, município, UF, telefone e coordenadas; atividade = culturas avaliadas (ex.: "Cultivo de cacau e cupuaçu"), também para a
+   * empresa quando há CNPJ/empresa. Só preenche o que veio do levantamento; o cadastro ligado depois completa o resto.
+   */
+  function identDoLev(lev, D) {
+    const coord = x => (x === '' || x == null ? '' : String(x).replace('.', ','));
+    const cult = [...new Set(Docs.pceGrupos(lev).pragas.flatMap(g => g.culturas.map(c => String(c.cultura || '').trim().toLowerCase())).filter(Boolean))];
+    const ativ = cult.length ? 'Cultivo de ' + PCEDocs.listaE(cult) : '';
+    const temEmpresa = !!(lev.empresa || digitos(lev.cnpj).length === 14 || digitos(lev.doc).length === 14);
+    const o = { nome: lev.nome || '', doc: PCEDocs.fmtDoc(lev.doc || ''), empresa: lev.empresa || '', cnpj: PCEDocs.fmtDoc(lev.cnpj || ''), endereco: lev.endereco || '',
+      municipio: lev.municipio || D.municipio, uf: lev.uf || 'AM', telefone: lev.telefone || '', lat: coord(lev.lat), lon: coord(lev.lon),
+      atividade: ativ, atividadeEmpresa: temEmpresa ? ativ : '' };
+    return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== '' && v != null));
+  }
   /** Botão "Refazer as frases": troca as linhas de ausência/presença da descrição (o texto acrescentado pelo fiscal continua). */
   async function refazerFrases() {
     const fo = await fonteCitros(F); if (!fo) return toast('Levantamento/cadastro de citros não encontrado neste aparelho.', true);
@@ -848,6 +863,7 @@ const PCEMon = (() => {
       if (lev) {
         st.levId = lev.id; D.pragas = pragasDoLevantamento(lev);
         if (querAntigo) Object.assign(D, { data: lev.data || D.data, hora: lev.hora || D.hora });
+        Object.assign(D, identDoLev(lev, D));                                     // identificação do produtor já digitada no levantamento
       }
       // Termo de citros (levantamento com praga de citros ou cadastro de citros): identificação, data/hora, local, frases e enquadramento já preenchidos
       const cad0 = o.cadastroId ? await Store.obter('cadastrosPce', o.cadastroId) : null;

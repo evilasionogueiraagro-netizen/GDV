@@ -3,24 +3,10 @@
  * API de sincronização: recebe registros do app (offline-first), grava na planilha
  * e devolve o que mudou desde a última sincronização.
  *
- * Acesso dos aparelhos (por fiscal):
- *   1. No menu "e-GDV" da planilha: "Gerar código de ativação" → informe o NOME COMPLETO do fiscal
- *      (ou no painel do administrador, aba "Servidores" → Gerar chave de ativação).
- *   2. O fiscal digita o código de 6 dígitos no app (uma vez). O servidor devolve uma credencial
- *      própria daquele aparelho, vinculada ao nome. Revogue em "e-GDV → Revogar acesso" (ou na aba Servidores).
- *
- * Módulos por servidor (aba "Permissoes", editada no painel → Servidores): Educação Sanitária/Fiscalização de Trânsito, TF de Barreira e PCE.
- *   Sem linha = tudo liberado. O sync não grava registros de módulo não liberado (devolve em "recusados"; o app os mantém
- *   pendentes) e as actions do TF/PCE respondem "Sem autorização para o módulo …".
- *   Coluna "antigo" (Digitar do papel): ao contrário dos módulos, vem DESLIGADA por padrão (vazio ou sem linha = 0). Só com
- *   antigo=1 (e PCE liberado) o servidor aceita levantamentos/termos e TFs (com o TF liberado) com registroAntigo=1 e PDFs escaneados
- *   (arquivo "documento").
- *
- * Opcional (compatibilidade): Propriedades do script → ACCESS_KEY = chave mestra (administrador).
- *
- * Login novo (usuarios.gs): matrícula e senha, permissões por usuário (abas Usuarios, PermissoesDosUsuarios, SessoesDosUsuarios,
- * HistoricoDeAlteracoes). Token "u.…" = sessão nova; os acessos acima (códigos, ACCESS_KEY) valem até a gerência desligá-los
- * (propriedade ACESSOS_ANTIGOS_DESLIGADOS = 1). Regras e actions: docs/modulos/acessos.md e docs/API.md.
+ * Acesso: todos entram com matrícula e senha (usuarios.gs; action `entrar`), com permissões por app e por módulo do campo
+ * (abas Usuarios, PermissoesDosUsuarios, SessoesDosUsuarios, HistoricoDeAlteracoes). Toda action autenticada confere o token na
+ * planilha a cada chamada. As abas Fiscais, Permissoes, Administrativo e AdmSessoes ficam só como histórico (não valem como credencial).
+ * Regras: docs/modulos/acessos.md; actions: docs/API.md.
  */
 
 const TABELAS = {
@@ -42,9 +28,11 @@ const TABELAS = {
              // transportador, carga (JSON [{p, q, u}], como os produtos do TF), medida (liberacao | apreensao), nº do TF do papel,
              // documento apresentado e o id da importação. Carga com nº do TF conta no VIGIFITO como o TF de barreira (motorBarreira_).
              'origemMun', 'destinoMun', 'transportador', 'cargaPapel', 'medidaPapel', 'tfPapel', 'docPapel', 'importacao'],
-  Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm', 'perfil',   // perfil: vazio = fiscal, 'admin' = administrador
-            'geradoPor',                                                             // quem gerou o código: nome do administrador (painel) ou "planilha" (menu)
-            'oculto', 'ocultoPor', 'ocultoEm'],                                      // "Remover da lista" no painel: oculto=1 some da aba Servidores (a linha fica, para auditoria)
+  // HISTÓRICO (não vale mais como credencial): códigos de ativação e credenciais antigas dos fiscais e administradores.
+  // Os nomes ainda servem à lista de servidores das diárias do portal (admServidores_).
+  Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm', 'perfil',
+            'geradoPor',
+            'oculto', 'ocultoPor', 'ocultoEm'],
   // Termos de Fiscalização de Barreira (TF)
   TFs: ['id', 'barreira', 'ano', 'numero', 'numeroTxt', 'turnoId', 'veiculoId', 'data', 'hora', 'fiscal', 'local', 'placa', 'origem', 'destino',
         'doc', 'nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone', 'relacao', 'inspecao', 'coleta', 'amostras',
@@ -99,9 +87,7 @@ const TABELAS = {
              'rotulo'],   // rotulo = "praga – cultura" da foto do levantamento (vai também no nome do arquivo)
   // TF de Barreira em preenchimento no aparelho (alerta "apreensão em andamento" no painel). id = usuario|rascunhoId. Sem CPF/nome do fiscalizado.
   Andamento: ['id', 'usuario', 'fiscal', 'turnoId', 'placa', 'procedimento', 'local', 'barreira', 'lat', 'lon', 'estado', 'inicioTs', 'atualizadoTs'],
-  // Módulos que cada servidor pode usar para INSERIR dados (por nome; vale para todos os aparelhos dele). 1 = liberado, 0 = sem autorização.
-  // Servidor sem linha aqui = os três módulos liberados (padrão). Editada pelo painel (aba Servidores) ou à mão na planilha.
-  // antigo = "Digitar do papel" (registros antigos digitados do papel + PDF escaneado): 1 = autorizado; vazio/sem linha = NÃO autorizado.
+  // HISTÓRICO (não vale mais): módulos por nome do servidor. Hoje os módulos vêm de PermissoesDosUsuarios.
   Permissoes: ['nome', 'veiculos', 'tf', 'pce', 'atualizadoEm', 'atualizadoPor', 'antigo'],
   // Sinal de cada aparelho (heartbeat), atualizado a cada sincronização (inclusive sem nada a enviar) e pelo "ping" de erro.
   // id = uuid fixo do aparelho (versão antiga do app, sem sinal: "legado-" + início da credencial). pendentes = JSON {turnos, veiculos, ...}
@@ -136,12 +122,10 @@ const TABELAS = {
   // O anual soma os meses. Quem/quando em cada linha (auditável na planilha).
   RelGdvTextos: ['id', 'tipo', 'ano', 'mes', 'textos', 'usuario', 'atualizadoEm'],
   RelGdvLancamentos: ['id', 'ano', 'mes', 'chave', 'valor', 'lista', 'usuario', 'atualizadoEm', 'admId'],
-  // Portal do Administrativo (web/administrativo/): pessoas liberadas (login com Google pelo e-mail ou código de 6 dígitos gerado no
-  // painel). Os e-mails ficam SÓ nesta aba (LGPD); os lançamentos guardam o nome e o admId. Gerida no painel → Servidores.
-  // oculto/ocultoPor/ocultoEm: "Remover" no painel (só revogado, ativo = 0): oculto = 1 some da lista (a linha fica, para auditoria).
+  // HISTÓRICO (não vale mais como credencial): pessoas liberadas no portal pelo código antigo. Os e-mails ficam SÓ nesta aba (LGPD).
   Administrativo: ['id', 'email', 'nome', 'ativo', 'criadoEm', 'criadoPor', 'ultimoAcesso', 'codigo', 'codigoExpira', 'atualizadoEm', 'atualizadoPor',
                    'oculto', 'ocultoPor', 'ocultoEm'],
-  // Sessões do portal: só o SHA-256 do token (o token em si fica no navegador); 30 dias sem uso, renovada a cada uso; revogado = 1 ao sair.
+  // HISTÓRICO (não vale mais): sessões do portal pelo código antigo (só o SHA-256 do token).
   AdmSessoes: ['id', 'hash', 'admId', 'origem', 'criadoEm', 'expiraEm', 'ultimoUso', 'revogado'],
   // Histórico de alterações feitas no portal (antes/depois em JSON).
   AdmHistorico: ['em', 'admId', 'nome', 'acao', 'aba', 'registro', 'antes', 'depois'],
@@ -152,7 +136,7 @@ const TABELAS = {
   VigLancamentos: ['id', 'ano', 'periodo', 'posto', 'indicador', 'valor', 'substitui', 'justificativa', 'origem', 'arquivo', 'usuario', 'admId', 'atualizadoEm', 'excluido'],
   // Login com matrícula e senha (usuarios.gs). Nada é apagado: revogar = preencher revogadaEm/encerradaEm; desativar = ativo 0.
   // Usuarios: senhaHash/senhaSal = SHA-256 iterado sobre sal + senha (a senha nunca é guardada); senhaProvisoria = 1: troca obrigatória no próximo acesso.
-  // criadoPor/atualizadoPor = id do usuário, "planilha" (menu) ou "antigo:<nome>" (credencial antiga de administrador na transição).
+  // criadoPor/atualizadoPor = id do usuário ou "planilha" (menu da planilha).
   Usuarios: ['id', 'matricula', 'nome', 'senhaHash', 'senhaSal', 'senhaProvisoria', 'senhaAlteradaEm', 'ativo',
              'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor'],
   // Uma linha por permissão concedida (campo, painel, administracao, gerencia e os módulos do campo); ativa = sem revogadaEm. Conceder de novo = linha nova.
@@ -178,33 +162,20 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
                         dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000, citros: 20000, cargaPapel: 3000 };   // demais colunas: 500
 // culturas/fotos/assinaturas são JSON: cortar o texto invalidaria o JSON (e apagaria as referências no aparelho). Os limites acima
 // cabem numa célula (50.000 caracteres) e o app limita a quantidade de culturas/fotos e o tamanho dos campos para nunca chegar neles.
-const VALIDADE_CODIGO_MS = 7 * 24 * 3600 * 1000;      // código de ativação vale 7 dias
-const MAX_FALHAS_ATIVACAO = 10;                        // tentativas erradas antes de bloquear por 15 min
-const MAX_FALHAS_ADMIN = 5;                            // idem para o código de administrador do painel (contador próprio)
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-22b';
+const VERSAO_CODIGO = '2026-10-22c';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
 }
 
 function doPost(e) {
-  USUARIO_ATUAL_ = null;   // quem está chamando (login novo): preenchido por autenticar_/adminDoToken_/admSessao_; vale só para esta requisição
+  USUARIO_ATUAL_ = null;   // quem está chamando: preenchido por autenticar_/adminDoToken_/admSessao_/gerenciaDe_; vale só para esta requisição
   try {
     const req = JSON.parse(e.postData.contents);
-    if (req.action === 'ativar') return json_(ativar_({ codigo: req.codigo }));          // app dos fiscais: só códigos de fiscal
-    if (req.action === 'painelAtivar') return json_(painelAtivar(req.codigo));             // painel (GitHub Pages): só códigos de administrador
     if (req.action === 'painelDados') return json_(painelDados(req.key, { de: req.de, ate: req.ate, aoVivo: req.aoVivo, ids: req.ids }));
-    if (req.action === 'painelSair') return json_(painelSair(req.key));
-    if (req.action === 'painelGerarCodigo') return json_(painelGerarCodigo(req.key, req.nome, req.modulos));
-    if (req.action === 'painelAcessos') return json_(painelAcessos(req.key, req.ocultos));
-    if (req.action === 'painelOcultarAcesso') return json_(painelOcultarAcesso(req.key, req.nome, false, req.perfil));
-    if (req.action === 'painelRestaurarAcesso') return json_(painelOcultarAcesso(req.key, req.nome, true, req.perfil));
-    if (req.action === 'painelRevogar') return json_(painelRevogar(req.key, req.nome));
-    if (req.action === 'painelRevogarAdmin') return json_(painelRevogarAdmin(req.key, req.nome));
-    if (req.action === 'painelPermissoes') return json_(painelPermissoes(req.key, req.nome, req));
     if (req.action === 'painelEncerrarTurno') return json_(painelEncerrarTurno(req.key, req.turnoId, req.fim));
     if (req.action === 'tfVerificar') return json_(tfVerificar_(req));                      // página pública verificar.html: sem credencial
     if (req.action === 'publicoDados') return json_(publicoDados_(req));                    // dashboard público (web/dashboard/): sem credencial, só agregados
@@ -225,13 +196,7 @@ function doPost(e) {
     if (req.action === 'painelRelGdvApuracao') return json_(painelRelGdvApuracao(req.key, req));
     if (req.action === 'painelVigDados') return json_(painelVigDados(req.key, req));
     if (req.action === 'painelVigConfigSalvar') return json_(painelVigConfigSalvar(req.key, req));
-    if (req.action === 'painelAdmLista') return json_(painelAdmLista(req.key, req.ocultos));
-    if (req.action === 'painelAdmOcultar') return json_(painelAdmOcultar(req.key, req));
-    if (req.action === 'painelAdmSalvar') return json_(painelAdmSalvar(req.key, req));
-    if (req.action === 'painelAdmCodigo') return json_(painelAdmCodigo(req.key, req));
-    // Portal do Administrativo: login por código (antigo) e as demais actions com a sessão do portal (nunca com a credencial do painel/app)
-    if (req.action === 'admCodigo') return json_(admCodigo_(req));
-    if (/^adm[A-Z]/.test(String(req.action || ''))) return json_(admAcao_(req));
+    if (/^adm[A-Z]/.test(String(req.action || ''))) return json_(admAcao_(req));   // Portal do Administrativo (token em `sessao`)
     // Login com matrícula e senha (usuarios.gs): entrar, trocarSenha, sair, minhaSessao e as actions de gerência
     const acaoUsuarios = usuariosAcao_(req.action);
     if (acaoUsuarios) return json_(acaoUsuarios(req));
@@ -258,6 +223,7 @@ function doPost(e) {
     const r = { ok: false, erro: String(err.message || err) };
     if (err && err.semPermissao) { r.semPermissao = err.semPermissao; r.permissoes = err.permissoes; }   // o app atualiza as permissões guardadas
     if (err && err.trocarSenha) r.trocarSenha = 1;                                                       // senha provisória pendente: a tela leva à troca
+    if (err && err.entrar) r.entrar = 1;                                                                 // sem sessão válida: a tela volta ao login
     return json_(r);
   }
 }

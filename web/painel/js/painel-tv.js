@@ -594,7 +594,7 @@
   document.addEventListener('keydown', e => {
     if (!ativo || e.altKey || e.ctrlKey || e.metaKey) return;
     if (e.key === 'Escape') { e.preventDefault(); desligar(); return; }
-    if (loginVisivel()) return;                                           // digitando o código de administrador
+    if (loginVisivel()) return;                                           // digitando a matrícula e a senha
     if (e.key === 'ArrowRight') { e.preventDefault(); ir(T.i + 1); }
     else if (e.key === 'ArrowLeft') { e.preventDefault(); ir(T.i - 1); }
     else if (e.key === ' ' || e.code === 'Space') { e.preventDefault(); pausar(!T.pausado); }

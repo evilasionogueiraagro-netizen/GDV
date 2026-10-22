@@ -29,38 +29,29 @@ try { var tvq = /[?&]tv=([01])/.exec(location.search), tvt = /[?&]tema=claro/.te
 <!-- Dica de instalação no celular (primeira abertura, fora do app instalado) -->
 <div id="pn-instalar" class="pn-instalar" role="note" hidden></div>
 
-<!-- Login: matrícula e senha; enquanto os acessos antigos não forem desligados, o código de administrador também entra -->
+<!-- Login: matrícula e senha (único acesso); a senha provisória exige a troca no primeiro acesso -->
 <main id="pn-login" class="pn-login" hidden>
-  <div class="pn-login-form pn-secao-corpo">
+  <form class="pn-cartao pn-login-form" id="pn-login-senha" autocomplete="on" novalidate>
+    <h2 id="pn-senha-tit">Entrar no painel</h2>
+    <p class="pn-sub" id="pn-senha-txt">Use a matrícula e a senha que o gerente criou para você.</p>
     <p class="pn-erro" id="pn-login-erro" role="alert" hidden></p>
-    <form class="pn-cartao" id="pn-login-senha" autocomplete="on" novalidate>
-      <h2 id="pn-senha-tit">Entrar no painel</h2>
-      <p class="pn-sub" id="pn-senha-txt">Use a matrícula e a senha que o gerente criou para você.</p>
-      <div id="pn-senha-campos">
-        <label for="pn-matricula">Matrícula</label>
-        <input id="pn-matricula" name="matricula" autocomplete="username" autocapitalize="none" spellcheck="false" required>
-        <label for="pn-senha">Senha</label>
-        <input id="pn-senha" name="senha" type="password" autocomplete="current-password" required>
-      </div>
-      <div id="pn-troca" hidden>
-        <p class="pn-sub">Você entrou com uma senha provisória. Crie a sua senha para continuar (no mínimo 8 caracteres).</p>
-        <label for="pn-senha-nova">Senha nova</label>
-        <input id="pn-senha-nova" type="password" autocomplete="new-password" minlength="8">
-        <label for="pn-senha-nova2">Repita a senha nova</label>
-        <input id="pn-senha-nova2" type="password" autocomplete="new-password" minlength="8">
-      </div>
-      <button type="button" class="pn-link" id="pn-ver-senha">Mostrar a senha</button>
-      <button type="submit" class="pn-botao" id="pn-entrar-senha">Entrar</button>
-      <button type="button" class="pn-btn" id="pn-troca-voltar" hidden>Cancelar</button>
-    </form>
-    <form class="pn-cartao" id="pn-login-form" autocomplete="off">
-      <h2 id="pn-login-tit">Acesso do administrador</h2>
-      <p class="pn-sub" id="pn-login-txt">Digite o código de administrador de 6 dígitos gerado na planilha (menu <b>e-GDV → Gerar código de administrador</b>). Cada código vale uma vez.</p>
-      <label for="pn-codigo">Código de administrador</label>
-      <input id="pn-codigo" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" required>
-      <button type="submit" class="pn-botao" id="pn-entrar">Entrar</button>
-    </form>
-  </div>
+    <div id="pn-senha-campos">
+      <label for="pn-matricula">Matrícula</label>
+      <input id="pn-matricula" name="matricula" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+      <label for="pn-senha">Senha</label>
+      <input id="pn-senha" name="senha" type="password" autocomplete="current-password" required>
+    </div>
+    <div id="pn-troca" hidden>
+      <p class="pn-sub">Você entrou com uma senha provisória. Crie a sua senha para continuar (no mínimo 8 caracteres).</p>
+      <label for="pn-senha-nova">Senha nova</label>
+      <input id="pn-senha-nova" type="password" autocomplete="new-password" minlength="8">
+      <label for="pn-senha-nova2">Repita a senha nova</label>
+      <input id="pn-senha-nova2" type="password" autocomplete="new-password" minlength="8">
+    </div>
+    <button type="button" class="pn-link" id="pn-ver-senha">Mostrar a senha</button>
+    <button type="submit" class="pn-botao" id="pn-entrar-senha">Entrar</button>
+    <button type="button" class="pn-btn" id="pn-troca-voltar" hidden>Cancelar</button>
+  </form>
 </main>
 
 <!-- Painel -->
@@ -96,9 +87,7 @@ try { var tvq = /[?&]tv=([01])/.exec(location.search), tvt = /[?&]tema=claro/.te
 <script src="js/painel-tf.js"></script>
 <script src="../documentos/pce-docs.js"></script>
 <script src="js/painel-pce.js"></script>
-<script src="js/painel-adm.js"></script>
 <script src="js/painel-usuarios.js"></script>
-<script src="js/painel-acessos.js"></script>
 <script src="js/painel-publico.js"></script>
 <script src="../documentos/conv-docs.js"></script>
 <script src="js/docx.js"></script>

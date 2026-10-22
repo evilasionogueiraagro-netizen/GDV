@@ -135,7 +135,7 @@ classDiagram
       +String doc
     }
   }
-  namespace Programas {
+  namespace PCE {
     class Propriedade {
       +String id
       +String codigo
@@ -145,10 +145,9 @@ classDiagram
       +String id
       +String propriedadeId
       +Data data
-      +pragasAchadas() Lista
-      +validado() Bool
+      +doencasAchadas() Lista
     }
-    class Praga {
+    class Doenca {
       +String nome
       +String programa
     }
@@ -157,10 +156,11 @@ classDiagram
       +String levantamentoId
     }
     class Programa {
+      <<PCE>>
       +String id
-      +pragas() Lista
+      +doencas() Lista
     }
-    class PCE {
+    class Cadastro {
       +String id
       +String programa
       +String propriedadeId
@@ -169,7 +169,7 @@ classDiagram
     class TermoPCE {
       +String id
       +String levantamentoId
-      +String praga
+      +String doenca
       +String cadastroId
       +String doc
     }
@@ -198,12 +198,12 @@ classDiagram
   TermoAcao <|-- TermoPCE
   Propriedade "1" --> "*" Levantamento : visita
   Levantamento "1" --> "*" Colheita : amostra
-  Propriedade "1" --> "*" PCE : inscrita em
-  Programa "1" --> "*" PCE : inscreve
-  Programa "1" --> "*" Praga : tem
-  TermoPCE "*" --> "1" Praga : de
-  TermoPCE "*" --> "1" Levantamento : valida
-  TermoPCE "*" --> "1" PCE : do cadastro
+  Propriedade "1" --> "*" Cadastro : inscrita em
+  Programa "1" --> "*" Cadastro : inscreve
+  Programa "1" --> "*" Doenca : tem
+  TermoPCE "*" --> "1" Doenca : de
+  TermoPCE "0..*" --> "1" Levantamento : valida
+  TermoPCE "*" --> "1" Cadastro : do cadastro
   TermoPCE "*" --> "1" Proprietario : fiscalizado
   Propriedade "*" --> "1" Proprietario : dono
   TFBarreira "1" --> "*" Arquivo : fotos e PDFs
@@ -222,14 +222,15 @@ barreira é só `Pessoa`). Os dois ficam na aba `Pessoas` (id = CPF/CNPJ); propr
 alguma `Propriedade`. É pelo CPF/CNPJ que se conta quantos TFs uma pessoa levou (`tfsRecebidos`); a reincidência
 de hoje olha só o TF de Barreira.
 
-**PCE (modelo combinado em 22/10/2026):** o levantamento é a visita à propriedade e pode achar **várias** pragas.
-Para cada praga sai **um** Termo de Fiscalização do PCE, que é o levantamento daquela praga e o **valida**. Cada
-programa tem as suas pragas. **O código ainda difere:** `Levantamentos` já guarda várias pragas por visita (um cartão
+**PCE (modelo combinado em 22/10/2026):** o PCE é o **programa** (monilíase, citros...), com várias doenças (praga
+ou doença: HLB, cancro cítrico, mosca-da-carambola...). O levantamento é a visita ao proprietário e gera **0 ou
+vários** Termos de Fiscalização do PCE, **um por doença achada**; cada termo valida o levantamento daquela doença.
+Visita sem doença achada = levantamento negativo, sem termo. Identificação e contagem são sempre **por doença**. **O código ainda difere:** `Levantamentos` já guarda várias pragas por visita (um cartão
 e uma ficha por praga), mas `TermosPCE` tem um termo por visita com uma lista de pragas, sem apontar para o
 levantamento. Decisões em
 [decisoes/modelo.md](decisoes/modelo.md).
 
-`PCE` = aba `CadastrosPCE`: a ligação de uma propriedade com um programa, no máximo uma por par (o cadastro do
+`Cadastro` = aba `CadastrosPCE`: a ligação de uma propriedade com um programa, no máximo uma por par (o cadastro do
 imóvel naquele programa; `dados` guarda os campos do programa). `Programa` não é aba: é a lista `PROGRAMAS_PCE` do
 `Code.gs` (monilíase, banana, citros, mandioca, soja, propriedade). `Arquivo` liga a qualquer registro por
 `dono` (nome da aba) + `donoId`. `Consultas` (registro de consultas de CPF/placa) e `Aparelhos` (sinal) ficam fora do

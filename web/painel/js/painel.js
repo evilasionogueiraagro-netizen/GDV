@@ -1453,11 +1453,11 @@ const Painel = (() => {
   /** A sessão tem a permissão (gerência vale todas). */
   const pode = perm => !!S.token && (S.perm.indexOf('gerencia') >= 0 || S.perm.indexOf(perm) >= 0);
   const nomeDeLogin = j => (j.usuario && (j.usuario.nome || j.usuario.matricula)) || 'Usuário';
-  /** Nome deste navegador na lista de sessões do gerente: "Painel-xxxx" (no Modo TV, "TV-xxxx"); o sufixo fica fixo no aparelho. */
+  /** Nome deste navegador na lista de sessões do gerente: "Painel-xxxx" (no Modo TV, "Painel-TV-xxxx"); o sufixo fica fixo no aparelho. */
   function aparelhoId() {
     let b = ls.get(LS_APARELHO);
     if (!/^[a-z0-9]{4}$/.test(b || '')) { b = Math.random().toString(36).slice(2, 6).padEnd(4, '0'); ls.set(LS_APARELHO, b); }
-    return (emTV() ? 'TV-' : 'Painel-') + b;
+    return (emTV() ? 'Painel-TV-' : 'Painel-') + b;      // o servidor aceita de 8 a 64 caracteres
   }
   function avisoLogin(msg) { const e = $('#pn-login-erro'); e.textContent = msg || ''; e.hidden = !msg; }
   function focarLogin() { const i = $('#pn-login').hidden ? null : $(S.troca ? '#pn-senha-nova' : '#pn-matricula'); if (i && !i.closest('[hidden]')) i.focus(); }

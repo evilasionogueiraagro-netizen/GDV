@@ -17,7 +17,7 @@
   <div class="pn-usuario" id="adm-usuario" hidden><span id="adm-nome"></span><button type="button" id="adm-sair" class="pn-btn-topo">Sair</button></div>
 </header>
 
-<!-- Login: matrícula e senha; enquanto os acessos antigos não forem desligados, o código de ativação gerado pelo gerente também entra -->
+<!-- Login único: matrícula e senha; a senha provisória exige a troca no primeiro acesso -->
 <main id="adm-login" class="pn-login" hidden>
   <div class="pn-cartao pn-login-form adm-login">
     <h2 id="adm-login-tit">Acesso do Administrativo</h2>
@@ -40,14 +40,6 @@
       <button type="submit" class="pn-botao pn-btn pn-btn-prim" id="adm-entrar-senha">Entrar</button>
       <button type="button" class="pn-btn" id="adm-troca-voltar" hidden>Cancelar</button>
     </form>
-    <details id="adm-cod-box" class="adm-cod-box">
-      <summary>Entrar com um código de ativação (acesso antigo)</summary>
-      <form id="adm-cod-form" autocomplete="off">
-        <label for="adm-codigo">Código de 6 dígitos (gerado pelo gerente no painel, aba Servidores)</label>
-        <input id="adm-codigo" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" required>
-        <button type="submit" class="pn-botao pn-btn pn-btn-prim" id="adm-entrar">Entrar</button>
-      </form>
-    </details>
     <p class="pn-erro" id="adm-login-erro" role="alert" hidden></p>
   </div>
 </main>

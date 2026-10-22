@@ -1,13 +1,11 @@
-/* Painel gerencial do GDV — aba "Servidores", bloco "Usuários" (só quem tem a permissão gerência; a credencial antiga de administrador
-   vale como gerência durante a transição): matrícula e senha para o app de campo, o painel e o portal.
+/* Painel gerencial do GDV — aba "Usuários" (só quem tem a permissão gerência): matrícula e senha para o app de campo, o painel e o portal.
    O gerente cria o usuário (matrícula opcional: vazia, o sistema gera GDV0001…; nome; permissões) e o sistema mostra a senha provisória
    uma única vez (copiar a mensagem ou enviar pelo WhatsApp). Depois: editar permissões, nova senha provisória (encerra as sessões da
-   pessoa), desativar/reativar, ver e encerrar as sessões (aparelhos) e, no fim, "Desligar acessos antigos" (códigos de ativação, códigos
-   de administrador e credenciais antigas deixam de valer; só com sessão de matrícula e senha, para ninguém se trancar fora).
+   pessoa), desativar/reativar e ver e encerrar as sessões (aparelhos). A TV da sala é um usuário só com a permissão Painel.
    A planilha guarda só o hash da senha: nada aqui lê uma senha, só a mostra no momento em que o servidor a gera.
-   Actions (Code.gs): usuariosListar, usuarioCriar, usuarioPermissoes, usuarioNovaSenha, usuarioAtivar, sessoesListar, sessaoEncerrar e
-   acessosAntigosDesligar. As mensagens de erro do servidor aparecem como vieram. Usa a API do objeto global Painel (js/painel.js);
-   a aba Servidores (js/painel-acessos.js) chama PainelUsuarios.anexar(). Sem ícones: só texto e as classes do painel.css. */
+   Actions (apps-script/usuarios.gs): usuariosListar, usuarioCriar, usuarioPermissoes, usuarioNovaSenha, usuarioAtivar, sessoesListar e
+   sessaoEncerrar. As mensagens de erro do servidor aparecem como vieram. Usa a API do objeto global Painel (js/painel.js).
+   Não depende do período nem dos filtros e não aparece no Modo TV. */
 (() => {
   'use strict';
   if (typeof Painel === 'undefined') return;
@@ -24,7 +22,7 @@
   const rotulo = p => ROTULOS[p] || p;
 
   /* ---------- estado (sobrevive às atualizações automáticas do painel, que redesenham a aba) ---------- */
-  const E = { raiz: null, lista: null, antigos: '', lidoEm: 0, carregando: false, erro: '', editando: null, senha: null, sessoes: null, ocupado: false,
+  const E = { raiz: null, lista: null, lidoEm: 0, carregando: false, erro: '', editando: null, senha: null, sessoes: null, ocupado: false,
               msg: { form: { t: '', cls: '' }, geral: { t: '', cls: '' } } };
 
   const q = s => E.raiz && E.raiz.querySelector(s);
@@ -126,9 +124,9 @@
     if (E.carregando) return; E.carregando = true;
     try {
       const j = await P.chamar({ action: 'usuariosListar' });
-      E.lista = Array.isArray(j.usuarios) ? j.usuarios : []; E.antigos = j.acessosAntigos || ''; E.erro = ''; E.lidoEm = Date.now();
+      E.lista = Array.isArray(j.usuarios) ? j.usuarios : []; E.erro = ''; E.lidoEm = Date.now();
     } catch (e) { E.erro = e.message; }
-    finally { E.carregando = false; if (P.logado && E.raiz) { desenharLista(); desenharAntigos(); } }
+    finally { E.carregando = false; if (P.logado && E.raiz) { desenharLista(); } }
   }
   async function salvarFormulario(ev) {
     ev.preventDefault();
@@ -235,32 +233,6 @@
       vazio: 'Nenhum usuário ainda. Crie o primeiro acima.' });
   }
 
-  /* ---------- acessos antigos ---------- */
-  function desenharAntigos() {
-    const box = q('#pn-us-antigos'); if (!box) return;
-    const desligados = E.antigos === 'desligados', nova = P.sessaoNova;
-    box.innerHTML = `<h3>Acessos antigos (códigos)</h3>
-      <p class="pn-sub">Situação: <span class="pn-selo ${desligados ? 'bom' : 'atencao'}" id="pn-us-antigos-sit">${desligados ? 'Desligados' : E.antigos === 'ligados' ? 'Ligados' : '—'}</span>
-        · Códigos de ativação do app, códigos de administrador (painel e TV), o login por código do portal e as credenciais antigas já ativadas.
-        Desligue quando todas as pessoas e a TV da sala tiverem matrícula e senha.</p>
-      ${desligados ? '' : `<div class="pn-conv-acoes"><button type="button" class="pn-btn pn-btn-perigo" data-us="desligar" id="pn-us-desligar" ${nova ? '' : 'disabled'}>Desligar acessos antigos</button>
-        ${nova ? '' : '<span class="pn-pub-msg">Para desligar, saia e entre com a sua matrícula e senha: com o código antigo você ficaria sem acesso.</span>'}</div>`}`;
-  }
-  async function desligarAntigos() {
-    const r = prompt('Desligar os acessos antigos?\n\n'
-      + 'Vale para todos, na hora:\n'
-      + '- os códigos de ativação do app e os códigos de administrador (painel e TV) deixam de funcionar;\n'
-      + '- as credenciais antigas já ativadas (aparelhos do app, painel e TV) passam a ser recusadas;\n'
-      + '- o login por código do Portal do Administrativo também acaba.\n\n'
-      + 'Só continue se todas as pessoas e a TV da sala já têm matrícula e senha. Você precisa estar logado com matrícula e senha (não com o código antigo).\n\n'
-      + 'Para confirmar, digite DESLIGAR.');
-    if (r === null) return;
-    if (String(r).trim().toUpperCase() !== 'DESLIGAR') return setMsg('geral', 'Você não digitou DESLIGAR: nada foi desligado.', 'erro');
-    const j = await agir('geral', { action: 'acessosAntigosDesligar', desligar: 1 }, 'Desligando…');
-    if (!j) return;
-    E.antigos = 'desligados'; setMsg('geral', 'Acessos antigos desligados: só entra quem tem matrícula e senha.', 'ok'); desenharAntigos(); carregar();
-  }
-
   /* ---------- montagem (uma vez; depois só é reanexada) ---------- */
   function montar() {
     const r = P.el('section', 'pn-secao pn-us'); r.id = 'pn-us';
@@ -286,8 +258,7 @@
       </div>
       <p class="pn-pub-msg" data-msg="geral" role="status"></p>
       <div id="pn-us-lista"></div>
-      <div id="pn-us-sessoes" hidden></div>
-      <div class="pn-cartao" id="pn-us-antigos"></div>`;
+      <div id="pn-us-sessoes" hidden></div>`;
     r.addEventListener('change', e => { const c = e.target.closest('input[data-perm]'); if (c) amarrarPapel(c); });
     r.querySelector('#pn-us-form').addEventListener('submit', salvarFormulario);
     r.addEventListener('click', async e => {
@@ -309,21 +280,20 @@
       else if ((tipo === 'desativar' || tipo === 'reativar') && u) ativar(u, tipo === 'reativar');
       else if (tipo === 'sessoes' && u) verSessoes(u);
       else if (tipo === 'encerrar') encerrarSessao(b.dataset.sessao);
-      else if (tipo === 'desligar') desligarAntigos();
     });
     // a aba é redesenhada a cada atualização do painel (a raiz sai e volta à página): o campo em foco volta a ser o foco (ver Painel.renderAba)
     return r;
   }
 
-  /** Chamado pela aba Servidores (js/painel-acessos.js): o bloco entra no topo, só para quem tem gerência. */
-  function anexar(c) {
-    if (!P.pode('gerencia')) return;
-    if (!E.raiz) { E.raiz = montar(); desenharFormulario(); desenharResultado(); desenharSessoes(); desenharLista(); desenharAntigos(); }
-    c.insertBefore(E.raiz, c.firstChild);            // reanexado sem redesenhar: o que está sendo digitado não se perde
+  /** Aba Usuários: a raiz é montada uma vez e só reanexada nas atualizações automáticas (o que está sendo digitado não se perde). */
+  function render(c) {
+    if (!E.raiz) { E.raiz = montar(); desenharFormulario(); desenharResultado(); desenharSessoes(); desenharLista(); }
+    c.appendChild(E.raiz);
     if (!E.carregando && (!E.lista || Date.now() - E.lidoEm > RECARREGAR_MS)) carregar();
   }
   // outro usuário pode entrar neste aparelho: nada da sessão anterior (nem uma senha provisória à mostra) fica na tela
   P.aoSair(() => { if (E.raiz) E.raiz.remove();
-    Object.assign(E, { raiz: null, lista: null, antigos: '', lidoEm: 0, erro: '', editando: null, senha: null, sessoes: null, ocupado: false, msg: { form: { t: '', cls: '' }, geral: { t: '', cls: '' } } }); });
-  window.PainelUsuarios = { anexar, mensagem, linkWhats };
+    Object.assign(E, { raiz: null, lista: null, lidoEm: 0, erro: '', editando: null, senha: null, sessoes: null, ocupado: false, msg: { form: { t: '', cls: '' }, geral: { t: '', cls: '' } } }); });
+  P.registrarAba({ id: 'usuarios', titulo: 'Usuários', render, semFiltros: true, visivel: () => P.pode('gerencia') });
+  window.PainelUsuarios = { mensagem, linkWhats };
 })();

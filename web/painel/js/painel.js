@@ -1,4 +1,4 @@
-/* Painel gerencial do GDV (GitHub Pages). Núcleo: login do administrador, filtros, carga de dados, abas, mapa do Amazonas,
+/* Painel gerencial do GDV (GitHub Pages). Núcleo: login por matrícula e senha, filtros, carga de dados, abas, mapa do Amazonas,
    Visão geral e helpers para as abas de módulo (objeto global Painel). As abas Barreiras, TF e PCE ficam em painel-*.js. */
 const Painel = (() => {
   'use strict';
@@ -16,8 +16,7 @@ const Painel = (() => {
   // TF em preenchimento (apreensão em andamento): enquanto houver um, as barreiras ao vivo são consultadas a cada 25 s;
   // sem batimento do aparelho há mais de 10 min o TF é considerado encerrado (o servidor já filtra; aqui vale também sem conexão)
   const TF_RAPIDO_MS = 15 * 1000, TF_VALIDADE_MS = 10 * 60 * 1000;
-  const ORDEM_ABAS = ['geral', 'barreiras', 'tf', 'pce', 'convenios', 'relatorios', 'acessos'];
-  const ehNovo = t => /^u\./.test(t || '');                // sessão de matrícula e senha (token "u.…"); o resto é a credencial antiga de administrador
+  const ORDEM_ABAS = ['geral', 'barreiras', 'tf', 'pce', 'convenios', 'relatorios', 'usuarios'];
 
   /* ---------------- utilidades ---------------- */
   const $ = s => document.querySelector(s);
@@ -140,22 +139,20 @@ const Painel = (() => {
     if (!j || !j.ok) throw Object.assign(new Error((j && j.erro) || 'Erro no servidor.'), { servidor: true, trocarSenha: !!(j && j.trocarSenha) });
     return j;
   }
-  // só estas respostas do servidor encerram a sessão (credencial revogada/inválida); falha de rede, cota ou "período inválido" nunca deslogam
-  // (credencial antiga recusada depois que o gerente desligou os acessos antigos: "Entre com sua matrícula e senha."; sessão nova encerrada
-  // pelo gerente ou por trocarSenha/usuarioNovaSenha; senha provisória pendente chega com trocarSenha: 1)
-  const SESSAO_ANTIGA = /sess[aã]o do painel|revogad|acesso restrito|n[aã]o autorizado|aparelho n[aã]o ativado/i;
-  const SESSAO_NOVA = /sess[aã]o (encerrada|expirada|inv[aá]lida|revogada)|acesso (encerrado|revogado)|usu[aá]rio (desativado|inativo)|conta desativada|troque a senha provis/i;
-  const erroDeSessao = (m, tok) => /matr[ií]cula e senha/i.test(m || '') || (ehNovo(tok === undefined ? S.token : tok) ? SESSAO_NOVA : SESSAO_ANTIGA).test(m || '');
+  // só estas respostas do servidor encerram a sessão (sessão encerrada, conta desativada, senha provisória pendente); falha de rede,
+  // cota ou "período inválido" nunca deslogam. O servidor manda trocarSenha: 1 quando a senha provisória ainda não foi trocada.
+  const SESSAO_ENCERRADA = /sess[aã]o (encerrada|expirada|inv[aá]lida|revogada)|acesso (encerrado|revogado)|usu[aá]rio (desativado|inativo)|conta desativada|acesso desativado|troque a senha provis|matr[ií]cula e senha/i;
+  const erroDeSessao = m => SESSAO_ENCERRADA.test(m || '');
   /** Chamada à API com a credencial do painel (abas que leem ou gravam fora do painelDados). Credencial recusada → volta ao login. */
   async function chamar(corpo) {
     const tok = S.token; if (!tok) throw new Error('Sessão do painel encerrada. Entre de novo.');
     try { return await api(Object.assign({}, corpo, { key: tok })); }
-    catch (e) { if (e.servidor && S.token === tok && (e.trocarSenha || erroDeSessao(e.message, tok))) sair(e.message); throw e; }
+    catch (e) { if (e.servidor && S.token === tok && (e.trocarSenha || erroDeSessao(e.message))) sair(e.message); throw e; }
   }
-  const aoSairFns = [];                                  // abas que guardam estado próprio (ex.: Servidores) limpam ao sair
+  const aoSairFns = [];                                  // abas que guardam estado próprio (ex.: Usuários) limpam ao sair
 
   /* ---------------- estado ---------------- */
-  const S = { token: ls.get(LS_TOKEN) || '', nome: ls.get(LS_NOME) || '', perm: lerJSON(ls.get(LS_PERM), []), troca: null, semCodigo: false, bruto: null, todos: null, dados: null, filtros: null,
+  const S = { token: /^u\./.test(ls.get(LS_TOKEN) || '') ? ls.get(LS_TOKEN) : '', nome: ls.get(LS_NOME) || '', perm: lerJSON(ls.get(LS_PERM), []), troca: null, bruto: null, todos: null, dados: null, filtros: null,
               aba: ls.get(LS_ABA) || 'geral', carregando: false, ultimaCarga: 0, ultimaCompleta: 0, erro: '', falhas: 0, proxima: 0, timer: null,
               abas: {}, graficos: {}, mapas: {}, tabelas: {}, tv: null };
   if (!Array.isArray(S.perm)) S.perm = [];
@@ -661,7 +658,7 @@ const Painel = (() => {
   const abasOrdenadas = () => Object.values(S.abas).sort((a, b) => {
     const ia = ORDEM_ABAS.indexOf(a.id), ib = ORDEM_ABAS.indexOf(b.id);
     return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib) || String(a.titulo).localeCompare(String(b.titulo)); });
-  /** Aba que a sessão pode abrir (def.visivel(): ex.: Servidores só para quem tem gerência). */
+  /** Aba que a sessão pode abrir (def.visivel(): ex.: Usuários só para quem tem gerência). */
   const abaVisivel = a => !!a && (typeof a.visivel !== 'function' || a.visivel());
   const abasVisiveis = () => abasOrdenadas().filter(abaVisivel);
   function desenharAbas() {
@@ -675,10 +672,10 @@ const Painel = (() => {
   function irPara(id) { if (!abaVisivel(S.abas[id])) return; S.aba = id; ls.set(LS_ABA, id); desenharAbas(); renderAba(); window.scrollTo({ top: 0 }); }
   function renderAba(auto) {
     const def = S.abas[S.aba], c = $('#pn-conteudo');
-    if (!emTV()) $('.pn-filtros').hidden = !!(def && def.semFiltros);   // aba sem período/filtros (ex.: Servidores)
+    if (!emTV()) $('.pn-filtros').hidden = !!(def && def.semFiltros);   // aba sem período/filtros (ex.: Usuários)
     if (!def || !S.dados || emTV()) return;
     const y = window.scrollY, h = c.offsetHeight;
-    // atualização automática: um bloco que se reanexa inteiro (ex.: formulário da aba Servidores) não perde o campo em que se digita
+    // atualização automática: um bloco que se reanexa inteiro (ex.: formulário da aba Usuários) não perde o campo em que se digita
     const foco = auto && document.activeElement !== document.body && c.contains(document.activeElement) ? document.activeElement : null;
     const sel = foco && typeof foco.selectionStart === 'number' ? [foco.selectionStart, foco.selectionEnd] : null;
     if (auto) c.style.minHeight = h + 'px';
@@ -1320,7 +1317,7 @@ const Painel = (() => {
   const RE_HM = /^([01]\d|2[0-3]):[0-5]\d$/;
   /** Botão "Encerrar turno" de um cartão de barreira em andamento (null no modo TV ou para turno já encerrado). */
   function botaoEncerrar(t) {
-    if (emTV() || !t || !t.emAndamento) return null;
+    if (emTV() || !t || !t.emAndamento || !pode('gerencia')) return null;      // sem gerência o painel é só de leitura
     const b = el('button', 'pn-btn pn-btn-mini pn-btn-encerrar', 'Encerrar turno'); b.type = 'button'; b.dataset.encerrar = t.id;
     b.setAttribute('aria-label', `Encerrar o turno de ${t.local || 'barreira sem local'}${t.fiscal ? ' (' + t.fiscal + ')' : ''}`);
     b.onclick = () => dialogoEncerrar(t);
@@ -1451,12 +1448,11 @@ const Painel = (() => {
   }
 
   /* ---------------- login / sessão ---------------- */
-  // Entrar: matrícula e senha (action entrar, aplicativo "painel"; o token "u.…" vai em key). O código de administrador antigo continua
-  // valendo (painelAtivar) até o gerente desligar os acessos antigos; quem já está logado com ele segue logado. Senha provisória: troca
-  // obrigatória antes de guardar a sessão (trocarSenha). O servidor decide o que cada permissão pode: aqui só se esconde o que não serve.
-  /** Permissão da sessão atual; a credencial antiga de administrador vale como gerência nas telas de gerência. */
-  const pode = perm => !!S.token && (!ehNovo(S.token) || S.perm.indexOf('gerencia') >= 0 || S.perm.indexOf(perm) >= 0);
-  const nomeDeLogin = j => (j.usuario && (j.usuario.nome || j.usuario.matricula)) || j.nome || 'Usuário';
+  // Entrada única: matrícula e senha (action entrar, aplicativo "painel"; o token "u.…" vai em key). Senha provisória: troca obrigatória
+  // antes de guardar a sessão (trocarSenha). O servidor decide o que cada permissão pode: aqui só se esconde o que não serve.
+  /** A sessão tem a permissão (gerência vale todas). */
+  const pode = perm => !!S.token && (S.perm.indexOf('gerencia') >= 0 || S.perm.indexOf(perm) >= 0);
+  const nomeDeLogin = j => (j.usuario && (j.usuario.nome || j.usuario.matricula)) || 'Usuário';
   /** Nome deste navegador na lista de sessões do gerente: "Painel-xxxx" (no Modo TV, "TV-xxxx"); o sufixo fica fixo no aparelho. */
   function aparelhoId() {
     let b = ls.get(LS_APARELHO);
@@ -1465,48 +1461,41 @@ const Painel = (() => {
   }
   function avisoLogin(msg) { const e = $('#pn-login-erro'); e.textContent = msg || ''; e.hidden = !msg; }
   function focarLogin() { const i = $('#pn-login').hidden ? null : $(S.troca ? '#pn-senha-nova' : '#pn-matricula'); if (i && !i.closest('[hidden]')) i.focus(); }
+  const CAMPOS_SENHA = ['#pn-senha', '#pn-senha-nova', '#pn-senha-nova2'];
   /** Cartão de matrícula e senha: normal ou, com senha provisória, o passo de criar a senha nova. */
   function desenharTroca() {
-    const t = !!S.troca;
+    const t = !!S.troca, tv = emTV();
     $('#pn-senha-campos').hidden = t; $('#pn-troca').hidden = !t; $('#pn-troca-voltar').hidden = !t; $('#pn-senha-txt').hidden = t;
-    $('#pn-senha-tit').textContent = t ? 'Crie a sua senha' : emTV() ? 'Modo TV — entrar com matrícula e senha' : 'Entrar no painel';
+    $('#pn-senha-tit').textContent = t ? 'Crie a sua senha' : tv ? 'Modo TV: entrar' : 'Entrar no painel';
+    $('#pn-senha-txt').textContent = tv ? 'Entre com o usuário da TV: a matrícula e a senha que o gerente criou só para ela (permissão Painel).'
+      : 'Use a matrícula e a senha que o gerente criou para você.';
     $('#pn-entrar-senha').textContent = t ? 'Salvar a senha e entrar' : 'Entrar';
-    ['#pn-senha', '#pn-senha-nova', '#pn-senha-nova2'].forEach(q => { $(q).type = 'password'; });
+    CAMPOS_SENHA.forEach(q => { $(q).type = 'password'; });
     $('#pn-ver-senha').textContent = 'Mostrar a senha';
   }
   function mostrar(qual) {
     $('#pn-login').hidden = qual !== 'login'; $('#pn-app').hidden = qual !== 'app'; $('#pn-usuario').hidden = qual !== 'app';
-    if (qual === 'app') $('#pn-nome').textContent = S.nome || 'Administrador';
-    // no modo TV a tela de login só aparece quando o servidor diz que a credencial foi revogada/inválida (nunca por falha de rede)
-    // (na primeira configuração da TV, sem credencial ainda, não há sessão para "encerrar": pede o código normalmente)
-    const tv = emTV(), encerrada = tv && (S.encerrada || !!ls.get(LS_ENCERRADA));
-    $('#pn-senha-txt').textContent = tv ? 'Entre com o usuário da TV: matrícula e senha criadas pelo gerente, só com a permissão Painel (ver).' : 'Use a matrícula e a senha que o gerente criou para você.';
-    $('#pn-login-tit').textContent = encerrada ? 'Sessão encerrada' : tv ? 'Modo TV — acesso do administrador' : 'Acesso do administrador (código antigo)';
-    $('#pn-login-txt').innerHTML = tv ? (encerrada ? 'Gere um novo código de administrador e digite aqui' : 'Digite um código de administrador próprio para esta TV')
-        + ' (planilha: menu <b>e-GDV → Gerar código de administrador</b>, ex.: nome “TV Sala da Gerência”).'
-      : 'Sem matrícula e senha ainda? Digite o código de administrador de 6 dígitos gerado na planilha (menu <b>e-GDV → Gerar código de administrador</b>). Cada código vale uma vez; o gerente vai desligar este acesso.';
-    $('#pn-login-form').hidden = S.semCodigo;                // o servidor já recusou o código antigo: só matrícula e senha
+    if (qual === 'app') $('#pn-nome').textContent = S.nome || 'Usuário';
     desenharTroca();
     desenharDicaInstalar();
   }
   function sair(msg) {
-    S.encerrada = !!msg;                                       // credencial recusada pelo servidor (não é a 1ª configuração)
+    S.encerrada = !!msg;                                       // sessão recusada pelo servidor (não é a 1ª configuração)
     // o motivo fica gravado no aparelho: depois de recarregar (versão nova, TV reiniciada) continua "Sessão encerrada"
     if (msg) ls.set(LS_ENCERRADA, msg); else ls.del(LS_ENCERRADA);
-    if (/matr[ií]cula e senha/i.test(msg || '')) S.semCodigo = true;
     ls.del(LS_TOKEN); ls.del(LS_NOME); ls.del(LS_PERM); S.token = ''; S.nome = ''; S.perm = []; S.troca = null;
     aoSairFns.forEach(fn => { try { fn(); } catch (e) { /* aba */ } }); S.bruto = S.todos = S.dados = null; clearTimeout(S.timer); S.falhas = 0; S.tfRapido = false;
     desenharAvisoTF();
-    ['#pn-codigo', '#pn-senha', '#pn-senha-nova', '#pn-senha-nova2'].forEach(q => { $(q).value = ''; });
+    ['#pn-matricula', ...CAMPOS_SENHA].forEach(q => { $(q).value = ''; });
     mostrar('login'); status(''); avisoLogin(msg); focarLogin();
     if (S.tv) S.tv.atualizar();
   }
-  /** Guarda a sessão (nova: permissões junto) e abre o painel. */
+  /** Guarda a sessão (com as permissões) e abre o painel. */
   function guardarEntrada(token, nome, perm) {
-    S.token = token; S.nome = nome || 'Administrador'; S.troca = null; S.perm = ehNovo(token) && Array.isArray(perm) ? perm : [];
-    ls.set(LS_TOKEN, S.token); ls.set(LS_NOME, S.nome); if (ehNovo(token)) ls.set(LS_PERM, JSON.stringify(S.perm)); else ls.del(LS_PERM);
+    S.token = token; S.nome = nome || 'Usuário'; S.troca = null; S.perm = Array.isArray(perm) ? perm : [];
+    ls.set(LS_TOKEN, S.token); ls.set(LS_NOME, S.nome); ls.set(LS_PERM, JSON.stringify(S.perm));
     S.encerrada = false; ls.del(LS_ENCERRADA); avisoLogin('');
-    ['#pn-codigo', '#pn-senha', '#pn-senha-nova', '#pn-senha-nova2'].forEach(q => { $(q).value = ''; });
+    ['#pn-matricula', ...CAMPOS_SENHA].forEach(q => { $(q).value = ''; });
     iniciarApp();
   }
   async function entrarSenha(ev) {
@@ -1534,35 +1523,18 @@ const Painel = (() => {
   /** "Cancelar" na criação da senha nova: encerra a sessão provisória no servidor e volta a pedir matrícula e senha. */
   function cancelarTroca() {
     const t = S.troca; S.troca = null; avisoLogin('');
-    ['#pn-senha', '#pn-senha-nova', '#pn-senha-nova2'].forEach(q => { $(q).value = ''; });
+    CAMPOS_SENHA.forEach(q => { $(q).value = ''; });
     desenharTroca(); focarLogin();
     if (t) api({ action: 'sair', key: t.token }).catch(() => { /* a sessão provisória não serve para nada sem a senha nova */ });
   }
   function alternarSenha() {
     const ver = $('#pn-senha').type === 'password';
-    ['#pn-senha', '#pn-senha-nova', '#pn-senha-nova2'].forEach(q => { $(q).type = ver ? 'text' : 'password'; });
+    CAMPOS_SENHA.forEach(q => { $(q).type = ver ? 'text' : 'password'; });
     $('#pn-ver-senha').textContent = ver ? 'Esconder a senha' : 'Mostrar a senha';
   }
-  /** Código de administrador antigo (transição). */
-  async function entrar(ev) {
-    ev.preventDefault();
-    const cod = $('#pn-codigo').value.replace(/\D/g, ''), b = $('#pn-entrar');
-    avisoLogin('');
-    if (cod.length !== 6) return avisoLogin('O código tem 6 dígitos.');
-    b.disabled = true; b.textContent = 'Verificando…';
-    try {
-      const j = await api({ action: 'painelAtivar', codigo: cod });
-      if (!j.token) throw new Error('Resposta sem credencial.');
-      guardarEntrada(j.token, j.nome || 'Administrador', null);
-    } catch (e) {
-      if (/matr[ií]cula e senha/i.test(e.message)) { S.semCodigo = true; $('#pn-login-form').hidden = true; focarLogin(); }
-      avisoLogin(e.message);
-    }
-    finally { b.disabled = false; b.textContent = 'Entrar'; }
-  }
-  /** Sessão nova: relê permissões e situação no servidor (o gerente pode ter mudado ou encerrado). Falha de rede não derruba. */
+  /** Relê permissões e situação no servidor (o gerente pode ter mudado ou encerrado a sessão). Falha de rede não derruba. */
   async function atualizarSessao() {
-    const tok = S.token; if (!ehNovo(tok)) return;
+    const tok = S.token; if (!tok) return;
     try {
       const j = await api({ action: 'minhaSessao', key: tok });
       if (S.token !== tok) return;
@@ -1570,23 +1542,25 @@ const Painel = (() => {
       S.perm = Array.isArray(j.permissoes) ? j.permissoes : S.perm; ls.set(LS_PERM, JSON.stringify(S.perm));
       if (j.usuario && j.usuario.nome) { S.nome = j.usuario.nome; ls.set(LS_NOME, S.nome); $('#pn-nome').textContent = S.nome; }
       if (S.dados) { if (!abaVisivel(S.abas[S.aba])) S.aba = 'geral'; desenharAbas(); renderAba(true); }
-    } catch (e) { if (S.token === tok && e.servidor && (e.trocarSenha || erroDeSessao(e.message, tok))) sair(e.message); }
+    } catch (e) { if (S.token === tok && e.servidor && (e.trocarSenha || erroDeSessao(e.message))) sair(e.message); }
   }
-  function iniciarApp() { mostrar('app'); desenharPresets(); desenharBotaoNotif(); carregar(); agendar(); atualizarSessao(); }
+  async function iniciarApp() {
+    mostrar('app'); desenharPresets(); desenharBotaoNotif();
+    if (ls.get(LS_PERM) === null) await atualizarSessao();     // permissões ainda desconhecidas neste aparelho: lê antes de desenhar as abas
+    if (!S.token) return;                                      // a sessão foi recusada na leitura: já voltou à tela de entrar
+    carregar(); agendar(); atualizarSessao();
+  }
 
   function ligarEventos() {
-    $('#pn-login-form').addEventListener('submit', entrar);
     $('#pn-login-senha').addEventListener('submit', entrarSenha);
     $('#pn-troca-voltar').onclick = cancelarTroca;
     $('#pn-ver-senha').onclick = alternarSenha;
     $('#pn-sair').onclick = async () => {
-      const tok = S.token, novo = ehNovo(tok);
-      if (!confirm(novo ? 'Sair do painel? Será preciso entrar de novo com a matrícula e a senha.'
-        : 'Sair do painel? A credencial deste acesso será revogada no servidor e será preciso um novo código de administrador para entrar de novo.')) return;
+      const tok = S.token;
+      if (!confirm('Sair do painel? Será preciso entrar de novo com a matrícula e a senha.')) return;
       sair();
-      try { await api({ action: novo ? 'sair' : 'painelSair', key: tok }); }   // encerra no servidor (cópias do token deixam de valer)
-      catch (e) { avisoLogin('Saiu deste aparelho, mas não foi possível ' + (novo ? 'encerrar a sessão' : 'revogar a credencial') + ' no servidor (' + e.message + '). '
-        + (novo ? 'Peça ao gerente para encerrar a sessão na aba Servidores.' : 'Revogue o acesso na planilha (aba Fiscais).')); }
+      try { await api({ action: 'sair', key: tok }); }           // encerra a sessão no servidor (cópias do token deixam de valer)
+      catch (e) { avisoLogin('Saiu deste aparelho, mas não foi possível encerrar a sessão no servidor (' + e.message + '). Peça ao gerente para encerrar a sessão na aba Usuários.'); }
     };
     $('#pn-presets').addEventListener('click', e => {
       const b = e.target.closest('[data-preset]'); if (!b) return; F.preset = b.dataset.preset; salvarFiltro(); desenharPresets();
@@ -1611,7 +1585,6 @@ const Painel = (() => {
     // a rede voltou: tenta já, sem esperar o fim da espera crescente
     window.addEventListener('online', () => { if (S.token && S.falhas) agendar(500); });
     matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => { if (S.dados) renderAba(true); });
-    $('#pn-codigo').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6); });
     $('#pn-instalar').addEventListener('click', e => { const b = e.target.closest('[data-instalar]'); if (b) acaoInstalar(b.dataset.instalar); });
     // áudio do alerta de TF: o primeiro gesto na página libera o som (bloqueado pelo navegador até lá)
     ['pointerdown', 'keydown'].forEach(ev => document.addEventListener(ev, destravarAudio, { once: true, passive: true }));
@@ -1631,7 +1604,7 @@ const Painel = (() => {
     if (S.token) iniciarApp();
     else {
       const msg = ls.get(LS_ENCERRADA);                                    // sessão encerrada antes de recarregar: mostra o motivo de novo
-      S.encerrada = !!msg; S.semCodigo = /matr[ií]cula e senha/i.test(msg || ''); mostrar('login');
+      S.encerrada = !!msg; mostrar('login');
       avisoLogin(msg); focarLogin();
     }
   }
@@ -1661,8 +1634,8 @@ const Painel = (() => {
     usarTV: h => { S.tv = h; },
     /** API com a credencial do painel ({action, ...} → resposta; erro de sessão volta ao login) e o nome do administrador logado. */
     chamar, get usuario() { return S.nome; }, aoSair: fn => { aoSairFns.push(fn); },
-    /** Sessão de matrícula e senha (true) ou credencial antiga de administrador (false); pode(perm): a sessão tem a permissão (gerência vale todas). */
-    get sessaoNova() { return ehNovo(S.token); }, pode,
+    /** pode(perm): a sessão tem a permissão (gerência vale todas); gerencia: pode criar e alterar (sem ela o painel é só de leitura). */
+    pode, get gerencia() { return pode('gerencia'); },
     /** Botão "Encerrar turno" (gerência) para um turno em andamento; null no modo TV. */
     botaoEncerrar,
     trocarModo

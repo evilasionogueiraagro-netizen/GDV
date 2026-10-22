@@ -13,6 +13,8 @@ PCE ainda não está no código.
 | 22/10/2026 | Identificação e contagem no PCE são sempre por doença | é o que a vigilância precisa saber |
 | 22/10/2026 | O cadastro do imóvel (`Cadastro`, aba `CadastrosPCE`) é a ligação de uma propriedade com um programa, no máximo um por par | já é assim no código |
 | 22/10/2026 | O levantamento é a visita ao proprietário e gera **0 ou vários** termos: **um por doença achada**, que valida o levantamento daquela doença (e não um termo por visita, como o código faz hoje). Sem doença achada = negativo, sem termo | regra do trabalho de campo; um termo por doença é mais claro |
+| 22/10/2026 | A planilha funciona como banco relacional: abas com nome completo e sem abreviação (todas renomeadas agora), 3ª forma normal, ligação sempre por id ([banco.md](../banco.md)) | o sistema só funciona direito com os dados sem repetição |
+| 22/10/2026 | Documento emitido (termos) guarda cópia dos dados da pessoa do momento; é a única repetição permitida | documento legal não muda quando o cadastro muda |
 
 ## Em aberto
 

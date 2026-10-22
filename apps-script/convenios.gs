@@ -178,7 +178,7 @@ function painelConvenios(token) {
 
 /** Salva a configuração editável (textos, datas, assinaturas, metas/sub-metas, BVAs, municípios, pragas, previsto dos itens). */
 function painelConvSalvar(token, convenio, config) {
-  const admin = adminDoToken_(token);
+  const admin = adminDoToken_(token, true);
   if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('Configuração inválida.');
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
@@ -536,7 +536,7 @@ function convExcluir_(autor, aba, id) {
 
 /** Textos do relatório mensal (um por convênio e mês) e o número da parcial. */
 function painelConvRelSalvar(token, req) {
-  const admin = adminDoToken_(token);
+  const admin = adminDoToken_(token, true);
   const cfg = convDe_(req.convenio), mes = String(req.mes || '');
   if (!CONV_RE_MES.test(mes) || mes < cfg.inicioExecucao.slice(0, 7) || mes > cfg.vigencia.fim.slice(0, 7)) throw new Error('Mês de referência inválido.');
   const numero = Math.round(convNumero_(req.numero, 'Número da parcial'));

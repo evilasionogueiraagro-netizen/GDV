@@ -1,12 +1,11 @@
 const amb = require('./lib/amb');
 // Portal do Administrativo (web/administrativo/ + actions adm* e painelAdm* do Code.gs real via fakegas): lista de liberados no painel
-// (e-mail normalizado, nome, máximo, revogar), login com Google simulado (UrlFetchApp falso do tokeninfo: token válido, aud errado,
-// expirado, e-mail não verificado, não liberado, token inválido), bloqueio após 10 recusas, login por código, sessão com hash, expirada,
+// (e-mail normalizado, nome, máximo, revogar), login por código (permanente), bloqueio após 10 recusas, sessão com hash, expirada,
 // revogada e encerrada; a sessão do portal não vale no painel nem no app (e vice-versa); desembolso (saldo ao vivo, memorando repetido,
 // diária acima do previsto, data fora da vigência, servidor da lista — nome só no portal/planilha), importação pela action do portal,
 // lançamentos físicos e linhas manuais de relatório com histórico; o painel não tem mais formulários de lançamento e as actions antigas
-// de gravação recusam; nomes de servidores não aparecem nas respostas do painel nem no relatório; tela do portal (login com o botão do
-// Google simulado, desembolso, físico, linhas dos relatórios, histórico, celular claro/escuro) e o bloco de liberados no painel.
+// de gravação recusam; nomes de servidores não aparecem nas respostas do painel nem no relatório; tela do portal (desembolso, físico,
+// linhas dos relatórios, histórico, celular claro/escuro) e o bloco de liberados no painel. O login com Google foi removido.
 const fs = require('fs'), path = require('path');
 const { API } = amb;
 const PORTAL = require('./lib/portal');
@@ -18,10 +17,6 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
 const SAIDA = process.env.GDV_SAIDA_ADM || '';
 if (SAIDA) fs.mkdirSync(SAIDA, { recursive: true });
 const shot = async (p, nome, full = true) => { await p.screenshot({ path: amb.saida('adm_' + nome + '.png'), fullPage: full }); if (SAIDA) fs.copyFileSync(amb.saida('adm_' + nome + '.png'), path.join(SAIDA, nome + '.png')); };
-const CID = 'cid-teste-123.apps.googleusercontent.com';
-const agoraS = () => Math.floor(Date.now() / 1000);
-const tokeninfo = (token, info, status = 200) => fetch(`${API}/__tokeninfo?token=${encodeURIComponent(token)}&status=${status}&body=${encodeURIComponent(JSON.stringify(info))}`);
-const info = (email, extra = {}) => ({ aud: CID, iss: 'https://accounts.google.com', exp: String(agoraS() + 3600), email, email_verified: 'true', sub: '1234567890', ...extra });
 const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias: só no portal e na planilha
 
 (async () => {
@@ -47,32 +42,20 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   r = await post({ action: 'painelAdmSalvar', key: TOK, email: 'quarta@gmail.com', nome: 'Quarta Pessoa Teste' }); ok(!r.ok && /Limite de 3/.test(r.erro), 'máximo configurável (ADM_MAX = 3): a 4ª pessoa ativa é recusada', r.erro);
   await fetch(API + '/__props?set=ADM_MAX');
   const L = await post({ action: 'painelAdmLista', key: TOK });
-  ok(L.ok && L.liberados.length === 3 && L.max === 10 && L.google === false, 'lista: 3 liberados, máximo padrão 10, Google ainda não configurado', L);
+  ok(L.ok && L.liberados.length === 3 && L.max === 10 && !('google' in L), 'lista: 3 liberados, máximo padrão 10, sem campo do Google (login removido)', L);
 
-  /* ================= 2. login com Google (simulado) ================= */
-  console.log('2. Login com Google (tokeninfo simulado) e bloqueio');
-  r = await post({ action: 'admLogin', idToken: 'eyJ.valido.semclientid-000000000' }); ok(!r.ok && /não foi configurado/.test(r.erro), 'sem GOOGLE_CLIENT_ID: login com Google indisponível (orienta a usar o código)', r.erro);
-  await fetch(API + '/__props?set=GOOGLE_CLIENT_ID&valor=' + CID);
-  const TV = 'eyJhbGciOiJSUzI1NiJ9.valido-ana.assinatura-abc123';
-  await tokeninfo(TV, info('Ana.Souza@gmail.com'));
-  await tokeninfo('eyJ.aud-errado.x123456789012345', info('ana.souza@gmail.com', { aud: 'outro-app.apps.googleusercontent.com' }));
-  await tokeninfo('eyJ.expirado.x1234567890123456', info('ana.souza@gmail.com', { exp: String(agoraS() - 60) }));
-  await tokeninfo('eyJ.naoverif.x1234567890123456', info('ana.souza@gmail.com', { email_verified: 'false' }));
-  await tokeninfo('eyJ.naoliberado.x12345678901234', info('intruso@gmail.com'));
-  await tokeninfo('eyJ.iss-errado.x123456789012345', info('ana.souza@gmail.com', { iss: 'evil.example.com' }));
-  const casos = [['eyJ.aud-errado.x123456789012345', /outro aplicativo/], ['eyJ.expirado.x1234567890123456', /expirado/], ['eyJ.naoverif.x1234567890123456', /não verificado/],
-    ['eyJ.naoliberado.x12345678901234', /não está liberada/], ['eyJ.iss-errado.x123456789012345', /emissor/], ['eyJ.desconhecido.x12345678901234', /inválido ou expirado/], ['<script>', /inválido/]];
-  for (const [t, re] of casos) { const x = await post({ action: 'admLogin', idToken: t }); ok(!x.ok && re.test(x.erro), `login com Google recusado: ${re.source}`, x.erro || x); }
-  const G = await post({ action: 'admLogin', idToken: TV });
-  ok(G.ok && /^[0-9a-f]{64}$/.test(G.sessao) && G.email === 'ana.souza@gmail.com' && G.nome === 'Ana Repetida Souza' && G.origem === 'google', 'token válido + e-mail liberado (maiúsculas no Google): sessão do portal', G);
-  const fetches = await get('/__fetches');
-  ok(fetches.length >= 7 && fetches.every(u => /^https:\/\/oauth2\.googleapis\.com\/tokeninfo\?id_token=\*\*\*$/.test(u)), 'o servidor confere o token no tokeninfo do Google (token malformado nem é enviado)', fetches.slice(0, 3));
+  /* ================= 2. login (o Google foi removido) e bloqueio ================= */
+  console.log('2. Login por código; o login com Google não existe mais; bloqueio');
+  r = await post({ action: 'admLogin', idToken: 'eyJhbGciOiJSUzI1NiJ9.valido-ana.assinatura-abc123' }); ok(!r.ok && /Ação inválida/.test(r.erro), 'admLogin não existe mais', r.erro);
+  const CA = await post({ action: 'painelAdmCodigo', key: TOK, id: A1.liberado.id });
+  const G = await post({ action: 'admCodigo', codigo: CA.codigo });
+  ok(G.ok && /^[0-9a-f]{64}$/.test(G.sessao) && G.email === 'ana.souza@gmail.com' && G.nome === 'Ana Repetida Souza' && G.origem === 'codigo', 'Ana entra por código: sessão do portal', G);
   let tudo = JSON.stringify(await get('/__tudo'));
-  ok(!tudo.includes(TV) && !tudo.includes(G.sessao) && tudo.includes(require('crypto').createHash('sha256').update(G.sessao).digest('hex')), 'planilha: nem o ID token nem a sessão em claro (só o SHA-256 da sessão)');
+  ok(!tudo.includes(G.sessao) && tudo.includes(require('crypto').createHash('sha256').update(G.sessao).digest('hex')), 'planilha: a sessão não fica em claro (só o SHA-256)');
   // bloqueio: 10 recusas em 15 min
   await fetch(API + '/__cache?del=falhas_adm');
   for (let i = 0; i < 10; i++) await post({ action: 'admCodigo', codigo: '000000' });
-  r = await post({ action: 'admLogin', idToken: TV }); ok(!r.ok && /Muitas tentativas/.test(r.erro), 'depois de 10 recusas, até o login válido fica bloqueado (15 min)', r.erro);
+  r = await post({ action: 'admCodigo', codigo: CA.codigo }); ok(!r.ok && /Muitas tentativas/.test(r.erro), 'depois de 10 recusas, até o código válido fica bloqueado (15 min)', r.erro);
   await fetch(API + '/__cache?del=falhas_adm');
 
   /* ================= 3. código, sessão expirada/revogada, isolamento ================= */
@@ -208,27 +191,7 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   /* ================= 6. telas ================= */
   console.log('6. Telas do portal e do painel');
   const b = await amb.lancar();
-  // login com o botão do Google simulado (Client ID configurado em CONFIG.adm)
-  const ctxL = await b.newContext({ viewport: { width: 1280, height: 860 }, locale: 'pt-BR', timezoneId: 'America/Manaus', serviceWorkers: 'block' });
-  await ctxL.route('**/js/config.js', async rt => { const resp = await rt.fetch(); rt.fulfill({ response: resp, body: (await resp.text()) + `\nCONFIG.adm.googleClientId = '${CID}';` }); });
-  await ctxL.route('https://accounts.google.com/gsi/client', rt => rt.fulfill({ contentType: 'text/javascript', body: `window.google = { accounts: { id: {
-    initialize(o) { window.__gis = o; }, disableAutoSelect() {},
-    renderButton(el) { const b = document.createElement('button'); b.type = 'button'; b.id = 'gis-btn'; b.textContent = 'Entrar com o Google'; b.style.cssText = 'padding:10px 22px;border:1px solid #dadce0;border-radius:20px;background:#fff;color:#3c4043;font:500 14px Roboto,Arial;cursor:pointer';
-      b.onclick = () => window.__gis.callback({ credential: '${TV}' }); el.appendChild(b); } } } };` }));
-  await ctxL.addInitScript(u => { localStorage.setItem('gdv.url', u); }, amb.API_URL);
-  const pl = await ctxL.newPage(); const errL = []; pl.on('pageerror', e => errL.push(e.message));
-  await pl.goto(amb.ORIGEM + '/administrativo/');
-  await pl.waitForSelector('#gis-btn', { timeout: 15000 });
-  ok(await pl.isVisible('#adm-google') && /código de ativação/.test(await pl.textContent('#adm-cod-box summary')), 'tela de login: botão "Entrar com o Google" e a alternativa do código');
-  await shot(pl, 'portal_login', false);
-  await pl.click('#gis-btn');
-  await pl.waitForSelector('#adm-abas .pn-aba', { timeout: 15000 });
-  ok(/Ana Repetida Souza \(ana\.souza@gmail\.com\)/.test(await pl.textContent('#adm-nome')) && !(await pl.evaluate(() => JSON.stringify(localStorage))).includes('eyJhbGciOiJSUzI1NiJ9'), 'entrou pelo Google: nome e e-mail no topo; o ID token não fica no navegador');
-  await pl.click('#adm-sair'); await pl.waitForSelector('#adm-login:not([hidden])');
-  r = await post({ action: 'admDados', sessao: G.sessao });
-  ok(!errL.length, 'login sem erros de JavaScript', errL);
-  await ctxL.close();
-  // a sessão G foi encerrada pelo botão Sair? (o login da tela criou outra; a G continua) — entra de novo por código para as telas
+  // entra por código para as telas
   const SA = await PORTAL.sessao(TOK, 'ana.souza@gmail.com', 'Ana Repetida Souza');
   const p = await PORTAL.abrir(b, SA, { aba: 'desembolso' });
   await p.waitForSelector('#pn-conv-fin-form', { timeout: 20000 });

@@ -749,7 +749,7 @@ function pragaDoTermo_(c, levPorId) {
 
 /** Painel → PCE → termos de colheita: o administrador registra o resultado laboratorial (grava SÓ a coluna laboratorio, com quem/quando). */
 function painelPceLaudo(token, req) {
-  const admin = adminDoToken_(token), id = String(req.id || '').slice(0, 64);
+  const admin = adminDoToken_(token, true), id = String(req.id || '').slice(0, 64);
   const lab = labObjeto_(req.laboratorio);
   if (!id) throw new Error('Termo de colheita não informado.');
   if (!lab) throw new Error('Informe o resultado laboratorial (laboratório, datas, nº do laudo ou resultado).');

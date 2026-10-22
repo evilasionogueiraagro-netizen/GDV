@@ -120,20 +120,9 @@ const ctx = {
     computeDigest: (alg, txt) => Array.from(require('crypto').createHash(alg).update(String(txt), 'utf8').digest()).map(b => (b > 127 ? b - 256 : b)) },
   DriveApp,
   Session: { getActiveUser: () => ({ getEmail: () => emailAtual }), getEffectiveUser: () => ({ getEmail: () => emailDono }) },
-  HtmlService: { createHtmlOutput: h => ({ kind: 'html', content: h, setTitle() { return this; } }), createHtmlOutputFromFile: n => ({ kind: 'arquivo', name: n, setTitle() { return this; }, addMetaTag() { return this; } }) },
   CacheService: { getScriptCache: () => ({ get: k => cache.get(k) ?? null, put: (k, v) => cache.set(k, v), remove: k => cache.delete(k) }) },
-  ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ getContent: () => t, setMimeType() { return this; } }) },
-  // UrlFetchApp falso: só o tokeninfo do Google (login do Portal do Administrativo). Os testes registram as respostas por token em
-  // /__tokeninfo?token=&status=&body= ; token desconhecido = 400 {"error":"invalid_token"}. /__fetches lista as URLs (com o token mascarado).
-  UrlFetchApp: { fetch: (url, opts) => {
-    const m = /[?&]id_token=([^&]*)/.exec(String(url)), t = m ? decodeURIComponent(m[1]) : '';
-    fetches.push(String(url).replace(/id_token=[^&]*/, 'id_token=***'));
-    if (!/^https:\/\/oauth2\.googleapis\.com\/tokeninfo\?/.test(String(url))) throw new Error('UrlFetchApp falso: URL não esperada ' + url);
-    const r = tokeninfo[t] || { status: 400, body: JSON.stringify({ error: 'invalid_token', error_description: 'Invalid Value' }) };
-    return { getResponseCode: () => r.status, getContentText: () => r.body };
-  } }
+  ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ getContent: () => t, setMimeType() { return this; } }) }
 };
-const tokeninfo = {}, fetches = [];
 vm.createContext(ctx);
 // Todos os .gs, como no Apps Script: um escopo global só. Code.gs primeiro (como no workflow de publicação); a ordem
 // dos demais não importa (ordem_arquivos_test confere).
@@ -151,12 +140,12 @@ http.createServer((req, res) => {
   if (req.url.startsWith('/__criarArquivo')) { const q = new URL(req.url, 'http://x').searchParams, pasta = drive.itens[props[q.get('pastaProp')]];   // arquivo numa pasta guardada nas propriedades
     if (!pasta) return res.end('sem pasta'); const a = pasta.api.createFile(ctx.Utilities.newBlob([], 'application/octet-stream', q.get('nome'))); return res.end(a.getId()); }
   if (req.url.startsWith('/__drivefalha')) { driveFalha = new URL(req.url, 'http://x').searchParams.get('v') === '1'; return res.end('ok'); }
-  if (req.url.startsWith('/__tokeninfo')) { const q = new URL(req.url, 'http://x').searchParams; tokeninfo[q.get('token')] = { status: Number(q.get('status')) || 200, body: q.get('body') || '{}' }; return res.end('ok'); }
-  if (req.url === '/__fetches') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify(fetches)); }
   if (req.url === '/__tudo') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify(Object.fromEntries(Object.entries(sheets).map(([n, sh]) => [n, sh._rows])))); }
   if (req.url === '/__off') { online = false; return res.end('off'); }
   if (req.url === '/__on') { online = true; return res.end('on'); }
   if (req.url.startsWith('/__gerar')) { const n = new URL(req.url, 'http://x').searchParams.get('nome'); res.setHeader('content-type', 'application/json'); try { return res.end(JSON.stringify(ctx.gerarCodigo_(n, new URL(req.url, 'http://x').searchParams.get('perfil') || ''))); } catch (e) { return res.end(JSON.stringify({ erro: e.message })); } }
+  if (req.url.startsWith('/__gerente')) { const q = new URL(req.url, 'http://x').searchParams; res.setHeader('content-type', 'application/json');   // primeiro gerente (como o menu e-GDV → Criar gerente): {usuario, senhaProvisoria}
+    try { return res.end(JSON.stringify(ctx.criarGerente_(q.get('matricula') || '', q.get('nome')))); } catch (e) { return res.end(JSON.stringify({ erro: e.message })); } }
   if (req.url.startsWith('/__revogar')) { const n = new URL(req.url, 'http://x').searchParams.get('nome'); return res.end(String(ctx.revogar_(n))); }
   if (req.url.startsWith('/__expirar')) { const c = new URL(req.url, 'http://x').searchParams.get('codigo'); sheets.Fiscais._rows.forEach((r, i) => { if (i > 0 && String(r[1]) === c) r[2] = 1; }); return res.end('ok'); }
   if (req.url.startsWith('/__append')) { const q = new URL(req.url, 'http://x').searchParams; (sheets[q.get('aba')] = sheets[q.get('aba')] || mkSheet(q.get('aba')))._rows.push(JSON.parse(q.get('row'))); return res.end('ok'); }
@@ -166,7 +155,7 @@ http.createServer((req, res) => {
   if (req.url.startsWith('/__fn')) { const q = new URL(req.url, 'http://x').searchParams; res.setHeader('content-type', 'application/json');
     try { return res.end(JSON.stringify({ r: ctx[q.get('nome')](...JSON.parse(q.get('args') || '[]')) })); } catch (e) { return res.end(JSON.stringify({ erro: e.message })); } }
   if (req.url.startsWith('/__doget')) { const q = new URL(req.url, 'http://x').searchParams; res.setHeader('content-type', 'application/json');
-    const o = ctx.doGet({ parameter: { p: q.get('p') } }); return res.end(JSON.stringify(o.kind ? { kind: o.kind, name: o.name } : { json: o.getContent() })); }
+    const o = ctx.doGet({ parameter: { p: q.get('p') } }); return res.end(JSON.stringify({ json: o.getContent() })); }
   if (req.url === '/__drive') { res.setHeader('content-type', 'application/json');
     return res.end(JSON.stringify({ pastaRaiz: props.PASTA_ARQUIVOS || null, arquivos: Object.values(drive.itens).filter(x => x.kind === 'arquivo').map(a => ({ id: a.id, nome: a.nome, caminho: caminho(drive.itens[a.pai]), mime: a.mime, tamanho: a.bytes.length, lixeira: a.trashed, compartilhado: a.compartilhado })),
       pastas: Object.values(drive.itens).filter(x => x.kind === 'pasta' && !x.trashed).map(caminho) })); }

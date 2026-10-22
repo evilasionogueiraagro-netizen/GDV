@@ -25,7 +25,7 @@
  *                                       entre veiculos/tf/pce; antigo = "Digitar do papel", padrão 0, exige pce=1)
  *   painelGerarCodigo aceita também modulos:{veiculos, tf, pce, antigo} (gravados junto); painelAcessos devolve permissoes de cada fiscal.
  * O código é gerado no menu da planilha: e-GDV → Gerar código de administrador. Credenciais de fiscais não leem o painel,
- * e códigos de administrador não ativam aparelhos de fiscais. A rota antiga "?p=painel" só mostra o novo endereço.
+ * e códigos de administrador não ativam aparelhos de fiscais.
  */
 const PAINEL_URL_PADRAO = 'https://evilasionogueiraagro-netizen.github.io/GDV/painel/';
 const PAINEL_MAX_DIAS = 366;                 // período máximo de uma consulta
@@ -37,25 +37,16 @@ function painelUrl_() {
   return PropertiesService.getScriptProperties().getProperty('PAINEL_URL') || PAINEL_URL_PADRAO;
 }
 
-/** Rota antiga (<URL /exec>?p=painel): página mínima que só aponta para o novo painel. */
-function painelHtml_() {
-  const url = painelUrl_().replace(/[<>"'&]/g, '');
-  const out = HtmlService.createHtmlOutput(
-    '<div style="font-family:system-ui,sans-serif;max-width:32rem;margin:2rem auto;padding:0 16px;line-height:1.5">' +
-    '<h2>e-GDV – Painel gerencial</h2><p>O painel do administrador mudou de endereço:</p>' +
-    '<p><a href="' + url + '" target="_blank" rel="noopener" style="font-size:1.1rem">' + url + '</a></p>' +
-    '<p>Abra o link, digite o código de administrador (e-GDV → Gerar código de administrador, na planilha) e salve o endereço nos favoritos.</p></div>')
-    .setTitle('e-GDV – Painel gerencial');
-  return out.addMetaTag ? out.addMetaTag('viewport', 'width=device-width, initial-scale=1') : out;
-}
-
 /**
  * Valida a credencial do painel e devolve o nome do administrador.
  * Aceita a chave mestra (ACCESS_KEY) e credenciais de perfil "admin"; credencial de fiscal recebe "Acesso restrito".
+ * Sessão nova ("u.…", usuarios.gs): exige `painel`; `gravar` = true (action que grava) exige `gerencia`. Acessos antigos desligados: recusa o antigo.
  */
-function adminDoToken_(token) {
+function adminDoToken_(token, gravar) {
   token = String(token || '');
+  if (ehTokenUsuario_(token)) return usuarioDoPainel_(token, gravar);          // matrícula e senha: `painel` lê; quem grava precisa de `gerencia`
   if (token) {
+    exigirAcessosAntigos_();
     const mestra = PropertiesService.getScriptProperties().getProperty('ACCESS_KEY');
     if (mestra && token === mestra) return 'Administrador';
     const t = lerLeitura_('Fiscais');
@@ -71,6 +62,7 @@ function adminDoToken_(token) {
 /** Botão "Sair" do painel: revoga a credencial de administrador no servidor (a cópia local deixa de valer em qualquer lugar). */
 function painelSair(token) {
   token = String(token || '');
+  if (ehTokenUsuario_(token)) return sair_({ key: token });                  // sessão nova: encerra a sessão
   const mestra = PropertiesService.getScriptProperties().getProperty('ACCESS_KEY');
   if (!token || (mestra && token === mestra)) return { ok: true };            // chave mestra não é revogada por aqui
   const lock = LockService.getScriptLock();
@@ -102,7 +94,7 @@ const ENCERRAR_TOLERANCIA_MS = 2 * 3600 * 1000;   // fuso do oeste do AM (UTC−
  * na próxima sincronização, e um envio antigo do aparelho (encerrado = 0) não reabre o turno (ver gravar_).
  */
 function painelEncerrarTurno(token, turnoId, fim) {
-  const admin = adminDoToken_(token);
+  const admin = adminDoToken_(token, true);
   const id = String(turnoId === null || turnoId === undefined ? '' : turnoId).trim();
   if (!id || id.length > 64) throw new Error('Turno não informado.');
   fim = String(fim === null || fim === undefined ? '' : fim).trim();

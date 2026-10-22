@@ -1,9 +1,6 @@
 /* Portal do Administrativo — complementos ao visual do painel (../painel/css/painel.css: tokens claro/escuro, cartões, abas, tabelas). */
 .adm-login { max-width: 440px; }
 .adm-login .pn-sub { margin: 0 0 12px; }
-.adm-google { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 12px 0 4px; }
-.adm-google-btn { min-height: 44px; display: flex; justify-content: center; }
-.adm-ou { margin: 4px 0 !important; text-align: center; }
 .adm-cod-box summary { cursor: pointer; color: var(--marca2); font-size: 14px; padding: 6px 0; }
 .adm-cod-box form { display: flex; flex-direction: column; gap: 8px; }
 .adm-cod-box button { margin-top: 6px; }

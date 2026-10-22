@@ -155,11 +155,6 @@ const CONFIG = {
     }
   },
 
-  // Portal do Administrativo (web/administrativo/): ID do cliente OAuth do Google (público; o mesmo valor vai na propriedade do script
-  // GOOGLE_CLIENT_ID, usada pelo servidor para conferir o login). Vazio = o portal mostra só a entrada por código de ativação.
-  // Passo a passo para criar no README ("Portal do Administrativo").
-  adm: { googleClientId: '' },
-
   // Relatório GDV (painel → aba Relatórios): grupos de pragas da Seção I. Cada coluna casa com as pragas dos levantamentos pelo nome
   // (sem acento/maiúsculas; basta conter um dos termos; vale o termo mais longo — "Diaphorina citri (vetor do HLB)" vai para Diaphorina,
   // não para HLB). Praga nova: acrescente o termo numa coluna (ou um grupo novo) — sem mexer no código. extras: suspeitas/amostras

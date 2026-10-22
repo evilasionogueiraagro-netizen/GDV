@@ -1,5 +1,5 @@
 // Motor de indicadores do e-GDV: cada número dos relatórios é definido UMA vez (id, rótulo, unidade, fonte e regra) e lido por todos
-// os relatórios — PCE, VIGIFITO, Convênio, Metas SUASA e Consolidado — e pelas abas do painel, para que o mesmo número nunca divirja.
+// os relatórios — PCE, VIGIFITO, Convênio e Consolidado — e pelas abas do painel, para que o mesmo número nunca divirja.
 // A apuração automática das barreiras é do servidor (Code.gs → motorBarreira_, usado por vigApurar_, relGdvApurar_ e convApurar_);
 // aqui ficam o catálogo, a ordem/rótulos exatos da planilha de controle VIGIFITO e a regra que junta o apurado (e-GDV) com os valores
 // lançados pelo Administrativo no portal: linha manual = valor lançado; linha automática = valor do e-GDV, a não ser que haja um

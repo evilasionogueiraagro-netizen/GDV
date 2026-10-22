@@ -12,6 +12,8 @@
    continua só pelo menu da planilha.
    Usa as actions painelGerarCodigo, painelAcessos, painelRevogar, painelRevogarAdmin, painelOcultarAcesso, painelRestaurarAcesso e
    painelPermissoes (Code.gs).
+   O bloco "Usuários" (matrícula e senha; js/painel-usuarios.js) entra no topo da aba, e a aba inteira só aparece para quem tem a permissão
+   gerência (a credencial antiga de administrador vale como gerência).
    Não depende do período nem dos filtros e não aparece no Modo TV. Usa a API do objeto global Painel (js/painel.js). */
 (() => {
   'use strict';
@@ -439,10 +441,11 @@
     c.appendChild(E.raiz);
     if (!E.lista || (!E.carregando && Date.now() - E.lidoEm > RECARREGAR_MS)) carregar();
     if (window.PainelAdm) PainelAdm.anexar(c);                 // bloco "Portal do Administrativo" (js/painel-adm.js)
+    if (window.PainelUsuarios) PainelUsuarios.anexar(c);       // bloco "Usuários" (js/painel-usuarios.js): no topo da aba
   }
   // outro administrador pode entrar neste aparelho: nada da sessão anterior fica na tela
   P.aoSair(() => { if (E.raiz) E.raiz.remove(); clearTimeout(E.tmRecolher); aberta = null;
     Object.assign(E, { raiz: null, lista: null, lidoEm: 0, erro: '', ultimo: null, aviso: '', busca: '', situacao: '', admins: false, removidos: false, ocultarAdmin: false }); });
 
-  P.registrarAba({ id: 'acessos', titulo: 'Servidores', render, semFiltros: true, mensagem, linkWhats });
+  P.registrarAba({ id: 'acessos', titulo: 'Servidores', render, semFiltros: true, mensagem, linkWhats, visivel: () => P.pode('gerencia') });
 })();

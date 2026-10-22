@@ -56,6 +56,7 @@
     if (t.conflito) s.push(['critico', 'Conflito de nº']);
     if (t.numeroOrigem === 'editado') s.push(['atencao', 'Nº editado']);
     if (t.numeroOrigem === 'provisorio') s.push(['atencao', 'Nº provisório']);
+    if (t.numeroOrigem === 'papel') s.push(['info', 'Do papel']);
     if (t.reincidente) s.push(['serio', 'Reincidente']);
     if (!s.length) s.push(['bom', 'Regular']);
     return s;

@@ -67,6 +67,10 @@ const camposLocal = (g, sufixo) => g ? { ['lat' + sufixo]: g.lat, ['lng' + sufix
 /** A Ficha de Campo só existe nas BVAs marcadas com ficha: true (hoje só a CEASA); nas demais e no volante, só o Termo.
  *  Turno antigo com local digitado à mão (antes da lista de BVAs): ficha só se o local for a CEASA. */
 const temFicha = t => { const b = CONFIG.bvas.find(x => x.nome === t.local); return b ? !!b.ficha : /ceasa/i.test(t.local || ''); };
+/** Turno que não conta veículos (soPessoas = 1, ex.: volante de Tabatinga): conta só as pessoas orientadas (turno.pessoasEducacao). */
+const soPessoas = t => !!(t && Number(t.soPessoas) === 1);
+const cfgSoPessoas = unidade => ((CONFIG.volantesSoPessoas || {})[String(unidade || '').trim().toUpperCase()]) || null;
+const pessoasDoTurno = (t, v) => (v || []).reduce((s, x) => s + (Number(x.pessoas) || 0), 0) + (Number(t && t.pessoasEducacao) || 0);
 /* ---------- módulos e navegação ---------- */
 // Depois de instalar e ativar o aparelho, o fiscal escolhe um módulo: Educação Sanitária/Fiscalização de Trânsito (turnos e veículos), TF ou PCE.
 // Dentro da Educação Sanitária/Fiscalização de Trânsito o TF também está embutido (botão "Lavrar TF"); o menu de baixo muda conforme o módulo.
@@ -236,6 +240,7 @@ async function home() {
   if (!mostrar.viva()) return;
   if (!t) return novoTurno();
   const v = await veiculosDe(t.id);
+  if (soPessoas(t)) return homePessoas(t, mostrar);
   mostrar(`${avisoAtivacao()}
     <div class="card"><h3>Turno atual</h3>
       <p><b>${esc(t.numeroTF)}</b></p>
@@ -248,6 +253,32 @@ async function home() {
     <button class="botao" data-go="lista">${icone('lista')} Lista de veículos</button>
     <button class="botao" data-go="resumo">${icone('resumo')} Resumo e documentos</button>
     <button class="botao vermelho" id="encerrar">${icone('parar')} Encerrar turno</button>`);
+  $('#encerrar').onclick = () => encerrarTurno(t);
+}
+/** Turno de BVA sem contagem de veículos: contador de pessoas orientadas (educação sanitária), gravado no turno. */
+function homePessoas(t, mostrar) {
+  const n = Number(t.pessoasEducacao) || 0, tema = (cfgSoPessoas(t.unidade) || {}).tema;
+  mostrar(`${avisoAtivacao()}
+    <div class="card"><h3>Turno atual</h3>
+      <p><b>${esc(t.numeroTF)}</b></p>
+      <p><b>Fiscal:</b> ${esc(t.fiscal)}</p><p><b>Local:</b> ${esc(t.local)}</p>
+      <p><b>Data:</b> ${dBR(t.data)} &nbsp; <b>Posto:</b> ${esc(t.posto || '')}</p>
+      <p><b>Início do turno:</b> ${esc(t.inicio)}</p>
+      <p><small>Neste turno não se contam veículos: conte as pessoas orientadas${tema ? ' sobre a ' + esc(tema) : ''}.</small></p></div>
+    <div class="card contador" id="pesCont"><h1>${n}</h1><p>Pessoas orientadas (educação sanitária)</p></div>
+    <div class="duas pes-botoes"><button class="botao" data-pes="1">+1 pessoa</button><button class="botao" data-pes="5">+5</button></div>
+    <div class="duas pes-botoes"><button class="botao sec" data-pes="10">+10</button><button class="botao sec" data-pes="corrigir">${icone('editar')} Corrigir total</button></div>
+    <button class="botao vermelho" id="encerrar">⏹ Encerrar turno</button>`);
+  document.querySelectorAll('[data-pes]').forEach(b => b.onclick = async () => {
+    const atual = (await Store.obter('turnos', t.id)) || t; let total = Number(atual.pessoasEducacao) || 0;
+    if (b.dataset.pes === 'corrigir') {
+      const r = prompt('Total de pessoas orientadas neste turno:', String(total)); if (r == null) return;
+      const x = parseInt(r, 10); if (!(x >= 0) || x > 100000) return toast('Informe um número inteiro (0 ou mais).', true);
+      total = x;
+    } else total += Number(b.dataset.pes);
+    const s = await Store.salvar('turnos', { ...atual, pessoasEducacao: total });
+    $('#pesCont h1').textContent = total; toast(`${total} pessoa(s) orientada(s).`); Sync.sincronizar(); t = s;
+  });
   $('#encerrar').onclick = () => encerrarTurno(t);
 }
 function novoTurno() {
@@ -277,6 +308,7 @@ function novoTurno() {
     const campo = $('#nLocal'), un = $('#nUnidade');
     if (!campo.dataset.editado) campo.value = end || `Volante – ${gpsVolante.lat.toFixed(5)}, ${gpsVolante.lng.toFixed(5)}`;
     if (cidade && !un.dataset.editado) un.value = cidade.toUpperCase();          // volante: unidade = município onde a barreira está
+    soPessoasDoMunicipio();
     st.textContent = end ? 'Endereço obtido pela localização (pode editar).' : 'Sem endereço (sem internet?): ajuste o local e a unidade se quiser.';
   }
   function montarLocal() {
@@ -286,6 +318,7 @@ function novoTurno() {
          <p class="dica" id="nPlacaInfo"></p>`
       : `<label>Local / Posto (volante)<input id="nLocal" required autocomplete="off" placeholder="endereço do posto volante"></label>
          <div class="linha-acoes"><small id="nLocalSt"></small><button type="button" class="botao sec mini" id="nLocalGps">${icone('local')} Atualizar pela localização</button></div>
+         <label class="chk" id="nSoPesBox"><input type="checkbox" id="nSoPessoas"> Só educação sanitária: contar as pessoas orientadas (sem registrar veículos)</label>
          <p class="dica" id="nPlacaInfo"></p>`;
     $('#nLocal').addEventListener(fixa ? 'change' : 'input', () => { if (!fixa) $('#nLocal').dataset.editado = '1'; avisoPlaca(); unidadeDoLocal(); });
     // Unidade (Termo): na BVA fixa é a própria BVA escolhida (não edita); no volante, o município da barreira (vem da localização, editável)
@@ -294,11 +327,18 @@ function novoTurno() {
     if (!fixa) un.value = localStorage.getItem('gdv.unidadeVolante') || '';     // sem GPS/internet: o último município de volante (a localização substitui)
     $('#nUnidadeInfo').textContent = fixa ? '(a mesma da BVA)' : '(município da barreira volante)';
     unidadeDoLocal();
-    if (!fixa) { $('#nLocalGps').onclick = () => { delete $('#nLocal').dataset.editado; preencherEndereco(); }; preencherEndereco(); }
+    if (!fixa) { $('#nLocalGps').onclick = () => { delete $('#nLocal').dataset.editado; preencherEndereco(); }; soPessoasDoMunicipio(); preencherEndereco(); }
     avisoPlaca();
   }
   function unidadeDoLocal() { if ($('#nPosto').value === 'Fixa') $('#nUnidade').value = $('#nLocal').value; }
-  $('#nUnidade').addEventListener('input', e => { e.target.dataset.editado = '1'; });
+  /** Volante num município de CONFIG.volantesSoPessoas (ex.: Tabatinga): marca "Só educação sanitária" e sugere o local do porto. */
+  function soPessoasDoMunicipio() {
+    const c = $('#nSoPessoas'), cfg = cfgSoPessoas($('#nUnidade').value); if (!c || !cfg || c.dataset.mexeu) return;
+    c.checked = true;
+    const campo = $('#nLocal'); if (cfg.local && campo && !campo.dataset.editado) { campo.value = cfg.local; const st = $('#nLocalSt'); if (st) st.textContent = 'Local sugerido para ' + $('#nUnidade').value + ' (pode editar).'; }
+  }
+  $('#nUnidade').addEventListener('input', e => { e.target.dataset.editado = '1'; soPessoasDoMunicipio(); });
+  $('#fTurno').addEventListener('change', e => { if (e.target && e.target.id === 'nSoPessoas') e.target.dataset.mexeu = '1'; });
   $('#nPosto').onchange = montarLocal; montarLocal();
   $('#fTurno').onsubmit = async e => {
     e.preventDefault();
@@ -315,7 +355,8 @@ function novoTurno() {
       data, letra, posto: $('#nPosto').value,
       inicio, fim: '', ...camposLocal(gps, 'Ini'),
       fiscal: nomes.join(' e '), local: $('#nLocal').value.trim(),
-      unidade: $('#nUnidade').value.trim(), semPlaca: placaObrigatoria() ? 0 : 1, encerrado: 0
+      unidade: $('#nUnidade').value.trim(), semPlaca: placaObrigatoria() ? 0 : 1, encerrado: 0,
+      soPessoas: $('#nPosto').value === 'Móvel' && $('#nSoPessoas') && $('#nSoPessoas').checked ? 1 : 0, pessoasEducacao: 0
     });
     ['local', 'unidade', 'posto'].forEach(k => localStorage.setItem('gdv.' + k, t[k]));
     if (t.posto === 'Móvel') localStorage.setItem('gdv.unidadeVolante', t.unidade);
@@ -336,6 +377,7 @@ const opcoesUF = atual => `<option value="">—</option>${CONFIG.ufs.map(u => `<
 async function registrar() {
   const t = await turnoAtual();
   if (!t) { toast('Inicie um turno primeiro.', true); return go('home'); }
+  if (soPessoas(t)) { toast('Neste turno não se registram veículos: conte as pessoas orientadas na tela do turno.'); return go('home'); }
   const v = EDIT ? await Store.obter('veiculos', EDIT) : null;
   const tipo = v ? v.tipo : 'PA', semPlaca = !!Number(t.semPlaca);    // turno com placa opcional (ex.: Jundiá)
   view(`<form class="card" id="fVeic"><h3>${v ? 'Editar veículo' : 'Registrar veículo'}</h3>
@@ -410,6 +452,12 @@ async function resumo() {
   const v = await veiculosDe(t.id);
   const por = contar(v);
   if (!mostrar.viva()) return;
+  if (soPessoas(t)) {
+    view(`<div class="card"><h3>${esc(t.numeroTF)}</h3><div class="total">PESSOAS ORIENTADAS<br>${pessoasDoTurno(t, v)}<small>educação sanitária (sem contagem de veículos neste turno)</small></div></div>
+      <button class="botao vermelho" id="encerrar">⏹ Encerrar turno</button>
+      <p class="dica">Início do turno: ${esc(t.inicio)}. Ao encerrar, o horário final é registrado e o Termo de Fiscalização fica disponível.<br>Na janela de impressão, escolha “Salvar como PDF”.</p>`);
+    $('#encerrar').onclick = () => encerrarTurno(t); return;
+  }
   view(`<div class="card"><h3>${esc(t.numeroTF)} — total por tipo</h3>
     ${Object.entries(CONFIG.tipos).map(([c, x]) => `<div class="resumo-item"><span>${icone(x.icone)} ${x.nome}</span><strong>${por[c] || 0}</strong></div>`).join('')}
     <div class="total">TOTAL DE VEÍCULOS<br>${v.length}<small>${v.reduce((s, x) => s + (Number(x.pessoas) || 0), 0)} pessoas fiscalizadas</small></div></div>
@@ -443,7 +491,7 @@ async function fechado() {
   if (!mostrar.viva()) return;
   view(`<div class="card"><h3>Turno encerrado</h3><p><b>${esc(t.numeroTF)}</b></p>
     <p>${dBR(t.data)} · das <b>${esc(t.inicio)}</b> às <b>${esc(t.fim)}</b></p>
-    <p>${v.length} veículos · ${v.reduce((s, x) => s + (Number(x.pessoas) || 0), 0)} pessoas</p>
+    <p>${soPessoas(t) ? '' : v.length + ' veículos · '}${pessoasDoTurno(t, v)} pessoas${soPessoas(t) ? ' orientadas' : ''}</p>
     ${htmlStatusEnc(t)}</div>
     <button class="botao" data-doc="termo" data-id="${t.id}">${icone('documento')} Termo de Fiscalização (PDF)</button>
     ${temFicha(t) ? `<button class="botao" data-doc="ficha" data-id="${t.id}">${icone('formulario')} Ficha de Campo (PDF)</button>` : ''}

@@ -135,7 +135,9 @@ const ctx = {
 };
 const tokeninfo = {}, fetches = [];
 vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(path.join(RAIZ, 'apps-script', 'Code.gs'), 'utf8'), ctx);
+// Todos os .gs, como no Apps Script: um escopo global só. Code.gs primeiro (como no workflow de publicação); a ordem
+// dos demais não importa (ordem_arquivos_test confere).
+for (const arq of require('./lib/arquivos-gs').arquivosGs()) vm.runInContext(fs.readFileSync(arq, 'utf8'), ctx, { filename: arq });
 let online = true;
 var lockFalha = 0;   // /__lockfalha?n=K: a K-ésima próxima waitLock dá timeout (teste)
 http.createServer((req, res) => {

@@ -167,7 +167,7 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-21b';
+const VERSAO_CODIGO = '2026-10-22a';
 
 function doGet(e) {
   if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
@@ -450,6 +450,42 @@ function resumoAparelho_(a) {
 
 function digitos_(v) { return String(v || '').replace(/\D/g, ''); }
 function placaNorm_(v) { return String(v || '').toUpperCase().replace(/[^A-Z0-9]/g, ''); }
+/** CPF/CNPJ que identifica alguém: 11/14 dígitos com os dígitos verificadores certos e não todos iguais (000.000.000-00 é o número
+ *  padrão do talão para "não identificado" e não pode ligar TFs de pessoas diferentes). */
+function docValido_(v) {
+  const c = digitos_(v);
+  if ((c.length !== 11 && c.length !== 14) || /^(\d)\1+$/.test(c)) return false;
+  if (c.length === 11) {
+    const dv = function (n) { let s = 0; for (let i = 0; i < n; i++) s += Number(c[i]) * (n + 1 - i); const r = (s * 10) % 11; return r === 10 ? 0 : r; };
+    return dv(9) === Number(c[9]) && dv(10) === Number(c[10]);
+  }
+  const dv = function (n) { let s = 0, p = n - 7; for (let i = 0; i < n; i++) { s += Number(c[i]) * p--; if (p < 2) p = 9; } const r = s % 11; return r < 2 ? 0 : 11 - r; };
+  return dv(12) === Number(c[12]) && dv(13) === Number(c[13]);
+}
+/** Placa que identifica o veículo: padrão antigo (ABC1234) ou Mercosul (ABC1D23). "XXX", "SEM PLACA"… não contam na reincidência. */
+function placaValida_(v) { return /^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(placaNorm_(v)); }
+/**
+ * Reincidência de cada TF, recalculada a partir de todos os TFs (vale também para os antigos, gravados com a regra anterior): TFs não
+ * cancelados ANTERIORES (data/hora; empate pela emissão) com o mesmo CPF/CNPJ válido ou a mesma placa válida. reincidente = algum deles
+ * teve medida (apreensão, rechaço ou auto de infração); anteriores = quantos TFs distintos. Devolve {id: {reincidente, anteriores}}.
+ */
+function reincidenciaTFs_(todos) {
+  const ord = todos.filter(function (t) { return t.id; }).slice().sort(function (a, b) {
+    return String(a.data + ' ' + a.hora).localeCompare(String(b.data + ' ' + b.hora)) || (Number(a.emitidoEm || a.criadoEm) || 0) - (Number(b.emitidoEm || b.criadoEm) || 0); });
+  const porChave = {}, out = {};
+  ord.forEach(function (t) {
+    const ch = [];
+    if (docValido_(t.doc)) ch.push('d:' + digitos_(t.doc));
+    if (placaValida_(t.placa)) ch.push('p:' + placaNorm_(t.placa));
+    const ant = {}; let reinc = false;
+    ch.forEach(function (k) { (porChave[k] || []).forEach(function (x) { ant[x.id] = 1; if (x.medida) reinc = true; }); });
+    out[t.id] = { reincidente: reinc, anteriores: Object.keys(ant).length };
+    if (t.cancelado === 1) return;                                                   // cancelado não conta para os seguintes
+    const m = { id: t.id, medida: t.procedimento === 'apreensao' || t.procedimento === 'rechaco' || t.auto === 1 };
+    ch.forEach(function (k) { (porChave[k] = porChave[k] || []).push(m); });
+  });
+  return out;
+}
 
 function listarBarreiras_() {
   const sh = aba_('Barreiras');
@@ -611,8 +647,9 @@ function consultar_(req, usuario) {
   const pessoa = doc ? lerLeitura_('Pessoas').filter(function (p) { return p.id === doc; })[0] : null;
   const pl = placa ? lerLeitura_('Placas').filter(function (p) { return p.id === placa; })[0] : null;
   const tfs = lerLeitura_('TFs').filter(function (t) { return t.cancelado !== 1; });
-  const porDoc = doc ? resumoTFs_(tfs.filter(function (t) { return digitos_(t.doc) === doc; })) : null;
-  const porPlaca = placa ? resumoTFs_(tfs.filter(function (t) { return placaNorm_(t.placa) === placa; })) : null;
+  // reincidência só por CPF/CNPJ válido e placa válida (000.000.000-00, "XXX"… não identificam ninguém): sem histórico para os outros
+  const porDoc = docValido_(doc) ? resumoTFs_(tfs.filter(function (t) { return digitos_(t.doc) === doc; })) : null;
+  const porPlaca = placaValida_(placa) ? resumoTFs_(tfs.filter(function (t) { return placaNorm_(t.placa) === placa; })) : null;
   const mask = doc ? doc.slice(0, 3) + '***' + doc.slice(-2) : '';
   const c = aba_('Consultas');
   c.getRange(c.getLastRow() + 1, 1, 1, 5).setValues([[Date.now(), usuario, mask, placa, (pessoa || (porDoc && porDoc.total)) ? 'encontrado' : 'novo']]);
@@ -681,8 +718,8 @@ function agregarIndice_(tfs) {
 /** Hashes das chaves do TF (documento e placa); com filtro {docs, placas}, só as chaves que estão nele. */
 function chavesTF_(t, filtro) {
   const h = [], d = digitos_(t.doc), p = placaNorm_(t.placa);
-  if ((d.length === 11 || d.length === 14) && (!filtro || filtro.docs[d])) h.push(hashIndice_('doc:' + d));
-  if (p.length >= 7 && (!filtro || filtro.placas[p])) h.push(hashIndice_('placa:' + p));
+  if (docValido_(d) && (!filtro || filtro.docs[d])) h.push(hashIndice_('doc:' + d));            // só documento e placa que identificam alguém
+  if (placaValida_(p) && (!filtro || filtro.placas[p])) h.push(hashIndice_('placa:' + p));
   return h;
 }
 /**
@@ -1888,7 +1925,7 @@ function dadosPainel_(admin, filtro) {
 
   // TF de Barreira
   const todosTFs = lerLeitura_('TFs').filter(function (r) { return r.id; });
-  const tfsPer = todosTFs.filter(noPeriodo);
+  const tfsPer = todosTFs.filter(noPeriodo), REINC = reincidenciaTFs_(todosTFs);   // reincidência recalculada (CPF/CNPJ e placa válidos)
   const tfs = tfsPer.map(function (r) {
     return { id: r.id, barreira: r.barreira, ano: r.ano, numero: r.numero, numeroTxt: r.numeroTxt, numeroSugerido: r.numeroSugerido,
              numeroOrigem: r.numeroOrigem, conflito: r.conflito, emitidoEm: r.emitidoEm, turnoId: r.turnoId, veiculoId: r.veiculoId,
@@ -1897,7 +1934,7 @@ function dadosPainel_(admin, filtro) {
              doc: mascararDoc_(r.doc), tipoDoc: tipoDoc_(r.doc), nome: r.nome, municipio: r.municipio, uf: r.uf, relacao: r.relacao,
              inspecao: r.inspecao, coleta: r.coleta, amostras: r.amostras, procedimento: r.procedimento, fiel: r.fiel, auto: r.auto,
              advertencia: r.advertencia, documentos: documentosTF_(r.documentos), produtos: produtosTF_(r.produtos),
-             reincidente: r.reincidente, tfsAnteriores: r.tfsAnteriores, cancelado: r.cancelado, motivoCancel: r.motivoCancel,
+             reincidente: REINC[r.id].reincidente ? 1 : 0, tfsAnteriores: REINC[r.id].anteriores, cancelado: r.cancelado, motivoCancel: r.motivoCancel,
              nFotos: contarFotos_(r.fotos), assinado: contarAssinaturas_(r.assinaturas) ? 1 : 0,   // só contagens: nunca os ids/imagens (LGPD)
              criadoEm: r.criadoEm, srv_ts: r.srv_ts, usuario: r.usuario };
   });

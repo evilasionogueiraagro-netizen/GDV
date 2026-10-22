@@ -43,3 +43,16 @@ function atualizarColuna_(nome, coluna, linhas, valor) {
   linhas.forEach(function (l) { v[l - de][0] = valor; });
   r.setValues(v);
 }
+
+/** UUID aleatório (texto de 36 caracteres). */
+function uuid_() { return Utilities.getUuid(); }
+
+/** Propriedades do script (configuração que não vai no código). prop_ devolve '' se não existir. */
+function prop_(nome) { return PropertiesService.getScriptProperties().getProperty(nome) || ''; }
+function setProp_(nome, valor) { PropertiesService.getScriptProperties().setProperty(nome, String(valor)); }
+function delProp_(nome) { PropertiesService.getScriptProperties().deleteProperty(nome); }
+
+/** Cache de curta duração (contadores de tentativas e afins). cacheLer_ devolve o texto guardado ou null; seg = validade em segundos. */
+function cacheLer_(chave) { return CacheService.getScriptCache().get(chave); }
+function cacheGravar_(chave, valor, seg) { CacheService.getScriptCache().put(chave, String(valor), seg); }
+function cacheApagar_(chave) { CacheService.getScriptCache().remove(chave); }

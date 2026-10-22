@@ -19,7 +19,7 @@ function nomeServidor_(v) {
  * modulos (opcional) {veiculos, tf, pce, antigo}: módulos liberados para o servidor, gravados junto (aba Permissoes; pelo menos um).
  */
 function painelGerarCodigo(token, nome, modulos) {
-  const admin = adminDoToken_(token);
+  const admin = adminDoToken_(token, true);
   const n = nomeServidor_(nome);
   const perm = modulos === undefined || modulos === null ? null : modulosValidos_(modulos);   // valida ANTES de gerar o código
   const g = gerarCodigo_(n, 'fiscal', admin);
@@ -68,6 +68,8 @@ function mapaPermissoes_() {
  * Chave mestra (ACCESS_KEY, usuário "Administrador") = tudo, inclusive "antigo".
  */
 function permissoesDe_(usuario, mapa) {
+  // sessão nova (matrícula e senha): os módulos vêm das permissões do usuário (PermissoesDosUsuarios), não da aba Permissoes
+  if (!mapa && USUARIO_ATUAL_ && usuario === USUARIO_ATUAL_.nome) return Object.assign({}, USUARIO_ATUAL_.modulos);
   if (!usuario || usuario === 'Administrador') { const t = tudoLiberado_(); t.antigo = 1; return t; }
   return (mapa || mapaPermissoes_())[nomeChave_(usuario)] || tudoLiberado_();
 }
@@ -136,7 +138,7 @@ function gravarPermissoes_(nome, perm, autor) {
  * "antigo" (Digitar do papel) é opcional, desligado por padrão e exige o PCE marcado (senão: erro pedindo para marcar o PCE).
  */
 function painelPermissoes(token, nome, req) {
-  const admin = adminDoToken_(token);
+  const admin = adminDoToken_(token, true);
   nome = String(nome || '').trim().replace(/\s+/g, ' ').slice(0, NOME_SERVIDOR_MAX + 20);
   if (!nome) throw new Error('Informe o nome do servidor.');
   const perm = modulosValidos_(req && req.modulos ? req.modulos : req);
@@ -168,7 +170,7 @@ function situacaoAcesso_(f, agora) {
 function painelAcessos(token, ocultos) {
   adminDoToken_(token);
   const comOcultos = ocultos === true || ocultos === 1 || ocultos === '1';
-  const agora = Date.now(), mapa = mapaPermissoes_();
+  const agora = Date.now(), mapa = mapaPermissoes_(), veCodigos = ehGerenciaAtual_();
   // aparelhos por servidor (nome): o mais recente + quantos; vai na linha "ativo" mais recente do servidor
   const aps = {};
   lerAparelhos_().forEach(function (ap) { (aps[nomeChave_(ap.usuario)] = aps[nomeChave_(ap.usuario)] || []).push(ap); });
@@ -179,7 +181,7 @@ function painelAcessos(token, ocultos) {
     const o = { nome: f.nome, perfil: 'fiscal', situacao: situacao, criadoEm: f.expiraEm > VALIDADE_CODIGO_MS ? f.expiraEm - VALIDADE_CODIGO_MS : 0,
                 expiraEm: f.expiraEm > VALIDADE_CODIGO_MS ? f.expiraEm : 0, ativadoEm: f.ativadoEm > 1e12 ? f.ativadoEm : 0, geradoPor: f.geradoPor || '',
                 permissoes: permissoesDe_(f.nome, mapa) };                                     // módulos liberados (por nome; padrão: todos, "antigo" desligado)
-    if (situacao === 'aguardando') o.codigo = f.codigo.padStart(6, '0');
+    if (situacao === 'aguardando' && veCodigos) o.codigo = f.codigo.padStart(6, '0');   // painel só leitura não recebe códigos que ainda ativam aparelhos
     if (f.oculto === 1) o.oculto = 1;                                                 // só com ocultos:true ("Mostrar removidos")
     return o;
   });
@@ -199,7 +201,7 @@ function painelAcessos(token, ocultos) {
 
 /** Painel → "Revogar": tira todos os acessos de FISCAL com esse nome (aparelhos e códigos). Administrador: painelRevogarAdmin. */
 function painelRevogar(token, nome) {
-  adminDoToken_(token);
+  adminDoToken_(token, true);
   nome = String(nome || '').trim().replace(/\s+/g, ' ').slice(0, NOME_SERVIDOR_MAX + 20);
   if (!nome) throw new Error('Informe o nome do servidor.');
   const n = revogar_(nome, 'fiscal');
@@ -215,7 +217,7 @@ function painelRevogar(token, nome) {
  * ninguém se trancar fora do painel. Novo acesso de administrador continua só pelo menu da planilha.
  */
 function painelRevogarAdmin(token, nome) {
-  const admin = adminDoToken_(token);
+  const admin = adminDoToken_(token, true);
   nome = String(nome || '').trim().replace(/\s+/g, ' ').slice(0, NOME_SERVIDOR_MAX + 20);
   if (!nome) throw new Error('Informe o nome do administrador.');
   if (nomeChave_(nome) === nomeChave_(admin)) throw new Error('Este é o seu próprio acesso. Para sair do painel, use o botão Sair.');
@@ -231,7 +233,7 @@ function painelRevogarAdmin(token, nome) {
  * quem está logado nunca sai da lista. Sem perfil (ou outro valor) = só fiscal, como sempre.
  */
 function painelOcultarAcesso(token, nome, restaurar, perfil) {
-  const admin = adminDoToken_(token), deAdmin = perfil === 'admin';
+  const admin = adminDoToken_(token, true), deAdmin = perfil === 'admin';
   nome = String(nome || '').trim().replace(/\s+/g, ' ').slice(0, NOME_SERVIDOR_MAX + 20);
   if (!nome) throw new Error(deAdmin ? 'Informe o nome do administrador.' : 'Informe o nome do servidor.');
   const chave = nomeChave_(nome), quem = String(admin || 'Administrador').replace(/^[=+\-@\s]+/, '').slice(0, 120) || 'Administrador';
@@ -272,6 +274,8 @@ function painelOcultarAcesso(token, nome, restaurar, perfil) {
 function autenticar_(key) {
   key = String(key || '');
   if (!key) throw new Error('Aparelho não ativado.');
+  if (ehTokenUsuario_(key)) return usuarioDoApp_(key);                      // matrícula e senha (usuarios.gs): exige a permissão `campo`
+  exigirAcessosAntigos_();                                                    // acessos antigos desligados: só matrícula e senha
   const mestra = PropertiesService.getScriptProperties().getProperty('ACCESS_KEY');
   if (mestra && key === mestra) return 'Administrador';
   const t = lerTudo_('Fiscais');
@@ -284,6 +288,7 @@ function autenticar_(key) {
 
 /** O aparelho troca o código de 6 dígitos por uma credencial própria (uso único). */
 function ativar_(req) {
+  exigirAcessosAntigos_();
   const cache = CacheService.getScriptCache();
   // contadores separados: erros no painel (admin) não travam a ativação dos aparelhos dos fiscais, e vice-versa
   const chaveFalhas = req.perfil === 'admin' ? 'falhas_ativacao_admin' : 'falhas_ativacao';

@@ -22,6 +22,7 @@ Modelo em [../arquitetura.md](../arquitetura.md) e abas em [../banco.md](../banc
 | 16/10/2026 | Toda ação registra quem fez (`criadoPor`, `atualizadoPor`); autor separado de quem editou por último | regra de negócio e LGPD (art. 37) |
 | 16/10/2026 | O encerramento automático do turno em 12 h continua separado do login | é regra de negócio |
 | 22/10/2026 | Nunca tirar o último gerente ativo | ninguém fica trancado fora |
+| 22/10/2026 | Senha com no mínimo 8 caracteres, sem outras regras | com o limite de tentativas basta, e é fácil de lembrar |
 
 ## Rejeitado
 
@@ -30,7 +31,3 @@ Modelo em [../arquitetura.md](../arquitetura.md) e abas em [../banco.md](../banc
 | 16/10/2026 | Login com Google | o Google Cloud pediu cadastro de cobrança com CPF/CNPJ |
 | 22/10/2026 | Código de acesso de 6 dígitos (para todos ou para o campo) | trabalhoso de manter; trocado por matrícula e senha |
 | 22/10/2026 | CPF na conta | a matrícula basta como chave |
-
-## Em aberto
-
-- Tamanho mínimo da senha (proposta: 8 caracteres, sem outras regras).

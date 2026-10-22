@@ -1,8 +1,8 @@
 /* ---------- Painel do administrador (somente leitura) ---------- */
 
 /**
- * O painel é uma página do GitHub Pages (mesmo site do app): web/painel/ (app separado "e-GDV Painel"). Ela chama esta API (doPost) com:
- *   painelAtivar {codigo}            → troca um código de ADMINISTRADOR (6 dígitos, uso único) por {ok, token, nome}
+ * O painel é uma página do GitHub Pages (mesmo site do app): web/painel/ (app separado "e-GDV Painel"). Entra com `entrar`
+ * (aplicativo: painel; usuarios.gs) e chama esta API (doPost) com o token em `key`. Quem tem `painel` lê; quem grava precisa de `gerencia`.
  *   painelDados  {key, de, ate}      → dados do período, já sem dados pessoais desnecessários (documentos mascarados)
  *   painelDados  {key, aoVivo:true, ids:[...]} → só os turnos em andamento (e os de "ids", para saber se encerraram) com seus veículos
  *                                       (atualização automática de 1 em 1 minuto, sem reler TFs, levantamentos e termos)
@@ -10,22 +10,7 @@
  *   painelDados também roda o encerramento automático de turnos esquecidos (> 12 h, no máximo 1 vez a cada 10 min) e a forma completa
  *   traz rotinas: {ultimoBackup, backupFalhou, desativadas, ultimoArquivamento} (rodapé do painel) e, quando o período começa antes de
  *   1º/jan do ano anterior e já há arquivo anual desses anos, avisoArquivo (texto) + arquivosAnuais [{ano, url}] (ver arquivamento anual).
- *   painelSair   {key}               → revoga a credencial do administrador (botão Sair)
- *   painelGerarCodigo {key, nome}    → gera um código de ativação de FISCAL (aba Servidores): {ok, nome, codigo, expiraEm}
- *   painelAcessos {key, ocultos}     → lista dos acessos (situação, datas, quem gerou; sem credenciais; código só enquanto aguarda ativação);
- *                                       sem as linhas "removidas da lista" (oculto=1, fiscal ou administrador), a não ser com ocultos:true
- *                                       (vêm com oculto:1); ocultarAdmin:true = este back aceita perfil:'admin' nas duas actions abaixo
- *   painelOcultarAcesso {key, nome, perfil?} → "Remover da lista": marca oculto=1/ocultoPor/ocultoEm nas linhas de FISCAL desse nome
- *                                       (perfil:'admin' = nas de ADMINISTRADOR; nunca o próprio acesso). Não apaga; recusa se houver
- *                                       acesso ativo ou código aguardando ativação. Nova chave/código para o nome = volta à lista.
- *   painelRestaurarAcesso {key, nome, perfil?} → desfaz o "Remover da lista" (oculto=0)
- *   painelRevogar {key, nome}        → revoga os acessos de FISCAL com esse nome
- *   painelRevogarAdmin {key, nome}   → revoga os acessos de ADMINISTRADOR (painel e TV) com esse nome; o próprio acesso não (botão Sair)
- *   painelPermissoes {key, nome, veiculos, tf, pce, antigo} → módulos em que o FISCAL pode inserir dados (aba Permissoes; pelo menos um
- *                                       entre veiculos/tf/pce; antigo = "Digitar do papel", padrão 0, exige pce=1)
- *   painelGerarCodigo aceita também modulos:{veiculos, tf, pce, antigo} (gravados junto); painelAcessos devolve permissoes de cada fiscal.
- * O código é gerado no menu da planilha: e-GDV → Gerar código de administrador. Credenciais de fiscais não leem o painel,
- * e códigos de administrador não ativam aparelhos de fiscais.
+ * Contas, permissões e sessões: actions de gerência em usuarios.gs (usuariosListar, usuarioCriar...). Sair: `sair`.
  */
 const PAINEL_URL_PADRAO = 'https://evilasionogueiraagro-netizen.github.io/GDV/painel/';
 const PAINEL_MAX_DIAS = 366;                 // período máximo de uma consulta
@@ -38,48 +23,11 @@ function painelUrl_() {
 }
 
 /**
- * Valida a credencial do painel e devolve o nome do administrador.
- * Aceita a chave mestra (ACCESS_KEY) e credenciais de perfil "admin"; credencial de fiscal recebe "Acesso restrito".
- * Sessão nova ("u.…", usuarios.gs): exige `painel`; `gravar` = true (action que grava) exige `gerencia`. Acessos antigos desligados: recusa o antigo.
+ * Valida o token do painel (sessão de matrícula e senha, usuarios.gs) e devolve o nome do usuário. Exige `painel`;
+ * `gravar` = true (action que grava) exige `gerencia`. Sem token válido: MSG_ENTRE_ / MSG_SESSAO_.
  */
 function adminDoToken_(token, gravar) {
-  token = String(token || '');
-  if (ehTokenUsuario_(token)) return usuarioDoPainel_(token, gravar);          // matrícula e senha: `painel` lê; quem grava precisa de `gerencia`
-  if (token) {
-    exigirAcessosAntigos_();
-    const mestra = PropertiesService.getScriptProperties().getProperty('ACCESS_KEY');
-    if (mestra && token === mestra) return 'Administrador';
-    const t = lerLeitura_('Fiscais');
-    for (let i = 0; i < t.length; i++) {
-      if (t[i].token !== token || t[i].ativo !== 1) continue;
-      if (t[i].perfil === 'admin') return t[i].nome;
-      throw new Error('Acesso restrito ao administrador. Entre com um código de administrador (e-GDV → Gerar código de administrador).');
-    }
-  }
-  throw new Error('Sessão do painel inválida ou revogada. Entre com um código de administrador.');
-}
-
-/** Botão "Sair" do painel: revoga a credencial de administrador no servidor (a cópia local deixa de valer em qualquer lugar). */
-function painelSair(token) {
-  token = String(token || '');
-  if (ehTokenUsuario_(token)) return sair_({ key: token });                  // sessão nova: encerra a sessão
-  const mestra = PropertiesService.getScriptProperties().getProperty('ACCESS_KEY');
-  if (!token || (mestra && token === mestra)) return { ok: true };            // chave mestra não é revogada por aqui
-  const lock = LockService.getScriptLock();
-  lock.waitLock(30000);
-  try {
-    const t = lerTudo_('Fiscais');
-    for (let i = 0; i < t.valores.length; i++) {
-      const f = paraObjeto_(t.cols, t.valores[i]);
-      if (!f.token || f.token !== token || f.perfil !== 'admin') continue;    // só credencial de administrador
-      f.token = ''; f.ativo = 0;
-      t.sh.getRange(i + 2, 1, 1, t.cols.length).setValues([t.cols.map(function (c) { return f[c]; })]);
-      break;
-    }
-    return { ok: true };
-  } finally {
-    lock.releaseLock();
-  }
+  return usuarioDoPainel_(token, gravar);
 }
 
 /* ---------- Painel → "Encerrar turno" (barreira esquecida aberta no aparelho) ---------- */
@@ -99,7 +47,7 @@ function painelEncerrarTurno(token, turnoId, fim) {
   if (!id || id.length > 64) throw new Error('Turno não informado.');
   fim = String(fim === null || fim === undefined ? '' : fim).trim();
   if (!RE_HM_.test(fim)) throw new Error('Horário de encerramento inválido. Use o formato HH:MM (ex.: 17:30).');
-  const quem = String(admin || 'Administrador').replace(/^[=+\-@\s]+/, '').slice(0, 120) || 'Administrador';   // texto, nunca fórmula
+  const quem = textoAutor_(admin);   // texto, nunca fórmula
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
@@ -125,11 +73,6 @@ function painelEncerrarTurno(token, turnoId, fim) {
   } finally {
     lock.releaseLock();
   }
-}
-
-/** Troca o código de administrador por uma credencial (limitador de tentativas próprio, mais restrito que o dos aparelhos). */
-function painelAtivar(codigo) {
-  return ativar_({ codigo: codigo, perfil: 'admin' });
 }
 
 function lerLeitura_(nome) {                       // leitura pura: não cria abas nem colunas

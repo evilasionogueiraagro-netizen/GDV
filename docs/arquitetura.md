@@ -103,13 +103,17 @@ classDiagram
       +String turnoId
       +String placa
     }
-    class TF {
+    class TFBarreira {
       +String id
       +String barreira
       +Int numero
       +String turnoId
       +String veiculoId
       +String doc
+      +String procedimento
+    }
+    class TermoTurno {
+      +String turnoId
     }
     class Andamento {
       +String turnoId
@@ -119,7 +123,12 @@ classDiagram
   namespace Cadastros {
     class Pessoa {
       +String id_cpf_cnpj
+      +String tipo_PF_PJ
       +String nome
+      +tfsRecebidos() Int
+    }
+    class Proprietario {
+      +propriedades() Lista
     }
     class Placa {
       +String id_placa
@@ -153,7 +162,13 @@ classDiagram
       +String id
       +String propriedadeId
       +String cadastroId
+      +String doc
     }
+  }
+  class TermoAcao {
+    <<abstract>>
+    +String data
+    +String servidor
   }
   class Arquivo {
     +String dono
@@ -161,22 +176,39 @@ classDiagram
     +String driveId
   }
   Barreira "1" --> "*" Numeracao : por ano
-  Barreira "1" --> "*" TF : numera
+  Barreira "1" --> "*" TFBarreira : numera
   Turno "1" --> "*" Veiculo : registra
-  Turno "1" --> "*" TF : lavrado em
-  Veiculo "1" --> "0..1" TF : gera
+  Turno "1" --> "*" TFBarreira : lavrado em
+  Veiculo "1" --> "0..1" TFBarreira : irregularidade
   Turno "1" --> "*" Andamento : TF em preenchimento
-  TF "*" --> "1" Pessoa : fiscalizado
+  Turno "1" --> "0..1" TermoTurno : ao encerrar
+  TFBarreira "*" --> "1" Pessoa : fiscalizado
   Placa "*" --> "1" Pessoa : dono
+  Pessoa <|-- Proprietario
+  TermoAcao <|-- TermoTurno
+  TermoAcao <|-- TermoPCE
   Propriedade "1" --> "*" Levantamento : visita
   Levantamento "1" --> "*" Colheita : amostra
   Propriedade "1" --> "*" PCE : inscrita em
   Programa "1" --> "*" PCE : inscreve
   PCE "1" --> "*" TermoPCE : visita
-  Propriedade "*" --> "1" Pessoa : produtor
-  TF "1" --> "*" Arquivo : fotos e PDFs
+  TermoPCE "*" --> "1" Proprietario : fiscalizado
+  Propriedade "*" --> "1" Proprietario : dono
+  TFBarreira "1" --> "*" Arquivo : fotos e PDFs
   Levantamento "1" --> "*" Arquivo : fotos
 ```
+
+**Dois documentos com nome parecido:**
+
+| Documento | Quando | Template | Onde fica |
+|---|---|---|---|
+| TF de Barreira (`TFBarreira`) | irregularidade na barreira (liberação, apreensão, rechaço) | `web/documentos/tf.html` | aba `TFs`, numeração por barreira e ano |
+| Termo de Fiscalização de ação (`TermoAcao`) | ao encerrar o turno (`TermoTurno`) ou na fiscalização de uma propriedade (`TermoPCE`) | `termo.html` (turno), `pce-termo.html` e `pce-termo-citros.html` (PCE) | turno: gerado dos dados do turno, sem aba; PCE: aba `TermosPCE` |
+
+**Pessoa e proprietário:** todo proprietário é uma pessoa, mas nem toda pessoa é proprietária (quem só passa na
+barreira é só `Pessoa`). Os dois ficam na aba `Pessoas` (id = CPF/CNPJ); proprietário é a pessoa que é `doc` de
+alguma `Propriedade`. É pelo CPF/CNPJ que se conta quantos TFs uma pessoa levou (`tfsRecebidos`); a reincidência
+de hoje olha só o TF de Barreira.
 
 `PCE` = aba `CadastrosPCE`: a ligação de uma propriedade com um programa, no máximo uma por par (o cadastro do
 imóvel naquele programa; `dados` guarda os campos do programa). `Programa` não é aba: é a lista `PROGRAMAS_PCE` do

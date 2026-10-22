@@ -3,6 +3,7 @@
 TF do app de campo (isolado ou no turno), impresso em 2 vias. Veja também: [app de campo](../apps/campo.md), [API](../API.md).
 
 ## Regras
+- Não confundir: o TF de Barreira é só para irregularidade na barreira (`tf.html`). O Termo de Fiscalização de ação (fim do turno, fiscalização de propriedade) é outro documento, com outro template ([arquitetura](../arquitetura.md)).
 - Numeração: uma sequência por barreira e ano, na planilha (`0012/2026 - BVA - CEASA`). Próximo = maior + 1. Início: e-GDV → Definir último nº de TF usado.
 - `tfEmitir` grava só número livre; senão sugere outro antes do PDF.
 - Sem internet: número provisório (último + 1). Se já usado, vale o mais antigo; o outro fica `conflito = 1`.

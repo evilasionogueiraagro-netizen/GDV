@@ -39,6 +39,8 @@ const diaManaus = ms => new Date(ms - 4 * 3600e3).toISOString().slice(0, 10);
     await p.click('[data-pes="corrigir"]'); await p.waitForTimeout(300);
     ok((await p.textContent('#pesCont h1')).trim() === '12', 'corrigir total: 12');
     await p.click('nav [data-v=registrar]'); await p.waitForSelector('#pesCont');
+    // #pesCont já estava na tela: espera o aviso, que pode chegar depois do clique
+    await p.waitForFunction(() => /não se registram veículos/.test((document.querySelector('#toast') || {}).textContent || ''), null, { timeout: 3000 }).catch(() => {});
     ok(/não se registram veículos/.test(await p.textContent('#toast')), 'aba Registrar: avisa que não se registram veículos e volta ao contador');
     await p.click('#encerrar'); await p.waitForSelector('[data-doc=termo]');
     ok(/12 pessoas orientadas/.test(await p.textContent('main')) && !/veículos/.test(await p.textContent('main .card')), 'turno encerrado: "12 pessoas orientadas", sem veículos');

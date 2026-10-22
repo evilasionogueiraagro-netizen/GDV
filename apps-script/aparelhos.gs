@@ -29,7 +29,7 @@ function ping_(req, usuario) {
  * dos pendentes informados, que o app conta antes de enviar) e os ids dos turnos encerrados aceitos.
  */
 function registrarAparelho_(a, usuario, agora, key, situacao, aceitos) {
-  const cred = credAparelho_(key);                                    // início da credencial antiga; do token novo, parte do SHA-256
+  const cred = credAparelho_(key);                                    // parte do SHA-256 do token (o token nunca vai à planilha)
   let o;
   if (a && typeof a === 'object' && RE_ID_APARELHO_.test(String(a.id || ''))) {
     const pend = {}, ac = aceitos || {}, encAceitos = ac.encerrados || {};

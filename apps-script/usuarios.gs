@@ -1,14 +1,14 @@
 /* ---------- Usuários, sessões e permissões (login com matrícula e senha) ----------
  * Regras e fluxo: docs/modulos/acessos.md; actions: docs/API.md. Abas: Usuarios, PermissoesDosUsuarios, SessoesDosUsuarios, HistoricoDeAlteracoes.
  * Token da sessão: "u." + 64 hex, aleatório; na planilha fica só o SHA-256 (tokenHash). O app de campo e o painel mandam o token em `key`,
- * o portal em `sessao`. autenticar_ (app), adminDoToken_ (painel) e admSessao_ (portal) mandam o token "u.…" para cá; o resto continua no
- * caminho antigo (códigos, aba Fiscais, AdmSessoes, ACCESS_KEY) até a gerência desligar (propriedade ACESSOS_ANTIGOS_DESLIGADOS = 1).
+ * o portal em `sessao`. autenticar_ (app), adminDoToken_ (painel) e admSessao_ (portal) só aceitam este token: não há outra credencial
+ * (os códigos de 6 dígitos, as abas Fiscais/Administrativo/AdmSessoes e a ACCESS_KEY deixaram de valer; as abas ficam como histórico).
  * A cada chamada o servidor confere a planilha (token → sessão aberta → usuário ativo → senha provisória resolvida → permissão): revogar
  * ou mudar uma permissão vale na hora. Gravação sempre dentro de comLock_, relendo as abas dentro do lock.
  * Nada neste arquivo depende de outro ao carregar (ordem_arquivos_test).
  */
 
-/** Quem está chamando nesta requisição (login novo): {id, matricula, nome, permissoes, modulos}; null no caminho antigo. O doPost zera a cada chamada. */
+/** Quem está chamando nesta requisição: {id, matricula, nome, permissoes, modulos}. O doPost zera a cada chamada; toda action autenticada o preenche. */
 let USUARIO_ATUAL_ = null;
 
 const PERMISSOES_USUARIO_ = ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce', 'digitarDoPapel', 'painel', 'administracao', 'gerencia'];
@@ -29,6 +29,7 @@ const MSG_LOGIN_ERRADO_ = 'Matrícula ou senha incorreta.';
 const MSG_BLOQUEIO_LOGIN_ = 'Muitas tentativas incorretas. Aguarde 15 minutos e tente de novo.';
 const MSG_TROCAR_SENHA_ = 'Troque a senha provisória para continuar.';
 const MSG_SESSAO_ = 'Sessão encerrada ou inválida. Entre com sua matrícula e senha.';
+const MSG_SESSAO_APP_ = 'Acesso revogado ou inválido. Entre com sua matrícula e senha.';   // app de campo: o texto que ele já reconhece
 const MSG_SO_GERENCIA_ = 'Só a gerência pode fazer esta alteração (o seu acesso ao painel é só de leitura).';
 
 /* ---------- Utilidades ---------- */
@@ -155,32 +156,28 @@ function outrosGerentesAtivos_(menosId, usuarios, permissoes) {
   return usuarios.filter(function (u) { return u.id && u.id !== menosId && u.ativo === 1 && (por[u.id] || []).indexOf('gerencia') >= 0; }).length;
 }
 
-/** O chamador tem gerência? Caminho antigo (administrador do painel ou ACCESS_KEY) vale como gerência na transição. */
-function ehGerenciaAtual_() { return !USUARIO_ATUAL_ || USUARIO_ATUAL_.permissoes.indexOf('gerencia') >= 0; }
-
 /* ---------- Sessão nova ---------- */
 
-function ehTokenUsuario_(token) { return String(token || '').indexOf('u.') === 0; }
 function tokenDe_(req) { return String((req && (req.key || req.sessao)) || ''); }
-function acessosAntigosDesligados_() { return prop_('ACESSOS_ANTIGOS_DESLIGADOS') === '1'; }
-/** Códigos de ativação, credenciais antigas e ACCESS_KEY: recusados depois que a gerência desliga os acessos antigos. */
-function exigirAcessosAntigos_() { if (acessosAntigosDesligados_()) throw new Error(MSG_ENTRE_); }
 
-/** Início da credencial gravado em Aparelhos.cred: as 8 primeiras letras da antiga; do token novo, parte do SHA-256 (o token nunca vai à planilha). */
+/** Marca do token gravada em Aparelhos.cred: parte do SHA-256 (o token nunca vai à planilha). */
 function credAparelho_(key) {
   key = String(key || '');
-  return ehTokenUsuario_(key) ? 'u.' + hexSha_(key).slice(0, 6) : key.slice(0, 8);
+  return key ? 'u.' + hexSha_(key).slice(0, 6) : '';
 }
 
 /**
- * Valida o token novo e devolve {sessao, u, usuario, lista, permissoes, modulos, provisoria}. Falha com erro claro:
- * token desconhecido/encerrado/usuário desativado → opcoes.invalida; senha provisória pendente → MSG_TROCAR_SENHA_ com trocarSenha = 1
- * (a menos que opcoes.provisoria); sem a permissão opcoes.permissao (gerencia vale como todas). Preenche USUARIO_ATUAL_.
+ * Valida o token e devolve {sessao, u, usuario, lista, permissoes, modulos, provisoria}. Falha com erro claro: sem token → MSG_ENTRE_;
+ * token desconhecido/encerrado/usuário desativado → opcoes.invalida (padrão MSG_SESSAO_); os dois com entrar = 1 (a tela volta ao login);
+ * senha provisória pendente → MSG_TROCAR_SENHA_ com trocarSenha = 1 (a menos que opcoes.provisoria); sem a permissão opcoes.permissao
+ * (gerencia vale como todas). Lê a planilha a cada chamada. Preenche USUARIO_ATUAL_.
  */
 function sessaoNova_(token, opcoes) {
   opcoes = opcoes || {};
-  const invalida = function () { return new Error(opcoes.invalida || MSG_SESSAO_); };
+  const erroEntrar = function (msg) { const e = new Error(msg); e.entrar = 1; return e; };
+  const invalida = function () { return erroEntrar(opcoes.invalida || MSG_SESSAO_); };
   token = String(token || '');
+  if (!token) throw erroEntrar(MSG_ENTRE_);
   if (!RE_TOKEN_USUARIO_.test(token)) throw invalida();
   const h = hexSha_(token), agora = Date.now();
   const s = lerLeitura_('SessoesDosUsuarios').filter(function (x) { return x.id && x.tokenHash === h; })[0];
@@ -227,23 +224,23 @@ function encerrarSessoesAbertas_(filtro, motivo, por) {
   return n;
 }
 
-/* Pontos de entrada usados por autenticar_ (app), adminDoToken_ (painel) e admSessao_ (portal); devolvem o mesmo que o caminho antigo. */
+/* Pontos de entrada usados por autenticar_ (app), adminDoToken_ (painel) e admSessao_ (portal). */
 
 /** App de campo: nome do usuário. Exige `campo`. */
 function usuarioDoApp_(token) {
-  return sessaoNova_(token, { permissao: 'campo', invalida: 'Acesso revogado ou inválido. Entre com sua matrícula e senha.' }).usuario.nome;
+  return sessaoNova_(token, { permissao: 'campo', invalida: MSG_SESSAO_APP_ }).usuario.nome;
 }
 
 /** Painel: nome do usuário. Exige `painel`; com `gravar`, exige `gerencia` (painel só lê). */
 function usuarioDoPainel_(token, gravar) {
-  const s = sessaoNova_(token, { permissao: 'painel', invalida: 'Sessão do painel inválida ou revogada. Entre com sua matrícula e senha.' });
+  const s = sessaoNova_(token, { permissao: 'painel' });
   if (gravar && s.lista.indexOf('gerencia') < 0) throw new Error(MSG_SO_GERENCIA_);
   return s.usuario.nome;
 }
 
-/** Portal do Administrativo: {admId, nome, email, expiraEm} como a sessão antiga. Exige `administracao`. */
+/** Portal do Administrativo: {admId (= id do usuário), nome, email: '', expiraEm: 0}. Exige `administracao`. */
 function usuarioDoPortal_(token) {
-  const s = sessaoNova_(token, { permissao: 'administracao', invalida: 'Sessão do portal encerrada. Entre com sua matrícula e senha.' });
+  const s = sessaoNova_(token, { permissao: 'administracao' });
   return { admId: s.usuario.id, nome: s.usuario.nome, email: '', expiraEm: 0 };
 }
 
@@ -349,18 +346,10 @@ function minhaSessao_(req) {
 
 /* ---------- Gerência ---------- */
 
-/**
- * Quem pede uma action de gerência: sessão nova com `gerencia` ou, na transição, a credencial antiga de administrador / ACCESS_KEY
- * (autor "antigo:<nome>"). Devolve {quem, nome}; quem vai nas colunas criadoPor/atualizadoPor/concedidaPor... e no histórico.
- */
+/** Quem pede uma action de gerência: sessão com `gerencia`. Devolve {quem (id do usuário), nome}; quem vai em criadoPor/atualizadoPor/... e no histórico. */
 function gerenciaDe_(req) {
-  const token = tokenDe_(req);
-  if (ehTokenUsuario_(token)) {
-    const s = sessaoNova_(token, { permissao: 'gerencia', invalida: MSG_SESSAO_ });
-    return { quem: s.usuario.id, nome: s.usuario.nome };
-  }
-  const nome = adminDoToken_(token);
-  return { quem: 'antigo:' + textoAutor_(nome), nome: nome };
+  const s = sessaoNova_(tokenDe_(req), { permissao: 'gerencia' });
+  return { quem: s.usuario.id, nome: s.usuario.nome };
 }
 
 function usuarioSaida_(u, lista) { return { id: u.id, matricula: u.matricula, nome: u.nome, ativo: u.ativo === 1 ? 1 : 0, permissoes: lista || [] }; }
@@ -378,7 +367,7 @@ function usuariosListar_(req) {
     o.senhaProvisoria = u.senhaProvisoria === 1 ? 1 : 0; o.criadoEm = u.criadoEm; o.ultimoAcesso = ultimo[u.id] || 0; o.sessoesAbertas = abertas[u.id] || 0;
     return o;
   }).sort(function (a, b) { return String(a.nome).localeCompare(String(b.nome)); });
-  return { ok: true, usuarios: usuarios, acessosAntigos: acessosAntigosDesligados_() ? 'desligados' : 'ligados' };
+  return { ok: true, usuarios: usuarios };
 }
 
 /**
@@ -433,7 +422,7 @@ function usuarioPermissoes_(req) {
 
 /**
  * Nova senha provisória (a pessoa troca no acesso seguinte) e fim de todas as sessões dela. criterio = {id} ou {matricula}; autor = {quem}.
- * Usada pela action usuarioNovaSenha e pelo menu da planilha (qualquer usuário, inclusive gerente).
+ * Usada pela action usuarioNovaSenha (a gerência, para qualquer conta) e pelo menu da planilha (só gerente: novaSenhaGerente_).
  */
 function definirSenhaProvisoria_(criterio, autor) {
   const senha = senhaProvisoriaNova_(), sal = aleatorioHex_(32), hash = hashSenha_(senha, sal);
@@ -506,58 +495,39 @@ function sessaoEncerrar_(req) {
   });
 }
 
-/**
- * acessosAntigosDesligar {desligar: 1|0}: desliga (ou religa, se algo der errado) os códigos de ativação, as credenciais antigas e a
- * ACCESS_KEY. Só com sessão nova: quem desliga prova que consegue entrar (ninguém se tranca fora).
- */
-function acessosAntigosDesligar_(req) {
-  if (!ehTokenUsuario_(tokenDe_(req))) throw new Error('Para desligar os acessos antigos, entre com sua matrícula e senha.');
-  const g = gerenciaDe_(req);
-  const desligar = req.desligar === 1 || req.desligar === '1' || req.desligar === true ? 1 : req.desligar === 0 || req.desligar === '0' || req.desligar === false ? 0 : -1;
-  if (desligar < 0) throw new Error('Informe desligar: 1 (desligar) ou 0 (religar).');
-  comLock_(function () {
-    const antes = acessosAntigosDesligados_() ? 1 : 0;
-    if (antes === desligar) return;
-    if (desligar) setProp_('ACESSOS_ANTIGOS_DESLIGADOS', '1'); else delProp_('ACESSOS_ANTIGOS_DESLIGADOS');
-    historicoAcesso_([{ usuarioId: g.quem, acao: desligar ? 'acessosAntigos.desligar' : 'acessosAntigos.religar', tabela: 'propriedades',
-                        registroId: 'ACESSOS_ANTIGOS_DESLIGADOS', antes: { desligados: antes }, depois: { desligados: desligar } }]);
-  });
-  return { ok: true, acessosAntigos: acessosAntigosDesligados_() ? 'desligados' : 'ligados' };
-}
-
 /** Action → função. Montado na chamada (as funções ficam neste arquivo, mas mapas de funções não rodam ao carregar). null = não é daqui. */
 function usuariosAcao_(nome) {
   const m = { entrar: entrar_, trocarSenha: trocarSenha_, sair: sair_, minhaSessao: minhaSessao_, usuariosListar: usuariosListar_, usuarioCriar: usuarioCriar_,
               usuarioPermissoes: usuarioPermissoes_, usuarioNovaSenha: usuarioNovaSenha_, usuarioAtivar: usuarioAtivar_, sessoesListar: sessoesListar_,
-              sessaoEncerrar: sessaoEncerrar_, acessosAntigosDesligar: acessosAntigosDesligar_ };
+              sessaoEncerrar: sessaoEncerrar_ };
   return Object.prototype.hasOwnProperty.call(m, nome) ? m[nome] : null;
 }
 
-/* ---------- Funções comuns do menu da planilha (menu-da-planilha.gs só colhe a entrada) ---------- */
+/* ---------- Funções do menu da planilha (menu-da-planilha.gs só colhe a entrada) ---------- */
 
 const AUTOR_PLANILHA_ = { quem: 'planilha', nome: 'planilha' };
 
-/** e-GDV → Criar gerente: todas as permissões. Matrícula vazia = gerada (GDV0001...). Devolve {usuario, senhaProvisoria}. */
-function criarGerente_(matricula, nome) {
-  return criarUsuario_({ matricula: matricula, nome: nome, permissoes: PERMISSOES_USUARIO_.slice() }, AUTOR_PLANILHA_);
-}
-
-/** e-GDV → Nova senha provisória: vale para qualquer usuário, inclusive gerente; encerra as sessões dele. Devolve {usuario, senhaProvisoria}. */
-function novaSenhaProvisoria_(matricula) {
-  if (!chaveMatricula_(matricula)) throw new Error('Informe a matrícula.');
-  return definirSenhaProvisoria_({ matricula: matricula }, AUTOR_PLANILHA_);
+/** Usuários ativos com a permissão gerencia (leitura). */
+function gerentesAtivos_() {
+  const por = permissoesAtivasPorUsuario_(lerLeitura_('PermissoesDosUsuarios'));
+  return lerLeitura_('Usuarios').filter(function (u) { return u.id && u.ativo === 1 && (por[u.id] || []).indexOf('gerencia') >= 0; });
 }
 
 /**
- * e-GDV → Criar contas em lote. lista = [{matricula?, nome, permissoes: 'campo, pce' ou lista}]. Cada conta é criada à parte: uma que falha
- * (matrícula repetida, nome inválido) não impede as outras. Devolve, na mesma ordem, {ok, usuario, senhaProvisoria} ou {ok: false, erro}.
+ * e-GDV → Criar o primeiro gerente: todas as permissões e senha provisória. Só quando não há gerente ativo (os demais o gerente cria
+ * no painel). Matrícula vazia = gerada (GDV0001...). Devolve {usuario, senhaProvisoria}.
  */
-function criarContasEmLote_(lista) {
-  return lista.map(function (x) {
-    try {
-      const perms = Array.isArray(x.permissoes) ? x.permissoes : String(x.permissoes || '').split(',');
-      const r = criarUsuario_({ matricula: x.matricula, nome: x.nome, permissoes: perms.map(function (p) { return String(p).trim(); }).filter(Boolean) }, AUTOR_PLANILHA_);
-      return { ok: true, usuario: r.usuario, senhaProvisoria: r.senhaProvisoria };
-    } catch (e) { return { ok: false, erro: String(e.message || e) }; }
-  });
+function criarGerente_(matricula, nome) {
+  if (gerentesAtivos_().length) throw new Error('Já existe gerente ativo. As outras contas são criadas pela gerência no painel.');
+  return criarUsuario_({ matricula: matricula, nome: nome, permissoes: PERMISSOES_USUARIO_.slice() }, AUTOR_PLANILHA_);
+}
+
+/** e-GDV → Redefinir senha de gerente: nova senha provisória (troca obrigatória no acesso seguinte) e fim das sessões. Só para gerente ativo. */
+function novaSenhaGerente_(matricula) {
+  const k = chaveMatricula_(matricula);
+  if (!k) throw new Error('Informe a matrícula.');
+  if (!gerentesAtivos_().some(function (u) { return chaveMatricula_(u.matricula) === k; })) {
+    throw new Error('Matrícula não é de um gerente ativo. A senha dos demais é redefinida pela gerência no painel.');
+  }
+  return definirSenhaProvisoria_({ matricula: matricula }, AUTOR_PLANILHA_);
 }

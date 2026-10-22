@@ -40,7 +40,7 @@ function painelRelGdv(token, req) {
  * o painel recusa.
  */
 function painelRelGdvSalvar(token, req) {
-  const admin = adminDoToken_(token), ano = anoRelGdv_(req.ano), agora = Date.now();
+  const admin = adminDoToken_(token, true), ano = anoRelGdv_(req.ano), agora = Date.now();
   if (Array.isArray(req.lancamentos) && req.lancamentos.length) throw new Error(MSG_PORTAL);
   let txt = null;
   if (req.textos) {

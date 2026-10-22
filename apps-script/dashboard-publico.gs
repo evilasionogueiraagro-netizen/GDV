@@ -89,7 +89,7 @@ function painelPublicoConfig(token) {
 }
 /** Painel → grava a configuração (valida as chaves; registra quem/quando; troca a versão = o cache público antigo deixa de valer). */
 function painelPublicoSalvar(token, config) {
-  const admin = adminDoToken_(token);
+  const admin = adminDoToken_(token, true);
   if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('Configuração inválida.');
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {

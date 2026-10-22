@@ -126,7 +126,7 @@ classDiagram
       +String doc
     }
   }
-  namespace PCE {
+  namespace Programas {
     class Propriedade {
       +String id
       +String codigo
@@ -140,10 +140,14 @@ classDiagram
       +String id
       +String levantamentoId
     }
-    class CadastroPCE {
+    class Programa {
+      +String id
+    }
+    class PCE {
       +String id
       +String programa
       +String propriedadeId
+      +JSON dados
     }
     class TermoPCE {
       +String id
@@ -166,14 +170,17 @@ classDiagram
   Placa "*" --> "1" Pessoa : dono
   Propriedade "1" --> "*" Levantamento : visita
   Levantamento "1" --> "*" Colheita : amostra
-  Propriedade "1" --> "*" CadastroPCE : por programa
-  CadastroPCE "1" --> "*" TermoPCE : visita
+  Propriedade "1" --> "*" PCE : inscrita em
+  Programa "1" --> "*" PCE : inscreve
+  PCE "1" --> "*" TermoPCE : visita
   Propriedade "*" --> "1" Pessoa : produtor
   TF "1" --> "*" Arquivo : fotos e PDFs
   Levantamento "1" --> "*" Arquivo : fotos
 ```
 
-`Arquivo` liga a qualquer registro por
+`PCE` = aba `CadastrosPCE`: a ligação de uma propriedade com um programa, no máximo uma por par (o cadastro do
+imóvel naquele programa; `dados` guarda os campos do programa). `Programa` não é aba: é a lista `PROGRAMAS_PCE` do
+`Code.gs` (monilíase, banana, citros, mandioca, soja, propriedade). `Arquivo` liga a qualquer registro por
 `dono` (nome da aba) + `donoId`. `Consultas` (registro de consultas de CPF/placa) e `Aparelhos` (sinal) ficam fora do
 desenho.
 

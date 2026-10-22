@@ -19,8 +19,8 @@ const pdfBuf = () => Buffer.from('%PDF-1.4\n% tf do papel ficticio\n1 0 obj << /
 (async () => {
   const b = await amb.lancar();
   try {
-    const gerar = async (nome, perfil = '') => get('/__gerar?nome=' + encodeURIComponent(nome) + '&perfil=' + perfil);
-    const credencial = async nome => { const g = await gerar(nome); const r = await post({ action: 'ativar', codigo: g.codigo }); return { token: r.token, nome }; };
+    const gerar = async (nome, perfil = '') => perfil === 'admin' ? amb.gerente(nome) : amb.usuario(nome);   // conta pronta e token (atalho /__usuario)
+    const credencial = async nome => ({ token: (await gerar(nome)).token, nome });
     const aparelho = async ({ token, nome }) => {
       const c = await b.newContext({ viewport: { width: 1280, height: 900 } });
       await c.addInitScript(([t, n]) => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } } catch (e) {} }, [token, nome]);
@@ -32,7 +32,7 @@ const pdfBuf = () => Buffer.from('%PDF-1.4\n% tf do papel ficticio\n1 0 obj << /
     const sync = async p => { for (let i = 0; i < 30; i++) { await p.evaluate(() => Sync.sincronizar()); await p.waitForTimeout(400); if (await p.evaluate(async () => Sync.estado().tipo === 'ok' && !(await Sync.arquivosPendentes()).length)) return; } throw new Error('sync não terminou'); };
     const irTF = async p => { if (!(await p.locator('.modulo').count())) await p.click('nav [data-v=modulos]'); await p.click('.modulo[data-v=tf]'); await p.waitForSelector('button[data-tf=novo]'); };
 
-    const adm = await gerar('Gestora Ficticia Teste', 'admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
+    const adm = await gerar('Gestora Ficticia Teste', 'admin'), TOK = adm.token;
     const F = await credencial('Digitadora Ficticia Teste'), G = await credencial('Fiscal Sem Papel Teste');
 
     console.log('1) sem a permissão "Digitar do papel": sem botão e o servidor recusa');
@@ -46,7 +46,7 @@ const pdfBuf = () => Buffer.from('%PDF-1.4\n% tf do papel ficticio\n1 0 obj << /
     ok(!r.ok && r.semPermissao === 'antigo', 'tfEmitir de TF do papel sem "Digitar do papel": recusado', r);
     r = await post({ action: 'arquivoEnviar', key: G.token, arquivo: { id: crypto.randomUUID(), dono: 'tfs', donoId: 'x', tipo: 'documento', papel: '', mime: 'application/pdf' }, base64: pdfBuf().toString('base64') });
     ok(!r.ok && r.semPermissao === 'antigo', 'PDF de TF sem "Digitar do papel": recusado', r);
-    r = await post({ action: 'painelPermissoes', key: TOK, nome: F.nome, veiculos: 1, tf: 1, pce: 1, antigo: 1 });
+    r = await amb.modulos(TOK, F.nome, { veiculos: 1, tf: 1, pce: 1, antigo: 1 });
     ok(r.ok && r.permissoes.antigo === 1 && r.permissoes.tf === 1, 'painel: TF + PCE + Digitar do papel para a digitadora', r);
     r = await post({ action: 'tfEmitir', key: F.token, tf: tfBase({ data: AMANHA }) });
     ok(!r.ok && /futuro/.test(r.erro), 'TF do papel com data no futuro: recusado', r.erro);

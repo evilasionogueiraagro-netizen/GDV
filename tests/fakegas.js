@@ -36,9 +36,6 @@ function mkSheet(name) {
 sheets.Turnos = mkSheet('Turnos');
 sheets.Turnos._rows.push(['id','numeroTF','data','letra','inicio','fim','fiscal','local','unidade','posto','encerrado','criadoEm','atualizadoEm','srv_ts']);
 sheets.Turnos._rows.push(['antigo-1','TF-001-A-' + diaManaus(3).slice(0, 4),diaManaus(3),'A','04:00','12:00','Maria','CEASA','MANAUS','Fixa',1,1,1,1]);
-sheets.Fiscais = mkSheet('Fiscais');
-sheets.Fiscais._rows.push(['nome','codigo','expiraEm','ativo','token','ativadoEm']);
-sheets.Fiscais._rows.push(['Antigo Fiscal','',1,1,'tok-antigo',1]);
 // Planilhas (a principal "fake" e as criadas com SpreadsheetApp.create, ex.: arquivo anual). id → {nome, sheets, api}
 const planilhas = {};
 function mkSS(id, nome, shs) {
@@ -48,7 +45,7 @@ function mkSS(id, nome, shs) {
   return api;
 }
 const ss = mkSS('fake', 'GDV planilha', sheets);
-const props = { ACCESS_KEY: 'segredo' };
+const props = {};
 const cache = new Map();
 let emailAtual = '', emailDono = 'dono@exemplo.gov.br';
 const gatilhos = [], emails = []; let trigSeq = 0;
@@ -128,6 +125,25 @@ vm.createContext(ctx);
 // dos demais não importa (ordem_arquivos_test confere).
 for (const arq of require('./lib/arquivos-gs').arquivosGs()) vm.runInContext(fs.readFileSync(arq, 'utf8'), ctx, { filename: arq });
 let online = true;
+// /__usuario?nome=&permissoes=a,b&aplicativo=campo|painel|administracao&matricula=&aparelhoId= (só nos testes): cria a conta pelas
+// funções reais (criarUsuario_, entrar_, trocarSenha_) com a senha SENHA_TESTE, ou reaproveita a do mesmo nome (ou matrícula), e entra.
+// Permissões padrão: campo = campo + os três módulos; painel = gerencia; administracao = administracao. Devolve a resposta do entrar + matricula, senha.
+const SENHA_TESTE = 'senha-de-teste';
+function usuarioDeTeste(q) {
+  const app = q.get('aplicativo') || 'campo', mat = q.get('matricula') || '', nome = q.get('nome') || '';
+  const padrao = { campo: ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce'], painel: ['gerencia'], administracao: ['administracao'] };
+  const perms = q.has('permissoes') ? q.get('permissoes').split(',').map(p => p.trim()).filter(Boolean) : padrao[app] || [];
+  let u = ctx.lerLeitura_('Usuarios').find(x => x.id && (mat ? ctx.chaveMatricula_(x.matricula) === ctx.chaveMatricula_(mat) : ctx.nomeChave_(x.nome) === ctx.nomeChave_(nome)));
+  if (!u) {
+    const r = ctx.criarUsuario_({ matricula: mat, nome, permissoes: perms }, { quem: 'teste' });
+    const e = ctx.entrar_({ matricula: r.usuario.matricula, senha: r.senhaProvisoria, aplicativo: perms.includes(app) || perms.includes('gerencia') ? app : ['campo', 'painel', 'administracao'].find(p => perms.includes(p)) || app });
+    ctx.trocarSenha_({ key: e.token, senhaAtual: r.senhaProvisoria, senhaNova: SENHA_TESTE });
+    ctx.sair_({ key: e.token });
+    u = r.usuario;
+  }
+  const e = ctx.entrar_({ matricula: u.matricula, senha: SENHA_TESTE, aplicativo: app, aparelhoId: q.get('aparelhoId') || '' });
+  return Object.assign(e, { matricula: u.matricula, senha: SENHA_TESTE });
+}
 var lockFalha = 0;   // /__lockfalha?n=K: a K-ésima próxima waitLock dá timeout (teste)
 http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -143,11 +159,10 @@ http.createServer((req, res) => {
   if (req.url === '/__tudo') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify(Object.fromEntries(Object.entries(sheets).map(([n, sh]) => [n, sh._rows])))); }
   if (req.url === '/__off') { online = false; return res.end('off'); }
   if (req.url === '/__on') { online = true; return res.end('on'); }
-  if (req.url.startsWith('/__gerar')) { const n = new URL(req.url, 'http://x').searchParams.get('nome'); res.setHeader('content-type', 'application/json'); try { return res.end(JSON.stringify(ctx.gerarCodigo_(n, new URL(req.url, 'http://x').searchParams.get('perfil') || ''))); } catch (e) { return res.end(JSON.stringify({ erro: e.message })); } }
-  if (req.url.startsWith('/__gerente')) { const q = new URL(req.url, 'http://x').searchParams; res.setHeader('content-type', 'application/json');   // primeiro gerente (como o menu e-GDV → Criar gerente): {usuario, senhaProvisoria}
+  if (req.url.startsWith('/__usuario')) { res.setHeader('content-type', 'application/json');   // atalho de teste: conta pronta (senha definitiva) e token
+    try { return res.end(JSON.stringify(usuarioDeTeste(new URL(req.url, 'http://x').searchParams))); } catch (e) { return res.end(JSON.stringify({ ok: false, erro: e.message })); } }
+  if (req.url.startsWith('/__gerente')) { const q = new URL(req.url, 'http://x').searchParams; res.setHeader('content-type', 'application/json');   // primeiro gerente (como o menu e-GDV → Criar o primeiro gerente): {usuario, senhaProvisoria}
     try { return res.end(JSON.stringify(ctx.criarGerente_(q.get('matricula') || '', q.get('nome')))); } catch (e) { return res.end(JSON.stringify({ erro: e.message })); } }
-  if (req.url.startsWith('/__revogar')) { const n = new URL(req.url, 'http://x').searchParams.get('nome'); return res.end(String(ctx.revogar_(n))); }
-  if (req.url.startsWith('/__expirar')) { const c = new URL(req.url, 'http://x').searchParams.get('codigo'); sheets.Fiscais._rows.forEach((r, i) => { if (i > 0 && String(r[1]) === c) r[2] = 1; }); return res.end('ok'); }
   if (req.url.startsWith('/__append')) { const q = new URL(req.url, 'http://x').searchParams; (sheets[q.get('aba')] = sheets[q.get('aba')] || mkSheet(q.get('aba')))._rows.push(JSON.parse(q.get('row'))); return res.end('ok'); }
   if (req.url.startsWith('/__editar')) { const q = new URL(req.url, 'http://x').searchParams, sh = sheets[q.get('aba')]; if (!sh) return res.end('sem aba');   // /__editar?aba=&col=&valor=&onde=coluna:valor (todas as linhas que casam)
     const cab = sh._rows[0], c = cab.indexOf(q.get('col')), [oc, ov] = (q.get('onde') || '').split(/:(.*)/); const io = oc ? cab.indexOf(oc) : -1; let n = 0;
@@ -165,7 +180,7 @@ http.createServer((req, res) => {
       url: p.api.getUrl(), abas: Object.fromEntries(Object.entries(p.sheets).map(([n, sh]) => [n, sh._rows])) }])))); }
   if (req.url === '/__apagarPasta') { const f = drive.itens[props.PASTA_ARQUIVOS]; if (f) f.trashed = true; return res.end('ok'); }
   if (req.url.startsWith('/__aba')) { const n = new URL(req.url, 'http://x').searchParams.get('nome'); res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify(sheets[n] ? sheets[n]._rows : null)); }
-  if (req.url === '/__dump') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ T: sheets.Turnos && sheets.Turnos._rows, V: sheets.Veiculos && sheets.Veiculos._rows, F: sheets.Fiscais && sheets.Fiscais._rows })); }
+  if (req.url === '/__dump') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ T: sheets.Turnos && sheets.Turnos._rows, V: sheets.Veiculos && sheets.Veiculos._rows })); }
   if (!online) { req.destroy(); return; }
   let b = ''; req.on('data', c => b += c);
   req.on('end', () => { res.setHeader('content-type', 'application/json'); res.end(ctx.doPost({ postData: { contents: b } }).getContent()); });

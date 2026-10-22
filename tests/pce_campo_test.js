@@ -35,7 +35,7 @@ const EU = [-2.63, -56.74];
     doc: p.doc, nome, telefone: '', email: '', propriedade: p.nome, codigoPropriedade: p.codigo, situacaoFundiaria: 'Posse', municipio: p.municipio, lat: p.lat, lon: p.lon,
     precisao: 10, culturas: '[]', pragas: JSON.stringify(pragas), fotos: '[]', assinaturas: '{}', obs: '', excluido: 0, criadoEm: t0, atualizadoEm: t0 });
   const nd = (praga, cultura) => ({ praga, culturas: [{ cultura, area: '1', resultado: 'nao_detectada', coleta: 'Não', fotos: [] }] });
-  let r = await post({ action: 'sync', key: 'segredo', since: 9e15,
+  let r = await post({ action: 'sync', key: await amb.carga(), since: 9e15,
     pessoas: [pes('52998224725', 'JOSÉ DA SILVA', 'Parintins', '92 98888-1111'), pes('11144477735', 'MARIA OLIVEIRA', 'Parintins', '92 98888-2222'),
       pes('39053344705', 'PEDRO SANTOS', 'Parintins', '92 98888-3333'), pes('71428793860', 'ANA MANAUARA', 'Manaus', '92 98888-4444')],
     propriedades: Object.values(P),
@@ -48,9 +48,9 @@ const EU = [-2.63, -56.74];
   await editar('Propriedades', 'areaTotalHa', '12,5', 'id:PRP-001');
   await editar('Pessoas', 'apelido', 'Zé da Boa Vista', 'id:52998224725');
 
-  const credencial = async nome => { const g = await get('/__gerar?nome=' + encodeURIComponent(nome)); const a = await post({ action: 'ativar', codigo: g.codigo }); return { token: a.token, nome }; };
+  const credencial = async nome => { const a = await amb.usuario(nome); return { token: a.token, nome }; };
   const fC = await credencial('Carla Mendes Rocha'), fD = await credencial('Diego Sem Modulo');
-  r = await post({ action: 'painelPermissoes', key: 'segredo', nome: fD.nome, veiculos: 1, tf: 1, pce: 0 }); if (!r.ok) throw new Error('permissões: ' + r.erro);
+  r = await amb.modulos(await amb.carga(), fD.nome, { veiculos: 1, tf: 1, pce: 0 }); if (!r.ok) throw new Error('permissões: ' + r.erro);
 
   console.log('1) servidor: pceBaixarMunicipio');
   r = await post({ action: 'pceBaixarMunicipio', key: fC.token, municipios: ['parintins'] });
@@ -270,11 +270,11 @@ const EU = [-2.63, -56.74];
     const hist = await C.evaluate(async () => { const p = await Store.obter('propriedades', 'PRP-001'); return p.resumoLev; });
     ok(hist.n === 2 && hist.ultimo, 'resumo atualizado com o levantamento novo (2 levantamentos)');
     // a gerência tira o PCE: os dados baixados saem do aparelho na próxima sincronização (LGPD)
-    r = await post({ action: 'painelPermissoes', key: 'segredo', nome: fC.nome, veiculos: 1, tf: 1, pce: 0 }); if (!r.ok) throw new Error(r.erro);
+    r = await amb.modulos(await amb.carga(), fC.nome, { veiculos: 1, tf: 1, pce: 0 }); if (!r.ok) throw new Error(r.erro);
     await C.evaluate(() => Sync.sincronizar());
     await C.waitForFunction(async () => !Object.keys((await Store.meta('pceCampo')) || {}).length && !(await Store.todos('propriedades')).length, null, { timeout: 10000 });
     ok(true, 'sem o módulo PCE: dados baixados apagados do aparelho sozinhos');
-    r = await post({ action: 'painelPermissoes', key: 'segredo', nome: fC.nome, veiculos: 1, tf: 1, pce: 1 });
+    r = await amb.modulos(await amb.carga(), fC.nome, { veiculos: 1, tf: 1, pce: 1 });
 
     console.log('10) permissão: fiscal sem o módulo PCE');
     const D = await aparelho(fD);

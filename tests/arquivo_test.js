@@ -20,9 +20,8 @@ const linhasArq = (p, n) => (p && p.abas[n] ? p.abas[n].slice(1) : []);
   const AG = Date.now(), A = new Date(AG - 4 * 3600e3).getUTCFullYear(), A1 = A - 1, A2 = A - 2, A3 = A - 3;
   const ms = (ano, mmdd, hm = '10:00') => Date.parse(`${ano}-${mmdd}T${hm}:00-04:00`);
   await props('ROTINAS_DESATIVADAS', '1');   // o painel não encerra o turno antigo aberto (testado sem interferência); o menu arquiva mesmo assim
-  const gAdm = await get('/__gerar?nome=' + encodeURIComponent('Gerente Arquivo Silva') + '&perfil=admin');
-  const ADM = (await post({ action: 'painelAtivar', codigo: gAdm.codigo })).token;
-  const FIS = (await post({ action: 'ativar', codigo: (await get('/__gerar?nome=' + encodeURIComponent('Fiscal Arquivo Souza'))).codigo })).token;
+  const ADM = (await amb.gerente('Gerente Arquivo Silva')).token;
+  const FIS = (await amb.usuario('Fiscal Arquivo Souza')).token;
   ok(ADM && FIS, 'credenciais (administrador e fiscal)');
 
   /* ================= 1. dados em 4 anos ================= */

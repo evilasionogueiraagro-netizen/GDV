@@ -18,7 +18,7 @@ const gravarIDB = (pg, store, rec) => pg.evaluate(([s, r]) => new Promise((ok, n
   const b = await amb.lancar();
   const erros = [];
   async function abrirCtx(nome, semSuporte) {
-    const g = await get('/__gerar?nome=' + encodeURIComponent(nome)), a = await post({ action: 'ativar', codigo: g.codigo });
+    const a = await amb.usuario(nome);
     const c = await b.newContext({ viewport: { width: 400, height: 820 }, timezoneId: 'America/Manaus', locale: 'pt-BR', permissions: ['geolocation', 'background-sync'], geolocation: { latitude: -3.119, longitude: -60.021, accuracy: 10 } });
     await c.route('https://nominatim.openstreetmap.org/**', rt => rt.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
     await c.addInitScript(([k, n]) => { if (!localStorage.getItem('__init')) { localStorage.setItem('__init', 1); localStorage.setItem('gdv.url', window.__GDV_API);

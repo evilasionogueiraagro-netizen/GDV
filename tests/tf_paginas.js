@@ -13,8 +13,7 @@ const CASOS = {
 };
 (async () => {
   const b = await amb.lancar();
-  const g = await (await fetch(API + '/__gerar?nome=' + encodeURIComponent('Ana Paula Lima'))).json();
-  const a = await (await fetch(API, { method: 'POST', body: JSON.stringify({ action: 'ativar', codigo: g.codigo }) })).json();
+  const a = await amb.usuario('Ana Paula Lima');
   const c = await b.newContext({ viewport: { width: 400, height: 900 } });
   await c.addInitScript(([t, n]) => { try { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } catch (e) {} }, [a.token, 'Ana Paula Lima']);
   await c.addInitScript(() => { if (window !== window.top) window.print = () => { window.top.__html = document.documentElement.outerHTML; }; });

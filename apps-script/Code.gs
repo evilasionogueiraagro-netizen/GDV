@@ -17,6 +17,10 @@
  *   (arquivo "documento").
  *
  * Opcional (compatibilidade): Propriedades do script → ACCESS_KEY = chave mestra (administrador).
+ *
+ * Login novo (usuarios.gs): matrícula e senha, permissões por usuário (abas Usuarios, PermissoesDosUsuarios, SessoesDosUsuarios,
+ * HistoricoDeAlteracoes). Token "u.…" = sessão nova; os acessos acima (códigos, ACCESS_KEY) valem até a gerência desligá-los
+ * (propriedade ACESSOS_ANTIGOS_DESLIGADOS = 1). Regras e actions: docs/modulos/acessos.md e docs/API.md.
  */
 
 const TABELAS = {
@@ -145,7 +149,19 @@ const TABELAS = {
   // posto × mês (periodo = AAAA-MM) ou por período de 10 dias (periodo = P<AAAA-MM-DD do início>). Uma linha por célula
   // (id = periodo|posto|indicador); substitui = 1: valor que substitui o apurado pelo e-GDV (com justificativa).
   VigConfig: ['id', 'config', 'atualizadoEm', 'atualizadoPor'],
-  VigLancamentos: ['id', 'ano', 'periodo', 'posto', 'indicador', 'valor', 'substitui', 'justificativa', 'origem', 'arquivo', 'usuario', 'admId', 'atualizadoEm', 'excluido']
+  VigLancamentos: ['id', 'ano', 'periodo', 'posto', 'indicador', 'valor', 'substitui', 'justificativa', 'origem', 'arquivo', 'usuario', 'admId', 'atualizadoEm', 'excluido'],
+  // Login com matrícula e senha (usuarios.gs). Nada é apagado: revogar = preencher revogadaEm/encerradaEm; desativar = ativo 0.
+  // Usuarios: senhaHash/senhaSal = SHA-256 iterado sobre sal + senha (a senha nunca é guardada); senhaProvisoria = 1: troca obrigatória no próximo acesso.
+  // criadoPor/atualizadoPor = id do usuário, "planilha" (menu) ou "antigo:<nome>" (credencial antiga de administrador na transição).
+  Usuarios: ['id', 'matricula', 'nome', 'senhaHash', 'senhaSal', 'senhaProvisoria', 'senhaAlteradaEm', 'ativo',
+             'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor'],
+  // Uma linha por permissão concedida (campo, painel, administracao, gerencia e os módulos do campo); ativa = sem revogadaEm. Conceder de novo = linha nova.
+  PermissoesDosUsuarios: ['id', 'usuarioId', 'permissao', 'concedidaEm', 'concedidaPor', 'revogadaEm', 'revogadaPor'],
+  // Sessões do login novo: só o SHA-256 do token (o token em si fica no aparelho). Não expiram: até sair ou ser encerrada.
+  SessoesDosUsuarios: ['id', 'usuarioId', 'tokenHash', 'aplicativo', 'aparelhoId', 'criadaEm', 'ultimoUso',
+                       'encerradaEm', 'encerradaPor', 'motivoDoEncerramento'],
+  // Toda mudança de acesso: quem, quando, o quê (antes/depois em JSON, nunca com hash de senha).
+  HistoricoDeAlteracoes: ['id', 'em', 'usuarioId', 'acao', 'tabela', 'registroId', 'antes', 'depois']
 };
 const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
                           'expiraEm', 'ativo', 'ativadoEm', 'oculto', 'ocultoEm',
@@ -155,7 +171,8 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criad
                           'standalone', 'online', 'ultimoSinal', 'ultimoErroEm', 'primeiroSinal', 'recusaAssinatura',
                           'totalPlantas', 'plantasInspecionadas', 'importadoEm',
                           'ultimoAcesso', 'codigoExpira', 'ultimoUso', 'revogado', 'substitui',
-                          'semEducacao', 'medidaFito', 'carga', 'partida', 'inspecaoFito', 'docConferido', 'pessoasEducacao', 'soPessoas'];   // lat/lon/precisao ficam como texto (como em Turnos)
+                          'semEducacao', 'medidaFito', 'carga', 'partida', 'inspecaoFito', 'docConferido', 'pessoasEducacao', 'soPessoas',
+                          'senhaProvisoria', 'senhaAlteradaEm', 'criadaEm', 'encerradaEm', 'concedidaEm', 'revogadaEm'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, pragas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000,
                         dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000, citros: 20000, cargaPapel: 3000 };   // demais colunas: 500
@@ -167,14 +184,14 @@ const MAX_FALHAS_ADMIN = 5;                            // idem para o código de
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-22a';
+const VERSAO_CODIGO = '2026-10-22b';
 
-function doGet(e) {
-  if (e && e.parameter && e.parameter.p === 'painel') return painelHtml_();
+function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
 }
 
 function doPost(e) {
+  USUARIO_ATUAL_ = null;   // quem está chamando (login novo): preenchido por autenticar_/adminDoToken_/admSessao_; vale só para esta requisição
   try {
     const req = JSON.parse(e.postData.contents);
     if (req.action === 'ativar') return json_(ativar_({ codigo: req.codigo }));          // app dos fiscais: só códigos de fiscal
@@ -212,10 +229,12 @@ function doPost(e) {
     if (req.action === 'painelAdmOcultar') return json_(painelAdmOcultar(req.key, req));
     if (req.action === 'painelAdmSalvar') return json_(painelAdmSalvar(req.key, req));
     if (req.action === 'painelAdmCodigo') return json_(painelAdmCodigo(req.key, req));
-    // Portal do Administrativo: login (Google ou código) e as demais actions com a sessão do portal (nunca com a credencial do painel/app)
-    if (req.action === 'admLogin') return json_(admLogin_(req));
+    // Portal do Administrativo: login por código (antigo) e as demais actions com a sessão do portal (nunca com a credencial do painel/app)
     if (req.action === 'admCodigo') return json_(admCodigo_(req));
     if (/^adm[A-Z]/.test(String(req.action || ''))) return json_(admAcao_(req));
+    // Login com matrícula e senha (usuarios.gs): entrar, trocarSenha, sair, minhaSessao e as actions de gerência
+    const acaoUsuarios = usuariosAcao_(req.action);
+    if (acaoUsuarios) return json_(acaoUsuarios(req));
     const usuario = autenticar_(req.key);
     // TF/PCE: o servidor confere a autorização do módulo (foto/assinatura de TF = módulo TF; as demais, PCE)
     const modulo = req.action === 'arquivoEnviar' && req.arquivo && req.arquivo.dono === 'tfs' ? 'tf' : MODULO_DA_ACAO[req.action];
@@ -238,6 +257,7 @@ function doPost(e) {
   } catch (err) {
     const r = { ok: false, erro: String(err.message || err) };
     if (err && err.semPermissao) { r.semPermissao = err.semPermissao; r.permissoes = err.permissoes; }   // o app atualiza as permissões guardadas
+    if (err && err.trocarSenha) r.trocarSenha = 1;                                                       // senha provisória pendente: a tela leva à troca
     return json_(r);
   }
 }

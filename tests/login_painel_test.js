@@ -1,11 +1,10 @@
 const amb = require('./lib/amb');
-// Painel, Modo TV e aba Usuários com o login por matrícula e senha (actions entrar, trocarSenha, sair, minhaSessao, usuariosListar,
-// usuarioCriar, usuarioPermissoes, usuarioNovaSenha, usuarioAtivar, sessoesListar, sessaoEncerrar, acessosAntigosDesligar):
-// tela de entrar (erro do servidor, permissão, senha provisória com troca obrigatória), sessão "u." guardada e relida, Sair, abas só para
-// quem tem gerência, o gerente cria/edita/desativa usuários e mostra a senha provisória uma vez (copiar e WhatsApp), vê e encerra sessões,
-// desliga os acessos antigos (confirmação forte) e quem estava com o código antigo volta à tela de entrar; Modo TV com o usuário da TV
-// só pelo teclado e volta à tela de entrar quando o gerente encerra a sessão. Depende do servidor novo (contrato do login).
-// O primeiro gerente nasce aqui pela credencial antiga de administrador (vale como gerência na transição), como no dia da virada.
+const Login = require('./lib/login');
+// Painel, Modo TV e aba Usuários com o login por matrícula e senha (único acesso; não há mais código de acesso): tela de entrar (erro do
+// servidor, permissão, senha provisória com troca obrigatória), sessão "u." guardada e relida, Sair, aba Usuários só para quem tem
+// gerência, o gerente cria/edita/desativa usuários e mostra a senha provisória uma vez (copiar e WhatsApp), vê e encerra sessões,
+// sessão antiga de código ignorada, painel só de leitura sem gerência; Modo TV com o usuário da TV só pelo teclado e volta à tela de
+// entrar quando o gerente encerra a sessão. O primeiro gerente nasce como no menu da planilha (tests/lib/login.js).
 const { API, PAINEL } = amb;
 const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 const get = p => fetch(API + p).then(r => r.json());
@@ -17,21 +16,17 @@ const esperaReal = ms => new Promise(r => setTimeout(r, ms));
 
 (async () => {
   /* ================= 1. servidor: usuários de partida ================= */
-  console.log('1. Servidor: o gerente (ainda com o código antigo) cria os usuários');
-  const g0 = await get('/__gerar?nome=' + encodeURIComponent('Gerente Legado') + '&perfil=admin');
-  const LEG = (await post({ action: 'painelAtivar', codigo: g0.codigo })).token;
-  const criar = (matricula, nome, permissoes) => post({ action: 'usuarioCriar', key: LEG, matricula, nome, permissoes });
-  const G = await criar('ger.teste', 'Gerente Teste Silva', TODAS);
-  const TV = await criar('tv.sala', 'TV Sala da Gerencia', ['painel']);
-  const VER = await criar('ver.teste', 'Visitante Teste Lima', ['painel']);
-  const CAM = await criar('campo.teste', 'Fiscal Campo Teste', ['campo', 'fiscalizacaoDeTransito']);
-  ok(G.ok && TV.ok && VER.ok && CAM.ok && [G, TV, VER, CAM].every(x => typeof x.senhaProvisoria === 'string' && x.senhaProvisoria.length >= 8), 'usuários criados, cada um com a sua senha provisória', G.erro || TV.erro || VER.erro || CAM.erro);
+  console.log('1. Servidor: o gerente de partida cria os usuários');
+  const BASE = (await Login.gerenteBase()).token;
+  const G = await Login.criar('Gerente Teste Silva', { matricula: 'ger.teste', permissoes: TODAS, trocar: false });
+  const TV = await Login.criar('TV Sala da Gerencia', { matricula: 'tv.sala', permissoes: ['painel'], trocar: false });
+  const VER = await Login.criar('Visitante Teste Lima', { matricula: 'ver.teste', permissoes: ['painel'] });
+  const CAM = await Login.criar('Fiscal Campo Teste', { matricula: 'campo.teste', permissoes: ['campo', 'fiscalizacaoDeTransito'] });
+  ok([G, TV].every(x => typeof x.provisoria === 'string' && x.provisoria.length >= 8) && VER.token && CAM.token, 'usuários criados; gerente e TV com senha provisória, visitante e fiscal já com senha própria');
+  G.senhaProvisoria = G.provisoria; TV.senhaProvisoria = TV.provisoria;
   const entrar = (matricula, senha, aplicativo = 'painel', aparelhoId = 'teste') => post({ action: 'entrar', matricula, senha, aplicativo, aparelhoId });
-  const idDe = async m => ((await post({ action: 'usuariosListar', key: LEG })).usuarios.find(u => u.matricula.toLowerCase() === m) || {}).id;
-  // deixa o visitante e o gerente com senha própria (sem passar pela tela, para as cenas abaixo)
-  const tira = async (x, matricula, nova) => { const e = await entrar(matricula, x.senhaProvisoria); await post({ action: 'trocarSenha', key: e.token, senhaAtual: x.senhaProvisoria, senhaNova: nova }); };
-  await tira(VER, 'ver.teste', 'visitante123');
-  await tira(CAM, 'campo.teste', 'campo12345');
+  const idDe = async m => ((await post({ action: 'usuariosListar', key: BASE })).usuarios.find(u => u.matricula.toLowerCase() === m) || {}).id;
+  const VSENHA = Login.SENHA, CSENHA = Login.SENHA;
 
   /* ================= 2. navegador ================= */
   const b = await amb.lancar();
@@ -62,10 +57,10 @@ const esperaReal = ms => new Promise(r => setTimeout(r, ms));
   await p.waitForSelector('#pn-login:not([hidden])');
   ok(await p.isHidden('#pn-app') && await p.isVisible('#pn-matricula') && await p.isVisible('#pn-senha') && await p.evaluate(() => document.activeElement.id === 'pn-matricula'),
     'sem sessão: tela de entrar com matrícula e senha (campo da matrícula já focado)');
-  ok(await p.isVisible('#pn-codigo'), 'o código de administrador antigo continua na tela (transição)');
+  ok(!(await p.$('#pn-codigo')) && !(await p.$('#pn-login-form')) && !/c[óo]digo/i.test(await p.textContent('#pn-login')), 'a tela não tem campo de código nem texto sobre código: só matrícula e senha');
   await entrarNaTela(p, 'ger.teste', 'senha-errada');
   ok(/Matr[ií]cula ou senha incorreta/i.test(await erroLogin(p)) && await p.isHidden('#pn-app'), 'senha errada: mensagem do servidor, continua na tela de entrar', await p.textContent('#pn-login-erro'));
-  await entrarNaTela(p, 'campo.teste', 'campo12345');
+  await entrarNaTela(p, 'campo.teste', CSENHA);
   await p.waitForFunction(() => /permiss|painel/i.test(document.getElementById('pn-login-erro').textContent) && !/incorreta/i.test(document.getElementById('pn-login-erro').textContent), null, { timeout: 15000 });
   ok(await p.isHidden('#pn-app'), 'usuário sem a permissão do painel: o servidor recusa e a mensagem aparece', await p.textContent('#pn-login-erro'));
   ok(await p.evaluate(() => document.getElementById('pn-senha').type === 'password'), 'a senha fica escondida');
@@ -94,16 +89,16 @@ const esperaReal = ms => new Promise(r => setTimeout(r, ms));
   ok(/^u\.[0-9a-f]{64}$/.test(TOK), 'sessão nova guardada no aparelho (token "u." + 64 hex)');
   ok((await post({ action: 'entrar', matricula: 'ger.teste', senha: G.senhaProvisoria, aplicativo: 'painel' })).ok === false, 'a senha provisória não vale mais');
   const abas = await p.$$eval('.pn-aba', a => a.map(x => x.dataset.aba));
-  ok(abas.includes('acessos'), 'gerente vê a aba Servidores', abas);
+  ok(abas.includes('usuarios') && abas.includes('publico') && !abas.includes('acessos'), 'gerente vê a aba Usuários (e o Dashboard público)', abas);
   await p.reload(); await esperarDados(p);
   ok(await p.isVisible('#pn-app'), 'recarregar mantém a sessão');
   ok((await post({ action: 'minhaSessao', key: TOK })).permissoes.length >= 8, 'minhaSessao: o servidor devolve as permissões do gerente');
   const sess = (await post({ action: 'sessoesListar', key: TOK })).sessoes.filter(s => s.nome === 'Gerente Teste Silva');
   ok(sess.some(s => s.aplicativo === 'painel' && /^Painel-[a-z0-9]{4}$/.test(s.aparelhoId)), 'o painel se identifica ao servidor ("Painel-xxxx") para a lista de aparelhos', sess.map(s => s.aparelhoId));
 
-  /* ================= 5. aba Servidores → Usuários ================= */
-  console.log('5. Aba Servidores: bloco Usuários (criar, senha provisória, editar, desativar)');
-  await aba(p, 'acessos');
+  /* ================= 5. aba Usuários ================= */
+  console.log('5. Aba Usuários (criar, senha provisória, editar, desativar)');
+  await aba(p, 'usuarios');
   await p.waitForSelector('#pn-us-lista table', { timeout: 20000 });
   const linhas = await p.$$eval('#pn-us-lista tbody tr', trs => trs.map(t => t.textContent.replace(/\s+/g, ' ')));
   ok(['ger.teste', 'tv.sala', 'ver.teste', 'campo.teste'].every(m => linhas.some(l => l.includes(m))), 'lista: matrícula, nome, permissões, situação, último acesso e sessões', linhas.map(l => l.slice(0, 80)));
@@ -159,18 +154,15 @@ const esperaReal = ms => new Promise(r => setTimeout(r, ms));
   ok((await entrar(matMaria, senha2, 'campo')).ok, 'Reativar: volta a entrar (com a senha provisória mais recente)');
 
   console.log('6. Sessões (aparelhos) de um usuário');
-  const s1 = await entrar('ver.teste', 'visitante123', 'painel', 'Celular-A'), s2 = await entrar('ver.teste', 'visitante123', 'painel', 'TV-B');
-  await p.click('#pn-us-lista [data-us=desativar]:visible >> nth=0').catch(() => {});      // (só garante o foco na lista; o clique abaixo é o que vale)
-  await p.click('#pn-ac-recarregar').catch(() => {});
-  await p.evaluate(() => { window.__nada = 1; });
-  await ate(p, () => true, null, 100);
-  await p.reload(); await esperarDados(p); await aba(p, 'acessos'); await p.waitForSelector('#pn-us-lista table', { timeout: 20000 });
+  await post({ action: 'sair', key: VER.token });      // a sessão que o preparo abriu: sobram só as duas abaixo
+  const s1 = await entrar('ver.teste', VSENHA, 'painel', 'Celular-A'), s2 = await entrar('ver.teste', VSENHA, 'painel', 'TV-Sala-B');
+  await p.reload(); await p.waitForSelector('.pn-aba[data-aba=usuarios]', { timeout: 20000 }); await aba(p, 'usuarios'); await p.waitForSelector('#pn-us-lista table', { timeout: 20000 });
   await p.waitForFunction(() => [...document.querySelectorAll('#pn-us-lista tbody tr')].some(t => t.textContent.includes('ver.teste') && /2 \(ver\)/.test(t.textContent)), null, { timeout: 15000 });
   ok(true, 'a lista mostra 2 sessões abertas de ver.teste');
   await p.click(`${trDe('ver.teste')} [data-us=sessoes]`);
   await p.waitForSelector('#pn-us-sessoes-cartao tbody tr', { timeout: 15000 });
   const sl = await p.$$eval('#pn-us-sessoes-cartao tbody tr', trs => trs.map(t => t.textContent.replace(/\s+/g, ' ')));
-  ok(sl.length === 2 && sl.some(t => /Celular-A/.test(t)) && sl.some(t => /TV-B/.test(t)) && sl.every(t => /Painel/.test(t)), 'sessões abertas: aplicativo, aparelho, abertura e último uso', sl);
+  ok(sl.length === 2 && sl.some(t => /Celular-A/.test(t)) && sl.some(t => /TV-Sala-B/.test(t)) && sl.every(t => /Painel/.test(t)), 'sessões abertas: aplicativo, aparelho, abertura e último uso', sl);
   await p.click('#pn-us-sessoes-cartao tbody tr:has-text("Celular-A") [data-us=encerrar]');
   await p.waitForFunction(() => document.querySelectorAll('#pn-us-sessoes-cartao tbody tr').length === 1, null, { timeout: 15000 });
   ok(!(await post({ action: 'minhaSessao', key: s1.token })).ok && (await post({ action: 'minhaSessao', key: s2.token })).ok, 'Encerrar: só aquela sessão cai; a outra segue valendo');
@@ -178,13 +170,16 @@ const esperaReal = ms => new Promise(r => setTimeout(r, ms));
   await p.click('[data-us=fechar-sessoes]'); ok(await p.isHidden('#pn-us-sessoes'), 'fechar a lista de sessões');
 
   /* ================= 7. quem não é gerente ================= */
-  console.log('7. Usuário só com "Painel (ver)": sem a aba Servidores');
+  console.log('7. Usuário só com "Painel (ver)": painel só de leitura');
   const pv = await abrir({ nome: 'visitante' });
-  await entrarNaTela(pv, 'ver.teste', 'visitante123'); await esperarDados(pv);
+  await entrarNaTela(pv, 'ver.teste', VSENHA); await esperarDados(pv);
   await pv.waitForTimeout(500);
   const abasV = await pv.$$eval('.pn-aba', a => a.map(x => x.dataset.aba));
-  ok(!abasV.includes('acessos') && abasV.includes('geral') && abasV.includes('barreiras'), 'só leitura: vê as abas de dados, não vê Servidores (nem o bloco Usuários)', abasV);
+  ok(!abasV.includes('usuarios') && !abasV.includes('publico') && abasV.includes('geral') && abasV.includes('barreiras'), 'só leitura: vê as abas de dados, não vê Usuários nem Dashboard público', abasV);
   ok(!(await pv.$('#pn-us')), 'o bloco Usuários nem existe na página');
+  await aba(pv, 'convenios'); await pv.waitForSelector('#pn-conv-sel', { timeout: 20000 });
+  ok(!(await pv.$('#pn-conv-editar')) && !(await pv.$('#pn-cr-salvar')), 'só leitura: sem "Editar convênio" nem "Salvar textos" (o servidor recusaria)');
+  ok((await post({ action: 'painelConvSalvar', key: await token(pv), convenio: 'x', config: {} })).erro.includes('só de leitura'), 'o servidor recusa gravar no painel para quem não tem gerência', '');
   const dv = await post({ action: 'usuariosListar', key: await token(pv) });
   ok(!dv.ok && !!dv.erro, 'o servidor também recusa a lista de usuários para quem só tem Painel (ver)', dv.erro);
   const tokV = await token(pv);
@@ -195,35 +190,21 @@ const esperaReal = ms => new Promise(r => setTimeout(r, ms));
   ok(!(await post({ action: 'minhaSessao', key: tokV })).ok, 'Sair encerra a sessão no servidor (cópia do token não vale mais)');
   ok(!pv.erros.length, 'visitante: sem erros de console', pv.erros);
 
-  /* ================= 8. desligar os acessos antigos ================= */
-  console.log('8. Desligar acessos antigos');
-  const pl = await abrir({ nome: 'legado', ls: { 'gdv.painel.token': LEG, 'gdv.painel.nome': 'Gerente Legado' } });
-  await esperarDados(pl); await aba(pl, 'acessos'); await pl.waitForSelector('#pn-us-antigos button[data-us=desligar]', { timeout: 20000 });
-  ok(await pl.isDisabled('#pn-us-desligar') && /entre com a sua matr[ií]cula e senha/i.test(await pl.textContent('#pn-us-antigos')), 'com o código antigo (credencial antiga) o botão fica desligado: só com matrícula e senha ninguém se tranca fora');
-  ok(/Ligados/.test(await pl.textContent('#pn-us-antigos-sit')) && await pl.isVisible('#pn-us'), 'a credencial antiga continua enxergando o bloco (vale como gerência na transição) e a situação "Ligados"');
-  ok((await post({ action: 'acessosAntigosDesligar', key: LEG, desligar: 1 })).ok === false, 'o servidor também recusa desligar com a credencial antiga');
-  p.dialogos.length = 0; p.prompt = null;
-  await p.click('#pn-us-desligar');
-  ok(p.dialogos.length === 1 && p.dialogos[0].tipo === 'prompt' && /c[óo]digos de ativa[çc][ãa]o/.test(p.dialogos[0].msg) && /matr[ií]cula e senha/.test(p.dialogos[0].msg) && /DESLIGAR/.test(p.dialogos[0].msg), 'a confirmação explica o que para de valer e pede para digitar DESLIGAR', p.dialogos[0] && p.dialogos[0].msg.slice(0, 120));
-  ok((await post({ action: 'usuariosListar', key: TOK })).acessosAntigos === 'ligados', 'cancelar não desliga nada');
-  p.prompt = 'sim'; await p.click('#pn-us-desligar');
-  await p.waitForFunction(() => /DESLIGAR/.test(document.querySelector('[data-msg=geral]').textContent), null, { timeout: 5000 });
-  ok((await post({ action: 'usuariosListar', key: TOK })).acessosAntigos === 'ligados', 'digitar outra coisa também não desliga');
-  p.prompt = 'DESLIGAR'; await p.click('#pn-us-desligar');
-  await p.waitForFunction(() => /Desligados/.test(document.getElementById('pn-us-antigos-sit').textContent), null, { timeout: 15000 });
-  ok((await post({ action: 'usuariosListar', key: TOK })).acessosAntigos === 'desligados' && await p.isHidden('#pn-us-desligar').catch(() => true), 'DESLIGAR confirma: acessos antigos desligados (a tela mostra "Desligados")');
-  const rr = await post({ action: 'painelAtivar', codigo: (await get('/__gerar?nome=' + encodeURIComponent('Outro Admin') + '&perfil=admin')).codigo });
-  ok(!rr.ok && /matr[ií]cula e senha/i.test(rr.erro), 'código de administrador novo é recusado ("Entre com sua matrícula e senha.")', rr.erro);
-  // quem estava logado com o código antigo: na próxima atualização o servidor recusa e a tela de entrar volta, só com matrícula e senha
+  /* ================= 8. sessão antiga de código ================= */
+  console.log('8. Sessão guardada de antes (credencial de código) é ignorada');
+  const pl = await abrir({ nome: 'legado', ls: { 'gdv.painel.token': 'a'.repeat(32), 'gdv.painel.nome': 'Gerente Antigo' } });
+  await pl.waitForSelector('#pn-login:not([hidden])', { timeout: 20000 });
+  ok(await pl.isHidden('#pn-app') && await pl.isVisible('#pn-matricula') && !(await pl.$('#pn-codigo')), 'credencial antiga no aparelho: não abre o painel, pede matrícula e senha');
+  await entrarNaTela(pl, 'ver.teste', VSENHA); await esperarDados(pl);
+  ok(await pl.isVisible('#pn-app') && /^u\./.test(await token(pl)), 'e dá para entrar com matrícula e senha normalmente');
+  // sessão encerrada pelo gerente: na próxima atualização volta à tela de entrar com o motivo
+  const sv = (await post({ action: 'sessoesListar', key: TOK, usuarioId: await idDe('ver.teste') })).sessoes.find(x => /^Painel-/.test(x.aparelhoId));
+  await post({ action: 'sessaoEncerrar', key: TOK, sessaoId: sv.id });
   await pl.click('#pn-atualizar');
   await pl.waitForSelector('#pn-login:not([hidden])', { timeout: 20000 });
-  ok(/matr[ií]cula e senha/i.test(await pl.textContent('#pn-login-erro')) && !(await token(pl)), 'credencial antiga recusada: volta à tela de entrar com a mensagem do servidor e sem sessão guardada', await pl.textContent('#pn-login-erro'));
-  ok(await pl.isHidden('#pn-login-form') && await pl.isVisible('#pn-matricula'), 'a tela some com o código antigo (já desligado) e fica só matrícula e senha');
+  ok(/sess[aã]o|matr[ií]cula e senha/i.test(await pl.textContent('#pn-login-erro')) && !(await token(pl)), 'sessão encerrada pelo gerente: volta à tela de entrar com a mensagem do servidor e sem sessão guardada', await pl.textContent('#pn-login-erro'));
   await pl.reload(); await pl.waitForSelector('#pn-login:not([hidden])');
-  ok(await pl.isHidden('#pn-login-form') && /matr[ií]cula e senha/i.test(await pl.textContent('#pn-login-erro')), 'depois de recarregar continua só com matrícula e senha e a mesma mensagem');
-  await entrarNaTela(pl, 'ver.teste', 'visitante123'); await esperarDados(pl);
-  ok(await pl.isVisible('#pn-app'), 'e dá para entrar com matrícula e senha normalmente');
-  ok(!pl.erros.some(e => !/401|40\d/.test(e)) || true, 'legado: sem erros de JavaScript');
+  ok(await pl.isVisible('#pn-login-erro') && await pl.isVisible('#pn-matricula'), 'depois de recarregar continua na tela de entrar, com o motivo');
 
   /* ================= 9. Modo TV ================= */
   console.log('9. Modo TV: o usuário da TV entra só pelo teclado e volta à tela de entrar quando a sessão é encerrada');
@@ -231,7 +212,7 @@ const esperaReal = ms => new Promise(r => setTimeout(r, ms));
   await ptv.waitForSelector('#pn-login:not([hidden])');
   const cab = await ptv.evaluate(() => { const l = document.getElementById('pn-login').getBoundingClientRect(), fs = [...document.querySelectorAll('#pn-login form')].filter(f => f.offsetParent).map(f => f.getBoundingClientRect());
     return { cheia: l.width >= innerWidth - 1 && l.height >= innerHeight - 1, cabe: fs.every(r => r.top >= 0 && r.bottom <= innerHeight && r.left >= 0 && r.right <= innerWidth), n: fs.length, foco: document.activeElement.id, tv: document.body.classList.contains('tv') }; });
-  ok(cab.tv && cab.cheia && cab.cabe && cab.n === 2 && cab.foco === 'pn-matricula', 'TV: tela de entrar em tela cheia, os dois cartões cabem na altura e a matrícula já está focada', cab);
+  ok(cab.tv && cab.cheia && cab.cabe && cab.n === 1 && cab.foco === 'pn-matricula', 'TV: tela de entrar em tela cheia, o cartão cabe na altura e a matrícula já está focada', cab);
   await ptv.screenshot({ path: amb.saida('login_painel_tv_entrar.png') });
   await ptv.keyboard.press('ArrowRight'); ok(await ptv.isVisible('#pn-login'), 'teclas de navegação da TV não atrapalham a digitação');
   await ptv.keyboard.type('tv.sala'); await ptv.keyboard.press('Tab'); await ptv.keyboard.type(TV.senhaProvisoria); await ptv.keyboard.press('Enter');
@@ -246,13 +227,13 @@ const esperaReal = ms => new Promise(r => setTimeout(r, ms));
   const tokTV = await token(ptv), idTV = await idDe('tv.sala');
   ok(/^u\./.test(tokTV) && (await post({ action: 'minhaSessao', key: tokTV })).permissoes.join() === 'painel', 'a sessão da TV é nova e só tem "painel"', (await post({ action: 'minhaSessao', key: tokTV })).permissoes);
   const stv = (await post({ action: 'sessoesListar', key: TOK, usuarioId: idTV })).sessoes;
-  ok(stv.length === 1 && /^TV-[a-z0-9]{4}$/.test(stv[0].aparelhoId), 'o servidor lista a TV como "TV-xxxx" (aparelho)', stv.map(s => s.aparelhoId));
+  ok(stv.length === 1 && /^Painel-TV-[a-z0-9]{4}$/.test(stv[0].aparelhoId), 'o servidor lista a TV como "Painel-TV-xxxx" (aparelho)', stv.map(s => s.aparelhoId));
   await post({ action: 'sessaoEncerrar', key: TOK, sessaoId: stv[0].id });
   await ptv.clock.fastForward(61000);
   ok(await ate(ptv, () => !document.getElementById('pn-login').hidden, null, 20000), 'gerente encerra a sessão da TV: na próxima atualização volta a tela de entrar');
   ok(/matr[ií]cula e senha|encerrada/i.test(await ptv.textContent('#pn-login-erro')) && await ptv.evaluate(() => document.body.classList.contains('tv')) && !(await token(ptv)), 'continua no Modo TV, com o motivo na tela e sem sessão guardada', await ptv.textContent('#pn-login-erro'));
   await ptv.keyboard.type('tv.sala'); await ptv.keyboard.press('Tab'); await ptv.keyboard.type('tv-sala-nova1'); await ptv.keyboard.press('Enter');
-  await ptv.waitForSelector('#tv-palco .tv-kpi', { timeout: 20000 });
+  ok(await ate(ptv, () => !document.getElementById('pn-login').hidden === false && /Atualizado/.test(document.getElementById('tv-atual-txt').textContent), null, 20000), 'TV carrega os dados de novo depois do login');
   ok(await ptv.isHidden('#pn-login'), 'entra de novo só pelo teclado (a senha própria vale; não é mais provisória)');
   ok(!ptv.erros.filter(e => !/40[0-3]/.test(e)).length, 'TV: sem erros de console', ptv.erros);
 

@@ -22,7 +22,7 @@ const Envio = (() => {
   /** Registro digitado do papel (levantamento/termo com registroAntigo=1): só sobe com a permissão "antigo". */
   const ehAntigo = r => !!r && Number(r.registroAntigo) === 1;
   const podeAntigo = perm => !!perm && Number(perm.antigo) === 1;
-  const ANTIGO_NOS = ['g', 'c', 'k', 'm'];                                    // stores que podem ter registros antigos
+  const ANTIGO_NOS = ['g', 'c', 'k', 'm', 'f'];                               // stores que podem ter registros antigos (f = TF digitado do papel)
   const TAG = 'gdv-enviar', TAG_PERIODICO = 'gdv-enviar-periodico';
 
   const limpo = ({ pendente, provisorio, ...r }) => r;
@@ -63,6 +63,8 @@ const Envio = (() => {
       lerJSON(r.fotos, []).forEach(id => id && s.add(id));
       const docs = lerJSON(r.documentos, []);                                  // PDFs escaneados (registro digitado do papel); no TF é outro campo (objeto)
       if (Array.isArray(docs)) docs.forEach(id => id && s.add(id));
+      const pdfs = lerJSON(r.pdfs, []);                                        // TF digitado do papel: PDFs escaneados
+      if (Array.isArray(pdfs)) pdfs.forEach(id => id && s.add(id));
       Object.values(lerJSON(r.assinaturas, {})).forEach(id => id && s.add(id));
     });
     return s;
@@ -76,7 +78,7 @@ const Envio = (() => {
     if (!tfs) tfs = await Store.todos('tfs');
     if (perm && perm.pce === 0) regs = [];
     if (perm && perm.tf === 0) tfs = [];
-    if (perm && !podeAntigo(perm)) regs = regs.filter(r => !ehAntigo(r)).map(r => ({ ...r, documentos: '[]' }));
+    if (perm && !podeAntigo(perm)) { regs = regs.filter(r => !ehAntigo(r)).map(r => ({ ...r, documentos: '[]' })); tfs = tfs.filter(r => !ehAntigo(r)).map(r => ({ ...r, pdfs: '[]' })); }
     const ref = idsReferenciados([...regs, ...tfs]);
     return (await Store.chaves('arquivos', 'enviado', 0)).filter(id => ref.has(id));
   }

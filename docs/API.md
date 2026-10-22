@@ -76,7 +76,7 @@ tudo liberado, exceto `antigo`. O mapa `MODULO_DA_ACAO` diz qual módulo cada ac
 | `sync` | por registro | `since`, `aparelho`, listas `turnos`, `veiculos`, `tfs`, `pessoas`, `placas`, `levantamentos`, `colheitas`, `propriedades`, `cadastrosPce`, `termosPce` (máx. 2.000 cada) | `agora`; as mudanças desde `since` das mesmas listas (só do próprio fiscal); `barreiras`, `ultimos`, `ultimosPce`, `ultimosDocPce`, `permissoes`, `recusados` | `sincronizar_` |
 | `tfConsultar` | tf | `doc` (CPF/CNPJ) e/ou `placa` | `pessoa`, `placa`, `historicoDoc`, `historicoPlaca` | `consultar_` |
 | `tfProximoNumero` | tf | `barreira`, `ano` | `ultimo`, `proximo` | `proximoNumero_` |
-| `tfEmitir` | tf | `tf`, `pessoa`, `placa` | `emitido: true, numero, emitidoEm, srv_ts` ou `emitido: false, ocupadoPor` | `emitir_` |
+| `tfEmitir` | tf | `tf`, `pessoa` (opcional), `placa` (opcional); TF do papel: `tf.registroAntigo = 1` (exige "Digitar do papel"; data não pode ser futura e o ano da data = `tf.ano`), `tf.pdfs` (JSON de ids), `tf.numeroOrigem = 'papel'` | `emitido: true, numero, emitidoEm, srv_ts` ou `emitido: false, ocupadoPor` | `emitir_` |
 | `tfAndamento` | tf | `rascunhoId`, `estado` (`preenchendo`/`fim`), `barreira`, `turnoId`, `placa`, `procedimento`, `local`, `lat`, `lon` | — | `tfAndamento_` |
 | `tfIndiceReincidencia` | tf | `desde` | `agora`, `completo`, `itens` | `tfIndiceReincidencia_` |
 | `pceProximoNumero` | pce | `unidade`, `ano` | `ultimo`, `proximo` | `pceProximoNumero_` |
@@ -167,6 +167,7 @@ gravação entra no histórico (aba `AdmHistorico`, com antes/depois).
 | `admRelDados` / `admRelLancar` | `ano` / `ano`, `lancamentos` (máx. 3.000) | linhas manuais do Relatório GDV |
 | `admVigDados` | `ano` | dados do VIGIFITO |
 | `admVigLancar` / `admVigImportar` | `lancamentos` / `arquivo`, `itens` | valores manuais do VIGIFITO |
+| `admPlantaoImportar` | `posto` (posto fixo do VIGIFITO), `troca` (HH:MM), `fiscal`, `arquivo`, `dias` [{`data`, `tipos` {PA, UT, CC, CB, ON, MT}, `educacao`}], `cargas` [{`data`, `hora`, `tipo`, `placa`, `origemMun`, `ufOrigem`, `destinoMun`, `ufDestino`, `transportador`, `produto`, `quantidade`, `unidade`, `documento`, `medida` (liberacao/apreensao), `tf`}] (máx. 3.000), `substituir` | relatório de plantão do papel da BVA → turnos e veículos (abas `Turnos`/`Veiculos`, coluna `importacao`); mesmo plantão de novo → `{ok:false, jaImportado, importadoEm, por, resumo}` (com `substituir: 1`: veículos anteriores excluídos, entram os novos); devolve `{ok, turnos, veiculos, cargas, liberacao, apreensao, tfs, educacao, substituidos, turnosDoApp, avisos}` |
 | `admHistorico` | `aba`, `registro` | últimas 300 alterações |
 
 ## Públicas (sem credencial)
@@ -174,7 +175,7 @@ gravação entra no histórico (aba `AdmHistorico`, com antes/depois).
 | Action | Parâmetros | O que faz | Proteções |
 |---|---|---|---|
 | `tfVerificar` | `id` (UUID do TF) | autenticidade do TF (`verificar.html`, QR code) | placa mascarada; máx. 30 ids inválidos/min |
-| `publicoDados` | `periodo`, `previa` (+ `key` de admin para pré-visualizar) | números agregados do dashboard público | cache de 5 min, limite de recálculos, números < 3 suprimidos, grade de ~11 km |
+| `publicoDados` | `periodo` (`15d`, `30d`, `ano`, `anoAnterior`, `tudo`, `intervalo` + `de`/`ate` AAAA-MM-DD; intervalo inválido → `{ok:false, intervaloInvalido:true, erro}`), `previa` (+ `key` de admin para pré-visualizar) | números agregados do dashboard público | cache de 5 min, limite de recálculos, números < 3 suprimidos, grade de ~11 km |
 
 ## Funções fora do `doPost`
 

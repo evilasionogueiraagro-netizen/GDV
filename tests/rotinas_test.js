@@ -22,10 +22,9 @@ const AUTO = 'Automático (12 h)';
 
 (async () => {
   const AG = Date.now();
-  const gAdm = await get('/__gerar?nome=' + encodeURIComponent('Gerente Rotina Silva') + '&perfil=admin');
-  const ADM = (await post({ action: 'painelAtivar', codigo: gAdm.codigo })).token;
-  const FIS = (await post({ action: 'ativar', codigo: (await get('/__gerar?nome=' + encodeURIComponent('Fiscal Rotina Souza'))).codigo })).token;
-  const FIS2 = (await post({ action: 'ativar', codigo: (await get('/__gerar?nome=' + encodeURIComponent('Fiscal Sinal Lima'))).codigo })).token;
+  const ADM = (await amb.gerente('Gerente Rotina Silva')).token;
+  const FIS = (await amb.usuario('Fiscal Rotina Souza')).token;
+  const FIS2 = (await amb.usuario('Fiscal Sinal Lima')).token;
   ok(ADM && FIS && FIS2, 'credenciais (administrador e dois fiscais)');
   // turno com início em "ini" (ms); fim calculado a partir do horário truncado no minuto, como a planilha
   const T = (id, ini, extra = {}) => ({ id, numeroTF: 'TF-' + id, data: diaM(ini), letra: 'A', inicio: hmM(ini), fim: '', fiscal: 'Fiscal Rotina Souza', local: 'Barreira ' + id,

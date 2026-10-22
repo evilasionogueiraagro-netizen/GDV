@@ -7,7 +7,7 @@ const { API } = amb;
 const DASH = amb.ORIGEM + '/dashboard/';
 const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 const get = p => fetch(API + p).then(r => r.json());
-const gerar = (nome, perfil) => get('/__gerar?nome=' + encodeURIComponent(nome) + (perfil ? '&perfil=' + perfil : ''));
+const gerar = (nome, perfil) => perfil === 'admin' ? amb.gerente(nome) : amb.usuario(nome);   // conta pronta e token (atalho /__usuario)
 let falhas = 0;
 const ok = (cond, msg, extra) => { console.log((cond ? '  ✓ ' : '  ✗ ') + msg + (extra !== undefined ? ' -> ' + (typeof extra === 'string' ? extra : JSON.stringify(extra)).slice(0, 600) : '')); if (!cond) falhas++; };
 const manaus = (d = 0) => new Date(Date.now() - 4 * 3600e3 - d * 864e5).toISOString().slice(0, 10);
@@ -39,7 +39,7 @@ const PROIBIDOS = [CPF, CNPJ, CPF2, '529.982.247-25', '***.982', 'Fulano Secreto
 
   /* ================= 1. servidor ================= */
   console.log('1. Servidor');
-  let d = await post({ action: 'sync', key: 'segredo', since: 0,
+  let d = await post({ action: 'sync', key: await amb.carga(), since: 0,
     turnos: [T('p1', manaus(5), 'BVA - CEASA', 'Fixa', '-3.1190', '-60.0217'), T('p2', manaus(3), 'BVA - JUNDIÁ', 'Fixa', '-3.0412', '-60.0889'),
       T('p3', manaus(2), 'Rua do Fiscal Secreto, 99', 'Móvel', '-3.3021', '-60.6206'),
       T('p4', iniAgora.slice(0, 10), 'BVA - AEROPORTO', 'Fixa', '-3.0386', '-60.0497', { inicio: iniAgora.slice(11, 16), fim: '', encerrado: 0, latFim: '', lngFim: '' }),
@@ -61,9 +61,9 @@ const PROIBIDOS = [CPF, CNPJ, CPF2, '529.982.247-25', '***.982', 'Fulano Secreto
   d = await post({ action: 'publicoDados' });
   ok(d.ok === true && d.ativo === false && Object.keys(d).sort().join() === 'ativo,ok', 'desligado por padrão: {ok, ativo: false} e nada mais', d);
   const adm = await gerar('Gerente Público', 'admin');
-  const TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
+  const TOK = adm.token;
   const fis = await gerar('Fiscal Curioso Silva');
-  const TOKF = (await post({ action: 'ativar', codigo: fis.codigo })).token;
+  const TOKF = fis.token;
   ok(TOK && TOKF, 'credenciais de administrador e de fiscal');
   d = await post({ action: 'painelPublicoConfig', key: TOK });
   const C0 = d.config;

@@ -13,8 +13,7 @@ const CASOS = {
 };
 (async () => {
   const b = await amb.lancar();
-  const g = await (await fetch(API + '/__gerar?nome=' + encodeURIComponent('Pessoa Ficticia Alfa'))).json();
-  const a = await (await fetch(API, { method: 'POST', body: JSON.stringify({ action: 'ativar', codigo: g.codigo }) })).json();
+  const a = await amb.usuario('Pessoa Ficticia Alfa');
   const c = await b.newContext({ viewport: { width: 400, height: 900 } });
   await c.addInitScript(([t, n]) => { try { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } catch (e) {} }, [a.token, 'Pessoa Ficticia Alfa']);
   await c.addInitScript(() => { if (window !== window.top) window.print = () => { window.top.__html = document.documentElement.outerHTML; }; });

@@ -15,7 +15,7 @@ const diaManaus = ms => new Date(ms - 4 * 3600e3).toISOString().slice(0, 10);
 (async () => {
   const b = await amb.lancar();
   try {
-    const g = await get('/__gerar?nome=' + encodeURIComponent('Fiscal Ficticio Teste')), F = await post({ action: 'ativar', codigo: g.codigo });
+    const F = await amb.usuario('Fiscal Ficticio Teste');
     const ctx = await b.newContext({ viewport: { width: 400, height: 860 }, permissions: ['geolocation'], geolocation: { latitude: -4.2316, longitude: -69.9406, accuracy: 10 } });
     await ctx.addInitScript(([t, n]) => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } } catch (e) {} }, [F.token, 'Fiscal Ficticio Teste']);
     await ctx.addInitScript(() => { if (window !== window.top) window.print = () => { window.top.__prints = window.top.__prints || []; window.top.__prints.push(document.body.innerText.replace(/\s+/g, ' ')); }; });
@@ -55,7 +55,7 @@ const diaManaus = ms => new Date(ms - 4 * 3600e3).toISOString().slice(0, 10);
     const t = (await ler('Turnos')).find(x => x.unidade === 'TABATINGA');
     ok(t && t.pessoasEducacao === 12 && t.soPessoas === 1 && t.posto === 'Móvel' && t.encerrado === 1, 'Turnos: volante, soPessoas = 1, pessoasEducacao = 12, encerrado', t);
     ok(!(await ler('Veiculos')).some(v => v.turnoId === (t && t.id)), 'nenhum veículo gravado no turno');
-    const adm = await get('/__gerar?nome=' + encodeURIComponent('Gestora Ficticia Teste') + '&perfil=admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
+    const TOK = (await amb.gerente('Gestora Ficticia Teste')).token;
     const hoje = diaManaus(Date.now());
     const PD = await post({ action: 'painelDados', key: TOK, de: hoje, ate: hoje });
     const tp = PD.ok && (PD.turnos || []).find(x => x.id === (t && t.id));

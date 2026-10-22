@@ -1,8 +1,8 @@
 const amb = require('./lib/amb');
-// Login do app de campo (matrícula e senha): Entrar, Trocar senha, Sair, módulos, offline, registros de quem fez e transição do código antigo.
-// Contrato da API: actions entrar, trocarSenha, sair, minhaSessao (token "u." no campo key). Se o servidor ainda não tem a action
-// "entrar", o teste simula o contrato na rota do navegador (MOCK) e repassa o resto ao fakegas; com o servidor pronto usa o real.
-const crypto = require('crypto');
+const U = require('./lib/usuarios');
+// Login do app de campo (matrícula e senha), contra o servidor real (apps-script/usuarios.gs no fakegas): Entrar, Trocar senha, Sair,
+// módulos, offline, sessão encerrada sem perder registros pendentes e registros de quem fez. Só o corte de rede e a falha de sync
+// são simulados na rota do navegador. Dados fictícios.
 const { API, APP } = amb;
 const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 const get = p => fetch(API + p).then(r => r.json());
@@ -11,90 +11,22 @@ const ok = (cond, msg, extra) => { console.log((cond ? '  ✓ ' : '  ✗ ') + ms
 const aba = async n => { const rows = await get('/__aba?nome=' + n); if (!rows) return []; const cab = rows[0]; return rows.slice(1).map(r => Object.fromEntries(cab.map((c, i) => [c, r[i]]))); };
 const esperar = async (f, ms = 12000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await f()) return true; await new Promise(r => setTimeout(r, 200)); } return false; };
 
-/* ---------- servidor simulado (só quando o real ainda não tem "entrar") ---------- */
-let REAL = false;
-const mock = { usuarios: new Map(), tokens: new Map(), legados: new Map(), antigosOff: false };
-const MODULO_DA_PERMISSAO = { fiscalizacaoDeTransito: 'veiculos', termoDeBarreira: 'tf', pce: 'pce', digitarDoPapel: 'antigo' };
-const modulosDe = perms => { const r = { veiculos: 0, tf: 0, pce: 0, antigo: 0 }; Object.entries(MODULO_DA_PERMISSAO).forEach(([p, m]) => { if (perms.includes('gerencia') || perms.includes(p)) r[m] = 1; }); return r; };
-const SEM_ACESSO = { ok: false, erro: 'Acesso revogado ou inválido. Entre com sua matrícula e senha.' };
-async function tokenLegado(nome) {                                        // o fakegas só conhece a credencial antiga: o simulador repassa com ela
-  if (!mock.legados.has(nome)) { const g = await get('/__gerar?nome=' + encodeURIComponent(nome)); mock.legados.set(nome, (await post({ action: 'ativar', codigo: g.codigo })).token); }
-  return mock.legados.get(nome);
-}
-async function mockAcao(c) {
-  const u = String(c.key || '').startsWith('u.') ? mock.tokens.get(c.key) : null;
-  if (c.action === 'entrar') {
-    const us = mock.usuarios.get(String(c.matricula || '').trim().toLowerCase());
-    if (!us || !us.ativo || us.senha !== c.senha) return { ok: false, erro: 'Matrícula ou senha incorreta.' };
-    if (c.aplicativo !== 'campo' || !(us.permissoes.includes('campo') || us.permissoes.includes('gerencia'))) return { ok: false, erro: 'Você não tem permissão para entrar neste aplicativo.' };
-    const token = 'u.' + crypto.randomBytes(32).toString('hex'); mock.tokens.set(token, us);
-    return { ok: true, token, usuario: { id: us.id, matricula: us.matricula, nome: us.nome }, permissoes: us.permissoes, modulos: modulosDe(us.permissoes), trocarSenha: us.provisoria ? 1 : 0 };
-  }
-  if (c.action === 'trocarSenha') {
-    if (!u) return SEM_ACESSO;
-    if (u.senha !== c.senhaAtual) return { ok: false, erro: 'Senha atual incorreta.' };
-    if (String(c.senhaNova || '').length < 8) return { ok: false, erro: 'A nova senha precisa ter pelo menos 8 caracteres.' };
-    if (c.senhaNova === u.senha) return { ok: false, erro: 'A nova senha não pode ser igual à atual.' };
-    u.senha = c.senhaNova; u.provisoria = false;
-    mock.tokens.forEach((v, t) => { if (v === u && t !== c.key) mock.tokens.delete(t); });   // encerra as outras sessões
-    return { ok: true, permissoes: u.permissoes, modulos: modulosDe(u.permissoes) };
-  }
-  if (c.action === 'sair') { if (!u) return SEM_ACESSO; mock.tokens.delete(c.key); return { ok: true }; }
-  if (c.action === 'minhaSessao') return u ? { ok: true, usuario: { id: u.id, matricula: u.matricula, nome: u.nome }, permissoes: u.permissoes, modulos: modulosDe(u.permissoes), trocarSenha: u.provisoria ? 1 : 0 } : SEM_ACESSO;
-  if (String(c.key || '').startsWith('u.')) {                              // demais actions com a sessão nova
-    if (!u) return SEM_ACESSO;
-    if (u.provisoria) return { ok: false, erro: 'Troque a senha provisória para continuar.', trocarSenha: 1 };
-    const r = await post({ ...c, key: await tokenLegado(u.nome) });
-    if (r.permissoes) r.permissoes = modulosDe(u.permissoes);
-    return r;
-  }
-  if (mock.antigosOff && c.action !== 'ping') return { ok: false, erro: 'Entre com sua matrícula e senha.' };   // acessos antigos desligados
-  return post(c);
-}
-const api = c => (REAL ? post(c) : mockAcao(c));
-
-/* ---------- administração (real: actions da gerência; simulado: direto no estado) ---------- */
-let chaveGer = null;
-const chaveGerencia = async () => chaveGer || (chaveGer = (await post({ action: 'painelAtivar', codigo: (await get('/__gerar?nome=' + encodeURIComponent('Gerente Teste Login') + '&perfil=admin')).codigo })).token);
-async function criarUsuario(nome, matricula, permissoes) {
-  if (REAL) {
-    const r = await post({ action: 'usuarioCriar', key: await chaveGerencia(), matricula, nome, permissoes });
-    if (!r.ok) throw new Error('usuarioCriar: ' + r.erro);
-    return { id: r.usuario.id, matricula: r.usuario.matricula, nome, senha: r.senhaProvisoria };
-  }
-  const us = { id: 'u-' + matricula, matricula, nome, permissoes, ativo: true, provisoria: true, senha: crypto.randomBytes(4).toString('hex') };
-  mock.usuarios.set(matricula.toLowerCase(), us);
-  return { id: us.id, matricula, nome, senha: us.senha };
-}
+/* ---------- contas e sessões (servidor real; lib/usuarios.js) ---------- */
+const criarUsuario = async (nome, matricula, permissoes) => { const c = await U.criar(nome, permissoes, matricula); return { id: c.usuario.id, matricula: c.usuario.matricula, nome, senha: c.senhaProvisoria }; };
 /** Cria a conta e já troca a senha provisória pela API, para o teste entrar direto pela tela. */
 async function usuarioPronto(nome, matricula, permissoes) {
   const u = await criarUsuario(nome, matricula, permissoes), nova = 'SenhaForte' + matricula;
-  const e = await api({ action: 'entrar', matricula, senha: u.senha, aplicativo: 'campo' });
-  const t = await api({ action: 'trocarSenha', key: e.token, senhaAtual: u.senha, senhaNova: nova });
+  const e = await post({ action: 'entrar', matricula, senha: u.senha, aplicativo: 'campo' });
+  const t = await post({ action: 'trocarSenha', key: e.token, senhaAtual: u.senha, senhaNova: nova });
   if (!e.ok || !t.ok) throw new Error('preparar ' + matricula + ': ' + (e.erro || t.erro));
-  await api({ action: 'sair', key: e.token });
+  await post({ action: 'sair', key: e.token });
   return { ...u, senha: nova };
 }
-async function encerrarSessoes(usuario) {
-  if (REAL) {
-    const l = await post({ action: 'sessoesListar', key: await chaveGerencia(), usuarioId: usuario.id });
-    for (const s of l.sessoes || []) await post({ action: 'sessaoEncerrar', key: await chaveGerencia(), sessaoId: s.id });
-  } else mock.tokens.forEach((v, t) => { if (v.id === usuario.id) mock.tokens.delete(t); });
-}
-async function desligarAcessosAntigos() {
-  if (!REAL) { mock.antigosOff = true; return; }
-  const g = await usuarioPronto('Gerente Sessao Nova', 'GER900', ['gerencia']);
-  const e = await post({ action: 'entrar', matricula: g.matricula, senha: g.senha, aplicativo: 'painel' });
-  const r = await post({ action: 'acessosAntigosDesligar', key: e.token, desligar: 1 });
-  if (!r.ok) throw new Error('acessosAntigosDesligar: ' + r.erro);
-}
+const encerrarSessoes = usuario => U.revogar(usuario.id);
 
 /* ---------- aparelho (navegador) ---------- */
 (async () => {
   const b = await amb.lancar();
-  const sonda = await post({ action: 'entrar', matricula: 'sonda', senha: 'sondasonda', aplicativo: 'campo' });
-  REAL = /matr[ií]cula ou senha incorreta/i.test(sonda.erro || '');
-  console.log(REAL ? 'Servidor real com a action "entrar".' : 'AVISO: o servidor ainda não tem "entrar"; usando o contrato simulado (MOCK). Rode de novo com o servidor pronto.');
   const erros = [];
   const estado = { falharSync: false, servidorFora: false, ultimoEntrar: null, trocarSenhaNaProxima: false, log: [] };
 
@@ -110,11 +42,10 @@ async function desligarAcessosAntigos() {
       if (estado.servidorFora) return route.abort('internetdisconnected');
       if (estado.trocarSenhaNaProxima && corpo.action === 'sync') { estado.trocarSenhaNaProxima = false; return responde({ ok: false, erro: 'Troque a senha provisória para continuar.', trocarSenha: 1 }); }
       if (estado.falharSync && corpo.action === 'sync') return responde({ ok: false, erro: 'Falha simulada do servidor.' });
-      if (REAL) return route.continue();
-      return responde(await mockAcao(corpo));
+      return route.continue();
     });
     await c.addInitScript(legado => { try { if (!localStorage.getItem('__ini')) { localStorage.setItem('__ini', '1'); localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.semInstalar', '1');
-      if (legado) { localStorage.setItem('gdv.key', legado); localStorage.setItem('gdv.nome', 'Fiscal Antigo Silva'); } } } catch (e) {} }, opts.legado || '');
+      if (legado) { localStorage.setItem('gdv.key', legado); localStorage.setItem('gdv.nome', 'Fiscal Antigo Silva'); } } } catch (e) {} }, opts.credencialAntiga || '');
     const p = await c.newPage();
     p.dialogos = []; p.aceitar = true;
     p.on('pageerror', e => erros.push('pageerror: ' + e.message));
@@ -152,7 +83,7 @@ async function desligarAcessosAntigos() {
   await p.waitForSelector('#fEntrar');
   ok(await p.locator('#eMat').count() === 1 && await p.getAttribute('#eSenha', 'type') === 'password', 'sem credencial: formulário com matrícula e senha (campo de senha oculto)');
   ok(await p.locator('.modulo').count() === 0 && await p.locator('#fTurno').count() === 0, 'sem credencial: nenhum módulo nem turno');
-  ok(await p.locator('#fAtivar').count() === 1, 'transição: o código de ativação antigo continua disponível, em separado');
+  ok(await p.locator('#fAtivar, #aCod').count() === 0, 'não existe campo de código de ativação');
   ok(!/🔑|⛔|✅/u.test(await p.textContent('#view')), 'telas de acesso sem emoji');
   await entrar(p, ana.matricula, 'senha-errada-123');
   ok(await esperaToast(p, /Matr[ií]cula ou senha incorreta/), 'senha errada: mensagem única do servidor', await toast(p));
@@ -172,7 +103,7 @@ async function desligarAcessosAntigos() {
   await p.waitForSelector('#fTrocarSenha');
   ok(estado.ultimoEntrar && estado.ultimoEntrar.aplicativo === 'campo' && estado.ultimoEntrar.matricula === ana.matricula, 'entrar manda a matrícula e aplicativo "campo"', { ...estado.ultimoEntrar, senha: '…' });
   ok(typeof estado.ultimoEntrar.aparelhoId === 'string' && estado.ultimoEntrar.aparelhoId.length > 8, 'entrar manda o aparelhoId do app');
-  ok(/^u\.[0-9a-f]{64}$/.test(await ls(p, 'gdv.key')) || /^u\./.test(await ls(p, 'gdv.key')), 'o token "u." fica onde ficava a credencial (gdv.key)');
+  ok(/^u\.[0-9a-f]{64}$/.test(await ls(p, 'gdv.key')), 'o token "u." fica onde ficava a credencial (gdv.key)');
   ok((await ls(p, 'gdv.nome')) === 'Ana Fiscal Campo' && JSON.parse(await ls(p, 'gdv.usuario')).matricula === ana.matricula, 'usuário (id, matrícula, nome) guardado');
   ok(await p.locator('.modulo').count() === 0 && await p.locator('#fEntrar').count() === 0, 'trocarSenha = 1: o app não libera os módulos, só a tela de trocar a senha');
   await p.reload(); await p.waitForSelector('#fTrocarSenha');
@@ -208,11 +139,14 @@ async function desligarAcessosAntigos() {
   let veic = (await aba('Veiculos')).find(v => v.placa === 'LOG1A11');
   ok(veic && veic.usuario === 'Ana Fiscal Campo', 'o veículo chega à planilha em nome do usuário logado', veic && veic.usuario);
   ok((await p.evaluate(() => Store.meta('cred'))).usuarioId === ana.id, 'a cópia da credencial (service worker) leva o id do usuário');
-  // fiscal sem módulos: cartão cinza
+  // conta sem alguns módulos: eles somem do menu
   const B = await aparelho(); await entrar(B.p, beto.matricula, beto.senha); await B.p.waitForSelector('.modulo');
-  ok(await B.p.locator('.modulo.bloqueado').count() === 2 && await B.p.locator('.modulo[data-v=tf]:not(.bloqueado)').count() === 1, 'permissão só de TF: Educação Sanitária e PCE ficam cinza, TF abre', await B.p.locator('.modulo.bloqueado').count());
-  ok(await B.p.locator('.modulo.bloqueado .sem-aut').count() === 2, 'cartão cinza com o aviso de que falta autorização');
+  ok(await B.p.locator('.modulo').count() === 1 && await B.p.locator('.modulo[data-v=tf]').count() === 1, 'permissão só de TF: Educação Sanitária e PCE somem do menu, só o TF aparece', await B.p.locator('.modulo').count());
   await B.c.close();
+  const SM = await usuarioPronto('Sem Modulo Silva', 'FIS004', ['campo']);
+  const Sm = await aparelho(); await entrar(Sm.p, SM.matricula, SM.senha); await Sm.p.waitForSelector('#semModulos');
+  ok(await Sm.p.locator('.modulo').count() === 0, 'conta sem nenhum módulo: menu vazio com o aviso para falar com a gerência');
+  await Sm.c.close();
 
   /* ================= 4. Sair ================= */
   console.log('4. Sair, registros que ficam e quem os fez');
@@ -244,8 +178,7 @@ async function desligarAcessosAntigos() {
   ok(p.dialogos.length === 1 && /registro\(s\) seu\(s\)/.test(p.dialogos[0]), 'confirmando: sai');
   ok(!(await ls(p, 'gdv.key')) && !(await ls(p, 'gdv.nome')) && await p.locator('.modulo').count() === 0, 'Sair: apaga a credencial e volta para a tela de entrar');
   ok(!(await p.evaluate(() => Store.meta('cred'))), 'Sair: a cópia da credencial do service worker também é apagada');
-  if (!REAL) ok(![...mock.tokens.keys()].some(t => mock.tokens.get(t).id === ana.id), 'Sair: o servidor encerrou o acesso (sair)');
-  else ok((await post({ action: 'minhaSessao', key: 'u.' + '0'.repeat(64) })).ok === false, 'Sair: token inválido não abre sessão');
+  ok(!((await post({ action: 'sessoesListar', key: (await U.gerente()).token, usuarioId: ana.id })).sessoes || []).length, 'Sair: o servidor encerrou a sessão (nenhuma sessão aberta da Ana)');
   ok((await p.evaluate(() => Store.todos('veiculos'))).some(v => v.placa === 'LOG2B22' && v.pendente === 1), 'Sair: o registro não enviado continua guardado');
   // 4c. outra pessoa entra no mesmo aparelho: o que a Ana deixou não sobe no nome dela
   estado.falharSync = false;
@@ -276,21 +209,26 @@ async function desligarAcessosAntigos() {
   console.log('5. Acesso encerrado e senha provisória pedida em qualquer chamada');
   A = await aparelho(); p = A.p;
   await entrar(p, cida.matricula, cida.senha); await p.waitForSelector('.modulo');
+  await p.evaluate(() => Store.salvar('veiculos', { id: 'v-rev-pend', turnoId: 'sem-turno-rev', hora: '10:00', placa: 'REV1A11', tipo: 'PA', pessoas: 1, excluido: 0, criadoEm: Date.now(), atualizadoEm: Date.now(), pendente: 1 }));   // registro ainda não enviado
   await encerrarSessoes(cida);
   await sincronizar(p); await p.waitForTimeout(400);
-  await p.click('nav [data-v=config]').catch(() => {});
+  await p.click('nav [data-v=modulos]');      // dentro de um formulário nada some do nada: ao navegar, o app pede a entrada
   await p.waitForSelector('#fEntrar', { timeout: 8000 });
   ok(/Acesso revogado/.test(await p.textContent('#view')) && await ls(p, 'gdv.revogado') === '1', 'sessão encerrada pelo servidor: o app mostra a tela de entrar com o aviso');
   ok(await p.locator('.modulo').count() === 0, 'sessão encerrada: módulos fechados');
+  ok((await p.evaluate(() => Store.todos('veiculos'))).some(v => v.placa === 'REV1A11' && v.pendente === 1) && !(await aba('Veiculos')).some(v => v.placa === 'REV1A11'), 'sessão encerrada: o registro pendente continua no aparelho (IndexedDB), ainda fora da planilha');
   await entrar(p, cida.matricula, cida.senha);
   await p.waitForFunction(() => !document.querySelector('#fEntrar'), null, { timeout: 12000 }).catch(async e => { console.log('TOAST:', await toast(p), '| revogado:', await ls(p, 'gdv.revogado'), '| estado:', JSON.stringify(await p.evaluate(() => Sync.estado())), '| log:', estado.log.slice(-8).join(' ; ')); throw e; });
   await p.click('nav [data-v=modulos]'); await p.waitForSelector('.modulo');
   ok(!(await ls(p, 'gdv.revogado')) && await p.locator('.modulo').count() === 3, 'entrando de novo: tudo liberado');
+  await esperar(async () => (await aba('Veiculos')).some(v => v.placa === 'REV1A11'));
+  veic = (await aba('Veiculos')).find(v => v.placa === 'REV1A11');
+  ok(veic && veic.usuario === 'Cida Campo Lima', 'depois do novo login o pendente sobe, em nome de quem o fez', veic && veic.usuario);
   estado.trocarSenhaNaProxima = true;
   await sincronizar(p);
   await p.waitForSelector('#fTrocarSenha', { timeout: 8000 }).catch(() => {});
   ok(await p.locator('#fTrocarSenha').count() === 1 && await ls(p, 'gdv.revogado') === 'senha', 'qualquer chamada que responda trocarSenha = 1 leva à tela de trocar a senha');
-  await p.click('[data-sair]'); await p.waitForSelector('#fEntrar', { timeout: 15000 });
+  await p.click('[data-sair]'); await p.waitForSelector('#fEntrar', { timeout: 15000 }).catch(async e => { console.log('DBG', await toast(p), p.dialogos.join('|'), JSON.stringify(await p.evaluate(async () => (await Envio.pendentes()).total))); throw e; });
   ok(!(await ls(p, 'gdv.key')), 'da tela de trocar a senha dá para sair e entrar com outra matrícula');
   await A.c.close();
 
@@ -309,25 +247,15 @@ async function desligarAcessosAntigos() {
   await semRede(A, false);
   await A.c.close();
 
-  /* ================= 7. Transição: acesso antigo ================= */
-  console.log('7. Transição do código antigo');
-  A = await aparelho({ legado: 'segredo' }); p = A.p;
-  await p.waitForSelector('.modulo');
-  ok(await p.locator('#fEntrar').count() === 0 && await p.locator('.modulo').count() === 3, 'aparelho ativado com a credencial antiga: segue sem pedir login');
-  await abrirStatus(p);
-  ok(await p.locator('#desativar').count() === 1 && await p.locator('[data-sair]').count() === 0, 'acesso antigo: segue com "Desativar este aparelho" (não há Sair)');
-  await desligarAcessosAntigos();
-  await sincronizar(p); await p.waitForTimeout(400);
-  await p.click('nav [data-v=modulos]').catch(() => {});
+  /* ================= 7. Credencial de versão anterior ================= */
+  console.log('7. Aparelho com a credencial de uma versão anterior (código de ativação)');
+  A = await aparelho({ credencialAntiga: 'credencial-antiga-123' }); p = A.p;
   await p.waitForSelector('#fEntrar', { timeout: 8000 });
-  ok(/Acesso revogado/.test(await p.textContent('#view')) && await ls(p, 'gdv.semCodigo') === '1', 'acessos antigos desligados: a credencial antiga cai na tela de entrar');
-  ok(await p.locator('#fAtivar').count() === 0, 'e o campo do código de ativação some');
-  await A.c.close();
-  A = await aparelho(); p = A.p; await p.waitForSelector('#fAtivar');
-  await p.fill('#aCod', '123456'); await p.click('#fAtivar button');
-  ok(await esperaToast(p, /Entre com sua matr[ií]cula e senha/), 'código de ativação com os acessos antigos desligados: manda entrar com matrícula e senha', await toast(p));
-  await p.waitForTimeout(400);
-  ok(await p.locator('#fAtivar').count() === 0 && await p.locator('#fEntrar').count() === 1, 'o campo do código some e fica só Entrar');
+  ok(await p.locator('.modulo').count() === 0 && await p.locator('#fAtivar, #aCod').count() === 0, 'credencial antiga (sem token de sessão): o app pede matrícula e senha, sem código de ativação');
+  ok(!(await ls(p, 'gdv.key')) && !(await ls(p, 'gdv.nome')), 'a credencial antiga é apagada do aparelho');
+  await p.evaluate(() => Store.salvar('veiculos', { id: 'v-antigo-pend', turnoId: 'x', placa: 'ANT1G011', tipo: 'PA', pessoas: 1, criadoEm: Date.now(), atualizadoEm: Date.now(), pendente: 1 }));
+  await entrar(p, cida.matricula, cida.senha); await p.waitForSelector('.modulo');
+  ok((await p.evaluate(() => Store.todos('veiculos'))).some(v => v.id === 'v-antigo-pend'), 'o registro pendente da versão anterior continua no aparelho depois de entrar');
   await A.c.close();
 
   ok(erros.length === 0, 'sem erros de página nem de console', erros.slice(0, 3));

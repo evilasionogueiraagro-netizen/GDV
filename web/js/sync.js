@@ -5,23 +5,28 @@ const Sync = (() => {
   const listeners = [];
   let estado = { tipo: 'idle', msg: '' };
 
-  const cfg = () => ({
-    // o endereço oficial (config.js) manda: um endereço antigo guardado na ativação não pode prender o aparelho numa
-    // implantação velha. O guardado só vale sem endereço oficial ou nos testes (localhost).
-    url: (CONFIG.sync.url && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? CONFIG.sync.url : localStorage.getItem('gdv.url') || CONFIG.sync.url) || '',
-    key: localStorage.getItem('gdv.key') || ''
-  });
+  // Só vale o token de sessão ("u." + 64 hex) devolvido pelo servidor ao entrar. Qualquer outra coisa guardada em gdv.key (credencial de versões
+  // anteriores do app) é ignorada aqui e apagada em prepararFundo(): quem a tinha entra de novo com matrícula e senha.
+  const ehToken = k => /^u\.[0-9a-f]{64}$/.test(k || '');
+  const cfg = () => {
+    const k = localStorage.getItem('gdv.key') || '';
+    return {
+      // o endereço oficial (config.js) manda: um endereço antigo guardado na entrada não pode prender o aparelho numa
+      // implantação velha. O guardado só vale sem endereço oficial ou nos testes (localhost).
+      url: (CONFIG.sync.url && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? CONFIG.sync.url : localStorage.getItem('gdv.url') || CONFIG.sync.url) || '',
+      key: ehToken(k) ? k : ''
+    };
+  };
   const ativado = () => { const c = cfg(); return !!(c.url && c.key); };
   const nome = () => localStorage.getItem('gdv.nome') || '';
 
-  /* ---------- Acesso: matrícula e senha (token 'u.…' no lugar da credencial do aparelho) ----------
-     Guardado como a credencial antiga: gdv.url, gdv.key (token), gdv.nome (nome do usuário, vira o Fiscal 1 do turno) e gdv.usuario
+  /* ---------- Acesso: matrícula e senha (token de sessão 'u.…') ----------
+     Guardado no aparelho: gdv.url, gdv.key (token), gdv.nome (nome do usuário, vira o Fiscal 1 do turno) e gdv.usuario
      ({id, matricula, nome}, também depois de sair: é quem deixou registros no aparelho). gdv.revogado: '1' = o servidor recusou o acesso
-     (a tela pede para entrar de novo); 'senha' = senha provisória pendente (a tela pede a troca). Aparelho ativado pelo código antigo
-     (transição) não tem token 'u.' e segue sem login. */
+     (a tela pede para entrar de novo, sem tocar nos registros guardados); 'senha' = senha provisória pendente (a tela pede a troca). */
   const lerUsuario = () => { try { const u = JSON.parse(localStorage.getItem('gdv.usuario') || 'null'); return u && u.id ? u : null; } catch (e) { return null; } };
-  /** Quem está com o acesso aberto por matrícula e senha (null: acesso antigo por código, ou sem acesso). */
-  const usuario = () => (ativado() && /^u\./.test(cfg().key) ? lerUsuario() : null);
+  /** Quem está com o acesso aberto (null: sem acesso). */
+  const usuario = () => (ativado() ? lerUsuario() : null);
   /** 'entrar' (sem acesso, ou recusado pelo servidor), 'senha' (trocar a senha provisória) ou 'ok'. */
   function situacao() {
     const r = localStorage.getItem('gdv.revogado');
@@ -30,32 +35,11 @@ const Sync = (() => {
   const falhaDeRede = e => !!e && (e.name === 'AbortError' || e instanceof TypeError || e instanceof SyntaxError);
   const semInternet = acao => new Error(`Sem internet ou servidor indisponível. ${acao} precisa de conexão.`);
   const recusadaPeloServidor = e => !!e && /revogado|inv[aá]lido|entre com sua matr[ií]cula/i.test(e.message || '');
-  /** O servidor respondeu que os acessos antigos (código de ativação) foram desligados: a tela esconde o campo do código. */
-  function notarAcessoAntigoDesligado(e) { if (e && /entre com sua matr[ií]cula/i.test(e.message || '')) localStorage.setItem('gdv.semCodigo', '1'); }
   const urlServidor = manual => {
     const url = String(manual || cfg().url || '').trim();
     if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url) && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(url)) throw new Error('Endereço do servidor inválido.');
     return url;
   };
-
-  /** Troca o código de 6 dígitos por uma credencial própria do aparelho, vinculada ao nome do fiscal (acesso antigo, até a gerência desligar). */
-  async function ativar(codigo, urlManual) {
-    const url = urlServidor(urlManual);
-    const cod = String(codigo || '').replace(/\D/g, '');
-    if (cod.length !== 6) throw new Error('O código tem 6 dígitos.');
-    let j;
-    try {
-      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'ativar', codigo: cod }), redirect: 'follow' });
-      j = await r.json();
-    } catch (e) { throw new Error('Sem internet ou servidor indisponível. A ativação precisa de conexão.'); }
-    if (!j.ok) { const e = new Error(j.erro || 'Falha na ativação.'); notarAcessoAntigoDesligado(e); throw e; }
-    await reterDoAnterior('');
-    localStorage.setItem('gdv.url', url); localStorage.setItem('gdv.key', j.token);
-    localStorage.setItem('gdv.nome', j.nome); localStorage.removeItem('gdv.revogado');
-    await espelharCred();
-    return j.nome;
-  }
 
   /** Entra com matrícula e senha (aplicativo "campo"). Precisa de internet. Guarda o token, o usuário e os módulos liberados;
    *  trocarSenha = 1 deixa o app na tela de trocar a senha provisória. */
@@ -92,13 +76,19 @@ const Sync = (() => {
    *  Os registros não enviados ficam no aparelho, em nome de quem os fez (ver reterDoAnterior). */
   async function sair() {
     const c = cfg();
-    if (c.key && /^u\./.test(c.key)) {
+    if (c.key) {
       try { await Envio.post(c, { action: 'sair' }, 15000); }
       catch (e) { if (falhaDeRede(e)) throw semInternet('Sair'); /* o servidor recusou (acesso já encerrado): limpa só aqui */ }
     }
     desativar();
   }
   function desativar() { ['gdv.key', 'gdv.nome', 'gdv.revogado'].forEach(k => localStorage.removeItem(k)); espelharCred(); }
+  /** Credencial de versões anteriores (código de ativação, sem token de sessão): apaga e deixa o aparelho em "entrar". Os registros pendentes não são tocados. */
+  function limparCredencialAntiga() {
+    const k = localStorage.getItem('gdv.key');
+    if (k && !ehToken(k)) ['gdv.key', 'gdv.nome', 'gdv.revogado', 'gdv.semCodigo'].forEach(x => localStorage.removeItem(x));
+    else localStorage.removeItem('gdv.semCodigo');
+  }
   /** Marca a credencial como recusada pelo servidor (a tela pede para entrar de novo) ou limpa a marca. A troca de senha pendente só sai em trocarSenha(). */
   function marcarRevogado(sim) {
     const atual = localStorage.getItem('gdv.revogado') || '';
@@ -141,8 +131,8 @@ const Sync = (() => {
   }
 
   /* ---------- Envio em segundo plano (Background Sync, Chrome/Android) ----------
-     O service worker não lê localStorage: a credencial é copiada para a meta "cred" do IndexedDB (ativar, desativar, revogação e
-     ao abrir o app). Ao desativar o aparelho a cópia é apagada. */
+     O service worker não lê localStorage: a credencial é copiada para a meta "cred" do IndexedDB (entrar, sair, revogação e
+     ao abrir o app). Ao sair a cópia é apagada. */
   async function espelharCred() {
     try {
       const c = cfg();
@@ -159,6 +149,7 @@ const Sync = (() => {
   }
   /** Ao abrir o app (antes da 1ª tela): traz a revogação vista pelo service worker, espelha a credencial e agenda o envio a cada pendência. */
   async function prepararFundo() {
+    limparCredencialAntiga();
     await importarRevogacao();
     await espelharCred();
     Store.quandoPendente(agendarEnvio);
@@ -430,7 +421,7 @@ const Sync = (() => {
       const p = await pendentes();
       emitir({ tipo: 'erro', msg: Envio.motivoErro(e), pend: p.total });
       if (recusada && !localStorage.getItem('gdv.revogado')) {             // pede para entrar de novo (uma vez)
-        if (!usuario()) notarAcessoAntigoDesligado(e); marcarRevogado(true); window.dispatchEvent(new Event('gdv-dados'));
+        marcarRevogado(true); window.dispatchEvent(new Event('gdv-dados'));
       } else if (p.total) agendarEnvio();                                     // sem internet/servidor: o Android tenta de novo sozinho
     } finally {
       rodando = false;
@@ -497,7 +488,7 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, ativar, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, desativar, consultar, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
+  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
     pceProximoNumero, pceEmitir, pceConsultar, pceBaixarMunicipio, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

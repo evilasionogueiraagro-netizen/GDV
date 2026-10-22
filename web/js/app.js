@@ -29,7 +29,7 @@ async function veiculosDe(turnoId) {
 
 /* ---------- localização (GPS funciona sem internet) ---------- */
 /* Localização. O pedido de permissão do celular só deve aparecer quando o fiscal faz algo que precisa dela
-   (ativar o aparelho, iniciar/encerrar turno, posto volante, botão "Atualizar GPS"). Leituras automáticas
+   (entrar, iniciar/encerrar turno, posto volante, botão "Atualizar GPS"). Leituras automáticas
    (TF em preenchimento, GPS ao abrir o levantamento) usam pegarLocalSilencioso, que nunca abre o pedido. */
 let ultimaLocal = null;                                         // reaproveita uma leitura recente (evita pedidos seguidos)
 function pegarLocal() {
@@ -85,6 +85,7 @@ const VIEWS_VEICULOS = ['home', 'registrar', 'editar', 'lista', 'resumo', 'fecha
 /** Módulo (permissão) de cada tela: veiculos, tf ou pce; '' = livre (módulos, status). */
 const moduloDaView = v => VIEWS_VEICULOS.includes(v) ? 'veiculos' : /^tf/.test(v) ? 'tf' : /^pce/.test(v) ? 'pce' : '';
 const SEM_AUT = 'Sem autorização — fale com a gerência';
+const MODS_LIBERADOS = () => ['veiculos', 'tf', 'pce'].some(m => Sync.pode(m));
 /** A gerência tirou o módulo (painel → Servidores): a tela não abre e volta para a tela de módulos. Os dados do aparelho ficam guardados. */
 function semPermissaoPara(view) {
   const m = moduloDaView(view);
@@ -121,21 +122,21 @@ function go(view, arg) {
 }
 
 async function modulos() {
-  if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());      // 1º instalar, 2º ativar, 3º módulos
+  if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());      // 1º instalar, 2º entrar, 3º módulos
   const mostrar = tela();
   const t = await turnoAtual(), v = t ? await veiculosDe(t.id) : [];
   const tfs = await Store.todos('tfs'), pend = tfs.filter(x => x.pendente).length, nome = Sync.nome().split(' ')[0];
   const stPce = await PCEUI.status();
-  // módulo sem autorização: cartão cinza, não abre (os registros já feitos continuam guardados no aparelho)
+  // módulo sem autorização some do menu (os registros já feitos continuam guardados no aparelho; o aviso abaixo lembra se houver pendentes)
   const cartao = (mod, v, ic, titulo, linhas) => Sync.pode(mod)
-    ? `<button class="modulo" data-v="${v}"><span class="ic">${ic}</span><span><b>${titulo}</b>${linhas}</span></button>`
-    : `<button class="modulo bloqueado" data-bloq="${mod}" aria-disabled="true"><span class="ic">${ic}</span><span><b>${titulo}</b><small class="sem-aut">🔒 ${SEM_AUT}</small>${linhas}</span></button>`;
+    ? `<button class="modulo" data-v="${v}"><span class="ic">${ic}</span><span><b>${titulo}</b>${linhas}</span></button>` : '';
   const aviso = (Sync.estado() || {}).aviso || Sync.avisoSemPermissao(await Sync.bloqueadosComPendentes());
   const encPend = await cartaoEncerramento();                       // turno encerrado aqui que ainda não chegou à planilha: no topo
   mostrar(`${encPend}<div class="card"><h3>Olá${nome ? ', ' + esc(nome) : ''}!</h3><p class="dica" style="text-align:left">Escolha o que deseja fazer.</p></div>
     ${aviso ? `<div class="card aviso" id="avisoPerm">⚠️ ${esc(aviso)}</div>` : ''}
     ${avisoTurnoEncerrado()}
-    <div class="modulos">${cartao('veiculos', 'home', '🚛', 'Educação Sanitária/Fiscalização de Trânsito', `<small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)${Sync.pode('veiculos') ? '' : ' (guardado neste aparelho)'}` : 'Registro das informações, por ação'}</small>`)}
+    ${MODS_LIBERADOS() ? '' : '<div class="card aviso" id="semModulos"><h3>Nenhum módulo liberado</h3><p>O seu acesso não libera nenhum módulo do app de campo. Fale com a gerência. Os registros que estão neste aparelho continuam guardados.</p></div>'}
+    <div class="modulos">${cartao('veiculos', 'home', '🚛', 'Educação Sanitária/Fiscalização de Trânsito', `<small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)` : 'Registro das informações, por ação'}</small>`)}
     ${cartao('tf', 'tf', '📄', 'Termo de Fiscalização de Barreira', `<small>${tfs.length} TF(s) neste aparelho${pend ? ` · ⏳ ${pend} aguardando envio` : ''}</small>`)}
     ${cartao('pce', 'pce', '🌱', 'PCE', `<small>Programa de Controle e Erradicação — levantamento fitossanitário e Termo de Colheita de Amostras</small><small class="pce-status">${esc(stPce)}</small>`)}</div>
     ${Sync.pode('veiculos') && Sync.pode('tf') ? '<p class="dica">Dentro da Educação Sanitária/Fiscalização de Trânsito também dá para lavrar o TF de um veículo (botão “Lavrar TF”).</p>' : ''}
@@ -278,7 +279,7 @@ function homePessoas(t, mostrar) {
   $('#encerrar').onclick = () => encerrarTurno(t);
 }
 function novoTurno() {
-  if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());   // turno só após a ativação
+  if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());   // turno só depois de entrar
   const ls = k => esc(localStorage.getItem('gdv.' + k) || '');
   view(`${avisoAtivacao()}${avisoTurnoEncerrado()}<form class="card" id="fTurno"><h3>Iniciar turno</h3>
     <label>Nº do Termo de Fiscalização<input id="nTF" type="number" min="1" inputmode="numeric" required placeholder="ex.: 12"></label>
@@ -610,29 +611,24 @@ async function config() {
   if (!mostrar.viva()) return;
   const u = Sync.usuario();
   view(`${avisoAtivacao()}<div class="card"><h3>Sincronização</h3>
-    <p>Aparelho: ${Sync.ativado() ? '✅ ativado' : '⚠️ não ativado'}</p>
+    <p>Acesso: ${Sync.situacao() === 'ok' ? 'entrou' : 'precisa entrar'}</p>
     ${u ? `<p>Entrou como: <b>${esc(u.nome)}</b> (matrícula ${esc(u.matricula)})</p>` : Sync.nome() ? `<p>Fiscal vinculado: <b>${esc(Sync.nome())}</b></p>` : ''}<p id="cEst"></p>
     ${ret.length ? `<p>Guardados neste aparelho, de outras pessoas (só são enviados quando elas entrarem de novo): ${ret.map(r => `${esc(r.nome)} (${r.n})`).join(', ')}.</p>` : ''}
     <p>Última sincronização: ${ult ? new Date(ult).toLocaleString('pt-BR') : 'nunca'}</p>
     <p class="dica">A sincronização é automática quando há internet (a cada 20 s com turno aberto; sem turno, a cada minuto). Para forçar agora, toque no selo no topo da tela.</p>
     <p><a href="manual.html">📖 Manual do fiscal</a></p>
-    ${u ? '<button class="botao sec" data-sair="1">Sair</button>' : Sync.ativado() ? '<button class="botao sec" id="desativar">Desativar este aparelho / trocar de fiscal</button>' : ''}</div>`);
+    ${Sync.ativado() ? '<button class="botao sec" data-sair="1">Sair</button>' : ''}</div>`);
   const e = Sync.estado();
   $('#cEst').textContent = (navigator.onLine ? 'Online' : 'Offline') + ' · pendentes de envio: ' + (e.pend || 0) + (e.pend ? avisoEnvio() : '') + (e.tipo === 'erro' ? ' · erro: ' + e.msg : '');
-  if ($('#desativar')) $('#desativar').onclick = () => {
-    if (!confirm('Desativar este aparelho? Registros ainda não enviados ficam guardados aqui e só serão enviados após uma nova ativação.')) return;
-    Sync.desativar(); toast('Aparelho desativado.'); config();
-  };
 }
 
 /* ---------- eventos globais ---------- */
 document.addEventListener('click', async e => {
-  const el = e.target.closest('[data-v],[data-go],[data-edit],[data-del],[data-doc],[data-instalar],[data-tfveic],[data-bloq],[data-avisook],[data-reenviar]');
+  const el = e.target.closest('[data-v],[data-go],[data-edit],[data-del],[data-doc],[data-instalar],[data-tfveic],[data-avisook],[data-reenviar]');
   if (!el) return;
   const d = el.dataset;
   if (d.reenviar) tentarEnviarAgora(d.reenviar, el);
   else if (d.avisook) { try { localStorage.removeItem(LS_AVISO_ENC); } catch (e2) { /* idem */ } const a = $('#avisoEncerrado'); if (a) a.remove(); }
-  else if (d.bloq) toast(`${SEM_AUT}: ${Sync.MODULOS[d.bloq] || d.bloq}.`, true);
   else if (d.instalar) acaoInstalar(d.instalar);
   else if (d.tfveic) go('tfnovo', { veiculoId: d.tfveic });
   else if (d.v) go(d.v);

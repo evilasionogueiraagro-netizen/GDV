@@ -5,12 +5,6 @@ const Login = (() => {
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const campoUrl = () => CONFIG.sync.url ? '' : '<label>Endereço do servidor<input id="eUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" required></label>';
 
-  /** Acesso antigo (código de 6 dígitos): continua enquanto a gerência não o desliga. Some quando o servidor avisa que foi desligado. */
-  const formCodigoAntigo = () => lsGet('gdv.semCodigo') ? '' : `<form class="card" id="fAtivar"><h3>Código de ativação (acesso antigo)</h3>
-    <p>Só para quem ainda não tem matrícula e senha: digite o código de 6 dígitos enviado pelo administrador. A gerência vai desligar este acesso.</p>
-    <label>Código de ativação<input id="aCod" inputmode="numeric" maxlength="7" autocomplete="off" placeholder="000 000" required></label>
-    <button class="botao sec">Ativar</button></form>`;
-
   const formEntrar = revogado => `${revogado ? `<div class="card aviso" role="alert"><h3>Acesso revogado</h3>
       <p>O seu acesso a este aparelho foi encerrado. Entre de novo com a sua matrícula e a sua senha; se não conseguir, fale com a gerência. Os registros que não foram enviados continuam guardados aqui.</p></div>` : ''}
     <form class="card" id="fEntrar"><h3>Entrar</h3>
@@ -18,7 +12,7 @@ const Login = (() => {
       ${campoUrl()}
       <label>Matrícula<input id="eMat" autocomplete="username" autocapitalize="off" spellcheck="false" required></label>
       <label>Senha<input id="eSenha" type="password" autocomplete="current-password" required></label>
-      <button class="botao">Entrar</button></form>${formCodigoAntigo()}`;
+      <button class="botao">Entrar</button></form>`;
 
   const formTrocarSenha = () => {
     const u = Sync.usuario();
@@ -75,18 +69,6 @@ const Login = (() => {
         Sync.sincronizar(); go(VIEW === 'editar' ? 'home' : VIEW);
         pegarLocal();                                                      // pede a permissão de localização uma vez, logo na entrada
       } catch (err) { toast(err.message, true); fim(); const s = $('#eSenha'); if (s) { s.value = ''; s.focus(); } }
-    } else if (id === 'fAtivar') {                                         // acesso antigo: código de ativação
-      e.preventDefault();
-      const fim = trabalhando(e, 'Ativando…');
-      try {
-        const nome = await Sync.ativar($('#aCod').value, $('#eUrl') ? $('#eUrl').value : '');
-        toast(`Aparelho ativado para ${nome}.`); Sync.sincronizar(); go(VIEW === 'editar' ? 'home' : VIEW);
-        pegarLocal();
-      } catch (err) {
-        toast(err.message, true);
-        if (/entre com sua matr[ií]cula/i.test(err.message)) go(VIEW === 'editar' ? 'home' : VIEW);   // acesso antigo desligado: some o campo do código
-        else fim();
-      }
     } else if (id === 'fTrocarSenha') {
       e.preventDefault();
       const atual = $('#tAtual').value, nova = $('#tNova').value, repete = $('#tRepete').value;

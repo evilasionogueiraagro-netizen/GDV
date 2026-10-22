@@ -1,4 +1,6 @@
 // Termo de Fiscalização de Barreira (TF): lista, formulário, numeração, cadastro/reincidência e impressão em 2 vias.
+// TF antigo (digitado do papel, permissão "Digitar do papel"): mesmo formulário com o nº, a data e a hora do papel, o servidor que
+// fiscalizou digitado, fiscalizado opcional ("NÃO IDENTIFICADO") e o PDF escaneado no lugar de fotos/assinaturas; precisa de internet.
 // Usa funções do app.js (view, go, toast, $, esc, dBR, hojeISO, agoraHM, turnoAtual, veiculosDe, avisoAtivacao) em tempo de execução.
 const TFUI = (() => {
   const T = CONFIG.TF;
@@ -46,14 +48,14 @@ const TFUI = (() => {
   /* ---------- estado do formulário ---------- */
   // { hist:{doc,placa}, tpl, turnoId, veiculoId, rid, id (do TF, já na abertura: as fotos ficam ligadas a ele), fotos:[ids], ass, assNovas, recusa }
   let S = null;
-  const vazio = () => ({ barreira: '', numero: '', data: hojeISO(), hora: agoraHM(), doc: '', nome: '', rg: '', endereco: '', municipio: '', uf: '', telefone: '', relacao: T.relacoes[0],
+  const vazio = () => ({ barreira: '', numero: '', data: hojeISO(), hora: agoraHM(), servidor: '', doc: '', nome: '', rg: '', endereco: '', municipio: '', uf: '', telefone: '', relacao: T.relacoes[0],
     inspecao: false, coleta: false, amostras: '', procedimento: '', fiel: false, auto: false, advertencia: false, local: '', placa: '', origem: '', destino: '', ufOrigem: '', ufDestino: '',
     docs: { nf: '', ptv: '', gta: '', sif: '', sie: '', sim: '', lacre: '', outros: '' }, produtos: [{ p: '', q: '', u: T.unidades[0] }], constatacao: '', enquadramento: '' });
 
   function coletar() {
     const g = id => { const e = $('#tf-' + id); return e ? e.value : ''; }, c = id => !!($('#tf-' + id) && $('#tf-' + id).checked);
     const proc = document.querySelector('input[name=tf-proc]:checked');
-    return { barreira: g('barreira'), numero: S && S.numEditado && S.numEditado.b === g('barreira') ? String(S.numEditado.n) : '', data: g('data'), hora: g('hora'), doc: g('doc'), nome: g('nome'), rg: g('rg'), endereco: g('endereco'), municipio: g('municipio'),
+    return { barreira: g('barreira'), numero: S && S.antigo ? g('num') : S && S.numEditado && S.numEditado.b === g('barreira') ? String(S.numEditado.n) : '', data: g('data'), hora: g('hora'), servidor: g('servidor'), doc: g('doc'), nome: g('nome'), rg: g('rg'), endereco: g('endereco'), municipio: g('municipio'),
       uf: g('uf'), telefone: g('telefone'), relacao: g('relacao'), inspecao: c('inspecao'), coleta: c('coleta'), amostras: g('amostras'),
       procedimento: proc ? proc.value : '', fiel: c('fiel'), auto: c('auto'), advertencia: c('advertencia'), local: g('local'), placa: placaNorm(g('placa')), origem: g('origem'), destino: g('destino'), ufOrigem: g('ufOrigem'), ufDestino: g('ufDestino'),
       docs: Object.fromEntries(['nf', 'ptv', 'gta', 'sif', 'sie', 'sim', 'lacre', 'outros'].map(k => [k, g('d-' + k)])),
@@ -61,10 +63,11 @@ const TFUI = (() => {
       constatacao: g('constatacao'), enquadramento: g('enquadramento') };
   }
   let tRasc = null;
-  const salvarRascunho = (atraso = 500) => { clearTimeout(tRasc); const f = $('#tfForm'); tRasc = setTimeout(() => { if (S && f && $('#tfForm') === f) Store.setMeta('tfRascunho', { dados: coletar(), turnoId: S.turnoId, veiculoId: S.veiculoId, rid: S.rid,
-    id: S.id, fotos: S.fotos, assNovas: S.assNovas, recusa: S.recusa ? 1 : 0, em: Date.now() }); }, atraso); };   // só grava se o formulário ainda for o mesmo que originou a digitação
-  /** Descarta um rascunho: apaga as fotos que só existiam nele (ainda não foram para nenhum TF salvo). */
-  const descartarRascunho = async rasc => { if (rasc && rasc.fotos) await Anexos.apagarSeNaoEnviado(rasc.fotos); await Store.setMeta('tfRascunho', null); };
+  const chaveRasc = antigo => (antigo ? 'tfRascunhoPapel' : 'tfRascunho');                  // TF do papel tem rascunho próprio
+  const salvarRascunho = (atraso = 500) => { clearTimeout(tRasc); const f = $('#tfForm'); tRasc = setTimeout(() => { if (S && f && $('#tfForm') === f) Store.setMeta(chaveRasc(S.antigo), { dados: coletar(), turnoId: S.turnoId, veiculoId: S.veiculoId, rid: S.rid,
+    id: S.id, fotos: S.fotos, pdfs: S.pdfs, assNovas: S.assNovas, recusa: S.recusa ? 1 : 0, em: Date.now() }); }, atraso); };   // só grava se o formulário ainda for o mesmo que originou a digitação
+  /** Descarta um rascunho: apaga as fotos/PDFs que só existiam nele (ainda não foram para nenhum TF salvo). */
+  const descartarRascunho = async (rasc, antigo) => { if (rasc) await Anexos.apagarSeNaoEnviado([...(rasc.fotos || []), ...(rasc.pdfs || [])]); await Store.setMeta(chaveRasc(antigo), null); };
 
   /* ---------- fotos e assinatura na tela (núcleo comum em anexos.js, o mesmo do PCE) ---------- */
   const MAX_FOTOS = T.maxFotos || 10;
@@ -81,7 +84,40 @@ const TFUI = (() => {
     }
     await renderFotos(); salvarRascunho(0);                                       // grava já: as fotos novas ficam ligadas ao rascunho
   }
-  const renderFotos = () => S && Anexos.miniaturas($('#tf-fotos-prev'), S.fotos, 'data-tf="delfoto"');
+  const renderFotos = () => S && !S.antigo && Anexos.miniaturas($('#tf-fotos-prev'), S.fotos, 'data-tf="delfoto"');
+  /* PDF escaneado do TF do papel (mesmas regras do PCE: começa com %PDF-, até 10 MB, sobe ao Drive como "documento") */
+  const MAX_PDFS = 10, MAX_PDF_BYTES = 10 * 1024 * 1024;
+  const lerDataURL = file => new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = () => no(new Error('Não foi possível ler ' + file.name)); r.readAsDataURL(file); });
+  async function adicionarPDFs(input) {
+    const files = [...(input.files || [])], st = S; input.value = '';
+    for (const file of files) {
+      if (st.pdfs.length >= MAX_PDFS) { toast(`Limite de ${MAX_PDFS} PDFs por TF.`, true); break; }
+      if (file.size > MAX_PDF_BYTES) { toast(`"${file.name}" passa do limite de 10 MB.`, true); continue; }
+      let dados;
+      try {
+        const ini = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+        if (String.fromCharCode(...ini) !== '%PDF-') { toast(`"${file.name}" não é um PDF válido.`, true); continue; }
+        dados = 'data:application/pdf;base64,' + String(await lerDataURL(file)).replace(/^data:[^,]*,/, '');
+      } catch (e) { toast(e.message, true); continue; }
+      if (S !== st) return;
+      const a = { ...Anexos.novoArquivo('tfs', st.id, 'documento', '', 'application/pdf', dados), nomeOriginal: String(file.name || 'tf.pdf').slice(0, 120) };
+      await Store.gravar('arquivos', a); st.pdfs.push(a.id);
+    }
+    await renderPDFs(); salvarRascunho(0);
+  }
+  /** Lista dos PDFs (formulário ou tela do TF): abrir no aparelho / no Drive; remover só no formulário. */
+  async function renderPDFs(ids, alvo, removivel = true) {
+    ids = ids || (S && S.pdfs) || []; const el = $(alvo || '#tf-pdfs-lista'); if (!el) return;
+    const itens = await Promise.all(ids.map(id => Store.obter('arquivos', id)));
+    el.innerHTML = ids.length ? ids.map((id, i) => { const a = itens[i] || {};
+      const abrir = a.dados ? `<button type="button" class="mini" data-tf="verpdf" data-id="${esc(id)}">Abrir</button>`
+        : a.url ? `<a class="mini" href="${esc(a.url)}" target="_blank" rel="noopener">Abrir no Drive</a>` : '<small>no Drive</small>';
+      return `<div class="pce-doc" data-id="${esc(id)}"><span>${icone('documento')} ${esc(a.nomeOriginal || 'tf.pdf')}</span><span class="pce-doc-acoes">${abrir}${removivel ? `<button type="button" class="mini" data-tf="delpdf" data-id="${esc(id)}" aria-label="Remover PDF ${i + 1}">✕</button>` : ''}</span></div>`; }).join('')
+      : '<div class="dica">Nenhum PDF anexado.</div>';
+  }
+  const SERV_PAPEL = 'gdv.tfServidoresPapel';                                     // últimos servidores digitados (datalist)
+  const servidoresPapel = () => { try { return JSON.parse(localStorage.getItem(SERV_PAPEL)) || []; } catch (e) { return []; } };
+  const lembrarServidor = n => { try { localStorage.setItem(SERV_PAPEL, JSON.stringify([n, ...servidoresPapel().filter(x => x !== n)].slice(0, 40))); } catch (e) { /* sem armazenamento */ } };
   /** Imagem atual da assinatura (desenhada agora ou já salva). */
   async function srcAss(st, papel) {
     if (st.assNovas[papel]) return st.assNovas[papel];
@@ -176,16 +212,19 @@ const TFUI = (() => {
 
   function formHTML(D, bars) {
     const d = D.docs;
-    return `<form class="tf" id="tfForm" autocomplete="off">
-    <div class="card"><h3>Termo de Fiscalização de Barreira</h3>
+    const pap = !!(S && S.antigo);
+    return `<form class="tf${pap ? ' tf-papel' : ''}" id="tfForm" autocomplete="off">
+    <div class="card"><h3>${pap ? `${icone('documento')} TF antigo (digitado do papel)` : 'Termo de Fiscalização de Barreira'}</h3>
+      ${pap ? '<p class="dica" style="text-align:left" id="tf-papel-dica">Digite o TF como está no papel: número, data, hora e o servidor que fiscalizou. Precisa de internet: a planilha confere se o número está livre. Anexe o PDF escaneado.</p>' : ''}
       <label>Barreira<select id="tf-barreira">${bars.map(b => `<option value="${esc(b.id)}" ${b.id === D.barreira ? 'selected' : ''}>${esc(b.nome)}</option>`).join('')}</select></label>
       <div class="tf-num" id="tf-numero"></div>
-      <div class="duas">${campo('data', 'Data', D.data, 'type="date" required')}${campo('hora', 'Hora', D.hora, 'type="time" required')}</div></div>
+      <div class="duas">${campo('data', 'Data', D.data, `type="date" required${pap ? ` max="${hojeISO()}"` : ''}`)}${campo('hora', 'Hora', D.hora, 'type="time" required')}</div>
+      ${pap ? `${campo('servidor', 'Servidor que fiscalizou (nome completo) *', D.servidor, 'list="tf-servidores" autocapitalize="words"')}<datalist id="tf-servidores"></datalist>` : ''}</div>
 
     <div class="card"><h3>Identificação do fiscalizado</h3>
-      ${campo('doc', 'CPF / CNPJ *', D.doc, 'inputmode="numeric" placeholder="000.000.000-00"')}
+      ${campo('doc', pap ? 'CPF / CNPJ <small>(vazio = não identificado)</small>' : 'CPF / CNPJ *', D.doc, 'inputmode="numeric" placeholder="000.000.000-00"')}
       <div id="tf-st-doc" class="tf-status" aria-live="polite"></div>
-      ${campo('nome', 'Nome / Razão social *', D.nome)}
+      ${campo('nome', pap ? 'Nome / Razão social <small>(vazio = NÃO IDENTIFICADO)</small>' : 'Nome / Razão social *', D.nome)}
       <div class="duas">${campo('rg', 'RG', D.rg)}${campo('telefone', 'Telefone', D.telefone, 'type="tel"')}</div>
       ${campo('endereco', 'Endereço', D.endereco)}
       <div class="duas">${campo('municipio', 'Município', D.municipio)}${campo('uf', 'UF', D.uf, 'maxlength="2"')}</div>
@@ -219,13 +258,16 @@ const TFUI = (() => {
     <div class="card"><h3>Constatação</h3><label><textarea id="tf-constatacao" rows="5">${esc(D.constatacao)}</textarea></label>
       <h3>Enquadramento legal</h3><label><textarea id="tf-enquadramento" rows="5" placeholder="Leis, decretos, portarias, artigos, incisos e alíneas">${esc(D.enquadramento)}</textarea></label></div>
 
-    <div class="card"><h3>${icone('camera')} Fotos (opcional)</h3>
+    ${pap ? `<div class="card"><h3>${icone('documento')} PDF escaneado do TF</h3>
+      <label class="pce-arquivo">${icone('anexo')} Anexar PDF<input type="file" id="tf-pdfs" accept="application/pdf,.pdf" multiple></label>
+      <p class="dica" style="text-align:left">Até ${MAX_PDFS} PDFs, 10 MB cada. Vão para o Drive ao sincronizar; depois ficam só no Drive.</p>
+      <div id="tf-pdfs-lista"></div></div>` : `<div class="card"><h3>${icone('camera')} Fotos (opcional)</h3>
       <label class="pce-arquivo">${icone('camera')} Tirar foto / escolher da galeria<input type="file" id="tf-fotos" accept="image/*" multiple></label>
       <p class="dica" style="text-align:left">Até ${MAX_FOTOS} fotos. Saem num anexo fotográfico no fim do PDF e vão para o Drive ao sincronizar.</p>
       <div id="tf-fotos-prev" class="pce-fotos"></div></div>
-    ${assCardHTML(S)}
+    ${assCardHTML(S)}`}
 
-    <button class="botao" type="submit">${icone('documento')} Gerar TF</button>
+    <button class="botao" type="submit">${icone(pap ? 'salvar' : 'documento')} ${pap ? 'Gravar TF do papel' : 'Gerar TF'}</button>
     <button class="botao sec" type="button" data-tf="descartar">Descartar este TF</button></form>`;
   }
 
@@ -235,11 +277,20 @@ const TFUI = (() => {
   let numTok = 0;
   async function mostrarInfoNumero() {
     const sel = $('#tf-barreira'), el = $('#tf-numero'); if (!sel || !el || !S) return;
-    const b = sel.value, a = anoAtual(), bar = (await barreiras()).find(x => x.id === b); if (!bar) return;
+    const b = sel.value, bar = (await barreiras()).find(x => x.id === b); if (!bar) return;
+    const pap = !!S.antigo, dv = $('#tf-data') ? $('#tf-data').value : '', a = pap && /^\d{4}-/.test(dv) ? Number(dv.slice(0, 4)) : anoAtual();
     const tok = ++numTok, st = S;
     const desenhar = (sug, consultando) => {
       if (tok !== numTok || S !== st || !$('#tf-numero')) return;
       st.numSug = sug.numero; st.numBarreira = b;
+      if (pap) {                                                                  // papel: o nº é o do talão, digitado (nada sugerido)
+        const atual = $('#tf-num') ? $('#tf-num').value : (st.numPapel || '');
+        el.innerHTML = `<small>Nº do TF (o do papel) *</small>
+          <div class="tf-num-campo"><input id="tf-num" type="number" inputmode="numeric" min="1" value="${esc(atual)}" aria-label="Número do TF do papel"><b id="tf-num-suf">/${a} - ${esc(bar.sufixo)}</b></div>
+          <small id="tf-num-dica">${consultando ? 'Consultando a planilha… ' : ''}${sug.ultimo ? `Último nº usado nesta barreira em ${a}: ${num4(sug.ultimo)}.` : `Nenhum TF desta barreira em ${a} na planilha.`} O ano vem da data do TF.</small>`;
+        el.querySelector('#tf-num').oninput = e => { st.numPapel = e.target.value; };
+        return;
+      }
       const ult = sug.ultimo ? `Último nº usado nesta barreira: ${num4(sug.ultimo)}/${a}.` : 'Nenhum TF desta barreira neste ano: informe o número do talão, se for o caso.';
       const val = st.numEditado && st.numEditado.b === b ? st.numEditado.n : sug.numero;
       el.innerHTML = `<small>Nº do TF</small>
@@ -256,16 +307,25 @@ const TFUI = (() => {
   async function novo(prefill) {
     if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());
     prefill = prefill || {}; clearTimeout(tRasc);
+    const antigo = !!prefill.antigo;
+    if (antigo && !(Sync.pode('antigo') && Sync.pode('tf'))) { toast('Sem autorização para digitar TFs do papel. Fale com a gerência (painel → Servidores: TF e Digitar do papel).', true); return go('tf'); }
     const bars = await barreiras();
     if (!bars.length) { view('<div class="card aviso">A lista de barreiras ainda não foi carregada. Conecte-se à internet e aguarde a sincronização.</div>'); Sync.sincronizar(); return; }
     let D = vazio(); S = { hist: { doc: null, placa: null }, tpl: { constatacao: '', enquadramento: '' }, turnoId: '', veiculoId: '', rid: Store.novoId(),
-      id: Store.novoId(), fotos: [], ass: {}, assNovas: {}, recusa: false };
-    const rasc = await Store.meta('tfRascunho');
-    if (rasc && rasc.dados && confirm(`Há um TF não gerado, iniciado em ${new Date(rasc.em).toLocaleString('pt-BR')}.\n\nContinuar de onde parou? (Cancelar descarta o rascunho.)`)) {
+      id: Store.novoId(), fotos: [], pdfs: [], ass: {}, assNovas: {}, recusa: false, antigo };
+    const rasc = await Store.meta(chaveRasc(antigo));
+    if (rasc && rasc.dados && confirm(`Há um ${antigo ? 'TF do papel não gravado' : 'TF não gerado'}, iniciado em ${new Date(rasc.em).toLocaleString('pt-BR')}.\n\nContinuar de onde parou? (Cancelar descarta o rascunho.)`)) {
       D = { ...D, ...rasc.dados }; S.turnoId = rasc.turnoId || ''; S.veiculoId = rasc.veiculoId || ''; if (rasc.rid) S.rid = rasc.rid;   // mesmo rascunho = mesmo sinal no painel
       if (rasc.id) S.id = rasc.id;                                                   // fotos do rascunho continuam ligadas ao mesmo TF
-      S.fotos = Array.isArray(rasc.fotos) ? rasc.fotos.slice() : []; S.assNovas = rasc.assNovas || {}; S.recusa = !!rasc.recusa;
-      if (+D.numero > 0) S.numEditado = { b: D.barreira, n: +D.numero };          // nº digitado antes continua valendo
+      S.fotos = Array.isArray(rasc.fotos) ? rasc.fotos.slice() : []; S.pdfs = Array.isArray(rasc.pdfs) ? rasc.pdfs.slice() : []; S.assNovas = rasc.assNovas || {}; S.recusa = !!rasc.recusa;
+      if (antigo) S.numPapel = D.numero || '';
+      else if (+D.numero > 0) S.numEditado = { b: D.barreira, n: +D.numero };     // nº digitado antes continua valendo
+    } else if (antigo) {                                                           // papel: nada vem do turno nem de "agora"
+      await descartarRascunho(rasc, true);
+      const bPad = localStorage.getItem('gdv.barreira');
+      D.barreira = bars.some(b => b.id === bPad) ? bPad : bars[0].id;
+      D.local = (bars.find(b => b.id === D.barreira) || {}).local || '';
+      D.data = ''; D.hora = ''; D.servidor = servidoresPapel()[0] || '';
     } else {
       await descartarRascunho(rasc);
       const turno = await turnoAtual(); let veic = null;
@@ -279,13 +339,14 @@ const TFUI = (() => {
     }
     if (!bars.some(b => b.id === D.barreira)) D.barreira = bars[0].id;
     view(formHTML(D, bars));
-    await renderFotos(); await desenharAss(S);
+    if (antigo) { await renderPDFs(); const dl = $('#tf-servidores'); if (dl) dl.innerHTML = servidoresPapel().map(n => `<option value="${esc(n)}">`).join(''); }
+    else { await renderFotos(); await desenharAss(S); }
     $('#tf-uf').oninput = e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, ''); };
     await mostrarInfoNumero();
     if (digitos(D.doc).length >= 11) consultarDoc();
     if (placaNorm(D.placa).length >= 7) consultarPlaca();
     ligarForm();
-    iniciarAndamento(S.rid);
+    if (!antigo) iniciarAndamento(S.rid);                                         // TF do papel não acende "TF em preenchimento" no painel
   }
 
   function ligarForm() {
@@ -293,18 +354,20 @@ const TFUI = (() => {
     f.addEventListener('input', e => {
       if (e.target.id === 'tf-placa') { e.target.value = placaNorm(e.target.value); if (e.target.value.length === 7) agendar('placa'); }
       if (e.target.id === 'tf-doc') { const d = digitos(e.target.value); if (d.length === 11 || d.length === 14) agendar('doc'); else $('#tf-st-doc').replaceChildren(); }
-      if (e.target.id === 'tf-placa') mudouAndamento();
+      if (e.target.id === 'tf-placa' && S && !S.antigo) mudouAndamento();
       salvarRascunho();
     });
     f.addEventListener('change', async e => {
       if (e.target.id === 'tf-barreira') { localStorage.setItem('gdv.barreira', e.target.value); await mostrarInfoNumero(); }
-      if (e.target.name === 'tf-proc') { aplicarModelo(e.target.value); mudouAndamento(); }
+      if (e.target.id === 'tf-data' && S && S.antigo) await mostrarInfoNumero();                  // papel: o ano do número é o da data
+      if (e.target.id === 'tf-pdfs') return adicionarPDFs(e.target);
+      if (e.target.name === 'tf-proc') { aplicarModelo(e.target.value); if (!S.antigo) mudouAndamento(); }
       if (e.target.id === 'tf-doc') { e.target.value = fmtDoc(digitos(e.target.value)); }
       if (e.target.id === 'tf-fotos') return adicionarFotos(e.target);
       if (e.target.id === 'tf-recusa') { S.recusa = e.target.checked; if (S.recusa) delete S.assNovas.fiscalizado; await desenharAss(S); }
       salvarRascunho();
     });
-    f.onsubmit = ev => { ev.preventDefault(); gerar(); };
+    f.onsubmit = ev => { ev.preventDefault(); if (S && S.antigo) gravarPapel(); else gerar(); };
   }
   const tm = {};
   const agendar = qual => { clearTimeout(tm[qual]); tm[qual] = setTimeout(qual === 'doc' ? consultarDoc : consultarPlaca, 350); };
@@ -480,25 +543,76 @@ const TFUI = (() => {
     toast('Não foi possível definir o número do TF. Tente novamente.', true);
   }
 
+  /**
+   * TF antigo (digitado do papel): grava com o nº, a data e a hora do papel. Precisa de internet — a planilha recusa número já usado
+   * (mostra quem usou) e aceita qualquer número livre; um número maior que o último usado faz a sequência da barreira continuar dele.
+   */
+  async function gravarPapel() {
+    const D = coletar(), bar = (await barreiras()).find(x => x.id === D.barreira), doc = digitos(D.doc), st = S;
+    if (!bar || !st) return toast('Escolha a barreira.', true);
+    const n = parseInt(D.numero, 10), servidor = D.servidor.trim().replace(/\s+/g, ' ');
+    if (!(n > 0)) { toast('Informe o número do TF do papel.', true); const i = $('#tf-num'); if (i) i.focus(); return; }
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(D.data) || !D.hora) return toast('Informe a data e a hora do TF do papel.', true);
+    if (D.data > hojeISO()) return toast('A data do TF está no futuro.', true);
+    if (servidor.split(' ').length < 2) { toast('Informe o nome completo do servidor que fiscalizou.', true); $('#tf-servidor').focus(); return; }
+    if (doc && doc.length !== 11 && doc.length !== 14) return toast('CPF (11 dígitos) ou CNPJ (14 dígitos) incompleto. Deixe vazio se o fiscalizado não foi identificado.', true);
+    if (doc && !docOk(doc) && !confirm(`O ${doc.length === 11 ? 'CPF' : 'CNPJ'} informado tem dígitos inválidos. Gravar mesmo assim?`)) return;
+    if (!D.local.trim()) return toast('Informe o local.', true);
+    if (!D.procedimento && !confirm('Nenhum procedimento (liberação, apreensão ou rechaço) foi marcado. Gravar mesmo assim?')) return;
+    if (!st.pdfs.length && !confirm('Nenhum PDF escaneado anexado. Gravar o TF sem o PDF?')) return;
+    if (!navigator.onLine) return toast('Sem internet: o TF do papel precisa da planilha para conferir o número. Tente de novo com internet (o rascunho fica guardado).', true);
+    const a = Number(D.data.slice(0, 4)), btn = document.querySelector('#tfForm button[type=submit]'), rot = btn.textContent;
+    btn.disabled = true; btn.textContent = 'Consultando a planilha…';
+    const fim = () => { btn.disabled = false; btn.textContent = rot; };
+    let sug; try { sug = await Sync.proximoNumero(bar.id, a); } catch (e) { fim(); return toast(e.semPermissao ? e.message : 'Sem resposta da planilha: ' + e.message + ' Tente de novo.', true); }
+    const efeito = n > sug.ultimo ? `${sug.ultimo ? `O último nº usado nesta barreira em ${a} é ${num4(sug.ultimo)}.` : `Nenhum TF desta barreira em ${a} na planilha.`} Gravando o ${num4(n)}, a sequência desta barreira continua a partir dele: o próximo TF sugerido (também para os fiscais em campo) será o ${num4(n + 1)}.`
+      : `O último nº usado nesta barreira em ${a} é ${num4(sug.ultimo)}: o ${num4(n)} é menor e a sequência não muda.`;
+    if (!confirm(`Gravar o TF ${num4(n)}/${a} - ${bar.sufixo} (digitado do papel)?\n\n${efeito}`)) return fim();
+    const t0 = Date.now(), nome = (D.nome.trim() || 'NÃO IDENTIFICADO').toUpperCase(), hist = st.hist.doc;
+    const prods = D.produtos.filter(p => p.p && p.q).map(p => `${p.p} - ${p.q} ${p.u}`);
+    const pessoa = doc ? { id: doc, tipo: doc.length === 14 ? 'PJ' : 'PF', nome, rg: D.rg.trim(), endereco: D.endereco.trim(), municipio: D.municipio.trim(), uf: D.uf.trim().toUpperCase(), telefone: D.telefone.trim(), criadoEm: t0, atualizadoEm: t0 } : null;
+    const placa = doc && D.placa.length >= 7 ? { id: D.placa, doc, nome, criadoEm: t0, atualizadoEm: t0 } : null;
+    const rec = {
+      id: st.id, criadoEm: t0, atualizadoEm: t0, barreira: bar.id, ano: a, numero: n, numeroTxt: `${num4(n)}/${a} - ${bar.sufixo}`, turnoId: '', veiculoId: '',
+      data: D.data, hora: D.hora, fiscal: servidor, local: D.local.trim(), placa: D.placa, origem: D.origem.trim(), destino: D.destino.trim(),
+      ufOrigem: CONFIG.ufs.includes(D.ufOrigem) ? D.ufOrigem : '', ufDestino: CONFIG.ufs.includes(D.ufDestino) ? D.ufDestino : '',
+      doc, nome, rg: D.rg.trim(), endereco: D.endereco.trim(), municipio: D.municipio.trim(), uf: D.uf.trim().toUpperCase(), telefone: D.telefone.trim(), relacao: D.relacao,
+      inspecao: D.inspecao ? 1 : 0, coleta: D.coleta ? 1 : 0, amostras: Number(D.amostras) || 0, procedimento: D.procedimento, fiel: D.fiel ? 1 : 0, auto: D.auto ? 1 : 0, advertencia: D.advertencia ? 1 : 0,
+      documentos: JSON.stringify(D.docs), produtos: JSON.stringify(prods), constatacao: D.constatacao, enquadramento: D.enquadramento,
+      reincidente: hist && hist.reincidente ? 1 : 0, tfsAnteriores: hist ? hist.total : 0, cancelado: 0, motivoCancel: '', conflito: 0,
+      numeroSugerido: sug.proximo, numeroOrigem: 'papel', fotos: '[]', assinaturas: '{}', recusaAssinatura: 0, registroAntigo: 1, pdfs: JSON.stringify(st.pdfs)
+    };
+    btn.textContent = 'Gravando…';
+    let r; try { r = await Sync.emitirTF(rec, pessoa, placa); } catch (e) { fim(); return toast((e.semPermissao ? '' : 'Não gravou: ') + e.message, true); }
+    if (r.emitido === false) { fim(); return toast(`O nº ${num4(n)}/${a} já está na planilha: ${r.ocupadoPor.numeroTxt} (${r.ocupadoPor.usuario}, ${dBR(r.ocupadoPor.data)} ${r.ocupadoPor.hora}). Confira o número do papel.`, true); }
+    await Store.gravar('tfs', { ...rec, pendente: 0, emitidoEm: r.emitidoEm });     // os PDFs sobem ao Drive na sincronização
+    if (pessoa) await Store.gravar('pessoas', { ...pessoa, pendente: 0 });
+    if (placa) await Store.gravar('placas', { ...placa, pendente: 0 });
+    await Sync.lembrarUltimos({ [chave(bar.id, a)]: Math.max(n, sug.ultimo) });
+    clearTimeout(tRasc); await Store.setMeta(chaveRasc(true), null); localStorage.setItem('gdv.barreira', bar.id); lembrarServidor(servidor);
+    S = null; Sync.sincronizar(); toast(`TF ${num4(n)}/${a} do papel gravado ✓`); go('tfpronto', rec.id);
+  }
+
   /* ---------- telas: pronto (detalhes do TF, antes de imprimir) e lista ---------- */
   let PR = null;                                                                   // TF aberto na tela de detalhes: { id, ass, assNovas, recusa }
   async function pronto(id) {
     const t = await Store.obter('tfs', id); if (!t) return go('tf');
     PR = { id: t.id, ass: lerJSON(t.assinaturas, {}) || {}, assNovas: {}, recusa: Number(t.recusaAssinatura) === 1 };
-    const nF = (lerJSON(t.fotos, []) || []).length;
-    view(`<div class="card"><h3>${icone('ok')} TF gerado</h3><div class="tf-num"><b>${esc(t.numeroTxt)}</b></div>
+    const nF = (lerJSON(t.fotos, []) || []).length, pap = Number(t.registroAntigo) === 1, pdfs = pap ? lerJSON(t.pdfs, []) || [] : [];
+    view(`<div class="card"><h3>${icone('ok')} ${pap ? 'TF do papel gravado' : 'TF gerado'}</h3><div class="tf-num"><b>${esc(t.numeroTxt)}</b></div>
       <p>${esc(t.nome)} · ${esc(fmtDoc(t.doc))}</p><p>${dBR(t.data)} ${esc(t.hora)}${t.placa ? ' · ' + esc(t.placa) : ''}</p>
+      ${pap ? `<div class="tf-novo" id="tf-papel-info">${icone('documento')} Digitado do papel · servidor que fiscalizou: ${esc(t.fiscal)}</div>` : ''}
       ${t.pendente ? '<div class="tf-novo">⏳ Número provisório / aguardando envio: será conferido na planilha ao sincronizar. Se houver repetição, a coordenação é avisada.</div>' : '<div class="tf-ok">✓ Número confirmado na planilha.</div>'}
       ${t.numeroOrigem === 'editado' ? `<div class="tf-novo">${icone('editar')} Número alterado manualmente (o sistema sugeriu ${num4(t.numeroSugerido)}). Registrado para auditoria.</div>` : ''}
       ${t.reincidente ? `<div class="tf-alerta">${icone('alerta')} Fiscalizado reincidente: ${t.tfsAnteriores} TF(s) anterior(es).</div>` : ''}
       ${t.cancelado ? `<div class="tf-alerta">${icone('proibido')} CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
       ${nF ? `<p class="dica" style="text-align:left">${icone('camera')} ${nF} foto(s): saem no anexo fotográfico, no fim do PDF.</p>` : ''}</div>
-      ${t.cancelado ? '' : assCardHTML(PR)}
+      ${pap ? `<div class="card"><h3>${icone('documento')} PDF escaneado</h3><div id="tf-pdfs-pronto"></div></div>` : t.cancelado ? '' : assCardHTML(PR)}
       <button class="botao" data-tf="imprimir" data-id="${esc(t.id)}">${icone('imprimir')} Imprimir / PDF (2 vias)</button>
       <button class="botao sec" data-tf="novo">${icone('mais')} Novo TF</button>
       ${MODULO === 'veiculos' ? '<button class="botao sec" data-go="lista">↩ Voltar à lista de veículos</button>' : '<button class="botao sec" data-go="tf">Ver lista de TFs</button>'}
       <p class="dica">Na janela de impressão, escolha “Salvar como PDF” ou imprima direto. As 2 vias saem em páginas separadas${nF ? '; o anexo fotográfico vai uma vez, no fim' : ''}.</p>`);
-    await desenharAss(PR);
+    if (pap) await renderPDFs(pdfs, '#tf-pdfs-pronto', false); else await desenharAss(PR);
     const rc = $('#tf-recusa');
     if (rc) rc.onchange = async () => { const r = PR; await gravarAssinatura(r, 'fiscalizado', null, rc.checked); };
   }
@@ -516,25 +630,34 @@ const TFUI = (() => {
     await desenharAss(st); Sync.sincronizar();
     toast(recusa !== undefined ? (rec ? 'Recusa registrada.' : 'Recusa desmarcada.') : img ? 'Assinatura salva.' : 'Assinatura removida.');
   }
+  let verRemovidos = false;
   async function lista() {
     if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());
     const mostrar = tela();
     const todos = (await Store.todos('tfs')).sort((a, b) => b.criadoEm - a.criadoEm);
+    // TF cancelado e já enviado pode sair da lista deste aparelho (só aqui: na planilha, no painel e na auditoria continua, com o número usado)
+    const removidos = new Set((await Store.meta('tfsRemovidos')) || []);
     if (!mostrar.viva()) return;
-    view(`<button class="botao" data-tf="novo">${icone('mais')} Novo TF</button><div class="card"><label>Pesquisar (nº, nome, CPF/CNPJ, placa)<input id="tfQ"></label></div><div id="tfItens"></div>`);
+    const nRem = todos.filter(t => removidos.has(t.id)).length;
+    if (!nRem) verRemovidos = false;
+    view(`<button class="botao" data-tf="novo">${icone('mais')} Novo TF</button>${Sync.pode('antigo') && Sync.pode('tf') ? `<button class="botao sec" data-tf="novoantigo" id="tf-novoantigo">${icone('documento')} TF antigo (digitar do papel)</button>` : ''}<div class="card"><label>Pesquisar (nº, nome, CPF/CNPJ, placa)<input id="tfQ"></label>
+      ${nRem ? `<label class="chk"><input type="checkbox" id="tfVerRem" ${verRemovidos ? 'checked' : ''}> Mostrar os excluídos da lista (${nRem})</label>` : ''}</div><div id="tfItens"></div>`);
     const desenhar = () => {
       const q = $('#tfQ').value.trim().toUpperCase(), qd = digitos(q);
-      const v = todos.filter(t => !q || t.numeroTxt.toUpperCase().includes(q) || t.nome.toUpperCase().includes(q) || (qd && digitos(t.doc).includes(qd)) || placaNorm(t.placa).includes(placaNorm(q)));
+      const v = todos.filter(t => verRemovidos || !removidos.has(t.id)).filter(t => !q || t.numeroTxt.toUpperCase().includes(q) || t.nome.toUpperCase().includes(q) || (qd && digitos(t.doc).includes(qd)) || placaNorm(t.placa).includes(placaNorm(q)));
       $('#tfItens').innerHTML = v.length ? v.map(t => `<div class="item"><div class="topo"><div><div class="placa">${esc(t.numeroTxt)}</div><div class="tipo">${esc(t.nome)}</div></div>
         <div class="hora">${dBR(t.data)}</div></div>
-        <div class="info">${esc(PROC[t.procedimento] || 'Sem procedimento')}${t.placa ? ' · ' + esc(t.placa) : ''}${t.reincidente ? ' · reincidente' : ''}</div>
+        <div class="info">${esc(PROC[t.procedimento] || 'Sem procedimento')}${t.placa ? ' · ' + esc(t.placa) : ''}${t.reincidente ? ' · reincidente' : ''}${Number(t.registroAntigo) === 1 ? ' · do papel' : ''}</div>
         ${t.cancelado ? `<div class="info pend">${icone('proibido')} CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
         ${t.conflito ? '<div class="info pend">Número duplicado na planilha: confira com a coordenação.</div>' : ''}
         ${t.pendente ? `<div class="info pend">⏳ ${t.provisorio ? 'número provisório, será conferido ao sincronizar' : 'aguardando envio'}</div>` : ''}
         <div class="botoes"><button class="editar" data-tf="abrir" data-id="${esc(t.id)}">Abrir</button><button class="editar" data-tf="imprimir" data-id="${esc(t.id)}">Imprimir</button>
-        ${t.cancelado ? '' : `<button class="excluir" data-tf="cancelar" data-id="${esc(t.id)}">Cancelar TF</button>`}</div></div>`).join('') : '<div class="vazio">Nenhum TF neste aparelho.</div>';
+        ${t.cancelado ? '' : `<button class="excluir" data-tf="cancelar" data-id="${esc(t.id)}">Cancelar TF</button>`}
+        ${t.cancelado && !t.pendente ? (removidos.has(t.id) ? `<button class="editar" data-tf="restaurar" data-id="${esc(t.id)}">Voltar para a lista</button>`
+          : `<button class="excluir" data-tf="tirar" data-id="${esc(t.id)}">Excluir da lista</button>`) : ''}</div></div>`).join('') : '<div class="vazio">Nenhum TF neste aparelho.</div>';
     };
     desenhar(); $('#tfQ').oninput = desenhar;
+    if ($('#tfVerRem')) $('#tfVerRem').onchange = e => { verRemovidos = e.target.checked; desenhar(); };
   }
 
   /* ---------- ações (cliques) ---------- */
@@ -543,6 +666,9 @@ const TFUI = (() => {
     const a = el.dataset.tf, id = el.dataset.id;
     try {
       if (a === 'novo') go('tfnovo');
+      else if (a === 'novoantigo') go('tfnovo', { antigo: 1 });
+      else if (a === 'delpdf' && S && $('#tfForm')) { S.pdfs = S.pdfs.filter(x => x !== id); await Anexos.apagarSeNaoEnviado([id]); await renderPDFs(); salvarRascunho(0); }
+      else if (a === 'verpdf') { const f = await Store.obter('arquivos', id); if (f && f.dados) { const u = URL.createObjectURL(await (await fetch(f.dados)).blob()); window.open(u, '_blank'); setTimeout(() => URL.revokeObjectURL(u), 60000); } }
       else if (a === 'abrir') go('tfpronto', id);
       else if (a === 'delfoto' && S && $('#tfForm')) { S.fotos = S.fotos.filter(x => x !== id); await Anexos.apagarSeNaoEnviado([id]); await renderFotos(); salvarRascunho(0); }
       else if (a === 'assinar' || a === 'delass') {
@@ -553,13 +679,20 @@ const TFUI = (() => {
         else if (PR && $('#tf-ass-card')) await gravarAssinatura(PR, papel, img);
       }
       else if (a === 'imprimir') await Docs.tf(id);
+      else if (a === 'tirar' || a === 'restaurar') {
+        const t = await Store.obter('tfs', id); if (!t) return;
+        if (a === 'tirar' && (!t.cancelado || t.pendente)) return toast('Só TF cancelado e já enviado à planilha pode sair da lista.', true);
+        if (a === 'tirar' && !confirm(`Excluir o TF ${t.numeroTxt} (cancelado) da lista deste aparelho?\n\nEle continua na planilha e na auditoria, com o número usado.`)) return;
+        const r = new Set((await Store.meta('tfsRemovidos')) || []); if (a === 'tirar') r.add(id); else r.delete(id);
+        await Store.setMeta('tfsRemovidos', [...r]); toast(a === 'tirar' ? 'TF excluído da lista.' : 'TF de volta à lista.'); lista();
+      }
       else if (a === 'cancelar') {
         const motivo = prompt('Motivo do cancelamento (o número do TF continua usado):'); if (motivo == null) return;
         const t = await Store.obter('tfs', id); await Store.salvar('tfs', { ...t, cancelado: 1, motivoCancel: motivo.trim().slice(0, 300) });
         Sync.sincronizar(); toast('TF cancelado.'); lista();
       } else if (a === 'addprod') { const c = coletar(); c.produtos.push({ p: '', q: '', u: T.unidades[0] }); $('#tf-produtos').innerHTML = c.produtos.map(linhaProd).join(''); salvarRascunho(); }
       else if (a === 'delprod') { const c = coletar(); c.produtos.splice(+el.dataset.i, 1); if (!c.produtos.length) c.produtos.push({ p: '', q: '', u: T.unidades[0] }); $('#tf-produtos').innerHTML = c.produtos.map(linhaProd).join(''); salvarRascunho(); }
-      else if (a === 'descartar') { if (confirm('Descartar este TF? Os dados preenchidos serão perdidos.')) { clearTimeout(tRasc); encerrarAndamento(); const f = S ? S.fotos : []; S = null; await descartarRascunho({ fotos: f }); go(MODULO === 'veiculos' ? 'lista' : 'tf'); } }
+      else if (a === 'descartar') { if (confirm('Descartar este TF? Os dados preenchidos serão perdidos.')) { clearTimeout(tRasc); encerrarAndamento(); const f = S ? S.fotos : [], pd = S ? S.pdfs : [], ant = !!(S && S.antigo); S = null; await descartarRascunho({ fotos: f, pdfs: pd }, ant); go(MODULO === 'veiculos' ? 'lista' : 'tf'); } }
       else if (a === 'usardoc') { $('#tf-doc').value = fmtDoc(el.dataset.doc); consultarDoc(); }
     } catch (err) { toast(err.message || String(err), true); }
   });

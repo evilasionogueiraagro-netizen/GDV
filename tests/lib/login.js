@@ -50,10 +50,12 @@ async function criar(nome, opcoes = {}) {
 const painel = async (nome, opcoes) => (await criar(nome, opcoes)).token;
 /** Conta só com a permissão Painel (a TV da sala, ou quem só consulta). */
 const soLeitura = (nome, opcoes) => criar(nome, Object.assign({ permissoes: ['painel'] }, opcoes));
+/** Fiscal do app de campo (todos os módulos): usado para semear dados pela action sync. */
+const campo = (nome, opcoes) => criar(nome, Object.assign({ permissoes: ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce'] }, opcoes));
 /** Conta do Portal do Administrativo. */
 const portal = (nome, opcoes) => criar(nome, Object.assign({ permissoes: ['administracao'] }, opcoes));
 
 /** Chaves do localStorage do painel para abrir já logado. */
 const lsPainel = (u, extra = {}) => Object.assign({ 'gdv.painel.token': u.token, 'gdv.painel.nome': u.nome, 'gdv.painel.perm': JSON.stringify(u.permissoes || []) }, extra);
 
-module.exports = { post, SENHA, entrarPronto, gerenteBase, criar, painel, soLeitura, portal, lsPainel };
+module.exports = { post, SENHA, entrarPronto, gerenteBase, criar, painel, soLeitura, campo, portal, lsPainel };

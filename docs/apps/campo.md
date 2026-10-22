@@ -18,15 +18,14 @@ App do fiscal (`web/`). Veja: [TF](../modulos/tf.md), [barreiras](../modulos/bar
 - Ficha: 50 veículos por folha (`CONFIG.linhasFicha`); o Termo conta todos.
 
 ## Acesso
-- Entra com matrícula e senha (`entrar`, app `campo`, precisa de internet). Token `u.…` em `gdv.key`; usuário em `gdv.usuario`; `gdv.nome` vira o Fiscal 1. Depois funciona sem internet até sair ou ser revogado.
-- `trocarSenha: 1` (no `entrar` ou em qualquer chamada): nada abre nem sobe até trocar a senha (`gdv.revogado = 'senha'`, mínimo 8).
-- Servidor recusou ("revogado", "inválido", "Entre com sua matrícula e senha."): `gdv.revogado = '1'` e pede a entrada; os registros ficam no aparelho.
-- Sair: precisa de internet, não com turno aberto; tenta enviar, e se sobrar pendente explica e confirma. Pendente é de quem o fez: quem entra depois não o envia (meta `retidos`); sobe quando a dona entrar de novo.
-- Transição: aparelho ativado pelo código antigo (`ativar`, sem token `u.`) segue sem login. Desligados os acessos antigos, apagar o código do app (`gdv.semCodigo`, `#fAtivar`).
+- Só matrícula e senha (`entrar`, app `campo`). Internet só para entrar, trocar a senha e sair. Token `u.…` em `gdv.key`, usuário em `gdv.usuario`, `gdv.nome` é o Fiscal 1; vale offline até sair ou ser revogado. Credencial sem token `u.` (versão antiga) é apagada e pede login.
+- `trocarSenha: 1` (em qualquer chamada): nada abre nem sobe até trocar a senha (`gdv.revogado = 'senha'`, mínimo 8).
+- Servidor recusou ("revogado", "inválido", "Entre com sua matrícula e senha."): `gdv.revogado = '1'` e pede o login; os pendentes ficam no IndexedDB e sobem depois dele.
+- Módulo sem permissão some do menu; o pendente dele fica guardado.
+- Sair: não com turno aberto; tenta enviar e confirma se sobrar pendente. Pendente é de quem o fez: outra pessoa não o envia (meta `retidos`).
 
 ## Código
-- `web/js/`: `app.js`, `login.js` (Entrar, Trocar senha, Sair), `campo.js`, `tf.js`, `pce.js`, `sync.js` (sessão), `envio.js` (também no `sw.js`; `retidosDeOutros`), `store.js`, `config.js`.
-- `Code.gs`: actions `entrar`, `trocarSenha`, `sair`, `ativar`, `sync`. Teste: `login_campo_test`.
+- `web/js/` (`login.js`: Entrar, Trocar senha, Sair; `sync.js`: sessão). Testes: `login_campo_test`, `permissoes_campo_test`; contas em `tests/lib/usuarios.js`.
 
 ## Envio
-- Android: sobe com o app fechado (`gdv-enviar`). iPhone: só com o app aberto e internet. Reenvio é seguro (id idempotente). Credencial revogada: o envio para e o app pede para entrar de novo ao abrir.
+- Android: sobe com o app fechado (`gdv-enviar`). iPhone: só com o app aberto e internet. Reenvio é seguro (id idempotente). Sessão revogada: o envio para e o app pede o login ao abrir.

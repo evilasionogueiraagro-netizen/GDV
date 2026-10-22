@@ -143,7 +143,14 @@ classDiagram
     }
     class Levantamento {
       +String id
-      +String codigoPropriedade
+      +String propriedadeId
+      +String praga
+      +Data data
+      +validado() Bool
+    }
+    class Praga {
+      +String nome
+      +String programa
     }
     class Colheita {
       +String id
@@ -151,6 +158,7 @@ classDiagram
     }
     class Programa {
       +String id
+      +pragas() Lista
     }
     class PCE {
       +String id
@@ -160,7 +168,7 @@ classDiagram
     }
     class TermoPCE {
       +String id
-      +String propriedadeId
+      +String levantamentoId
       +String cadastroId
       +String doc
     }
@@ -191,7 +199,10 @@ classDiagram
   Levantamento "1" --> "*" Colheita : amostra
   Propriedade "1" --> "*" PCE : inscrita em
   Programa "1" --> "*" PCE : inscreve
-  PCE "1" --> "*" TermoPCE : visita
+  Programa "1" --> "*" Praga : tem
+  Levantamento "*" --> "1" Praga : de
+  TermoPCE "1" --> "1" Levantamento : valida
+  TermoPCE "*" --> "1" PCE : do cadastro
   TermoPCE "*" --> "1" Proprietario : fiscalizado
   Propriedade "*" --> "1" Proprietario : dono
   TFBarreira "1" --> "*" Arquivo : fotos e PDFs
@@ -209,6 +220,12 @@ classDiagram
 barreira é só `Pessoa`). Os dois ficam na aba `Pessoas` (id = CPF/CNPJ); proprietário é a pessoa que é `doc` de
 alguma `Propriedade`. É pelo CPF/CNPJ que se conta quantos TFs uma pessoa levou (`tfsRecebidos`); a reincidência
 de hoje olha só o TF de Barreira.
+
+**PCE (modelo combinado em 22/10/2026):** o levantamento é de **uma** praga, numa propriedade; o Termo de
+Fiscalização do PCE **valida** o levantamento (um termo por levantamento; sem termo, o levantamento não está
+validado). Cada programa tem as suas pragas. **O código ainda difere:** a aba `Levantamentos` guarda uma visita com
+várias pragas (um cartão e uma ficha por praga) e `TermosPCE` não aponta para o levantamento. Decisões em
+[decisoes/modelo.md](decisoes/modelo.md).
 
 `PCE` = aba `CadastrosPCE`: a ligação de uma propriedade com um programa, no máximo uma por par (o cadastro do
 imóvel naquele programa; `dados` guarda os campos do programa). `Programa` não é aba: é a lista `PROGRAMAS_PCE` do

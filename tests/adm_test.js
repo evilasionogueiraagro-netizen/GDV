@@ -5,8 +5,7 @@ const amb = require('./lib/amb');
 // revogada e encerrada; a sessão do portal não vale no painel nem no app (e vice-versa); desembolso (saldo ao vivo, memorando repetido,
 // diária acima do previsto, data fora da vigência, servidor da lista — nome só no portal/planilha), importação pela action do portal,
 // lançamentos físicos e linhas manuais de relatório com histórico; o painel não tem mais formulários de lançamento e as actions antigas
-// de gravação recusam; nomes de servidores não aparecem nas respostas do painel nem no relatório; tela do portal (login com o botão do
-// Google simulado, desembolso, físico, linhas dos relatórios, histórico, celular claro/escuro) e o bloco de liberados no painel.
+// de gravação recusam; nomes de servidores não aparecem nas respostas do painel nem no relatório; tela do portal (login sem Google, desembolso, físico, linhas dos relatórios, histórico, celular claro/escuro) e o bloco de liberados no painel.
 const fs = require('fs'), path = require('path');
 const { API } = amb;
 const PORTAL = require('./lib/portal');
@@ -208,24 +207,21 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   /* ================= 6. telas ================= */
   console.log('6. Telas do portal e do painel');
   const b = await amb.lancar();
-  // login com o botão do Google simulado (Client ID configurado em CONFIG.adm)
+  // tela de entrar: matrícula e senha (a entrada em si está no login_adm_test.js), sem botão do Google; o código de ativação segue como acesso antigo
   const ctxL = await b.newContext({ viewport: { width: 1280, height: 860 }, locale: 'pt-BR', timezoneId: 'America/Manaus', serviceWorkers: 'block' });
-  await ctxL.route('**/js/config.js', async rt => { const resp = await rt.fetch(); rt.fulfill({ response: resp, body: (await resp.text()) + `\nCONFIG.adm.googleClientId = '${CID}';` }); });
-  await ctxL.route('https://accounts.google.com/gsi/client', rt => rt.fulfill({ contentType: 'text/javascript', body: `window.google = { accounts: { id: {
-    initialize(o) { window.__gis = o; }, disableAutoSelect() {},
-    renderButton(el) { const b = document.createElement('button'); b.type = 'button'; b.id = 'gis-btn'; b.textContent = 'Entrar com o Google'; b.style.cssText = 'padding:10px 22px;border:1px solid #dadce0;border-radius:20px;background:#fff;color:#3c4043;font:500 14px Roboto,Arial;cursor:pointer';
-      b.onclick = () => window.__gis.callback({ credential: '${TV}' }); el.appendChild(b); } } } };` }));
   await ctxL.addInitScript(u => { localStorage.setItem('gdv.url', u); }, amb.API_URL);
-  const pl = await ctxL.newPage(); const errL = []; pl.on('pageerror', e => errL.push(e.message));
+  const pl = await ctxL.newPage(); const errL = [], reqGoogle = []; pl.on('pageerror', e => errL.push(e.message)); pl.on('request', rq => { if (/google/i.test(new URL(rq.url()).hostname)) reqGoogle.push(rq.url()); });
   await pl.goto(amb.ORIGEM + '/administrativo/');
-  await pl.waitForSelector('#gis-btn', { timeout: 15000 });
-  ok(await pl.isVisible('#adm-google') && /código de ativação/.test(await pl.textContent('#adm-cod-box summary')), 'tela de login: botão "Entrar com o Google" e a alternativa do código');
+  await pl.waitForSelector('#adm-senha-form', { timeout: 15000 });
+  ok(await pl.isVisible('#adm-matricula') && await pl.isVisible('#adm-senha') && !(await pl.$('#adm-google')) && /código de ativação/.test(await pl.textContent('#adm-cod-box summary')),
+    'tela de login: matrícula e senha, sem botão do Google, e a alternativa do código de ativação');
+  ok(await pl.evaluate(() => !('adm' in CONFIG)) && !reqGoogle.length, 'sem login do Google: CONFIG sem adm.googleClientId e nenhuma chamada ao Google', reqGoogle);
   await shot(pl, 'portal_login', false);
-  await pl.click('#gis-btn');
+  const CA = await post({ action: 'painelAdmCodigo', key: TOK, id: A1.liberado.id });
+  await pl.click('#adm-cod-box summary'); await pl.fill('#adm-codigo', CA.codigo); await pl.click('#adm-entrar');
   await pl.waitForSelector('#adm-abas .pn-aba', { timeout: 15000 });
-  ok(/Ana Repetida Souza \(ana\.souza@gmail\.com\)/.test(await pl.textContent('#adm-nome')) && !(await pl.evaluate(() => JSON.stringify(localStorage))).includes('eyJhbGciOiJSUzI1NiJ9'), 'entrou pelo Google: nome e e-mail no topo; o ID token não fica no navegador');
+  ok(/Ana Repetida Souza \(ana\.souza@gmail\.com\)/.test(await pl.textContent('#adm-nome')), 'entrou pelo código de ativação (acesso antigo): nome e e-mail no topo');
   await pl.click('#adm-sair'); await pl.waitForSelector('#adm-login:not([hidden])');
-  r = await post({ action: 'admDados', sessao: G.sessao });
   ok(!errL.length, 'login sem erros de JavaScript', errL);
   await ctxL.close();
   // a sessão G foi encerrada pelo botão Sair? (o login da tela criou outra; a G continua) — entra de novo por código para as telas

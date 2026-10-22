@@ -606,6 +606,10 @@ body.tv-mexeu .tv-ctl { opacity: 1; pointer-events: auto; }
 /* "Sessão encerrada" (credencial revogada/inválida): tela cheia com o campo do código */
 body.tv #pn-login:not([hidden]) { position: fixed; inset: 0; z-index: 100; background: var(--pg); display: flex; align-items: center; justify-content: center; padding: 4vh; }
 body.tv .pn-login-form { max-width: 76vh; padding: 4.4vh 4vh; border-radius: 2vh; }
+/* matrícula e senha e o código antigo lado a lado (empilhados não cabem na altura da TV); sem o código antigo, só o cartão de matrícula e senha */
+body.tv #pn-login .pn-secao-corpo { flex-direction: row; flex-wrap: wrap; align-items: flex-start; justify-content: center; max-width: 168vh; gap: 3vh; }
+body.tv #pn-login .pn-secao-corpo > form { flex: 1 1 60vh; max-width: 80vh; padding: 3vh; }
+body.tv #pn-login .pn-secao-corpo > .pn-erro { flex: 1 0 100%; }
 body.tv .pn-login-form h2 { font-size: 4.6vh; margin-bottom: 1.2vh; }
 body.tv .pn-login-form .pn-sub { font-size: 2.3vh; line-height: 1.45; }
 body.tv .pn-login-form label { font-size: 2.1vh; margin: 3vh 0 1vh; }

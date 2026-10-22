@@ -1,13 +1,14 @@
-/* Portal do Administrativo do e-GDV (web/administrativo/) — núcleo: login (Google Identity Services ou código de ativação), sessão,
-   chamadas à API (actions adm* do Code.gs com o token de SESSÃO do portal; nunca a credencial do painel/app), abas, histórico e os
-   componentes de tela (seções, KPIs, alertas, tabelas com busca e CSV) no mesmo visual do painel (../painel/css/painel.css).
+/* Portal do Administrativo do e-GDV (web/administrativo/) — núcleo: login, sessão, chamadas à API (actions adm* do Code.gs com o token de
+   SESSÃO do portal no campo "sessao"; nunca a credencial do painel/app), abas, histórico e os componentes de tela (seções, KPIs, alertas,
+   tabelas com busca e CSV) no mesmo visual do painel (../painel/css/painel.css).
    Os módulos de lançamento se registram com Adm.registrarAba: js/adm-convenio.js (desembolso, físico do convênio, importação da planilha
    de movimentação), js/adm-relatorios.js (linhas manuais do Relatório GDV) e js/adm-vigifito.js (VIGIFITO por posto e importação).
-   Login com Google: o navegador obtém o ID token (JWT) e o envia em admLogin {idToken}; o servidor confere no tokeninfo do Google e
-   devolve a sessão (30 dias sem uso, renovada ao usar). O ID token não é guardado no navegador. Client ID público em CONFIG.adm.googleClientId. */
+   Login: matrícula e senha (action entrar, aplicativo "administracao": o token "u.…" vai em "sessao"); senha provisória = troca obrigatória
+   (trocarSenha) antes de guardar a sessão. Enquanto o gerente não desliga os acessos antigos, o código de ativação de 6 dígitos do painel
+   (admCodigo) também entra e a sessão antiga segue valendo; recusado com "Entre com sua matrícula e senha.", volta a esta tela. */
 const Adm = (() => {
   'use strict';
-  const LS_SESSAO = 'gdv.adm.sessao', LS_NOME = 'gdv.adm.nome', LS_EMAIL = 'gdv.adm.email', LS_ABA = 'gdv.adm.aba', LS_MSG = 'gdv.adm.encerrada';
+  const LS_SESSAO = 'gdv.adm.sessao', LS_NOME = 'gdv.adm.nome', LS_EMAIL = 'gdv.adm.email', LS_ABA = 'gdv.adm.aba', LS_MSG = 'gdv.adm.encerrada', LS_APARELHO = 'gdv.adm.aparelho';
   const ls = {
     get: k => { try { return localStorage.getItem(k); } catch (e) { return null; } },
     set: (k, v) => { try { localStorage.setItem(k, v); } catch (e) { /* sem armazenamento */ } },
@@ -26,7 +27,7 @@ const Adm = (() => {
     data: s => { const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(String(s || '')); return m ? `${m[3]}/${m[2]}/${m[1]}` : '—'; },
     dataHora: ms => ms > 1e12 ? `${fmt.data(diaManaus(ms))} ${horaManaus(ms)}` : '—'
   };
-  const S = { sessao: ls.get(LS_SESSAO) || '', nome: ls.get(LS_NOME) || '', email: ls.get(LS_EMAIL) || '', abas: [], aba: ls.get(LS_ABA) || '', dados: null, carregando: null };
+  const S = { troca: null, semCodigo: false, sessao: ls.get(LS_SESSAO) || '', nome: ls.get(LS_NOME) || '', email: ls.get(LS_EMAIL) || '', abas: [], aba: ls.get(LS_ABA) || '', dados: null, carregando: null };
 
   /* ---------------- API ---------------- */
   const urlOficial = () => (typeof CONFIG !== 'undefined' && CONFIG.sync && CONFIG.sync.url) || '';
@@ -40,15 +41,18 @@ const Adm = (() => {
       catch (e) { throw Object.assign(new Error('Sem conexão com o servidor. Verifique a internet.'), { rede: true }); }
       try { j = await r.json(); } catch (e) { throw new Error('Resposta inválida do servidor (HTTP ' + r.status + ').'); }
     } finally { clearTimeout(lim); }
-    if (!j || !j.ok) throw Object.assign(new Error((j && j.erro) || 'Erro no servidor.'), { servidor: true });
+    if (!j || !j.ok) throw Object.assign(new Error((j && j.erro) || 'Erro no servidor.'), { servidor: true, trocarSenha: !!(j && j.trocarSenha) });
     return j;
   }
-  const erroDeSessao = m => /sess[aã]o do portal/i.test(m || '');
+  // sessão antiga recusada/revogada; credencial antiga depois que o gerente desligou os acessos antigos ("Entre com sua matrícula e senha.");
+  // sessão nova encerrada; senha provisória pendente (trocarSenha: 1)
+  const erroDeSessao = m => /sess[aã]o do portal|matr[ií]cula e senha|sess[aã]o (encerrada|expirada|inv[aá]lida|revogada)|acesso (encerrado|revogado)|usu[aá]rio (desativado|inativo)|conta desativada|troque a senha provis/i.test(m || '');
+  const ehNovo = t => /^u\./.test(t || '');                // sessão de matrícula e senha (token "u.…")
   /** Chamada com a sessão do portal; sessão expirada/revogada → volta ao login com o motivo. */
   async function chamar(corpo) {
     const s = S.sessao; if (!s) throw new Error('Sessão do portal encerrada. Entre de novo.');
     try { return await api(Object.assign({}, corpo, { sessao: s })); }
-    catch (e) { if (e.servidor && erroDeSessao(e.message) && S.sessao === s) encerrar(e.message); throw e; }
+    catch (e) { if (e.servidor && (e.trocarSenha || erroDeSessao(e.message)) && S.sessao === s) encerrar(e.message); throw e; }
   }
 
   /* ---------------- componentes (mesmas classes do painel) ---------------- */
@@ -154,51 +158,90 @@ const Adm = (() => {
   }
 
   /* ---------------- login e sessão ---------------- */
+  /** Nome deste navegador na lista de sessões do gerente: "Portal-xxxx"; o sufixo fica fixo no aparelho. */
+  function aparelhoId() {
+    let b = ls.get(LS_APARELHO);
+    if (!/^[a-z0-9]{4}$/.test(b || '')) { b = Math.random().toString(36).slice(2, 6).padEnd(4, '0'); ls.set(LS_APARELHO, b); }
+    return 'Portal-' + b;
+  }
+  const SENHAS = ['#adm-senha', '#adm-senha-nova', '#adm-senha-nova2'];
+  /** Cartão de matrícula e senha: normal ou, com senha provisória, o passo de criar a senha nova. */
+  function desenharTroca() {
+    const t = !!S.troca;
+    $('#adm-senha-campos').hidden = t; $('#adm-troca').hidden = !t; $('#adm-troca-voltar').hidden = !t;
+    $('#adm-login-tit').textContent = t ? 'Crie a sua senha' : 'Acesso do Administrativo';
+    $('#adm-entrar-senha').textContent = t ? 'Salvar a senha e entrar' : 'Entrar';
+    SENHAS.forEach(q => { $(q).type = 'password'; }); $('#adm-ver-senha').textContent = 'Mostrar a senha';
+  }
+  function focarLogin() { const i = $('#adm-login').hidden ? null : $(S.troca ? '#adm-senha-nova' : '#adm-matricula'); if (i && !i.closest('[hidden]')) i.focus(); }
   function mostrar(qual) {
     $('#adm-login').hidden = qual !== 'login'; $('#adm-app').hidden = qual !== 'app'; $('#adm-usuario').hidden = qual !== 'app';
+    $('#adm-cod-box').hidden = S.semCodigo;                  // o servidor já recusou o código antigo: só matrícula e senha
+    desenharTroca();
   }
   function erroLogin(msg) { const e = $('#adm-login-erro'); e.textContent = msg || ''; e.hidden = !msg; }
   function entrou(j) {
-    S.sessao = j.sessao; S.nome = j.nome; S.email = j.email;
-    ls.set(LS_SESSAO, j.sessao); ls.set(LS_NOME, j.nome); ls.set(LS_EMAIL, j.email || ''); ls.del(LS_MSG);
+    S.sessao = j.sessao; S.nome = j.nome; S.email = j.email || ''; S.troca = null;
+    ls.set(LS_SESSAO, j.sessao); ls.set(LS_NOME, j.nome); ls.set(LS_EMAIL, S.email); ls.del(LS_MSG);
+    SENHAS.concat(['#adm-codigo']).forEach(q => { $(q).value = ''; });
     iniciarApp();
   }
-  async function entrarGoogle(credencial) {
-    erroLogin('');
-    try { entrou(await api({ action: 'admLogin', idToken: credencial })); }
-    catch (e) { erroLogin(e.message); }
+  /** Matrícula e senha (action entrar). Senha provisória: pede a senha nova antes de guardar a sessão. */
+  async function entrarSenha(ev) {
+    ev.preventDefault(); erroLogin('');
+    const b = $('#adm-entrar-senha'); b.disabled = true; b.textContent = 'Verificando…';
+    try {
+      const t = S.troca;
+      if (t) {
+        const n1 = $('#adm-senha-nova').value;
+        if (n1.length < 8) throw new Error('A senha nova precisa ter no mínimo 8 caracteres.');
+        if (n1 !== $('#adm-senha-nova2').value) throw new Error('As duas senhas novas não são iguais.');
+        if (n1 === t.atual) throw new Error('A senha nova não pode ser igual à provisória.');
+        await api({ action: 'trocarSenha', sessao: t.token, senhaAtual: t.atual, senhaNova: n1 });
+        return entrou({ sessao: t.token, nome: t.nome, email: '' });
+      }
+      const matricula = $('#adm-matricula').value.trim(), senha = $('#adm-senha').value;
+      if (!matricula || !senha) throw new Error('Informe a matrícula e a senha.');
+      const j = await api({ action: 'entrar', matricula, senha, aplicativo: 'administracao', aparelhoId: aparelhoId() });
+      if (!j.token) throw new Error('Resposta sem credencial.');
+      const nome = (j.usuario && (j.usuario.nome || j.usuario.matricula)) || 'Usuário';
+      if (j.trocarSenha) { S.troca = { token: j.token, nome, atual: senha }; $('#adm-senha').value = ''; desenharTroca(); focarLogin(); return; }
+      entrou({ sessao: j.token, nome, email: '' });
+    } catch (e) { erroLogin(e.message); }
+    finally { b.disabled = false; b.textContent = S.troca ? 'Salvar a senha e entrar' : 'Entrar'; }
   }
+  /** "Cancelar" na criação da senha nova: encerra a sessão provisória no servidor e volta a pedir matrícula e senha. */
+  function cancelarTroca() {
+    const t = S.troca; S.troca = null; erroLogin('');
+    SENHAS.forEach(q => { $(q).value = ''; }); desenharTroca(); focarLogin();
+    if (t) api({ action: 'sair', sessao: t.token }).catch(() => { /* a sessão provisória não serve para nada sem a senha nova */ });
+  }
+  function alternarSenha() {
+    const ver = $('#adm-senha').type === 'password';
+    SENHAS.forEach(q => { $(q).type = ver ? 'text' : 'password'; }); $('#adm-ver-senha').textContent = ver ? 'Esconder a senha' : 'Mostrar a senha';
+  }
+  /** Código de ativação do painel (acesso antigo, transição). */
   async function entrarCodigo(ev) {
     ev.preventDefault(); erroLogin('');
     const b = $('#adm-entrar'); b.disabled = true;
     try { entrou(await api({ action: 'admCodigo', codigo: $('#adm-codigo').value })); }
-    catch (e) { erroLogin(e.message); }
+    catch (e) {
+      if (/matr[ií]cula e senha/i.test(e.message)) { S.semCodigo = true; $('#adm-cod-box').hidden = true; focarLogin(); }
+      erroLogin(e.message);
+    }
     finally { b.disabled = false; }
   }
-  function prepararGoogle() {
-    const id = typeof CONFIG !== 'undefined' && CONFIG.adm && CONFIG.adm.googleClientId;
-    const box = $('#adm-google');
-    if (!id) { box.hidden = true; $('#adm-cod-box').open = true; return; }
-    box.hidden = false;
-    const iniciar = () => {
-      try {
-        google.accounts.id.initialize({ client_id: id, callback: r => entrarGoogle(r && r.credential), auto_select: false, cancel_on_tap_outside: true });
-        google.accounts.id.renderButton($('#adm-google-btn'), { type: 'standard', theme: matchMedia('(prefers-color-scheme: dark)').matches ? 'filled_black' : 'outline', size: 'large', text: 'signin_with', shape: 'pill', locale: 'pt-BR', width: 280 });
-      } catch (e) { erroLogin('Não foi possível iniciar o login com o Google: ' + e.message); $('#adm-cod-box').open = true; }
-    };
-    if (window.google && window.google.accounts && window.google.accounts.id) iniciar();
-    else script('https://accounts.google.com/gsi/client').then(iniciar).catch(() => { erroLogin('Sem acesso ao login do Google agora (verifique a internet). Use o código de ativação.'); $('#adm-cod-box').open = true; });
-  }
-  /** Sessão encerrada pelo servidor (expirada, revogada) ou pelo botão Sair. */
+  /** Sessão encerrada pelo servidor (revogada, acessos antigos desligados) ou pelo botão Sair. */
   function encerrar(msg) {
-    S.sessao = ''; S.dados = null; ls.del(LS_SESSAO);
+    S.sessao = ''; S.dados = null; S.troca = null; ls.del(LS_SESSAO);
+    if (/matr[ií]cula e senha/i.test(msg || '')) S.semCodigo = true;
     if (msg) ls.set(LS_MSG, msg);
-    mostrar('login'); erroLogin(msg || ''); prepararGoogle();
+    SENHAS.concat(['#adm-codigo']).forEach(q => { $(q).value = ''; });
+    mostrar('login'); erroLogin(msg || ''); focarLogin();
   }
   async function sair() {
     const s = S.sessao;
-    if (s) { try { await api({ action: 'admSair', sessao: s }); } catch (e) { /* sai mesmo assim */ } }
-    try { if (window.google && google.accounts && google.accounts.id) google.accounts.id.disableAutoSelect(); } catch (e) { /* */ }
+    if (s) { try { await api(ehNovo(s) ? { action: 'sair', sessao: s } : { action: 'admSair', sessao: s }); } catch (e) { /* sai mesmo assim */ } }
     encerrar('');
   }
   function iniciarApp() {
@@ -209,12 +252,15 @@ const Adm = (() => {
   }
   function iniciar() {
     registrarAba({ id: 'historico', titulo: 'Histórico', render: c => carregarHist(c) });     // sempre a última aba
+    $('#adm-senha-form').addEventListener('submit', entrarSenha);
+    $('#adm-troca-voltar').onclick = cancelarTroca;
+    $('#adm-ver-senha').onclick = alternarSenha;
     $('#adm-cod-form').addEventListener('submit', entrarCodigo);
     $('#adm-codigo').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6); });
     $('#adm-sair').onclick = sair;
     $('#adm-abas').addEventListener('click', e => { const b = e.target.closest('[data-aba]'); if (b) irPara(b.dataset.aba); });
     if (S.sessao) iniciarApp();
-    else { mostrar('login'); prepararGoogle(); const m = ls.get(LS_MSG); if (m) erroLogin(m); }
+    else { const m = ls.get(LS_MSG); S.semCodigo = /matr[ií]cula e senha/i.test(m || ''); mostrar('login'); if (m) erroLogin(m); focarLogin(); }
   }
 
   /* ---------------- aba Histórico ---------------- */

@@ -22,6 +22,8 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== und
   // 1) levantamento: propriedade nova, duas pragas
   await p.click('#pce-novolev'); await p.waitForSelector('#pceLevForm');
   await p.fill('#pce-doc', '52998224725'); await p.fill('#pce-nome', 'Raimundo Nonato'); await p.fill('#pce-propriedade', 'Sítio Esperança'); await p.fill('#pce-codigo', 'PRP-77');
+  await p.fill('#pce-telefone', '92 90000-0000'); await p.fill('#pce-empresa', 'Sitio Ficticio Teste'); await p.fill('#pce-endereco', 'Ramal Ficticio, km 3');
+  if (!(await p.inputValue('#pce-municipio'))) await p.selectOption('#pce-municipio', 'Manaus');
   await p.selectOption('.pce-praga >> nth=0 >> .p-praga', 'Monilíase do Cacaueiro'); await p.selectOption('.pce-praga >> nth=0 >> .pce-cult >> nth=0 >> .c-cultura', 'Cacau');
   await p.click('.pce-praga >> nth=0 >> .pce-cult >> nth=0 >> .pce-res-nao_detectada');
   await p.click('#pce-addpraga'); await p.selectOption('.pce-praga >> nth=1 >> .p-praga', 'Bactrocera carambolae');
@@ -45,10 +47,17 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== und
   const marcadas = await p.evaluate(() => [...document.querySelectorAll('#monTfForm input[type=checkbox]:checked')].map(i => i.value));
   ok(marcadas.includes('Monilíase') && marcadas.includes('Mosca-da-Carambola'), 'Termo já vem com as pragas do levantamento marcadas', marcadas);
   ok((await p.inputValue('#mt-nome')).toUpperCase() === 'RAIMUNDO NONATO', 'Termo já vem com o produtor (cadastro ligado)', await p.inputValue('#mt-nome'));
+  const ident = await p.evaluate(() => Object.fromEntries(['doc', 'atividade', 'empresa', 'atividadeEmpresa', 'endereco', 'municipio', 'uf', 'telefone'].map(k => [k, document.querySelector('#mt-' + k).value])));
+  ok(/529\.982\.247-25/.test(ident.doc) && ident.atividade === 'Cultivo de cacau e laranja' && ident.empresa === 'Sitio Ficticio Teste' && ident.atividadeEmpresa === 'Cultivo de cacau e laranja'
+    && ident.endereco === 'Ramal Ficticio, km 3' && ident.municipio === 'Manaus' && ident.uf === 'AM' && ident.telefone === '92 90000-0000',
+    'Termo já vem com a identificação do levantamento: CPF, atividade (culturas), empresa, endereço, município, UF e telefone', ident);
   await p.screenshot({ path: amb.saida('pce_visita_termo.png'), fullPage: true });
   await p.click('#mt-salvar');
   for (let i = 0; i < 40 && !(await p.locator('#mon-pronto').count()); i++) { if (await p.locator('#mon-m-ok').count()) await p.click('#mon-m-ok'); await p.waitForTimeout(300); }
   ok(await p.locator('#mon-pronto').count() === 1, 'Termo de Fiscalização salvo', await toast());
+  const tfp = await p.evaluate(async () => (await Store.todos('termosPce'))[0] || {});
+  ok(tfp.atividade === 'Cultivo de cacau e laranja' && tfp.empresa === 'Sitio Ficticio Teste' && tfp.endereco === 'Ramal Ficticio, km 3' && tfp.uf === 'AM' && tfp.telefone === '92 90000-0000',
+    'Termo salvo com a identificação completa (vai para o PDF)', tfp);
 
   // 3) na lista: o levantamento mostra o Termo feito e não pede mais cadastro
   await p.evaluate(() => go('pce')); await p.waitForSelector('.item.pce-lev');

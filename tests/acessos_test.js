@@ -139,7 +139,32 @@ const APP = 'https://evilasionogueiraagro-netizen.github.io/GDV/';
   d = await post({ action: 'painelOcultarAcesso', key: TOK, nome: 'João da Silva-Pereira' }); ok(!d.ok && /aguardando/.test(d.erro), 'com a chave nova aguardando, não pode ser removido', d.erro);
   await post({ action: 'painelRevogar', key: TOK, nome: 'Aguarda Remocao Dias' }); void agu;
   await gerar('Admin Oculto', 'admin');
-  d = await post({ action: 'painelOcultarAcesso', key: TOK, nome: 'Admin Oculto' }); ok(!d.ok && /não encontrado/.test(d.erro), 'administrador não é removido pelo painel', d.erro);
+  d = await post({ action: 'painelOcultarAcesso', key: TOK, nome: 'Admin Oculto' }); ok(!d.ok && /não encontrado/.test(d.erro), 'sem perfil:"admin", administrador não é removido (só fiscal)', d.erro);
+  // administrador revogado: remover da lista com perfil:'admin' (mesmas regras; nunca o próprio acesso) e restaurar
+  d = await post({ action: 'painelAcessos', key: TOK }); ok(d.ocultarAdmin === true, 'painelAcessos avisa que aceita remover administrador (ocultarAdmin)', d.ocultarAdmin);
+  d = await post({ action: 'painelOcultarAcesso', key: TOKFIS, nome: 'Outro Gerente Silva', perfil: 'admin' }); ok(!d.ok && /Acesso restrito/.test(d.erro), 'fiscal não remove administrador da lista', d.erro);
+  d = await post({ action: 'painelOcultarAcesso', key: TOK, nome: ' gestor  PAINEL ', perfil: 'admin' });
+  ok(!d.ok && /seu próprio acesso/.test(d.erro) && !/revogad|sess[aã]o do painel/i.test(d.erro), 'o próprio acesso nunca sai da lista (mensagem não derruba a sessão)', d.erro);
+  d = await post({ action: 'painelOcultarAcesso', key: TOK, nome: 'Admin Oculto', perfil: 'admin' }); ok(!d.ok && /código aguardando ativação/.test(d.erro), 'administrador com código aguardando não pode ser removido', d.erro);
+  d = await post({ action: 'painelOcultarAcesso', key: TOK, nome: 'Ninguém Existe', perfil: 'admin' }); ok(!d.ok && /Administrador não encontrado/.test(d.erro), 'administrador inexistente: erro', d.erro);
+  d = await post({ action: 'painelOcultarAcesso', key: TOK, nome: 'outro gerente SILVA', perfil: 'admin' });
+  ok(d.ok && d.ocultos === 2 && d.nome === 'Outro Gerente Silva', 'administrador revogado removido da lista (credencial + código revogados)', d);
+  let lo = (await linhasF('Outro Gerente Silva'));
+  ok(lo.length === 2 && lo.every(r => r[6] === 'admin' && r[3] === 0 && r[8] === 1 && r[9] === 'Gestor Painel' && r[10] > Date.now() - 60000), 'planilha: linhas de administrador continuam (oculto=1, ocultoPor, ocultoEm)', lo.map(r => r.slice(6)));
+  d = await post({ action: 'painelAcessos', key: TOK }); ok(!ach('Outro Gerente Silva', d.acessos).length, 'painelAcessos não devolve o administrador removido');
+  d = await post({ action: 'painelAcessos', key: TOK, ocultos: true });
+  ok(ach('Outro Gerente Silva', d.acessos).length === 2 && ach('Outro Gerente Silva', d.acessos).every(a => a.perfil === 'admin' && a.oculto === 1 && a.situacao === 'revogado' && Object.keys(a).sort().join() === 'nome,oculto,perfil,situacao'),
+    'com ocultos:true vem marcado oculto:1 (ainda só nome/perfil/situação)', ach('Outro Gerente Silva', d.acessos));
+  d = await post({ action: 'painelRestaurarAcesso', key: TOK, nome: 'Outro Gerente Silva', perfil: 'admin' }); ok(d.ok && d.restaurados === 2, 'Restaurar administrador', d);
+  lo = await linhasF('Outro Gerente Silva'); ok(lo.every(r => r[8] === 0 && r[9] === 'Gestor Painel'), 'restaurado: oculto=0 (ocultoPor fica como registro)', lo.map(r => r.slice(8)));
+  d = await post({ action: 'painelAcessos', key: TOK }); ok(ach('Outro Gerente Silva', d.acessos).length === 2 && ach('Outro Gerente Silva', d.acessos).every(a => !('oculto' in a)), 'restaurado volta à lista');
+  // mesmo nome em fiscal (ativo) e administrador (revogado): cada perfil por si
+  d = await post({ action: 'painelOcultarAcesso', key: TOK, nome: 'Dupla Gerencia' }); ok(!d.ok && /código aguardando ativação/.test(d.erro), 'sem perfil: olha só o fiscal (código aguardando) e recusa', d.erro);
+  d = await post({ action: 'painelOcultarAcesso', key: TOK, nome: 'Dupla Gerencia', perfil: 'admin' }); ok(d.ok && d.ocultos === 1, 'perfil admin: remove só a linha de administrador (revogada)', d);
+  const dg = await linhasF('Dupla Gerencia');
+  ok(dg.find(r => r[6] === 'admin')[8] === 1 && dg.find(r => r[6] === '')[8] !== 1 && dg.find(r => r[6] === '')[3] === 1, 'linha de fiscal do mesmo nome intacta (aguardando, sem oculto)', dg.map(r => [r[6], r[3], r[8]]));
+  d = await post({ action: 'painelAcessos', key: TOK }); ok(ach('Dupla Gerencia', d.acessos).length === 1 && ach('Dupla Gerencia', d.acessos)[0].perfil === 'fiscal', 'lista: só o fiscal de Dupla Gerencia');
+  ok((await get('/__aba?nome=Fiscais')).length === nLinhas + 3, 'nenhuma linha apagada da aba Fiscais (só as 3 chaves novas)');
 
   // o menu da planilha continua funcionando (revogar_ sem restrição)
   const rv = await fetch(API + '/__revogar?nome=' + encodeURIComponent('Dupla Função')).then(r => r.text()); ok(rv === '1', 'revogar_ do menu continua revogando administrador', rv);
@@ -261,6 +286,22 @@ const APP = 'https://evilasionogueiraagro-netizen.github.io/GDV/';
   d = await post({ action: 'painelDados', key: TOKTV }); ok(!d.ok && /inválida ou revogada/.test(d.erro), 'administrador revogado pela tela: credencial recusada', d.erro);
   ok(/Acesso de administrador de TV Para Revogar revogado/.test(await p.textContent('#pn-ac-tab')) && await p.isVisible('#pn-app'), 'aviso na lista e sessão do painel intacta');
   ok(!(await p.$('#pn-ac-tab tr:has-text("TV Para Revogar") button[data-acao=revogar]')), 'administrador revogado: sem botão Revogar');
+  // remover administrador revogado da lista (e restaurar); o próprio acesso não tem Remover
+  const rmTV = '#pn-ac-tab tr:has-text("TV Para Revogar") button.pn-ac-remover';
+  ok(await p.isVisible(rmTV), 'administrador revogado: botão "Remover"');
+  ok(await p.$$eval('#pn-ac-tab tbody tr', trs => trs.filter(tr => tr.cells[0].textContent.startsWith('Gerente Web')).every(tr => !tr.querySelector('[data-acao=remover]'))), 'próprio acesso: sem "Remover"');
+  p.dialogos = [];
+  await p.click(rmTV);
+  await p.waitForFunction(() => ![...document.querySelectorAll('#pn-ac-tab tbody tr')].some(tr => tr.cells[0].textContent.includes('TV Para Revogar')), null, { timeout: 10000 });
+  ok(p.dialogos.length === 1 && /Remover TV Para Revogar da lista de administradores/.test(p.dialogos[0]), 'confirmação própria para administrador; a linha some', p.dialogos);
+  ok((await get('/__aba?nome=Fiscais')).filter(r => r[0] === 'TV Para Revogar').every(r => r[6] === 'admin' && r[8] === 1 && r[9] === 'Gerente Web'), 'planilha: administrador com oculto=1 (não apagado)');
+  await p.check('#pn-ac-removidos');
+  await p.waitForSelector('#pn-ac-tab tr:has-text("TV Para Revogar") button[data-acao=restaurar]', { timeout: 10000 });
+  ok(/removido da lista/.test(await p.textContent('#pn-ac-tab tr:has-text("TV Para Revogar")')), '"Mostrar administradores" + "Mostrar removidos": administrador removido com Restaurar');
+  await p.click('#pn-ac-tab tr:has-text("TV Para Revogar") button[data-acao=restaurar]');
+  await p.waitForSelector(rmTV, { timeout: 10000 });
+  ok((await get('/__aba?nome=Fiscais')).find(r => r[0] === 'TV Para Revogar')[8] === 0, 'Restaurar administrador pela tela: oculto=0 e volta com "Remover"');
+  await p.uncheck('#pn-ac-removidos'); await p.waitForTimeout(800);
   await p.uncheck('#pn-ac-admins');
 
   // reenviar

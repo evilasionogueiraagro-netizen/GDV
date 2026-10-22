@@ -95,7 +95,7 @@ const Envio = (() => {
 
   /* Registros de outra pessoa (login por matrícula): quem entra depois de outra pessoa neste aparelho não envia, com o seu acesso, o que ela
      deixou sem enviar. Sync.entrar guarda os ids na meta "retidos" ([{usuarioId, nome, matricula, ids: {letra: [id]}}]); eles só sobem quando
-     essa pessoa entrar de novo. O usuário atual vem da cópia da credencial (meta "cred", campo usuarioId; vazio = acesso antigo). */
+     essa pessoa entrar de novo. O usuário atual vem da cópia da credencial (meta "cred", campo usuarioId). */
   const semRetidos = () => Object.fromEntries(NOMES.map(n => [n, new Set()]));
   async function retidosDeOutros() {
     const r = semRetidos();
@@ -261,7 +261,7 @@ const Envio = (() => {
    */
   async function subir() {
     const c = await Store.meta('cred');
-    if (!c || !c.url || !c.key) return { enviados: 0, arquivos: 0, motivo: 'aparelho não ativado' };
+    if (!c || !c.url || !c.key) return { enviados: 0, arquivos: 0, motivo: 'sem acesso neste aparelho' };
     if (c.revogado) return { enviados: 0, arquivos: 0, motivo: 'credencial revogada' };
     let perm = normPerm(await Store.meta('permissoes'));
     const guardarPerm = async o => {
@@ -298,7 +298,7 @@ const Envio = (() => {
     } catch (e) {
       if (e.trocarSenha) return { enviados, arquivos, motivo: 'trocar senha' };   // a página pede a troca ao abrir; sem repetir
       if (credencialRecusada(e)) {
-        const atual = await Store.meta('cred');                              // só marca se ainda for a mesma credencial (sem corrida com nova ativação)
+        const atual = await Store.meta('cred');                              // só marca se ainda for a mesma credencial (sem corrida com uma nova entrada)
         if (atual && atual.key === c.key) await Store.setMeta('cred', { ...atual, revogado: 1 });
         return { enviados, arquivos, motivo: 'credencial revogada' };
       }

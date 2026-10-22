@@ -30,8 +30,8 @@ const Envio = (() => {
 
   /** Erro de conexão (sem internet, servidor fora do ar, tempo esgotado): vale tentar de novo depois. */
   const erroDeRede = e => !!e && (e.name === 'AbortError' || e.name === 'TypeError' || /abort|fetch|network|rede/i.test(e.message || ''));
-  /** O servidor recusou a credencial do aparelho (revogada ou inexistente): não adianta tentar de novo. */
-  const credencialRecusada = e => !!e && /revogado|n[aã]o ativado/i.test(e.message || '');
+  /** O servidor recusou a credencial do aparelho (revogada, inexistente ou sessão encerrada): não adianta tentar de novo. */
+  const credencialRecusada = e => !!e && /revogado|n[aã]o ativado|entre com sua matr[ií]cula/i.test(e.message || '');
 
   /** POST para o Apps Script. c = {url, key}. Erro do servidor vira exceção (com semPermissao/permissoes quando o módulo foi tirado). */
   async function post(c, corpo, limiteMs) {
@@ -48,6 +48,7 @@ const Envio = (() => {
       if (!j.ok) {
         const e = new Error(j.erro || 'Erro no servidor');
         if (j.semPermissao) { e.semPermissao = j.semPermissao; e.permissoes = j.permissoes; }
+        if (j.trocarSenha) e.trocarSenha = 1;                                   // senha provisória pendente: o app pede a troca
         throw e;
       }
       return j;
@@ -76,6 +77,10 @@ const Envio = (() => {
   async function arquivosPendentes(regs, perm, tfs) {
     if (!regs) regs = [...await Store.todos('levantamentos'), ...await Store.todos('colheitas'), ...await Store.todos('cadastrosPce'), ...await Store.todos('termosPce')];
     if (!tfs) tfs = await Store.todos('tfs');
+    if (perm) {                                                                // para enviar: sem os arquivos de registros retidos (de outra pessoa)
+      const ret = await retidosDeOutros(), fora = new Set(['g', 'c', 'k', 'm'].flatMap(n => [...ret[n]]));
+      regs = regs.filter(r => !fora.has(r.id)); tfs = tfs.filter(r => !ret.f.has(r.id));
+    }
     if (perm && perm.pce === 0) regs = [];
     if (perm && perm.tf === 0) tfs = [];
     if (perm && !podeAntigo(perm)) { regs = regs.filter(r => !ehAntigo(r)).map(r => ({ ...r, documentos: '[]' })); tfs = tfs.filter(r => !ehAntigo(r)).map(r => ({ ...r, pdfs: '[]' })); }
@@ -88,6 +93,21 @@ const Envio = (() => {
     return (await Store.chaves('arquivos', 'enviado', 0)).filter(id => ref.has(id));
   }
 
+  /* Registros de outra pessoa (login por matrícula): quem entra depois de outra pessoa neste aparelho não envia, com o seu acesso, o que ela
+     deixou sem enviar. Sync.entrar guarda os ids na meta "retidos" ([{usuarioId, nome, matricula, ids: {letra: [id]}}]); eles só sobem quando
+     essa pessoa entrar de novo. O usuário atual vem da cópia da credencial (meta "cred", campo usuarioId; vazio = acesso antigo). */
+  const semRetidos = () => Object.fromEntries(NOMES.map(n => [n, new Set()]));
+  async function retidosDeOutros() {
+    const r = semRetidos();
+    try {
+      const lista = (await Store.meta('retidos')) || [];
+      if (!lista.length) return r;
+      const cred = await Store.meta('cred'), eu = (cred && cred.usuarioId) || '';
+      lista.forEach(e => { if (e && e.usuarioId !== eu) NOMES.forEach(n => ((e.ids || {})[n] || []).forEach(id => r[n].add(id))); });
+    } catch (err) { /* sem banco: nada retido */ }
+    return r;
+  }
+
   /** Tudo o que ainda não foi enviado, por store (letras de NOMES) + a = ids de arquivos (aTF = os dos TFs); total = soma. */
   async function pendentes() {
     const lst = await Promise.all(NOMES.map(n => Store.todos(STORES[n])));
@@ -96,6 +116,13 @@ const Envio = (() => {
     o.aTF = await arquivosPendentesTF(lst[NOMES.indexOf('f')]);
     o.total = NOMES.reduce((s, n) => s + o[n].length, 0) + o.a.length;
     return o;
+  }
+  /** Pendentes que sobem com o acesso atual (sem os retidos de outra pessoa): {total, retidos}. */
+  async function pendentesMeus() {
+    const p = await pendentes(), ret = await retidosDeOutros();
+    const reg = NOMES.reduce((s, n) => s + p[n].filter(r => !ret[n].has(r.id)).length, 0);
+    const arq = (await arquivosPendentes(null, { veiculos: 1, tf: 1, pce: 1, antigo: 1 })).length;
+    return { total: reg + arq, retidos: Math.max(0, p.total - reg - arq) };
   }
 
   /**
@@ -166,7 +193,7 @@ const Envio = (() => {
    * ver o erro e o que está guardado. Melhor esforço, uma vez por falha (nunca repete nem chama a si mesma).
    */
   async function avisarFalha(chamar, e, origem) {
-    if (!e || erroDeRede(e) || credencialRecusada(e) || e.semPermissao) return false;
+    if (!e || erroDeRede(e) || credencialRecusada(e) || e.semPermissao || e.trocarSenha) return false;
     try { await chamar({ action: 'ping', aparelho: await sinal(null, origem) }, 10000); return true; } catch (e2) { return false; }
   }
 
@@ -175,9 +202,10 @@ const Envio = (() => {
    * os enviados. Devolve {r: resposta do servidor, rec: recusados, recusouAlgo, resta: ainda há pendentes permitidos além do lote}.
    */
   async function enviarLote(chamar, perm, origem) {
-    const p = await pendentes();
-    // módulo sem autorização (última permissão conhecida): os registros nem sobem; ficam pendentes até a gerência liberar
-    const vai = {}; NOMES.forEach(n => { vai[n] = storePermitido(n, perm) ? p[n] : []; });
+    const p = await pendentes(), ret = await retidosDeOutros();
+    // módulo sem autorização (última permissão conhecida): os registros nem sobem; ficam pendentes até a gerência liberar.
+    // Retidos (de outra pessoa que usou o aparelho antes) também ficam.
+    const vai = {}; NOMES.forEach(n => { vai[n] = storePermitido(n, perm) ? p[n].filter(r => !ret[n].has(r.id)) : []; });
     // registro antigo (do papel) sem a permissão "antigo": também fica guardado (pendente) até a gerência liberar
     if (!podeAntigo(perm)) ANTIGO_NOS.forEach(n => { vai[n] = vai[n].filter(r => !ehAntigo(r)); });
     const env = {}; NOMES.forEach(n => { env[n] = vai[n].slice(0, LIMITES[n]); });
@@ -209,7 +237,7 @@ const Envio = (() => {
       catch (e) {
         falhasArq[id] = (falhasArq[id] || 0) + 1; erro = erro || e;
         // credencial recusada ou sem resposta do servidor (rede/tempo esgotado): os outros falhariam também
-        if (e.semPermissao || credencialRecusada(e) || erroDeRede(e)) break;
+        if (e.semPermissao || e.trocarSenha || credencialRecusada(e) || erroDeRede(e)) break;
         continue;
       }
       delete falhasArq[id];
@@ -268,6 +296,7 @@ const Envio = (() => {
       }
       resta = (perm.pce !== 0 || perm.tf !== 0) && (await arquivosPendentes(null, perm)).length > 0 && Date.now() - inicio >= 120000;
     } catch (e) {
+      if (e.trocarSenha) return { enviados, arquivos, motivo: 'trocar senha' };   // a página pede a troca ao abrir; sem repetir
       if (credencialRecusada(e)) {
         const atual = await Store.meta('cred');                              // só marca se ainda for a mesma credencial (sem corrida com nova ativação)
         if (atual && atual.key === c.key) await Store.setMeta('cred', { ...atual, revogado: 1 });
@@ -282,6 +311,6 @@ const Envio = (() => {
   }
 
   return { NOMES, STORES, CAMPOS, LIMITES, MODULO_DO_STORE, TAG, TAG_PERIODICO, normPerm, storePermitido, ehAntigo, podeAntigo, limpo, lerJSON,
-    erroDeRede, credencialRecusada, post, arquivosPendentes, arquivosPendentesTF, pendentes, marcarEnviados, enviarLote, enviarArquivos, subir,
+    erroDeRede, credencialRecusada, post, arquivosPendentes, arquivosPendentesTF, pendentes, pendentesMeus, retidosDeOutros, marcarEnviados, enviarLote, enviarArquivos, subir,
     sinal, idAparelho, versaoApp, plataforma, motivoErro, guardarErro, avisarFalha };
 })();

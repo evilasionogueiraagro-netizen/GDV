@@ -4,17 +4,18 @@
    abordagem volante): essas linhas aparecem com o valor do e-GDV e aceitam um valor que o SUBSTITUI, com justificativa
    (meses anteriores ao e-GDV ou correção). Validações na hora: sem negativos, contagens inteiras, t/m³ com até 3 casas e aviso de valor
    fora do padrão (t/m³ muito acima da média do posto). Manuais só: capacitação técnica e exportação de madeira (m³). Importação da
-   planilha de controle antiga (.xlsx, histórico de 2025) com prévia (js/vig-planilha.js).
-   Actions admVigDados, admVigLancar e admVigImportar. Os relatórios VIGIFITO saem do painel (Central de relatórios). */
+   planilha de controle antiga (.xlsx, histórico de 2025) com prévia (js/vig-planilha.js). Importação do relatório de plantão do papel da BVA
+   ("Relatório Diário de Trânsito Interestadual", .xls/.xlsx; js/plantao-planilha.js): vira turnos e veículos da BVA, como o app.
+   Actions admVigDados, admVigLancar, admVigImportar e admPlantaoImportar. Os relatórios VIGIFITO saem do painel (Central de relatórios). */
 (() => {
   'use strict';
   if (typeof Adm === 'undefined' || typeof Indicadores === 'undefined') return;
   const A = Adm, esc = A.esc, IND = Indicadores, F = A.fmt;
-  const XLSX_SRC = '../painel/vendor/xlsx/xlsx.mini.min.js', LOTE = 1000;
+  const XLSX_SRC = '../painel/vendor/xlsx/xlsx.mini.min.js', XLSX_CORE = '../painel/vendor/xlsx/xlsx.core.min.js', LOTE = 1000;   // core: também lê .xls
   const MESES = ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'];
   const pad2 = n => String(n).padStart(2, '0');
   const anoHoje = () => Number(A.hoje().slice(0, 4));
-  const E = { ano: anoHoje(), modo: 'mes', mes: Number(A.hoje().slice(5, 7)), periodo: '', dados: {}, edit: {}, just: '', msg: { t: '', cls: '' }, imp: null, impMsg: { t: '', cls: '' }, raiz: null, erro: '' };
+  const E = { ano: anoHoje(), modo: 'mes', mes: Number(A.hoje().slice(5, 7)), periodo: '', dados: {}, edit: {}, just: '', msg: { t: '', cls: '' }, imp: null, impMsg: { t: '', cls: '' }, plt: null, pltMsg: { t: '', cls: '' }, raiz: null, erro: '' };
   const numSimples = v => { const s = String(v == null ? '' : v).trim(); if (!s) return null; const n = Number(/,/.test(s) ? s.replace(/\./g, '').replace(',', '.') : s); return isFinite(n) ? n : NaN; };
   const D = () => E.dados[E.ano];
   const perAtual = () => E.modo === 'mes' ? `${E.ano}-${pad2(E.mes)}` : 'P' + E.periodo;
@@ -83,6 +84,7 @@
       <div class="pn-conv-acoes pn-conv-largo"><button type="button" class="pn-btn pn-btn-prim" id="adm-vig-salvar">Gravar valores</button><span class="pn-pub-msg${E.msg.cls ? ' ' + E.msg.cls : ''}" data-msg="vig" role="status">${esc(E.msg.t)}</span></div>`;
     s.appendChild(bar);
     secaoImp(c);
+    secaoPlt(c);
   }
   /** Validação de uma célula no lugar (erro: negativo, decimal em contagem, mais de 3 casas; aviso: fora do padrão). */
   function validarCel(inp) {
@@ -188,6 +190,96 @@
     } catch (e) { if (!A.logado) return; I.enviando = false; msgImp('Não gravou: ' + e.message + ' (o que já foi gravado não duplica ao repetir).', 'erro'); if (b) b.disabled = false; }
   }
 
+  /* ---------------- importação do relatório de plantão do papel (BVA) ---------------- */
+  const UFS = (typeof CONFIG !== 'undefined' && CONFIG.ufs) || ['RR', 'AM'];
+  const dBR = d => d ? d.split('-').reverse().join('/') : '';
+  function secaoPlt(c) {
+    const s = A.secao(c, 'Importar relatório de plantão da BVA (papel, .xls)', 'O "Relatório Diário de Trânsito Interestadual" do plantão (ex.: 10 dias do Jundiá) vira turnos e veículos da BVA, como se tivesse sido feito no app: o quadro de veículos por tipo, a educação sanitária e cada carga da lista (placa, transportador, produto, medida e nº do TF). Os números do VIGIFITO, do painel e do convênio saem sozinhos. Reimportar o mesmo plantão pergunta antes de substituir.');
+    const box = A.el('div', 'pn-cartao pn-conv-imp');
+    box.innerHTML = `<div class="pn-conv-acoes"><label class="pn-btn pn-btn-prim pn-conv-imp-btn" for="adm-plt-arq">📥 Importar relatório de plantão (.xls)</label>
+      <input type="file" id="adm-plt-arq" accept=".xls,.xlsx" class="pn-conv-imp-arq"><span class="pn-pub-msg${E.pltMsg.cls ? ' ' + E.pltMsg.cls : ''}" data-msg="pltimp" role="status">${esc(E.pltMsg.t)}</span></div>
+      <div id="adm-plt-previa"></div>`;
+    s.appendChild(box);
+    desenharPlt();
+  }
+  function msgPlt(t, cls) { E.pltMsg = { t, cls }; const m = E.raiz && E.raiz.querySelector('[data-msg=pltimp]'); if (m) { m.textContent = t; m.className = 'pn-pub-msg' + (cls ? ' ' + cls : ''); } }
+  async function lerPlantao(arq) {
+    msgPlt(`Lendo ${arq.name}…`, '');
+    try {
+      if (!/\.xlsx?$/i.test(arq.name)) throw new Error('escolha um arquivo .xls ou .xlsx');
+      if (arq.size > 15e6) throw new Error('arquivo grande demais (máx. 15 MB)');
+      if (typeof window.XLSX === 'undefined' || !window.XLSX.parse_xlscfb) await A.script(XLSX_CORE);
+      const wb = window.XLSX.read(new Uint8Array(await arq.arrayBuffer()), { type: 'array', cellFormula: false, cellHTML: false, cellText: false, cellStyles: false });
+      const X = PlantaoPlanilha.extrair(PlantaoPlanilha.lerLivro(window.XLSX, wb), { anoPadrao: anoHoje() });
+      if (!X.dias.length) throw new Error(X.erros[0] || 'quadro de veículos por dia não encontrado');
+      const ano = Number(X.de.slice(0, 4));
+      if (!E.dados[ano]) E.dados[ano] = await A.chamar({ action: 'admVigDados', ano });
+      const postos = E.dados[ano].cfg.postos;
+      E.plt = { arquivo: arq.name, X, ano, troca: '07:00', fiscal: '', ufOrigem: X.ufBva || '', posto: PlantaoPlanilha.postoProvavel(postos, X.bva) };
+      previaPlt();
+      msgPlt(`${arq.name}: plantão de ${dBR(X.de)} a ${dBR(X.ate)}. Confira a prévia e grave.`, 'ok');
+    } catch (e) { E.plt = null; msgPlt('Não foi possível ler o relatório: ' + e.message, 'erro'); }
+    desenharPlt();
+  }
+  function previaPlt() {
+    const I = E.plt;
+    I.P = PlantaoPlanilha.previa(I.X, { troca: I.troca, posto: I.posto, fiscal: I.fiscal, ufOrigem: I.ufOrigem });
+  }
+  function desenharPlt() {
+    const box = E.raiz && E.raiz.querySelector('#adm-plt-previa'); if (!box) return;
+    box.innerHTML = '';
+    if (!E.plt) return;
+    const I = E.plt, X = I.P, T = X.totais, postos = (E.dados[I.ano] && E.dados[I.ano].cfg.postos || []).filter(p => p.tipo === 'fixa');
+    const pv = A.el('div', 'pn-conv-imp-pv'); pv.id = 'adm-plt-pv'; box.appendChild(pv);
+    pv.appendChild(A.el('h3', null, esc(`Prévia — ${I.arquivo}: BVA ${I.X.bva || '?'}${I.X.ufBva ? '/' + I.X.ufBva : ''}, ${dBR(I.X.de)} a ${dBR(I.X.ate)}`)));
+    const op = A.el('div', 'adm-filtro');
+    op.innerHTML = `<label class="pn-conv-campo">Posto do VIGIFITO (BVA)<select id="adm-plt-posto"><option value="">— escolha —</option>${postos.map(p => `<option value="${esc(p.id)}" ${p.id === I.posto ? 'selected' : ''}>${esc(p.nome)}</option>`).join('')}</select></label>
+      <label class="pn-conv-campo">Troca do plantão<input type="time" id="adm-plt-troca" value="${esc(I.troca)}"></label>
+      <label class="pn-conv-campo">UF de origem (quando o município não traz)<select id="adm-plt-uf"><option value="">—</option>${UFS.map(u => `<option ${u === I.ufOrigem ? 'selected' : ''}>${esc(u)}</option>`).join('')}</select></label>
+      <label class="pn-conv-campo">Fiscal(is) do plantão (opcional)<input type="text" id="adm-plt-fiscal" maxlength="120" value="${esc(I.fiscal)}" placeholder="nome completo"></label>`;
+    pv.appendChild(op);
+    A.kpis(pv, [{ rotulo: 'Dias do plantão', valor: F.int(T.dias), detalhe: `${dBR(I.X.de)} a ${dBR(I.X.ate)}${T.diasVazios ? ` · ${T.diasVazios} sem registro` : ''}` },
+      { rotulo: 'Veículos', valor: F.int(T.veiculos), detalhe: T.veiculos !== T.quadro ? `quadro do papel: ${F.int(T.quadro)}` : 'quadro 1 do papel' },
+      { rotulo: 'Cargas na lista', valor: F.int(T.cargas), detalhe: `${F.num(T.toneladas, 3)} t internalizadas` },
+      { rotulo: 'TFs (nº no papel)', valor: F.int(T.tfs), detalhe: 'partidas e medidas fitossanitárias' },
+      { rotulo: 'Liberação (TF)', valor: F.int(T.liberacao), detalhe: `${F.num(T.liberacaoT, 3)} t` },
+      { rotulo: 'Apreensão (TF)', valor: F.int(T.apreensao), detalhe: `${F.num(T.apreensaoT, 3)} t`, status: T.apreensao ? 'atencao' : null }, { rotulo: 'Educação sanitária', valor: F.int(T.educacao) }]);
+    const erros = X.erros.map(t => ({ nivel: 'critico', titulo: t })).concat(I.posto ? [] : [{ nivel: 'critico', titulo: 'Escolha o posto do VIGIFITO (a BVA do relatório).' }]);
+    A.alertas(pv, erros.concat(X.avisos.map(a => ({ nivel: a.nivel, titulo: a.texto }))), { vazio: 'Nenhum aviso. ✓', max: 15 });
+    const det = A.el('details', 'pn-conv-imp-linhas'); det.innerHTML = `<summary>Ver as ${X.envio.cargas.length} cargas</summary>`; pv.appendChild(det);
+    A.tabela(det, [{ chave: 'data', rotulo: 'Data', fmt: dBR }, { chave: 'hora', rotulo: 'Hora' }, { chave: 'tipo', rotulo: 'Tipo', fmt: v => v === 'MT' ? 'MO' : v }, { chave: 'placa', rotulo: 'Placa' },
+      { chave: 'transportador', rotulo: 'Transportador' }, { chave: 'origemMun', rotulo: 'Origem', fmt: (v, l) => `${v}${l.ufOrigem ? '/' + l.ufOrigem : ''}` },
+      { chave: 'destinoMun', rotulo: 'Destino', fmt: (v, l) => `${v}${l.ufDestino ? '/' + l.ufDestino : ''}` }, { chave: 'produto', rotulo: 'Produto' },
+      { chave: 'quantidade', rotulo: 'Vol.', num: true, fmt: (v, l) => v == null ? '' : `${F.num(v, 3)} ${l.unidade || ''}` },
+      { chave: 'medida', rotulo: 'Medida', fmt: v => v === 'apreensao' ? 'Apreensão' : 'Liberação' }, { chave: 'tf', rotulo: 'Nº TF' }], X.envio.cargas, { id: 'plt-cargas', limite: 50 });
+    const pode = !erros.length && !X.foraDoPlantao.length;
+    const ac = A.el('div', 'pn-conv-acoes');
+    ac.innerHTML = `<button type="button" class="pn-btn pn-btn-prim" id="adm-plt-gravar" ${pode ? '' : 'disabled'}>Gravar o plantão (${F.int(T.veiculos)} veículos)</button><button type="button" class="pn-btn" id="adm-plt-cancelar">Cancelar</button>`;
+    pv.appendChild(ac);
+  }
+  async function gravarPlt(substituir) {
+    const I = E.plt; if (!I || I.enviando) return;
+    I.enviando = true; const b = E.raiz.querySelector('#adm-plt-gravar'); if (b) b.disabled = true;
+    msgPlt('Gravando o plantão…', '');
+    try {
+      const j = await A.chamar(Object.assign({ action: 'admPlantaoImportar', arquivo: I.arquivo, substituir: substituir ? 1 : 0 }, I.P.envio, { posto: I.posto, troca: I.troca, fiscal: I.fiscal }));
+      I.enviando = false;
+      if (j.jaImportado) {
+        const quando = j.importadoEm ? new Date(j.importadoEm).toLocaleString('pt-BR', { timeZone: 'America/Manaus' }) : '';
+        if (confirm(`Este plantão (${dBR(j.resumo.de)} a ${dBR(j.resumo.ate)}, ${j.resumo.posto}) já foi importado${quando ? ' em ' + quando : ''}${j.por ? ' por ' + j.por : ''}.\n\nSubstituir pelos dados deste arquivo? Os veículos da importação anterior ficam como excluídos e entram os novos.`)) return gravarPlt(true);
+        msgPlt('Nada gravado: o plantão já estava importado.', ''); if (b) b.disabled = false; return;
+      }
+      const ano = I.ano; E.plt = null;
+      E.dados[ano] = await A.chamar({ action: 'admVigDados', ano });
+      E.pltMsg = { t: `Importado ✓ ${j.posto}, ${dBR(j.de)} a ${dBR(j.ate)}: ${j.turnos} turno(s), ${j.veiculos} veículo(s), ${j.cargas} carga(s) (${j.liberacao} liberação, ${j.apreensao} apreensão, ${j.tfs} TF)${j.substituidos ? `; ${j.substituidos} veículo(s) da importação anterior excluídos` : ''}.${j.turnosDoApp ? ` Atenção: há ${j.turnosDoApp} turno(s) do app na mesma BVA nesses dias.` : ''}`, cls: 'ok' };
+      desenhar();
+    } catch (e) {
+      if (!A.logado) return; I.enviando = false; if (b) b.disabled = false;
+      // servidor ainda sem a action (publicação do Code.gs uns minutos depois do portal): nada foi gravado
+      msgPlt(/a[çc][ãa]o inv[áa]lida/i.test(e.message) ? 'Não gravou: o servidor ainda está com a versão antiga (a atualização entra em alguns minutos). Tente de novo daqui a pouco.' : 'Não gravou: ' + e.message, 'erro');
+    }
+  }
+
   function montar() {
     const r = A.el('div', 'pn-rg adm-vig'); r.id = 'adm-vig';
     r.addEventListener('change', e => {
@@ -197,6 +289,11 @@
       else if (t.id === 'adm-vig-mes') { E.mes = Number(t.value); E.edit = {}; desenhar(); }
       else if (t.id === 'adm-vig-per') { E.periodo = t.value; E.edit = {}; desenhar(); }
       else if (t.id === 'adm-vig-imp-arq' && t.files && t.files[0]) { lerPlanilha(t.files[0]); t.value = ''; }
+      else if (t.id === 'adm-plt-arq' && t.files && t.files[0]) { lerPlantao(t.files[0]); t.value = ''; }
+      else if (E.plt && ['adm-plt-posto', 'adm-plt-troca', 'adm-plt-uf', 'adm-plt-fiscal'].includes(t.id)) {
+        const k = { 'adm-plt-posto': 'posto', 'adm-plt-troca': 'troca', 'adm-plt-uf': 'ufOrigem', 'adm-plt-fiscal': 'fiscal' }[t.id];
+        E.plt[k] = k === 'troca' ? (t.value || '07:00') : t.value.trim(); previaPlt(); desenharPlt();
+      }
       else if (t.id === 'adm-vig-imp-semauto') { E.imp.semAuto = t.checked; previaImp(); desenharImp(); }
       else if (t.id === 'adm-vig-imp-ano') { const a = Number(t.value); E.imp.ano = a; (E.dados[a] ? Promise.resolve() : A.chamar({ action: 'admVigDados', ano: a }).then(d => { E.dados[a] = d; })).then(() => { previaImp(); desenharImp(); }); }
       else if (t.matches('[data-vig]')) validarCel(t);                 // mostra a validação da célula (sem redesenhar: um clique em "Gravar" não se perde)
@@ -210,6 +307,8 @@
       if (e.target.closest('#adm-vig-salvar')) salvar();
       else if (e.target.closest('#adm-vig-imp-gravar')) gravarImp();
       else if (e.target.closest('#adm-vig-imp-cancelar')) { E.imp = null; desenharImp(); }
+      else if (e.target.closest('#adm-plt-gravar')) gravarPlt(false);
+      else if (e.target.closest('#adm-plt-cancelar')) { E.plt = null; msgPlt('', ''); desenharPlt(); }
     });
     return r;
   }
@@ -218,5 +317,5 @@
     c.appendChild(E.raiz);
     if (!D()) { desenhar(); carregar(); } else desenhar();
   } });
-  window.AdmVigifito = { estado: () => ({ ano: E.ano, modo: E.modo, mes: E.mes, periodo: E.periodo, dados: D(), imp: E.imp && E.imp.P, impResumo: E.impResumo, edit: E.edit }) };
+  window.AdmVigifito = { estado: () => ({ ano: E.ano, modo: E.modo, mes: E.mes, periodo: E.periodo, dados: D(), imp: E.imp && E.imp.P, impResumo: E.impResumo, edit: E.edit, plt: E.plt && E.plt.P, pltMsg: E.pltMsg }) };
 })();

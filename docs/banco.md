@@ -1,6 +1,6 @@
 # Banco (planilha como banco relacional)
 
-**Proposta para aprovação (22/10/2026).** Cada aba é uma tabela; nome completo, sem abreviação; chave primária na
+**Aprovado em 22/10/2026; a implementar** (ordem: dividir o `Code.gs`, login, depois este esquema). Cada aba é uma tabela; nome completo, sem abreviação; chave primária na
 primeira coluna; ligação entre abas sempre pelo id (`<aba>Id`), nunca pelo nome digitado. Colunas completas:
 `TABELAS` no `Code.gs`. Decisões: [decisoes/modelo.md](decisoes/modelo.md) e [decisoes/acesso.md](decisoes/acesso.md).
 

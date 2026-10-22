@@ -1,21 +1,19 @@
-/* ---------- Portal do Administrativo (web/administrativo/; login com Google ou código de ativação) ----------
+/* ---------- Portal do Administrativo (web/administrativo/; login com matrícula e senha, ou código de ativação na transição) ----------
  * O Administrativo da GDV (3 pessoas) lança no portal os dados que não vêm do app de campo: desembolso e execução física do convênio
  * (e a importação da planilha de movimentação), as linhas manuais dos relatórios (quadro PCE, colunas por município, CFO/CFOC, PTV,
  * educação sanitária, armadilhas do HLB) e o VIGIFITO por posto × mês (com a importação da planilha de controle). O painel do
  * gerente só mostra os dados e gera os relatórios: as actions painel* de gravação desses dados recusam (MSG_PORTAL).
- * Login: o navegador obtém o ID token do Google (Google Identity Services) e chama admLogin {idToken}; o servidor confere o token no
- * tokeninfo do Google (aud = propriedade GOOGLE_CLIENT_ID, iss, exp, email_verified), o e-mail (minúsculas) na lista de liberados (aba
- * Administrativo, gerida no painel → Servidores) e devolve um token de SESSÃO do portal (aleatório; na planilha só o SHA-256), válido
- * por 30 dias sem uso e renovado ao usar. Sem Google configurado: código de 6 dígitos gerado no painel (admCodigo {codigo}) → a mesma sessão;
- * o código é permanente (serve para entrar de novo quando a sessão vence) até o gerente gerar outro ou revogar o acesso.
- * A sessão do portal não vale no painel nem no app (e as credenciais deles não valem aqui). O ID token nunca é gravado nem registrado.
- * Revogar no painel (ativo = 0) derruba a sessão na próxima chamada. Logins recusados: 10 em 15 min bloqueiam (CacheService).
+ * Login novo: `entrar` (usuarios.gs); o token que começa com "u." vira a sessão do portal em admSessao_ (permissão `administracao`).
+ * Caminho antigo (enquanto os acessos antigos não são desligados): código de 6 dígitos gerado no painel (admCodigo {codigo}) → token de
+ * SESSÃO do portal (aleatório; na planilha só o SHA-256), válido por 30 dias sem uso e renovado ao usar. O código é permanente (serve
+ * para entrar de novo quando a sessão vence) até o gerente gerar outro ou revogar o acesso.
+ * A sessão do portal não vale no painel nem no app (e as credenciais deles não valem aqui). Revogar no painel (ativo = 0) derruba a
+ * sessão antiga na próxima chamada. Logins recusados: 10 em 15 min bloqueiam (CacheService).
  * LGPD: os e-mails ficam só na aba Administrativo (e no painel do administrador); lançamentos e histórico guardam o nome e o admId.
  */
 const ADM_SESSAO_MS = 30 * 24 * 3600 * 1000;                 // sessão do portal: 30 dias sem uso (Sair ou revogar derruba na hora)
 const ADM_MAX_PADRAO = 10;                                    // liberados ativos (propriedade do script ADM_MAX troca)
-const ADM_MAX_FALHAS = 10;                                    // logins recusados (Google ou código) antes de bloquear 15 min
-const ADM_ISS = ['accounts.google.com', 'https://accounts.google.com'];
+const ADM_MAX_FALHAS = 10;                                    // logins recusados (código) antes de bloquear 15 min
 const MSG_PORTAL = 'Lançamentos são feitos no Portal do Administrativo (no painel, só leitura).';
 const ADM_URL_PADRAO = 'https://evilasionogueiraagro-netizen.github.io/GDV/administrativo/';
 
@@ -27,7 +25,6 @@ function hexSha_(txt) {
 }
 function admMax_() { const v = Number(PropertiesService.getScriptProperties().getProperty('ADM_MAX')); return v >= 1 && v <= 50 ? Math.round(v) : ADM_MAX_PADRAO; }
 function admUrl_() { return PropertiesService.getScriptProperties().getProperty('ADM_URL') || ADM_URL_PADRAO; }
-function admGoogleId_() { return String(PropertiesService.getScriptProperties().getProperty('GOOGLE_CLIENT_ID') || '').trim(); }
 /** Conta um login recusado (bloqueio de 15 min depois de ADM_MAX_FALHAS) e lança o erro. */
 function admFalhou_(msg) {
   const c = CacheService.getScriptCache();
@@ -38,36 +35,10 @@ function admBloqueado_() {
   if (Number(CacheService.getScriptCache().get('falhas_adm') || 0) >= ADM_MAX_FALHAS) throw new Error('Muitas tentativas recusadas. Aguarde 15 minutos e tente de novo.');
 }
 
-/** Login com Google: confere o ID token no tokeninfo do Google e o e-mail na lista de liberados. */
-function admLogin_(req) {
-  admBloqueado_();
-  const tok = String(req.idToken || '');
-  if (tok.length < 20 || tok.length > 4096 || !/^[A-Za-z0-9._-]+$/.test(tok)) admFalhou_('Login do Google inválido. Entre de novo.');
-  const clientId = admGoogleId_();
-  if (!clientId) throw new Error('O login com Google ainda não foi configurado no servidor (propriedade GOOGLE_CLIENT_ID). Use o código de ativação.');
-  let info = null, code = 0;
-  try {
-    const r = UrlFetchApp.fetch('https://oauth2.googleapis.com/tokeninfo?id_token=' + encodeURIComponent(tok), { muteHttpExceptions: true });
-    code = r.getResponseCode();
-    if (code === 200) info = JSON.parse(r.getContentText());
-  } catch (e) { throw new Error('Não foi possível conferir o login com o Google agora. Tente de novo em instantes.'); }
-  if (!info || typeof info !== 'object') admFalhou_('Login do Google inválido ou expirado. Entre de novo.');
-  if (String(info.aud || '') !== clientId) admFalhou_('Login do Google emitido para outro aplicativo (Client ID diferente).');
-  if (ADM_ISS.indexOf(String(info.iss || '')) < 0) admFalhou_('Login do Google inválido (emissor desconhecido).');
-  if (!(Number(info.exp) * 1000 > Date.now())) admFalhou_('Login do Google expirado. Entre de novo.');
-  if (!(info.email_verified === true || info.email_verified === 'true')) admFalhou_('E-mail da conta Google não verificado.');
-  const email = emailNorm_(info.email);
-  const lock = LockService.getScriptLock(); lock.waitLock(30000);
-  try {
-    const a = lerLeitura_('Administrativo').filter(function (x) { return x.id && x.ativo === 1 && emailNorm_(x.email) === email; })[0];
-    if (!a) admFalhou_('A conta ' + email + ' não está liberada para o Portal do Administrativo. Peça ao gerente para liberar o e-mail no painel (aba Servidores).');
-    return admNovaSessao_(a, 'google');
-  } finally { lock.releaseLock(); }
-}
-
 /** Login por código de 6 dígitos (gerado no painel para um liberado). Permanente: vale em todo login até o gerente gerar outro
  * código para a pessoa ou revogar o acesso (as colunas codigoExpira antigas são ignoradas). */
 function admCodigo_(req) {
+  exigirAcessosAntigos_();
   admBloqueado_();
   const cod = String(req.codigo || '').replace(/\D/g, '');
   if (cod.length !== 6) admFalhou_('O código tem 6 dígitos.');
@@ -101,6 +72,8 @@ function admMarcarAcesso_(id, agora) {
 /** Valida o token de sessão do portal; renova a validade (30 dias a partir do uso). Liberado revogado = sessão recusada. */
 function admSessao_(tok) {
   tok = String(tok || '');
+  if (ehTokenUsuario_(tok)) return usuarioDoPortal_(tok);                    // matrícula e senha (usuarios.gs): exige `administracao`
+  exigirAcessosAntigos_();
   if (!/^[0-9a-f]{64}$/.test(tok)) throw new Error('Sessão do portal inválida. Entre de novo.');
   const h = hexSha_(tok), t = lerTudo_('AdmSessoes'), agora = Date.now(), ih = t.cols.indexOf('hash');
   for (let i = t.valores.length - 1; i >= 0; i--) {
@@ -234,6 +207,7 @@ function admAcoes_() {
 function admAcao_(req) {
   const fn = admAcoes_()[req.action];
   if (!fn) throw new Error('Ação inválida.');
+  if (req.action === 'admSair' && ehTokenUsuario_(req.sessao)) return sair_(req);   // sessão nova sai até com a senha provisória pendente
   return fn(admSessao_(req.sessao), req);
 }
 
@@ -250,8 +224,10 @@ function admLinhaOut_(a, agora) {
 function painelAdmLista(token, ocultos) {
   adminDoToken_(token);
   const agora = Date.now(), comOcultos = ocultos === true || ocultos === 1 || ocultos === '1';
-  return { ok: true, max: admMax_(), google: !!admGoogleId_(), url: admUrl_(), ocultar: true,
-           liberados: lerLeitura_('Administrativo').filter(function (a) { return a.id && (comOcultos || a.oculto !== 1); }).map(function (a) { return admLinhaOut_(a, agora); }) };
+  const veCodigos = ehGerenciaAtual_();                                         // painel só leitura não recebe o código permanente de entrada do portal
+  return { ok: true, max: admMax_(), url: admUrl_(), ocultar: true,
+           liberados: lerLeitura_('Administrativo').filter(function (a) { return a.id && (comOcultos || a.oculto !== 1); }).map(function (a) {
+             const o = admLinhaOut_(a, agora); if (!veCodigos) o.codigo = ''; return o; }) };
 }
 /**
  * Painel → bloco "Portal do Administrativo" → "Remover" (restaurar ausente/falso) ou "Restaurar" (restaurar: true) um liberado REVOGADO
@@ -260,7 +236,7 @@ function painelAdmLista(token, ocultos) {
  * painelAdmSalvar (ativo = 1) também desfaz a remoção. Removido continua sem entrar no portal e fora do limite ADM_MAX (ativo = 0).
  */
 function painelAdmOcultar(token, req) {
-  const admin = adminDoToken_(token);
+  const admin = adminDoToken_(token, true);
   req = req || {};
   const id = String(req.id || ''), restaurar = req.restaurar === true || req.restaurar === 1 || req.restaurar === '1';
   if (!id) throw new Error('Informe o liberado.');
@@ -275,9 +251,9 @@ function painelAdmOcultar(token, req) {
     return { ok: true, id: a.id, nome: a.nome, oculto: restaurar ? 0 : 1 };
   });
 }
-/** Inclui/edita um liberado (e-mail Google, nome, ativo). ativo = 0 revoga: a sessão cai na próxima chamada do portal. */
+/** Inclui/edita um liberado (e-mail, nome, ativo). ativo = 0 revoga: a sessão cai na próxima chamada do portal. */
 function painelAdmSalvar(token, req) {
-  const admin = adminDoToken_(token);
+  const admin = adminDoToken_(token, true);
   req = req || {};
   const email = emailNorm_(req.email);
   if (!RE_EMAIL_.test(email) || email.length > 120) throw new Error('E-mail inválido.');
@@ -307,9 +283,9 @@ function painelAdmSalvar(token, req) {
     return { ok: true, liberado: admLinhaOut_(a, agora) };
   } finally { lock.releaseLock(); }
 }
-/** Código de ativação do portal (6 dígitos, permanente: vale até gerar outro ou revogar) para um liberado ativo — alternativa ao login com Google. */
+/** Código de ativação do portal (6 dígitos, permanente: vale até gerar outro ou revogar) para um liberado ativo. */
 function painelAdmCodigo(token, req) {
-  const admin = adminDoToken_(token);
+  const admin = adminDoToken_(token, true);
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try {
     const t = lerTudo_('Administrativo'), agora = Date.now(), id = String((req && req.id) || ''), emUso = {};

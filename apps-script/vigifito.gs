@@ -225,7 +225,7 @@ function admVigImportar_(s, req) {
 }
 /** Painel: edita a lista de postos do VIGIFITO (correspondência posto → BVA/município do e-GDV, tipo) e a escala dos períodos de 10 dias. */
 function painelVigConfigSalvar(token, req) {
-  const admin = adminDoToken_(token), c = req && req.config;
+  const admin = adminDoToken_(token, true), c = req && req.config;
   if (!c || typeof c !== 'object') throw new Error('Configuração inválida.');
   const ancora = String(c.ancora || ''), ciclo = Number(c.ciclo);
   if (!diaValido_(ancora)) throw new Error('Data-âncora da escala inválida (aaaa-mm-dd).');

@@ -19,6 +19,7 @@ Modelo em [../arquitetura.md](../arquitetura.md) e abas em [../banco.md](../banc
 | 22/10/2026 | O dashboard continua público, sem login | já mascara os dados |
 | 16/10/2026 | A chave mestra `ACCESS_KEY` sai (hoje vale até nas actions do fiscal) | credencial fora do controle do gerente |
 | 20/10/2026 | Senha e token só como hash com sal; limite de tentativas por matrícula e geral | quem lê a planilha não se passa por outro |
+| 23/10/2026 | Senha em **bcrypt** (custo 10, propriedade `SENHA_CUSTO`). O hash SHA-256 de antes não vale mais: o gerente redefine pelo menu e gera senha nova para os outros | SHA-256 rápido demais contra força bruta. Argon2 fica para o Sistema_Adaf (o Apps Script não aguenta) |
 | 16/10/2026 | Toda ação registra quem fez (`criadoPor`, `atualizadoPor`); autor separado de quem editou por último | regra de negócio e LGPD (art. 37) |
 | 16/10/2026 | O encerramento automático do turno em 12 h continua separado do login | é regra de negócio |
 | 22/10/2026 | Nunca tirar o último gerente ativo | ninguém fica trancado fora |

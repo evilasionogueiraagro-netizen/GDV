@@ -45,7 +45,7 @@ function mkSS(id, nome, shs) {
   return api;
 }
 const ss = mkSS('fake', 'GDV planilha', sheets);
-const props = {};
+const props = { SENHA_CUSTO: '4' };   // bcrypt com custo baixo nos testes (em produção, 10)
 const cache = new Map();
 let emailAtual = '', emailDono = 'dono@exemplo.gov.br';
 const gatilhos = [], emails = []; let trigSeq = 0;

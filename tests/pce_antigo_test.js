@@ -19,7 +19,7 @@ const uuid = () => require('crypto').randomUUID();
 
 (async () => {
   const b = await amb.lancar();
-  const gerar = async (nome, perfil = '') => get('/__gerar?nome=' + encodeURIComponent(nome) + '&perfil=' + perfil);
+  const gerar = async (nome, perfil = '') => perfil === 'admin' ? amb.gerente(nome) : amb.usuario(nome);   // conta pronta e token (atalho /__usuario)
   const UIDS = {}, credencial = async (nome, perm = { veiculos: 1, tf: 1, pce: 1, antigo: 0 }) => { const f = await U.fiscal(nome, { permissoes: U.lista(perm) }); UIDS[f.nome] = f.usuario.id; return { token: f.token, nome: f.nome }; };
   const aparelho = async ({ token, nome }, vp = { width: 1366, height: 768 }) => {
     const c = await b.newContext({ viewport: vp, permissions: ['geolocation'], geolocation: { latitude: -3.5, longitude: -59.5, accuracy: 9 } });
@@ -72,7 +72,7 @@ const uuid = () => require('crypto').randomUUID();
   /* ================= 2. arquivoEnviar aceita PDF ================= */
   console.log('2) servidor: arquivoEnviar com PDF');
   const enviar = (key, arq, buf) => post({ action: 'arquivoEnviar', key, arquivo: { id: uuid(), dono: 'levantamentos', donoId: 'lev-x', tipo: 'documento', papel: '', mime: 'application/pdf', ...arq }, base64: buf.toString('base64') });
-  const adm = await gerar('Gestora Digitacao', 'admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
+  const adm = await gerar('Gestora Digitacao', 'admin'), TOK = adm.token;
   const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fale com a gerência.';
   // permissão "Digitar do papel" (antigo): padrão desligado, inclusive sem linha na aba Permissoes
   let r = await post({ action: 'sync', key: F.token, since: 0 });

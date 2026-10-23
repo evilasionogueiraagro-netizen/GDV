@@ -17,8 +17,7 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
 
 (async () => {
   const AG = Date.now();
-  const gAdm = await get('/__gerar?nome=' + encodeURIComponent('Gerente Encerra Silva') + '&perfil=admin');
-  const adm = await post({ action: 'painelAtivar', codigo: gAdm.codigo });
+  const adm = await amb.gerente('Gerente Encerra Silva');
   const fis = await U.fiscal('Fiscal Encerra Souza');
   ok(adm.ok && adm.token && fis.token, 'credenciais de administrador e de fiscal');
   const ADM = adm.token, FIS = fis.token;

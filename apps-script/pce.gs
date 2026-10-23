@@ -599,7 +599,7 @@ function dadosPainel_(admin, filtro) {
 
   // TF de Barreira
   const todosTFs = lerLeitura_('TFs').filter(function (r) { return r.id; });
-  const tfsPer = todosTFs.filter(noPeriodo);
+  const tfsPer = todosTFs.filter(noPeriodo), REINC = reincidenciaTFs_(todosTFs);   // reincidência recalculada (CPF/CNPJ e placa válidos)
   const tfs = tfsPer.map(function (r) {
     return { id: r.id, barreira: r.barreira, ano: r.ano, numero: r.numero, numeroTxt: r.numeroTxt, numeroSugerido: r.numeroSugerido,
              numeroOrigem: r.numeroOrigem, conflito: r.conflito, emitidoEm: r.emitidoEm, turnoId: r.turnoId, veiculoId: r.veiculoId,
@@ -608,7 +608,7 @@ function dadosPainel_(admin, filtro) {
              doc: mascararDoc_(r.doc), tipoDoc: tipoDoc_(r.doc), nome: r.nome, municipio: r.municipio, uf: r.uf, relacao: r.relacao,
              inspecao: r.inspecao, coleta: r.coleta, amostras: r.amostras, procedimento: r.procedimento, fiel: r.fiel, auto: r.auto,
              advertencia: r.advertencia, documentos: documentosTF_(r.documentos), produtos: produtosTF_(r.produtos),
-             reincidente: r.reincidente, tfsAnteriores: r.tfsAnteriores, cancelado: r.cancelado, motivoCancel: r.motivoCancel,
+             reincidente: REINC[r.id].reincidente ? 1 : 0, tfsAnteriores: REINC[r.id].anteriores, cancelado: r.cancelado, motivoCancel: r.motivoCancel,
              nFotos: contarFotos_(r.fotos), assinado: contarAssinaturas_(r.assinaturas) ? 1 : 0,   // só contagens: nunca os ids/imagens (LGPD)
              criadoEm: r.criadoEm, srv_ts: r.srv_ts, usuario: r.usuario };
   });

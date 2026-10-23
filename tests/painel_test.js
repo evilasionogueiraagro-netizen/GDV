@@ -60,11 +60,14 @@ const TF = (id, data, turnoId, proc, numero, extra = {}) => ({ id, barreira: 'BV
   rg: '123', endereco: 'Rua X', municipio: 'Manaus', uf: 'AM', telefone: '92 90000-0000', relacao: 'Motorista', inspecao: 1, coleta: 0, amostras: 0, procedimento: proc, fiel: 0, auto: 0, advertencia: 0,
   documentos: JSON.stringify({ nf: '1', ptv: '' }), produtos: JSON.stringify(['CARAMBOLA - 10 Kg']), constatacao: 'x', enquadramento: 'y', reincidente: 0, tfsAnteriores: 0, cancelado: 0, motivoCancel: '',
   criadoEm: ts0, atualizadoEm: ts0, numeroOrigem: 'sugerido', numeroSugerido: numero, ...extra });
+// reincidência é recalculada pelo servidor (CPF/CNPJ e placa válidos): o tf1 é reincidente por causa do tf0 (apreensão antiga, fora do período,
+// em outra barreira); os demais TFs do período são de outros documentos e placas
 const TFS = [
+  TF('tf0', dia(-120), '', 'apreensao', 1, { barreira: 'BVA-ANTIGA', numeroTxt: '001/ANTIGA', local: 'BVA - ANTIGA' }),
   TF('tf1', dia(-2), 'tA', 'apreensao', 1, { reincidente: 1, tfsAnteriores: 2, auto: 1 }),
-  TF('tf2', dia(-2), 'tA', 'liberacao', 2, { produtos: JSON.stringify(['ACEROLA - 5 Caixas']), origem: 'Iranduba' }),
-  TF('tf3', dia(-1), 'tB', 'rechaco', 4, { fiscal: 'Carlos Lima', local: 'Barreira Tabatinga', origem: 'Benjamin Constant', destino: 'Tabatinga', produtos: JSON.stringify(['CARAMBOLA - 1.200,5 Kg']) }),
-  TF('tf4', dia(-1), 'tB', 'liberacao', 5, { fiscal: 'Carlos Lima', cancelado: 1, motivoCancel: 'erro' })
+  TF('tf2', dia(-2), 'tA', 'liberacao', 2, { produtos: JSON.stringify(['ACEROLA - 5 Caixas']), origem: 'Iranduba', doc: '11144477735', placa: 'DEF2E34' }),
+  TF('tf3', dia(-1), 'tB', 'rechaco', 4, { fiscal: 'Carlos Lima', local: 'Barreira Tabatinga', origem: 'Benjamin Constant', destino: 'Tabatinga', produtos: JSON.stringify(['CARAMBOLA - 1.200,5 Kg']), doc: '39053344705', placa: 'GHI3F45' }),
+  TF('tf4', dia(-1), 'tB', 'liberacao', 5, { fiscal: 'Carlos Lima', cancelado: 1, motivoCancel: 'erro', doc: '86288366757', placa: 'JKL4G56' })
 ];
 const cult = (c, praga, area, coleta = 'Não') => ({ cultura: c, area: String(area), espLinha: '3', espPlanta: '2', praga, coleta, tipoMaterial: coleta === 'Sim' ? 'Folha' : '', codigoAmostra: '', destinoAmostra: '' });
 const LEV = (id, data, mun, servidor, culturas, extra = {}) => ({ id, data, hora: '09:30', servidor, cargo: 'Fiscal', matricula: 'M1', lotacao: 'IDAM', doc: CPF, nome: 'Produtor ' + id, telefone: '97 9', email: 'a@b.c',

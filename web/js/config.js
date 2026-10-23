@@ -27,14 +27,14 @@ const CONFIG = {
     A: { rotulo: '04h às 12h' },
     B: { rotulo: '12h às 20h' }
   },
-  // código → { nome, ícone, pessoas (estimativa padrão por veículo; pode ser alterada em cada registro) }
+  // código → { nome, ícone (nome em web/js/icones.js), pessoas (estimativa padrão por veículo; pode ser alterada em cada registro) }
   tipos: {
-    PA: { nome: 'Passeio',           icone: '🚗', pessoas: 5 },
-    UT: { nome: 'Utilitário',        icone: '🚙', pessoas: 5 },
-    CC: { nome: 'Caminhão/Carreta',  icone: '🚚', pessoas: 1 },
-    CB: { nome: 'Caminhão/Carreta Baú', icone: '🚛', pessoas: 1 },
-    ON: { nome: 'Ônibus',            icone: '🚌', pessoas: 40 },
-    MT: { nome: 'Moto',              icone: '🏍️', pessoas: 2 }
+    PA: { nome: 'Passeio',           icone: 'carro', pessoas: 5 },
+    UT: { nome: 'Utilitário',        icone: 'utilitario', pessoas: 5 },
+    CC: { nome: 'Caminhão/Carreta',  icone: 'caminhao', pessoas: 1 },
+    CB: { nome: 'Caminhão/Carreta Baú', icone: 'caminhao-bau', pessoas: 1 },
+    ON: { nome: 'Ônibus',            icone: 'onibus', pessoas: 40 },
+    MT: { nome: 'Moto',              icone: 'moto', pessoas: 2 }
   },
   linhasFicha: 50,
   // UFs de origem/destino (opcionais no registro do veículo e no TF; mesma lista que UFS_ no Code.gs). Destino AM vindo de outra UF =
@@ -81,7 +81,7 @@ const CONFIG = {
       'Fusarium R4T', 'Monilíase do Cacaueiro', 'Vassoura de Bruxa da Mandioca', 'Amaranthus palmeri', 'Diaphorina citri (vetor do HLB)',
       'Pinta Preta dos Citros', 'Leprose dos Citros'],
     // Cadastro de cítricos (CADASTRO DE IMÓVEIS DE PRODUÇÃO COMERCIAL DE CÍTRICOS; IN 21/2018 cancro cítrico, Portaria 317/2021 HLB): no levantamento,
-    // o bloco "🍊 Cultura do citros" (um só, dentro de "Pragas e doenças") aparece quando há card de praga de citros (nome da lista abaixo ou "Outra"
+    // o bloco "Cultura do citros" (um só, dentro de "Pragas e doenças") aparece quando há card de praga de citros (nome da lista abaixo ou "Outra"
     // digitada com um dos termos; sem acento/maiúsculas). Gravado na coluna "citros" (JSON) do levantamento; vira o Cadastro de citros (programa
     // "citros") e o Termo de Fiscalização da visita. Códigos (1º item de cada par) não mudam: vão para a planilha; o texto é só o rótulo.
     citros: {

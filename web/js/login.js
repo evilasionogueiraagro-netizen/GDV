@@ -5,9 +5,9 @@ const Login = (() => {
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const campoUrl = () => CONFIG.sync.url ? '' : '<label>Endereço do servidor<input id="eUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" required></label>';
 
-  const formEntrar = revogado => `${revogado ? `<div class="card aviso" role="alert"><h3>Acesso revogado</h3>
+  const formEntrar = revogado => `${revogado ? `<div class="card aviso" role="alert"><h3>${icone('proibido')} Acesso revogado</h3>
       <p>O seu acesso a este aparelho foi encerrado. Entre de novo com a sua matrícula e a sua senha; se não conseguir, fale com a gerência. Os registros que não foram enviados continuam guardados aqui.</p></div>` : ''}
-    <form class="card" id="fEntrar"><h3>Entrar</h3>
+    <form class="card" id="fEntrar"><h3>${icone('chave')} Entrar</h3>
       <p>Entre com a sua matrícula e a sua senha. Só esta etapa exige internet; depois o aparelho fica lembrado até você sair.</p>
       ${campoUrl()}
       <label>Matrícula<input id="eMat" autocomplete="username" autocapitalize="off" spellcheck="false" required></label>
@@ -16,7 +16,7 @@ const Login = (() => {
 
   const formTrocarSenha = () => {
     const u = Sync.usuario();
-    return `<form class="card aviso" id="fTrocarSenha"><h3>Trocar senha</h3>
+    return `<form class="card aviso" id="fTrocarSenha"><h3>${icone('chave')} Trocar senha</h3>
       <p>${u ? `Matrícula <b>${esc(u.matricula)}</b>. ` : ''}Troque a senha provisória por uma senha só sua para liberar o app. Mínimo de 8 caracteres. Esta etapa exige internet.</p>
       <label>Senha atual<input id="tAtual" type="password" autocomplete="current-password" required></label>
       <label>Nova senha<input id="tNova" type="password" autocomplete="new-password" required></label>

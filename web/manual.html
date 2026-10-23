@@ -6,37 +6,31 @@
 <meta name="theme-color" content="#0B3A82">
 <title>Manual do fiscal – e-GDV</title>
 <link rel="icon" href="img/icon-192.png">
+<link rel="stylesheet" href="css/design.css">
 <style>
-:root { --azul:#0B3A82; --azul2:#0B5ED7; --bg:#eef3fa; --ink:#1c2733; --mut:#5b6475; --linha:#d6deea; --card:#fff; --alerta:#fff8e1; --alerta-borda:#ffd54f; }
-* { box-sizing:border-box; }
-body { margin:0; font:16px/1.5 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); }
-header { background:var(--azul); color:#fff; display:flex; align-items:center; gap:12px; padding:10px 16px; position:sticky; top:0; z-index:2; }
-header img { height:40px; background:#fff; border-radius:6px; padding:3px; }
-header h1 { font-size:17px; margin:0; } header small { opacity:.85; font-size:12px; }
+/* Manual do fiscal. Tokens e componentes: css/design.css (docs/DESIGN.md). Aqui só o arranjo da página. */
+header small { opacity:.85; font-size:12px; }
+header { position:sticky; top:0; z-index:2; }
 header a { margin-left:auto; color:#fff; font-size:14px; white-space:nowrap; }
+body { line-height:1.5; }
 main { max-width:640px; margin:0 auto; padding:16px; }
-nav.indice { background:var(--card); border-radius:12px; padding:12px 16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
-nav.indice ol { margin:6px 0 0; padding-left:22px; } nav.indice a { color:var(--azul2); }
-details { scroll-margin-top:72px; background:var(--card); border-radius:12px; margin-bottom:10px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
+nav.indice { background:var(--sf); border:1px solid var(--borda); border-radius:var(--r-lg); padding:12px 16px; margin-bottom:12px; box-shadow:var(--sombra); }
+nav.indice ol { margin:6px 0 0; padding-left:22px; }
+details { scroll-margin-top:72px; background:var(--sf); border:1px solid var(--borda); border-radius:var(--r-lg); margin-bottom:10px; box-shadow:var(--sombra); }
 summary { padding:14px 16px; font-weight:700; cursor:pointer; list-style:none; display:flex; justify-content:space-between; gap:8px; }
 summary::-webkit-details-marker { display:none; }
 summary::after { content:'▾'; color:var(--mut); } details[open] summary::after { content:'▴'; }
 .corpo { padding:0 16px 14px; }
 .corpo ol, .corpo ul { padding-left:22px; margin:6px 0; } .corpo li { margin:4px 0; }
 .corpo p { margin:8px 0; }
-.dica { background:var(--alerta); border:1px solid var(--alerta-borda); border-radius:8px; padding:8px 10px; font-size:14px; }
-b.bt { background:#e7eefb; color:var(--azul); border-radius:6px; padding:0 5px; font-weight:600; white-space:nowrap; }
+.dica { color:var(--ink); background:color-mix(in srgb, var(--atencao) 16%, var(--sf)); border:1px solid var(--atencao); border-radius:var(--r-md); padding:8px 10px; font-size:14px; text-align:left; }
+b.bt { background:var(--sel); color:var(--destaque); border-radius:var(--r-sm); padding:0 5px; font-weight:600; white-space:nowrap; }
 footer { text-align:center; color:var(--mut); font-size:12px; padding:8px 16px 24px; }
-@media (prefers-color-scheme: dark) {
-  :root:not([data-theme="light"]) { --bg:#0f1520; --ink:#e6ebf2; --mut:#a3adbd; --linha:#2a3445; --card:#18202d; --alerta:#3a3010; --alerta-borda:#8a6d10; }
-  :root:not([data-theme="light"]) b.bt { background:#22324d; color:#cfe0ff; }
-  :root:not([data-theme="light"]) nav.indice a { color:#8fb6ff; }
-}
 @media print { header { position:static; } details { break-inside:avoid; } details:not([open]) .corpo { display:block; } }
 </style>
 </head>
-<body>
-<header>
+<body class="toque">
+<header class="barra-topo">
   <img src="img/logo-adaf.png" alt="ADAF">
   <div><h1>Manual do fiscal</h1><small>e-GDV – Fiscalização · ADAF/AM</small></div>
   <a href="./">← Voltar ao app</a>
@@ -79,16 +73,16 @@ footer { text-align:center; color:var(--mut); font-size:12px; padding:8px 16px 2
     </ol>
     <p><b>Durante o turno</b></p>
     <ul>
-      <li><b class="bt">➕ Registrar veículo</b>: placa, tipo, pessoas a bordo e observação. A placa é obrigatória só na BVA CEASA.</li>
+      <li><b class="bt"><span data-icone="mais"></span> Registrar veículo</b>: placa, tipo, pessoas a bordo e observação. A placa é obrigatória só na BVA CEASA.</li>
       <li><b>Origem e destino (opcional)</b>, no mesmo formulário: <b>UF de origem</b> e <b>UF de destino</b> do veículo. Destino AM vindo de outro estado conta como internalização; destino em outro estado conta como carga em trânsito. Deixe em branco se não souber.
         Educação sanitária (uma por pessoa a bordo), medida fitossanitária, partidas, inspeção e documentos conferidos o relatório VIGIFITO calcula sozinho, pelas pessoas a bordo e pelos <b>TFs</b> lavrados — não há nada para marcar.</li>
-      <li><b class="bt">📋 Lista de veículos</b>: para corrigir (<b>Editar</b>), excluir ou <b>Lavrar TF</b> de um veículo.</li>
-      <li><b class="bt">📊 Resumo e documentos</b>: totais do turno e a <b>Ficha de Campo</b> (só na BVA CEASA).</li>
+      <li><b class="bt"><span data-icone="formulario"></span> Lista de veículos</b>: para corrigir (<b>Editar</b>), excluir ou <b>Lavrar TF</b> de um veículo.</li>
+      <li><b class="bt"><span data-icone="resumo"></span> Resumo e documentos</b>: totais do turno e a <b>Ficha de Campo</b> (só na BVA CEASA).</li>
     </ul>
     <p><b>Encerrar</b></p>
     <ol>
       <li>Toque em <b class="bt">⏹ Encerrar turno</b>.</li>
-      <li>Espere aparecer <b>“✅ Turno encerrado, bom descanso!”</b>.</li>
+      <li>Espere aparecer <b>“<span data-icone="ok"></span> Turno encerrado, bom descanso!”</b>.</li>
       <li>Se aparecer <b>“⏳ Aguardando envio”</b>, o encerramento está guardado no celular. Abra o app de novo quando tiver internet para enviar.</li>
     </ol>
     <p class="dica">Turno esquecido aberto é encerrado sozinho depois de <b>12 horas</b>. A gerência também pode encerrar pelo painel.</p>
@@ -97,17 +91,17 @@ footer { text-align:center; color:var(--mut); font-size:12px; padding:8px 16px 2
   <details id="tf"><summary>3. Termo de Fiscalização (TF)</summary><div class="corpo">
     <p><b>Onde abrir</b></p>
     <ul>
-      <li>Pelo módulo <b>Termo de Fiscalização de Barreira</b>, em <b class="bt">➕ Novo TF</b>;</li>
+      <li>Pelo módulo <b>Termo de Fiscalização de Barreira</b>, em <b class="bt"><span data-icone="mais"></span> Novo TF</b>;</li>
       <li>ou, durante o turno, em <b class="bt">Lavrar TF</b> ao lado do veículo.</li>
     </ul>
     <p><b>Preencher</b></p>
     <ol>
-      <li><b>CPF/CNPJ</b> e <b>placa</b>: o app busca o cadastro e o <b>histórico</b> sozinho. Se aparecer <b>⚠️ REINCIDENTE</b>, o fiscalizado já teve apreensão, rechaço ou auto de infração.</li>
+      <li><b>CPF/CNPJ</b> e <b>placa</b>: o app busca o cadastro e o <b>histórico</b> sozinho. Se aparecer <b><span data-icone="alerta"></span> REINCIDENTE</b>, o fiscalizado já teve apreensão, rechaço ou auto de infração.</li>
       <li>Marque o procedimento (liberação, apreensão ou rechaço). O texto da constatação e o enquadramento legal são sugeridos, e você pode editar.</li>
       <li>Em <b>Origem</b> e <b>Destino</b>, escolha também a <b>UF de origem</b> e a <b>UF de destino</b> (lavrando do veículo, já vêm do registro dele). Com elas o VIGIFITO conta a internalização (de outro estado para o AM) e as cargas para outros estados, com as toneladas dos produtos.</li>
-      <li>Adicione os <b>produtos</b> e, se quiser, <b>📷 fotos</b> (até 10).</li>
-      <li><b>✍️ Assinaturas</b> (opcional): toque em <b class="bt">Assinar na tela</b> para o fiscalizado e para você e assine com o dedo. Se o fiscalizado se recusar, marque <b>“Fiscalizado se recusou a assinar”</b>. Sem assinatura na tela, o PDF sai com a linha para assinar no papel.</li>
-      <li>Toque em <b class="bt">📄 Gerar TF</b>, confira o <b>número</b> e confirme. Na janela de impressão, escolha <b>Salvar como PDF</b> ou imprima. Saem 2 vias e, se houver fotos, o anexo fotográfico.</li>
+      <li>Adicione os <b>produtos</b> e, se quiser, <b><span data-icone="camera"></span> fotos</b> (até 10).</li>
+      <li><b><span data-icone="assinatura"></span> Assinaturas</b> (opcional): toque em <b class="bt">Assinar na tela</b> para o fiscalizado e para você e assine com o dedo. Se o fiscalizado se recusar, marque <b>“Fiscalizado se recusou a assinar”</b>. Sem assinatura na tela, o PDF sai com a linha para assinar no papel.</li>
+      <li>Toque em <b class="bt"><span data-icone="documento"></span> Gerar TF</b>, confira o <b>número</b> e confirme. Na janela de impressão, escolha <b>Salvar como PDF</b> ou imprima. Saem 2 vias e, se houver fotos, o anexo fotográfico.</li>
     </ol>
     <p><b>Depois de gerar</b></p>
     <ul>
@@ -120,62 +114,62 @@ footer { text-align:center; color:var(--mut); font-size:12px; padding:8px 16px 2
   <details id="pce"><summary>4. PCE – levantamento, Termo de Colheita e monilíase</summary><div class="corpo">
     <p><b>Levantamento fitossanitário</b></p>
     <ol>
-      <li>No módulo <b>PCE</b>, toque em <b class="bt">➕ Novo levantamento</b>.</li>
+      <li>No módulo <b>PCE</b>, toque em <b class="bt"><span data-icone="mais"></span> Novo levantamento</b>.</li>
       <li>Preencha os dados do produtor e da propriedade. A localização é pega pelo GPS.</li>
       <li>Para cada <b>praga/doença</b> avaliada, adicione as <b>culturas</b> com área e resultado: <b>detectada</b>, <b>não detectada</b> ou <b>suspeita</b>. As <b>fotos</b> ficam junto da cultura.</li>
       <li>Em <b>Local e origem da visita</b> (opcional), escolha o <b>tipo de local</b> (propriedade comercial, quintal, viveiro, feira, UP, UC…) e a <b>origem da visita</b> (rotina, notificação do produtor, delimitação de foco, retorno). Se não estiver na lista, escolha <b>Outro</b> e digite. Saem na ficha como “Local: … · Origem: …” e entram no relatório da gerência (viveiros, UP/UC).</li>
-      <li>Salve. Sai <b>um PDF por praga</b>, em <b>PDF: nome da praga</b> ou <b class="bt">🖨️ Imprimir todos</b>.</li>
+      <li>Salve. Sai <b>um PDF por praga</b>, em <b>PDF: nome da praga</b> ou <b class="bt"><span data-icone="imprimir"></span> Imprimir todos</b>.</li>
     </ol>
     <p><b>Termo de Colheita de Amostras</b></p>
     <ul>
-      <li>Abra pelo próprio levantamento (botão <b>Termo de colheita</b>) ou em <b class="bt">➕ Novo termo de colheita</b>.</li>
+      <li>Abra pelo próprio levantamento (botão <b>Termo de colheita</b>) ou em <b class="bt"><span data-icone="mais"></span> Novo termo de colheita</b>.</li>
       <li>O número é gerado como no TF.</li>
-      <li><b>Quando o laudo chegar:</b> na lista de termos (ou na tela do termo), toque em <b class="bt">🧪 Resultado</b> e informe o laboratório (LFDA-GO, LFDA-PE, LFDA-SP, Laboratório da ADAF ou outro), a data de envio, o nº do laudo, a data e o resultado (aguardando, negativo, positivo, inconclusivo, amostra inviável). Se for <b>positivo</b>, informe a praga confirmada. O número e o PDF do termo não mudam. A gerência também pode registrar o resultado pelo painel — o que ela lançar não é apagado pelo seu celular.</li>
+      <li><b>Quando o laudo chegar:</b> na lista de termos (ou na tela do termo), toque em <b class="bt"><span data-icone="amostra"></span> Resultado</b> e informe o laboratório (LFDA-GO, LFDA-PE, LFDA-SP, Laboratório da ADAF ou outro), a data de envio, o nº do laudo, a data e o resultado (aguardando, negativo, positivo, inconclusivo, amostra inviável). Se for <b>positivo</b>, informe a praga confirmada. O número e o PDF do termo não mudam. A gerência também pode registrar o resultado pelo painel — o que ela lançar não é apagado pelo seu celular.</li>
     </ul>
-    <p><b>🍫 Monilíase: Cadastro de imóvel e Termo de Fiscalização</b></p>
+    <p><b><span data-icone="broto"></span> Monilíase: Cadastro de imóvel e Termo de Fiscalização</b></p>
     <ul>
-      <li>Na lista do PCE, card <b>Monilíase</b>: <b class="bt">🏡 Cadastro de imóvel (monilíase)</b> (uma vez por propriedade com cacau, cupuaçu…) e <b class="bt">📋 Termo de Fiscalização</b> (um por visita; <b>não é o TF de Barreira</b>).</li>
+      <li>Na lista do PCE, card <b>Monilíase</b>: <b class="bt"><span data-icone="propriedade"></span> Cadastro de imóvel (monilíase)</b> (uma vez por propriedade com cacau, cupuaçu…) e <b class="bt"><span data-icone="formulario"></span> Termo de Fiscalização</b> (um por visita; <b>não é o TF de Barreira</b>).</li>
       <li>Os formulários seguem a <b>ordem do papel</b>. Sim/Não são botões grandes; toque de novo no botão marcado para desmarcar. O <b>total de plantas</b> é calculado.</li>
       <li>Coordenadas aceitam <b>-3,60033</b>, <b>-3.60033</b>, <b>3,60033S</b>, <b>-59,15044W</b> ou graus/minutos/segundos. Longitude sem sinal = Oeste.</li>
-      <li>No termo, busque o <b>cadastro</b> pelo CPF, nome ou número: produtor, endereço, coordenadas e <b>plantas inspecionadas</b> vêm preenchidos. Sem cadastro, toque em <b>➕ Criar cadastro desta propriedade</b> (ao salvar, volta ao termo).</li>
-      <li>No mapa <b>Perto de mim</b>, o cartão da propriedade tem <b class="bt">📋 Termo de Fiscalização aqui</b> e, se não houver cadastro, <b class="bt">🏡 Criar cadastro (monilíase)</b>.</li>
+      <li>No termo, busque o <b>cadastro</b> pelo CPF, nome ou número: produtor, endereço, coordenadas e <b>plantas inspecionadas</b> vêm preenchidos. Sem cadastro, toque em <b><span data-icone="mais"></span> Criar cadastro desta propriedade</b> (ao salvar, volta ao termo).</li>
+      <li>No mapa <b>Perto de mim</b>, o cartão da propriedade tem <b class="bt"><span data-icone="formulario"></span> Termo de Fiscalização aqui</b> e, se não houver cadastro, <b class="bt"><span data-icone="propriedade"></span> Criar cadastro (monilíase)</b>.</li>
       <li>Número: <b>001.2026.AUTAZES</b> (termo, por unidade e ano) e <b>001-2026-AUTAZES</b> (cadastro). Com internet vem da planilha; sem internet é provisório e é conferido ao sincronizar.</li>
-      <li>Preencha também <b>amostra</b> e <b>sintomas</b>: entram no relatório. Folders/flyers não vão no termo: o número é digitado no relatório. <b class="bt">📤 Enviar ao produtor</b> gera o PDF do termo no celular.</li>
+      <li>Preencha também <b>amostra</b> e <b>sintomas</b>: entram no relatório. Folders/flyers não vão no termo: o número é digitado no relatório. <b class="bt"><span data-icone="enviar"></span> Enviar ao produtor</b> gera o PDF do termo no celular.</li>
       <li><b>Digitar do papel</b> (só com a permissão Papel): número do papel (<b>001.2026.AUTAZES</b>, <b>001-2026-AUTAZES</b> ou só <b>1</b>), data do papel, servidor que fez a vistoria e o PDF escaneado. CPF é opcional (o app avisa se estiver errado). Use <b>Salvar e digitar outro</b>.</li>
-      <li><b class="bt">📊 Relatório de atividades</b>: escolha período, município, praga e servidores. O app soma as plantas, conta os termos emitidos e os termos com a ação <b>Educação Sanitária</b> marcada; o nº de <b>folders e flyers</b> distribuídos é digitado na hora. O app lembra o nº do convênio e a etapa, e pode anexar os termos e cadastros do período ao PDF. No painel, aba PCE → <b>Relatório de atividades</b>.</li>
+      <li><b class="bt"><span data-icone="resumo"></span> Relatório de atividades</b>: escolha período, município, praga e servidores. O app soma as plantas, conta os termos emitidos e os termos com a ação <b>Educação Sanitária</b> marcada; o nº de <b>folders e flyers</b> distribuídos é digitado na hora. O app lembra o nº do convênio e a etapa, e pode anexar os termos e cadastros do período ao PDF. No painel, aba PCE → <b>Relatório de atividades</b>.</li>
     </ul>
     <p><b>Antes de sair para o campo (com internet)</b></p>
     <ol>
-      <li>Em <b>Levantamentos</b>, toque em <b class="bt">📥 Dados para o campo</b>.</li>
-      <li>Marque o(s) <b>município(s)</b> da viagem e toque em <b class="bt">📥 Baixar selecionados</b>. Aparece, por exemplo, “Parintins — 132 propriedades, 98 produtores — baixado em 12/10 18:40”.</li>
+      <li>Em <b>Levantamentos</b>, toque em <b class="bt"><span data-icone="baixar"></span> Dados para o campo</b>.</li>
+      <li>Marque o(s) <b>município(s)</b> da viagem e toque em <b class="bt"><span data-icone="baixar"></span> Baixar selecionados</b>. Aparece, por exemplo, “Parintins — 132 propriedades, 98 produtores — baixado em 12/10 18:40”.</li>
       <li>Sem internet, a busca por <b>CPF</b>, por <b>nome</b> do produtor, <b>nome da propriedade</b> ou <b>código</b> (campo <b>Buscar produtor ou propriedade</b> no levantamento) usa esses dados e preenche a ficha.</li>
       <li>Com internet, os dados se atualizam sozinhos a cada 6 horas.</li>
       <li><b>Ao voltar</b>, toque em <b>Apagar do aparelho</b>: são dados pessoais. O que tiver levantamento ainda não enviado fica guardado até o envio.</li>
     </ol>
-    <p><b>🗺️ Perto de mim</b></p>
+    <p><b><span data-icone="mapa"></span> Perto de mim</b></p>
     <ul>
       <li>Mostra a sua posição e as propriedades baixadas: <b>vermelho</b> = nunca levantada ou último levantamento há mais de 180 dias; <b>amarelo</b> = o último teve praga detectada ou suspeita; <b>verde</b> = levantada há até 180 dias, sem detecção.</li>
       <li>Abaixo do mapa, a lista vem pela <b>distância</b> (em linha reta), com filtro de raio (5 a 50 km) e busca. Propriedades sem coordenadas ficam no fim.</li>
-      <li>Toque numa propriedade: <b class="bt">🌱 Fazer levantamento aqui</b> abre a ficha já preenchida; <b class="bt">➕ Incluir na rota</b> guarda a visita.</li>
+      <li>Toque numa propriedade: <b class="bt"><span data-icone="broto"></span> Fazer levantamento aqui</b> abre a ficha já preenchida; <b class="bt"><span data-icone="mais"></span> Incluir na rota</b> guarda a visita.</li>
       <li>Sem internet o mapa mostra só os contornos dos municípios e os pontos (sem as ruas).</li>
     </ul>
-    <p><b>🧭 Rota</b></p>
+    <p><b><span data-icone="rota"></span> Rota</b></p>
     <ul>
-      <li>Em <b class="bt">🧭 Rota</b>, o app sugere a ordem (a mais próxima primeiro). Use ↑ ↓ para mudar e ✕ para tirar.</li>
-      <li><b class="bt">🗺️ Abrir no Google Maps</b> abre o trajeto com as paradas. Com mais de 9 paradas, a rota vem em trechos.</li>
+      <li>Em <b class="bt"><span data-icone="rota"></span> Rota</b>, o app sugere a ordem (a mais próxima primeiro). Use ↑ ↓ para mudar e ✕ para tirar.</li>
+      <li><b class="bt"><span data-icone="mapa"></span> Abrir no Google Maps</b> abre o trajeto com as paradas. Com mais de 9 paradas, a rota vem em trechos.</li>
       <li><b>Dica:</b> o Google Maps funciona sem internet se você baixar o mapa da região nele antes: Google Maps → foto do perfil → <b>Mapas off-line</b> → Selecionar seu mapa.</li>
     </ul>
-    <p><b>✍️ Produtor que não assina</b></p>
+    <p><b><span data-icone="assinatura"></span> Produtor que não assina</b></p>
     <ul>
       <li>No cartão <b>Assinaturas</b>, marque <b>“Produtor não assina (não sabe ou não pode assinar)”</b>.</li>
-      <li>Toque em <b class="bt">📷 Foto do produtor com o documento</b> e fotografe o produtor segurando um documento oficial com foto (RG, CNH, carteira de trabalho…), com o rosto e o documento visíveis.</li>
+      <li>Toque em <b class="bt"><span data-icone="camera"></span> Foto do produtor com o documento</b> e fotografe o produtor segurando um documento oficial com foto (RG, CNH, carteira de trabalho…), com o rosto e o documento visíveis.</li>
       <li>Sem a foto, o levantamento não salva. Na ficha, a foto sai no lugar da assinatura do produtor.</li>
     </ul>
-    <p><b>📤 Via do produtor sem impressora</b></p>
+    <p><b><span data-icone="enviar"></span> Via do produtor sem impressora</b></p>
     <ul>
-      <li>Depois de salvar o levantamento, toque em <b class="bt">📤 Enviar ao produtor</b>, marque as fichas e toque em <b>Gerar PDF</b>. Funciona sem internet.</li>
-      <li>Toque em <b class="bt">📤 Compartilhar</b> e escolha o <b>WhatsApp</b> (ou o e-mail) e o contato do produtor. A mensagem sai quando houver internet.</li>
-      <li>Se o celular não oferecer “Compartilhar”, toque em <b>Baixar</b>: o PDF vai para a pasta Downloads. No WhatsApp, anexe (📎) → <b>Documento</b>.</li>
+      <li>Depois de salvar o levantamento, toque em <b class="bt"><span data-icone="enviar"></span> Enviar ao produtor</b>, marque as fichas e toque em <b>Gerar PDF</b>. Funciona sem internet.</li>
+      <li>Toque em <b class="bt"><span data-icone="enviar"></span> Compartilhar</b> e escolha o <b>WhatsApp</b> (ou o e-mail) e o contato do produtor. A mensagem sai quando houver internet.</li>
+      <li>Se o celular não oferecer “Compartilhar”, toque em <b>Baixar</b>: o PDF vai para a pasta Downloads. No WhatsApp, anexe (<span data-icone="anexo"></span>) → <b>Documento</b>.</li>
       <li>O Termo de Colheita tem o mesmo botão (<b>Enviar via do produtor</b>).</li>
     </ul>
   </div></details>
@@ -196,7 +190,7 @@ footer { text-align:center; color:var(--mut); font-size:12px; padding:8px 16px 2
       <li><b>“Sem autorização — fale com a gerência”</b>: aquele módulo não está liberado para você. A gerência libera pelo painel.</li>
       <li><b>“Acesso revogado” ou “sessão inválida”</b>: entre de novo com a matrícula e a senha. O que você registrou e ainda não foi enviado continua guardado e sobe depois.</li>
       <li><b>“Matrícula ou senha incorreta”</b>: confira a matrícula e a senha. Depois de várias tentativas erradas, aguarde 15 minutos.</li>
-      <li><b>“🔄 Nova versão do app disponível”</b>: toque em <b>Atualizar agora</b>, de preferência com tudo já enviado.</li>
+      <li><b>“<span data-icone="sincronizar"></span> Nova versão do app disponível”</b>: toque em <b>Atualizar agora</b>, de preferência com tudo já enviado.</li>
       <li><b>A localização não aparece</b>: ligue o GPS e permita a localização para o app nas configurações do celular.</li>
       <li><b>O turno continua contando depois de encerrar</b>: abra o app com internet para o encerramento chegar. Se não resolver, avise a gerência, que encerra pelo painel.</li>
       <li><b>Os totais do app parecem baixos</b>: o app mostra só o que foi lançado neste aparelho. Os números gerais ficam no painel da gerência.</li>
@@ -210,5 +204,6 @@ function abrir(id) { const d = document.getElementById(id); if (d && d.tagName =
 document.querySelectorAll('nav.indice a').forEach(a => a.addEventListener('click', e => { e.preventDefault(); abrir(a.getAttribute('href').slice(1)); history.replaceState(null, '', a.getAttribute('href')); }));
 if (location.hash) abrir(location.hash.slice(1));
 </script>
+<script src="js/icones.js"></script>
 </body>
 </html>

@@ -282,7 +282,7 @@
       { chave: 'analise', rotulo: 'Análise' }, { chave: 'partes', rotulo: 'Partes' }, { chave: 'servidor', rotulo: 'Servidor' },
       { chave: 'nome', rotulo: 'Produtor', fmt: (v, l) => [v, l.doc].filter(Boolean).join(' · ') || '—', html: (v, l) => `${esc(v || '—')}${l.doc ? `<br><span class="pn-sub">${esc(l.doc)}</span>` : ''}` },
       { chave: 'levantamentoId', rotulo: 'Levantamento', fmt: v => v ? (levIds.has(v) ? 'Vinculado' : 'Vinculado (fora do período)') : 'Avulso' },
-      { chave: 'laboratorio', rotulo: 'Resultado', fmt: v => labTexto(v), html: (v, l) => `${seloLab(v)}${P.gerencia ? `<br><button type="button" class="pn-btn pn-btn-mini" data-laudo="${esc(l.id)}">Registrar</button>` : ''}`,
+      { chave: 'laboratorio', rotulo: 'Resultado', fmt: v => labTexto(v), html: (v, l) => `${seloLab(v)}${P.gerencia ? `<br><button type="button" class="pn-btn pn-btn-mini" data-laudo="${esc(l.id)}">${icone('amostra')} Registrar</button>` : ''}`,
         ordem: l => ['positivo', 'aguardando', 'inconclusivo', 'inviavel', 'negativo'].indexOf(l.laboratorio ? l.laboratorio.resultado : 'aguardando') },
       { chave: 'sit', rotulo: 'Situação', fmt: (v, l) => situacaoTermo(l).map(x => x[1]).join(', '), html: (v, l) => situacaoTermo(l).map(x => selo(x[0], x[1])).join('<br>'),
         ordem: l => situacaoTermo(l).map(x => ({ critico: 0, atencao: 2, bom: 3 }[x[0]])).reduce((a, b) => Math.min(a, b), 9) }
@@ -325,7 +325,7 @@
     const velho = document.getElementById('pn-laudo'); if (velho) velho.remove();
     const L0 = t.laboratorio || {}, outro = !!L0.laboratorio && !LABC.laboratorios.includes(L0.laboratorio);
     const dlg = P.el('dialog', 'pn-dlg'); dlg.id = 'pn-laudo';
-    dlg.innerHTML = `<form method="dialog" class="pn-dlg-form" novalidate><h3>🧪 Resultado do laboratório</h3>
+    dlg.innerHTML = `<form method="dialog" class="pn-dlg-form" novalidate><h3>${icone('amostra')} Resultado do laboratório</h3>
       <p class="pn-sub">Termo ${esc(numTermo(t))} · ${esc(t.cultura || '')} · ${esc(t.municipio || '')} · ${esc(t.quantidade || '')} amostra(s). Grava só o resultado (o termo não muda).</p>
       <label class="pn-dlg-campo">Laboratório<select id="pn-lab-lab"><option value="">Selecione</option>${LABC.laboratorios.map(x => `<option ${(outro ? 'Outro' : L0.laboratorio) === x ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
       <label class="pn-dlg-campo" id="pn-lab-outro-l" ${outro ? '' : 'hidden'}>Nome do laboratório<input id="pn-lab-outro" maxlength="80" value="${esc(outro ? L0.laboratorio : '')}"></label>
@@ -363,7 +363,7 @@
     const sm = P.secao(c, 'Monilíase: termos e cadastros', 'Termos de Fiscalização do PCE (um por visita) e Cadastros de imóvel com hospedeiros. O relatório de atividades usa os filtros de período, município e servidor.');
     sm.parentNode.classList.add('pn-pce-mon');
     const bar = P.el('div', 'pn-mon-acoes');
-    const b = P.el('button', 'pn-btn pn-btn-prim', '📊 Relatório de atividades'); b.type = 'button'; b.id = 'pn-pce-relatorio';
+    const b = P.el('button', 'pn-btn pn-btn-prim', 'Relatório de atividades'); b.type = 'button'; b.id = 'pn-pce-relatorio';
     b.onclick = () => dialogoRelatorio(d, f); bar.appendChild(b); sm.appendChild(bar);
     const sit = t => [t.cancelado ? 'Cancelado' : '', t.conflito ? 'Conflito de nº' : '', t.numeroOrigem === 'papel' ? 'Do papel' : '', t.numeroOrigem === 'provisorio' ? 'Nº provisório' : ''].filter(Boolean).join(', ') || 'Regular';
     P.tabela(sm, [
@@ -406,7 +406,7 @@
       ${campo('pn-rel-folders', 'Educação Sanitária: nº de folders e flyers distribuídos', '')}
       ${campo('pn-rel-obs', 'OBS', m.obs != null ? m.obs : 'Anexo Termo de Fiscalização e Cadastro de imóveis', 'ta')}
       <label><input type="checkbox" id="pn-rel-anexos" ${m.anexos === false ? '' : 'checked'}> Anexar os Termos de Fiscalização e os Cadastros ligados (CPF mascarado)</label>
-      <div class="pn-dlg-botoes"><button type="button" class="pn-btn" id="pn-rel-cancelar">Cancelar</button><button type="submit" class="pn-btn pn-btn-prim" id="pn-rel-ok">🖨️ Imprimir / PDF</button></div></form>`;
+      <div class="pn-dlg-botoes"><button type="button" class="pn-btn" id="pn-rel-cancelar">Cancelar</button><button type="submit" class="pn-btn pn-btn-prim" id="pn-rel-ok">${icone('imprimir')} Imprimir / PDF</button></div></form>`;
     document.body.appendChild(dlg);
     const q = id => dlg.querySelector('#' + id);
     const resumo = () => { q('pn-rel-resumo').textContent = `${R.nTermos} termo(s) · ${R.textos.plantas} · Educação Sanitária: ${R.textos.educacao} · ${R.cadastros.length} cadastro(s)`; };

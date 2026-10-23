@@ -18,6 +18,7 @@ por área; `Code.gs` tem o `doPost`, `TABELAS` e `VERSAO_CODIGO`. Testes em `tes
 |---|---|
 | Qualquer área (apps, módulos, API, publicação, testes) | [docs/README.md](docs/README.md), depois só o arquivo da área |
 | Regras completas | [docs/regras.md](docs/regras.md) |
+| Interface: ícones Lucide, sem emoji, `design.css` | [docs/DESIGN.md](docs/DESIGN.md) |
 | Modelo de dados (diagrama de classes) | [docs/arquitetura.md](docs/arquitetura.md) |
 | Decisões tomadas e em aberto | [docs/decisoes/](docs/decisoes/README.md) |
 | Ideias para depois | [docs/IDEIAS.md](docs/IDEIAS.md) |

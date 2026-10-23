@@ -128,9 +128,9 @@ const PCEUI = (() => {
     const inp = $('#' + pref + 'coord'), st = $('#' + pref + 'coord-st'); if (!inp || !st) return;
     const r = lerCoordenadas(inp.value), ok = r.lat != null && !r.erro;
     $('#' + pref + 'lat').value = ok ? r.lat : ''; $('#' + pref + 'lon').value = ok ? r.lon : '';
-    st.innerHTML = r.vazio ? '<div class="tf-novo">⚠️ Sem coordenadas: o registro não aparecerá no mapa. Se o papel tiver, digite-as.</div>'
-      : r.erro ? `<div class="tf-alerta">⚠️ ${esc(r.erro)}</div>`
-      : `<div class="tf-ok">✓ Latitude <b>${esc(r.lat)}</b> · Longitude <b>${esc(r.lon)}</b><br><small>${esc(gms(r.lat, 'N', 'S'))} &nbsp; ${esc(gms(r.lon, 'L', 'O'))}</small></div>`;
+    st.innerHTML = r.vazio ? '<div class="tf-novo">Sem coordenadas: o registro não aparecerá no mapa. Se o papel tiver, digite-as.</div>'
+      : r.erro ? `<div class="tf-alerta">${icone('alerta')} ${esc(r.erro)}</div>`
+      : `<div class="tf-ok">${icone('check')} Latitude <b>${esc(r.lat)}</b> · Longitude <b>${esc(r.lon)}</b><br><small>${esc(gms(r.lat, 'N', 'S'))} &nbsp; ${esc(gms(r.lon, 'L', 'O'))}</small></div>`;
   }
   /** Antes de salvar: coordenada inválida bloqueia; sem coordenada pede confirmação. false = parar. */
   function coordOk(txt) {
@@ -147,7 +147,7 @@ const PCEUI = (() => {
      Padrão: desligado. Sem internet vale a última permissão conhecida. Os registros já guardados nunca são apagados. */
   const SEM_ANTIGO = 'Sem autorização para digitar registros antigos (do papel). Fale com a gerência.';
   const podeAntigo = () => Sync.pode('antigo');
-  const avisoSemAntigoHTML = () => `<div class="card aviso" id="pce-sem-antigo">⚠️ ${esc(SEM_ANTIGO)} Para registrar vistorias, complete seus dados (cargo e lotação) em “Meus dados”.</div>`;
+  const avisoSemAntigoHTML = () => `<div class="card aviso" id="pce-sem-antigo">${icone('alerta')} ${esc(SEM_ANTIGO)} Para registrar vistorias, complete seus dados (cargo e lotação) em “Meus dados”.</div>`;
   /** Rascunho de registro antigo sem a permissão: pergunta se descarta (Cancelar volta sem perder). true = pode seguir. */
   async function rascunhoAntigoSemPermissao(qual, rasc, voltar) {
     if (!rasc || !rasc.dados || !rasc.antigo || podeAntigo()) return true;
@@ -188,7 +188,7 @@ const PCEUI = (() => {
     l.unshift({ nome: sv.servidor, cargo: sv.cargo, matricula: sv.matricula, lotacao: sv.lotacao });
     await Store.setMeta('pceServidoresDigitados', l.slice(0, 40));
   }
-  const servAntigoHTML = (pref, D, lembrados) => `<div class="card"><h3>👤 Servidor que fez a vistoria</h3>
+  const servAntigoHTML = (pref, D, lembrados) => `<div class="card"><h3>${icone('pessoa')} Servidor que fez a vistoria</h3>
       <p class="dica" style="text-align:left">Como está no papel (não são os seus dados).</p>
       <label>Nome do servidor *<input id="${pref}snome" list="${pref}servs" value="${esc(D.sNome)}" placeholder="Nome completo" autocomplete="off"></label>
       <datalist id="${pref}servs">${lembrados.map(x => `<option value="${esc(x.nome)}">`).join('')}</datalist>
@@ -222,7 +222,7 @@ const PCEUI = (() => {
     if (bloqueado()) return view(avisoAtivacao());
     o = o || {};
     const s = (await servidorAtual()) || {}, primeira = !servidorOk(s);
-    view(`<form class="card" id="pceServForm" autocomplete="off"><h3>👤 Identificação do servidor</h3>
+    view(`<form class="card" id="pceServForm" autocomplete="off"><h3>${icone('pessoa')} Identificação do servidor</h3>
       <p class="dica" style="text-align:left">${primeira ? 'Antes de começar, informe seus dados. ' : ''}Eles ficam neste aparelho e são copiados para cada levantamento e termo no momento em que é criado.</p>
       <label>Nome do servidor *<input id="pce-s-nome" value="${esc(s.nome || Sync.nome())}" placeholder="Nome completo"></label>
       <label>Cargo *${cargoHTML('pce-s-cargo', s.cargo)}</label>
@@ -230,7 +230,7 @@ const PCEUI = (() => {
       <label>Lotação (município) *<select id="pce-s-lotacao">${opts(P.municipios, s.lotacao, 'Selecione')}</select></label>
       ${podeAntigo() ? `<label class="chk"><input type="checkbox" id="pce-s-digitacao" ${s.soDigitacao ? 'checked' : ''}> Só vou digitar registros antigos do papel (não faço vistorias)</label>
       <p class="dica" style="text-align:left">Marque se você apenas digita fichas e termos já feitos (ex.: estagiário). Cargo e lotação deixam de ser obrigatórios; em cada registro você informa o servidor que fez a vistoria.</p>` : ''}
-      <button class="botao" type="submit" id="pce-s-salvar">💾 Salvar</button>
+      <button class="botao" type="submit" id="pce-s-salvar">${icone('salvar')} Salvar</button>
       ${primeira ? '' : '<button class="botao sec" type="button" data-v="pce">Voltar</button>'}</form>`);
     $('#pceServForm').onsubmit = async e => {
       e.preventDefault();
@@ -315,8 +315,8 @@ const PCEUI = (() => {
     el.innerHTML = F.docs.length ? F.docs.map((id, i) => { const a = itens[i] || {};
       const abrir = a.dados ? `<button type="button" class="mini" data-pce="verdoc" data-id="${esc(id)}">Abrir</button>`
         : a.url ? `<a class="mini" href="${esc(a.url)}" target="_blank" rel="noopener">Abrir no Drive</a>` : '';
-      return `<div class="pce-doc" data-id="${esc(id)}"><span>📄 ${esc(a.nomeOriginal || 'documento.pdf')} <small>${a.tamanho ? esc(mb(a.tamanho)) : '☁️ no Drive'}</small></span>
-        <span class="pce-doc-acoes">${abrir}<button type="button" class="mini" data-pce="deldoc" data-id="${esc(id)}" aria-label="Remover PDF ${i + 1}">✕</button></span></div>`; }).join('')
+      return `<div class="pce-doc" data-id="${esc(id)}"><span>${icone('documento')} ${esc(a.nomeOriginal || 'documento.pdf')} <small>${a.tamanho ? esc(mb(a.tamanho)) : 'no Drive'}</small></span>
+        <span class="pce-doc-acoes">${abrir}<button type="button" class="mini" data-pce="deldoc" data-id="${esc(id)}" aria-label="Remover PDF ${i + 1}">${icone('fechar')}</button></span></div>`; }).join('')
       : '<div class="dica">Nenhum PDF anexado.</div>';
   }
   async function removerDoc(F, id, alvo) {
@@ -330,8 +330,8 @@ const PCEUI = (() => {
     const url = URL.createObjectURL(await (await fetch(a.dados)).blob());
     window.open(url, '_blank'); setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
-  const pdfHTML = pref => `<div class="card"><h3>📎 Ficha escaneada (PDF)</h3>
-      <label class="pce-arquivo">📎 Anexar PDF<input type="file" id="${pref}pdfs" accept="application/pdf,.pdf" multiple></label>
+  const pdfHTML = pref => `<div class="card"><h3>${icone('anexo')} Ficha escaneada (PDF)</h3>
+      <label class="pce-arquivo">${icone('anexo')} Anexar PDF<input type="file" id="${pref}pdfs" accept="application/pdf,.pdf" multiple></label>
       <p class="dica" style="text-align:left">Até ${MAX_DOCS} arquivos de no máximo 10 MB cada. Vão para o Drive junto com as fotos.</p>
       <div id="${pref}pdfs-lista" class="pce-docs"></div></div>`;
 
@@ -356,12 +356,12 @@ const PCEUI = (() => {
       <div id="pce-docprod" class="pce-docprod" ${F.naoAssina ? '' : 'hidden'}>
         <p class="dica" style="text-align:left">Tire uma foto do produtor segurando um documento de identificação oficial com foto (RG, CNH, carteira de trabalho…), com o rosto e o documento visíveis. A foto vai na ficha no lugar da assinatura.</p>
         <div id="pce-docprod-prev" class="pce-fotos"></div>
-        <label class="pce-arquivo" id="pce-docprod-btn">📷 Foto do produtor com o documento<input type="file" id="pce-docprod-in" accept="image/*" capture="environment"></label></div>`;
+        <label class="pce-arquivo" id="pce-docprod-btn">${icone('camera')} Foto do produtor com o documento<input type="file" id="pce-docprod-in" accept="image/*" capture="environment"></label></div>`;
   async function renderDocProdutor(F) {
     const el = $('#pce-docprod-prev'); if (!el) return;
     await Anexos.miniaturas(el, F.ass.produtorDoc ? [F.ass.produtorDoc] : [], 'data-pce="deldocprod"');
     if (!F.ass.produtorDoc && el.isConnected) el.innerHTML = '';
-    const b = $('#pce-docprod-btn'); if (b) b.firstChild.textContent = F.ass.produtorDoc ? '📷 Trocar a foto' : '📷 Foto do produtor com o documento';
+    const b = $('#pce-docprod-btn'); if (b) b.firstChild.textContent = F.ass.produtorDoc ? 'Trocar a foto' : 'Foto do produtor com o documento';
   }
   async function soltarDocProdutor(F) {                                  // foto nova deste formulário some já; a já salva no registro, ao salvar
     const id = F.ass.produtorDoc; delete F.ass.produtorDoc;
@@ -393,10 +393,10 @@ const PCEUI = (() => {
   /* ---------- GPS ---------- */
   async function capturarGPS(pref, automatico) {
     const st = $('#' + pref + 'gps-st'), form = st && st.closest('form'); if (!st) return;
-    st.textContent = '📍 Obtendo localização…';
+    st.textContent = 'Obtendo localização…';
     const g = automatico ? await pegarLocalSilencioso() : await pegarLocal();   // ao abrir o formulário, sem pedir permissão
     if (!form.isConnected) return;
-    if (!g) { st.textContent = automatico ? 'Toque em “Atualizar GPS” para registrar a localização.' : '⚠️ GPS indisponível ou permissão negada. Toque em “Atualizar GPS” para tentar de novo.'; return; }
+    if (!g) { st.textContent = automatico ? 'Toque em “Atualizar GPS” para registrar a localização.' : 'GPS indisponível ou permissão negada. Toque em “Atualizar GPS” para tentar de novo.'; return; }
     $('#' + pref + 'lat').value = g.lat; $('#' + pref + 'lon').value = g.lng; $('#' + pref + 'precisao').value = g.prec;
     st.textContent = `✓ Localização obtida (precisão aproximada: ${g.prec} m).`;
     agendarRascunho();
@@ -404,7 +404,7 @@ const PCEUI = (() => {
   const gpsHTML = (pref, D) => `<div class="duas"><label>Latitude<input id="${pref}lat" readonly value="${esc(D.lat)}"></label>
       <label>Longitude<input id="${pref}lon" readonly value="${esc(D.lon)}"></label></div><input type="hidden" id="${pref}precisao" value="${esc(D.precisao)}">
       <div class="pce-gps"><span id="${pref}gps-st" class="dica">${D.lat !== '' && D.lat != null ? `Precisão aproximada: ${esc(D.precisao)} m.` : ''}</span>
-      <button type="button" class="mini" data-pce="gps" data-pref="${pref}">📍 Atualizar GPS</button></div>`;
+      <button type="button" class="mini" data-pce="gps" data-pref="${pref}">${icone('local')} Atualizar GPS</button></div>`;
 
   /* ---------- consulta do produtor (servidor quando online; aparelho quando offline) ---------- */
   const qtd = v => (Array.isArray(v) ? v.length : Number(v) || 0);
@@ -417,7 +417,7 @@ const PCEUI = (() => {
         return { pessoa: r.pessoa || null, propriedades: r.propriedades || [], levantamentos: qtd(r.levantamentos), colheitas: qtd(r.colheitas), parcial: false };
       } catch (e) { if (e.semPermissao || /revogado|inv[aá]lido/i.test(e.message)) throw e; }          // sem resposta: segue offline
     }
-    // sem internet: dados deste aparelho, inclusive os baixados para o campo (📥 Dados para o campo); o histórico do servidor vem no resumo de cada propriedade
+    // sem internet: dados deste aparelho, inclusive os baixados para o campo (Dados para o campo); o histórico do servidor vem no resumo de cada propriedade
     const doDoc = x => !x.excluido && digitos(x.doc) === doc, props = (await Store.todos('propriedades')).filter(doDoc);
     const doServidor = props.reduce((n, p) => n + (Number(p.resumoLev && p.resumoLev.n) || 0), 0);
     return { pessoa: (await Store.obter('pessoas', doc)) || null, propriedades: props, parcial: true, offline: await Campo.textoOffline(doc),
@@ -431,7 +431,7 @@ const PCEUI = (() => {
     let r; try { r = await buscarProdutor(d); } catch (e) { st.textContent = e.message; if (pref === 'pce-') liberarProdutor(); return; }
     if (!st.isConnected || digitos(inp.value) !== d) return;
     F.props = r.propriedades;
-    let html = docOk(d) ? '' : `<div class="tf-alerta">⚠️ ${d.length === 11 ? 'CPF' : 'CNPJ'} com dígitos inválidos: confira a digitação.</div>`;
+    let html = docOk(d) ? '' : `<div class="tf-alerta">${icone('alerta')} ${d.length === 11 ? 'CPF' : 'CNPJ'} com dígitos inválidos: confira a digitação.</div>`;
     const set = (id, v, soVazio) => { const el = $('#' + pref + id); if (el && v && (!soVazio || !String(el.value).trim() || (id === 'uf' && el.value === 'AM'))) el.value = valorSelect(el, String(v)); };
     if (r.pessoa) {
       set('nome', r.pessoa.nome); set('telefone', r.pessoa.telefone); set('email', r.pessoa.email);
@@ -441,8 +441,8 @@ const PCEUI = (() => {
     } else html += r.propriedades.length ? '<div class="tf-ok">✓ Propriedade(s) encontrada(s) para este documento. Confira os dados do produtor.</div>'
       : '<div class="tf-novo">Novo cadastro — preencha os dados do produtor (serão salvos na planilha).</div>';
     if (pref === 'pce-') liberarProdutor();
-    if (r.parcial) html += `<div class="tf-novo pce-offline">📴 Sem conexão: ${esc(r.offline || 'só os dados deste aparelho')}.</div>`;
-    if (r.levantamentos || r.colheitas) html += `<div class="tf-ok">ℹ️ ${r.levantamentos} levantamento(s) e ${r.colheitas} termo(s) de colheita anteriores${r.parcial ? ' <small>(sem conexão)</small>' : ''}.</div>`;
+    if (r.parcial) html += `<div class="tf-novo pce-offline">${icone('offline')} Sem conexão: ${esc(r.offline || 'só os dados deste aparelho')}.</div>`;
+    if (r.levantamentos || r.colheitas) html += `<div class="tf-ok">${icone('info')} ${r.levantamentos} levantamento(s) e ${r.colheitas} termo(s) de colheita anteriores${r.parcial ? ' <small>(sem conexão)</small>' : ''}.</div>`;
     if (r.propriedades.length) {
       html += `<div class="tf-novo"><b>Propriedade(s) cadastrada(s):</b><ul>${r.propriedades.map((p, i) => `<li>${esc(p.nome || p.codigo || p.id)}${p.codigo ? ' · cód. ' + esc(p.codigo) : ''}${p.municipio ? ' · ' + esc(p.municipio) : ''}
         <button type="button" class="mini" data-pce="usarprop" data-pref="${pref}" data-i="${i}">Usar</button></li>`).join('')}</ul></div>`;
@@ -487,7 +487,7 @@ const PCEUI = (() => {
     out.innerHTML = r.length ? `<ul class="campo-res">${r.map((x, i) => { const p = x.prop, doc = digitos(p ? p.doc : x.pessoa.id);
       return `<li><button type="button" class="campo-res-item" data-pce="escolherprop" data-i="${i}"><b>${esc((x.pessoa && x.pessoa.nome) || 'Produtor sem cadastro')}</b>
         <small>${esc([p ? p.nome || 'Propriedade sem nome' : 'sem propriedade cadastrada', p && p.codigo && 'cód. ' + p.codigo, p && p.municipio, fmtDoc(doc)].filter(Boolean).join(' · '))}</small></button></li>`; }).join('')}</ul>`
-      : '<div class="tf-novo">Nada encontrado neste aparelho. Baixe os dados do município em “📥 Dados para o campo” ou consulte pelo CPF/CNPJ com internet.</div>';
+      : '<div class="tf-novo">Nada encontrado neste aparelho. Baixe os dados do município em “Dados para o campo” ou consulte pelo CPF/CNPJ com internet.</div>';
   }
   /** Preenche produtor e propriedade no formulário do levantamento. */
   function preencherProdutor(x, origem) {
@@ -498,8 +498,8 @@ const PCEUI = (() => {
     if (p) { propNoForm(p, set); L.props = [p]; }
     liberarProdutor();
     const st = $('#pce-st-doc');
-    if (st) st.innerHTML = `<div class="tf-ok">✓ ${esc(origem)}: ${esc((pe && pe.nome) || 'produtor')}${p ? ' · ' + esc(p.nome || p.codigo || '') : ''}. Confira os dados.</div>`
-      + (doc && !docOk(doc) ? `<div class="tf-alerta">⚠️ ${doc.length === 11 ? 'CPF' : 'CNPJ'} com dígitos inválidos: confira.</div>` : '');
+    if (st) st.innerHTML = `<div class="tf-ok">${icone('check')} ${esc(origem)}: ${esc((pe && pe.nome) || 'produtor')}${p ? ' · ' + esc(p.nome || p.codigo || '') : ''}. Confira os dados.</div>`
+      + (doc && !docOk(doc) ? `<div class="tf-alerta">${icone('alerta')} ${doc.length === 11 ? 'CPF' : 'CNPJ'} com dígitos inválidos: confira.</div>` : '');
     const b = $('#pce-busca-prop'), r = $('#pce-busca-res'); if (b) b.value = ''; if (r) r.replaceChildren();
     agendarRascunho();
   }
@@ -640,12 +640,12 @@ const PCEUI = (() => {
       <div class="duas">${inp('area', 'Área (ha)', 'inputmode="decimal"')}<label>Coleta de amostra<select class="c-coleta">${opts(['Não', 'Sim'], c.coleta === 'Sim' ? 'Sim' : 'Não')}</select></label></div>
       <div class="duas">${inp('espLinha', 'Espaçamento entre linhas')}${inp('espPlanta', 'Espaçamento entre plantas')}</div>
       <div class="pce-amostra">${inp('tipoMaterial', 'Tipo de material', amostra)}<div class="duas">${inp('codigoAmostra', 'Código da amostra', amostra)}${inp('destinoAmostra', 'Destino da amostra', amostra)}</div></div>
-      <label class="pce-arquivo pce-arquivo-cult">📷 Fotos desta cultura<input type="file" class="c-fotos" data-uid="${u}" accept="image/*" multiple></label>
+      <label class="pce-arquivo pce-arquivo-cult">${icone('camera')} Fotos desta cultura<input type="file" class="c-fotos" data-uid="${u}" accept="image/*" multiple></label>
       <div id="pce-fotos-${u}" class="pce-fotos pce-fotos-cult"></div></div>`;
   }
   function blocoPraga(g, i) {
     const outra = g.outra || (!!g.praga && !P.pragas.includes(g.praga));
-    return `<div class="pce-praga" data-p="${i}" data-legado="${g.legado ? 1 : ''}"><div class="pce-praga-topo"><b>🐛 Praga/doença ${i + 1}</b>
+    return `<div class="pce-praga" data-p="${i}" data-legado="${g.legado ? 1 : ''}"><div class="pce-praga-topo"><b>${icone('praga')} Praga/doença ${i + 1}</b>
         <button type="button" class="mini" data-pce="delpraga" data-p="${i}" aria-label="Remover praga/doença ${i + 1}">Remover</button></div>
       <label>Praga/doença avaliada *<select class="p-praga"><option value="">${esc(g.legado ? SEM_PRAGA + ' (registro anterior)' : 'Selecione')}</option>
         ${P.pragas.map(x => `<option ${!outra && x === g.praga ? 'selected' : ''}>${esc(x)}</option>`).join('')}
@@ -661,26 +661,26 @@ const PCEUI = (() => {
     atualizarCitros();
     for (const c of lista.flatMap(g => g.culturas)) await renderFotos(F, '#pce-fotos-' + c.uid, c.uid);
   }
-  /** Bloco "🍊 Cultura do citros": visível só com card de praga de citros; praga de citros detectada pré-marca "Presença" na detecção/delimitação. */
+  /** Bloco "Cultura do citros": visível só com card de praga de citros; praga de citros detectada pré-marca "Presença" na detecção/delimitação. */
   function atualizarCitros() {
     const cards = [...document.querySelectorAll('#pce-pragas .pce-praga')];
     PCECitros.atualizar(cards.map(c => ({ praga: nomePragaCard(c), detectada: !!c.querySelector('.c-res[value="detectada"]:checked') })));
   }
-  const fotosGeraisHTML = () => `<div class="card" id="pce-gerais-card"><h3>📷 Fotos gerais (registro anterior)</h3>
+  const fotosGeraisHTML = () => `<div class="card" id="pce-gerais-card"><h3>${icone('camera')} Fotos gerais (registro anterior)</h3>
       <p class="dica" style="text-align:left">Fotos do levantamento inteiro, de antes da separação por praga. Saem em todos os PDFs. As fotos novas vão em cada cultura.</p>
       <div id="pce-fotos-gerais" class="pce-fotos"></div></div>`;
 
-  const topoAntigo = (titulo, F) => `<div class="card"><h3>📄 ${titulo}</h3>
+  const topoAntigo = (titulo, F) => `<div class="card"><h3>${icone('documento')} ${titulo}</h3>
       <p class="dica" style="text-align:left">Digite os dados como estão no papel: data, hora, coordenadas e servidor são os da vistoria.${F.novo !== false ? ' Depois de salvar, use “Salvar e digitar outro” para seguir com a próxima ficha.' : ''}</p></div>`;
   function formLevHTML(D, F) {
     const A = F.antigo;
     return `<form id="pceLevForm" autocomplete="off" class="${A ? 'pce-antigo' : ''}" ${A ? 'novalidate' : ''}>
     ${A ? topoAntigo(F.novo ? 'Registro antigo — levantamento (digitar do papel)' : 'Editar levantamento (registro do papel)', F) + servAntigoHTML('pce-', D, F.lembrados)
-      : `<div class="card"><h3>${F.novo ? '🌱 Novo levantamento fitossanitário' : '🌱 Editar levantamento'}</h3>
+      : `<div class="card"><h3>${F.novo ? 'Novo levantamento fitossanitário' : 'Editar levantamento'}</h3>
       <p class="dica" style="text-align:left">Servidor: <b>${esc(F.serv.servidor)}</b> · ${esc(F.serv.cargo)} · ${esc(F.serv.lotacao)}</p></div>`}
     <div class="card" id="pce-prod-card"><h3>Dados do produtor</h3>
       <div class="pce-busca">${campo('doc', 'CPF / CNPJ do produtor *', D.doc, 'inputmode="numeric" placeholder="000.000.000-00" autocomplete="off"')}
-        <button type="button" class="mini" data-pce="consultar" data-pref="pce-" aria-label="Consultar cadastro">🔍</button></div>
+        <button type="button" class="mini" data-pce="consultar" data-pref="pce-" aria-label="Consultar cadastro">${icone('busca')}</button></div>
       <div id="pce-st-doc" class="tf-status" aria-live="polite">${F.prodLivre ? '' : '<div class="tf-novo" id="pce-doc-dica">Informe o CPF/CNPJ: o sistema busca o cadastro e preenche os dados; se não houver, os campos abaixo são liberados para preencher.</div>'}</div>
       <div class="campo-busca"><label>Não sabe o CPF/CNPJ? Buscar por nome, propriedade ou código<input id="pce-busca-prop" type="search" autocomplete="off" placeholder="ex.: Sítio Boa Vista ou PRP-001"></label>
         <div id="pce-busca-res" aria-live="polite"></div></div>
@@ -702,7 +702,7 @@ const PCEUI = (() => {
     <div class="card" id="pce-visita-card"><h3>Local e origem da visita <small>(opcional)</small></h3>
       <div class="duas">${listaOutroHTML('tipolocal', 'Tipo de local', P.tiposLocal || [], D.tipoLocal)}${listaOutroHTML('origem', 'Origem da visita', P.origensVisita || [], D.origemVisita)}</div></div>
     <div class="card pce-pragas-card" id="pce-pragas-card"><h3>Pragas e doenças avaliadas</h3>
-      <p class="dica" style="text-align:left">Um card para cada praga/doença avaliada na visita; dentro dele, as culturas avaliadas, com o resultado e as fotos de cada uma. A mesma cultura pode aparecer em pragas diferentes. Cada praga sai num PDF próprio. Com praga de citros, aparece o bloco “🍊 Cultura do citros” (um só para o levantamento).</p>
+      <p class="dica" style="text-align:left">Um card para cada praga/doença avaliada na visita; dentro dele, as culturas avaliadas, com o resultado e as fotos de cada uma. A mesma cultura pode aparecer em pragas diferentes. Cada praga sai num PDF próprio. Com praga de citros, aparece o bloco “${icone('citros')} Cultura do citros” (um só para o levantamento).</p>
       <div id="pce-pragas"></div>
       ${PCECitros.html(D.citros)}
       <button type="button" class="botao sec" data-pce="addpraga" id="pce-addpraga">+ Adicionar praga/doença</button></div>
@@ -712,8 +712,8 @@ const PCEUI = (() => {
       <p class="dica" style="text-align:left">Assine com o dedo, se quiser. As fichas impressas sempre trazem as linhas para assinar no papel.</p>
       ${assHTML('servidor', 'Servidor')}${assHTML('produtor', 'Produtor')}${naoAssinaHTML(F)}</div>`}
     <div class="card"><h3>Observações</h3><label><textarea id="pce-obs" rows="3" aria-label="Observações">${esc(D.obs)}</textarea></label></div>
-    <button class="botao" type="submit" id="pce-salvar">💾 Salvar levantamento</button>
-    ${A && F.novo ? '<button class="botao" type="button" data-pce="salvaroutro" id="pce-salvar-outro">💾 Salvar e digitar outro</button>' : ''}
+    <button class="botao" type="submit" id="pce-salvar">${icone('salvar')} Salvar levantamento</button>
+    ${A && F.novo ? '<button class="botao" type="button" data-pce="salvaroutro" id="pce-salvar-outro">Salvar e digitar outro</button>' : ''}
     <button class="botao sec" type="button" data-pce="descartarlev">Descartar alterações</button></form>`;
   }
 
@@ -810,7 +810,7 @@ const PCEUI = (() => {
   /** CNPJ da propriedade/empresa: formata e avisa se incompleto ou com dígitos inválidos (só alerta; ao salvar, incompleto bloqueia). */
   function avisoCnpj(t) {
     const d = digitos(t.value), st = $('#pce-st-cnpj'); if (d.length === 14) t.value = fmtDoc(d);
-    if (st) st.innerHTML = !d ? '' : d.length !== 14 ? '<div class="tf-alerta">⚠️ CNPJ incompleto (14 dígitos).</div>' : cnpjOk(d) ? '' : '<div class="tf-alerta">⚠️ CNPJ com dígitos inválidos: confira a digitação.</div>';
+    if (st) st.innerHTML = !d ? '' : d.length !== 14 ? '<div class="tf-alerta">CNPJ incompleto (14 dígitos).</div>' : cnpjOk(d) ? '' : '<div class="tf-alerta">CNPJ com dígitos inválidos: confira a digitação.</div>';
   }
   /** Cards de praga do formulário → pragas a gravar (só culturas preenchidas). null = parar (mensagem já mostrada). */
   function pragasValidadas(D) {
@@ -911,8 +911,8 @@ const PCEUI = (() => {
   /** Botões "PDF: <praga>" (um por praga) e "Imprimir todos". grande = tela depois de salvar. */
   function botoesPdf(id, G, grande) {
     const cls = grande ? 'botao' : 'editar';
-    return G.pragas.map((g, i) => `<button class="${cls} pce-pdf" data-pce="imprimirlev" data-id="${esc(id)}" data-g="${i}"${grande ? '' : curto('PDF ' + nomePraga(g.praga).split(' ')[0], 'PDF: ' + nomePraga(g.praga))}>${grande ? '🖨️ ' : ''}PDF: ${esc(nomePraga(g.praga))}</button>`).join('')
-      + (G.pragas.length > 1 ? `<button class="${grande ? 'botao sec' : 'editar'} pce-pdf-todos" data-pce="imprimirtodos" data-id="${esc(id)}"${grande ? '' : curto('PDF todos', 'Imprimir todos os PDFs')}>🖨️ Imprimir todos (${G.pragas.length} PDFs)</button>` : '')
+    return G.pragas.map((g, i) => `<button class="${cls} pce-pdf" data-pce="imprimirlev" data-id="${esc(id)}" data-g="${i}"${grande ? '' : curto('PDF ' + nomePraga(g.praga).split(' ')[0], 'PDF: ' + nomePraga(g.praga))}>PDF: ${esc(nomePraga(g.praga))}</button>`).join('')
+      + (G.pragas.length > 1 ? `<button class="${grande ? 'botao sec' : 'editar'} pce-pdf-todos" data-pce="imprimirtodos" data-id="${esc(id)}"${grande ? '' : curto('PDF todos', 'Imprimir todos os PDFs')}>${icone('imprimir')} Imprimir todos (${G.pragas.length} PDFs)</button>` : '')
       + (!G.pragas.length ? `<button class="${cls} pce-pdf" data-pce="imprimirlev" data-id="${esc(id)}" data-g="0"${grande ? '' : curto('Ficha', 'Ficha (PDF)')}>Ficha (PDF)</button>` : '');
   }
   const amostrasDe = G => G.pragas.flatMap(g => g.culturas.filter(c => c.coleta === 'Sim').map(c => ({ praga: g.praga, cultura: c.cultura, tipoMaterial: c.tipoMaterial || '', codigoAmostra: c.codigoAmostra || '' })));
@@ -931,16 +931,16 @@ const PCEUI = (() => {
   function botoesVisita(r, v, grande) {
     if (!Sync.pode('pce') || (Number(r.registroAntigo) === 1 && !podeAntigo())) return '';
     const id = x => (grande ? `id="${x}"` : ''), ci = v.programa === 'citros';
-    const cad = v.cadastro ? '' : `<button class="${grande ? 'botao' : 'editar'}" data-pce="cadvisita" data-id="${esc(r.id)}" ${grande ? id('pce-pronto-cad') : curto(ci ? 'Cadastro citros' : 'Cadastro', ci ? 'Cadastro de citros' : 'Cadastrar a propriedade')}>${ci ? '🍊 Cadastro de citros' : '🏡 Cadastrar a propriedade'}${grande ? ' e fazer o Termo' : ''}</button>`;
-    const tf = v.termo ? `<button class="${grande ? 'botao sec' : 'editar'}" data-pce="abrirtfvisita" data-id="${esc(v.termo.id)}" ${grande ? id('pce-pronto-tf') : curto('TF ' + (v.termo.numeroTxt || ''), 'Termo de Fiscalização ' + (v.termo.numeroTxt || ''))}>📋 Termo de Fiscalização ${esc(v.termo.numeroTxt || '')}</button>`
-      : `<button class="${grande ? (cad ? 'botao sec' : 'botao') : 'tfbtn'}" data-pce="tfvisita" data-id="${esc(r.id)}" ${grande ? id('pce-pronto-tf') : curto('TF', 'Fazer o Termo de Fiscalização')}>📋 ${grande ? (cad ? 'Só o Termo de Fiscalização (sem cadastro)' : 'Fazer o Termo de Fiscalização da visita') : 'Termo de Fiscalização'}</button>`;
+    const cad = v.cadastro ? '' : `<button class="${grande ? 'botao' : 'editar'}" data-pce="cadvisita" data-id="${esc(r.id)}" ${grande ? id('pce-pronto-cad') : curto(ci ? 'Cadastro citros' : 'Cadastro', ci ? 'Cadastro de citros' : 'Cadastrar a propriedade')}>${ci ? 'Cadastro de citros' : 'Cadastrar a propriedade'}${grande ? ' e fazer o Termo' : ''}</button>`;
+    const tf = v.termo ? `<button class="${grande ? 'botao sec' : 'editar'}" data-pce="abrirtfvisita" data-id="${esc(v.termo.id)}" ${grande ? id('pce-pronto-tf') : curto('TF ' + (v.termo.numeroTxt || ''), 'Termo de Fiscalização ' + (v.termo.numeroTxt || ''))}>${icone('formulario')} Termo de Fiscalização ${esc(v.termo.numeroTxt || '')}</button>`
+      : `<button class="${grande ? (cad ? 'botao sec' : 'botao') : 'tfbtn'}" data-pce="tfvisita" data-id="${esc(r.id)}" ${grande ? id('pce-pronto-tf') : curto('TF', 'Fazer o Termo de Fiscalização')}>${icone('formulario')} ${grande ? (cad ? 'Só o Termo de Fiscalização (sem cadastro)' : 'Fazer o Termo de Fiscalização da visita') : 'Termo de Fiscalização'}</button>`;
     return cad + tf;
   }
   /** Tela depois de salvar: resumo por praga e os PDFs (um por praga). */
   async function levPronto(id) {
     const r = id ? await Store.obter('levantamentos', id) : null; if (!r || r.excluido) return go('pce');
     const G = Docs.pceGrupos(r), amostras = amostrasDe(G), visita = await docsDaVisita(r);
-    view(`<div class="card" id="pce-lev-pronto"><h3>✅ Levantamento salvo</h3>
+    view(`<div class="card" id="pce-lev-pronto"><h3>${icone('ok')} Levantamento salvo</h3>
       <p><b>${esc(r.nome)}</b> · ${esc(r.propriedade || 'Propriedade não informada')}</p><p>${esc(dBR(r.data))} ${esc(r.hora)} · ${esc(r.municipio)}</p>
       ${r.tipoLocal || r.origemVisita ? `<p class="dica" style="text-align:left" id="pce-pronto-local">Local: ${esc(r.tipoLocal || 'não informado')} · Origem: ${esc(r.origemVisita || 'não informada')}</p>` : ''}
       <ul class="pce-res-lista">${G.pragas.map(g => `<li><b>${esc(nomePraga(g.praga))}</b> ${seloRes(resultadoPraga(g))}<br><small>${g.culturas.map(c => `${esc(c.cultura)} (${esc(RES[c.resultado])}${c.fotos.length ? `, ${c.fotos.length} foto(s)` : ''})`).join(' · ')}</small></li>`).join('')}</ul>
@@ -951,10 +951,10 @@ const PCEUI = (() => {
           : 'Propriedade nova: cadastre a propriedade e, ao salvar, o Termo de Fiscalização da visita abre já preenchido.'}</p>
         ${botoesVisita(r, visita, true)}</div>` : ''}
       <div class="pce-pdfs">${botoesPdf(r.id, G, true)}</div>
-      <button class="botao sec" data-pce="enviarlev" data-id="${esc(r.id)}" id="pce-enviar">📤 Enviar ao produtor (WhatsApp, e-mail…)</button>
+      <button class="botao sec" data-pce="enviarlev" data-id="${esc(r.id)}" id="pce-enviar">${icone('enviar')} Enviar ao produtor (WhatsApp, e-mail…)</button>
       <p class="dica">Um PDF por praga/doença: cada um traz os dados da visita, só as culturas e as fotos daquela praga e as assinaturas. Na janela de impressão, escolha “Salvar como PDF”.${G.pragas.length > 1 ? ' “Imprimir todos” gera um PDF de cada vez (no celular, cada um abre a sua janela de impressão).' : ''}</p>
-      ${amostras.length && Sync.pode('pce') && !(Number(r.registroAntigo) === 1 && !podeAntigo()) ? `<button class="botao sec" data-pce="termodelev" data-id="${esc(r.id)}" id="pce-pronto-termo">🧪 Termo de colheita (${amostras.length} amostra(s))</button>` : ''}
-      <button class="botao sec" data-v="pce" id="pce-pronto-lista">📋 Ver levantamentos</button>`);
+      ${amostras.length && Sync.pode('pce') && !(Number(r.registroAntigo) === 1 && !podeAntigo()) ? `<button class="botao sec" data-pce="termodelev" data-id="${esc(r.id)}" id="pce-pronto-termo">${icone('amostra')} Termo de colheita (${amostras.length} amostra(s))</button>` : ''}
+      <button class="botao sec" data-v="pce" id="pce-pronto-lista">${icone('formulario')} Ver levantamentos</button>`);
   }
 
   async function lista() {
@@ -968,16 +968,16 @@ const PCEUI = (() => {
     const pendArq = new Set(await Store.chaves('arquivos', 'enviado', 0)), campoRes = await Campo.resumo();
     if (!mostrar.viva()) return;
     view(`<div class="card pce-serv"><div><b>${esc(s.nome)}</b><small>${dig ? 'Digitação de registros do papel' : esc(s.cargo) + ' · ' + esc(s.lotacao)}${s.matricula ? ' · Mat. ' + esc(s.matricula) : ''}</small></div>
-        <button class="mini" data-pce="servidor" id="pce-meusdados">👤 Meus dados</button></div>
+        <button class="mini" data-pce="servidor" id="pce-meusdados">${icone('pessoa')} Meus dados</button></div>
       ${digSemAut ? avisoSemAntigoHTML() : ''}
-      ${dig ? '' : `<button class="botao" data-pce="novolev" id="pce-novolev">➕ Novo levantamento</button>
-      <div class="duas campo-atalhos"><button class="botao sec" data-v="pcecampo" id="pce-campo">📥 Dados para o campo</button><button class="botao sec" data-v="pcemapa" id="pce-mapa">🗺️ Perto de mim</button></div>
+      ${dig ? '' : `<button class="botao" data-pce="novolev" id="pce-novolev">${icone('mais')} Novo levantamento</button>
+      <div class="duas campo-atalhos"><button class="botao sec" data-v="pcecampo" id="pce-campo">${icone('baixar')} Dados para o campo</button><button class="botao sec" data-v="pcemapa" id="pce-mapa">${icone('mapa')} Perto de mim</button></div>
       ${campoRes ? `<p class="dica" id="pce-campo-res">No aparelho: ${esc(campoRes)}</p>` : ''}`}
-      ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-pce="novolevantigo" id="pce-novolevantigo">📄 Registro antigo (digitar do papel)</button>` : ''}
+      ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-pce="novolevantigo" id="pce-novolevantigo">${icone('documento')} Registro antigo (digitar do papel)</button>` : ''}
       ${digSemAut ? '' : `<div class="pce-docs-atalhos" aria-label="Outros documentos do PCE">
-        <button class="mini" data-v="pcecads" id="pce-cads">🏡 Cadastros de propriedades</button>
-        <button class="mini" data-v="pcetfs" id="pce-tfs">📋 Termos de Fiscalização</button>
-        <button class="mini" data-v="pcerel" id="pce-rel">📊 Relatório de atividades</button></div>`}
+        <button class="mini" data-v="pcecads" id="pce-cads">${icone('propriedade')} Cadastros de propriedades</button>
+        <button class="mini" data-v="pcetfs" id="pce-tfs">${icone('formulario')} Termos de Fiscalização</button>
+        <button class="mini" data-v="pcerel" id="pce-rel">${icone('resumo')} Relatório de atividades</button></div>`}
       ${todos.length ? `<div class="pce-ordem"><label for="pce-ordem">Organizar por</label> <select id="pce-ordem"><option value="municipio">Município</option><option value="data">Data (mais recentes primeiro)</option></select></div>` : ''}
       <div id="pceItens"></div>`);
     const G = new Map(todos.map(x => [x.id, Docs.pceGrupos(x)]));
@@ -993,7 +993,7 @@ const PCEUI = (() => {
       const grupos = new Map();
       v.forEach(x => { const m = String(x.municipio || '').trim(); if (!grupos.has(m)) grupos.set(m, []); grupos.get(m).push(x); });
       const muns = [...grupos.keys()].sort((a, b) => (!a) - (!b) || a.localeCompare(b, 'pt', { sensitivity: 'base' }));
-      $('#pceItens').innerHTML = cab + muns.map(m => `<div class="pce-lev-grupo" data-mun="${esc(m)}">📍 ${esc(m || 'Município não informado')} <small>${grupos.get(m).length} levantamento(s)</small></div>`
+      $('#pceItens').innerHTML = cab + muns.map(m => `<div class="pce-lev-grupo" data-mun="${esc(m)}">${icone('local')} ${esc(m || 'Município não informado')} <small>${grupos.get(m).length} levantamento(s)</small></div>`
         + grupos.get(m).map(linha).join('')).join('');
     };
     const linha = x => {
@@ -1056,9 +1056,9 @@ const PCEUI = (() => {
     const st = $('#pce-t-numpapel-st'); if (!st || !T || !T.antigo) return;
     const D = coletarTermo(); if (!D.numPapel.trim()) { st.replaceChildren(); return; }
     const r = lerNumeroPapel(D.numPapel, D.unidade, D.data);
-    st.innerHTML = r.erro ? `<div class="tf-alerta">⚠️ ${esc(r.erro)}</div>`
+    st.innerHTML = r.erro ? `<div class="tf-alerta">${icone('alerta')} ${esc(r.erro)}</div>`
       : !r.unidade || !r.ano ? '<div class="tf-novo">Escolha a unidade e a data para conferir o número.</div>'
-      : `<div class="tf-ok">✓ Será gravado como <b>${esc(numTxt(r.n, r.ano, r.unidade))}</b>. Ao gravar, a planilha confere se o número está livre.</div>`;
+      : `<div class="tf-ok">${icone('check')} Será gravado como <b>${esc(numTxt(r.n, r.ano, r.unidade))}</b>. Ao gravar, a planilha confere se o número está livre.</div>`;
   }
   function textoOficial(D, servidorNome) {
     const [a, m, d] = (D.data || '').split('-'), [h, mi] = (D.hora || '').split(':');
@@ -1080,7 +1080,7 @@ const PCEUI = (() => {
   function amostraLevHTML(F, D) {
     const am = F.amostras || []; if (!am.length) return '';
     const txt = a => `${a.cultura} — ${nomePraga(a.praga)}${a.codigoAmostra ? ' · cód. ' + a.codigoAmostra : ''}`;
-    if (am.length === 1) return `<p class="dica" style="text-align:left" id="pce-t-amostra-info">🧪 Amostra do levantamento: <b>${esc(txt(am[0]))}</b></p>`;
+    if (am.length === 1) return `<p class="dica" style="text-align:left" id="pce-t-amostra-info">${icone('amostra')} Amostra do levantamento: <b>${esc(txt(am[0]))}</b></p>`;
     const sel = Math.max(0, am.findIndex(a => a.cultura === D.cultura));
     return `<label>Amostra do levantamento (${am.length} com coleta)<select id="pce-t-amostra">${am.map((a, i) => `<option value="${i}" ${i === sel ? 'selected' : ''}>${esc(txt(a))}</option>`).join('')}</select></label>
       <p class="dica" style="text-align:left">Há mais de uma cultura/praga com coleta de amostra neste levantamento: escolha a deste termo (faça um termo para cada amostra).</p>`;
@@ -1099,18 +1099,18 @@ const PCEUI = (() => {
     const A = F.antigo;
     return `<form id="pceTermoForm" autocomplete="off" class="${A ? 'pce-antigo' : ''}" ${A ? 'novalidate' : ''}>
     ${A ? topoAntigo('Registro antigo — Termo de Colheita (digitar do papel)', F) : ''}
-    <div class="card"><h3>🧪 Termo de Colheita de Amostras</h3>
+    <div class="card"><h3>${icone('amostra')} Termo de Colheita de Amostras</h3>
       <label>Unidade *<select id="pce-t-unidade">${opts(P.municipios, D.unidade, 'Selecione')}</select></label>
       ${A ? `${c('numpapel', 'Nº do termo (como está no papel) *', D.numPapel, 'placeholder="ex.: 007/2026/MANAUS" autocomplete="off"')}
       <div id="pce-t-numpapel-st" class="tf-status" aria-live="polite"></div>` : '<div class="tf-num" id="pce-t-numero"></div>'}
-      ${F.levantamentoId ? '<p class="dica" style="text-align:left">📎 Ligado a um levantamento fitossanitário.</p>' : ''}
+      ${F.levantamentoId ? '<p class="dica" style="text-align:left">Ligado a um levantamento fitossanitário.</p>' : ''}
       ${amostraLevHTML(F, D)}
       ${A ? '' : `<p class="dica" style="text-align:left">Servidor: <b>${esc(F.serv.servidor)}</b> · ${esc(F.serv.cargo)}</p>`}</div>
     ${A ? servAntigoHTML('pce-t-', D, F.lembrados) : ''}
     <div class="card"><h3>1. Identificação</h3>
       <label>Município *<select id="pce-t-municipio">${opts(P.municipios, D.municipio, 'Selecione')}</select></label>
       <div class="pce-busca">${c('doc', 'CPF / CNPJ *', D.doc, 'inputmode="numeric" placeholder="000.000.000-00"')}
-        <button type="button" class="mini" data-pce="consultar" data-pref="pce-t-" aria-label="Consultar cadastro">🔍</button></div>
+        <button type="button" class="mini" data-pce="consultar" data-pref="pce-t-" aria-label="Consultar cadastro">${icone('busca')}</button></div>
       <div id="pce-t-st-doc" class="tf-status" aria-live="polite"></div>
       ${c('nome', 'Produtor / Razão social *', D.nome)}
       ${c('endereco', 'Endereço da propriedade', D.endereco)}
@@ -1123,10 +1123,10 @@ const PCEUI = (() => {
       <fieldset class="pce-partes-grupo"><legend>Partes da planta coletadas</legend>
       <div class="pce-partes">${P.partes.map(p => `<label class="chk"><input type="checkbox" name="pce-t-parte" value="${esc(p)}" ${D.partes.includes(p) ? 'checked' : ''}> ${esc(p[0].toUpperCase() + p.slice(1))}</label>`).join('')}</div></fieldset>
       <label>Texto oficial (pode ser editado)<textarea id="pce-t-descricao" rows="6">${esc(D.descricao)}</textarea></label>
-      <button type="button" class="botao sec" data-pce="gerartexto" id="pce-t-gerartexto">📝 Gerar texto oficial</button></div>
+      <button type="button" class="botao sec" data-pce="gerartexto" id="pce-t-gerartexto">${icone('formulario')} Gerar texto oficial</button></div>
     ${A ? pdfHTML('pce-t-') : ''}
     <div class="card"><h3>3. Fotos da amostra</h3>
-      <label class="pce-arquivo">📷 Adicionar fotos<input type="file" id="pce-t-fotos" accept="image/*" multiple></label>
+      <label class="pce-arquivo">${icone('camera')} Adicionar fotos<input type="file" id="pce-t-fotos" accept="image/*" multiple></label>
       <div id="pce-t-fotos-prev" class="pce-fotos"></div></div>
     <div class="card"><h3>4. Testemunhas</h3>
       <div class="duas">${c('t1nome', 'Testemunha 1 – nome', D.testemunha1Nome)}${c('t1doc', 'Testemunha 1 – CPF/RG', D.testemunha1Doc)}</div>
@@ -1135,8 +1135,8 @@ const PCEUI = (() => {
       <p class="dica" style="text-align:left">Assine com o dedo, se quiser. O termo impresso sempre traz as linhas para assinar no papel.</p>
       ${assHTML('testemunha1', 'Testemunha 1')}${assHTML('testemunha2', 'Testemunha 2')}${assHTML('produtor', 'Produtor')}${assHTML('servidor', 'Servidor')}</div>`}
     <div class="card">${c('local', 'Local', D.local, 'placeholder="ex.: Manaus/AM"')}</div>
-    <button class="botao" type="submit" id="pce-t-gerar">${A ? '💾 Gravar Termo de Colheita' : '📄 Gerar Termo de Colheita'}</button>
-    ${A ? '<button class="botao" type="button" data-pce="gravaroutro" id="pce-t-gravar-outro">💾 Gravar e digitar outro</button>' : ''}
+    <button class="botao" type="submit" id="pce-t-gerar">${A ? 'Gravar Termo de Colheita' : 'Gerar Termo de Colheita'}</button>
+    ${A ? '<button class="botao" type="button" data-pce="gravaroutro" id="pce-t-gravar-outro">Gravar e digitar outro</button>' : ''}
     <button class="botao sec" type="button" data-pce="descartartermo">Descartar este termo</button></form>`;
   }
 
@@ -1245,16 +1245,16 @@ const PCEUI = (() => {
       const r = o.ultimoReg;
       const ult = r && r.numeroTxt ? `Último número usado nesta unidade: <b>${esc(r.numeroTxt)}</b>${r.usuario ? ` (${esc(r.usuario)}, ${esc(dBR(r.data))} ${esc(r.hora || '')})` : ''}.`
         : o.ultimo ? `Último número usado nesta unidade: <b>${esc(numTxt(o.ultimo, o.ano, o.unidade))}</b>.` : 'Nenhum Termo de Colheita anterior nesta unidade neste ano.';
-      m.innerHTML = `<div class="tf-modal-box"><h3>🧪 Número do Termo de Colheita</h3>
+      m.innerHTML = `<div class="tf-modal-box"><h3>${icone('amostra')} Número do Termo de Colheita</h3>
         ${o.aviso ? `<div class="tf-alerta">${esc(o.aviso)}</div>` : ''}
-        ${o.offline ? '<div class="tf-novo">⚠️ Sem conexão: número <b>provisório</b>, calculado a partir do último número que este aparelho conhece. Será conferido na planilha ao sincronizar.</div>' : '<div class="tf-ok">✓ Número obtido na planilha agora.</div>'}
+        ${o.offline ? '<div class="tf-novo">Sem conexão: número <b>provisório</b>, calculado a partir do último número que este aparelho conhece. Será conferido na planilha ao sincronizar.</div>' : '<div class="tf-ok">✓ Número obtido na planilha agora.</div>'}
         <p class="dica">${ult}</p>
         <input id="pce-num-m" type="number" inputmode="numeric" min="1" value="${o.numero}"><div id="pce-num-prev" class="tf-num"></div><div id="pce-num-edit" class="dica"></div>
         <p class="dica">Confira o número. Se necessário, você pode alterá-lo antes de gerar o PDF.</p>
         <div class="duas"><button class="botao sec" id="pce-m-cancel" type="button">Cancelar</button><button class="botao" id="pce-m-ok" type="button">Confirmar e gerar</button></div></div>`;
       document.body.append(m); const i = m.querySelector('input');
       const prev = () => { const n = +i.value || 0; m.querySelector('#pce-num-prev').innerHTML = `<b>${esc(numTxt(n, o.ano, o.unidade))}</b>`;
-        m.querySelector('#pce-num-edit').textContent = n && n !== o.sugerido ? `✏️ Número alterado (o sistema sugeriu ${num3(o.sugerido)}). Isso fica registrado para auditoria.` : ''; };
+        m.querySelector('#pce-num-edit').textContent = n && n !== o.sugerido ? `Número alterado (o sistema sugeriu ${num3(o.sugerido)}). Isso fica registrado para auditoria.` : ''; };
       i.oninput = prev; prev(); i.focus(); i.select();
       m.querySelector('#pce-m-cancel').onclick = () => { m.remove(); ok(null); };
       m.querySelector('#pce-m-ok').onclick = () => { const n = parseInt(i.value, 10); if (!(n > 0)) { toast('Informe o número do termo.', true); return; } m.remove(); ok(n); };
@@ -1276,7 +1276,7 @@ const PCEUI = (() => {
 
     if (F.gerando) return;                                                 // segundo toque: o primeiro fluxo ainda não terminou
     const btn = $('#pce-t-gerar'), rot = btn.textContent;
-    F.gerando = true; btn.disabled = true; btn.textContent = '🔎 Consultando a planilha…';
+    F.gerando = true; btn.disabled = true; btn.textContent = 'Consultando a planilha…';
     try { await gerarTermoNumerado(F, D, a, u, doc, btn); }
     finally { F.gerando = false; if (btn.isConnected) { btn.disabled = false; btn.textContent = rot; } }
   }
@@ -1338,10 +1338,10 @@ const PCEUI = (() => {
       const r = o.info.ultimoTermo, ult = o.info.ultimo;
       const ultTxt = r && r.numeroTxt ? `Último número usado nesta unidade em ${o.ano}: <b>${esc(r.numeroTxt)}</b>${r.usuario ? ` (${esc(r.usuario)}, ${esc(dBR(r.data))} ${esc(r.hora || '')})` : ''}.`
         : ult ? `Último número usado nesta unidade em ${o.ano}: <b>${esc(numTxt(ult, o.ano, o.unidade))}</b>.` : `Nenhum Termo de Colheita registrado nesta unidade em ${o.ano}.`;
-      const efeito = o.n <= ult ? `<div class="tf-ok">✓ Número dentro da sequência já usada: não muda o próximo número (${esc(num3(ult + 1))}).</div>`
-        : o.n === ult + 1 ? `<div class="tf-novo">ℹ️ É o próximo da sequência: depois de gravar, o próximo número sugerido nesta unidade passa a ser <b>${esc(num3(o.n + 1))}</b>.</div>`
-        : `<div class="tf-alerta">⚠️ O número digitado é <b>maior</b> que o último usado (${esc(num3(ult))}). Depois de gravar, os próximos termos desta unidade em ${o.ano} — inclusive os dos fiscais em campo — continuam a partir de <b>${esc(num3(o.n + 1))}</b>. Confira se o número do papel está certo.</div>`;
-      m.innerHTML = `<div class="tf-modal-box"><h3>🧪 Gravar Termo de Colheita</h3>
+      const efeito = o.n <= ult ? `<div class="tf-ok">${icone('check')} Número dentro da sequência já usada: não muda o próximo número (${esc(num3(ult + 1))}).</div>`
+        : o.n === ult + 1 ? `<div class="tf-novo">${icone('info')} É o próximo da sequência: depois de gravar, o próximo número sugerido nesta unidade passa a ser <b>${esc(num3(o.n + 1))}</b>.</div>`
+        : `<div class="tf-alerta">${icone('alerta')} O número digitado é <b>maior</b> que o último usado (${esc(num3(ult))}). Depois de gravar, os próximos termos desta unidade em ${o.ano} — inclusive os dos fiscais em campo — continuam a partir de <b>${esc(num3(o.n + 1))}</b>. Confira se o número do papel está certo.</div>`;
+      m.innerHTML = `<div class="tf-modal-box"><h3>${icone('amostra')} Gravar Termo de Colheita</h3>
         <div class="tf-num"><b id="pce-antigo-num">${esc(numTxt(o.n, o.ano, o.unidade))}</b></div>
         <p class="dica">${ultTxt}</p>${efeito}
         <div class="duas"><button class="botao sec" id="pce-m-cancel" type="button">Cancelar</button><button class="botao" id="pce-m-ok" type="button">Confirmar e gravar</button></div></div>`;
@@ -1361,7 +1361,7 @@ const PCEUI = (() => {
     if (!(Number(D.quantidade) > 0)) return toast('Informe a quantidade de amostras.', true);
     if (!dataHoraPassadaOk(D)) return;
     const num = lerNumeroPapel(D.numPapel, u, D.data);
-    if (num.erro) { avisoNumero(`<div class="tf-alerta">⚠️ ${esc(num.erro)}</div>`); return toast(num.erro, true); }
+    if (num.erro) { avisoNumero(`<div class="tf-alerta">${icone('alerta')} ${esc(num.erro)}</div>`); return toast(num.erro, true); }
     if (!coordOk(D.coordTxt)) return;
     mostrarCoord('pce-t-'); D.lat = $('#pce-t-lat').value; D.lon = $('#pce-t-lon').value; D.precisao = '';
     if (!D.descricao.trim()) { autoTexto(true); D.descricao = $('#pce-t-descricao').value; }
@@ -1373,7 +1373,7 @@ const PCEUI = (() => {
     try {
       const n = num.n, a = num.ano, id = F.id, t0 = Date.now(), nome = D.nome.trim().replace(/\s+/g, ' ').toUpperCase();
       const local = (await Store.todos('colheitas')).find(t => unid(t.unidade) === u && Number(t.ano) === a && Number(t.numero) === n && t.id !== id);
-      if (local) return avisoNumero(`<div class="tf-alerta">⚠️ O nº ${esc(numTxt(n, a, u))} já está registrado neste aparelho (${esc(local.nome)}, ${esc(dBR(local.data))}). Confira o número no papel.</div>`);
+      if (local) return avisoNumero(`<div class="tf-alerta">${icone('alerta')} O nº ${esc(numTxt(n, a, u))} já está registrado neste aparelho (${esc(local.nome)}, ${esc(dBR(local.data))}). Confira o número no papel.</div>`);
       let info;
       try { info = await Sync.pceProximoNumero(u, a); }
       catch (e) { return toast(e.semPermissao || /revogado|inv[aá]lido/i.test(e.message) ? e.message : 'Sem resposta da planilha. Tente de novo (o termo antigo precisa de internet).', true); }
@@ -1396,7 +1396,7 @@ const PCEUI = (() => {
       if (r.emitido === false) {
         const oc = r.ocupadoPor || {};
         const msg = `O nº ${numTxt(n, a, u)} já está registrado na planilha${oc.usuario ? ` — usado por ${oc.usuario} (${dBR(oc.data)} ${oc.hora || ''})` : ''}. Confira o número no papel.`;
-        avisoNumero(`<div class="tf-alerta">⛔ ${esc(msg)}</div>`); return toast(msg, true);
+        avisoNumero(`<div class="tf-alerta">${icone('proibido')} ${esc(msg)}</div>`); return toast(msg, true);
       }
       await Store.gravar('colheitas', { ...rec, pendente: 0, emitidoEm: r.emitidoEm });
       await Store.gravar('pessoas', { ...pessoa, pendente: 0 });
@@ -1414,16 +1414,16 @@ const PCEUI = (() => {
 
   async function pronto(id) {
     const t = await Store.obter('colheitas', id); if (!t) return go('pcetermos');
-    view(`<div class="card" id="pce-pronto"><h3>✅ Termo de Colheita gerado</h3><div class="tf-num"><b id="pce-pronto-num">${esc(t.numeroTxt)}</b></div>
+    view(`<div class="card" id="pce-pronto"><h3>${icone('ok')} Termo de Colheita gerado</h3><div class="tf-num"><b id="pce-pronto-num">${esc(t.numeroTxt)}</b></div>
       <p>${esc(t.nome)} · ${esc(fmtDoc(digitos(t.doc)))}</p><p>${esc(dBR(t.data))} ${esc(t.hora)} · ${esc(t.cultura)} · ${esc(t.quantidade)} amostra(s)</p>
       ${t.pendente ? '<div class="tf-novo">⏳ Número provisório / aguardando envio: será conferido na planilha ao sincronizar. Se houver repetição, a coordenação é avisada.</div>' : '<div class="tf-ok">✓ Número confirmado na planilha.</div>'}
-      ${t.numeroOrigem === 'editado' && Number(t.registroAntigo) !== 1 ? `<div class="tf-novo">✏️ Número alterado manualmente (o sistema sugeriu ${num3(t.numeroSugerido)}). Registrado para auditoria.</div>` : ''}
+      ${t.numeroOrigem === 'editado' && Number(t.registroAntigo) !== 1 ? `<div class="tf-novo">${icone('editar')} Número alterado manualmente (o sistema sugeriu ${num3(t.numeroSugerido)}). Registrado para auditoria.</div>` : ''}
       <p id="pce-pronto-lab">${seloLab(labDe(t))}</p></div>
-      <button class="botao" data-pce="imprimirtermo" data-id="${esc(t.id)}" id="pce-imprimir">🖨️ Imprimir / PDF (${P.vias || 2} vias)</button>
-      <button class="botao sec" data-pce="enviartermo" data-id="${esc(t.id)}" id="pce-t-enviar">📤 Enviar via do produtor (WhatsApp, e-mail…)</button>
-      ${t.cancelado || !Sync.pode('pce') ? '' : `<button class="botao sec" data-pce="laudo" data-id="${esc(t.id)}" id="pce-laudo">🧪 Resultado do laboratório</button>`}
-      ${Number(t.registroAntigo) === 1 && podeAntigo() ? '<button class="botao sec" data-pce="novotermoantigo">📄 Digitar outro termo do papel</button>' : '<button class="botao sec" data-pce="novotermo">➕ Novo termo</button>'}
-      <button class="botao sec" data-v="pcetermos">📋 Ver termos de colheita</button>
+      <button class="botao" data-pce="imprimirtermo" data-id="${esc(t.id)}" id="pce-imprimir">${icone('imprimir')} Imprimir / PDF (${P.vias || 2} vias)</button>
+      <button class="botao sec" data-pce="enviartermo" data-id="${esc(t.id)}" id="pce-t-enviar">${icone('enviar')} Enviar via do produtor (WhatsApp, e-mail…)</button>
+      ${t.cancelado || !Sync.pode('pce') ? '' : `<button class="botao sec" data-pce="laudo" data-id="${esc(t.id)}" id="pce-laudo">${icone('amostra')} Resultado do laboratório</button>`}
+      ${Number(t.registroAntigo) === 1 && podeAntigo() ? '<button class="botao sec" data-pce="novotermoantigo">Digitar outro termo do papel</button>' : '<button class="botao sec" data-pce="novotermo">Novo termo</button>'}
+      <button class="botao sec" data-v="pcetermos">${icone('formulario')} Ver termos de colheita</button>
       <p class="dica">Na janela de impressão, escolha “Salvar como PDF” ou imprima direto. As vias saem em páginas separadas.</p>`);
   }
 
@@ -1436,8 +1436,8 @@ const PCEUI = (() => {
     const todos = (await Store.todos('colheitas')).filter(x => !x.excluido).sort((a, b) => b.criadoEm - a.criadoEm);
     if (!mostrar.viva()) return;
     view(`${digSemAut ? avisoSemAntigoHTML() : ''}
-      ${dig ? '' : '<button class="botao" data-pce="novotermo" id="pce-novotermo">➕ Novo termo de colheita</button>'}
-      ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-pce="novotermoantigo" id="pce-novotermoantigo">📄 Termo antigo (digitar do papel)</button>` : ''}
+      ${dig ? '' : '<button class="botao" data-pce="novotermo" id="pce-novotermo">Novo termo de colheita</button>'}
+      ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-pce="novotermoantigo" id="pce-novotermoantigo">${icone('documento')} Termo antigo (digitar do papel)</button>` : ''}
       <div class="card"><label>Pesquisar (nº, produtor, CPF/CNPJ, cultura)<input id="pceTQ"></label></div><div id="pceTItens"></div>`);
     const desenhar = () => {
       const q = semAcento($('#pceTQ').value.trim()).toUpperCase(), qd = digitos(q);
@@ -1446,11 +1446,11 @@ const PCEUI = (() => {
         <div class="hora">${esc(dBR(t.data))}</div></div>
         <div class="info">${esc(t.cultura)} · ${esc(t.quantidade)} amostra(s) · ${esc(t.municipio)}</div>
         <div class="info pce-lab-info">${seloLab(labDe(t))}</div>
-        ${t.cancelado ? `<div class="info pend">⛔ CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
-        ${t.conflito ? '<div class="info pend">⚠️ Número duplicado na planilha: confira com a coordenação.</div>' : ''}
+        ${t.cancelado ? `<div class="info pend">${icone('proibido')} CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
+        ${t.conflito ? '<div class="info pend">Número duplicado na planilha: confira com a coordenação.</div>' : ''}
         ${t.pendente ? `<div class="info pend">⏳ ${t.provisorio ? 'número provisório, será conferido ao sincronizar' : 'aguardando envio'}${Number(t.registroAntigo) === 1 && !podeAnt ? ' — termo do papel: sem autorização, fica guardado neste aparelho' : ''}</div>` : ''}
         <div class="botoes"><button class="editar" data-pce="imprimirtermo" data-id="${esc(t.id)}">Imprimir</button>
-        ${t.cancelado || !Sync.pode('pce') ? '' : `<button class="editar" data-pce="laudo" data-id="${esc(t.id)}">🧪 Resultado</button>`}
+        ${t.cancelado || !Sync.pode('pce') ? '' : `<button class="editar" data-pce="laudo" data-id="${esc(t.id)}">${icone('amostra')} Resultado</button>`}
         ${t.cancelado ? '' : `<button class="excluir" data-pce="cancelartermo" data-id="${esc(t.id)}">Cancelar termo</button>`}</div></div>`).join('')
         : '<div class="vazio">Nenhum Termo de Colheita neste aparelho.</div>';
     };
@@ -1463,8 +1463,8 @@ const PCEUI = (() => {
   const LABC = P.laboratorio || { laboratorios: ['Outro'], resultados: [['aguardando', 'Aguardando']] };
   const RES_LAB = Object.fromEntries(LABC.resultados);
   const labDe = t => { const o = lerJSON(t && t.laboratorio, null); return o && typeof o === 'object' && !Array.isArray(o) ? o : null; };
-  const seloLab = lab => !lab ? '<span class="pce-lab sem">🧪 Laboratório: sem resultado registrado</span>'
-    : `<span class="pce-lab ${esc(lab.resultado || 'aguardando')}">🧪 ${esc(RES_LAB[lab.resultado] || 'Aguardando')}${lab.resultado === 'positivo' && lab.praga ? ': ' + esc(lab.praga) : ''}${lab.laudo ? ' · laudo ' + esc(lab.laudo) : ''}</span>`;
+  const seloLab = lab => !lab ? '<span class="pce-lab sem">Laboratório: sem resultado registrado</span>'
+    : `<span class="pce-lab ${esc(lab.resultado || 'aguardando')}">${icone('amostra')} ${esc(RES_LAB[lab.resultado] || 'Aguardando')}${lab.resultado === 'positivo' && lab.praga ? ': ' + esc(lab.praga) : ''}${lab.laudo ? ' · laudo ' + esc(lab.laudo) : ''}</span>`;
   async function laudo(id) {
     const t = await Store.obter('colheitas', id); if (!t) return;
     if (t.cancelado) return toast('Termo cancelado: sem resultado de laboratório.', true);
@@ -1472,7 +1472,7 @@ const PCEUI = (() => {
     fecharM();
     const outro = !!L0.laboratorio && !LABC.laboratorios.includes(L0.laboratorio);
     const m = document.createElement('div'); m.className = 'tf-modal'; m.id = 'pce-modal-lab';
-    m.innerHTML = `<div class="tf-modal-box"><h3>🧪 Resultado do laboratório</h3>
+    m.innerHTML = `<div class="tf-modal-box"><h3>${icone('amostra')} Resultado do laboratório</h3>
       <p class="dica" style="text-align:left">Termo <b>${esc(t.numeroTxt || '')}</b> · ${esc(t.cultura || '')} · ${esc(t.quantidade || '')} amostra(s). O número e o PDF do termo não mudam.</p>
       <label>Laboratório<select id="pce-lab-lab">${opts(LABC.laboratorios, outro ? 'Outro' : L0.laboratorio || '', 'Selecione')}</select></label>
       <label id="pce-lab-outro-l" ${outro || L0.laboratorio === 'Outro' ? '' : 'hidden'}>Nome do laboratório<input id="pce-lab-outro" maxlength="80" value="${esc(outro ? L0.laboratorio : L0.laboratorioOutro || '')}"></label>
@@ -1484,7 +1484,7 @@ const PCEUI = (() => {
       <datalist id="pce-lab-pragas">${P.pragas.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
       <label>Observação<textarea id="pce-lab-obs" rows="2" maxlength="500">${esc(L0.obs || '')}</textarea></label>
       ${L0.por ? `<p class="dica" style="text-align:left">Último registro: ${esc(L0.por)}${L0.atualizadoEm ? ', ' + esc(new Date(L0.atualizadoEm).toLocaleString('pt-BR')) : ''}.</p>` : ''}
-      <div class="duas"><button class="botao sec" type="button" id="pce-lab-cancelar">Cancelar</button><button class="botao" type="button" id="pce-lab-salvar">💾 Salvar resultado</button></div></div>`;
+      <div class="duas"><button class="botao sec" type="button" id="pce-lab-cancelar">Cancelar</button><button class="botao" type="button" id="pce-lab-salvar">${icone('salvar')} Salvar resultado</button></div></div>`;
     document.body.append(m);
     const q = s2 => m.querySelector(s2);
     q('#pce-lab-lab').onchange = () => { q('#pce-lab-outro-l').hidden = q('#pce-lab-lab').value !== 'Outro'; };
@@ -1528,8 +1528,8 @@ const PCEUI = (() => {
       fechar();
       const m = document.createElement('div'); m.className = 'tf-modal'; m.id = 'pce-modal-todos';
       const prox = G.pragas[i + 1];
-      m.innerHTML = `<div class="tf-modal-box"><h3>🖨️ Imprimir todos</h3>
-        <div class="tf-ok">✓ PDF ${i + 1} de ${n} gerado: <b>${esc(nomePraga(G.pragas[i].praga))}</b></div>
+      m.innerHTML = `<div class="tf-modal-box"><h3>${icone('imprimir')} Imprimir todos</h3>
+        <div class="tf-ok">${icone('check')} PDF ${i + 1} de ${n} gerado: <b>${esc(nomePraga(G.pragas[i].praga))}</b></div>
         ${prox ? `<p class="dica">Toque para gerar o próximo. No celular, cada PDF abre a sua própria janela de impressão (escolha “Salvar como PDF”).</p>
         <button class="botao" type="button" id="pce-todos-prox">Gerar PDF ${i + 2} de ${n}: ${esc(nomePraga(prox.praga))}</button>
         <button class="botao sec" type="button" id="pce-todos-fechar">Parar</button>`
@@ -1553,12 +1553,12 @@ const PCEUI = (() => {
     const fecharM = () => { const m = $('#pce-modal-enviar'); if (m) m.remove(); };
     fecharM();
     const m = document.createElement('div'); m.className = 'tf-modal'; m.id = 'pce-modal-enviar';
-    m.innerHTML = `<div class="tf-modal-box pce-enviar"><h3>📤 Enviar ao produtor</h3>
-      <p class="dica">${esc(r.nome || '')}${r.telefone ? ' · ☎ ' + esc(r.telefone) : ''}</p>
+    m.innerHTML = `<div class="tf-modal-box pce-enviar"><h3>${icone('enviar')} Enviar ao produtor</h3>
+      <p class="dica">${esc(r.nome || '')}${r.telefone ? ' · ' + esc(r.telefone) : ''}</p>
       ${itens.length > 1 ? `<div class="pce-enviar-lista">${itens.map(x => `<label class="chk"><input type="checkbox" name="pce-env" value="${x.i}" checked> PDF: ${esc(x.rot)}</label>`).join('')}</div>`
         : `<p><b>${esc(lev ? 'PDF: ' + itens[0].rot : itens[0].rot)}</b></p>`}
       <div id="pce-env-st" class="tf-status" aria-live="polite"></div>
-      <button class="botao" type="button" id="pce-env-gerar">📄 Gerar PDF${itens.length > 1 ? '(s)' : ''}</button>
+      <button class="botao" type="button" id="pce-env-gerar">${icone('documento')} Gerar PDF${itens.length > 1 ? '(s)' : ''}</button>
       <button class="botao sec" type="button" id="pce-env-fechar">Fechar</button></div>`;
     document.body.append(m);
     const st = m.querySelector('#pce-env-st');
@@ -1575,24 +1575,24 @@ const PCEUI = (() => {
           st.innerHTML = `<small>Gerando PDF ${k + 1} de ${sel.length}: ${esc(x.rot)}…</small>`;
           files.push(lev ? await Docs.pceLevantamento(r, arqs, x.i, 'arquivo') : await Docs.pceColheita(r, arqs, 'arquivo'));
         }
-      } catch (e) { btn.disabled = false; st.innerHTML = `<div class="tf-alerta">⚠️ Não foi possível gerar o PDF: ${esc(e.message || e)}. Use “Imprimir” → “Salvar como PDF” e envie o arquivo salvo.</div>`; return; }
+      } catch (e) { btn.disabled = false; st.innerHTML = `<div class="tf-alerta">${icone('alerta')} Não foi possível gerar o PDF: ${esc(e.message || e)}. Use “Imprimir” → “Salvar como PDF” e envie o arquivo salvo.</div>`; return; }
       if (!m.isConnected) return;
       const kb = f => Math.max(1, Math.round(f.size / 1024)).toLocaleString('pt-BR') + ' KB';
       const juntos = PDF.podeCompartilhar(files), umAUm = !juntos && files.length > 1 && PDF.podeCompartilhar(files.slice(0, 1));
       const titulo = lev ? 'Levantamento fitossanitário — ADAF' : 'Termo de Colheita de Amostras — ADAF';
       const texto = `${titulo}: ${r.nome || ''}, ${dBR(r.data)}. Documento gerado pelo e-GDV.`;
-      st.innerHTML = `<div class="tf-ok">✓ ${files.length} PDF(s) prontos: ${files.map(f => `${esc(f.name)} (${kb(f)})`).join(', ')}</div>`;
+      st.innerHTML = `<div class="tf-ok">${icone('check')} ${files.length} PDF(s) prontos: ${files.map(f => `${esc(f.name)} (${kb(f)})`).join(', ')}</div>`;
       btn.remove();
       const box = m.querySelector('.tf-modal-box'), fim = m.querySelector('#pce-env-fechar');
       const add = html => { fim.insertAdjacentHTML('beforebegin', html); return fim.previousElementSibling; };
       if (juntos || umAUm) {
         (juntos ? [files] : files.map(f => [f])).forEach((fs, k) => {
-          const b = add(`<button class="botao" type="button" id="pce-env-share${juntos ? '' : '-' + k}">📤 Compartilhar${juntos ? (files.length > 1 ? ` (${files.length} PDFs)` : '') : ': ' + esc(sel[k].rot)}</button>`);
+          const b = add(`<button class="botao" type="button" id="pce-env-share${juntos ? '' : '-' + k}">${icone('enviar')} Compartilhar${juntos ? (files.length > 1 ? ` (${files.length} PDFs)` : '') : ': ' + esc(sel[k].rot)}</button>`);
           b.onclick = async () => { try { if (await PDF.compartilhar(fs, titulo, texto)) toast('Enviado para o compartilhamento.'); } catch (e) { toast(e.message, true); } };
         });
         add('<p class="dica">Escolha o WhatsApp (ou o e-mail) e o contato do produtor.</p>');
-      } else add('<p class="dica pce-env-semshare">Este aparelho não compartilha arquivos direto do app. Toque em “Baixar”: o PDF vai para a pasta <b>Downloads</b>. Depois, no WhatsApp, anexe (📎) → <b>Documento</b> e escolha o arquivo.</p>');
-      const bx = add(`<button class="botao ${juntos || umAUm ? 'sec' : ''}" type="button" id="pce-env-baixar">⬇️ Baixar PDF${files.length > 1 ? 's' : ''}</button>`);
+      } else add('<p class="dica pce-env-semshare">Este aparelho não compartilha arquivos direto do app. Toque em “Baixar”: o PDF vai para a pasta <b>Downloads</b>. Depois, no WhatsApp, anexe () → <b>Documento</b> e escolha o arquivo.</p>');
+      const bx = add(`<button class="botao ${juntos || umAUm ? 'sec' : ''}" type="button" id="pce-env-baixar">${icone('seta-baixo')} Baixar PDF${files.length > 1 ? 's' : ''}</button>`);
       bx.onclick = () => files.forEach((f, k) => setTimeout(() => PDF.baixar(f), k * 400));
       box.scrollTop = 0;
     };

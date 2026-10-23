@@ -7,32 +7,29 @@
 <meta name="robots" content="noindex">
 <title>Verificar TF – ADAF</title>
 <link rel="icon" href="img/icon-192.png">
+<link rel="stylesheet" href="css/design.css">
 <style>
-:root { --azul:#0B3A82; --azul2:#0B5ED7; --bg:#eef3fa; --ink:#1c2733; --mut:#667; --verde:#198754; --verm:#b42318; --linha:#d6deea; }
-* { box-sizing:border-box; }
-body { margin:0; font:16px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); }
-header { background:var(--azul); color:#fff; display:flex; align-items:center; gap:12px; padding:10px 16px; }
-header img { height:40px; background:#fff; border-radius:6px; padding:3px; }
-header h1 { font-size:17px; margin:0; } header small { opacity:.85; font-size:12px; }
+/* Verificação pública do TF. Tokens e componentes: css/design.css (docs/DESIGN.md). Aqui só o arranjo da página. */
+header small { opacity:.85; font-size:12px; }
 main { max-width:560px; margin:0 auto; padding:16px; }
-.card { background:#fff; border-radius:12px; padding:16px; margin-bottom:12px; box-shadow:0 1px 3px rgba(0,0,0,.08); }
-.selo { border-radius:12px; padding:14px 16px; margin-bottom:12px; font-weight:700; font-size:18px; display:flex; gap:10px; align-items:center; }
-.selo small { display:block; font-weight:400; font-size:14px; }
-.selo.ok { background:#e8f5e9; color:#1b5e20; border:2px solid #81c784; }
-.selo.cancelado { background:#fdecea; color:var(--verm); border:2px solid var(--verm); }
-.selo.nao { background:#fff8e1; color:#7a4f00; border:2px solid #ffd54f; }
-.selo.erro { background:#f1f3f6; color:#333; border:2px solid #c7cfdb; }
+.card { margin-bottom:12px; }
+.veredito { border:2px solid var(--base); border-radius:var(--r-lg); padding:14px 16px; margin-bottom:12px; font-weight:700; font-size:18px; display:flex; gap:10px; align-items:center; }
+.veredito small { display:block; font-weight:400; font-size:14px; }
+.veredito.ok { background:color-mix(in srgb, var(--bom) 12%, var(--sf)); color:var(--bom-txt); border-color:var(--bom); }
+.veredito.cancelado { background:color-mix(in srgb, var(--critico) 12%, var(--sf)); color:var(--critico); border-color:var(--critico); }
+.veredito.nao { background:color-mix(in srgb, var(--atencao) 16%, var(--sf)); color:var(--ink); border-color:var(--atencao); }
+.veredito.erro { background:var(--sf2); color:var(--ink2); }
 dl { display:grid; grid-template-columns:auto 1fr; gap:6px 12px; margin:0; font-size:15px; }
 dt { color:var(--mut); } dd { margin:0; font-weight:600; overflow-wrap:anywhere; }
-label { display:block; font-size:13px; color:var(--mut); margin-bottom:6px; }
-input { font:inherit; padding:11px; border:1px solid var(--linha); border-radius:8px; width:100%; }
-button { display:block; width:100%; background:var(--azul2); color:#fff; border:0; border-radius:10px; padding:13px; font:inherit; font-weight:600; margin-top:10px; cursor:pointer; }
-.dica { color:var(--mut); font-size:13px; }
+label { display:block; font-size:13px; color:var(--ink2); margin-bottom:6px; }
+input { width:100%; }
+.botao { display:block; width:100%; margin-top:10px; }
+.dica { text-align:left; padding:0; }
 footer { text-align:center; color:var(--mut); font-size:12px; padding:8px 16px 24px; }
 </style>
 </head>
-<body>
-<header>
+<body class="toque">
+<header class="barra-topo">
   <img src="img/logo-adaf.png" alt="ADAF">
   <div><h1>Verificação de autenticidade</h1><small>Termo de Fiscalização de Barreira – ADAF/AM</small></div>
 </header>
@@ -41,11 +38,12 @@ footer { text-align:center; color:var(--mut); font-size:12px; padding:8px 16px 2
   <form class="card" id="fVerif" autocomplete="off">
     <label for="codigo">Código do TF (impresso abaixo do QR code)</label>
     <input id="codigo" placeholder="ex.: 1b9d6bcd-bbfd-4b2d-9b5d-ab8dfbbd4bed" spellcheck="false" autocapitalize="off">
-    <button type="submit">Verificar</button>
+    <button type="submit" class="botao">Verificar</button>
     <p class="dica">Esta página mostra só os dados necessários para conferir o documento. Dados pessoais do fiscalizado não são exibidos.</p>
   </form>
 </main>
 <footer>Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM</footer>
+<script src="js/icones.js"></script>
 <script src="js/config.js"></script>
 <script src="js/verificar.js"></script>
 </body>

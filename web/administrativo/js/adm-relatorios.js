@@ -79,7 +79,7 @@
     [['tab.cfo', 'CFO/CFOC emitidos (Seção III)'], ['tab.ptv', 'PTV emitidas (Seção IV)'], ['tab.educacao', 'Ações de educação sanitária (Seção V)']].forEach(([chave, tit]) => {
       const C = RD.TABS[chave], k = A.el('div', 'pn-cartao pn-rg-lista'); k.dataset.tab = chave;
       const lin = ((E.listas[chave] || {})[mm] || []).map((x, i) => C.map(([campo, rot, n]) => `<input data-tab="${chave}" data-mes="${mm}" data-i="${i}" data-campo="${campo}" ${n ? 'inputmode="decimal"' : ''} maxlength="${campo === 'descricao' ? 1000 : 200}" aria-label="${esc(rot)}" value="${esc(x[campo] == null ? '' : String(x[campo]))}">`)
-        .concat([`<button type="button" class="pn-btn pn-btn-mini" data-rg="del-linha" data-tab="${chave}" data-mes="${mm}" data-i="${i}" aria-label="Remover linha">✕</button>`]));
+        .concat([`<button type="button" class="pn-btn pn-btn-mini" data-rg="del-linha" data-tab="${chave}" data-mes="${mm}" data-i="${i}" aria-label="Remover linha">${icone('fechar')}</button>`]));
       k.innerHTML = `<h3>${esc(tit)}</h3><p class="pn-sub">${esc(quem(mm, chave))}</p>` + (lin.length ? tabela(C.map(([, r, n]) => ({ r, num: !!n })).concat([{ r: '' }]), lin) : '<p class="pn-vazio">Nenhuma linha lançada.</p>') +
         `<div class="pn-rg-addmun"><button type="button" class="pn-btn pn-btn-mini" data-rg="add-linha" data-tab="${chave}">+ Adicionar linha</button></div>`;
       s3.appendChild(k);

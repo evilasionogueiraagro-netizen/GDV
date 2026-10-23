@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // PCE — citros no levantamento por praga (cadastro de cítricos: IN 21/2018 e Portaria 317/2021) e a visita completa:
 // CPF/CNPJ primeiro (produtor já cadastrado no servidor: autopreenche produtor e propriedade, inclusive CNPJ, empresa, endereço e UF; CPF novo:
 // libera os campos), ordem dos cards (Dados do produtor → Localização → Local e origem → Pragas e doenças), bloco "🍊 Cultura do citros" único
@@ -21,8 +22,7 @@ const guardar = nome => { if (COPIA) { fs.mkdirSync(COPIA, { recursive: true });
 
 (async () => {
   const b = await amb.lancar(), err = [];
-  const g = await get('/__gerar?nome=' + encodeURIComponent('Ciclano Ficticio Teste'));
-  const TOKF = (await post({ action: 'ativar', codigo: g.codigo })).token;
+  const TOKF = (await U.fiscal('Ciclano Ficticio Teste')).token;
   const agora = Date.now();
   // produtor e propriedade já no banco (cadastro anterior): o levantamento novo autopreenche pelo CPF
   let r = await post({ action: 'sync', key: TOKF, since: 0,

@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // Dashboard público (web/dashboard/ + actions publicoDados / painelPublicoConfig / painelPublicoSalvar do Code.gs real via fakegas):
 // desligado por padrão → "indisponível"; o gerente liga pela aba "Dashboard público" do painel e desliga alguns blocos → a página mostra
 // só os ligados (mapa e números; 360 px e desktop sem rolagem horizontal; claro e escuro); nenhum dado pessoal na resposta; "barreiras
@@ -39,7 +40,7 @@ const PROIBIDOS = [CPF, CNPJ, CPF2, '529.982.247-25', '***.982', 'Fulano Secreto
 
   /* ================= 1. servidor ================= */
   console.log('1. Servidor');
-  let d = await post({ action: 'sync', key: 'segredo', since: 0,
+  let d = await post({ action: 'sync', key: await U.semeador(), since: 0,
     turnos: [T('p1', manaus(5), 'BVA - CEASA', 'Fixa', '-3.1190', '-60.0217'), T('p2', manaus(3), 'BVA - JUNDIÁ', 'Fixa', '-3.0412', '-60.0889'),
       T('p3', manaus(2), 'Rua do Fiscal Secreto, 99', 'Móvel', '-3.3021', '-60.6206'),
       T('p4', iniAgora.slice(0, 10), 'BVA - AEROPORTO', 'Fixa', '-3.0386', '-60.0497', { inicio: iniAgora.slice(11, 16), fim: '', encerrado: 0, latFim: '', lngFim: '' }),
@@ -62,8 +63,7 @@ const PROIBIDOS = [CPF, CNPJ, CPF2, '529.982.247-25', '***.982', 'Fulano Secreto
   ok(d.ok === true && d.ativo === false && Object.keys(d).sort().join() === 'ativo,ok', 'desligado por padrão: {ok, ativo: false} e nada mais', d);
   const adm = await gerar('Gerente Público', 'admin');
   const TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
-  const fis = await gerar('Fiscal Curioso Silva');
-  const TOKF = (await post({ action: 'ativar', codigo: fis.codigo })).token;
+  const TOKF = (await U.fiscal('Fiscal Curioso Silva')).token;
   ok(TOK && TOKF, 'credenciais de administrador e de fiscal');
   d = await post({ action: 'painelPublicoConfig', key: TOK });
   const C0 = d.config;

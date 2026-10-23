@@ -1,0 +1,160 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0B3A82">
+<title>Manual do gerente – e-GDV</title>
+<link rel="icon" href="img/icon-192.png">
+<link rel="stylesheet" href="../css/design.css">
+<style>
+/* Manual do gerente. Tokens e componentes: ../css/design.css (docs/DESIGN.md). Aqui só o arranjo da página (o mesmo do manual do fiscal). */
+header small { opacity:.85; font-size:12px; }
+header { position:sticky; top:0; z-index:2; }
+header a { margin-left:auto; color:#fff; font-size:14px; white-space:nowrap; }
+body { line-height:1.5; }
+main { max-width:720px; margin:0 auto; padding:16px; }
+nav.indice { background:var(--sf); border:1px solid var(--borda); border-radius:var(--r-lg); padding:12px 16px; margin-bottom:12px; box-shadow:var(--sombra); }
+nav.indice ol { margin:6px 0 0; padding-left:22px; }
+details { scroll-margin-top:72px; background:var(--sf); border:1px solid var(--borda); border-radius:var(--r-lg); margin-bottom:10px; box-shadow:var(--sombra); }
+summary { padding:14px 16px; font-weight:700; cursor:pointer; list-style:none; display:flex; justify-content:space-between; gap:8px; }
+summary::-webkit-details-marker { display:none; }
+summary::after { content:'▾'; color:var(--mut); } details[open] summary::after { content:'▴'; }
+.corpo { padding:0 16px 14px; }
+.corpo ol, .corpo ul { padding-left:22px; margin:6px 0; } .corpo li { margin:4px 0; }
+.corpo p { margin:8px 0; }
+.corpo table { width:100%; border-collapse:collapse; margin:8px 0; font-size:14px; }
+.corpo th, .corpo td { text-align:left; vertical-align:top; padding:6px 8px; border-bottom:1px solid var(--borda); }
+.dica { color:var(--ink); background:color-mix(in srgb, var(--atencao) 16%, var(--sf)); border:1px solid var(--atencao); border-radius:var(--r-md); padding:8px 10px; }
+b.bt { background:var(--sel); color:var(--destaque); border-radius:var(--r-sm); padding:0 5px; font-weight:600; white-space:nowrap; }
+footer { text-align:center; color:var(--mut); font-size:12px; padding:8px 16px 24px; }
+@media print { header { position:static; } details { break-inside:avoid; } details:not([open]) .corpo { display:block; } }
+</style>
+</head>
+<body>
+<header class="barra-topo">
+  <img src="../img/logo-adaf.png" alt="ADAF">
+  <div><h1>Manual do gerente</h1><small>e-GDV – Painel gerencial · ADAF/AM</small></div>
+  <a href="./">← Voltar ao painel</a>
+</header>
+<main>
+  <nav class="indice"><b>Clique num assunto para abrir</b>
+    <ol>
+      <li><a href="#inicio">Primeiro acesso do gerente</a></li>
+      <li><a href="#contas">Criar a conta de cada servidor</a></li>
+      <li><a href="#permissoes">O que cada permissão libera</a></li>
+      <li><a href="#senha">Senha esquecida</a></li>
+      <li><a href="#tirar">Celular perdido, servidor que saiu</a></li>
+      <li><a href="#tv">TV da sala (Modo TV)</a></li>
+      <li><a href="#painel">O painel no dia a dia</a></li>
+      <li><a href="#planilha">O que fica no menu da planilha</a></li>
+      <li><a href="#problemas">Problemas comuns</a></li>
+    </ol>
+  </nav>
+
+  <details id="inicio" open><summary>1. Primeiro acesso do gerente</summary><div class="corpo">
+    <p>Todos entram com <b>matrícula e senha</b>: fiscais, administrativo, gerentes e a TV da sala. O primeiro gerente é criado uma vez, na planilha. Depois, todas as outras contas saem do painel.</p>
+    <ol>
+      <li>Com a conta dona da planilha, abra o menu <b class="bt">e-GDV → Criar o primeiro gerente</b>.</li>
+      <li>Informe a matrícula (ou deixe em branco para o sistema gerar, como GDV0001) e o nome completo.</li>
+      <li>Anote a <b>senha provisória</b> que aparece. Ela só aparece nessa hora.</li>
+      <li>Abra o painel, entre com a matrícula e a senha provisória e crie a sua senha (pelo menos 8 caracteres).</li>
+    </ol>
+    <p class="dica">Esse item do menu só funciona quando não existe nenhum gerente ativo. Para criar outro gerente, use o painel (assunto 2) e marque <b>Gerência</b>: assim fica registrado quem criou cada conta.</p>
+  </div></details>
+
+  <details id="contas"><summary>2. Criar a conta de cada servidor</summary><div class="corpo">
+    <ol>
+      <li>No painel, abra a aba <b class="bt">Usuários</b> e clique em <b class="bt">Novo usuário</b>.</li>
+      <li>Preencha o <b>nome completo</b>, como deve sair nos documentos.</li>
+      <li><b>Matrícula</b>: a do servidor. Em branco, o sistema gera uma. Cada matrícula é de uma pessoa só.</li>
+      <li>Marque as <b>permissões</b> (assunto 3) e clique em <b class="bt">Criar usuário</b>.</li>
+      <li>Aparece a <b>senha provisória</b>. Use <b class="bt">Copiar mensagem</b> ou <b class="bt">Enviar pelo WhatsApp</b> para mandar a matrícula, a senha e o endereço do app.</li>
+    </ol>
+    <p>No primeiro acesso a pessoa é obrigada a criar a própria senha. Na lista, quem ainda não fez isso aparece como "A pessoa ainda não criou a própria senha".</p>
+    <p class="dica">Uma pessoa, uma conta. Se a pessoa usa dois celulares, ela entra com a mesma matrícula nos dois. Não crie outra conta para ela.</p>
+  </div></details>
+
+  <details id="permissoes"><summary>3. O que cada permissão libera</summary><div class="corpo">
+    <table>
+      <thead><tr><th>Permissão</th><th>O que libera</th></tr></thead>
+      <tbody>
+        <tr><td><b>App de campo</b></td><td>Entrar no app das barreiras e do PCE. Os módulos abaixo dizem o que aparece no menu do app; o que não estiver marcado some do menu.</td></tr>
+        <tr><td>Fiscalização de trânsito</td><td>Turno na barreira, veículos e educação sanitária.</td></tr>
+        <tr><td>TF de Barreira</td><td>Termo de Fiscalização de Barreira e consulta de reincidência.</td></tr>
+        <tr><td>PCE</td><td>Levantamentos, Termo de Colheita, Termo de Fiscalização e cadastros do PCE.</td></tr>
+        <tr><td>Digitar do papel</td><td>Lançar no sistema documentos já emitidos no talão. Exige PCE.</td></tr>
+        <tr><td><b>Painel (ver)</b></td><td>Ver o painel, sem mudar nada. Use para a TV da sala e para quem só acompanha.</td></tr>
+        <tr><td><b>Portal do Administrativo</b></td><td>Lançar desembolso e físico do convênio, linhas manuais dos relatórios e do VIGIFITO.</td></tr>
+        <tr><td><b>Gerência</b></td><td>Tudo acima, mais criar contas, mudar permissões e gerar senhas.</td></tr>
+      </tbody>
+    </table>
+    <p>Para mudar depois, clique em <b class="bt">Permissões</b> na linha da pessoa e em <b class="bt">Salvar permissões</b>. Vale na hora: o app obedece na próxima sincronização, e o que já estava guardado no celular não se perde.</p>
+  </div></details>
+
+  <details id="senha"><summary>4. Senha esquecida</summary><div class="corpo">
+    <ul>
+      <li><b>Servidor esqueceu:</b> na aba Usuários, clique em <b class="bt">Nova senha</b> na linha da pessoa e mande a senha provisória. Ela cria uma senha nova no próximo acesso.</li>
+      <li><b>Gerente esqueceu:</b> outro gerente faz o mesmo pelo painel. Se não houver outro, use o menu da planilha <b class="bt">e-GDV → Redefinir senha de gerente</b>, com a matrícula do gerente.</li>
+    </ul>
+    <p>Depois de 10 tentativas erradas na mesma matrícula, a entrada fica bloqueada por 15 minutos. É só esperar; não precisa fazer nada.</p>
+  </div></details>
+
+  <details id="tirar"><summary>5. Celular perdido, servidor que saiu</summary><div class="corpo">
+    <ul>
+      <li><b>Celular perdido ou trocado:</b> na linha da pessoa, abra <b class="bt">Sessões abertas</b> e clique em <b class="bt">Encerrar</b> no aparelho perdido. Só aquele aparelho sai; nos outros a pessoa continua entrando.</li>
+      <li><b>Servidor que saiu ou foi afastado:</b> clique em <b class="bt">Desativar</b>. O acesso acaba na hora, em todos os aparelhos. Nada é apagado: os registros dele continuam e dá para <b class="bt">Reativar</b> depois.</li>
+    </ul>
+    <p class="dica">O sistema não deixa desativar o último gerente ativo, para ninguém ficar trancado fora.</p>
+  </div></details>
+
+  <details id="tv"><summary>6. TV da sala (Modo TV)</summary><div class="corpo">
+    <ol>
+      <li>Crie um usuário só para a TV (por exemplo, "TV Sala da Gerência") com a permissão <b>Painel (ver)</b> e nada mais.</li>
+      <li>Na TV, abra <code>https://evilasionogueiraagro-netizen.github.io/GDV/painel/?tv=1</code> e entre com a matrícula e a senha da TV.</li>
+      <li>A TV fica conectada até alguém sair ou desativar esse usuário. As telas giram sozinhas e os dados se atualizam a cada 15 segundos.</li>
+    </ol>
+    <p>Não use a sua conta na TV. Com um usuário próprio, desativar a TV não derruba ninguém.</p>
+  </div></details>
+
+  <details id="painel"><summary>7. O painel no dia a dia</summary><div class="corpo">
+    <table>
+      <tbody>
+        <tr><td><b>Visão geral</b></td><td>Alertas para decisão (foco novo de praga, barreira aberta há mais de 12 h ou sem sinal, problema na numeração, reincidentes), mapa do Amazonas e barreiras em andamento.</td></tr>
+        <tr><td><b>Barreiras</b></td><td>Turnos, veículos e educação sanitária por barreira e período.</td></tr>
+        <tr><td><b>TF</b></td><td>Termos de Fiscalização de Barreira, reincidência e auditoria da numeração.</td></tr>
+        <tr><td><b>PCE</b></td><td>Levantamentos, Termos de Colheita e laudos, por município e praga.</td></tr>
+        <tr><td><b>Convênios</b></td><td>Metas físicas e financeiras e o relatório do convênio.</td></tr>
+        <tr><td><b>Relatórios</b></td><td>Relatório GDV, VIGIFITO e relatórios mensais.</td></tr>
+        <tr><td><b>Usuários</b></td><td>Contas, permissões, senhas e sessões (assuntos 2 a 5).</td></tr>
+        <tr><td><b>Dashboard público</b></td><td>Liga, desliga e escolhe o que a página pública mostra. Ela só tem contagens, sem nenhum dado pessoal.</td></tr>
+      </tbody>
+    </table>
+    <p>O filtro de período vale para as abas de dados, até 366 dias. CPF e CNPJ aparecem sempre mascarados.</p>
+  </div></details>
+
+  <details id="planilha"><summary>8. O que fica no menu da planilha</summary><div class="corpo">
+    <p>Algumas tarefas são feitas na própria planilha, no menu <b class="bt">e-GDV</b>, com a conta dona dela:</p>
+    <ul>
+      <li><b>Numeração:</b> definir o último número usado no talão (TF, Termo de Colheita e Termo de Fiscalização do PCE) e auditar lacunas e duplicidades.</li>
+      <li><b>Gerente:</b> criar o primeiro gerente e redefinir a senha de um gerente.</li>
+      <li><b>Rotinas automáticas:</b> ativar ou desativar (encerramento de turno esquecido, backup, relatório mensal).</li>
+      <li><b>Backup</b> agora, <b>arquivar anos antigos</b>, <b>e-mails do relatório mensal</b> e enviar o relatório do mês passado.</li>
+      <li><b>Drive:</b> autorizar o acesso às fotos do PCE.</li>
+    </ul>
+  </div></details>
+
+  <details id="problemas"><summary>9. Problemas comuns</summary><div class="corpo">
+    <ul>
+      <li><b>"Matrícula ou senha incorreta."</b> Confira a matrícula. Se a pessoa não lembra a senha, gere uma nova (assunto 4).</li>
+      <li><b>"Muitas tentativas incorretas."</b> Espere 15 minutos.</li>
+      <li><b>"Seu acesso não inclui o painel"</b> (ou o app, ou o portal). Falta a permissão: ajuste em Permissões (assunto 3).</li>
+      <li><b>Um módulo sumiu do app do fiscal.</b> A permissão dele foi tirada. Marque de novo e o módulo volta na próxima sincronização.</li>
+      <li><b>O fiscal saiu do app com registros ainda não enviados.</b> Eles ficam no celular, no nome de quem fez, e sobem quando essa pessoa entrar de novo.</li>
+      <li><b>Quem fez o quê.</b> Toda conta criada, permissão mudada, senha gerada e sessão encerrada fica registrada com o nome de quem fez.</li>
+    </ul>
+  </div></details>
+</main>
+<footer>e-GDV · Gerência de Defesa Vegetal · ADAF/AM</footer>
+</body>
+</html>

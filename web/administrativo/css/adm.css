@@ -1,10 +1,10 @@
-/* Portal do Administrativo — complementos ao visual do painel (../painel/css/painel.css: tokens claro/escuro, cartões, abas, tabelas). */
+/* Portal do Administrativo: complementos ao visual do painel (../painel/css/painel.css: cartões, abas, tabelas) sobre o design system (../../css/design.css). */
 .adm-login { max-width: 440px; }
 .adm-login .pn-sub { margin: 0 0 12px; }
 .adm-google { display: flex; flex-direction: column; align-items: center; gap: 4px; margin: 12px 0 4px; }
 .adm-google-btn { min-height: 44px; display: flex; justify-content: center; }
 .adm-ou { margin: 4px 0 !important; text-align: center; }
-.adm-cod-box summary { cursor: pointer; color: var(--marca2); font-size: 14px; padding: 6px 0; }
+.adm-cod-box summary { cursor: pointer; color: var(--link); font-size: 14px; padding: 6px 0; }
 .adm-cod-box form { display: flex; flex-direction: column; gap: 8px; }
 .adm-cod-box button { margin-top: 6px; }
 .adm-filtro { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 10px; }
@@ -12,16 +12,14 @@
 .adm-vivo { display: flex; flex-direction: column; gap: 8px; }
 .adm-saldo { margin: 0; }
 .adm-vivo .pn-alertas { margin-top: 2px; }
-.adm-vig-grade input { width: 100%; min-width: 64px; max-width: 110px; text-align: right; padding: 4px 6px; border: 1px solid var(--base); border-radius: 6px; background: var(--sf); }
-.adm-vig-grade input.subst { border-color: #a46d00; background: color-mix(in srgb, var(--atencao) 14%, var(--sf)); }
+.adm-vig-grade input { width: 100%; min-width: 64px; max-width: 110px; text-align: right; padding: 4px 6px; border-radius: 6px; }
+.adm-vig-grade input.subst { border-color: var(--atencao-txt); background: color-mix(in srgb, var(--atencao) 14%, var(--sf)); }
 .adm-vig-grade td.auto { color: var(--ink2); }
 .adm-vig-grade td small { display: block; color: var(--mut); font-size: 11px; }
 .adm-vig-just { width: 100%; }
 @media (max-width: 560px) { .adm-filtro .pn-conv-campo { min-width: 0; flex: 1 1 100%; } }
 .adm-vig-grade input.erro { border-color: var(--critico); }
 .adm-vig-grade small.pn-erro-txt { color: var(--critico); font-weight: 600; }
-.adm-vig-grade small.pn-aviso-txt { color: #a46d00; }
-:root:not([data-theme="light"]) .adm-vig-grade small.pn-aviso-txt { color: var(--atencao); }
-@media (prefers-color-scheme: light) { :root:not([data-theme="dark"]) .adm-vig-grade small.pn-aviso-txt { color: #a46d00; } }
+.adm-vig-grade small.pn-aviso-txt { color: var(--atencao-txt); }
 .adm-vig-grade th { min-width: 96px; }
 .adm-vig-grade td:first-child { min-width: 220px; }

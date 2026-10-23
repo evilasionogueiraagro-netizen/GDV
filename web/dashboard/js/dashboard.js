@@ -129,10 +129,8 @@
   }
 
   /* ---------- desenho geral ---------- */
-  const ICONES = {
-    mapa: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round" aria-hidden="true"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2-6-2Z"/><path d="M9 4v14M15 6v14"/></svg>',
-    numeros: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg>'
-  };
+  const ICONES = { mapa: icone('mapa'), numeros: icone('resumo') };      // Lucide, via web/js/icones.js
+
   function modosLiberados() { const m = (S.r && S.r.modos) || {}; return ['mapa', 'numeros'].filter(k => m[k]); }
   function desenhar(auto) {
     const r = S.r; if (!r) return;

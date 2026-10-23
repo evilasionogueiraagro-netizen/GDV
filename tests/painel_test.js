@@ -162,7 +162,7 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   p = await abrir({}, { 'gdv.painel.token': adm.token, 'gdv.painel.nome': 'Evilasio Admin' }); await esperarDados(p);
   ok((await p.textContent('#pn-nome')).trim() === 'Evilasio Admin', 'sessão de gerente abre o painel; nome no topo');
   ok((await p.evaluate(() => localStorage.getItem('gdv.painel.token') || '')).length >= 32, 'credencial guardada em gdv.painel.token');
-  const abas = await p.$$eval('.pn-aba', a => a.map(x => x.dataset.aba)); ok(abas.join() === 'geral,barreiras,tf,pce,convenios,relatorios,acessos,publico', 'abas na ordem Visão geral | Barreiras | TF | PCE | Convênios | Relatórios | Servidores | Dashboard público', abas);
+  const abas = await p.$$eval('.pn-aba', a => a.map(x => x.dataset.aba)); ok(abas.join() === 'geral,barreiras,tf,pce,convenios,relatorios,usuarios,publico', 'abas na ordem Visão geral | Barreiras | TF | PCE | Convênios | Relatórios | Usuários | Dashboard público', abas);
   await p.reload(); await esperarDados(p); ok(await p.isVisible('#pn-app'), 'recarregar mantém a sessão');
   ok(/Atualizado às \d{2}:\d{2}/.test(await p.textContent('#pn-status')), 'indicador "Atualizado às HH:MM"', (await p.textContent('#pn-status')).trim());
 

@@ -1,5 +1,5 @@
-// Usuários do login por matrícula e senha para os testes (dados fictícios). Cria a conta pela função do menu da planilha
-// (criarContasEmLote_, via /__fn do fakegas), entra pelo servidor real (action "entrar") e troca a senha provisória, como o app faz.
+// Usuários do login por matrícula e senha para os testes (dados fictícios). Cria a conta pela função real do back
+// (criarUsuario_, via /__fn do fakegas), entra pelo servidor real (action "entrar") e troca a senha provisória, como o app faz.
 // Use no lugar dos antigos códigos de ativação: `const f = await usuarios.fiscal('Ana Paula Lima')` e, no navegador,
 // `await ctx.addInitScript(i => Object.entries(i).forEach(([k, v]) => localStorage.setItem(k, v)), f.ls)`.
 const amb = require('./amb');
@@ -13,9 +13,9 @@ let aparelhos = 0;
 
 /** Cria a conta com as permissões e devolve {usuario, senhaProvisoria}. */
 async function criar(nome, permissoes = MODULOS_DO_CAMPO, matricula) {
-  const r = await get('/__fn?nome=criarContasEmLote_&args=' + encodeURIComponent(JSON.stringify([[{ matricula, nome, permissoes }]])));
-  if (r.erro || !r.r || !r.r[0].ok) throw new Error('criar usuário: ' + JSON.stringify(r.erro || r.r));
-  return r.r[0];
+  const r = await get('/__fn?nome=criarUsuario_&args=' + encodeURIComponent(JSON.stringify([{ matricula, nome, permissoes }, { quem: 'teste' }])));
+  if (r.erro || !r.r || !r.r.usuario) throw new Error('criar usuário: ' + JSON.stringify(r.erro || r.r));
+  return r.r;
 }
 
 /**
@@ -44,16 +44,13 @@ async function fiscal(nome, opcoes = {}) {
 let semeadorSessao = null;
 const semeador = async () => (semeadorSessao = semeadorSessao || fiscal('Semeador Dados Teste')).then(f => f.token);
 
-/** Sessão de gerente (todas as permissões, criada como "e-GDV → Criar gerente") para as actions de gerência. Uma por processo de teste. */
+/** Sessão de gerente (permissão gerencia, pelo atalho /__usuario do fakegas) para as actions de gerência. Uma por processo de teste;
+ *  não usa /__gerente, que só cria o primeiro gerente e falharia se o teste já tivesse um (amb.gerente, amb.carga). */
 let gerenteSessao = null;
 async function gerente() {
   if (gerenteSessao) return gerenteSessao;
-  const g = await get('/__gerente?matricula=&nome=' + encodeURIComponent('Gerente Teste Campo'));
-  if (!g.usuario) throw new Error('criar gerente: ' + g.erro);
-  const e = await post({ action: 'entrar', matricula: g.usuario.matricula, senha: g.senhaProvisoria, aplicativo: 'painel' });
-  const t = await post({ action: 'trocarSenha', key: e.token, senhaAtual: g.senhaProvisoria, senhaNova: SENHA });
-  if (!t.ok) throw new Error('gerente: ' + t.erro);
-  return (gerenteSessao = { token: e.token, usuario: g.usuario });
+  const g = await amb.gerente('Gerente Teste Campo');
+  return (gerenteSessao = { token: g.token, usuario: g.usuario });
 }
 /** {veiculos, tf, pce, antigo} (1/0, o formato dos módulos do app) -> lista de permissões do campo. */
 const lista = o => ['campo', ...(o.veiculos ? ['fiscalizacaoDeTransito'] : []), ...(o.tf ? ['termoDeBarreira'] : []), ...(o.pce ? ['pce'] : []), ...(o.antigo ? ['digitarDoPapel'] : [])];

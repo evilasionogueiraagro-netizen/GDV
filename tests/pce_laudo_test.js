@@ -129,7 +129,7 @@ const linhaDe = async (aba, id) => { const t = await get('/__aba?nome=' + aba); 
   Tm = await linhaDe('Colheitas', TERMO.id);
   ok(JSON.parse(Tm.laboratorio).resultado === 'negativo' && Tm.local === 'Manaus/AM' && Number(Tm.atualizadoEm) > 1, 'termo mais velho com resultado mais novo: grava só o resultado (o resto do termo continua o mais novo)', [Tm.laboratorio, Tm.local]);
   r = await post({ action: 'painelPceLaudo', key: TOKF, id: TERMO.id, laboratorio: { resultado: 'negativo' } });
-  ok(!r.ok && /Acesso restrito/.test(r.erro), 'painelPceLaudo: fiscal recusado', r.erro);
+  ok(!r.ok && /não inclui o painel/.test(r.erro), 'painelPceLaudo: fiscal recusado', r.erro);
   r = await post({ action: 'painelPceLaudo', key: TOK, id: 'nao-existe', laboratorio: { resultado: 'negativo' } });
   ok(!r.ok && /não encontrado/.test(r.erro), 'painelPceLaudo: termo inexistente recusado', r.erro);
   ok(!err.length, 'sem erros de JavaScript', err.slice(0, 4));

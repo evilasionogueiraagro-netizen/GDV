@@ -1,14 +1,14 @@
 const amb = require('./lib/amb');
-// Login com matrícula e senha (apps-script/usuarios.gs, Code.gs real via fakegas), só por HTTP: criar gerente (gancho /__gerente = o
-// mesmo criarGerente_ do menu), entrar com senha provisória e troca obrigatória conferida no servidor, trocar senha, permissões,
-// último gerente, nova senha provisória, desativar, sessões, limite de tentativas, sync/tfEmitir/painel/portal com o token novo
-// e os acessos antigos (valem até serem desligados; depois, nem a ACCESS_KEY). Todos os dados são fictícios.
+// Login com matrícula e senha (apps-script/usuarios.gs, Code.gs real via fakegas), só por HTTP: primeiro gerente (gancho /__gerente = o
+// mesmo criarGerente_ do menu), validação de matrícula e nome, entrar com senha provisória e troca obrigatória conferida no servidor,
+// trocar senha, permissões, último gerente, nova senha provisória, desativar, sessões, limite de tentativas, sync/tfEmitir/painel/portal
+// com o token novo. Os acessos antigos (código de 6 dígitos, código de administrador, ACCESS_KEY) não existem mais: a última seção
+// confere que não respondem. Todos os dados são fictícios.
 const crypto = require('crypto');
 const { API } = amb;
 const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 const get = p => fetch(API + p).then(r => r.json());
 const fn = (nome, ...args) => get('/__fn?nome=' + nome + '&args=' + encodeURIComponent(JSON.stringify(args)));
-const gerar = (nome, perfil) => get('/__gerar?nome=' + encodeURIComponent(nome) + (perfil ? '&perfil=' + perfil : ''));
 const gerente = (matricula, nome) => get('/__gerente?matricula=' + encodeURIComponent(matricula) + '&nome=' + encodeURIComponent(nome));
 const aba = async nome => (await get('/__aba?nome=' + nome)) || [];
 const linhasDe = async nome => { const t = await aba(nome); return t.slice(1).map(l => Object.fromEntries(t[0].map((c, i) => [c, l[i]]))); };
@@ -23,6 +23,7 @@ const zerarTentativas = async (...matriculas) => {
   await fetch(API + '/__cache?del=falhas_usuarios_total');
 };
 const SENHA = 'Senha-Boa-123';
+const MSG_ENTRE = 'Entre com sua matrícula e senha.';
 
 (async () => {
   const ANO = new Date(Date.now() - 4 * 3600e3).getUTCFullYear(), agora = Date.now(), hoje = new Date(agora - 4 * 3600e3).toISOString().slice(0, 10);
@@ -36,16 +37,7 @@ const SENHA = 'Senha-Boa-123';
   ok(G1.usuario && G1.usuario.matricula === 'GDV0001' && G1.usuario.nome === 'Gerente Ficticio Teste', 'matrícula gerada: GDV0001', G1);
   ok(/^[A-HJ-NP-Za-km-z2-9]{8}$/.test(G1.senhaProvisoria), 'senha provisória: 8 caracteres, alfabeto sem 0/O/1/l/I', G1.senhaProvisoria);
   ok(G1.usuario.permissoes.length === 8 && ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce', 'digitarDoPapel', 'painel', 'administracao', 'gerencia'].every(p => G1.usuario.permissoes.includes(p)), 'Criar gerente: todas as permissões');
-  r = await gerente('', 'Segundo Gerente Ficticio'); ok(r.usuario && r.usuario.matricula === 'GDV0002', 'a seguinte é GDV0002', r);
-  const G2 = r;
-  r = await gerente('gdv0001', 'Repetido Ficticio Teste'); ok(/Já existe um usuário com a matrícula/.test(r.erro), 'matrícula repetida recusada (maiúscula/minúscula não conta)', r.erro);
-  r = await gerente(' GDV0002 ', 'Repetido Ficticio Teste'); ok(/Já existe um usuário com a matrícula/.test(r.erro), 'matrícula repetida recusada (espaços nas pontas não contam)', r.erro);
-  for (const [m, motivo] of [['AB', 'curta'], ['abc def', 'com espaço'], ['abc_def', 'com símbolo'], ['A'.repeat(21), 'com mais de 20 caracteres']]) {
-    r = await gerente(m, 'Matricula Invalida Teste'); ok(/Matrícula inválida/.test(r.erro), 'matrícula ' + motivo + ' recusada', r.erro);
-  }
-  r = await gerente('mat.1-ok', 'Terceiro Gerente Ficticio'); ok(r.usuario && r.usuario.matricula === 'mat.1-ok', 'matrícula com letras, número, ponto e hífen aceita', r);
-  r = await gerente('', 'Fulano 2 Numero'); ok(/só letras/.test(r.erro), 'nome com número recusado (nomeServidor_)', r.erro);
-  r = await gerente('', 'Fulano'); ok(/nome completo/.test(r.erro), 'nome sem sobrenome recusado', r.erro);
+  r = await gerente('', 'Segundo Gerente Ficticio'); ok(!r.usuario && /Já existe gerente ativo/.test(r.erro), 'o menu cria só o primeiro gerente: com um ativo, recusa', r);
 
   /* ================= 2. entrar com senha provisória; troca obrigatória conferida no servidor ================= */
   console.log('2. Entrar com a senha provisória; troca obrigatória');
@@ -92,17 +84,23 @@ const SENHA = 'Senha-Boa-123';
   const tudo = JSON.stringify(await get('/__tudo'));
   ok(u1.senhaHash.length === 64 && u1.senhaHash !== sha(SENHA) && u1.senhaSal.length === 32 && u1.senhaProvisoria === 0 && u1.senhaAlteradaEm > 0 && !tudo.includes(SENHA) && !tudo.includes(G1.senhaProvisoria),
     'planilha: hash com sal (não é o SHA-256 simples), nenhuma senha em claro', { hash: u1.senhaHash, sal: u1.senhaSal });
-  ok(us.length === 3 && us.every(u => u.criadoPor === 'planilha') && us[0].senhaHash !== us[1].senhaHash && us[0].senhaSal !== us[1].senhaSal, 'contas criadas pelo menu: criadoPor = planilha; cada senha com seu sal');
+  ok(us.length === 1 && u1.criadoPor === 'planilha', 'a conta do menu: criadoPor = planilha (e o segundo gerente não foi gravado)');
 
-  /* ================= 4. permissões e módulos ================= */
-  console.log('4. Permissões (lista exata), digitarDoPapel exige pce, gerencia vale tudo');
+  /* ================= 4. permissões, matrícula e nome ================= */
+  console.log('4. Permissões (lista exata), digitarDoPapel exige pce, gerencia vale tudo; matrícula e nome');
   const cria = (nome, permissoes, extra = {}) => post({ action: 'usuarioCriar', key: GT, nome, permissoes, ...extra });
   r = await cria('Fulano Ficticio Campo', ['campo', 'pce', 'digitarDoPapel', 'inventada']); ok(!r.ok && /Permissão desconhecida: inventada/.test(r.erro), 'permissão desconhecida recusada', r.erro);
   r = await cria('Fulano Ficticio Campo', ['campo', 'digitarDoPapel']); ok(!r.ok && /só vale com o módulo PCE/.test(r.erro), 'digitarDoPapel sem pce recusado com mensagem clara', r.erro);
   r = await cria('Fulano Ficticio Campo', []); ok(!r.ok && /pelo menos uma permissão/.test(r.erro), 'sem nenhuma permissão recusado', r.erro);
   r = await cria('Fulano Ficticio Campo', 'campo'); ok(!r.ok, 'permissões que não são lista recusadas', r.erro);
   r = await cria('Fulano Ficticio Campo', ['campo'], { matricula: 'abc def' }); ok(!r.ok && /Matrícula inválida/.test(r.erro), 'usuarioCriar valida a matrícula', r.erro);
-  ok((await linhasDe('Usuarios')).length === 3, 'nada foi gravado pelas tentativas recusadas');
+  for (const [m, motivo] of [['AB', 'curta'], ['abc def', 'com espaço'], ['abc_def', 'com símbolo'], ['A'.repeat(21), 'com mais de 20 caracteres']]) {
+    r = await cria('Matricula Invalida Teste', ['campo'], { matricula: m }); ok(/Matrícula inválida/.test(r.erro), 'matrícula ' + motivo + ' recusada', r.erro);
+  }
+  r = await cria('Fulano 2 Numero', ['campo']); ok(/só letras/.test(r.erro), 'nome com número recusado (nomeServidor_)', r.erro);
+  r = await cria('Fulano', ['campo']); ok(/nome completo/.test(r.erro), 'nome sem sobrenome recusado', r.erro);
+  r = await cria('Repetido Ficticio Teste', ['campo'], { matricula: ' gdv0001 ' }); ok(/Já existe/.test(r.erro), 'matrícula repetida recusada (caixa e espaços não contam)', r.erro);
+  ok((await linhasDe('Usuarios')).length === 1, 'nada foi gravado pelas tentativas recusadas');
   const PF = await cria('Fulano Ficticio Campo', ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce', 'digitarDoPapel'], { matricula: 'campo1' });
   ok(PF.ok && PF.usuario.matricula === 'campo1' && PF.usuario.nome === 'Fulano Ficticio Campo' && /^[A-HJ-NP-Za-km-z2-9]{8}$/.test(PF.senhaProvisoria) && !('senhaHash' in PF.usuario), 'conta de campo criada: matrícula e senha provisória (texto só nesta resposta)', PF);
   r = await cria('Outra Pessoa Ficticia', ['campo'], { matricula: ' CAMPO1 ' }); ok(!r.ok && /Já existe/.test(r.erro), 'usuarioCriar: matrícula repetida recusada (caixa e espaços)', r.erro);
@@ -113,7 +111,10 @@ const SENHA = 'Senha-Boa-123';
   const PG = await cria('Gerencia Apenas Ficticia', ['gerencia'], { matricula: 'gerencia2' });
   const PS = await cria('Sem Campo Ficticio', ['painel', 'termoDeBarreira'], { matricula: 'semcampo' });
   const PX = await cria('Sem Matricula Ficticia', ['campo']);
-  ok(PM.ok && P3.ok && PP.ok && PA.ok && PG.ok && PS.ok && PX.ok && PX.usuario.matricula === 'GDV0003', 'contas criadas: módulos parciais, TV (só painel), portal, só gerencia, sem campo; sem matrícula = GDV0003', PX);
+  const PMAT = await cria('Terceiro Gerente Ficticio', ['gerencia'], { matricula: 'mat.1-ok' });
+  const FA = await cria('Fiscal Aguardando Ficticio', ['campo', 'fiscalizacaoDeTransito'], { matricula: 'fiscal1' });
+  ok(PM.ok && P3.ok && PP.ok && PA.ok && PG.ok && PS.ok && PX.ok && PX.usuario.matricula === 'GDV0002' && PMAT.ok && PMAT.usuario.matricula === 'mat.1-ok' && FA.ok,
+    'contas criadas: módulos parciais, TV (só painel), portal, só gerencia, sem campo, conta de fiscal aguardando; sem matrícula = GDV0002', PX);
   // cada um troca a senha provisória e entra no aplicativo indicado
   const pronta = async (c, app, extra = {}) => {
     const e = await entrar(c.usuario.matricula, c.senhaProvisoria, app, extra);
@@ -122,7 +123,7 @@ const SENHA = 'Senha-Boa-123';
     return entrar(c.usuario.matricula, SENHA, app, extra);
   };
   const eF = await pronta(PF, 'campo'), eM = await pronta(PM, 'campo'), e3 = await pronta(P3, 'campo'), eP = await pronta(PP, 'painel'), eA = await pronta(PA, 'administracao');
-  const eG = await pronta(PG, 'campo'), eS = await pronta(PS, 'painel');
+  const eG = await pronta(PG, 'campo'), eS = await pronta(PS, 'painel'), eFA = await pronta(FA, 'campo');
   ok(JSON.stringify(eF.modulos) === '{"veiculos":1,"tf":1,"pce":1,"antigo":1}' && eF.permissoes.join() === 'campo,fiscalizacaoDeTransito,termoDeBarreira,pce,digitarDoPapel',
     'mapeamento: veiculos = fiscalizacaoDeTransito, tf = termoDeBarreira, pce, antigo = digitarDoPapel', eF);
   ok(JSON.stringify(eM.modulos) === '{"veiculos":1,"tf":0,"pce":0,"antigo":0}', 'só fiscalizacaoDeTransito: {veiculos:1, tf:0, pce:0, antigo:0}', eM.modulos);
@@ -133,7 +134,7 @@ const SENHA = 'Senha-Boa-123';
   r = await entrar('gerencia2', SENHA, 'administracao'); ok(r.ok, 'gerencia entra em qualquer aplicativo');
   const L = await post({ action: 'usuariosListar', key: GT });
   const lu = m => L.usuarios.find(u => u.matricula === m);
-  ok(L.ok && L.acessosAntigos === 'ligados' && L.usuarios.length === 11, 'usuariosListar: contas e acessosAntigos = ligados', L.usuarios.map(u => u.matricula));
+  ok(L.ok && L.usuarios.length === 11, 'usuariosListar: as 11 contas', L.usuarios && L.usuarios.map(u => u.matricula));
   ok(lu('campo1').permissoes.join() === 'campo,fiscalizacaoDeTransito,termoDeBarreira,pce,digitarDoPapel' && lu('tv1').permissoes.join() === 'painel' && lu('campo1').senhaProvisoria === 0 && lu('campo1').ativo === 1 &&
     lu('campo1').sessoesAbertas >= 1 && lu('campo1').ultimoAcesso > 0 && lu('campo1').criadoEm > 0 && lu('GDV0002').senhaProvisoria === 1 && lu('GDV0002').sessoesAbertas === 0, 'lista com permissões, ativo, senhaProvisoria, criadoEm, ultimoAcesso e sessoesAbertas', lu('campo1'));
   ok(!JSON.stringify(L).includes('senhaHash') && !JSON.stringify(L).includes('senhaSal') && !JSON.stringify(L).includes('tokenHash'), 'a lista nunca traz hash nem sal');
@@ -156,23 +157,23 @@ const SENHA = 'Senha-Boa-123';
   /* ================= 5. último gerente ================= */
   console.log('5. Nunca tirar o último gerente');
   const gerentes = L.usuarios.filter(u => u.permissoes.includes('gerencia')).map(u => u.matricula).sort();
-  ok(gerentes.join() === 'GDV0001,GDV0002,gerencia2,mat.1-ok', 'quatro gerentes (menu e gerencia2)', gerentes);
+  ok(gerentes.join() === 'GDV0001,gerencia2,mat.1-ok', 'três gerentes: GDV0001 (menu), gerencia2 e mat.1-ok', gerentes);
   r = await post({ action: 'usuarioAtivar', key: GT, usuarioId: lu('mat.1-ok').id, ativo: 0 }); ok(r.ok, 'com outros gerentes ativos, desativar um é permitido');
   r = await post({ action: 'usuarioPermissoes', key: GT, usuarioId: lu('gerencia2').id, permissoes: ['campo'] }); ok(r.ok, 'tirar a gerência de gerencia2 é permitido (ainda há outros)');
-  r = await post({ action: 'usuarioAtivar', key: GT, usuarioId: lu('GDV0002').id, ativo: 0 }); ok(r.ok, 'desativar GDV0002 é permitido (GDV0001 continua)');
+  r = await post({ action: 'usuarioAtivar', key: GT, usuarioId: lu('GDV0002').id, ativo: 0 }); ok(r.ok, 'desativar uma conta comum (GDV0002) é permitido');
   r = await post({ action: 'usuarioPermissoes', key: GT, usuarioId: u1.id, permissoes: ['painel', 'campo'] }); ok(!r.ok && /último gerente/.test(r.erro), 'tirar a gerência do último gerente recusado', r.erro);
   r = await post({ action: 'usuarioAtivar', key: GT, usuarioId: u1.id, ativo: 0 }); ok(!r.ok && /último gerente/.test(r.erro), 'desativar o último gerente recusado', r.erro);
   r = await post({ action: 'usuarioAtivar', key: GT, usuarioId: u1.id, ativo: 'talvez' }); ok(!r.ok && /ativo: 1/.test(r.erro), 'ativo precisa ser 0 ou 1', r.erro);
   r = await post({ action: 'minhaSessao', key: GT }); ok(r.ok && r.permissoes.includes('gerencia'), 'o último gerente continua com a gerência e a sessão');
-  r = await post({ action: 'usuarioAtivar', key: GT, usuarioId: lu('GDV0002').id, ativo: 1 }); ok(r.ok, 'reativar um gerente');
-  r = await post({ action: 'usuarioAtivar', key: GT, usuarioId: lu('GDV0002').id, ativo: 1 }); ok(r.ok, 'ativar quem já está ativo: ok, sem efeito');
+  r = await post({ action: 'usuarioAtivar', key: GT, usuarioId: lu('mat.1-ok').id, ativo: 1 }); ok(r.ok, 'reativar um gerente');
+  r = await post({ action: 'usuarioAtivar', key: GT, usuarioId: lu('mat.1-ok').id, ativo: 1 }); ok(r.ok, 'ativar quem já está ativo: ok, sem efeito');
   r = await post({ action: 'usuarioAtivar', key: GT, usuarioId: 'nao-existe', ativo: 0 }); ok(!r.ok && /não encontrado/.test(r.erro), 'usuário inexistente');
 
   /* ================= 6. nova senha provisória, desativar, sessões ================= */
   console.log('6. Nova senha provisória e desativar encerram as sessões; sessoesListar e sessaoEncerrar');
   const M2 = await entrar('campo2', SENHA, 'campo', { aparelhoId: 'aparelho-segundo-02' });   // segunda sessão de campo2, em outro aparelho
   r = await post({ action: 'sessoesListar', key: GT, usuarioId: PM.usuario.id });
-  ok(r.ok && r.sessoes.length === 2 && r.sessoes.every(s => s.usuarioId === PM.usuario.id && s.nome === 'Beltrana Ficticia Modulos' && s.aplicativo === 'campo' && s.criadaEm > 0 && s.ultimoUso > 0 && 'aparelhoId' in s) &&
+  ok(r.ok && r.sessoes.length >= 2 && r.sessoes.every(s => s.usuarioId === PM.usuario.id && s.nome === 'Beltrana Ficticia Modulos' && s.aplicativo === 'campo' && s.criadaEm > 0 && s.ultimoUso > 0 && 'aparelhoId' in s) &&
     r.sessoes.some(s => s.aparelhoId === 'aparelho-segundo-02') && !JSON.stringify(r).includes('tokenHash'), 'sessoesListar de um usuário: só as abertas, sem hash', r);
   r = await post({ action: 'sessoesListar', key: GT }); ok(r.ok && r.sessoes.length >= 8 && r.sessoes.every(s => !s.encerradaEm), 'sessoesListar sem filtro: todas as abertas', r.sessoes.length);
   const alvo = (await post({ action: 'sessoesListar', key: GT, usuarioId: PM.usuario.id })).sessoes.find(s => s.aparelhoId === 'aparelho-segundo-02');
@@ -198,10 +199,10 @@ const SENHA = 'Senha-Boa-123';
   r = await post({ action: 'sync', key: M4.token, since: 0 }); ok(!r.ok && r.trocarSenha === 1, 'enquanto não troca, nada funciona');
   r = await trocar(M4.token, NS.senhaProvisoria, SENHA); ok(r.ok, 'troca a senha');
   const eM2 = await entrar('campo2', SENHA, 'campo'); ok(eM2.ok && eM2.trocarSenha === 0, 'volta a entrar normalmente');
-  // pelo menu: vale para gerente também
-  r = await fn('novaSenhaProvisoria_', 'gdv0002'); ok(r.r && r.r.usuario.matricula === 'GDV0002' && /^[A-HJ-NP-Za-km-z2-9]{8}$/.test(r.r.senhaProvisoria), 'menu Nova senha provisória: vale para gerente (matrícula sem diferenciar caixa)', r);
-  r = await fn('novaSenhaProvisoria_', 'naoexiste'); ok(/não encontrado/.test(r.erro), 'menu: matrícula inexistente', r.erro);
-  r = await fn('novaSenhaProvisoria_', '  '); ok(/Informe a matrícula/.test(r.erro), 'menu: matrícula vazia', r.erro);
+  // menu "Redefinir senha de gerente": vale para gerente (matrícula sem diferenciar caixa); não vale para conta comum
+  r = await fn('novaSenhaGerente_', 'MAT.1-OK'); ok(r.r && r.r.usuario.matricula === 'mat.1-ok' && /^[A-HJ-NP-Za-km-z2-9]{8}$/.test(r.r.senhaProvisoria), 'menu Redefinir senha de gerente: vale para gerente (matrícula sem diferenciar caixa)', r);
+  r = await fn('novaSenhaGerente_', 'naoexiste'); ok(r.erro && /não é de um gerente ativo/.test(r.erro), 'menu: matrícula que não é de gerente ativo', r.erro);
+  r = await fn('novaSenhaGerente_', '  '); ok(r.erro && /Informe a matrícula/.test(r.erro), 'menu: matrícula vazia', r.erro);
   // desativar
   const TV = eP.token;
   r = await post({ action: 'painelDados', key: TV, de: hoje, ate: hoje }); ok(r.ok, 'painel (só painel) lê antes de ser desativado');
@@ -267,7 +268,7 @@ const SENHA = 'Senha-Boa-123';
   ok(r.ok && r.recusados.tfs.length === 1 && r.recusados.tfs[0] === 'lg-f5' && r.tfs.some(t => t.id === 'lg-f6'), 'sync: registro antigo sem digitarDoPapel volta em recusados; o normal do mesmo lote entra', r.recusados);
   r = await post({ action: 'sync', key: eS.token, since: 0 }); ok(!r.ok && /não inclui o app de campo/.test(r.erro), 'quem não tem a permissão campo não sincroniza (mesmo com módulos)', r.erro);
   r = await post({ action: 'tfEmitir', key: eS.token, tf: TF('lg-f7', 7) }); ok(!r.ok && /não inclui o app de campo/.test(r.erro), 'nem emite TF', r.erro);
-  r = await post({ action: 'sync', key: eG3.token, since: 0 }); ok(r.ok && r.permissoes.antigo === 1 && r.turnos.length === 0 && r.tfs.length === 0, 'gerencia sincroniza com tudo liberado; só recebe os registros dela');
+  r = await post({ action: 'sync', key: eG3.token, since: 0 }); ok(r.ok && r.permissoes.antigo === 1, 'gerencia sincroniza com tudo liberado', r.permissoes);
   const ap = (await linhasDe('Aparelhos')).find(a => a.id === 'aparelho-campo-001');
   ok(ap && ap.usuario === 'Fulano Ficticio Campo' && ap.cred === 'u.' + sha(tokF).slice(0, 6) && ap.cred !== tokF.slice(0, 8), 'Aparelhos.cred não guarda o início do token (só parte do SHA-256)', ap && ap.cred);
   // ultimoUso: grava no máximo uma vez a cada 5 minutos por sessão
@@ -281,28 +282,22 @@ const SENHA = 'Senha-Boa-123';
 
   /* ================= 9. painel (só leitura x gerência) e portal ================= */
   console.log('9. Painel: quem só tem painel lê e não grava; portal com administracao');
-  const fisAguarda = await gerar('Fiscal Aguardando Ficticio');
   const TVok = eP2.token;
-  const leituras = [['painelDados', { de: hoje, ate: hoje }], ['painelDados', { aoVivo: true, ids: [] }], ['painelAcessos', {}], ['painelAdmLista', {}], ['painelPublicoConfig', {}], ['painelConvenios', {}],
+  const leituras = [['painelDados', { de: hoje, ate: hoje }], ['painelDados', { aoVivo: true, ids: [] }], ['painelPublicoConfig', {}], ['painelConvenios', {}],
     ['painelRelGdv', { ano: ANO }], ['painelVigDados', { ano: ANO }], ['painelConvApuracao', { convenio: '991272-2025' }], ['painelRelGdvApuracao', { de: hoje, ate: hoje }]];
   for (const [a, c] of leituras) { r = await post({ action: a, key: TVok, ...c }); ok(r.ok, `painel só leitura: ${a} funciona`, r.erro); }
-  r = await post({ action: 'painelAcessos', key: TVok }); ok(r.ok && !r.acessos.some(a => 'codigo' in a), 'painelAcessos para quem só lê não traz o código que ainda ativa aparelho');
-  r = await post({ action: 'painelAcessos', key: GT }); ok(r.ok && r.acessos.some(a => a.nome === 'Fiscal Aguardando Ficticio' && a.codigo === fisAguarda.codigo), 'painelAcessos para a gerência traz o código');
-  const LIB = await post({ action: 'painelAdmSalvar', key: GT, email: 'liberada.ficticia@exemplo.com', nome: 'Liberada Ficticia Teste' }); ok(LIB.ok, 'gerência grava pelo painel (painelAdmSalvar)', LIB.erro);
-  const COD = await post({ action: 'painelAdmCodigo', key: GT, id: LIB.liberado.id }); ok(COD.ok, 'gerência gera o código do portal');
-  r = await post({ action: 'painelAdmLista', key: TVok }); ok(r.ok && r.liberados.length === 1 && r.liberados[0].codigo === '', 'painelAdmLista para quem só lê esconde o código do portal');
-  r = await post({ action: 'painelAdmLista', key: GT }); ok(r.liberados[0].codigo === COD.codigo, 'painelAdmLista para a gerência mostra o código');
-  const escritas = [['painelEncerrarTurno', { turnoId: 'x', fim: '10:00' }], ['painelGerarCodigo', { nome: 'Fiscal Novo Ficticio' }], ['painelPermissoes', { nome: 'Fiscal Aguardando Ficticio', veiculos: 1, tf: 1, pce: 1 }],
-    ['painelRevogar', { nome: 'Fiscal Aguardando Ficticio' }], ['painelRevogarAdmin', { nome: 'Alguem Ficticio' }], ['painelOcultarAcesso', { nome: 'Fiscal Aguardando Ficticio' }],
-    ['painelPublicoSalvar', { config: {} }], ['painelPceLaudo', { id: 'x', laboratorio: {} }], ['painelConvSalvar', { convenio: '991272-2025', config: {} }], ['painelConvRelSalvar', { convenio: '991272-2025', mes: '2026-09', numero: 1, textos: {} }],
-    ['painelRelGdvSalvar', { ano: ANO, tipo: 'mensal', mes: '09', textos: {} }], ['painelVigConfigSalvar', { config: {} }], ['painelAdmSalvar', { email: 'x@exemplo.com', nome: 'Xis Ficticio Teste' }],
-    ['painelAdmCodigo', { id: LIB.liberado.id }], ['painelAdmOcultar', { id: LIB.liberado.id }]];
+  // gravações do painel: só a gerência (MSG_SO_GERENCIA_)
+  const escritas = [['painelEncerrarTurno', { turnoId: 'x', fim: '10:00' }], ['painelPublicoSalvar', { config: {} }], ['painelPceLaudo', { id: 'x', laboratorio: {} }],
+    ['painelConvSalvar', { convenio: '991272-2025', config: {} }], ['painelRelGdvSalvar', { ano: ANO, tipo: 'mensal', mes: '09', textos: {} }], ['painelVigConfigSalvar', { config: {} }]];
   for (const [a, c] of escritas) { r = await post({ action: a, key: TVok, ...c }); ok(!r.ok && /Só a gerência pode fazer esta alteração/.test(r.erro), `painel só leitura: ${a} é recusado`, r.erro); }
-  ok(!(await fn('lerLeitura_', 'Permissoes')).r.length && (await post({ action: 'painelAcessos', key: GT })).acessos.find(a => a.nome === 'Fiscal Aguardando Ficticio').situacao === 'aguardando', 'nada foi gravado pelas tentativas recusadas');
+  // lançamentos do convênio: só no Portal do Administrativo (MSG_PORTAL)
+  for (const a of ['painelConvLancar', 'painelConvFinLancar', 'painelConvFinImportar', 'painelConvExcluir']) {
+    r = await post({ action: a, key: GT, lancamento: {}, id: 'x' }); ok(!r.ok && /Portal do Administrativo/.test(r.erro), `${a}: o lançamento é do portal, não do painel`, r.erro);
+  }
   r = await post({ action: 'painelEncerrarTurno', key: GT, turnoId: 'nao-existe', fim: '10:00' }); ok(!r.ok && /Turno não encontrado/.test(r.erro), 'gerência passa pela exigência (o erro é do turno inexistente)', r.erro);
-  r = await post({ action: 'painelPermissoes', key: GT, nome: 'Fiscal Aguardando Ficticio', veiculos: 1, tf: 1, pce: 0 }); ok(r.ok && r.atualizadoPor === 'Gerente Ficticio Teste', 'gerência grava permissões do fiscal antigo; atualizadoPor = nome do gerente', r);
   r = await post({ action: 'painelPublicoSalvar', key: GT, config: { titulo: 'Titulo Ficticio' } }); ok(r.ok && r.config.atualizadoPor === 'Gerente Ficticio Teste', 'gerência salva o dashboard público', r.erro);
   r = await post({ action: 'painelDados', key: eF.token, de: hoje, ate: hoje }); ok(!r.ok && /não inclui o painel/.test(r.erro), 'quem só tem campo não lê o painel', r.erro);
+  r = await post({ action: 'painelDados', key: eFA.token, de: hoje, ate: hoje }); ok(!r.ok && /não inclui o painel/.test(r.erro), 'conta de fiscal aguardando (campo) não lê o painel', r.erro);
   r = await post({ action: 'painelDados', key: tokF, de: hoje, ate: hoje }); ok(!r.ok && /não inclui o painel/.test(r.erro), 'token de campo não vale no painel (sem a permissão painel)');
   r = await post({ action: 'painelDados', key: eG3.token, de: hoje, ate: hoje }); ok(r.ok, 'gerencia lê o painel com um token de campo (vale tudo)');
   // portal
@@ -327,61 +322,26 @@ const SENHA = 'Senha-Boa-123';
   ses = await linhasDe('SessoesDosUsuarios');
   ok(ses.find(s => s.tokenHash === sha(tokM)).motivoDoEncerramento === 'sair', 'sair registra o motivo');
 
-  /* ================= 10. acessos antigos ================= */
-  console.log('10. Acessos antigos: valem até a gerência desligar; depois, nem a ACCESS_KEY');
-  const fis = await gerar('Fiscal Antigo Ficticio'), TOKF = (await post({ action: 'ativar', codigo: fis.codigo })).token;
-  const adm = await gerar('Admin Antigo Ficticio', 'admin'), TOKA = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
-  ok(TOKF && TOKA, 'códigos antigos ativam (fiscal e administrador)');
-  r = await post({ action: 'sync', key: TOKF, since: 0 }); ok(r.ok && r.permissoes.pce === 1, 'fiscal antigo sincroniza');
-  r = await post({ action: 'sync', key: 'segredo', since: 0 }); ok(r.ok, 'ACCESS_KEY sincroniza');
-  r = await post({ action: 'painelDados', key: TOKA, de: hoje, ate: hoje }); ok(r.ok, 'administrador antigo lê o painel');
-  r = await post({ action: 'painelDados', key: 'segredo', de: hoje, ate: hoje }); ok(r.ok, 'ACCESS_KEY lê o painel');
-  const portalAnt = await post({ action: 'painelAdmCodigo', key: TOKA, id: (await post({ action: 'painelAdmSalvar', key: TOKA, email: 'antiga.ficticia@exemplo.com', nome: 'Antiga Ficticia Teste' })).liberado.id });
-  const SESAnt = await post({ action: 'admCodigo', codigo: portalAnt.codigo }); ok(SESAnt.ok, 'portal pelo código antigo');
-  r = await post({ action: 'admDados', sessao: SESAnt.sessao }); ok(r.ok, 'sessão antiga do portal vale');
-  // o administrador antigo (e a ACCESS_KEY) valem como gerência na transição
-  r = await post({ action: 'usuariosListar', key: TOKA }); ok(r.ok && r.acessosAntigos === 'ligados', 'administrador antigo lista usuários (gerência na transição)', r.erro);
-  r = await post({ action: 'usuariosListar', key: 'segredo' }); ok(r.ok, 'ACCESS_KEY também');
-  r = await post({ action: 'usuariosListar', key: TOKF }); ok(!r.ok && /Acesso restrito/.test(r.erro), 'fiscal antigo não vale como gerência', r.erro);
-  const CA = await post({ action: 'usuarioCriar', key: TOKA, nome: 'Criada Pelo Antigo', permissoes: ['campo'], matricula: 'viaantigo' });
-  const CK = await post({ action: 'usuarioCriar', key: 'segredo', nome: 'Criada Pela Chave', permissoes: ['campo'], matricula: 'viachave' });
-  ok(CA.ok && CK.ok, 'o administrador antigo e a ACCESS_KEY criam contas');
-  const us2 = await linhasDe('Usuarios'), hist = await linhasDe('HistoricoDeAlteracoes');
-  ok(us2.find(u => u.matricula === 'viaantigo').criadoPor === 'antigo:Admin Antigo Ficticio' && us2.find(u => u.matricula === 'viachave').criadoPor === 'antigo:Administrador', 'autor registrado como "antigo:" + nome', us2.map(u => u.criadoPor));
-  ok(hist.some(h => h.acao === 'usuario.criar' && h.usuarioId === 'antigo:Admin Antigo Ficticio') && hist.some(h => h.acao === 'usuario.criar' && h.usuarioId === 'antigo:Administrador'), 'histórico com o autor antigo');
-  // desligar exige sessão nova com gerência
-  for (const [quem, k] of [['administrador antigo', TOKA], ['ACCESS_KEY', 'segredo'], ['painel só leitura', eS.token], ['campo', tokF]]) {
-    r = await post({ action: 'acessosAntigosDesligar', key: k, desligar: 1 }); ok(!r.ok, `acessosAntigosDesligar recusado: ${quem}`, r.erro);
-  }
-  r = await post({ action: 'acessosAntigosDesligar', key: GT, desligar: 'sim' }); ok(!r.ok && /desligar: 1/.test(r.erro), 'valor inválido recusado', r.erro);
-  r = await post({ action: 'sync', key: TOKF, since: 0 }); ok(r.ok, 'nada foi desligado pelas tentativas recusadas');
-  r = await post({ action: 'acessosAntigosDesligar', key: GT, desligar: 1 }); ok(r.ok && r.acessosAntigos === 'desligados', 'gerência (sessão nova) desliga os acessos antigos', r);
-  ok((await get('/__props')).ACESSOS_ANTIGOS_DESLIGADOS === '1', 'propriedade do script ACESSOS_ANTIGOS_DESLIGADOS = 1');
-  const MSG = 'Entre com sua matrícula e senha.';
-  const recusa = async (msg, corpo) => { const x = await post(corpo); ok(!x.ok && x.erro === MSG, msg, x.erro); };
-  await recusa('token antigo de fiscal recusado no app (sync)', { action: 'sync', key: TOKF, since: 0 });
-  await recusa('ACCESS_KEY recusada no app (sync)', { action: 'sync', key: 'segredo', since: 0 });
-  await recusa('ACCESS_KEY recusada no painel', { action: 'painelDados', key: 'segredo', de: hoje, ate: hoje });
-  await recusa('administrador antigo recusado no painel', { action: 'painelDados', key: TOKA, de: hoje, ate: hoje });
-  await recusa('ACCESS_KEY recusada nas actions de gerência', { action: 'usuariosListar', key: 'segredo' });
-  await recusa('administrador antigo recusado nas actions de gerência', { action: 'usuarioCriar', key: TOKA, nome: 'Nao Deve Criar', permissoes: ['campo'] });
-  await recusa('sessão antiga do portal recusada', { action: 'admDados', sessao: SESAnt.sessao });
-  const novoCod = await gerar('Fiscal Depois Do Desligar');
-  await recusa('código de ativação recusado (ativar)', { action: 'ativar', codigo: novoCod.codigo });
-  const admCod = await gerar('Admin Depois Do Desligar', 'admin');
-  await recusa('código de administrador recusado (painelAtivar)', { action: 'painelAtivar', codigo: admCod.codigo });
-  await recusa('código do portal recusado (admCodigo)', { action: 'admCodigo', codigo: portalAnt.codigo });
-  r = await post({ action: 'painelSair', key: TOKA }); ok(r.ok, 'painelSair com credencial antiga não quebra');
-  r = await post({ action: 'sync', key: tokF, since: 0 }); ok(r.ok, 'a sessão nova continua valendo');
-  r = await post({ action: 'usuariosListar', key: GT }); ok(r.ok && r.acessosAntigos === 'desligados', 'usuariosListar mostra acessosAntigos = desligados');
-  r = await post({ action: 'acessosAntigosDesligar', key: GT, desligar: 0 }); ok(r.ok && r.acessosAntigos === 'ligados', 'a gerência pode religar (desligar: 0)');
-  r = await post({ action: 'sync', key: TOKF, since: 0 }); ok(r.ok, 'religado: o token antigo volta a valer');
-  r = await post({ action: 'acessosAntigosDesligar', key: GT, desligar: 1 }); ok(r.ok, 'desliga de novo');
+  /* ================= 10. acessos antigos não existem ================= */
+  console.log('10. Acessos antigos (código de 6 dígitos, código de administrador, ACCESS_KEY) não existem mais');
+  // as actions saíram do back: sem sessão, a resposta é a de quem não entrou; com sessão válida, "Ação inválida."
+  let x = await post({ action: 'ativar', codigo: '123456' }); ok(!x.ok && x.erro === MSG_ENTRE, 'ativar (código de 6 dígitos) não existe: sem sessão, pede matrícula e senha', x.erro);
+  x = await post({ action: 'painelAtivar', codigo: '123456' }); ok(!x.ok && x.erro === MSG_ENTRE, 'painelAtivar (código de administrador) não existe: sem sessão, pede matrícula e senha', x.erro);
+  x = await post({ action: 'ativar', codigo: '123456', key: GT }); ok(!x.ok && x.erro === 'Ação inválida.', 'com sessão válida, ativar é ação inexistente', x.erro);
+  x = await post({ action: 'painelAtivar', codigo: '123456', key: GT }); ok(!x.ok && x.erro === 'Ação inválida.', 'com sessão válida, painelAtivar é ação inexistente', x.erro);
+  x = await post({ action: 'admCodigo', codigo: '123456' }); ok(!x.ok && x.erro === 'Ação inválida.', 'código do portal (admCodigo) não existe', x.erro);
+  // a ACCESS_KEY ('segredo') não vale em nenhum lugar
+  x = await post({ action: 'sync', key: 'segredo', since: 0 }); ok(!x.ok && /Acesso revogado ou inválido/.test(x.erro), 'ACCESS_KEY recusada no app (sync)', x.erro);
+  x = await post({ action: 'painelDados', key: 'segredo', de: hoje, ate: hoje }); ok(!x.ok && /Sessão do painel inválida ou revogada/.test(x.erro), 'ACCESS_KEY recusada no painel', x.erro);
+  x = await post({ action: 'usuariosListar', key: 'segredo' }); ok(!x.ok && /Sessão encerrada ou inválida/.test(x.erro), 'ACCESS_KEY recusada nas actions de gerência', x.erro);
+  x = await post({ action: 'usuarioCriar', key: 'segredo', nome: 'Criada Pela Chave Teste', permissoes: ['campo'] }); ok(!x.ok && !x.usuario, 'ACCESS_KEY não cria conta', x.erro);
+  x = await post({ action: 'admDados', sessao: 'segredo' }); ok(!x.ok && /Sessão do portal encerrada/.test(x.erro), 'ACCESS_KEY recusada no portal', x.erro);
+  x = await post({ action: 'ping', key: GT }); ok(x.ok, 'a sessão da gerência continua valendo');
 
-  /* ================= 11. histórico, funções do menu, nada sensível na planilha ================= */
-  console.log('11. Histórico de alterações; contas em lote; nada sensível na planilha');
+  /* ================= 11. histórico, nada sensível na planilha ================= */
+  console.log('11. Histórico de alterações; nada sensível na planilha');
   const H = await linhasDe('HistoricoDeAlteracoes'), acoes = new Set(H.map(h => h.acao));
-  for (const a of ['usuario.criar', 'usuario.trocarSenha', 'usuario.permissoes', 'usuario.novaSenha', 'usuario.desativar', 'usuario.ativar', 'sessao.encerrar', 'acessosAntigos.desligar', 'acessosAntigos.religar']) {
+  for (const a of ['usuario.criar', 'usuario.trocarSenha', 'usuario.permissoes', 'usuario.novaSenha', 'usuario.desativar', 'usuario.ativar', 'sessao.encerrar']) {
     ok(acoes.has(a), 'histórico tem a ação ' + a);
   }
   ok(H.every(h => h.id && h.em > 1e12 && h.usuarioId && h.tabela && h.registroId), 'toda linha do histórico tem id, quando, quem, aba e registro');
@@ -393,29 +353,12 @@ const SENHA = 'Senha-Boa-123';
   ok(segredos.every(s => s && !textoH.includes(s)), 'o histórico nunca traz hash, sal nem senha');
   const sesTudo = JSON.stringify(await linhasDe('SessoesDosUsuarios'));
   ok([GT, tokF, tokM, tok3].every(t => !sesTudo.includes(t)), 'as sessões não guardam token em claro');
-  // contas em lote (menu)
-  r = await fn('criarContasEmLote_', [{ matricula: 'lote1', nome: 'Lote Um Ficticio', permissoes: 'campo, pce' }, { matricula: 'lote1', nome: 'Lote Repetido Ficticio', permissoes: 'campo' },
-    { matricula: '', nome: 'Lote Sem Matricula', permissoes: ['painel'] }, { matricula: 'lote4', nome: 'Lote Invalido', permissoes: 'campo,inventada' }]);
-  ok(r.r.length === 4 && r.r[0].ok && r.r[0].usuario.matricula === 'lote1' && r.r[0].usuario.permissoes.join() === 'campo,pce' && !r.r[1].ok && /Já existe/.test(r.r[1].erro) && r.r[2].ok && /^GDV\d{4}$/.test(r.r[2].usuario.matricula) && !r.r[3].ok && /desconhecida/.test(r.r[3].erro),
-    'criarContasEmLote_: cada conta à parte (a repetida e a inválida não impedem as outras)', r.r.map(x => x.ok ? x.usuario.matricula : x.erro));
-  r = await fn('contasEmLoteDaPlanilha_'); ok(/Crie a aba ContasParaCriar/.test(r.erro), 'sem a aba ContasParaCriar: orienta', r.erro);
-  const linha = l => fetch(API + '/__append?aba=ContasParaCriar&row=' + encodeURIComponent(JSON.stringify(l)));
-  await linha(['matricula', 'nome', 'permissoes']); await linha(['lotea', 'Lote Planilha Ficticio', 'campo, fiscalizacaoDeTransito']); await linha(['', 'Lote Planilha Dois', 'painel,administracao']);
-  await linha(['lotea', 'Lote Planilha Repetido', 'campo']); await linha(['', '', '']);
-  r = await fn('contasEmLoteDaPlanilha_'); ok(r.r && r.r.criadas === 2 && r.r.falhas === 1 && r.r.puladas === 0, 'contasEmLoteDaPlanilha_: 2 criadas, 1 com erro', r);
-  const CP = await aba('ContasParaCriar'), ic = n => CP[0].indexOf(n);
-  ok(ic('senhaProvisoria') >= 0 && ic('resultado') >= 0 && /^[A-HJ-NP-Za-km-z2-9]{8}$/.test(CP[1][ic('senhaProvisoria')]) && /^[A-HJ-NP-Za-km-z2-9]{8}$/.test(CP[2][ic('senhaProvisoria')]) && CP[3][ic('senhaProvisoria')] === '' &&
-    /criada/.test(CP[1][ic('resultado')]) && /Já existe/.test(CP[3][ic('resultado')]) && /^GDV\d{4}$/.test(CP[2][ic('matricula')]), 'a senha provisória de cada conta vai para a coluna senhaProvisoria da aba (e o erro, para resultado)', CP);
-  const senhaLote = CP[1][ic('senhaProvisoria')];
-  r = await entrar('lotea', senhaLote, 'campo'); ok(r.ok && r.trocarSenha === 1, 'a conta criada em lote entra com a senha provisória escrita na aba');
-  r = await fn('contasEmLoteDaPlanilha_'); ok(r.r && r.r.criadas === 0 && r.r.puladas === 2, 'rodar de novo ignora as linhas já criadas (não recria nem troca a senha)', r);
-  ok((await aba('ContasParaCriar'))[1][ic('senhaProvisoria')] === senhaLote, 'a senha escrita antes não foi trocada');
   // abas novas: cabeçalhos exatamente como no contrato
   ok((await aba('Usuarios'))[0].join() === 'id,matricula,nome,senhaHash,senhaSal,senhaProvisoria,senhaAlteradaEm,ativo,criadoEm,criadoPor,atualizadoEm,atualizadoPor' &&
     (await aba('PermissoesDosUsuarios'))[0].join() === 'id,usuarioId,permissao,concedidaEm,concedidaPor,revogadaEm,revogadaPor' &&
     (await aba('SessoesDosUsuarios'))[0].join() === 'id,usuarioId,tokenHash,aplicativo,aparelhoId,criadaEm,ultimoUso,encerradaEm,encerradaPor,motivoDoEncerramento' &&
     (await aba('HistoricoDeAlteracoes'))[0].join() === 'id,em,usuarioId,acao,tabela,registroId,antes,depois', 'cabeçalhos das quatro abas novas');
-  r = await get('/__doget?p='); ok(JSON.parse(r.json).versao === '2026-10-22b', 'VERSAO_CODIGO mudou: 2026-10-22b', r.json);
+  r = await get('/__doget?p='); ok(JSON.parse(r.json).versao === '2026-10-23a', 'VERSAO_CODIGO do back: 2026-10-23a', r.json);
   console.log(falhas ? 'FALHOU=' + falhas : 'OK');
   process.exit(falhas ? 1 : 0);
 })().catch(e => { console.error('FALHOU', e); process.exit(1); });

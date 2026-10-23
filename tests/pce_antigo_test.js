@@ -82,7 +82,7 @@ const uuid = () => require('crypto').randomUUID();
   r = await U.permissoes(UIDS['Fiscal Ana Paula Lima'], U.lista({ veiculos: 1, tf: 1, pce: 0, antigo: 1 }));
   ok(!r.ok && /PCE/.test(r.erro), 'painel: "Digitar do papel" sem PCE recusado: ' + r.erro);
   r = await U.permissoes(UIDS['Fiscal Ana Paula Lima'], U.lista({ veiculos: 1, tf: 1, pce: 1, antigo: 1 }));
-  ok(r.ok && r.permissoes.includes('digitarDoPapel') && r.permissoes.pce === 1, 'painel: Digitar do papel liberado para a fiscal (com PCE)');
+  ok(r.ok && r.permissoes.includes('digitarDoPapel') && r.permissoes.includes('pce'), 'painel: Digitar do papel liberado para a fiscal (com PCE)');
   r = await enviar(F.token, {}, pdfBuf(30));
   ok(r.ok && /drive\.google\.com/.test(r.url), 'PDF válido aceito: ' + (r.erro || r.url));
   let drive = await get('/__drive'), dpdf = drive.arquivos.find(a => /\.pdf$/.test(a.nome));

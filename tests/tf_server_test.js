@@ -5,7 +5,7 @@ const ANO = new Date(Date.now() - 4 * 3600e3).getUTCFullYear();   // o servidor 
 const post = b => fetch(B + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 const get = p => fetch(B + p).then(r => r.json());
 const fn = (nome, ...args) => get('/__fn?nome=' + nome + '&args=' + encodeURIComponent(JSON.stringify(args)));
-const ativar = async nome => { const r = await U.fiscal(nome); assert.ok(r.ok); return r.token; };
+const ativar = async nome => { const r = await U.fiscal(nome); assert.ok(r.token); return r.token; };
 const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); assert.ok(c, m); };
 (async () => {
   const A = await ativar('Ana Paula Lima'), Bk = await ativar('Bruno Costa Souza');

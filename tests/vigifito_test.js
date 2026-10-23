@@ -99,7 +99,7 @@ function planilhaVig() {
   const adm = await gerar('Gerente Vigifito', 'admin'), TOK = adm.token;
   const SA = await PORTAL.sessao(TOK, 'vigi.adm@gmail.com', 'Vera Vigifito Administrativa');
   const TOKF = (await U.fiscal('Fiscal Curioso')).token;
-  r = await post({ action: 'painelVigDados', key: TOKF, ano: A }); ok(!r.ok && /Acesso restrito/.test(r.erro), 'fiscal recusado em painelVigDados', r.erro);
+  r = await post({ action: 'painelVigDados', key: TOKF, ano: A }); ok(!r.ok && /não inclui o painel/.test(r.erro), 'fiscal recusado em painelVigDados', r.erro);
   const VDp = await post({ action: 'painelVigDados', key: TOK, ano: A });
   const ap = VDp.apuracao, pm = (p, m) => (ap.porMes[p] || {})[`${A}-${String(m).padStart(2, '0')}`] || {};
   ok(VDp.ok && VDp.cfg.postos.length === 11 && VDp.cfg.ancora === '2025-01-05' && VDp.cfg.ciclo === 9, 'configuração semente: 11 postos da planilha, escala 05/01/2025 a cada 9 dias', VDp.cfg && VDp.cfg.postos.map(p => p.id));
@@ -148,7 +148,8 @@ function planilhaVig() {
     [{ periodo: 'P' + d(1, 6), posto: 'pf-jundia', indicador: 'partidas', valor: 1 }, /escala/], [{ periodo: `${A}-01`, posto: 'nao-existe', indicador: 'partidas', valor: 1 }, /posto/],
     [{ periodo: `${A}-13`, posto: 'pf-jundia', indicador: 'partidas', valor: 1 }, /período inválido/], [{ periodo: `${A}-01`, posto: 'pf-jundia', indicador: 'xyz', valor: 1 }, /indicador/]];
   for (const [l, re] of erros) { const x = await VL([l]); ok(!x.ok && re.test(x.erro), `validação: ${re.source}`, x.erro || x); }
-  r = await post({ action: 'admVigLancar', sessao: TOK, lancamentos: [erros[0][0]] }); ok(!r.ok && /Sessão do portal/.test(r.erro), 'credencial do painel não grava no VIGIFITO');
+  r = await post({ action: 'admVigLancar', sessao: (await amb.usuario('Visitante Painel Vigifito', { aplicativo: 'painel', permissoes: ['painel'] })).token, lancamentos: [erros[0][0]] });
+  ok(!r.ok && /não inclui o Portal do Administrativo/.test(r.erro), 'conta só do painel não grava no VIGIFITO', r.erro);
   r = await VL([{ periodo: `${A}-02`, posto: 'pf-jundia', indicador: 'partidas', valor: 4 }]); ok(!r.ok && /justificativa/.test(r.erro), 'partidas vêm dos TFs: valor manual só como substituição, com justificativa', r.erro);
   r = await VL([{ periodo: `${A}-01`, posto: 'pf-jundia', indicador: 'capacitacao', valor: 3 }, { periodo: `${A}-01`, posto: 'pf-jundia', indicador: 'madeira', valor: 12.5 },
     { periodo: `${A}-02`, posto: 'pf-jundia', indicador: 'madeira', valor: 10 }, { periodo: `${A}-03`, posto: 'pf-jundia', indicador: 'madeira', valor: 11 }, { periodo: `${A}-04`, posto: 'pf-jundia', indicador: 'madeira', valor: 300 },

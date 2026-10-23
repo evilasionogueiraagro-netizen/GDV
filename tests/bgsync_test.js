@@ -139,7 +139,7 @@ const gravarIDB = (pg, store, rec) => pg.evaluate(([s, r]) => new Promise((ok, n
   await registrar(p, 'BGR1A11');
   await p.goto(APP + 'manifest.webmanifest');                              // fecha o app
   await A.c.setOffline(false); await fetch(API + '/__on');
-  await fetch(API + '/__revogar?nome=' + encodeURIComponent('Fiscal Fundo Pereira'));
+  { const g = await U.gerente(), l = await U.post({ action: 'usuariosListar', key: g.token }); await U.revogar(l.usuarios.find(u => u.nome === 'Fiscal Fundo Pereira').id); }   // a gerência encerra as sessões
   const r1 = await sw.evaluate(() => enviarEmSegundoPlano());
   ok(r1.motivo === 'credencial revogada', '1º envio: servidor recusa a credencial → resolve (sem repetir)', r1);
   const c1 = (await lerIDB(p, 'meta')).find(m => m.k === 'cred').v;
@@ -152,13 +152,13 @@ const gravarIDB = (pg, store, rec) => pg.evaluate(([s, r]) => new Promise((ok, n
   ok((await aba('Veiculos')).length === n0 && (await lerIDB(p, 'veiculos')).some(v => v.placa === 'BGR1A11' && v.pendente === 1), 'nada enviado; o registro continua guardado no aparelho');
   await p.goto(APP); await p.waitForSelector('#view');
   await p.click('.modulo[data-v=home]').catch(() => {}); await p.waitForTimeout(400);
-  ok(/Acesso revogado/.test(await p.textContent('#view')), 'app reaberto: pede novo código (revogação vista pelo service worker)', (await p.textContent('#view')).slice(0, 80));
+  ok(/Acesso revogado/.test(await p.textContent('#view')), 'app reaberto: acesso revogado, pede para entrar de novo (revogação vista pelo service worker)', (await p.textContent('#view')).slice(0, 80));
   ok(await p.evaluate(() => localStorage.getItem('gdv.revogado')) === '1', 'localStorage gdv.revogado = 1');
-  // desativar o aparelho apaga a cópia da credencial
-  await p.evaluate(() => Sync.desativar()); await p.waitForTimeout(300);
-  ok(!(await p.evaluate(() => Store.meta('cred'))), 'desativar: meta "cred" apagada');
+  // sair do aparelho (o servidor já recusa o acesso: limpa só aqui) apaga a cópia da credencial
+  await p.evaluate(() => Sync.sair()); await p.waitForTimeout(300);
+  ok(!(await p.evaluate(() => Store.meta('cred'))), 'sair: meta "cred" apagada');
   const r3 = await sw.evaluate(() => enviarEmSegundoPlano());
-  ok(r3.motivo === 'aparelho não ativado', 'SW sem credencial: não envia', r3);
+  ok(r3.motivo === 'sem acesso neste aparelho', 'SW sem credencial: não envia', r3);
   await A.c.close();
 
   /* ================= 3. navegador sem Background Sync (iPhone) ================= */

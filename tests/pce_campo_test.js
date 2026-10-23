@@ -303,6 +303,8 @@ const EU = [-2.63, -56.74];
     console.log('10) permissão: fiscal sem o módulo PCE');
     const D = await aparelho(fD);
     await D.waitForSelector('.modulo[data-v=home]', { timeout: 10000 });
+    // o menu nasce antes da primeira sincronização; os módulos da conta chegam com ela
+    await D.waitForFunction(() => !document.querySelector('.modulo[data-v=pce]'), null, { timeout: 10000 }).catch(() => {});
     ok(await D.locator('.modulo[data-v=pce]').count() === 0, 'cartão do PCE some do menu (não abre "Dados para o campo")');
     await D.evaluate(() => go('pcecampo')); await D.waitForTimeout(300);
     ok(await D.locator('#campo-muns').count() === 0 && /Sem autorização/.test(await D.textContent('#toast')), 'tela de download bloqueada no app');

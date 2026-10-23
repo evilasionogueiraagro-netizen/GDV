@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // Convênios → importação da planilha de movimentação financeira (.xlsx) e metas acompanhando o desembolso (físico × financeiro).
 // Gera no próprio teste uma planilha SINTÉTICA no layout da planilha do gestor (abas "SUBETAPA x.y.z", cabeçalho "VALOR DA SUBETAPA",
 // linha de total sem data, uma linha sem data/memo de valor avulso, memo repetido, data antes do início da execução, data fora da
@@ -13,7 +14,7 @@ const { API } = amb;
 const PORTAL = require('./lib/portal');
 const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 const get = p => fetch(API + p).then(r => r.json());
-const gerar = (nome, perfil) => get('/__gerar?nome=' + encodeURIComponent(nome) + (perfil ? '&perfil=' + perfil : ''));
+const gerar = (nome, perfil = '') => perfil === 'admin' ? amb.gerente(nome) : amb.usuario(nome);   // conta pronta e token (atalho /__usuario)
 let falhas = 0;
 const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x === undefined ? '' : ' → ' + (typeof x === 'string' ? x : JSON.stringify(x)).slice(0, 700))); if (!c) falhas++; };
 const SAIDA = process.env.GDV_SAIDA_CONVFIN || '';
@@ -62,14 +63,14 @@ function planilha(var2) {
 (async () => {
   console.log('1. Servidor: action admConvFinImportar do portal (validações e permissões)');
   await fetch(API + '/__fn?nome=desativarRotinasAutomaticas_');
-  const adm = await gerar('Gerente Importação', 'admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
-  const fis = await gerar('Fiscal Comum'), TOKF = (await post({ action: 'ativar', codigo: fis.codigo })).token;
+  const adm = await gerar('Gerente Importação', 'admin'), TOK = adm.token;
+  const TOKF = (await U.fiscal('Fiscal Comum')).token;
   const SA = await PORTAL.sessao(TOK, 'importacao.adm@gmail.com', 'Iara Importadora Administrativa');
   const IMP = (itens, extra = {}) => post({ action: 'admConvFinImportar', sessao: SA.sessao, convenio: '991272-2025', arquivo: 'teste.xlsx', itens, ...extra });
   const L0 = { chave: 'imp|991272-2025|1.14.3|1/2026', item: '1.14.3', etapa: '1.14', data: '2026-09-01', valor: 120, documento: 'Memo nº 1/2026', quantidade: 1, fonte: 'concedente', descricao: 'Diária NM' };
-  let d = await post({ action: 'painelConvFinImportar', key: TOKF, convenio: '991272-2025', itens: [L0] }); ok(!d.ok && /Acesso restrito/.test(d.erro), 'fiscal comum recusado', d.erro);
+  let d = await post({ action: 'painelConvFinImportar', key: TOKF, convenio: '991272-2025', itens: [L0] }); ok(!d.ok && /não inclui o painel/.test(d.erro), 'fiscal comum recusado', d.erro);
   d = await post({ action: 'painelConvFinImportar', key: TOK, convenio: '991272-2025', itens: [L0] }); ok(!d.ok && /Portal do Administrativo/.test(d.erro), 'painel não importa mais (só o portal)', d.erro);
-  d = await post({ action: 'admConvFinImportar', sessao: TOKF, convenio: '991272-2025', itens: [L0] }); ok(!d.ok && /Sessão do portal/.test(d.erro), 'credencial de fiscal não vale no portal', d.erro);
+  d = await post({ action: 'admConvFinImportar', sessao: TOKF, convenio: '991272-2025', itens: [L0] }); ok(!d.ok && /não inclui o Portal do Administrativo/.test(d.erro), 'conta só do app de campo não vale no portal', d.erro);
   const erros = [
     [[{ ...L0, chave: 'outra|1' }], /chave de importação inválida/], [[{ ...L0, item: '1.4.3' }], /não existe na etapa/], [[{ ...L0, data: '2028-01-01' }], /fora da vigência/],
     [[{ ...L0, valor: -5 }], /valor inválido/], [[{ ...L0, descricao: 'Diária de 529.982.247-25' }], /CPF/], [[L0, L0], /chave repetida/],

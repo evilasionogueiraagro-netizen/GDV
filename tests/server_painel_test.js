@@ -1,14 +1,18 @@
 const amb = require('./lib/amb');
-// Testes do backend do novo painel (actions painelAtivar / painelDados do Code.gs real, via fakegas na porta 8082).
+// Testes do backend do painel (painelDados, painelSair e o resto do painel, painel.gs e Code.gs reais via fakegas na porta 8082).
+// O painel entra com matrícula e senha (usuarios.gs): entrar, limite de tentativas, sair, permissões e revogação ficam em
+// usuarios_server_test.js. Aqui: a leitura com token de gerente (amb.gerente), os dados semeados por sync com o token de carga
+// (amb.carga), a recusa de quem não tem a permissão painel, de token inválido e da ACCESS_KEY (que já não vale), e painelSair.
+// Todos os dados são fictícios.
 const B = amb.API;
 const post = b => fetch(B + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 const get = p => fetch(B + p).then(r => r.json());
 const fn = (nome, ...args) => get('/__fn?nome=' + nome + '&args=' + encodeURIComponent(JSON.stringify(args)));
-const gerar = (nome, perfil) => get('/__gerar?nome=' + encodeURIComponent(nome) + (perfil ? '&perfil=' + perfil : ''));
 let falhas = 0;
 const ok = (cond, msg, extra) => { console.log((cond ? '  ✓ ' : '  ✗ ') + msg + (extra !== undefined ? ' -> ' + (typeof extra === 'string' ? extra : JSON.stringify(extra)) : '')); if (!cond) falhas++; };
 const manaus = (d = 0) => new Date(Date.now() - 4 * 3600e3 + d * 864e5).toISOString().slice(0, 10);
 const HOJE = manaus();
+const SESSAO_PAINEL_INVALIDA = /Sessão do painel inválida ou revogada/;
 
 (async () => {
   const agora = Date.now();
@@ -32,7 +36,9 @@ const HOJE = manaus();
     testemunha1Doc: '99988877766', testemunha2Nome: '', testemunha2Doc: '', assinaturas: JSON.stringify({ servidor: 'ass-c1' }), local: 'Sítio', cancelado: 0, motivoCancel: '', excluido: 0,
     criadoEm: agora, atualizadoEm: agora, ...extra });
 
-  const r = await post({ action: 'sync', key: 'segredo', since: 0,
+  // dados semeados pelo sync com o token de carga (gerente); o painel lê com o token de gerente deste teste
+  const CARGA = await amb.carga();
+  const r = await post({ action: 'sync', key: CARGA, since: 0,
     turnos: [T('s1', manaus(-3)), T('s2', manaus(-40)), T('s3', manaus(-60), { encerrado: 0, fim: '' }), T('s4', HOJE, { encerrado: 0, fim: '', latIni: '-4.2347', lngIni: '-69.9386', latFim: '', lngFim: '' }),
       T('s5', manaus(-2), { inicio: '22:00', fim: '02:00', latIni: '', lngIni: '', latFim: '', lngFim: '' })],
     veiculos: [V('v1', 's1', '08:10', 'AAA1A11', 'PA', 4), V('v2', 's1', '08:30', 'BBB2B22', 'ON', 40), V('v3', 's1', '09:00', 'CCC3C33', 'MT', 2, 1), V('v4', 's2', '10:00', 'AAA1A11', 'PA', 4),
@@ -41,9 +47,10 @@ const HOJE = manaus();
     levantamentos: [LEV('l1', manaus(-5)), LEV('l2', manaus(-5), { excluido: 1, nome: 'EXCLUIDO' }), LEV('l3', manaus(-100), { municipio: 'Parintins', culturas: JSON.stringify([cult('Cacau', 'Vassoura-de-bruxa')]) }),
       LEV('l4', manaus(-400), { municipio: 'Coari' }), LEV('l5', manaus(-1), { lat: '', lon: '', municipio: 'Manaus', culturas: JSON.stringify([cult('Açaí', '')]), doc: 'abc' })],
     colheitas: [COL('c1', manaus(-5)), COL('c2', manaus(-4), { numero: 2, cancelado: 1, motivoCancel: 'duplicado' }), COL('c3', manaus(-4), { excluido: 1 })] });
-  ok(r.ok, 'sync de preparação (chave mestra)', r.erro);
+  ok(r.ok, 'sync de preparação (token de carga)', r.erro);
   // s3 (aberto há 60 dias) testa "abertos de qualquer data": sem o encerramento automático de 12 h (testado no rotinas_test.js)
   ok((await (await fetch(amb.API + '/__fn?nome=desativarRotinasAutomaticas_')).json()).r === 0, 'rotinas automáticas desativadas');
+  const TOK = (await amb.gerente('Gerente Painel Teste')).token;   // gerência: lê e grava o painel
 
   // ---------- mesma BVA com nomes diferentes ----------
   console.log('Apelidos de BVA');
@@ -56,40 +63,21 @@ const HOJE = manaus();
   ok(vigTurnos('p-ceasa') > 0 && !vigTurnos('_outras-fixas'), 'VIGIFITO: posto configurado com "Barreira Porto da CEASA" continua pegando os turnos (agora BVA - CEASA)', { posto: vigTurnos('p-ceasa'), outras: vigTurnos('_outras-fixas') });
   ok(canon['BVA - JUNDIÁ'] === 'BVA - JUNDIÁ' && canon['Barreira Estrada Porto da Ceasa'] === 'Barreira Estrada Porto da Ceasa' && canon[''] === '', 'outros locais ficam como estão', canon);
 
-  // ---------- rota antiga ----------
-  console.log('Rota antiga ?p=painel');
-  const dg = await get('/__doget?p=painel'); ok(dg.kind === 'html', 'doGet ?p=painel devolve página HTML mínima (não mais Painel.html)', dg);
-  const ph = await fn('painelHtml_'); ok(ph.r && /github\.io\/GDV\/painel\//.test(ph.r.content), 'página mínima aponta para o painel no GitHub Pages');
-  const dg2 = await get('/__doget?p='); ok(/"ok":true/.test(dg2.json || ''), 'doGet sem parâmetro continua respondendo JSON');
-
-  // ---------- painelAtivar ----------
-  console.log('painelAtivar');
-  const adm = await gerar('Evilasio Admin', 'admin'); ok(adm.perfil === 'admin', 'código de administrador gerado', adm.codigo);
-  let d = await post({ action: 'painelAtivar', codigo: adm.codigo.slice(0, 3) + ' ' + adm.codigo.slice(3) });
-  ok(d.ok && d.token && d.token.length >= 32 && d.nome === 'Evilasio Admin', 'código de admin (com espaço) → credencial', { nome: d.nome, tam: d.token && d.token.length });
-  const TOK = d.token;
-  const admS = await gerar('Admin Sair', 'admin'); const tokS = (await post({ action: 'painelAtivar', codigo: admS.codigo })).token;   // usado no teste de painelSair
-  d = await post({ action: 'painelAtivar', codigo: adm.codigo }); ok(!d.ok && /incorreto ou já usado/.test(d.erro), 'código de admin é de uso único', d.erro);
-  const fis = await gerar('Pedro Alves Lima');
-  d = await post({ action: 'painelAtivar', codigo: fis.codigo }); ok(!d.ok && /FISCAL/.test(d.erro), 'código de FISCAL recusado no painel', d.erro);
-  d = await post({ action: 'ativar', codigo: fis.codigo }); ok(d.ok, 'o mesmo código de fiscal continua válido no app (não foi consumido)');
-  const TOKFIS = d.token;
-  const adm2 = await gerar('Outro Admin', 'admin');
-  d = await post({ action: 'ativar', codigo: adm2.codigo, perfil: 'admin' }); ok(!d.ok && /ADMINISTRADOR/.test(d.erro), 'app dos fiscais recusa código de admin (mesmo enviando perfil=admin)', d.erro);
-  d = await post({ action: 'painelAtivar', codigo: adm2.codigo }); ok(d.ok && d.nome === 'Outro Admin', 'código de admin recusado no app não foi consumido');
-  d = await post({ action: 'painelAtivar', codigo: '12' }); ok(/6 dígitos/.test(d.erro), 'código curto', d.erro);
-  const e2 = await gerar('Expirado Admin', 'admin'); await fetch(B + '/__expirar?codigo=' + e2.codigo);
-  d = await post({ action: 'painelAtivar', codigo: e2.codigo }); ok(/expirado/.test(d.erro), 'código expirado', d.erro);
-  const e3 = await gerar('Revogado Admin', 'admin'); await fn('revogar_', 'Revogado Admin');
-  d = await post({ action: 'painelAtivar', codigo: e3.codigo }); ok(/revogado/.test(d.erro), 'código revogado', d.erro);
+  // ---------- doGet ----------
+  console.log('doGet');
+  const dg = await get('/__doget?p=painel'); ok(/"ok":true/.test(dg.json || '') && /"versao"/.test(dg.json || ''), 'doGet com ?p=painel (rota antiga, removida) responde só o JSON da versão, sem página HTML', dg);
+  const dg2 = await get('/__doget?p='); ok(/"ok":true/.test(dg2.json || ''), 'doGet sem parâmetro responde JSON');
 
   // ---------- painelDados: credenciais ----------
   console.log('painelDados: credenciais');
-  for (const tk of ['', 'qualquer-coisa']) { d = await post({ action: 'painelDados', key: tk }); ok(!d.ok && /Sessão do painel inválida/.test(d.erro), `token "${tk}" recusado`, d.erro); }
-  d = await post({ action: 'painelDados', key: TOKFIS }); ok(!d.ok && /Acesso restrito ao administrador/.test(d.erro), 'credencial de FISCAL recusada', d.erro);
-  d = await post({ action: 'painelDados', key: 'tok-antigo' }); ok(!d.ok && /restrito/.test(d.erro), 'credencial de fiscal antiga (aba sem perfil) recusada', d.erro);
-  d = await post({ action: 'painelDados', key: 'segredo' }); ok(d.ok && d.admin === 'Administrador', 'chave mestra (ACCESS_KEY) aceita', d.admin);
-  d = await post({ action: 'sync', key: TOK, since: 0 }); ok(d.ok, 'credencial de admin ainda sincroniza no app (autenticar_ inalterado)');
+  let d = await post({ action: 'painelDados', key: '' }); ok(!d.ok && /Entre com sua matrícula e senha/.test(d.erro), 'sem token: pede matrícula e senha', d.erro);
+  for (const tk of ['qualquer-coisa', 'tok-antigo', 'u.' + '0'.repeat(64)]) { d = await post({ action: 'painelDados', key: tk }); ok(!d.ok && SESSAO_PAINEL_INVALIDA.test(d.erro), `token "${tk}" recusado`, d.erro); }
+  d = await post({ action: 'painelDados', key: 'segredo' }); ok(!d.ok && SESSAO_PAINEL_INVALIDA.test(d.erro), 'ACCESS_KEY (chave antiga) não lê mais o painel', d.erro);
+  d = await post({ action: 'painelAtivar', key: TOK, codigo: '123456' }); ok(!d.ok && /Ação inválida/.test(d.erro), 'painelAtivar (código de ativação) saiu do back: ação inválida', d.erro);
+  const FIS = await amb.usuario('Fiscal Sem Painel Teste', { permissoes: ['campo'], aplicativo: 'campo' });
+  d = await post({ action: 'painelDados', key: FIS.token }); ok(!d.ok && /Seu acesso não inclui o painel/.test(d.erro), 'conta só de campo: token recusado no painel', d.erro);
+  d = await post({ action: 'painelDados', key: TOK }); ok(d.ok && d.admin === 'Gerente Painel Teste', 'token de gerente lê o painel (admin = nome de quem entrou)', d.admin);
+  d = await post({ action: 'sync', key: TOK, since: 0 }); ok(d.ok, 'token de gerente também sincroniza no app (sync)');
 
   // ---------- período ----------
   console.log('painelDados: período');
@@ -169,36 +157,27 @@ const HOJE = manaus();
   ok(d.ok && d.aoVivo === true && d.turnos.map(t => t.id).sort().join() === 's1,s3,s4', 'aoVivo: turnos abertos + os ids pedidos (para saber se encerraram)', d.turnos && d.turnos.map(t => t.id));
   ok(d.veiculos.map(v => v.id).sort().join() === 'v1,v2,v5,v6', 'aoVivo: veículos só desses turnos', d.veiculos && d.veiculos.map(v => v.id));
   ok(!('tfs' in d) && !('levantamentos' in d) && !('colheitas' in d) && !('auditoria' in d), 'aoVivo: não relê TFs, levantamentos, termos nem auditoria');
-  d = await post({ action: 'painelDados', key: TOKFIS, aoVivo: true }); ok(!d.ok && /restrito/.test(d.erro), 'aoVivo também exige administrador', d.erro);
+  d = await post({ action: 'painelDados', key: FIS.token, aoVivo: true }); ok(!d.ok && /Seu acesso não inclui o painel/.test(d.erro), 'aoVivo também recusa token sem a permissão painel', d.erro);
 
-  // ---------- Sair revoga no servidor ----------
+  // ---------- Sair (painelSair = sair): encerra só esta sessão ----------
   console.log('painelSair');
-  d = await post({ action: 'painelDados', key: tokS }); ok(d.ok, 'credencial nova lê o painel');
-  d = await post({ action: 'painelSair', key: TOKFIS }); d = await post({ action: 'sync', key: TOKFIS, since: 0 }); ok(d.ok, 'painelSair com credencial de FISCAL não revoga o aparelho do fiscal');
-  d = await post({ action: 'painelSair', key: tokS }); ok(d.ok, 'painelSair responde ok');
-  d = await post({ action: 'painelDados', key: tokS }); ok(!d.ok && /inválida ou revogada/.test(d.erro), 'depois de Sair, a mesma credencial (copiada) não lê mais o painel', d.erro);
-  d = await post({ action: 'painelSair', key: 'segredo' }); d = await post({ action: 'painelDados', key: 'segredo' }); ok(d.ok, 'painelSair não afeta a chave mestra');
+  const S = await amb.gerente('Gerente Painel Teste');   // outra sessão da mesma conta
+  d = await post({ action: 'painelDados', key: S.token }); ok(d.ok, 'nova sessão lê o painel');
+  d = await post({ action: 'painelSair', key: S.token }); ok(d.ok, 'painelSair responde ok');
+  d = await post({ action: 'painelDados', key: S.token }); ok(!d.ok && SESSAO_PAINEL_INVALIDA.test(d.erro), 'depois de Sair, a mesma credencial (copiada) não lê mais o painel', d.erro);
+  d = await post({ action: 'painelDados', key: TOK }); ok(d.ok, 'a outra sessão da mesma conta continua valendo (Sair encerra só a sua)');
+  d = await post({ action: 'painelSair', key: 'segredo' }); ok(d.ok, 'painelSair com ACCESS_KEY responde ok');
+  d = await post({ action: 'painelDados', key: TOK }); ok(d.ok, 'painelSair com credencial que não é de sessão não afeta a sessão do gerente');
 
-  // ---------- revogação ----------
+  // ---------- revogação: conta desativada pela gerência ----------
   console.log('revogação');
-  await fn('revogar_', 'Evilasio Admin');
-  d = await post({ action: 'painelDados', key: TOK }); ok(!d.ok && /Sessão do painel inválida ou revogada/.test(d.erro), 'credencial revogada', d.erro);
-
-  // ---------- limitador de tentativas (por último: bloqueia por 15 min) ----------
-  console.log('limitador de tentativas');
-  const boa = await gerar('Admin Limitador', 'admin');
-  let msg = '', n = 0;
-  for (; n < 15; n++) { d = await post({ action: 'painelAtivar', codigo: '000000' }); msg = d.erro; if (/Muitas tentativas/.test(msg)) break; }
-  ok(/Muitas tentativas incorretas/.test(msg), `bloqueio depois de tentativas erradas (${n} tentativas nesta etapa)`, msg);
-  ok(n === 0, 'admin: limite de 5 erros (uso único, FISCAL, curto, expirado e revogado já somaram 5)', n);
-  d = await post({ action: 'painelAtivar', codigo: boa.codigo }); ok(!d.ok && /Muitas tentativas/.test(d.erro), 'bloqueado: nem o código certo entra', d.erro);
-  // contadores separados: erros no painel não travam a ativação dos fiscais (achado de revisão)
-  const fis2 = await gerar('Fiscal Depois Bloqueio');
-  d = await post({ action: 'ativar', codigo: fis2.codigo }); ok(d.ok, 'bloqueio do painel NÃO trava a ativação dos aparelhos dos fiscais', d.erro);
-  // limite do admin: 5 erros (contador lido e somado dentro do lock); fiscal: 10, contador próprio
-  let nf = 0; for (; nf < 15; nf++) { d = await post({ action: 'ativar', codigo: '000000' }); if (/Muitas tentativas/.test(d.erro)) break; }
-  ok(nf === 9, 'fiscal: bloqueia com 10 erros do próprio contador (1 anterior: código de admin no app + 9 aqui)', nf);
-  d = await post({ action: 'painelAtivar', codigo: boa.codigo }); ok(!d.ok && /Muitas tentativas/.test(d.erro), 'painel continua bloqueado (contador próprio)');
+  const R = await amb.gerente('Gerente Revogado Teste');
+  d = await post({ action: 'painelDados', key: R.token }); ok(d.ok, 'conta antes de ser desativada lê o painel');
+  const L = await post({ action: 'usuariosListar', key: TOK });
+  const uid = ((L.usuarios || []).find(u => u.nome === 'Gerente Revogado Teste') || {}).id;
+  d = await post({ action: 'usuarioAtivar', key: TOK, usuarioId: uid, ativo: 0 }); ok(d.ok, 'gerência desativa a conta (usuarioAtivar)', d.erro);
+  d = await post({ action: 'painelDados', key: R.token }); ok(!d.ok && SESSAO_PAINEL_INVALIDA.test(d.erro), 'credencial da conta desativada não vale mais no painel', d.erro);
+  d = await post({ action: 'painelDados', key: TOK, de: HOJE, ate: HOJE }); ok(d.ok, 'a gerência continua lendo o painel');
 
   console.log(falhas ? 'FALHOU=' + falhas : 'OK');
   process.exit(falhas ? 1 : 0);

@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // TF de Barreira: fotos, assinatura na tela, recusa, QR code de autenticidade (verificar.html) e índice de reincidência sem internet.
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
 const { API, APP } = amb;
@@ -13,7 +14,7 @@ const h16 = t => crypto.createHash('sha256').update(t, 'utf8').digest('hex').sli
 
 (async () => {
   const b = await amb.lancar();
-  const credencial = async nome => { const g = await get('/__gerar?nome=' + encodeURIComponent(nome)); const r = await post({ action: 'ativar', codigo: g.codigo }); return { token: r.token, nome }; };
+  const credencial = async nome => { const r = await U.fiscal(nome, { permissoes: U.lista({ veiculos: 1, tf: 1, pce: 1 }) }); return { token: r.token, nome, uid: r.usuario.id }; };   // sem "Digitar do papel"
   const aparelho = async ({ token, nome }) => {
     const c = await b.newContext({ viewport: { width: 400, height: 900 } });
     await c.addInitScript(([t, n]) => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } } catch (e) {} }, [token, nome]);
@@ -131,7 +132,7 @@ print(json.dumps([[('Testemunha' in pg.extract_text()), ('Anexo fotogr' in pg.ex
   ok(!/Anexo fotográfico/.test(pr2.texto), 'TF sem fotos: sem folha de anexo');
 
   console.log('D) painel: só contagens (nFotos, assinado), nunca ids/imagens');
-  const pd = await post({ action: 'painelDados', key: 'segredo', de: new Date(Date.now() - 4 * 3600e3 - 5 * 864e5).toISOString().slice(0, 10), ate: new Date(Date.now() - 4 * 3600e3 + 864e5).toISOString().slice(0, 10) });
+  const pd = await post({ action: 'painelDados', key: await amb.carga(), de: new Date(Date.now() - 4 * 3600e3 - 5 * 864e5).toISOString().slice(0, 10), ate: new Date(Date.now() - 4 * 3600e3 + 864e5).toISOString().slice(0, 10) });
   const p1 = (pd.tfs || []).find(x => x.id === t1.id), p2 = (pd.tfs || []).find(x => x.id === t2.id);
   ok(p1 && p1.nFotos === 2 && p1.assinado === 1 && p2 && p2.nFotos === 0 && p2.assinado === 1 && !('fotos' in p1) && !('assinaturas' in p1) && !JSON.stringify(pd.tfs).includes(fotos1[0]), 'painelDados: nFotos/assinado sem ids de arquivos');
 
@@ -195,7 +196,7 @@ print(json.dumps([[('Testemunha' in pg.extract_text()), ('Anexo fotogr' in pg.ex
   await Bd.click('[data-tf=descartar]'); await Bd.waitForSelector('button[data-tf=novo]');
 
   console.log('H) servidor: permissões e limites');
-  await fn('gravarPermissoes_', ['Bruno Costa Souza', { veiculos: 1, tf: 0, pce: 1 }, 'teste']);
+  await U.permissoes(fB.uid, U.lista({ veiculos: 1, tf: 0, pce: 1 }));
   const foto = (await imagem(A, 50, 50, '#000')).toString('base64');
   const arq = dono => post({ action: 'arquivoEnviar', key: fB.token, arquivo: { id: crypto.randomUUID(), dono, donoId: 'x1', tipo: 'foto', papel: '', mime: 'image/jpeg' }, base64: foto });
   let r1 = await arq('tfs'), r2 = await arq('levantamentos');

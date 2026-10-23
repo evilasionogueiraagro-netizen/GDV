@@ -111,6 +111,8 @@ const MSG_ENTRE = 'Entre com sua matrícula e senha.';
   const PF = await cria('Fulano Ficticio Campo', ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce', 'digitarDoPapel'], { matricula: 'campo1' });
   ok(PF.ok && PF.usuario.matricula === 'campo1' && PF.usuario.nome === 'Fulano Ficticio Campo' && /^[A-HJ-NP-Za-km-z2-9]{8}$/.test(PF.senhaProvisoria) && !('senhaHash' in PF.usuario), 'conta de campo criada: matrícula e senha provisória (texto só nesta resposta)', PF);
   r = await cria('Outra Pessoa Ficticia', ['campo'], { matricula: ' CAMPO1 ' }); ok(!r.ok && /Já existe/.test(r.erro), 'usuarioCriar: matrícula repetida recusada (caixa e espaços)', r.erro);
+  r = await cria('Outra Pessoa Ficticia', ['campo'], { matricula: 'cam.po-1' }); ok(!r.ok && /Já existe/.test(r.erro), 'matrícula repetida com ponto ou hífen recusada (cam.po-1 = campo1)', r.erro);
+  r = await fn('chaveMatricula_', ' 123.456-7 '); ok(r.r === '1234567', 'login e busca comparam a matrícula sem ponto, hífen e espaço', r);
   const PM = await cria('Beltrana Ficticia Modulos', ['campo', 'fiscalizacaoDeTransito'], { matricula: 'campo2' });
   const P3 = await cria('Ciclano Ficticio Termos', ['campo', 'termoDeBarreira', 'pce'], { matricula: 'campo3' });
   const PP = await cria('Painel Somente Leitura', ['painel'], { matricula: 'tv1' });

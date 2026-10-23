@@ -36,8 +36,8 @@ const MSG_SO_GERENCIA_ = 'Só a gerência pode fazer esta alteração (o seu ace
 
 /* ---------- Utilidades ---------- */
 
-/** Chave de comparação da matrícula: sem espaços nas pontas e sem diferença de maiúscula/minúscula. */
-function chaveMatricula_(v) { return String(v === null || v === undefined ? '' : v).trim().toLowerCase(); }
+/** Chave de comparação da matrícula: sem ponto, hífen, espaço e diferença de maiúscula/minúscula (123.456-7 = 1234567). A planilha guarda como foi digitada. */
+function chaveMatricula_(v) { return String(v === null || v === undefined ? '' : v).replace(/[.\-\s]/g, '').toLowerCase(); }
 
 /** Matrícula informada → texto sem espaços nas pontas, ou erro. */
 function matriculaValida_(v) {

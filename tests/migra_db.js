@@ -1,9 +1,11 @@
 const amb = require('./lib/amb');
 // Migração do banco local: v1 (app original) e v2 (com TF) → v4 (PCE + monilíase), sem perder dados.
 const { chromium } = require('playwright-core');
+const U = require('./lib/usuarios');
 const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw new Error(m); };
 (async () => {
   const b = await amb.lancar();
+  const FU = await U.fiscal('Ana Lima');
   const criar = (p, versao, stores, dados) => p.evaluate(([versao, stores, dados]) => new Promise((ok, no) => {
     const rq = indexedDB.open('gdv', versao);
     rq.onupgradeneeded = () => { const d = rq.result; stores.forEach(n => d.createObjectStore(n, { keyPath: n === 'meta' ? 'k' : 'id' })); };
@@ -12,7 +14,7 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
       t.oncomplete = () => { d.close(); ok(); }; };
     rq.onerror = () => no(rq.error); }), [versao, stores, dados]);
   const abrirApp = async p => {
-    await p.addInitScript(() => { localStorage.setItem('gdv.semInstalar', '1'); localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', 'segredo'); localStorage.setItem('gdv.nome', 'Ana Lima'); });
+    await p.addInitScript(i => { localStorage.setItem('gdv.url', window.__GDV_API); Object.entries(i).forEach(([k, v]) => localStorage.setItem(k, v)); }, FU.ls);
     await p.goto(amb.APP); await p.waitForSelector('#view *', { state: 'attached' }); await p.waitForTimeout(1000);
   };
   const estrutura = p => p.evaluate(() => new Promise(ok => { const q = indexedDB.open('gdv'); q.onsuccess = () => { const d = q.result;

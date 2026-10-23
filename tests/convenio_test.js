@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // Convênios (aba "Convênios" do painel + actions painelConv* do Code.gs real via fakegas): Convênio SUASA nº 991272/2025 – MAPA/ADAF.
 // Os lançamentos (físicos e financeiros) são feitos no Portal do Administrativo (actions adm*; telas de web/administrativo/); o painel só mostra.
 // Dados de barreira (BVA Jundiá, CEASA, Aeroporto fora da meta, volante em Tabatinga e em Manaus), levantamentos PCE de monilíase em
@@ -12,7 +13,7 @@ const { API } = amb;
 const PORTAL = require('./lib/portal');
 const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 const get = p => fetch(API + p).then(r => r.json());
-const gerar = (nome, perfil) => get('/__gerar?nome=' + encodeURIComponent(nome) + (perfil ? '&perfil=' + perfil : ''));
+const gerar = (nome, perfil = '') => perfil === 'admin' ? amb.gerente(nome) : amb.usuario(nome);   // conta pronta e token (atalho /__usuario)
 let falhas = 0;
 const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x === undefined ? '' : ' → ' + (typeof x === 'string' ? x : JSON.stringify(x)).slice(0, 600))); if (!c) falhas++; };
 const SAIDA = process.env.GDV_SAIDA_CONVENIO || '';
@@ -41,7 +42,7 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
   /* ================= 1. servidor ================= */
   console.log('1. Servidor: dados, permissões, validações e apuração');
   const MON = 'Monilíase do Cacaueiro';
-  let d = await post({ action: 'sync', key: 'segredo', since: 0,
+  let d = await post({ action: 'sync', key: await U.semeador(), since: 0,
     turnos: [T('j1', '2026-03-10', 'BVA - JUNDIÁ', 'Fixa', 'BVA - JUNDIÁ'), T('j2', '2026-09-05', 'BVA - JUNDIÁ', 'Fixa', 'BVA - JUNDIÁ'),
       T('c1', '2026-09-12', 'BVA - CEASA', 'Fixa', 'BVA - CEASA'), T('a1', '2026-09-12', 'BVA - AEROPORTO', 'Fixa', 'BVA - AEROPORTO'),
       T('v1', '2026-08-20', 'Porto de Tabatinga', 'Móvel', 'TABATINGA'), T('v2', '2026-09-21', 'Porto Público', 'Móvel', 'TABATINGA'),
@@ -59,16 +60,16 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
     termosPce: [TPCE('p1', '2026-09-18', 'Autazes'), TPCE('p2', '2026-09-19', 'Coari', { cancelado: 1, motivoCancel: 'erro' })] });
   ok(d.ok, 'dados de teste sincronizados (turnos, veículos, TFs, levantamentos e termos PCE)', d.erro);
   await fetch(API + '/__fn?nome=desativarRotinasAutomaticas_');
-  const adm = await gerar('Gerente Convênio', 'admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
-  const fis = await gerar('Fiscal Curioso'), TOKF = (await post({ action: 'ativar', codigo: fis.codigo })).token;
+  const adm = await gerar('Gerente Convênio', 'admin'), TOK = adm.token;
+  const TOKF = (await U.fiscal('Fiscal Curioso')).token;
   ok(TOK && TOKF, 'credenciais de administrador e de fiscal');
   const SA = await PORTAL.sessao(TOK, 'adm.convenio@gmail.com', 'Ana Convenio Administrativa');
   ok(SA.sessao, 'sessão do Portal do Administrativo (quem lança)');
   for (const a of ['painelConvenios', 'painelConvApuracao', 'painelConvSalvar', 'painelConvLancar', 'painelConvExcluir', 'painelConvFinLancar', 'painelConvFinExcluir', 'painelConvRelSalvar']) {
     const r = await post({ action: a, key: TOKF, convenio: '991272-2025', config: {}, lancamento: { etapa: '1.5' }, id: 'x', mes: '2026-09', numero: 1, textos: {} });
-    ok(!r.ok && /Acesso restrito/.test(r.erro), `fiscal comum recusado em ${a}`, r);
+    ok(!r.ok && /não inclui o painel/.test(r.erro), `fiscal comum recusado em ${a}`, r);
   }
-  d = await post({ action: 'painelConvenios' }); ok(!d.ok && /Sessão do painel inválida/.test(d.erro), 'sem credencial: recusado', d.erro);
+  d = await post({ action: 'painelConvenios' }); ok(!d.ok && /Entre com sua matrícula e senha/.test(d.erro), 'sem credencial: recusado', d.erro);
   d = await post({ action: 'painelConvenios', key: TOK });
   const C = d.convenios && d.convenios[0];
   ok(d.ok && C.id === '991272-2025' && C.inicioExecucao === '2026-03-01' && C.vigencia.fim === '2027-04-01' && C.valores.global === 2268042, 'semente do convênio (nº, vigência, início da execução, valor global)', C && C.vigencia);

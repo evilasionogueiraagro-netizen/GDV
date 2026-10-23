@@ -138,5 +138,5 @@
     if (!E.cfg && !E.carregando) carregar();
   }
   P.aoSair(() => { if (E.raiz) E.raiz.remove(); Object.assign(E, { raiz: null, cfg: null, url: '', erro: '', sujo: false, msg: '', msgCls: '' }); });
-  P.registrarAba({ id: 'publico', titulo: 'Dashboard público', render, semFiltros: true });
+  P.registrarAba({ id: 'publico', titulo: 'Dashboard público', render, semFiltros: true, visivel: () => P.pode('gerencia') });
 })();

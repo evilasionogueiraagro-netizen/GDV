@@ -282,7 +282,7 @@
       { chave: 'analise', rotulo: 'Análise' }, { chave: 'partes', rotulo: 'Partes' }, { chave: 'servidor', rotulo: 'Servidor' },
       { chave: 'nome', rotulo: 'Produtor', fmt: (v, l) => [v, l.doc].filter(Boolean).join(' · ') || '—', html: (v, l) => `${esc(v || '—')}${l.doc ? `<br><span class="pn-sub">${esc(l.doc)}</span>` : ''}` },
       { chave: 'levantamentoId', rotulo: 'Levantamento', fmt: v => v ? (levIds.has(v) ? 'Vinculado' : 'Vinculado (fora do período)') : 'Avulso' },
-      { chave: 'laboratorio', rotulo: 'Resultado', fmt: v => labTexto(v), html: (v, l) => `${seloLab(v)}<br><button type="button" class="pn-btn pn-btn-mini" data-laudo="${esc(l.id)}">${icone('amostra')} Registrar</button>`,
+      { chave: 'laboratorio', rotulo: 'Resultado', fmt: v => labTexto(v), html: (v, l) => `${seloLab(v)}${P.gerencia ? `<br><button type="button" class="pn-btn pn-btn-mini" data-laudo="${esc(l.id)}">${icone('amostra')} Registrar</button>` : ''}`,
         ordem: l => ['positivo', 'aguardando', 'inconclusivo', 'inviavel', 'negativo'].indexOf(l.laboratorio ? l.laboratorio.resultado : 'aguardando') },
       { chave: 'sit', rotulo: 'Situação', fmt: (v, l) => situacaoTermo(l).map(x => x[1]).join(', '), html: (v, l) => situacaoTermo(l).map(x => selo(x[0], x[1])).join('<br>'),
         ordem: l => situacaoTermo(l).map(x => ({ critico: 0, atencao: 2, bom: 3 }[x[0]])).reduce((a, b) => Math.min(a, b), 9) }

@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // Volante que não conta veículos (CONFIG.volantesSoPessoas: Tabatinga, educação sanitária da monilíase no porto, meta 1.9 do convênio):
 // app real (Chromium) + Code.gs real. Confere: no volante com unidade TABATINGA o "Só educação sanitária" vem marcado e o local do porto
 // sugerido; o turno mostra o contador de pessoas orientadas (+1/+5/+10/corrigir) no lugar de "Registrar veículo"; o total vai para a
@@ -15,8 +16,10 @@ const diaManaus = ms => new Date(ms - 4 * 3600e3).toISOString().slice(0, 10);
 (async () => {
   const b = await amb.lancar();
   try {
-    const g = await get('/__gerar?nome=' + encodeURIComponent('Fiscal Ficticio Teste')), F = await post({ action: 'ativar', codigo: g.codigo });
-    const ctx = await b.newContext({ viewport: { width: 400, height: 860 }, permissions: ['geolocation'], geolocation: { latitude: -4.2316, longitude: -69.9406, accuracy: 10 } });
+    const F = await U.fiscal('Fiscal Ficticio Teste');
+    const ctx = await b.newContext({ viewport: { width: 400, height: 860 }, permissions: ['geolocation'], geolocation: { latitude: -3.1190, longitude: -60.0217, accuracy: 10 } });
+    // sem internet de fora (endereço pela localização): o resultado não pode depender do ambiente (no CI a consulta funciona)
+    await ctx.route(u => !/^https?:\/\/(localhost|127\.0\.0\.1)[:/]/.test(String(u)), r => r.abort());
     await ctx.addInitScript(([t, n]) => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } } catch (e) {} }, [F.token, 'Fiscal Ficticio Teste']);
     await ctx.addInitScript(() => { if (window !== window.top) window.print = () => { window.top.__prints = window.top.__prints || []; window.top.__prints.push(document.body.innerText.replace(/\s+/g, ' ')); }; });
     const p = await ctx.newPage(); const err = []; const dialogos = [];
@@ -38,7 +41,8 @@ const diaManaus = ms => new Date(ms - 4 * 3600e3).toISOString().slice(0, 10);
     ok((await p.textContent('#pesCont h1')).trim() === '16', 'contador: +5 +1 +10 = 16', await p.textContent('#pesCont h1'));
     await p.click('[data-pes="corrigir"]'); await p.waitForTimeout(300);
     ok((await p.textContent('#pesCont h1')).trim() === '12', 'corrigir total: 12');
-    await p.click('nav [data-v=registrar]'); await p.waitForSelector('#pesCont'); await p.waitForSelector('#toast.on');
+    await p.click('nav [data-v=registrar]');
+    await p.waitForFunction(() => /não se registram veículos/.test(document.querySelector('#toast').textContent), null, { timeout: 5000 }).catch(() => {}); await p.waitForSelector('#pesCont');
     ok(/não se registram veículos/.test(await p.textContent('#toast')), 'aba Registrar: avisa que não se registram veículos e volta ao contador');
     await p.click('#encerrar'); await p.waitForSelector('[data-doc=termo]');
     ok(/12 pessoas orientadas/.test(await p.textContent('main')) && !/veículos/.test(await p.textContent('main .card')), 'turno encerrado: "12 pessoas orientadas", sem veículos');
@@ -53,7 +57,7 @@ const diaManaus = ms => new Date(ms - 4 * 3600e3).toISOString().slice(0, 10);
     const t = (await ler('Turnos')).find(x => x.unidade === 'TABATINGA');
     ok(t && t.pessoasEducacao === 12 && t.soPessoas === 1 && t.posto === 'Móvel' && t.encerrado === 1, 'Turnos: volante, soPessoas = 1, pessoasEducacao = 12, encerrado', t);
     ok(!(await ler('Veiculos')).some(v => v.turnoId === (t && t.id)), 'nenhum veículo gravado no turno');
-    const adm = await get('/__gerar?nome=' + encodeURIComponent('Gestora Ficticia Teste') + '&perfil=admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
+    const adm = await amb.gerente('Gestora Ficticia Teste'), TOK = adm.token;
     const hoje = diaManaus(Date.now());
     const PD = await post({ action: 'painelDados', key: TOK, de: hoje, ate: hoje });
     const tp = PD.ok && (PD.turnos || []).find(x => x.id === (t && t.id));

@@ -1,11 +1,11 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 const { chromium } = require('playwright-core');
 const { API, APP } = amb;
 const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) process.exitCode = 1; };
 (async () => {
   const b = await amb.lancar();
-  const g = await (await fetch(API + '/__gerar?nome=' + encodeURIComponent('Luciana Ferreira'))).json();
-  const r = await (await fetch(API, { method: 'POST', body: JSON.stringify({ action: 'ativar', codigo: g.codigo }) })).json();
+  const r = await U.fiscal('Luciana Ferreira');
   const c = await b.newContext({ viewport: { width: 400, height: 900 }, permissions: ['geolocation'], geolocation: { latitude: -2.6, longitude: -60.0 } });
   await c.route('https://nominatim.openstreetmap.org/**', rt => rt.fulfill({ contentType: 'application/json', body: JSON.stringify({ address: { road: 'BR-174', village: 'Vila do Pitinga', town: 'Presidente Figueiredo', 'ISO3166-2-lvl4': 'BR-AM' } }) }));
   await c.addInitScript(([t]) => { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', 'Luciana Ferreira'); localStorage.setItem('gdv.semInstalar', '1'); } }, [r.token]);

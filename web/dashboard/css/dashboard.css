@@ -1,18 +1,12 @@
-/* Dashboard público do e-GDV. Usa os tokens e componentes do painel (../painel/css/painel.css: cores claro/escuro validadas,
-   cartões, KPIs, gráficos, mapa e tabelas); aqui só o que é próprio da página pública: topo institucional, abas grandes de modo,
+/* Dashboard público do e-GDV. Usa o design system (../../css/design.css: tokens e componentes) e os cartões, KPIs, gráficos, mapa e
+   tabelas do painel (../painel/css/painel.css); aqui só o que é próprio da página pública: topo institucional, abas grandes de modo,
    seletor de período, faixas de aviso, cartão do município e o layout responsivo (360 px a 1920 px sem rolagem horizontal). */
 .db { min-height: 100vh; display: flex; flex-direction: column; }
 .db-pular { position: absolute; left: -9999px; top: 0; background: var(--sf); color: var(--ink); padding: 8px 12px; z-index: 2000; border-radius: 0 0 8px 0; }
 .db-pular:focus { left: 0; }
-.db :focus-visible { outline: 3px solid var(--marca2); outline-offset: 2px; }
-:root:not([data-theme="light"]) .db :focus-visible { outline-color: var(--s1); }
 
 /* Topo institucional */
-.db-topo { background: var(--marca); color: #fff; display: flex; align-items: center; gap: 14px; padding: 12px 16px; }
-.db-topo img { height: 44px; background: #fff; border-radius: 8px; padding: 4px; flex: none; }
 .db-topo-txt { min-width: 0; }
-.db-org { margin: 0; font-size: 12.5px; opacity: .9; letter-spacing: .02em; }
-.db-topo h1 { margin: 2px 0 0; font-size: clamp(18px, 2.6vw, 26px); line-height: 1.2; font-weight: 700; overflow-wrap: anywhere; }
 
 /* Faixas: pré-visualização e sem conexão */
 .db-faixa { padding: 9px 16px; font-size: 13.5px; border-bottom: 1px solid var(--borda); overflow-wrap: anywhere; }
@@ -38,7 +32,7 @@
 .db-periodos .pn-chip { min-height: 36px; font-size: 14px; }
 .db-intervalo { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px; margin-top: 6px; }
 .db-intervalo label { display: flex; flex-direction: column; gap: 3px; font-size: 12.5px; color: var(--ink2); }
-.db-intervalo input { font: inherit; font-size: 14px; padding: 6px 8px; border: 1px solid var(--base); border-radius: 8px; background: var(--sf); color: var(--ink); }
+.db-intervalo input { padding: 6px 8px; }
 .db-iv-aviso { flex-basis: 100%; margin: 0; font-size: 13px; color: var(--serio, #b42318); }
 .db-status { margin: 12px 0 0; font-size: 13px; color: var(--ink2); }
 .db-status b { color: var(--ink); }
@@ -92,7 +86,7 @@
 .db-mun dt { color: var(--ink2); }
 .db-mun dd { margin: 0; font-weight: 650; text-align: right; font-variant-numeric: tabular-nums; }
 .db-mun-sel { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink2); margin-top: 12px; }
-.db-mun-sel select { border: 1px solid var(--base); border-radius: 8px; background: var(--sf); padding: 8px; font-size: 14px; width: 100%; }
+.db-mun-sel select { padding: 8px; width: 100%; }
 .db-fonte { font-size: 12px; color: var(--mut); margin: 8px 0 0; }
 .db-bva { width: 16px; height: 16px; border-radius: 4px; background: var(--s7); border: 2px solid var(--sf); box-shadow: 0 0 0 1.5px var(--ink); transform: rotate(45deg); }
 .db-vivo { width: 22px; height: 22px; border-radius: 50%; background: var(--bom); border: 3px solid var(--sf); box-shadow: 0 0 0 2px var(--ink); position: relative; }

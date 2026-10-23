@@ -149,7 +149,7 @@ print(json.dumps([[('Testemunha' in pg.extract_text()), ('Anexo fotogr' in pg.ex
   ok(/Não encontrado/.test(txt) && /não ter sido sincronizado \(TF emitido sem internet\)/.test(txt) && /Confirme com a ADAF/.test(txt), 'id desconhecido: "Não encontrado — pode ainda não ter sido sincronizado…"');
   await irTF(A); await A.locator(`#tfItens .item:has-text("${t2.numeroTxt}") [data-tf=cancelar]`).click(); await A.waitForFunction(() => /CANCELADO/.test(document.querySelector('#tfItens').textContent)); await sync(A);
   txt = await verificar(t2.id);
-  ok(/TF CANCELADO/.test(txt) && /digitação errada/.test(txt) && await vp.locator('.selo.cancelado').count() === 1 && !txt.includes('11144477735') && !txt.includes('Maria'), 'cancelado: destaque vermelho com o motivo, sem dados pessoais');
+  ok(/TF CANCELADO/.test(txt) && /digitação errada/.test(txt) && await vp.locator('.veredito.cancelado').count() === 1 && !txt.includes('11144477735') && !txt.includes('Maria'), 'cancelado: destaque vermelho com o motivo, sem dados pessoais');
   await vp.screenshot({ path: amb.saida('verificar_cancelado.png') });
   const rv = await post({ action: 'tfVerificar', id: t1.id });
   ok(rv.ok && rv.encontrado && Object.keys(rv.tf).sort().join(',') === 'barreira,data,emitidoEm,hora,motivoCancel,numeroTxt,placa,procedimento,servidor,situacao', 'tfVerificar responde sem credencial e só com os campos públicos: ' + Object.keys(rv.tf).join(','));

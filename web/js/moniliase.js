@@ -70,18 +70,18 @@ const PCEMon = (() => {
   const coordHTML = (pref, D, gps) => `<div class="duas"><label>Latitude<input id="${pref}lat" value="${esc(D.lat)}" autocomplete="off" inputmode="text" placeholder="-3,60033"></label>
       <label>Longitude<input id="${pref}lon" value="${esc(D.lon)}" autocomplete="off" inputmode="text" placeholder="-59,15044W"></label></div>
       <div id="${pref}coord-st" class="tf-status" aria-live="polite"></div>
-      ${gps ? `<div class="pce-gps"><span id="${pref}gps-st" class="dica"></span><button type="button" class="mini" data-mon="gps" data-pref="${pref}">📍 Usar GPS</button></div>` : ''}`;
+      ${gps ? `<div class="pce-gps"><span id="${pref}gps-st" class="dica"></span><button type="button" class="mini" data-mon="gps" data-pref="${pref}">${icone('local')} Usar GPS</button></div>` : ''}`;
   function mostrarCoord(pref) {
     const st = $('#' + pref + 'coord-st'), la = $('#' + pref + 'lat'), lo = $('#' + pref + 'lon'); if (!st || !la) return null;
     const r = lerPar(la.value, lo.value);
-    st.innerHTML = r.vazio ? '<div class="tf-novo">Sem coordenadas: não aparecerá no mapa.</div>' : r.erro ? `<div class="tf-alerta">⚠️ ${esc(r.erro)}</div>`
-      : `<div class="tf-ok">✓ ${esc(String(r.lat).replace('.', ','))} / ${esc(String(r.lon).replace('.', ','))}${r.oeste ? ' <small>(longitude Oeste)</small>' : ''}<br><small>${esc(U().gms(r.lat, 'N', 'S'))} &nbsp; ${esc(U().gms(r.lon, 'L', 'O'))}</small></div>`;
+    st.innerHTML = r.vazio ? '<div class="tf-novo">Sem coordenadas: não aparecerá no mapa.</div>' : r.erro ? `<div class="tf-alerta">${icone('alerta')} ${esc(r.erro)}</div>`
+      : `<div class="tf-ok">${icone('check')} ${esc(String(r.lat).replace('.', ','))} / ${esc(String(r.lon).replace('.', ','))}${r.oeste ? ' <small>(longitude Oeste)</small>' : ''}<br><small>${esc(U().gms(r.lat, 'N', 'S'))} &nbsp; ${esc(U().gms(r.lon, 'L', 'O'))}</small></div>`;
     return r;
   }
   async function usarGPS(pref) {
-    const st = $('#' + pref + 'gps-st'); if (st) st.textContent = '📍 Obtendo localização…';
+    const st = $('#' + pref + 'gps-st'); if (st) st.textContent = 'Obtendo localização…';
     const g = await pegarLocal(); if (!$('#' + pref + 'lat')) return;
-    if (!g) { if (st) st.textContent = '⚠️ GPS indisponível ou permissão negada.'; return; }
+    if (!g) { if (st) st.textContent = 'GPS indisponível ou permissão negada.'; return; }
     $('#' + pref + 'lat').value = String(g.lat).replace('.', ','); $('#' + pref + 'lon').value = String(g.lng).replace('.', ',');
     if (st) st.textContent = `✓ GPS (precisão ~${g.prec} m)`; mostrarCoord(pref); agendar();
   }
@@ -151,13 +151,13 @@ const PCEMon = (() => {
     if (confirm(`Há um ${NOME[tipo]} não salvo, iniciado em ${new Date(r.em).toLocaleString('pt-BR')}.\n\nContinuar de onde parou? (Cancelar descarta o rascunho.)`)) return { rasc: r };
     await descartarRascunho(tipo, r); return { rasc: null };
   }
-  const topoPapel = (titulo, novo) => `<div class="card mon-topo"><h3>📄 ${esc(titulo)}</h3>
+  const topoPapel = (titulo, novo) => `<div class="card mon-topo"><h3>${icone('documento')} ${esc(titulo)}</h3>
       <p class="dica" style="text-align:left">Digite como está no papel, na mesma ordem. Toque de novo num botão marcado para desmarcar.${novo ? ' Depois de salvar, use “Salvar e digitar outro”.' : ''}</p></div>`;
 
   /* ---------- PDF escaneado (registro do papel) ---------- */
   const MAX_DOCS = P.maxDocumentos || 10, MAX_PDF = 10 * 1024 * 1024;
-  const pdfHTML = pref => `<div class="card"><h3>📎 Folha escaneada (PDF)</h3>
-      <label class="pce-arquivo">📎 Anexar PDF<input type="file" id="${pref}pdfs" accept="application/pdf,.pdf" multiple></label>
+  const pdfHTML = pref => `<div class="card"><h3>${icone('anexo')} Folha escaneada (PDF)</h3>
+      <label class="pce-arquivo">${icone('anexo')} Anexar PDF<input type="file" id="${pref}pdfs" accept="application/pdf,.pdf" multiple></label>
       <p class="dica" style="text-align:left">Até ${MAX_DOCS} arquivos de no máximo 10 MB cada. Vão para o Drive.</p><div id="${pref}pdfs-lista" class="pce-docs"></div></div>`;
   async function adicionarPDFs(input, pref) {
     const st = F, files = [...(input.files || [])]; input.value = '';
@@ -177,8 +177,8 @@ const PCEMon = (() => {
     const el = $('#' + pref + 'pdfs-lista'); if (!el || !F) return;
     const itens = await Promise.all(F.docs.map(id => Store.obter('arquivos', id)));
     el.innerHTML = F.docs.length ? F.docs.map((id, i) => { const a = itens[i] || {};
-      return `<div class="pce-doc"><span>📄 ${esc(a.nomeOriginal || 'documento.pdf')} <small>${a.url ? '☁️ no Drive' : ''}</small></span>
-        <span class="pce-doc-acoes">${a.url ? `<a class="mini" href="${esc(a.url)}" target="_blank" rel="noopener">Abrir no Drive</a>` : ''}<button type="button" class="mini" data-mon="deldoc" data-id="${esc(id)}" aria-label="Remover PDF ${i + 1}">✕</button></span></div>`; }).join('')
+      return `<div class="pce-doc"><span>${icone('documento')} ${esc(a.nomeOriginal || 'documento.pdf')} <small>${a.url ? 'no Drive' : ''}</small></span>
+        <span class="pce-doc-acoes">${a.url ? `<a class="mini" href="${esc(a.url)}" target="_blank" rel="noopener">Abrir no Drive</a>` : ''}<button type="button" class="mini" data-mon="deldoc" data-id="${esc(id)}" aria-label="Remover PDF ${i + 1}">${icone('fechar')}</button></span></div>`; }).join('')
       : '<div class="dica">Nenhum PDF anexado.</div>';
   }
 
@@ -210,7 +210,7 @@ const PCEMon = (() => {
       const ult = o.ultimoReg && o.ultimoReg.numeroTxt ? `Último número usado: <b>${esc(o.ultimoReg.numeroTxt)}</b>${o.ultimoReg.usuario ? ` (${esc(o.ultimoReg.usuario)}, ${esc(dBR(o.ultimoReg.data))})` : ''}.`
         : o.ultimo ? `Último número usado: <b>${esc(numTxt(o.tipo, o.ultimo, o.ano, o.unidade))}</b>.` : `Nenhum ${NOME[o.tipo]} anterior nesta unidade em ${o.ano}.`;
       const m = modal(`<h3>Número do ${esc(NOME[o.tipo])}</h3>${o.aviso ? `<div class="tf-alerta">${esc(o.aviso)}</div>` : ''}
-        ${o.offline ? '<div class="tf-novo">⚠️ Sem conexão: número <b>provisório</b>, conferido na planilha ao sincronizar.</div>' : '<div class="tf-ok">✓ Número obtido na planilha agora.</div>'}
+        ${o.offline ? '<div class="tf-novo">Sem conexão: número <b>provisório</b>, conferido na planilha ao sincronizar.</div>' : '<div class="tf-ok">✓ Número obtido na planilha agora.</div>'}
         <p class="dica">${ult}</p><input id="mon-num-m" type="number" inputmode="numeric" min="1" value="${o.numero}"><div id="mon-num-prev" class="tf-num"></div>
         <div class="duas"><button class="botao sec" id="mon-m-cancel" type="button">Cancelar</button><button class="botao" id="mon-m-ok" type="button">Confirmar e salvar</button></div>`);
       const i = m.querySelector('input'), prev = () => { m.querySelector('#mon-num-prev').innerHTML = `<b>${esc(numTxt(o.tipo, +i.value || 0, o.ano, o.unidade))}</b>`; };
@@ -223,10 +223,10 @@ const PCEMon = (() => {
   function confirmarPapel(o) {
     return new Promise(ok => {
       const ult = o.info ? o.info.ultimo : null;
-      const efeito = ult == null ? '<div class="tf-novo">📴 Sem conexão: a planilha confere o número ao sincronizar (número repetido aparece como conflito).</div>'
-        : o.n <= ult ? `<div class="tf-ok">✓ Dentro da sequência já usada (último: ${esc(num3(ult))}): não muda o próximo número.</div>`
-        : o.n === ult + 1 ? `<div class="tf-novo">ℹ️ É o próximo da sequência: o próximo sugerido passa a ser ${esc(num3(o.n + 1))}.</div>`
-        : `<div class="tf-alerta">⚠️ O número é <b>maior</b> que o último usado (${esc(num3(ult))}): os próximos desta unidade em ${o.ano} continuam a partir de <b>${esc(num3(o.n + 1))}</b>. Confira o papel.</div>`;
+      const efeito = ult == null ? '<div class="tf-novo">Sem conexão: a planilha confere o número ao sincronizar (número repetido aparece como conflito).</div>'
+        : o.n <= ult ? `<div class="tf-ok">${icone('check')} Dentro da sequência já usada (último: ${esc(num3(ult))}): não muda o próximo número.</div>`
+        : o.n === ult + 1 ? `<div class="tf-novo">${icone('info')} É o próximo da sequência: o próximo sugerido passa a ser ${esc(num3(o.n + 1))}.</div>`
+        : `<div class="tf-alerta">${icone('alerta')} O número é <b>maior</b> que o último usado (${esc(num3(ult))}): os próximos desta unidade em ${o.ano} continuam a partir de <b>${esc(num3(o.n + 1))}</b>. Confira o papel.</div>`;
       const m = modal(`<h3>Gravar ${esc(NOME[o.tipo])} do papel</h3><div class="tf-num"><b id="mon-papel-num">${esc(numTxt(o.tipo, o.n, o.ano, o.unidade))}</b></div>${efeito}
         <div class="duas"><button class="botao sec" id="mon-m-cancel" type="button">Cancelar</button><button class="botao" id="mon-m-ok" type="button">Confirmar e gravar</button></div>`);
       m.querySelector('#mon-m-cancel').onclick = () => { m.remove(); ok(false); };
@@ -345,7 +345,7 @@ const PCEMon = (() => {
         ${sn(p, 'f-' + k + '-controle', 'Utiliza método de controle', f.controle || '')}${inp(p, 'f-' + k + '-qual', 'Qual', f.qual || '')}</div>`; };
     return `<form id="monCadForm" class="${A ? 'pce-antigo' : ''}" autocomplete="off" novalidate>
       ${A ? topoPapel(st.novo ? 'Cadastro de propriedade — digitar do papel' : 'Editar cadastro (do papel)', st.novo) + U().servAntigoHTML(p, D, st.lembrados)
-        : `<div class="card mon-topo"><h3>🏡 ${st.novo ? 'Cadastro de propriedade (imóvel com hospedeiros)' : 'Editar cadastro da propriedade'}</h3>
+        : `<div class="card mon-topo"><h3>${icone('propriedade')} ${st.novo ? 'Cadastro de propriedade (imóvel com hospedeiros)' : 'Editar cadastro da propriedade'}</h3>
           <p class="dica" style="text-align:left">Servidor: <b>${esc(st.serv.servidor)}</b> · ${esc(st.serv.cargo)} · ${esc(st.serv.lotacao)}</p></div>`}
       <div class="card"><h3>Nº do cadastro</h3>
         <label>Unidade (numeração) *<select id="${p}unidade">${opts(P.municipios, D.unidade, 'Selecione')}</select></label>
@@ -353,7 +353,7 @@ const PCEMon = (() => {
           <div id="${p}numpapel-st" class="tf-status" aria-live="polite"></div>
           <div class="duas">${inp(p, 'data', 'Data (do papel) *', D.data, `type="date" min="2000-01-01" max="${hojeISO()}"`)}${inp(p, 'local', 'Local', D.local, 'placeholder="ex.: Autazes"')}</div>`
           : `<div class="tf-num">${st.rec ? `<b>${esc(st.rec.numeroTxt)}</b>` : '<small>Nº definido ao salvar (consulta a planilha; sem internet, provisório).</small>'}</div>`}
-        ${st.deTermo ? '<p class="dica" style="text-align:left">↩️ Ao salvar, volta para o Termo de Fiscalização com este cadastro ligado.</p>' : ''}</div>
+        ${st.deTermo ? '<p class="dica" style="text-align:left">Ao salvar, volta para o Termo de Fiscalização com este cadastro ligado.</p>' : ''}</div>
       <div class="card">${sn(p, 'comercial', 'Propriedade comercial?', D.comercial)}
         <div id="${p}naocom" ${D.comercial === 'sim' ? 'hidden' : ''}>${sn(p, 'tipoNaoComercial', 'Propriedade não comercial', D.tipoNaoComercial, MO.tiposNaoComercial)}
         ${inp(p, 'tipoOutros', 'Outros (qual)', D.tipoOutros)}</div></div>
@@ -396,8 +396,8 @@ const PCEMon = (() => {
         ${sn(p, 'amostra', 'Colheita de amostra?', D.amostra)}
         ${sn(p, 'diagnostico', 'Diagnóstico', D.diagnostico, [['positivo', 'Positivo p/ M. roreri'], ['negativo', 'Negativo p/ M. roreri']])}</div>
       ${A ? pdfHTML(p) : `<div class="card"><h3>Assinaturas (opcional)</h3>${assHTML('servidor', 'Servidor da ADAF')}${assHTML('produtor', 'Produtor/proprietário')}</div>`}
-      <button class="botao" type="submit" id="${p}salvar">💾 Salvar cadastro</button>
-      ${A && st.novo ? `<button class="botao" type="button" data-mon="salvaroutro" id="${p}salvar-outro">💾 Salvar e digitar outro</button>` : ''}
+      <button class="botao" type="submit" id="${p}salvar">${icone('salvar')} Salvar cadastro</button>
+      ${A && st.novo ? `<button class="botao" type="button" data-mon="salvaroutro" id="${p}salvar-outro">${icone('salvar')} Salvar e digitar outro</button>` : ''}
       <button class="botao sec" type="button" data-mon="descartar">Descartar</button></form>`;
   }
   function mostrarNumPapel(pref, tipo) {
@@ -405,8 +405,8 @@ const PCEMon = (() => {
     if (!el.value.trim()) { st.replaceChildren(); return null; }
     const r = lerNumeroDoc(el.value, g(pref, 'unidade'), g(pref, 'data'));
     if (!r.erro && r.unidadeDoNumero && !g(pref, 'unidade')) { const s = $('#' + pref + 'unidade'); s.value = r.unidadeDoNumero; }
-    st.innerHTML = r.erro ? `<div class="tf-alerta">⚠️ ${esc(r.erro)}</div>` : !r.ano ? '<div class="tf-novo">Informe a data para conferir o ano do número.</div>'
-      : `<div class="tf-ok">✓ Será gravado como <b>${esc(numTxt(tipo, r.n, r.ano, r.unidade || g(pref, 'unidade')))}</b>.</div>`;
+    st.innerHTML = r.erro ? `<div class="tf-alerta">${icone('alerta')} ${esc(r.erro)}</div>` : !r.ano ? '<div class="tf-novo">Informe a data para conferir o ano do número.</div>'
+      : `<div class="tf-ok">${icone('check')} Será gravado como <b>${esc(numTxt(tipo, r.n, r.ano, r.unidade || g(pref, 'unidade')))}</b>.</div>`;
     return r;
   }
   function ligarVisibilidade(p) {
@@ -472,8 +472,8 @@ const PCEMon = (() => {
   }
   function avisoDoc(pref) {
     const el = $('#' + pref + 'st-doc'), d = digitos(g(pref, 'doc')); if (!el) return;
-    el.innerHTML = !d ? '' : d.length !== 11 && d.length !== 14 ? '<div class="tf-alerta">⚠️ CPF/CNPJ incompleto.</div>'
-      : U().docOk(d) ? '' : `<div class="tf-alerta">⚠️ ${d.length === 11 ? 'CPF' : 'CNPJ'} com dígitos inválidos: confira a digitação.</div>`;
+    el.innerHTML = !d ? '' : d.length !== 11 && d.length !== 14 ? '<div class="tf-alerta">CPF/CNPJ incompleto.</div>'
+      : U().docOk(d) ? '' : `<div class="tf-alerta">${icone('alerta')} ${d.length === 11 ? 'CPF' : 'CNPJ'} com dígitos inválidos: confira a digitação.</div>`;
   }
   /** Produtor/propriedade já no aparelho (inclusive dados do município baixados): preenche o cadastro. */
   async function buscarProdutor(pref) {
@@ -589,14 +589,14 @@ const PCEMon = (() => {
       ['Código da propriedade (IN 33/2016)', d.codigoPropriedade], ['Coordenadas', coord], ['Endereço', d.endereco], ['Município/UF', [base.municipio, base.uf].filter(Boolean).join(' / ')],
       ['Data da visita', [dBR(base.data), base.hora].filter(Boolean).join(' ')]];
     return `<div class="card"><h3>1. Dados do produtor/proprietário</h3><dl class="pce-ci-resumo">${ident.map(li).join('')}</dl></div>
-      <div class="card"><h3>🍊 Cultura do citros (do levantamento)</h3><dl class="pce-ci-resumo" id="mc-ci-resumo">${R.campos.map(li).join('') || '<div><dd>Nada preenchido além da detecção.</dd></div>'}</dl>
+      <div class="card"><h3>${icone('citros')} Cultura do citros (do levantamento)</h3><dl class="pce-ci-resumo" id="mc-ci-resumo">${R.campos.map(li).join('') || '<div><dd>Nada preenchido além da detecção.</dd></div>'}</dl>
         ${R.culturas.length ? `<table class="pce-ci-tab"><thead><tr><th>Cultivar</th><th>Área (ha)</th><th>Idade</th><th>Plantas</th><th>t/ano</th></tr></thead><tbody>${R.culturas.map(c =>
           `<tr><td>${esc(c.cultivar || c.atividade)}</td><td>${esc(c.area)}</td><td>${esc(c.idade)}</td><td>${esc(c.plantas)}</td><td>${esc(c.producao)}</td></tr>`).join('')}</tbody></table>` : ''}</div>`;
   }
   function formCadCiHTML(D, st) {
     const p = PC, A = st.antigo, b = st.base;
     return `<form id="monCadForm" class="mon-cadci ${A ? 'pce-antigo' : ''}" data-programa="citros" autocomplete="off" novalidate>
-      <div class="card mon-topo"><h3>🍊 ${st.novo ? 'Cadastro de citros' : 'Cadastro de citros ' + esc(st.rec.numeroTxt || '')}</h3>
+      <div class="card mon-topo"><h3>${icone('citros')} ${st.novo ? 'Cadastro de citros' : 'Cadastro de citros ' + esc(st.rec.numeroTxt || '')}</h3>
         <p class="dica" style="text-align:left">Cadastro de imóveis de produção comercial de cítricos (IN 21/2018 e Portaria 317/2021). Os dados vêm do levantamento da visita
           (${esc(dBR(b.data))}${b.servidor ? ', ' + esc(b.servidor) : ''}); para corrigir, edite o levantamento.${st.levId ? ' Ao salvar, abre o Termo de Fiscalização da visita.' : ''}</p></div>
       <div class="card"><h3>Nº do cadastro</h3>
@@ -606,7 +606,7 @@ const PCEMon = (() => {
           : `<div class="tf-num">${st.rec ? `<b>${esc(st.rec.numeroTxt)}</b>` : '<small>Nº definido ao salvar (sequência dos cadastros de citros da unidade; sem internet, provisório).</small>'}</div>`}</div>
       ${resumoCadCiHTML(b, st.dados)}
       ${A ? pdfHTML(p) : `<div class="card"><h3>Assinaturas (opcional)</h3><p class="dica" style="text-align:left">O PDF sempre traz as linhas para assinar no papel.</p>${assHTML('servidor', 'Servidor da ADAF')}${assHTML('produtor', 'Produtor/proprietário')}</div>`}
-      <button class="botao" type="submit" id="${p}salvar">💾 Salvar cadastro de citros</button>
+      <button class="botao" type="submit" id="${p}salvar">${icone('salvar')} Salvar cadastro de citros</button>
       <button class="botao sec" type="button" data-mon="descartar">Descartar</button></form>`;
   }
   async function cadastroCitros(o, rec0, rasc, s) {
@@ -618,7 +618,7 @@ const PCEMon = (() => {
     } else if (rec0) st = { tipo: 'cadastro', programa: 'citros', id: rec0.id, novo: false, rec: rec0, antigo: Number(rec0.registroAntigo) === 1, docs: lerJSON(rec0.documentos, []), ass: lerJSON(rec0.assinaturas, {}), assNovas: {}, levId: '' };
     else st = { tipo: 'cadastro', programa: 'citros', id: Store.novoId(), novo: true, rec: null, antigo: !!o.antigo, docs: [], ass: {}, assNovas: {}, propriedadeId: o.propId || '', levId: o.levId || '', deTermo: !!o.deTermo };
     const lev = st.novo && st.levId ? await Store.obter('levantamentos', st.levId) : null;
-    if (st.novo && (!lev || lev.excluido || !levEhCitros(lev))) { await Store.setMeta(RASC.cadastro, null); toast('O Cadastro de citros sai do levantamento com praga de citros: abra o levantamento e use “🍊 Cadastro de citros”.', true); return go('pce'); }
+    if (st.novo && (!lev || lev.excluido || !levEhCitros(lev))) { await Store.setMeta(RASC.cadastro, null); toast('O Cadastro de citros sai do levantamento com praga de citros: abra o levantamento e use “Cadastro de citros”.', true); return go('pce'); }
     if (st.novo) {
       const f = PCECitros.faltaDeteccao(lev.citros);
       if (f.length) { toast(`Abra o levantamento e marque Ausência ou Presença de sintomas de ${PCECitros.listaE(f)}.`, true); return go('pcelev', lev.id); }
@@ -697,15 +697,15 @@ const PCEMon = (() => {
   function cadLigadoHTML(st) {
     const c = st.cad;
     if (!c) return `<div class="tf-novo" id="mt-semcad">${st.propriedadeId ? 'Esta propriedade ainda não tem cadastro.' : 'Nenhum cadastro ligado.'}
-      <button type="button" class="mini" data-mon="criarcad" id="mt-criarcad">${st.programa === 'citros' ? '🍊 Criar o cadastro de citros' : '➕ Criar cadastro desta propriedade'}</button></div>`;
-    return `<div class="tf-ok" id="mt-cadinfo">📎 Cadastro <b>${esc(c.numeroTxt || '(sem nº)')}</b> — ${esc(c.nome || '')}${c.propriedade ? ' · ' + esc(c.propriedade) : ''} · ${esc(c.totalPlantas || 0)} planta(s)
+      <button type="button" class="mini" data-mon="criarcad" id="mt-criarcad">${st.programa === 'citros' ? 'Criar o cadastro de citros' : 'Criar cadastro desta propriedade'}</button></div>`;
+    return `<div class="tf-ok" id="mt-cadinfo">${icone('anexo')} Cadastro <b>${esc(c.numeroTxt || '(sem nº)')}</b> — ${esc(c.nome || '')}${c.propriedade ? ' · ' + esc(c.propriedade) : ''} · ${esc(c.totalPlantas || 0)} planta(s)
       <button type="button" class="mini" data-mon="desligarcad">Trocar</button></div>`;
   }
   function formTfHTML(D, st) {
     const p = PT, A = st.antigo, CIT = st.programa === 'citros';
     return `<form id="monTfForm" class="${A ? 'pce-antigo' : ''}" autocomplete="off" novalidate>
       ${A ? topoPapel(st.novo ? 'Termo de Fiscalização (PCE) — digitar do papel' : 'Editar Termo de Fiscalização (do papel)', st.novo) + U().servAntigoHTML(p, D, st.lembrados)
-        : `<div class="card mon-topo"><h3>📋 ${st.novo ? 'Termo de Fiscalização (PCE)' : 'Editar Termo de Fiscalização'}${CIT ? ' — 🍊 citros' : ''}</h3>
+        : `<div class="card mon-topo"><h3>${icone('formulario')} ${st.novo ? 'Termo de Fiscalização (PCE)' : 'Editar Termo de Fiscalização'}${CIT ? ' — citros' : ''}</h3>
           <p class="dica" style="text-align:left">Não é o TF de Barreira. Servidor: <b>${esc(st.serv.servidor)}</b> · ${esc(st.serv.cargo)}</p></div>`}
       <div class="card"><h3>Nº do termo</h3>
         <label>Unidade (numeração) *<select id="${p}unidade">${opts(P.municipios, D.unidade, 'Selecione')}</select></label>
@@ -730,26 +730,26 @@ const PCEMon = (() => {
         <label>ao realizar fiscalização no(a) * <small>(especificar o local)</small><input id="${p}localAcao" value="${esc(D.localAcao)}" maxlength="200" autocomplete="off"></label>
         <label>constatei <small>(descrever a situação constatada)</small><textarea id="${p}constatacao" rows="5">${esc(D.constatacao)}</textarea></label>
         <p class="dica" style="text-align:left">As frases de ausência/presença vêm do bloco “Cultura do citros” do levantamento. Pode acrescentar texto.</p>
-        <button type="button" class="mini" data-mon="frasescitros" id="${p}frases">🍊 Refazer as frases de ausência/presença</button></div>`
+        <button type="button" class="mini" data-mon="frasescitros" id="${p}frases">${icone('citros')} Refazer as frases de ausência/presença</button></div>`
       : `<div class="card"><h3>2 – Descrição da ação</h3>
         <p class="mon-sub">Praga(s)</p>${cks(p, 'pragas', lst(TC.pragas || []), D.pragas)}
         ${cks(p, 'tipoLocal', lst(TC.locais || []), D.tipoLocal)}
         <div class="duas">${inp(p, 'data', 'Em (data) *', D.data, `type="date" min="2000-01-01" max="${hojeISO()}"`)}${inp(p, 'hora', 'às (hora) *', D.hora, 'type="time"')}</div>
         <p class="mon-sub">ao realizar ações de *</p>${cks(p, 'acoes', lst(TC.acoes || []), D.acoes)}
         <label>Situação constatada<textarea id="${p}constatacao" rows="4">${esc(D.constatacao)}</textarea></label>
-        <button type="button" class="mini" data-mon="negativa" id="${p}negativa">✍️ “${esc(TC.constatacaoNegativa || '')}”</button></div>`}
+        <button type="button" class="mini" data-mon="negativa" id="${p}negativa">${icone('assinatura')} “${esc(TC.constatacaoNegativa || '')}”</button></div>`}
       <div class="card"><h3>3 – Enquadramento legal</h3><label><textarea id="${p}enquadramento" rows="3" aria-label="Enquadramento legal" placeholder="citar leis, decretos, resoluções, portarias, instruções normativas, artigos, incisos e alíneas">${esc(D.enquadramento)}</textarea></label></div>
       <div class="card"><h3>4 – Testemunhas</h3><p class="dica" style="text-align:left">Só quando o autuado se nega a assinar ou está ausente.</p>
         <div class="duas">${inp(p, 't1nome', 'Testemunha 1 – nome', D.t1nome)}${inp(p, 't1doc', 'CPF/RG', D.t1doc)}</div>
         <div class="duas">${inp(p, 't2nome', 'Testemunha 2 – nome', D.t2nome)}${inp(p, 't2doc', 'CPF/RG', D.t2doc)}</div>
         ${inp(p, 'recebido', 'Recebi a 2ª via deste Termo em (data, hora e local)', D.recebidoEm)}</div>
-      <div class="card mon-extras"><h3>📊 Para o relatório de atividades</h3><p class="dica" style="text-align:left">Não aparece no papel. Plantas: total do cadastro (pode editar).</p>
+      <div class="card mon-extras"><h3>${icone('resumo')} Para o relatório de atividades</h3><p class="dica" style="text-align:left">Não aparece no papel. Plantas: total do cadastro (pode editar).</p>
         ${inp(p, 'plantas', 'Plantas inspecionadas', D.plantas, 'inputmode="numeric" autocomplete="off"')}
         ${sn(p, 'amostra', 'Amostra coletada?', D.amostra)}${sn(p, 'sintomas', 'Presença de sintomas?', D.sintomas)}</div>
       ${A ? pdfHTML(p) : `<div class="card"><h3>Assinaturas (opcional)</h3>${assHTML('produtor', 'Interessado (recebi a 2ª via)')}${assHTML('servidor', 'Servidor da ADAF')}
         ${assHTML('testemunha1', 'Testemunha 1')}${assHTML('testemunha2', 'Testemunha 2')}</div>`}
-      <button class="botao" type="submit" id="${p}salvar">💾 Salvar termo</button>
-      ${A && st.novo ? `<button class="botao" type="button" data-mon="salvaroutro" id="${p}salvar-outro">💾 Salvar e digitar outro</button>` : ''}
+      <button class="botao" type="submit" id="${p}salvar">${icone('salvar')} Salvar termo</button>
+      ${A && st.novo ? `<button class="botao" type="button" data-mon="salvaroutro" id="${p}salvar-outro">${icone('salvar')} Salvar e digitar outro</button>` : ''}
       <button class="botao sec" type="button" data-mon="descartar">Descartar</button></form>`;
   }
   async function cadastrosLocais() { return (await Store.todos('cadastrosPce')).filter(c => !Number(c.excluido)); }
@@ -971,21 +971,21 @@ const PCEMon = (() => {
   }
 
   /* ================= telas de "salvo" e listas ================= */
-  const situacao = r => [Number(r.cancelado) === 1 ? `<div class="info pend">⛔ CANCELADO${r.motivoCancel ? ': ' + esc(r.motivoCancel) : ''}</div>` : '',
-    Number(r.conflito) === 1 ? '<div class="info pend">⚠️ Número repetido na planilha: confira com a coordenação.</div>' : '',
+  const situacao = r => [Number(r.cancelado) === 1 ? `<div class="info pend">${icone('proibido')} CANCELADO${r.motivoCancel ? ': ' + esc(r.motivoCancel) : ''}</div>` : '',
+    Number(r.conflito) === 1 ? '<div class="info pend">Número repetido na planilha: confira com a coordenação.</div>' : '',
     r.pendente ? `<div class="info pend">⏳ ${r.provisorio ? 'número provisório, conferido ao sincronizar' : 'aguardando envio'}</div>` : ''].join('');
   async function pronto(tipo, id) {
     const r = await Store.obter(STORE[tipo], id); if (!r) return go(tipo === 'termo' ? 'pcetfs' : 'pcecads');
     const papel = Number(r.registroAntigo) === 1 && U().podeAntigo();
-    view(`<div class="card" id="mon-pronto"><h3>✅ ${esc(NOME[tipo])} salvo</h3><div class="tf-num"><b id="mon-pronto-num">${esc(r.numeroTxt || '')}</b></div>
+    view(`<div class="card" id="mon-pronto"><h3>${icone('ok')} ${esc(NOME[tipo])} salvo</h3><div class="tf-num"><b id="mon-pronto-num">${esc(r.numeroTxt || '')}</b></div>
       <p><b>${esc(r.nome)}</b>${r.propriedade ? ' · ' + esc(r.propriedade) : ''}</p><p>${esc(dBR(r.data))} ${esc(r.hora || '')} · ${esc(r.municipio)}</p>
       ${r.pendente ? '<div class="tf-novo">⏳ Aguardando envio / número provisório: conferido na planilha ao sincronizar.</div>' : '<div class="tf-ok">✓ Número confirmado na planilha.</div>'}
       ${r.numeroOrigem === 'papel' ? '<p class="dica">Número do papel.</p>' : ''}${situacao({ ...r, pendente: 0 })}</div>
-      <button class="botao" data-mon="imprimir" data-tipo="${tipo}" data-id="${esc(r.id)}" id="mon-imprimir">🖨️ Imprimir / PDF</button>
-      ${tipo === 'termo' ? `<button class="botao sec" data-mon="enviar" data-id="${esc(r.id)}" id="mon-enviar">📤 Enviar ao produtor (WhatsApp, e-mail…)</button>`
-        : `<button class="botao sec" data-mon="termodocad" data-id="${esc(r.id)}" id="mon-termodocad">📋 Termo de Fiscalização desta propriedade</button>`}
-      ${papel ? `<button class="botao sec" data-mon="novo" data-tipo="${tipo}" data-antigo="1">📄 Digitar outro do papel</button>` : `<button class="botao sec" data-mon="novo" data-tipo="${tipo}">➕ Novo</button>`}
-      <button class="botao sec" data-v="${tipo === 'termo' ? 'pcetfs' : 'pcecads'}">📋 Ver lista</button>`);
+      <button class="botao" data-mon="imprimir" data-tipo="${tipo}" data-id="${esc(r.id)}" id="mon-imprimir">${icone('imprimir')} Imprimir / PDF</button>
+      ${tipo === 'termo' ? `<button class="botao sec" data-mon="enviar" data-id="${esc(r.id)}" id="mon-enviar">${icone('enviar')} Enviar ao produtor (WhatsApp, e-mail…)</button>`
+        : `<button class="botao sec" data-mon="termodocad" data-id="${esc(r.id)}" id="mon-termodocad">${icone('formulario')} Termo de Fiscalização desta propriedade</button>`}
+      ${papel ? `<button class="botao sec" data-mon="novo" data-tipo="${tipo}" data-antigo="1">${icone('documento')} Digitar outro do papel</button>` : `<button class="botao sec" data-mon="novo" data-tipo="${tipo}">${icone('mais')} Novo</button>`}
+      <button class="botao sec" data-v="${tipo === 'termo' ? 'pcetfs' : 'pcecads'}">${icone('formulario')} Ver lista</button>`);
   }
   async function lista(tipo) {
     if (bloqueado()) return view(avisoAtivacao());
@@ -997,18 +997,18 @@ const PCEMon = (() => {
       .sort((a, b) => (Number(b.ano) - Number(a.ano)) || (Number(b.numero) - Number(a.numero)) || (b.criadoEm || 0) - (a.criadoEm || 0));
     if (!mostrar.viva()) return;
     const T = tipo === 'termo';
-    mostrar(`<div class="card"><h3>${T ? '📋 Termos de Fiscalização (PCE)' : '🏡 Cadastros de propriedades'}</h3>
-        <p class="dica" style="text-align:left">${T ? 'Um termo por visita; ligado ao cadastro da propriedade. Não é o TF de Barreira.' : 'Um cadastro por propriedade e programa: monilíase (cacau, cupuaçu…) aqui; citros (🍊) a partir do levantamento com praga de citros.'}</p></div>
-      ${dig ? '' : `<button class="botao" data-mon="novo" data-tipo="${tipo}" id="mon-novo">➕ ${T ? 'Novo termo' : 'Novo cadastro'}</button>`}
-      ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-mon="novo" data-tipo="${tipo}" data-antigo="1" id="mon-novo-papel">📄 Digitar do papel</button>` : ''}
-      ${T ? '<button class="botao sec" data-v="pcerel" id="mon-ir-rel">📊 Relatório de atividades</button>' : ''}
+    mostrar(`<div class="card"><h3>${T ? 'Termos de Fiscalização (PCE)' : 'Cadastros de propriedades'}</h3>
+        <p class="dica" style="text-align:left">${T ? 'Um termo por visita; ligado ao cadastro da propriedade. Não é o TF de Barreira.' : 'Um cadastro por propriedade e programa: monilíase (cacau, cupuaçu…) aqui; citros () a partir do levantamento com praga de citros.'}</p></div>
+      ${dig ? '' : `<button class="botao" data-mon="novo" data-tipo="${tipo}" id="mon-novo">${icone('mais')} ${T ? 'Novo termo' : 'Novo cadastro'}</button>`}
+      ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-mon="novo" data-tipo="${tipo}" data-antigo="1" id="mon-novo-papel">${icone('documento')} Digitar do papel</button>` : ''}
+      ${T ? '<button class="botao sec" data-v="pcerel" id="mon-ir-rel">Relatório de atividades</button>' : ''}
       <div class="card"><label>Pesquisar (nº, nome, CPF, propriedade, município)<input id="monQ"></label></div><div id="monItens"></div>`);
     const desenhar = () => {
       const q = norm($('#monQ').value), qd = digitos($('#monQ').value);
       const v = todos.filter(x => !q || norm([x.numeroTxt, x.nome, x.propriedade, x.municipio].join(' ')).includes(q) || (qd.length >= 3 && digitos(x.doc).includes(qd)));
       $('#monItens').innerHTML = v.length ? v.map(x => `<div class="item mon-item" data-reg="${esc(x.id)}"><div class="topo"><div><div class="placa">${esc(x.numeroTxt || '(sem nº)')}</div>
-          <div class="tipo">${x.programa === 'citros' ? '<span class="mon-prog">🍊 Citros</span> ' : ''}${esc(x.nome)}${x.propriedade ? ' · ' + esc(x.propriedade) : ''}</div></div><div class="hora">${esc(dBR(x.data))}<br>${esc(x.hora || '')}</div></div>
-        <div class="info">${esc(x.municipio)} · ${T ? `${esc(x.plantasInspecionadas || 0)} planta(s)${x.cadastroId ? ' · 📎 cadastro' : ''}` : `${esc(x.totalPlantas || 0)} planta(s)`}</div>
+          <div class="tipo">${x.programa === 'citros' ? '<span class="mon-prog">Citros</span> ' : ''}${esc(x.nome)}${x.propriedade ? ' · ' + esc(x.propriedade) : ''}</div></div><div class="hora">${esc(dBR(x.data))}<br>${esc(x.hora || '')}</div></div>
+        <div class="info">${esc(x.municipio)} · ${T ? `${esc(x.plantasInspecionadas || 0)} planta(s)${x.cadastroId ? ' · cadastro' : ''}` : `${esc(x.totalPlantas || 0)} planta(s)`}</div>
         ${situacao(x)}
         <div class="botoes">${Number(x.registroAntigo) === 1 && !podeAnt ? '' : `<button class="editar" data-mon="abrir" data-tipo="${tipo}" data-id="${esc(x.id)}">Abrir</button>`}
           <button class="editar" data-mon="imprimir" data-tipo="${tipo}" data-id="${esc(x.id)}">PDF</button>
@@ -1039,23 +1039,23 @@ const PCEMon = (() => {
   }
   async function enviar(id) {
     const r = await Store.obter('termosPce', id); if (!r) throw new Error('Termo não encontrado.');
-    const m = modal(`<h3>📤 Enviar ao produtor</h3><p class="dica">${esc(r.nome)}${r.telefone ? ' · ☎ ' + esc(r.telefone) : ''}</p><p><b>Termo de Fiscalização ${esc(r.numeroTxt || '')}</b></p>
-      <div id="mon-env-st" class="tf-status"></div><button class="botao" type="button" id="mon-env-gerar">📄 Gerar PDF</button><button class="botao sec" type="button" id="mon-env-fechar">Fechar</button>`);
+    const m = modal(`<h3>${icone('enviar')} Enviar ao produtor</h3><p class="dica">${esc(r.nome)}${r.telefone ? ' · ' + esc(r.telefone) : ''}</p><p><b>Termo de Fiscalização ${esc(r.numeroTxt || '')}</b></p>
+      <div id="mon-env-st" class="tf-status"></div><button class="botao" type="button" id="mon-env-gerar">${icone('documento')} Gerar PDF</button><button class="botao sec" type="button" id="mon-env-fechar">Fechar</button>`);
     m.id = 'mon-modal-enviar';
     m.querySelector('#mon-env-fechar').onclick = () => m.remove();
     m.querySelector('#mon-env-gerar').onclick = async ev => {
       const btn = ev.currentTarget, st = m.querySelector('#mon-env-st'); btn.disabled = true; st.innerHTML = '<small>Gerando PDF…</small>';
       let file;
       try { file = await imprimir('termo', id, 'arquivo'); }
-      catch (e) { btn.disabled = false; st.innerHTML = `<div class="tf-alerta">⚠️ Não foi possível gerar o PDF: ${esc(e.message || e)}. Use “Imprimir” → “Salvar como PDF”.</div>`; return; }
+      catch (e) { btn.disabled = false; st.innerHTML = `<div class="tf-alerta">${icone('alerta')} Não foi possível gerar o PDF: ${esc(e.message || e)}. Use “Imprimir” → “Salvar como PDF”.</div>`; return; }
       if (!m.isConnected) return;
-      st.innerHTML = `<div class="tf-ok">✓ PDF pronto: ${esc(file.name)} (${Math.max(1, Math.round(file.size / 1024)).toLocaleString('pt-BR')} KB)</div>`; btn.remove();
+      st.innerHTML = `<div class="tf-ok">${icone('check')} PDF pronto: ${esc(file.name)} (${Math.max(1, Math.round(file.size / 1024)).toLocaleString('pt-BR')} KB)</div>`; btn.remove();
       const fim = m.querySelector('#mon-env-fechar'), add = html => { fim.insertAdjacentHTML('beforebegin', html); return fim.previousElementSibling; };
       const titulo = 'Termo de Fiscalização — ADAF', texto = `${titulo}: ${r.nome || ''}, ${dBR(r.data)}. Documento gerado pelo e-GDV.`;
       if (PDF.podeCompartilhar([file])) {
-        add('<button class="botao" type="button" id="mon-env-share">📤 Compartilhar</button>').onclick = async () => { try { if (await PDF.compartilhar([file], titulo, texto)) toast('Enviado para o compartilhamento.'); } catch (e) { toast(e.message, true); } };
-      } else add('<p class="dica">Este aparelho não compartilha arquivos direto do app: toque em “Baixar” e anexe o PDF no WhatsApp (📎 → Documento).</p>');
-      add('<button class="botao sec" type="button" id="mon-env-baixar">⬇️ Baixar PDF</button>').onclick = () => PDF.baixar(file);
+        add('<button class="botao" type="button" id="mon-env-share">Compartilhar</button>').onclick = async () => { try { if (await PDF.compartilhar([file], titulo, texto)) toast('Enviado para o compartilhamento.'); } catch (e) { toast(e.message, true); } };
+      } else add('<p class="dica">Este aparelho não compartilha arquivos direto do app: toque em “Baixar” e anexe o PDF no WhatsApp (→ Documento).</p>');
+      add('<button class="botao sec" type="button" id="mon-env-baixar">Baixar PDF</button>').onclick = () => PDF.baixar(file);
     };
   }
 
@@ -1071,7 +1071,7 @@ const PCEMon = (() => {
     const servs = [...new Set(termos.map(t => String(t.servidor || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     const fp = filtroPadrao(), pr = TC.pragas || [];
     if (!mostrar.viva()) return;
-    mostrar(`<form id="monRelForm" class="card" autocomplete="off"><h3>📊 Relatório de atividades</h3>
+    mostrar(`<form id="monRelForm" class="card" autocomplete="off"><h3>${icone('resumo')} Relatório de atividades</h3>
       <p class="dica" style="text-align:left">Prestação de contas do convênio, a partir dos Termos de Fiscalização (PCE) deste aparelho. Os números são calculados; os textos podem ser editados.</p>
       <div class="duas"><label>De<input id="mr-de" type="date" value="${esc(m.de || fp.de)}"></label><label>Até<input id="mr-ate" type="date" value="${esc(m.ate || fp.ate)}"></label></div>
       <div class="duas"><label>Município<select id="mr-mun">${opts(P.municipios, m.municipio || '', 'Todos')}</select></label>
@@ -1088,8 +1088,8 @@ const PCEMon = (() => {
       <label class="chk"><input type="checkbox" id="mr-anexo-t" ${m.anexoT === false ? '' : 'checked'}> Anexar os Termos de Fiscalização do período</label>
       <label class="chk"><input type="checkbox" id="mr-anexo-c" ${m.anexoC === false ? '' : 'checked'}> Anexar os Cadastros de imóvel ligados</label>
       <div id="mr-previa" class="card mon-previa" aria-live="polite"></div>
-      <button class="botao" type="button" data-mon="relimprimir" id="mr-imprimir">🖨️ Imprimir / PDF</button>
-      <button class="botao sec" type="button" data-mon="relarquivo" id="mr-arquivo">📄 Gerar arquivo PDF (enviar/guardar)</button></form>`);
+      <button class="botao" type="button" data-mon="relimprimir" id="mr-imprimir">${icone('imprimir')} Imprimir / PDF</button>
+      <button class="botao sec" type="button" data-mon="relarquivo" id="mr-arquivo">${icone('documento')} Gerar arquivo PDF (enviar/guardar)</button></form>`);
     const f = $('#monRelForm');
     let auto = {};
     const atualizar = async () => {
@@ -1176,7 +1176,7 @@ const PCEMon = (() => {
       else if (a === 'negativa') { const t = $('#' + PT + 'constatacao'); t.value = TC.constatacaoNegativa || ''; agendar(0); }
       else if (a === 'frasescitros') await refazerFrases();
       else if (a === 'criarcad' && F.programa === 'citros') {                      // Termo de citros: o cadastro sai do levantamento da visita
-        if (!F.levId) return toast('O Cadastro de citros sai do levantamento: abra o levantamento da visita e use “🍊 Cadastro de citros”.', true);
+        if (!F.levId) return toast('O Cadastro de citros sai do levantamento: abra o levantamento da visita e use “Cadastro de citros”.', true);
         await Store.setMeta(RASC.termo, { dados: coletarTf(), id: F.id, novo: F.novo, antigo: F.antigo ? 1 : 0, docs: F.docs, assNovas: F.assNovas, cadastroId: '', propriedadeId: F.propriedadeId || '',
           hospedeiros: [], levId: F.levId, programa: 'citros', em: Date.now() });
         const o2 = { programa: 'citros', levId: F.levId, propId: F.propriedadeId || '', deTermo: true, antigo: F.antigo }; fechar(); go('pcecad', o2);

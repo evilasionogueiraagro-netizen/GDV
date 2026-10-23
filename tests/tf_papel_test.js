@@ -57,7 +57,7 @@ const pdfBuf = () => Buffer.from('%PDF-1.4\n% tf do papel ficticio\n1 0 obj << /
     console.log('2) app: formulário do papel e gravação');
     P = await aparelho(F); await P.evaluate(() => Sync.sincronizar()); await P.waitForTimeout(1500); await P.reload(); await P.waitForTimeout(700);
     await irTF(P);
-    ok(await P.locator('#tf-novoantigo').count() === 1, 'com a permissão: botão "📄 TF antigo (digitar do papel)" na lista');
+    ok(await P.locator('#tf-novoantigo').count() === 1, 'com a permissão: botão "TF antigo (digitar do papel)" na lista');
     await P.click('#tf-novoantigo'); await P.waitForSelector('#tfForm.tf-papel');
     await P.waitForFunction(() => document.querySelector('#tf-num') && !/Consultando/.test(document.querySelector('#tf-num-dica').textContent), null, { timeout: 10000 });
     ok((await P.inputValue('#tf-data')) === '' && (await P.inputValue('#tf-hora')) === '' && (await P.inputValue('#tf-num')) === '', 'papel: data, hora e nº vêm vazios (nada de "agora" nem nº sugerido)');
@@ -88,7 +88,7 @@ const pdfBuf = () => Buffer.from('%PDF-1.4\n% tf do papel ficticio\n1 0 obj << /
     r = await post({ action: 'tfEmitir', key: F.token, tf: tfBase({ numero: 543 }) });
     ok(r.ok && r.emitido === false && r.ocupadoPor && /0543/.test(r.ocupadoPor.numeroTxt), 'mesmo número de novo: não grava e diz quem usou', r);
     await irTF(P);
-    ok(/📄 do papel/.test(await P.textContent('#tfItens')), 'lista de TFs marca "📄 do papel"');
+    ok(/· do papel/.test(await P.textContent('#tfItens')), 'lista de TFs marca "do papel"');
     ok(!P.err.length, 'sem erros de página', P.err);
     await P.ctx.close();
 

@@ -121,7 +121,7 @@
   function secaoImp(c) {
     const s = A.secao(c, 'Importar a planilha de controle VIGIFITO antiga (.xlsx) — histórico', 'Para meses anteriores ao e-GDV (ex.: 2025). Aba de postos × meses (como "VIGIFITO") e abas de períodos de 10 dias por posto (como "JUNDIÁ"). Grava os valores como lançados (linhas apuradas pelo e-GDV: como substituição); totais e semestres não são importados — saem do sistema. Reimportar não duplica.');
     const box = A.el('div', 'pn-cartao pn-conv-imp');
-    box.innerHTML = `<div class="pn-conv-acoes"><label class="pn-btn pn-btn-prim pn-conv-imp-btn" for="adm-vig-imp-arq">📥 Importar planilha VIGIFITO (.xlsx)</label>
+    box.innerHTML = `<div class="pn-conv-acoes"><label class="pn-btn pn-btn-prim pn-conv-imp-btn" for="adm-vig-imp-arq">${icone('baixar')} Importar planilha VIGIFITO (.xlsx)</label>
       <input type="file" id="adm-vig-imp-arq" accept=".xlsx" class="pn-conv-imp-arq"><span class="pn-pub-msg${E.impMsg.cls ? ' ' + E.impMsg.cls : ''}" data-msg="vigimp" role="status">${esc(E.impMsg.t)}</span></div>
       <div id="adm-vig-imp-previa"></div>`;
     s.appendChild(box);
@@ -196,7 +196,7 @@
   function secaoPlt(c) {
     const s = A.secao(c, 'Importar relatório de plantão da BVA (papel, .xls)', 'O "Relatório Diário de Trânsito Interestadual" do plantão (ex.: 10 dias do Jundiá) vira turnos e veículos da BVA, como se tivesse sido feito no app: o quadro de veículos por tipo, a educação sanitária e cada carga da lista (placa, transportador, produto, medida e nº do TF). Os números do VIGIFITO, do painel e do convênio saem sozinhos. Reimportar o mesmo plantão pergunta antes de substituir.');
     const box = A.el('div', 'pn-cartao pn-conv-imp');
-    box.innerHTML = `<div class="pn-conv-acoes"><label class="pn-btn pn-btn-prim pn-conv-imp-btn" for="adm-plt-arq">📥 Importar relatório de plantão (.xls)</label>
+    box.innerHTML = `<div class="pn-conv-acoes"><label class="pn-btn pn-btn-prim pn-conv-imp-btn" for="adm-plt-arq">${icone('baixar')} Importar relatório de plantão (.xls)</label>
       <input type="file" id="adm-plt-arq" accept=".xls,.xlsx" class="pn-conv-imp-arq"><span class="pn-pub-msg${E.pltMsg.cls ? ' ' + E.pltMsg.cls : ''}" data-msg="pltimp" role="status">${esc(E.pltMsg.t)}</span></div>
       <div id="adm-plt-previa"></div>`;
     s.appendChild(box);

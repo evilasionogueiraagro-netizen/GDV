@@ -1,7 +1,7 @@
 const amb = require('./lib/amb');
 const U = require('./lib/usuarios');
 // Sinal do aparelho (heartbeat) em toda sincronização, "ping" de erro, estado "Encerrado no celular, aguardando envio" no painel,
-// aba Servidores (último sinal / versão / pendentes / erro) e o status do encerramento no app (⏳ / ✅ / ⚠️ + Tentar enviar agora).
+// aba Servidores (último sinal / versão / pendentes / erro) e o status do encerramento no app (/ / + Tentar enviar agora).
 const { chromium } = require('playwright-core');
 const { API, PAINEL: WEB, APP } = amb;
 const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
@@ -151,12 +151,12 @@ const editar = (aba, col, valor, onde) => fetch(`${API}/__editar?aba=${aba}&col=
   atrasar = 2500;
   await app.click('nav [data-v=resumo]'); await app.waitForSelector('#encerrar'); await app.click('#encerrar'); await app.waitForSelector('#encPend');
   const enviando = await app.textContent('#encPend');
-  ok(/⏳ Enviando…/.test(enviando) && /ainda não enviado à planilha/.test(enviando), 'app: "⏳ Enviando…" logo depois de encerrar', enviando.slice(0, 120));
+  ok(/Enviando…/.test(enviando) && /ainda não enviado à planilha/.test(enviando), 'app: "Enviando…" logo depois de encerrar', enviando.slice(0, 120));
   await app.waitForFunction(() => /Não enviado/.test(document.querySelector('#encPend') && document.querySelector('#encPend').textContent), null, { timeout: 15000 }).catch(() => {});
   atrasar = 0;
   const falhou = await app.textContent('#encPend');
-  ok(/⚠️ Não enviado: Cabeçalho da aba Turnos diferente/.test(falhou) && await app.locator('#encPend [data-reenviar]').count() === 1, 'app: "⚠️ Não enviado: <motivo>" + botão "Tentar enviar agora"', falhou.slice(0, 160));
-  ok(!/bom descanso/.test(falhou), 'app: sem ✅ enquanto o servidor não confirmou');
+  ok(/Não enviado: Cabeçalho da aba Turnos diferente/.test(falhou) && await app.locator('#encPend [data-reenviar]').count() === 1, 'app: "Não enviado: <motivo>" + botão "Tentar enviar agora"', falhou.slice(0, 160));
+  ok(!/bom descanso/.test(falhou), 'app: sem enquanto o servidor não confirmou');
   await app.screenshot({ path: amb.saida('sinal_app_erro.png') });
   ap = await aparelho(idAp);
   ok(ap && ap.situacao === 'erro' && /Cabeçalho/.test(ap.ultimoErro) && JSON.parse(ap.turnosEncerradosPendentes).includes(idT) && ap.turnoAtual === '',
@@ -165,7 +165,7 @@ const editar = (aba, col, valor, onde) => fetch(`${API}/__editar?aba=${aba}&col=
   // "Tentar enviar agora" com o servidor ainda falhando: mostra o resultado
   await app.click('#encPend [data-reenviar]');
   await app.waitForFunction(() => /Não enviado/.test(document.querySelector('#toast').textContent), null, { timeout: 10000 }).catch(() => {});
-  ok(/⚠️ Não enviado: Cabeçalho/.test(await app.textContent('#toast')), 'Tentar enviar agora (ainda com erro): mostra o motivo', await app.textContent('#toast'));
+  ok(/Não enviado: Cabeçalho/.test(await app.textContent('#toast')), 'Tentar enviar agora (ainda com erro): mostra o motivo', await app.textContent('#toast'));
   // sair da tela: aviso não bloqueante; Módulos com cartão amarelo
   await app.click('nav [data-v=modulos]'); await app.waitForSelector('.modulo');
   await app.waitForFunction(() => /ainda não chegou à planilha/.test(document.querySelector('#toast').textContent), null, { timeout: 5000 }).catch(() => {});
@@ -195,19 +195,19 @@ const editar = (aba, col, valor, onde) => fetch(`${API}/__editar?aba=${aba}&col=
   ok(/Encerrado no celular, aguardando envio/.test(await pn.textContent('.pn-bar-vivo')), 'aba Barreiras: estado na lista em andamento');
   await pn.click('.pn-aba[data-aba=geral]'); await pn.waitForTimeout(600);
 
-  // o servidor volta: Tentar enviar agora → ✅
+  // o servidor volta: Tentar enviar agora → 
   console.log('4. Envio confirmado');
   await app.unroute(API + '/');
   await app.click('#encCartao [data-reenviar]');
   await app.waitForFunction(() => /bom descanso/.test(document.querySelector('#toast').textContent), null, { timeout: 10000 }).catch(() => {});
-  ok(/✅ Turno encerrado, bom descanso!/.test(await app.textContent('#toast')), 'Tentar enviar agora: toast "✅ Turno encerrado, bom descanso!"', await app.textContent('#toast'));
+  ok(/Turno encerrado, bom descanso!/.test(await app.textContent('#toast')), 'Tentar enviar agora: toast "Turno encerrado, bom descanso!"', await app.textContent('#toast'));
   await app.waitForTimeout(500);
   ok(await app.locator('#encCartao').count() === 0, 'Módulos: cartão some depois do envio');
   await app.evaluate(id => go('fechado', id), idT); await app.waitForSelector('#encPend');
   const okTxt = (await app.textContent('#encPend')).replace(/\s+/g, ' ');
   const srv = (await aba('Turnos')).find(t => t.id === idT);
   const hRec = await app.evaluate(ms => { const d2 = new Date(ms); return String(d2.getHours()).padStart(2, '0') + ':' + String(d2.getMinutes()).padStart(2, '0'); }, srv.srv_ts);
-  ok(/✅ Turno encerrado, bom descanso!/.test(okTxt) && okTxt.includes('Recebido pela planilha às ' + hRec) && srv.encerrado === 1, 'tela do turno: "✅ Turno encerrado, bom descanso!" + "Recebido pela planilha às HH:MM" (srv_ts)', okTxt);
+  ok(/Turno encerrado, bom descanso!/.test(okTxt) && okTxt.includes('Recebido pela planilha às ' + hRec) && srv.encerrado === 1, 'tela do turno: "Turno encerrado, bom descanso!" + "Recebido pela planilha às HH:MM" (srv_ts)', okTxt);
   await app.screenshot({ path: amb.saida('sinal_app_ok.png') });
   ap = await aparelho(idAp);
   ok(ap.situacao === 'ok' && ap.turnosEncerradosPendentes === '[]' && /Cabeçalho/.test(ap.ultimoErro), 'aba Aparelhos: situacao ok, nada pendente; erro fica como histórico', { sit: ap.situacao, enc: ap.turnosEncerradosPendentes });

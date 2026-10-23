@@ -2,7 +2,7 @@ const amb = require('./lib/amb');
 const U = require('./lib/usuarios');
 // PCE — citros no levantamento por praga (cadastro de cítricos: IN 21/2018 e Portaria 317/2021) e a visita completa:
 // CPF/CNPJ primeiro (produtor já cadastrado no servidor: autopreenche produtor e propriedade, inclusive CNPJ, empresa, endereço e UF; CPF novo:
-// libera os campos), ordem dos cards (Dados do produtor → Localização → Local e origem → Pragas e doenças), bloco "🍊 Cultura do citros" único
+// libera os campos), ordem dos cards (Dados do produtor → Localização → Local e origem → Pragas e doenças), bloco "Cultura do citros" único
 // dentro de "Pragas e doenças" (só com praga de citros, um só com duas pragas de citros), detecção de HLB, Ácaro Hindustânico e Cancro Cítrico
 // obrigatória (ausência/presença; praga detectada pré-marca presença), Cadastro de citros (numeração do programa "citros") e Termo de Fiscalização
 // da visita já preenchido (identificação, data/hora, local, frases de ausência/presença, enquadramento), PDF no modelo do papel (cadastro + TF),
@@ -149,7 +149,7 @@ const guardar = nome => { if (COPIA) { fs.mkdirSync(COPIA, { recursive: true });
     'planilha (citros): detecção HLB ausência, ácaro ausência, cancro presença há 3 semanas', J && J.deteccao);
   ok(J && J.comercial === 'sim' && J.atividades.join() === 'frutos,outros' && J.situacao === 'proprietario' && J.culturas.length === 2 && J.culturas[0].plantas === 400
     && J.compradorOutros === 'Restaurante Ficticio' && J.rt.nome === 'Beltrano Ficticio Teste' && !('cnpj' in J), 'planilha (citros): particularidades do cadastro, sem identificação repetida', J);
-  ok(/Cadastro de citros/.test(await p.textContent('#pce-pronto-cad')) && /Cadastro de citros sai deste levantamento/.test(await p.textContent('.pce-visita')), 'próximo passo: "🍊 Cadastro de citros e fazer o Termo"');
+  ok(/Cadastro de citros/.test(await p.textContent('#pce-pronto-cad')) && /Cadastro de citros sai deste levantamento/.test(await p.textContent('.pce-visita')), 'próximo passo: "Cadastro de citros e fazer o Termo"');
 
   console.log('7. Cadastro de citros (numeração do programa citros) → Termo de Fiscalização da visita');
   await p.click('#pce-pronto-cad'); await p.waitForSelector('#monCadForm[data-programa=citros]');
@@ -222,7 +222,7 @@ const guardar = nome => { if (COPIA) { fs.mkdirSync(COPIA, { recursive: true });
   await pg.close();
   // imprimir o cadastro (lista de cadastros): cadastro + o Termo do mesmo dia
   await p.evaluate(() => go('pcecads')); await p.waitForSelector('.mon-item');
-  ok(/🍊 Citros/.test(await p.textContent('.mon-item')), 'lista de cadastros: cadastro de citros marcado "🍊 Citros"');
+  ok(/Citros/.test(await p.textContent('.mon-item')), 'lista de cadastros: cadastro de citros marcado "Citros"');
   const pc = await imprimir(() => p.click('.mon-item [data-mon=imprimir]'));
   ok(pc.paginas === 2 && /doc-cci/.test(pc.classes[0]) && /doc-tci/.test(pc.classes[1]) && /^Cadastro_Citros_\d{3}-\d{4}-MANAUS_FULANO_FICTICIO_TESTE/.test(pc.titulo), 'imprimir o cadastro: cadastro + Termo da visita, nome Cadastro_Citros_…', [pc.paginas, pc.titulo]);
   // enviar ao produtor: só o Termo (PDF gerado no aparelho)

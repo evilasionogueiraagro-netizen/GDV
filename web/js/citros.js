@@ -1,5 +1,5 @@
 // PCE — cadastro de cítricos no levantamento ("CADASTRO DE IMÓVEIS DE PRODUÇÃO COMERCIAL DE CÍTRICOS — Levantamento fitossanitário de pragas
-// quarentenárias de citros"; IN 21/2018 cancro cítrico, Portaria 317/2021 HLB). No levantamento por praga (pce.js), o bloco "🍊 Cultura do citros"
+// quarentenárias de citros"; IN 21/2018 cancro cítrico, Portaria 317/2021 HLB). No levantamento por praga (pce.js), o bloco "Cultura do citros"
 // aparece UMA vez, dentro do card "Pragas e doenças", quando há card de praga de citros (vale para todas as pragas de citros do levantamento).
 // A identificação do produtor/propriedade (nome, CPF, CNPJ, propriedade, código, endereço, município, UF, coordenadas) fica nos cards
 // "Dados do produtor" e "Localização" do levantamento; aqui só as particularidades do cadastro. Detecção de HLB, Ácaro Hindustânico e Cancro
@@ -76,7 +76,7 @@ const PCECitros = (() => {
     const del = ([k, t]) => { const x = D.delimitacao[k] || {};
       return `<div class="mon-fito"><b>${e(t)}</b>${sn('del-' + k + '-tem', 'Presença', x.tem || '')}${inp('del-' + k + '-tempo', 'Há quanto tempo', x.tempo)}
         ${sn('del-' + k + '-controle', 'Utiliza método de controle?', x.controle || '')}${inp('del-' + k + '-qual', 'Qual', x.qual)}</div>`; };
-    return `<div class="pce-citros" id="pce-citros" hidden><h4>🍊 Cultura do citros <small>cadastro de cítricos (IN 21/2018 e Portaria 317/2021)</small></h4>
+    return `<div class="pce-citros" id="pce-citros" hidden><h4>${icone('citros')} Cultura do citros <small>cadastro de cítricos (IN 21/2018 e Portaria 317/2021)</small></h4>
       <p class="dica" style="text-align:left">Um bloco só para todas as pragas de citros deste levantamento. Os dados do produtor e da propriedade são os de cima. Gera o Cadastro de citros e o Termo de Fiscalização da visita.</p>
       <p class="mon-sub">Levantamento de detecção — sintomas nos frutos e folhas <span class="obrig">(obrigatório)</span></p>
       <div id="${PR}det">${lista('deteccao').map(det).join('')}</div>

@@ -17,8 +17,7 @@ const editar = (aba, col, valor, onde) => fetch(`${API}/__editar?aba=${aba}&col=
 
 (async () => {
   const AG = Date.now();
-  const gAdm = await get('/__gerar?nome=' + encodeURIComponent('Gerente Sinal Lima') + '&perfil=admin');
-  const ADM = (await post({ action: 'painelAtivar', codigo: gAdm.codigo })).token;
+  const ADM = (await amb.gerente('Gerente Sinal Lima')).token;
   const ULS = {}, ativar = async n => { const f = await U.fiscal(n); ULS[n] = f.ls; return f.token; };
   const FA = await ativar('Fiscal Sinal Alves'), FB = await ativar('Fiscal Antigo Barros'), FC = await ativar('Fiscal Celular Costa');
   ok(ADM && FA && FB && FC, 'credenciais');

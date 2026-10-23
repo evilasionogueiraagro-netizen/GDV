@@ -40,7 +40,7 @@ const geoVivo = eval(fonteTV.slice(fonteTV.indexOf('const geoVivo = p =>') + 'co
   const sync = async p => { await p.evaluate(() => Sync.sincronizar()); await p.waitForFunction(() => ['ok', 'idle'].includes(Sync.estado().tipo) && !Sync.estado().pend, null, { timeout: 15000 }); };
 
   /* ---------- painel do gestor ---------- */
-  const adminCred = async nome => { const g = await get('/__gerar?nome=' + encodeURIComponent(nome) + '&perfil=admin'); const a = await post({ action: 'painelAtivar', codigo: g.codigo }); return { 'gdv.painel.token': a.token, 'gdv.painel.nome': a.nome }; };
+  const adminCred = async nome => { const a = await amb.gerente(nome); return { 'gdv.painel.token': a.token, 'gdv.painel.nome': a.nome }; };
   async function painel(nome, sessao, o = {}) {
     const c = await b.newContext({ viewport: o.viewport || { width: 1366, height: 900 }, timezoneId: 'America/Manaus', locale: 'pt-BR', permissions: o.permissoes || [], colorScheme: 'light', serviceWorkers: 'block' });
     await c.route('https://tile.openstreetmap.org/**', rt => o.semTiles ? rt.abort('blockedbyclient') : rt.fulfill({ status: 200, contentType: 'image/png', body: PNG }));

@@ -8,7 +8,7 @@ const { API } = amb;
 const DASH = amb.ORIGEM + '/dashboard/';
 const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 const get = p => fetch(API + p).then(r => r.json());
-const gerar = (nome, perfil) => get('/__gerar?nome=' + encodeURIComponent(nome) + (perfil ? '&perfil=' + perfil : ''));
+const gerar = (nome, perfil = '') => perfil === 'admin' ? amb.gerente(nome) : amb.usuario(nome);   // conta pronta e token (atalho /__usuario)
 let falhas = 0;
 const ok = (cond, msg, extra) => { console.log((cond ? '  ✓ ' : '  ✗ ') + msg + (extra !== undefined ? ' -> ' + (typeof extra === 'string' ? extra : JSON.stringify(extra)).slice(0, 600) : '')); if (!cond) falhas++; };
 const manaus = (d = 0) => new Date(Date.now() - 4 * 3600e3 - d * 864e5).toISOString().slice(0, 10);
@@ -62,7 +62,7 @@ const PROIBIDOS = [CPF, CNPJ, CPF2, '529.982.247-25', '***.982', 'Fulano Secreto
   d = await post({ action: 'publicoDados' });
   ok(d.ok === true && d.ativo === false && Object.keys(d).sort().join() === 'ativo,ok', 'desligado por padrão: {ok, ativo: false} e nada mais', d);
   const adm = await gerar('Gerente Público', 'admin');
-  const TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
+  const TOK = adm.token;
   const TOKF = (await U.fiscal('Fiscal Curioso Silva')).token;
   ok(TOK && TOKF, 'credenciais de administrador e de fiscal');
   d = await post({ action: 'painelPublicoConfig', key: TOK });

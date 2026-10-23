@@ -7,203 +7,74 @@
 <title>Manual do fiscal – e-GDV</title>
 <link rel="icon" href="img/icon-192.png">
 <link rel="stylesheet" href="css/design.css">
-<style>
-/* Manual do fiscal. Tokens e componentes: css/design.css (docs/DESIGN.md). Aqui só o arranjo da página. */
-header small { opacity:.85; font-size:12px; }
-header { position:sticky; top:0; z-index:2; }
-header a { margin-left:auto; color:#fff; font-size:14px; white-space:nowrap; }
-body { line-height:1.5; }
-main { max-width:640px; margin:0 auto; padding:16px; }
-nav.indice { background:var(--sf); border:1px solid var(--borda); border-radius:var(--r-lg); padding:12px 16px; margin-bottom:12px; box-shadow:var(--sombra); }
-nav.indice ol { margin:6px 0 0; padding-left:22px; }
-details { scroll-margin-top:72px; background:var(--sf); border:1px solid var(--borda); border-radius:var(--r-lg); margin-bottom:10px; box-shadow:var(--sombra); }
-summary { padding:14px 16px; font-weight:700; cursor:pointer; list-style:none; display:flex; justify-content:space-between; gap:8px; }
-summary::-webkit-details-marker { display:none; }
-summary::after { content:'▾'; color:var(--mut); } details[open] summary::after { content:'▴'; }
-.corpo { padding:0 16px 14px; }
-.corpo ol, .corpo ul { padding-left:22px; margin:6px 0; } .corpo li { margin:4px 0; }
-.corpo p { margin:8px 0; }
-.dica { color:var(--ink); background:color-mix(in srgb, var(--atencao) 16%, var(--sf)); border:1px solid var(--atencao); border-radius:var(--r-md); padding:8px 10px; font-size:14px; text-align:left; }
-b.bt { background:var(--sel); color:var(--destaque); border-radius:var(--r-sm); padding:0 5px; font-weight:600; white-space:nowrap; }
-footer { text-align:center; color:var(--mut); font-size:12px; padding:8px 16px 24px; }
-@media print { header { position:static; } details { break-inside:avoid; } details:not([open]) .corpo { display:block; } }
-</style>
+<link rel="stylesheet" href="css/manual.css">
 </head>
 <body class="toque">
 <header class="barra-topo">
   <img src="img/logo-adaf.png" alt="ADAF">
   <div><h1>Manual do fiscal</h1><small>e-GDV – Fiscalização · ADAF/AM</small></div>
-  <a href="./">← Voltar ao app</a>
+  <a href="./">Voltar ao app</a>
 </header>
 <main>
-  <nav class="indice"><b>Toque num assunto para abrir</b>
+  <section><h2>1. Instalar e entrar</h2>
     <ol>
-      <li><a href="#instalar">Instalar o app e entrar</a></li>
-      <li><a href="#turno">Turno na barreira (Educação Sanitária/Fiscalização de Trânsito)</a></li>
-      <li><a href="#tf">Termo de Fiscalização (TF)</a></li>
-      <li><a href="#pce">PCE – levantamento, Termo de Colheita e monilíase</a></li>
-      <li><a href="#internet">Sem internet e envio dos dados</a></li>
-      <li><a href="#problemas">Problemas comuns</a></li>
+      <li>Abra o link do app no <b>Chrome</b> (Android) ou no <b>Safari</b> (iPhone) e toque em <b class="bt">Instalar agora</b>. No iPhone: <b>Compartilhar → Adicionar à Tela de Início</b>.</li>
+      <li>Abra o app pelo ícone, digite a <b>matrícula</b> e a <b>senha provisória</b> que a gerência mandou e toque em <b class="bt">Entrar</b> (precisa de internet).</li>
+      <li>Crie a sua senha (pelo menos 8 caracteres) e permita a <b>localização</b>.</li>
     </ol>
-  </nav>
+    <p class="dica">Depois de entrar, o app funciona sem internet. Celular de outra pessoa ou compartilhado: toque em <b>Sair</b> (aba Status) ao terminar. Esqueceu a senha? Peça uma nova à gerência.</p>
+  </section>
 
-  <details id="instalar" open><summary>1. Instalar o app e entrar</summary><div class="corpo">
+  <section><h2>2. Turno na barreira</h2>
     <ol>
-      <li>Abra o link do app no <b>Chrome</b> (Android) ou no <b>Safari</b> (iPhone).</li>
-      <li>Toque em <b class="bt">Instalar agora</b>. No iPhone: <b>Compartilhar → Adicionar à Tela de Início</b>.</li>
-      <li>Feche o navegador e abra o app pelo <b>ícone</b> na tela do celular.</li>
-      <li>Digite a sua <b>matrícula</b> e a <b>senha provisória</b> que a gerência mandou e toque em <b class="bt">Entrar</b>. Isso precisa de internet.</li>
-      <li>O app pede para você <b>trocar a senha provisória</b> por uma só sua (mínimo de 8 caracteres).</li>
-      <li>Quando o app perguntar, <b>permita a localização</b>. Ela é pedida só na primeira vez.</li>
+      <li>Toque em <b>Educação Sanitária/Fiscalização de Trânsito</b>, escolha o posto (<b>Fixa</b> ou <b>Volante</b>), o <b>Fiscal 2</b> se houver, e <b class="bt">Iniciar turno</b>.</li>
+      <li>Para cada veículo parado: <b class="bt">Registrar veículo</b> (placa, tipo, pessoas a bordo; origem e destino se souber). A placa só é obrigatória na BVA CEASA.</li>
+      <li>Para corrigir ou lavrar TF de um veículo: <b class="bt">Lista de veículos</b>.</li>
+      <li>No fim: <b class="bt">Encerrar turno</b> e espere a confirmação. Se ficar "aguardando envio", abra o app de novo quando tiver internet.</li>
     </ol>
-    <p class="dica">Depois de entrar, o app funciona sem internet até você tocar em <b>Sair</b> (aba Status). Trocou de celular? Entre de novo com a mesma matrícula e senha. Esqueceu a senha? Peça uma senha provisória nova à gerência.</p>
-  </div></details>
+    <p>Turno esquecido aberto é encerrado sozinho depois de 12 horas.</p>
+  </section>
 
-  <details id="turno"><summary>2. Turno na barreira</summary><div class="corpo">
-    <p>Na tela de módulos, toque em <b>Educação Sanitária/Fiscalização de Trânsito</b>.</p>
-    <p><b>Iniciar</b></p>
+  <section><h2>3. Termo de Fiscalização (TF)</h2>
     <ol>
-      <li>Escolha o <b>tipo de posto</b>:
-        <ul>
-          <li><b>Fixa</b>: escolha a BVA na lista.</li>
-          <li><b>Volante (móvel)</b>: o endereço é preenchido pela localização. Dá para corrigir à mão.</li>
-        </ul>
-      </li>
-      <li>Se tiver colega, informe o <b>Fiscal 2</b>. Toque em <b class="bt">Iniciar turno</b>.</li>
+      <li>Abra em <b class="bt">Novo TF</b> ou, no turno, em <b class="bt">Lavrar TF</b> ao lado do veículo.</li>
+      <li>Digite o <b>CPF/CNPJ</b> e a <b>placa</b>: o app busca o cadastro e avisa se é <b>reincidente</b>.</li>
+      <li>Marque o procedimento (liberação, apreensão ou rechaço), confira o texto sugerido, os produtos e, se quiser, fotos e assinaturas na tela.</li>
+      <li><b class="bt">Gerar TF</b>, confira o número e confirme. Salve em PDF ou imprima: saem 2 vias.</li>
     </ol>
-    <p><b>Durante o turno</b></p>
-    <ul>
-      <li><b class="bt"><span data-icone="mais"></span> Registrar veículo</b>: placa, tipo, pessoas a bordo e observação. A placa é obrigatória só na BVA CEASA.</li>
-      <li><b>Origem e destino (opcional)</b>, no mesmo formulário: <b>UF de origem</b> e <b>UF de destino</b> do veículo. Destino AM vindo de outro estado conta como internalização; destino em outro estado conta como carga em trânsito. Deixe em branco se não souber.
-        Educação sanitária (uma por pessoa a bordo), medida fitossanitária, partidas, inspeção e documentos conferidos o relatório VIGIFITO calcula sozinho, pelas pessoas a bordo e pelos <b>TFs</b> lavrados — não há nada para marcar.</li>
-      <li><b class="bt"><span data-icone="formulario"></span> Lista de veículos</b>: para corrigir (<b>Editar</b>), excluir ou <b>Lavrar TF</b> de um veículo.</li>
-      <li><b class="bt"><span data-icone="resumo"></span> Resumo e documentos</b>: totais do turno e a <b>Ficha de Campo</b> (só na BVA CEASA).</li>
-    </ul>
-    <p><b>Encerrar</b></p>
-    <ol>
-      <li>Toque em <b class="bt">⏹ Encerrar turno</b>.</li>
-      <li>Espere aparecer <b>“<span data-icone="ok"></span> Turno encerrado, bom descanso!”</b>.</li>
-      <li>Se aparecer <b>“⏳ Aguardando envio”</b>, o encerramento está guardado no celular. Abra o app de novo quando tiver internet para enviar.</li>
-    </ol>
-    <p class="dica">Turno esquecido aberto é encerrado sozinho depois de <b>12 horas</b>. A gerência também pode encerrar pelo painel.</p>
-  </div></details>
+    <p>Sem internet, o número do TF é provisório e é conferido quando o celular enviar.</p>
+  </section>
 
-  <details id="tf"><summary>3. Termo de Fiscalização (TF)</summary><div class="corpo">
-    <p><b>Onde abrir</b></p>
+  <section><h2>4. PCE</h2>
     <ul>
-      <li>Pelo módulo <b>Termo de Fiscalização de Barreira</b>, em <b class="bt"><span data-icone="mais"></span> Novo TF</b>;</li>
-      <li>ou, durante o turno, em <b class="bt">Lavrar TF</b> ao lado do veículo.</li>
+      <li><b>Antes de viajar (com internet)</b>: em <b class="bt">Dados para o campo</b>, baixe os municípios da viagem. Sem internet, a busca por CPF, nome ou propriedade usa esses dados. Ao voltar, <b>Apagar do aparelho</b>.</li>
+      <li><b>Levantamento</b>: <b class="bt">Novo levantamento</b>, dados do produtor e da propriedade, e para cada praga as culturas com o resultado e as fotos. Sai um PDF por praga.</li>
+      <li><b>Termo de Colheita</b>: pelo levantamento ou em <b class="bt">Novo termo de colheita</b>. Quando o laudo chegar, <b class="bt">Resultado</b> no termo.</li>
+      <li><b>Monilíase</b>: no card Monilíase, <b>Cadastro de imóvel</b> (uma vez por propriedade) e <b>Termo de Fiscalização</b> (um por visita).</li>
+      <li><b>Perto de mim</b> e <b>Rota</b>: mapa das propriedades baixadas e ordem de visita, que abre no Google Maps.</li>
+      <li><b>Produtor que não assina</b>: marque a opção e tire a foto do produtor segurando um documento com foto.</li>
+      <li><b>Via do produtor</b>: <b class="bt">Enviar ao produtor</b> gera o PDF para mandar pelo WhatsApp, mesmo sem internet.</li>
     </ul>
-    <p><b>Preencher</b></p>
-    <ol>
-      <li><b>CPF/CNPJ</b> e <b>placa</b>: o app busca o cadastro e o <b>histórico</b> sozinho. Se aparecer <b><span data-icone="alerta"></span> REINCIDENTE</b>, o fiscalizado já teve apreensão, rechaço ou auto de infração.</li>
-      <li>Marque o procedimento (liberação, apreensão ou rechaço). O texto da constatação e o enquadramento legal são sugeridos, e você pode editar.</li>
-      <li>Em <b>Origem</b> e <b>Destino</b>, escolha também a <b>UF de origem</b> e a <b>UF de destino</b> (lavrando do veículo, já vêm do registro dele). Com elas o VIGIFITO conta a internalização (de outro estado para o AM) e as cargas para outros estados, com as toneladas dos produtos.</li>
-      <li>Adicione os <b>produtos</b> e, se quiser, <b><span data-icone="camera"></span> fotos</b> (até 10).</li>
-      <li><b><span data-icone="assinatura"></span> Assinaturas</b> (opcional): toque em <b class="bt">Assinar na tela</b> para o fiscalizado e para você e assine com o dedo. Se o fiscalizado se recusar, marque <b>“Fiscalizado se recusou a assinar”</b>. Sem assinatura na tela, o PDF sai com a linha para assinar no papel.</li>
-      <li>Toque em <b class="bt"><span data-icone="documento"></span> Gerar TF</b>, confira o <b>número</b> e confirme. Na janela de impressão, escolha <b>Salvar como PDF</b> ou imprima. Saem 2 vias e, se houver fotos, o anexo fotográfico.</li>
-    </ol>
-    <p><b>Depois de gerar</b></p>
-    <ul>
-      <li>Cada via tem um <b>QR code</b>. Quem apontar a câmera para ele confere na página da ADAF se o TF é verdadeiro.</li>
-      <li>A página mostra o número, a data, a barreira, o procedimento e a situação, sem dados pessoais.</li>
-    </ul>
-    <p class="dica">Sem internet, o número do TF é <b>provisório</b> e é conferido na planilha quando o celular enviar. A consulta de reincidência usa a última lista baixada e mostra “sem conexão”.</p>
-  </div></details>
+  </section>
 
-  <details id="pce"><summary>4. PCE – levantamento, Termo de Colheita e monilíase</summary><div class="corpo">
-    <p><b>Levantamento fitossanitário</b></p>
-    <ol>
-      <li>No módulo <b>PCE</b>, toque em <b class="bt"><span data-icone="mais"></span> Novo levantamento</b>.</li>
-      <li>Preencha os dados do produtor e da propriedade. A localização é pega pelo GPS.</li>
-      <li>Para cada <b>praga/doença</b> avaliada, adicione as <b>culturas</b> com área e resultado: <b>detectada</b>, <b>não detectada</b> ou <b>suspeita</b>. As <b>fotos</b> ficam junto da cultura.</li>
-      <li>Em <b>Local e origem da visita</b> (opcional), escolha o <b>tipo de local</b> (propriedade comercial, quintal, viveiro, feira, UP, UC…) e a <b>origem da visita</b> (rotina, notificação do produtor, delimitação de foco, retorno). Se não estiver na lista, escolha <b>Outro</b> e digite. Saem na ficha como “Local: … · Origem: …” e entram no relatório da gerência (viveiros, UP/UC).</li>
-      <li>Salve. Sai <b>um PDF por praga</b>, em <b>PDF: nome da praga</b> ou <b class="bt"><span data-icone="imprimir"></span> Imprimir todos</b>.</li>
-    </ol>
-    <p><b>Termo de Colheita de Amostras</b></p>
+  <section><h2>5. Sem internet</h2>
     <ul>
-      <li>Abra pelo próprio levantamento (botão <b>Termo de colheita</b>) ou em <b class="bt"><span data-icone="mais"></span> Novo termo de colheita</b>.</li>
-      <li>O número é gerado como no TF.</li>
-      <li><b>Quando o laudo chegar:</b> na lista de termos (ou na tela do termo), toque em <b class="bt"><span data-icone="amostra"></span> Resultado</b> e informe o laboratório (LFDA-GO, LFDA-PE, LFDA-SP, Laboratório da ADAF ou outro), a data de envio, o nº do laudo, a data e o resultado (aguardando, negativo, positivo, inconclusivo, amostra inviável). Se for <b>positivo</b>, informe a praga confirmada. O número e o PDF do termo não mudam. A gerência também pode registrar o resultado pelo painel — o que ela lançar não é apagado pelo seu celular.</li>
+      <li>Tudo fica guardado no celular e é enviado sozinho quando a conexão voltar. O selo no topo mostra a situação; toque nele para enviar agora.</li>
+      <li><b>Não desinstale o app</b> nem limpe os dados do navegador com algo aguardando envio: é assim que se perdem dados.</li>
+      <li>No iPhone, abra o app com internet para enviar.</li>
     </ul>
-    <p><b><span data-icone="broto"></span> Monilíase: Cadastro de imóvel e Termo de Fiscalização</b></p>
-    <ul>
-      <li>Na lista do PCE, card <b>Monilíase</b>: <b class="bt"><span data-icone="propriedade"></span> Cadastro de imóvel (monilíase)</b> (uma vez por propriedade com cacau, cupuaçu…) e <b class="bt"><span data-icone="formulario"></span> Termo de Fiscalização</b> (um por visita; <b>não é o TF de Barreira</b>).</li>
-      <li>Os formulários seguem a <b>ordem do papel</b>. Sim/Não são botões grandes; toque de novo no botão marcado para desmarcar. O <b>total de plantas</b> é calculado.</li>
-      <li>Coordenadas aceitam <b>-3,60033</b>, <b>-3.60033</b>, <b>3,60033S</b>, <b>-59,15044W</b> ou graus/minutos/segundos. Longitude sem sinal = Oeste.</li>
-      <li>No termo, busque o <b>cadastro</b> pelo CPF, nome ou número: produtor, endereço, coordenadas e <b>plantas inspecionadas</b> vêm preenchidos. Sem cadastro, toque em <b><span data-icone="mais"></span> Criar cadastro desta propriedade</b> (ao salvar, volta ao termo).</li>
-      <li>No mapa <b>Perto de mim</b>, o cartão da propriedade tem <b class="bt"><span data-icone="formulario"></span> Termo de Fiscalização aqui</b> e, se não houver cadastro, <b class="bt"><span data-icone="propriedade"></span> Criar cadastro (monilíase)</b>.</li>
-      <li>Número: <b>001.2026.AUTAZES</b> (termo, por unidade e ano) e <b>001-2026-AUTAZES</b> (cadastro). Com internet vem da planilha; sem internet é provisório e é conferido ao sincronizar.</li>
-      <li>Preencha também <b>amostra</b> e <b>sintomas</b>: entram no relatório. Folders/flyers não vão no termo: o número é digitado no relatório. <b class="bt"><span data-icone="enviar"></span> Enviar ao produtor</b> gera o PDF do termo no celular.</li>
-      <li><b>Digitar do papel</b> (só com a permissão Papel): número do papel (<b>001.2026.AUTAZES</b>, <b>001-2026-AUTAZES</b> ou só <b>1</b>), data do papel, servidor que fez a vistoria e o PDF escaneado. CPF é opcional (o app avisa se estiver errado). Use <b>Salvar e digitar outro</b>.</li>
-      <li><b class="bt"><span data-icone="resumo"></span> Relatório de atividades</b>: escolha período, município, praga e servidores. O app soma as plantas, conta os termos emitidos e os termos com a ação <b>Educação Sanitária</b> marcada; o nº de <b>folders e flyers</b> distribuídos é digitado na hora. O app lembra o nº do convênio e a etapa, e pode anexar os termos e cadastros do período ao PDF. No painel, aba PCE → <b>Relatório de atividades</b>.</li>
-    </ul>
-    <p><b>Antes de sair para o campo (com internet)</b></p>
-    <ol>
-      <li>Em <b>Levantamentos</b>, toque em <b class="bt"><span data-icone="baixar"></span> Dados para o campo</b>.</li>
-      <li>Marque o(s) <b>município(s)</b> da viagem e toque em <b class="bt"><span data-icone="baixar"></span> Baixar selecionados</b>. Aparece, por exemplo, “Parintins — 132 propriedades, 98 produtores — baixado em 12/10 18:40”.</li>
-      <li>Sem internet, a busca por <b>CPF</b>, por <b>nome</b> do produtor, <b>nome da propriedade</b> ou <b>código</b> (campo <b>Buscar produtor ou propriedade</b> no levantamento) usa esses dados e preenche a ficha.</li>
-      <li>Com internet, os dados se atualizam sozinhos a cada 6 horas.</li>
-      <li><b>Ao voltar</b>, toque em <b>Apagar do aparelho</b>: são dados pessoais. O que tiver levantamento ainda não enviado fica guardado até o envio.</li>
-    </ol>
-    <p><b><span data-icone="mapa"></span> Perto de mim</b></p>
-    <ul>
-      <li>Mostra a sua posição e as propriedades baixadas: <b>vermelho</b> = nunca levantada ou último levantamento há mais de 180 dias; <b>amarelo</b> = o último teve praga detectada ou suspeita; <b>verde</b> = levantada há até 180 dias, sem detecção.</li>
-      <li>Abaixo do mapa, a lista vem pela <b>distância</b> (em linha reta), com filtro de raio (5 a 50 km) e busca. Propriedades sem coordenadas ficam no fim.</li>
-      <li>Toque numa propriedade: <b class="bt"><span data-icone="broto"></span> Fazer levantamento aqui</b> abre a ficha já preenchida; <b class="bt"><span data-icone="mais"></span> Incluir na rota</b> guarda a visita.</li>
-      <li>Sem internet o mapa mostra só os contornos dos municípios e os pontos (sem as ruas).</li>
-    </ul>
-    <p><b><span data-icone="rota"></span> Rota</b></p>
-    <ul>
-      <li>Em <b class="bt"><span data-icone="rota"></span> Rota</b>, o app sugere a ordem (a mais próxima primeiro). Use ↑ ↓ para mudar e ✕ para tirar.</li>
-      <li><b class="bt"><span data-icone="mapa"></span> Abrir no Google Maps</b> abre o trajeto com as paradas. Com mais de 9 paradas, a rota vem em trechos.</li>
-      <li><b>Dica:</b> o Google Maps funciona sem internet se você baixar o mapa da região nele antes: Google Maps → foto do perfil → <b>Mapas off-line</b> → Selecionar seu mapa.</li>
-    </ul>
-    <p><b><span data-icone="assinatura"></span> Produtor que não assina</b></p>
-    <ul>
-      <li>No cartão <b>Assinaturas</b>, marque <b>“Produtor não assina (não sabe ou não pode assinar)”</b>.</li>
-      <li>Toque em <b class="bt"><span data-icone="camera"></span> Foto do produtor com o documento</b> e fotografe o produtor segurando um documento oficial com foto (RG, CNH, carteira de trabalho…), com o rosto e o documento visíveis.</li>
-      <li>Sem a foto, o levantamento não salva. Na ficha, a foto sai no lugar da assinatura do produtor.</li>
-    </ul>
-    <p><b><span data-icone="enviar"></span> Via do produtor sem impressora</b></p>
-    <ul>
-      <li>Depois de salvar o levantamento, toque em <b class="bt"><span data-icone="enviar"></span> Enviar ao produtor</b>, marque as fichas e toque em <b>Gerar PDF</b>. Funciona sem internet.</li>
-      <li>Toque em <b class="bt"><span data-icone="enviar"></span> Compartilhar</b> e escolha o <b>WhatsApp</b> (ou o e-mail) e o contato do produtor. A mensagem sai quando houver internet.</li>
-      <li>Se o celular não oferecer “Compartilhar”, toque em <b>Baixar</b>: o PDF vai para a pasta Downloads. No WhatsApp, anexe (<span data-icone="anexo"></span>) → <b>Documento</b>.</li>
-      <li>O Termo de Colheita tem o mesmo botão (<b>Enviar via do produtor</b>).</li>
-    </ul>
-  </div></details>
+  </section>
 
-  <details id="internet"><summary>5. Sem internet e envio dos dados</summary><div class="corpo">
+  <section><h2>6. Problemas comuns</h2>
     <ul>
-      <li>O app funciona <b>sem internet</b>: tudo fica guardado no celular e é enviado sozinho quando a conexão voltar.</li>
-      <li>O selo no topo mostra a situação. Toque nele para <b>enviar agora</b>.</li>
-      <li>Registros com <b>⏳ aguardando envio</b> ainda não chegaram à planilha.</li>
-      <li><b>Não desinstale o app</b> e não limpe os dados do navegador enquanto houver algo aguardando envio. É assim que se perdem dados.</li>
-      <li>No Android, o envio continua mesmo com o app fechado. No iPhone, abra o app com internet para enviar.</li>
-      <li>Com turno aberto, o app envia a cada 20 segundos. Assim a gerência acompanha a barreira quase ao vivo.</li>
+      <li><b>"Matrícula ou senha incorreta"</b>: confira as duas. Depois de várias tentativas, espere 15 minutos.</li>
+      <li><b>"Sem autorização"</b> ou um módulo sumiu: ele não está liberado para você. Fale com a gerência.</li>
+      <li><b>"Acesso revogado" ou "sessão inválida"</b>: entre de novo. O que não foi enviado continua guardado.</li>
+      <li><b>"Nova versão do app disponível"</b>: toque em <b>Atualizar agora</b>, de preferência com tudo enviado.</li>
+      <li><b>Localização não aparece</b>: ligue o GPS e permita a localização para o app.</li>
     </ul>
-  </div></details>
-
-  <details id="problemas"><summary>6. Problemas comuns</summary><div class="corpo">
-    <ul>
-      <li><b>“Sem autorização — fale com a gerência”</b>: aquele módulo não está liberado para você. A gerência libera pelo painel.</li>
-      <li><b>“Acesso revogado” ou “sessão inválida”</b>: entre de novo com a matrícula e a senha. O que você registrou e ainda não foi enviado continua guardado e sobe depois.</li>
-      <li><b>“Matrícula ou senha incorreta”</b>: confira a matrícula e a senha. Depois de várias tentativas erradas, aguarde 15 minutos.</li>
-      <li><b>“<span data-icone="sincronizar"></span> Nova versão do app disponível”</b>: toque em <b>Atualizar agora</b>, de preferência com tudo já enviado.</li>
-      <li><b>A localização não aparece</b>: ligue o GPS e permita a localização para o app nas configurações do celular.</li>
-      <li><b>O turno continua contando depois de encerrar</b>: abra o app com internet para o encerramento chegar. Se não resolver, avise a gerência, que encerra pelo painel.</li>
-      <li><b>Os totais do app parecem baixos</b>: o app mostra só o que foi lançado neste aparelho. Os números gerais ficam no painel da gerência.</li>
-    </ul>
-  </div></details>
+  </section>
 </main>
 <footer>e-GDV · Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM</footer>
-<script>
-// abre o assunto do link do índice (ou do #endereço) e rola até ele
-function abrir(id) { const d = document.getElementById(id); if (d && d.tagName === 'DETAILS') { d.open = true; d.scrollIntoView({ block: 'start' }); } }
-document.querySelectorAll('nav.indice a').forEach(a => a.addEventListener('click', e => { e.preventDefault(); abrir(a.getAttribute('href').slice(1)); history.replaceState(null, '', a.getAttribute('href')); }));
-if (location.hash) abrir(location.hash.slice(1));
-</script>
-<script src="js/icones.js"></script>
 </body>
 </html>

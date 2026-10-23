@@ -12,6 +12,7 @@ body { overflow-x: hidden; }
 .pn-usuario span { max-width: 160px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .pn-btn-topo { background: transparent; border: 1px solid rgba(255,255,255,.55); color: #fff; border-radius: 8px; padding: 6px 12px; cursor: pointer; }
 .pn-btn-topo:hover { background: rgba(255,255,255,.12); }
+a.pn-btn-topo { text-decoration: none; font-size: 14px; }   /* link "Manual" com a cara dos botões do topo */
 @media (max-width: 899px) { .pn-so-grande { display: none !important; } }      /* "Modo TV" só em telas grandes */
 
 /* Dica de instalação (celular, fora do app instalado) */

@@ -32,8 +32,8 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
   let r = await post({ action: 'sync', key: FIS, since: 0, turnos: [T('s1'), T('s2'), T('s3', { data: diaM(AG - 2 * 864e5), inicio: '22:00' }), T('s4', { atualizadoEm: AG + 3600e3 })],
     veiculos: [V('vs1a', 's1', hmM(AG - 2 * 3600e3))] });
   ok(r.ok, 'fiscal sincroniza 4 turnos abertos');
-  r = await enc(FIS, 's1', '12:00'); ok(!r.ok && /restrito ao administrador/i.test(r.erro), 'credencial de fiscal é recusada', r.erro);
-  r = await enc('', 's1', '12:00'); ok(!r.ok && /sess[aã]o do painel/i.test(r.erro), 'sem credencial é recusado', r.erro);
+  r = await enc(FIS, 's1', '12:00'); ok(!r.ok && /não inclui o painel/i.test(r.erro), 'sessão do app de campo (sem `painel`) é recusada', r.erro);
+  r = await enc('', 's1', '12:00'); ok(!r.ok && /Entre com sua matrícula e senha/.test(r.erro), 'sem sessão é recusado', r.erro);
   for (const f of ['25:00', '7:30', '12:60', 'abc', '', '12:00:00']) { r = await enc(ADM, 's1', f); ok(!r.ok && /HH:MM/.test(r.erro), `fim "${f}" recusado (formato)`, r.erro); }
   r = await enc(ADM, 'nao-existe', '12:00'); ok(!r.ok && /não encontrado/i.test(r.erro), 'turno inexistente recusado', r.erro);
   r = await enc(ADM, '', '12:00'); ok(!r.ok && /não informado/i.test(r.erro), 'turno não informado recusado', r.erro);

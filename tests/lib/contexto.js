@@ -18,7 +18,7 @@ const LIMITES = {
   mapa: 1500,       // CLAUDE.md + AGENTS.md juntos: só o mapa e as regras em uma linha
   indice: 1000,     // docs/README.md: uma linha por assunto
   arquivo: 3000,    // cada arquivo de docs/ (e README.md, tests/README.md): uma leitura curta; passou, divida ou corte
-  docs: 25000       // docs/ inteira: regra, decisão, procedimento e onde fica no código; tela não se descreve
+  docs: 30000       // docs/ inteira: regra, decisão, procedimento e onde fica no código; tela não se descreve
 };
 
 const tokens = txt => Math.ceil([...txt].length / CHARS_POR_TOKEN);

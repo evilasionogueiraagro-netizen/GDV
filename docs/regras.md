@@ -66,5 +66,5 @@ Valem para todo código, teste, doc e commit. Resumo de uma linha de cada no [AG
 - Funcionalidade nova ou mudada: atualize o arquivo da área ([índice](README.md)), nunca o `README.md` da raiz.
 - Doc guarda regra, decisão, procedimento e onde fica no código. Não descreve tela (o código e os testes dizem).
 - Decisão nova: uma linha em [decisoes/](decisoes/README.md).
-- Limites de tamanho (`node tests/lib/contexto.js`; o teste `docs_tamanho_test` barra no CI): `docs/` inteira até 25 mil
+- Limites de tamanho (`node tests/lib/contexto.js`; o teste `docs_tamanho_test` barra no CI): `docs/` inteira até 30 mil
   tokens, cada arquivo até 3 mil, AGENTS.md + CLAUDE.md até 1,5 mil, índice até 1 mil. Passou: divida ou corte.

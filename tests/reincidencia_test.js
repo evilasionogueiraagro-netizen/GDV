@@ -14,15 +14,16 @@ const TF = (n, doc, placa, proc, hora) => ({ id: 'r' + n, barreira: 'BVA-CEASA',
   produtos: '[]', reincidente: 1, tfsAnteriores: 9, cancelado: 0, criadoEm: ag + n, atualizadoEm: ag + n, emitidoEm: ag + n });
 
 (async () => {
+  const K = await amb.carga();   // gerente: grava os TFs, lê o painel e consulta como o fiscal
   console.log('1) painel: reincidência recalculada');
   const tfs = [TF(1, '00000000000', 'ABC1D11', 'apreensao', '08:00'), TF(2, '00000000000', 'ABC1D12', 'apreensao', '09:00'), TF(3, '00000000000', 'XXX', 'apreensao', '10:00'),
     TF(4, '00000000000', 'XXX', 'apreensao', '11:00'),                                  // mesmo "000" e mesma placa inválida: NÃO é reincidente
     TF(5, '52998224725', 'ABC1D20', 'apreensao', '12:00'), TF(6, '52998224725', 'ABC1D21', 'liberacao', '13:00'),   // mesmo CPF válido: reincidente
     TF(7, '00000000000', 'ABC1D11', 'liberacao', '14:00'),                              // mesma placa válida do TF 1 (apreensão): reincidente
     TF(8, '11111111111', 'QQQ1A11', 'apreensao', '15:00'), TF(9, '11111111111', 'QQQ1A12', 'apreensao', '16:00')];  // CPF com dígitos iguais: não liga
-  let r = await post({ action: 'sync', key: 'segredo', since: 0, tfs });
+  let r = await post({ action: 'sync', key: K, since: 0, tfs });
   ok(r.ok, 'TFs gravados', r.erro);
-  const d = await post({ action: 'painelDados', key: 'segredo', de: hoje, ate: hoje });
+  const d = await post({ action: 'painelDados', key: K, de: hoje, ate: hoje });
   const R = Object.fromEntries((d.tfs || []).map(t => [t.numero, t]));
   ok([1, 2, 3, 4, 8, 9].every(n => R[n].reincidente === 0 && R[n].tfsAnteriores === 0), 'CPF 000.000.000-00, CPF com dígitos iguais e placa "XXX" não ligam TFs (nem os gravados antes como reincidentes)',
     [1, 2, 3, 4, 8, 9].map(n => [n, R[n].reincidente, R[n].tfsAnteriores]));
@@ -30,11 +31,11 @@ const TF = (n, doc, placa, proc, hora) => ({ id: 'r' + n, barreira: 'BVA-CEASA',
   ok(R[7].reincidente === 1 && R[7].tfsAnteriores === 1, 'mesma placa válida (com o CPF 000): reincidente pela placa', [R[7].reincidente, R[7].tfsAnteriores]);
 
   console.log('2) consulta no app e índice offline');
-  let c = await post({ action: 'tfConsultar', key: 'segredo', doc: '000.000.000-00', placa: 'XXX1111' });
+  let c = await post({ action: 'tfConsultar', key: K, doc: '000.000.000-00', placa: 'XXX1111' });
   ok(c.ok && c.historicoDoc === null, 'tfConsultar com 000.000.000-00: sem histórico do documento', c.historicoDoc);
-  c = await post({ action: 'tfConsultar', key: 'segredo', doc: '529.982.247-25', placa: 'ABC1D11' });
+  c = await post({ action: 'tfConsultar', key: K, doc: '529.982.247-25', placa: 'ABC1D11' });
   ok(c.ok && c.historicoDoc.total === 2 && c.historicoDoc.reincidente === true && c.historicoPlaca.total === 2, 'CPF válido e placa válida: histórico normal', [c.historicoDoc, c.historicoPlaca].map(h => h && h.total));
-  const ix = await post({ action: 'tfIndiceReincidencia', key: 'segredo' });
+  const ix = await post({ action: 'tfIndiceReincidencia', key: K });
   const crypto = require('crypto'), h = t => crypto.createHash('sha256').update(t).digest('hex').slice(0, 16), hs = new Set((ix.itens || []).map(i => i.h));
   ok(ix.ok && !hs.has(h('doc:00000000000')) && !hs.has(h('doc:11111111111')) && !hs.has(h('placa:XXX')) && hs.has(h('doc:52998224725')) && hs.has(h('placa:ABC1D11')),
     'índice offline: sem as chaves do documento padrão/inválido e da placa inválida');

@@ -140,8 +140,9 @@ function relatorio() {
   await erro({ troca: '7h' }, /troca do plantão/, 'troca do plantão inválida: recusada');
   await erro({ dias: PV.envio.dias.map((d, i) => i ? d : Object.assign({}, d, { educacao: 1.5 })) }, /educação sanitária: número inteiro/, 'educação com decimal: recusada');
   await erro({ dias: [{ data: '2999-01-01', tipos: {}, educacao: 0 }], cargas: [] }, /futuro/, 'dia no futuro: recusado');
-  r = await post(Object.assign({}, env, { sessao: TOK }));
-  ok(!r.ok && /Sessão do portal/.test(r.erro), 'credencial do painel não importa (só a sessão do portal)', r.erro);
+  const SO_PAINEL = (await amb.usuario('Visitante Painel Plantao', { aplicativo: 'painel', permissoes: ['painel'] })).token;   // a gerência vale em tudo; só leitura não
+  r = await post(Object.assign({}, env, { sessao: SO_PAINEL }));
+  ok(!r.ok && /não inclui o Portal do Administrativo/.test(r.erro), 'conta só do painel não importa (precisa do Portal do Administrativo)', r.erro);
 
   console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.');
   process.exitCode = falhas ? 1 : 0;

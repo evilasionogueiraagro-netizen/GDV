@@ -84,15 +84,15 @@ const editar = (aba, col, valor, onde) => fetch(`${API}/__editar?aba=${aba}&col=
   d = await post({ action: 'painelDados', key: ADM, aoVivo: true, ids: ['sg1', 'sg2'] });
   t1 = d.turnos.find(t => t.id === 'sg1');
   ok(t1 && t1.encerrado === 1 && !t1.emAndamento && !t1.encerradoNoCelular, 'modo ao vivo: o turno encerrado volta com encerrado=1 (sai de "em andamento")', t1 && { e: t1.encerrado });
-  // painelAcessos
+  // usuariosListar (gerência): sinal dos aparelhos de cada conta
   const ID2 = 'aaaaaaaa-1111-4111-8111-000000000002';
   await post({ action: 'sync', key: FA, since: 0, turnos: [], veiculos: [], aparelho: AP(ID2, { versao: 'gdv-velha1', plataforma: 'ios', origem: 'app', pendentes: { veiculos: 3 } }) });
-  const ac = await post({ action: 'painelAcessos', key: ADM });
-  const la = ac.acessos.filter(x => x.nome === 'Fiscal Sinal Alves'), lb = ac.acessos.find(x => x.nome === 'Fiscal Antigo Barros');
+  const ac = await post({ action: 'usuariosListar', key: ADM });
+  const la = ac.usuarios.filter(x => x.nome === 'Fiscal Sinal Alves'), lb = ac.usuarios.find(x => x.nome === 'Fiscal Antigo Barros');
   ok(la.length === 1 && la[0].nAparelhos === 2 && la[0].aparelho.versao === 'gdv-velha1' && la[0].aparelho.plataforma === 'ios' && la[0].aparelho.pendentes.veiculos === 3 && la[0].aparelhos.length === 2,
-    'painelAcessos: aparelho mais recente + contagem', la[0] && { n: la[0].nAparelhos, ap: la[0].aparelho });
-  ok(lb && lb.aparelho && lb.aparelho.legado === true, 'painelAcessos: aparelho de versão antiga marcado como legado', lb && lb.aparelho);
-  ok(!JSON.stringify(ac).includes(FA) && !JSON.stringify(ac).includes(ID1), 'painelAcessos não expõe credencial nem id do aparelho');
+    'usuariosListar: aparelho mais recente + contagem', la[0] && { n: la[0].nAparelhos, ap: la[0].aparelho });
+  ok(lb && lb.aparelho && lb.aparelho.legado === true, 'usuariosListar: aparelho sem sinal (versão antiga do app) marcado como legado', lb && lb.aparelho);
+  ok(!JSON.stringify(ac).includes(FA) && !JSON.stringify(ac).includes(ID1), 'usuariosListar não expõe token nem id do aparelho');
 
   /* ================= 2. app + painel ================= */
   console.log('2. App do fiscal e painel');
@@ -221,20 +221,7 @@ const editar = (aba, col, valor, onde) => fetch(`${API}/__editar?aba=${aba}&col=
   ok(pedidos.length === 1 && pedidos[0].aoVivo === true && (pedidos[0].ids || []).includes(idT) && await pn.evaluate(() => Painel.estado().ultimaCompleta) === antes, 'foi a consulta leve (aoVivo com os ids abertos), sem recarga completa', pedidos.map(x => ({ a: x.action, v: x.aoVivo })));
 
   // aba Servidores
-  console.log('5. Aba Servidores');
-  await post({ action: 'sync', key: FA, since: 0, turnos: [], veiculos: [], aparelho: AP(ID2, { versao: 'gdv-velha1', plataforma: 'ios', pendentes: { veiculos: 3 }, ultimoErro: 'sem conexão com o servidor (sem internet ou sinal fraco)', ultimoErroEm: Date.now() - 600e3 }) });
-  await pn.click('.pn-aba[data-aba=acessos]'); await pn.waitForSelector('#pn-ac-tab table', { timeout: 15000 }); await pn.waitForTimeout(400);
-  const linha = n => pn.evaluate(nome => { const tr = [...document.querySelectorAll('#pn-ac-tab tbody tr')].find(x => x.textContent.includes(nome)); return tr ? tr.textContent.replace(/\s+/g, ' ') : ''; }, n);
-  const cab = await pn.$$eval('#pn-ac-tab th', ths => ths.map(x => x.textContent.trim()));
-  ok(['Último sinal', 'Versão do app', 'Pendentes', 'Último erro'].every(c => cab.includes(c)), 'colunas Último sinal / Versão do app / Pendentes / Último erro', cab);
-  const lC = await linha('Fiscal Celular Costa'), lA = await linha('Fiscal Sinal Alves'), lB = await linha('Fiscal Antigo Barros');
-  ok(/agora|há \d+ min/.test(lC) && /gdv-v13/.test(lC) && !/desatualizada/.test(lC) && /nada pendente/.test(lC) && /Cabeçalho da aba Turnos/.test(lC) && /depois enviou normalmente/.test(lC),
-    'Servidores: fiscal atualizado — último sinal, versão, nada pendente, último erro (resolvido)', lC.slice(0, 300));
-  ok(/gdv-velha1 \(desatualizada\)/.test(lA) && /3 veículos/.test(lA) && /2 aparelhos/.test(lA) && /iPhone/.test(lA) && /sem conexão com o servidor/.test(lA),
-    'Servidores: versão desatualizada destacada, pendentes, iPhone, 2 aparelhos (mostra o mais recente)', lA.slice(0, 300));
-  ok(/anterior a esta função \(desatualizada\)/.test(lB), 'Servidores: app antigo (sem sinal) aparece como desatualizado', lB.slice(0, 200));
-  ok(await pn.locator('#pn-ac-tab .pn-ac-velha').count() >= 2, 'destaque visual (classe pn-ac-velha)');
-  await pn.screenshot({ path: amb.saida('sinal_servidores.png'), fullPage: true });
+  // a aba Servidores saiu do painel; o sinal dos aparelhos de cada conta vem em usuariosListar (seção 1)
 
   const errosReais = erros.filter(e => !/ERR_EMPTY_RESPONSE|Failed to load resource/.test(e));
   ok(!errosReais.length, 'sem erros de console/página', errosReais.slice(0, 5));

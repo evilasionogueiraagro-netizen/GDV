@@ -56,7 +56,7 @@ const diaManaus = ms => new Date(ms - 4 * 3600e3).toISOString().slice(0, 10);
     const t = (await ler('Turnos')).find(x => x.unidade === 'TABATINGA');
     ok(t && t.pessoasEducacao === 12 && t.soPessoas === 1 && t.posto === 'Móvel' && t.encerrado === 1, 'Turnos: volante, soPessoas = 1, pessoasEducacao = 12, encerrado', t);
     ok(!(await ler('Veiculos')).some(v => v.turnoId === (t && t.id)), 'nenhum veículo gravado no turno');
-    const adm = await get('/__gerar?nome=' + encodeURIComponent('Gestora Ficticia Teste') + '&perfil=admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
+    const adm = await amb.gerente('Gestora Ficticia Teste'), TOK = adm.token;
     const hoje = diaManaus(Date.now());
     const PD = await post({ action: 'painelDados', key: TOK, de: hoje, ate: hoje });
     const tp = PD.ok && (PD.turnos || []).find(x => x.id === (t && t.id));

@@ -13,7 +13,7 @@ const { API } = amb;
 const PORTAL = require('./lib/portal');
 const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 const get = p => fetch(API + p).then(r => r.json());
-const gerar = (nome, perfil) => get('/__gerar?nome=' + encodeURIComponent(nome) + (perfil ? '&perfil=' + perfil : ''));
+const gerar = (nome, perfil = '') => perfil === 'admin' ? amb.gerente(nome) : amb.usuario(nome);   // conta pronta e token (atalho /__usuario)
 let falhas = 0;
 const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x === undefined ? '' : ' → ' + (typeof x === 'string' ? x : JSON.stringify(x)).slice(0, 600))); if (!c) falhas++; };
 const SAIDA = process.env.GDV_SAIDA_CONVENIO || '';
@@ -60,7 +60,7 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
     termosPce: [TPCE('p1', '2026-09-18', 'Autazes'), TPCE('p2', '2026-09-19', 'Coari', { cancelado: 1, motivoCancel: 'erro' })] });
   ok(d.ok, 'dados de teste sincronizados (turnos, veículos, TFs, levantamentos e termos PCE)', d.erro);
   await fetch(API + '/__fn?nome=desativarRotinasAutomaticas_');
-  const adm = await gerar('Gerente Convênio', 'admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
+  const adm = await gerar('Gerente Convênio', 'admin'), TOK = adm.token;
   const TOKF = (await U.fiscal('Fiscal Curioso')).token;
   ok(TOK && TOKF, 'credenciais de administrador e de fiscal');
   const SA = await PORTAL.sessao(TOK, 'adm.convenio@gmail.com', 'Ana Convenio Administrativa');

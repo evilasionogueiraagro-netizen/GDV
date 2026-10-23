@@ -20,7 +20,7 @@ const pdfBuf = () => Buffer.from('%PDF-1.4\n% tf do papel ficticio\n1 0 obj << /
 (async () => {
   const b = await amb.lancar();
   try {
-    const gerar = async (nome, perfil = '') => get('/__gerar?nome=' + encodeURIComponent(nome) + '&perfil=' + perfil);
+    const gerar = async (nome, perfil = '') => perfil === 'admin' ? amb.gerente(nome) : amb.usuario(nome);   // conta pronta e token (atalho /__usuario)
     const UIDS = {}, credencial = async (nome, perm = { veiculos: 1, tf: 1, pce: 1, antigo: 0 }) => { const f = await U.fiscal(nome, { permissoes: U.lista(perm) }); UIDS[f.nome] = f.usuario.id; return { token: f.token, nome: f.nome }; };
     const aparelho = async ({ token, nome }) => {
       const c = await b.newContext({ viewport: { width: 1280, height: 900 } });
@@ -33,7 +33,7 @@ const pdfBuf = () => Buffer.from('%PDF-1.4\n% tf do papel ficticio\n1 0 obj << /
     const sync = async p => { for (let i = 0; i < 30; i++) { await p.evaluate(() => Sync.sincronizar()); await p.waitForTimeout(400); if (await p.evaluate(async () => Sync.estado().tipo === 'ok' && !(await Sync.arquivosPendentes()).length)) return; } throw new Error('sync não terminou'); };
     const irTF = async p => { if (!(await p.locator('.modulo').count())) await p.click('nav [data-v=modulos]'); await p.click('.modulo[data-v=tf]'); await p.waitForSelector('button[data-tf=novo]'); };
 
-    const adm = await gerar('Gestora Ficticia Teste', 'admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
+    const adm = await gerar('Gestora Ficticia Teste', 'admin'), TOK = adm.token;
     const F = await credencial('Digitadora Ficticia Teste'), G = await credencial('Fiscal Sem Papel Teste');
 
     console.log('1) sem a permissão "Digitar do papel": sem botão e o servidor recusa');

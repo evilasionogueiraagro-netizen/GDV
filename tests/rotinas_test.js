@@ -23,8 +23,7 @@ const AUTO = 'Automático (12 h)';
 
 (async () => {
   const AG = Date.now();
-  const gAdm = await get('/__gerar?nome=' + encodeURIComponent('Gerente Rotina Silva') + '&perfil=admin');
-  const ADM = (await post({ action: 'painelAtivar', codigo: gAdm.codigo })).token;
+  const ADM = (await amb.gerente('Gerente Rotina Silva')).token;
   const FISU = await U.fiscal('Fiscal Rotina Souza'), FIS = FISU.token;
   const FIS2 = (await U.fiscal('Fiscal Sinal Lima')).token;
   ok(ADM && FIS && FIS2, 'credenciais (administrador e dois fiscais)');

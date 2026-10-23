@@ -175,6 +175,7 @@ function doPost(e) {
   USUARIO_ATUAL_ = null;   // quem está chamando: preenchido por autenticar_/adminDoToken_/admSessao_/gerenciaDe_; vale só para esta requisição
   try {
     const req = JSON.parse(e.postData.contents);
+    if (req.action === 'painelSair') return json_(sair_(req));                                 // = sair (nome usado pela tela atual do painel)
     if (req.action === 'painelDados') return json_(painelDados(req.key, { de: req.de, ate: req.ate, aoVivo: req.aoVivo, ids: req.ids }));
     if (req.action === 'painelEncerrarTurno') return json_(painelEncerrarTurno(req.key, req.turnoId, req.fim));
     if (req.action === 'tfVerificar') return json_(tfVerificar_(req));                      // página pública verificar.html: sem credencial

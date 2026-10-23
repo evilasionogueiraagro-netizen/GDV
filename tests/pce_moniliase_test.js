@@ -18,7 +18,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
 
 (async () => {
   const b = await amb.lancar();
-  const gerar = (nome, perfil = '') => get('/__gerar?nome=' + encodeURIComponent(nome) + '&perfil=' + perfil);
+  const gerar = (nome, perfil = '') => perfil === 'admin' ? amb.gerente(nome) : amb.usuario(nome);   // conta pronta e token (atalho /__usuario)
   const UIDS = {}, credencial = async (nome, perm = { veiculos: 1, tf: 1, pce: 1, antigo: 0 }) => { const f = await U.fiscal(nome, { permissoes: U.lista(perm) }); UIDS[f.nome] = f.usuario.id; return { token: f.token, nome: f.nome }; };
   const aparelho = async ({ token, nome }, vp = { width: 1366, height: 800 }) => {
     const c = await b.newContext({ viewport: vp, permissions: ['geolocation'], geolocation: { latitude: -3.60, longitude: -59.15, accuracy: 9 }, acceptDownloads: true });
@@ -38,7 +38,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
 
   /* ================= 1. leitura de coordenadas e do número do papel ================= */
   console.log('1) coordenadas por campo e número do papel');
-  const adm = await gerar('Gestor Moniliase Painel', 'admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
+  const adm = await gerar('Gestor Moniliase Painel', 'admin'), TOK = adm.token;
   const E = await credencial('Carla Mendes Estagiaria', { pce: 1 });
   let r = await U.permissoes(UIDS[E.nome], U.lista({ veiculos: 0, tf: 0, pce: 1, antigo: 1 }));
   ok(r.ok && r.permissoes.includes('digitarDoPapel'), 'painel: estagiária com PCE + Digitar do papel');

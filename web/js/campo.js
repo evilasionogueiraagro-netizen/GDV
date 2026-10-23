@@ -184,9 +184,27 @@ const Campo = (() => {
       return { id: p.id, p, pe: pes.get(digitos(p.doc)) || null, h: historico(p, levs), lat: ok ? lat : null, lon: ok ? lon : null, dist: null,
         cad: cadPorProp.get(p.id) || (Array.isArray(p.cadastrosPce) && p.cadastrosPce[0]) || null, termo };
     });
-    return { itens, porId: new Map(itens.map(x => [x.id, x])), meta: await lerMeta() };
+    return { itens, porId: new Map(itens.map(x => [x.id, x])), meta: await lerMeta(), levs };
   }
-  const nomeProdutor = x => (x.pe && x.pe.nome) || 'Produtor sem cadastro';
+  /**
+   * Com internet, junta ao mapa as propriedades de todo o estado (action pceMapaGeral) dos municípios ainda não baixados: o servidor
+   * vê tudo no mapa mesmo sem ter baixado o município. Vêm só código, nome, município, coordenadas e histórico (sem produtor nem
+   * CPF/CNPJ) e não ficam no aparelho. Devolve quantas entraram (0 sem internet ou se o servidor recusar).
+   */
+  async function juntarGeral(D) {
+    if (!navigator.onLine) return 0;
+    let r; try { r = await Sync.pceMapaGeral(); } catch (e) { return 0; }
+    const baixados = new Set(Object.values(D.meta).map(m => norm(m && m.municipio)));
+    let n = 0;
+    (r && Array.isArray(r.propriedades) ? r.propriedades : []).forEach(p => {
+      if (!p || !p.id || D.porId.has(p.id) || baixados.has(norm(p.municipio))) return;
+      const lat = coord(p.lat), lon = coord(p.lon); if (lat == null || lon == null) return;
+      const x = { id: p.id, p, pe: null, h: historico(p, D.levs), lat, lon, dist: null, cad: null, termo: null, geral: true };
+      D.itens.push(x); D.porId.set(x.id, x); n++;
+    });
+    return n;
+  }
+  const nomeProdutor = x => (x.pe && x.pe.nome) || (x.geral ? 'Município não baixado' : 'Produtor sem cadastro');
   const seloHist = h => `<span class="campo-selo campo-${h.st}" title="${esc(ROTULO[h.st])}"></span>`;
   const textoHist = h => (h.ultimo ? `Último levantamento: ${esc(dBR(h.ultimo))} (${h.n} no total)` : 'Nenhum levantamento registrado')
     + (h.pragas.length ? ` · <b class="campo-det">${h.pragas.map(g => esc(g.praga) + (g.resultado === 'suspeita' ? ' (suspeita)' : '')).join(', ')}</b>` : '');
@@ -308,13 +326,14 @@ const Campo = (() => {
 
   async function telaMapa() {
     const mostrar = tela();
-    const D = await carregar(), rota = await lerRota();
+    const D = await carregar(), rota = await lerRota(), nGeral = await juntarGeral(D);
     if (!mostrar.viva()) return;
     if (MAPA) { try { MAPA.map.remove(); } catch (e) { /* tela anterior */ } MAPA = null; }
     Object.assign(S, { D, rota, sel: '', q: '', raio: lsGetC('gdv.campoRaio') || '' });
     const nMun = Object.keys(D.meta).length;
     mostrar(`<div class="card campo-mapa-card"><h3>${icone('mapa')} Propriedades perto de mim</h3>
-        ${nMun ? '' : `<div class="tf-novo" id="campo-semdados">Nenhum município baixado: o mapa mostra só as propriedades já usadas neste aparelho. <button class="mini" data-v="pcecampo">${icone('baixar')} Baixar dados</button></div>`}
+        ${nGeral ? `<div class="tf-novo" id="campo-geral">Com internet: o mapa mostra também as ${nGeral} propriedade(s) dos municípios não baixados. Para ver o produtor e trabalhar sem internet, baixe o município. <button class="mini" data-v="pcecampo">${icone('baixar')} Baixar dados</button></div>`
+          : nMun ? '' : `<div class="tf-novo" id="campo-semdados">Nenhum município baixado: o mapa mostra só as propriedades já usadas neste aparelho. <button class="mini" data-v="pcecampo">${icone('baixar')} Baixar dados</button></div>`}
         <div id="campo-mapa" class="campo-mapa" role="region" aria-label="Mapa das propriedades"></div>
         <div class="campo-legenda"><span><i class="campo-selo campo-nunca"></i> Nunca levantada ou há mais de ${DIAS_VISITA} dias</span>
           <span><i class="campo-selo campo-deteccao"></i> Última com detecção/suspeita</span><span><i class="campo-selo campo-ok"></i> Levantada há até ${DIAS_VISITA} dias, sem detecção</span>
@@ -418,6 +437,16 @@ const Campo = (() => {
     const el = $('#campo-cartao'), x = S.D && S.D.porId.get(S.sel); if (!el) return;
     if (!x) { el.replaceChildren(); return; }
     const naRota = S.rota.ids.includes(x.id), doc = digitos(x.p.doc);
+    if (x.geral) {                                                    // município não baixado: só o que o servidor mandou para o mapa
+      el.innerHTML = `<div class="card campo-cartao" id="campo-cartao-box"><div class="campo-cartao-topo">${seloHist(x.h)}<b>${esc(x.p.nome || 'Propriedade sem nome')}</b>
+          <button class="mini" data-campo="fechar" aria-label="Fechar">${icone('fechar')}</button></div>
+        <p>${x.p.codigo ? 'cód. <b>' + esc(x.p.codigo) + '</b> · ' : ''}${esc(x.p.municipio || '')}</p>
+        <p class="campo-hist">${textoHist(x.h)}</p>
+        <p><small>${esc(ROTULO[x.h.st])}${x.dist != null ? ' · a ' + esc(fmtKm(x.dist)) + ' em linha reta' : ''}</small></p>
+        <p class="dica" id="campo-geral-dica">${esc(x.p.municipio || 'Este município')} ainda não foi baixado neste aparelho. Baixe os dados para ver o produtor e fazer o levantamento ou o termo aqui, mesmo sem internet.</p>
+        <button class="botao" data-v="pcecampo" id="campo-baixar-mun">${icone('baixar')} Baixar dados do município</button></div>`;
+      return;
+    }
     el.innerHTML = `<div class="card campo-cartao" id="campo-cartao-box"><div class="campo-cartao-topo">${seloHist(x.h)}<b>${esc(nomeProdutor(x))}</b>
         <button class="mini" data-campo="fechar" aria-label="Fechar">${icone('fechar')}</button></div>
       <p>${esc(x.p.nome || 'Propriedade sem nome')}${x.p.codigo ? ' · cód. <b>' + esc(x.p.codigo) + '</b>' : ''}${x.p.municipio ? ' · ' + esc(x.p.municipio) : ''}</p>

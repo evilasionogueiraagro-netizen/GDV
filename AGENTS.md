@@ -55,8 +55,9 @@ publicado no GitHub Pages                            Web App do Apps Script     
 - **Front offline**: arquivo novo em `web/` que o app ou o painel precisem sem internet entra na lista `ARQUIVOS` de
   `web/sw.js` ou `web/painel/sw.js`. Não mexa em `VERSAO`/`VERSAO_APP` (o workflow troca pelo hash do commit).
 - **Sem dependências de CDN** no app de campo: bibliotecas ficam vendorizadas em `web/vendor/` ou `web/painel/vendor/`.
-- **Interface sem emojis**: ícones só do módulo `web/js/icones.js` ([docs/DESIGN.md](docs/DESIGN.md)); o
-  `sem_emoji_test` falha se aparecer emoji em `web/`.
+- **Interface sem emojis, um design system só**: ícones só do módulo `web/js/icones.js` (Lucide, sem desenho à mão); todas as
+  telas carregam `web/css/design.css` primeiro e usam seus tokens e componentes ([docs/DESIGN.md](docs/DESIGN.md)); o
+  `sem_emoji_test` falha se aparecer emoji em `web/` e o `design_test` confere o resto.
 
 ## Testes
 
@@ -108,6 +109,6 @@ tempo: atualize o `PESO` do `run.js` (tempo no CI, no resumo do log), senão as 
 - [docs/PORTABILIDADE.md](docs/PORTABILIDADE.md): camada de acesso ao Google, o que fica fora dela e regras para o
   `Code.gs` ser portado para servidor próprio.
 - [docs/PUBLICACAO-BACK.md](docs/PUBLICACAO-BACK.md): publicação automática do Apps Script (clasp) e como configurar.
-- [docs/DESIGN.md](docs/DESIGN.md): design system (sem emojis, ícones SVG, cores, claro/escuro).
+- [docs/DESIGN.md](docs/DESIGN.md): design system (tokens e componentes em `web/css/design.css`, ícones Lucide, sem emojis, claro/escuro).
 - Propriedades do script (`PropertiesService`): `SHEET_ID`, `ACCESS_KEY`, `GOOGLE_CLIENT_ID`, `ADM_MAX`, `ADM_URL`,
   `PAINEL_URL`, `PUBLICO_URL`, `RELATORIO_EMAILS`, `ROTINAS_DESATIVADAS`, entre outras — `grep -n getProperty` no `Code.gs`.

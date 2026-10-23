@@ -15,21 +15,21 @@
   async function verificar(id) {
     id = String(id || '').trim();
     if (!id) { res.innerHTML = ''; return; }
-    res.innerHTML = '<div class="selo erro">Consultando…</div>';
+    res.innerHTML = '<div class="veredito erro">Consultando…</div>';
     let j;
     try {
       const r = await fetch(api(), { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ action: 'tfVerificar', id }), redirect: 'follow' });
       j = await r.json();
-    } catch (e) { res.innerHTML = '<div class="selo erro">Sem conexão com o servidor. Tente de novo em instantes.</div>'; return; }
-    if (!j.ok) { res.innerHTML = `<div class="selo erro">${icone('alerta')} ${esc(j.erro || 'Não foi possível consultar agora.')}</div>`; return; }
+    } catch (e) { res.innerHTML = '<div class="veredito erro">Sem conexão com o servidor. Tente de novo em instantes.</div>'; return; }
+    if (!j.ok) { res.innerHTML = `<div class="veredito erro">${icone('alerta')} ${esc(j.erro || 'Não foi possível consultar agora.')}</div>`; return; }
     if (!j.encontrado) {
-      res.innerHTML = `<div class="selo nao" id="naoEncontrado">${icone('info')}<span>Não encontrado<small>Pode ainda não ter sido sincronizado (TF emitido sem internet) ou não ser autêntico. Confirme com a ADAF.</small></span></div>`;
+      res.innerHTML = `<div class="veredito nao" id="naoEncontrado">${icone('info')}<span>Não encontrado<small>Pode ainda não ter sido sincronizado (TF emitido sem internet) ou não ser autêntico. Confirme com a ADAF.</small></span></div>`;
       return;
     }
     const t = j.tf, canc = t.situacao === 'cancelado';
     res.innerHTML = `${canc
-      ? `<div class="selo cancelado" id="selo">${icone('proibido')}<span>TF CANCELADO<small>Documento emitido pela ADAF, mas cancelado${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}.</small></span></div>`
-      : '<div class="selo ok" id="selo"><span>Documento autêntico<small>Termo registrado no sistema da ADAF e válido.</small></span></div>'}
+      ? `<div class="veredito cancelado" id="selo">${icone('proibido')}<span>TF CANCELADO<small>Documento emitido pela ADAF, mas cancelado${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}.</small></span></div>`
+      : '<div class="veredito ok" id="selo"><span>Documento autêntico<small>Termo registrado no sistema da ADAF e válido.</small></span></div>'}
       <div class="card"><dl id="dados">
         <dt>Nº do TF</dt><dd>${esc(t.numeroTxt)}</dd>
         <dt>Data/hora</dt><dd>${esc(dataBR(t.data))} ${esc(t.hora)}</dd>

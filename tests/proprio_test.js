@@ -1,11 +1,12 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 const { chromium } = require('playwright-core');
 const { API, APP } = amb;
 const ANO = new Date(Date.now() - 4 * 3600e3).getUTCFullYear();   // ano corrente em Manaus (o app numera TF/turno pelo ano)
 const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) process.exitCode = 1; };
 (async () => {
   const b = await amb.lancar();
-  const cred = async n => { const g = await (await fetch(API + '/__gerar?nome=' + encodeURIComponent(n))).json(); const r = await (await fetch(API, { method: 'POST', body: JSON.stringify({ action: 'ativar', codigo: g.codigo }) })).json(); return [r.token, n]; };
+  const cred = async n => { const r = await U.fiscal(n); return [r.token, n]; };
   const aparelho = async ([t, n]) => {
     const c = await b.newContext({ viewport: { width: 400, height: 900 }, permissions: ['geolocation'], geolocation: { latitude: -3.1, longitude: -60 } });
     await c.addInitScript(([t, n]) => { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } }, [t, n]);

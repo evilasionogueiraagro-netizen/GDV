@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // Relatório GDV (painel → aba Relatórios; actions painelRelGdv, painelRelGdvSalvar e painelRelGdvApuracao do Code.gs real via fakegas):
 // levantamentos em meses diferentes do ano anterior (citros com HLB/cancro/Diaphorina, soja com Amaranthus, monilíase com detecção e
 // suspeita, carambola, R4T e uma praga fora dos grupos), tipos de local (Viveiro, UP), propriedades novas e antigas, Termos de
@@ -60,7 +61,7 @@ const GRUPOS = [{ id: 'citros', colunas: [{ rotulo: 'HLB', pragas: ['HLB', 'Gree
 (async () => {
   /* ================= 1. servidor ================= */
   console.log(`1. Servidor: dados de ${A}, permissões e apuração`);
-  let r = await post({ action: 'sync', key: 'segredo', since: 0, levantamentos: LEVS,
+  let r = await post({ action: 'sync', key: await U.semeador(), since: 0, levantamentos: LEVS,
     propriedades: [{ id: 'OLD-1', codigo: 'OLD-1', nome: 'Sítio OLD-1', doc: CPF, municipio: 'Manaus', criadoEm: Date.UTC(A - 1, 4, 1), atualizadoEm: agora }],
     termosPce: [TPCE('p1', d(3, 12), 'Tabatinga', { acoes: '["Levantamento","Educação Sanitária"]' }), TPCE('p2', d(3, 10), 'Humaitá', { propriedadeId: 'SOJ-1', tipoLocal: '["Unidade de Produção (UP)"]', acoes: '["Fiscalização"]' }),
       TPCE('p3', d(6, 2), 'Manaus', { propriedadeId: 'UC-9', tipoLocal: '["Unidade de Consolidação (UC)"]' }), TPCE('p4', d(3, 25), 'Manaus', { cancelado: 1, acoes: '["Educação Sanitária"]' })],
@@ -79,7 +80,7 @@ const GRUPOS = [{ id: 'citros', colunas: [{ rotulo: 'HLB', pragas: ['HLB', 'Gree
   ok(r.ok, 'dados de teste sincronizados', r.erro);
   await fetch(API + '/__fn?nome=desativarRotinasAutomaticas_');
   const adm = await gerar('Gerente Relatorio', 'admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
-  const fis = await gerar('Fiscal Curioso'), TOKF = (await post({ action: 'ativar', codigo: fis.codigo })).token;
+  const TOKF = (await U.fiscal('Fiscal Curioso')).token;
   ok(TOK && TOKF, 'credenciais de administrador e de fiscal');
   const SA = await PORTAL.sessao(TOK, 'relatorio.adm@gmail.com', 'Rita Relatorio Administrativa');
   for (const a of ['painelRelGdv', 'painelRelGdvSalvar', 'painelRelGdvApuracao', 'painelPceLaudo']) {

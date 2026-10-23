@@ -1,11 +1,12 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // Módulo PCE no servidor (Code.gs real no fakegas): numeração do Termo de Colheita, sync, consulta, arquivos no Drive.
 const assert = require('assert'); const B = amb.API;
 const post = b => fetch(B + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 const get = p => fetch(B + p).then(r => r.json());
 const fn = (nome, ...args) => get('/__fn?nome=' + nome + '&args=' + encodeURIComponent(JSON.stringify(args)));
 const aba = nome => get('/__aba?nome=' + encodeURIComponent(nome));
-const ativar = async nome => { const g = await get('/__gerar?nome=' + encodeURIComponent(nome)); const r = await post({ action: 'ativar', codigo: g.codigo }); assert.ok(r.ok); return r.token; };
+const ativar = async nome => { const r = await U.fiscal(nome); assert.ok(r.ok); return r.token; };
 const append = (a, row) => fetch(B + '/__append?aba=' + a + '&row=' + encodeURIComponent(JSON.stringify(row)));
 let falhas = 0;
 const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) falhas++; };

@@ -5,52 +5,142 @@ const Sync = (() => {
   const listeners = [];
   let estado = { tipo: 'idle', msg: '' };
 
-  const cfg = () => ({
-    // o endereço oficial (config.js) manda: um endereço antigo guardado na ativação não pode prender o aparelho numa
-    // implantação velha. O guardado só vale sem endereço oficial ou nos testes (localhost).
-    url: (CONFIG.sync.url && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? CONFIG.sync.url : localStorage.getItem('gdv.url') || CONFIG.sync.url) || '',
-    key: localStorage.getItem('gdv.key') || ''
-  });
+  // Só vale o token de sessão ("u." + 64 hex) devolvido pelo servidor ao entrar. Qualquer outra coisa guardada em gdv.key (credencial de versões
+  // anteriores do app) é ignorada aqui e apagada em prepararFundo(): quem a tinha entra de novo com matrícula e senha.
+  const ehToken = k => /^u\.[0-9a-f]{64}$/.test(k || '');
+  const cfg = () => {
+    const k = localStorage.getItem('gdv.key') || '';
+    return {
+      // o endereço oficial (config.js) manda: um endereço antigo guardado na entrada não pode prender o aparelho numa
+      // implantação velha. O guardado só vale sem endereço oficial ou nos testes (localhost).
+      url: (CONFIG.sync.url && !/^(localhost|127\.0\.0\.1)$/.test(location.hostname) ? CONFIG.sync.url : localStorage.getItem('gdv.url') || CONFIG.sync.url) || '',
+      key: ehToken(k) ? k : ''
+    };
+  };
   const ativado = () => { const c = cfg(); return !!(c.url && c.key); };
   const nome = () => localStorage.getItem('gdv.nome') || '';
 
-  /** Troca o código de 6 dígitos por uma credencial própria do aparelho, vinculada ao nome do fiscal. */
-  async function ativar(codigo, urlManual) {
-    const url = (urlManual || cfg().url || '').trim();
-    if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url)) throw new Error('Endereço do servidor inválido.');
-    const cod = String(codigo || '').replace(/\D/g, '');
-    if (cod.length !== 6) throw new Error('O código tem 6 dígitos.');
+  /* ---------- Acesso: matrícula e senha (token de sessão 'u.…') ----------
+     Guardado no aparelho: gdv.url, gdv.key (token), gdv.nome (nome do usuário, vira o Fiscal 1 do turno) e gdv.usuario
+     ({id, matricula, nome}, também depois de sair: é quem deixou registros no aparelho). gdv.revogado: '1' = o servidor recusou o acesso
+     (a tela pede para entrar de novo, sem tocar nos registros guardados); 'senha' = senha provisória pendente (a tela pede a troca). */
+  const lerUsuario = () => { try { const u = JSON.parse(localStorage.getItem('gdv.usuario') || 'null'); return u && u.id ? u : null; } catch (e) { return null; } };
+  /** Quem está com o acesso aberto (null: sem acesso). */
+  const usuario = () => (ativado() ? lerUsuario() : null);
+  /** 'entrar' (sem acesso, ou recusado pelo servidor), 'senha' (trocar a senha provisória) ou 'ok'. */
+  function situacao() {
+    const r = localStorage.getItem('gdv.revogado');
+    return !ativado() || (r && r !== 'senha') ? 'entrar' : r === 'senha' ? 'senha' : 'ok';
+  }
+  const falhaDeRede = e => !!e && (e.name === 'AbortError' || e instanceof TypeError || e instanceof SyntaxError);
+  const semInternet = acao => new Error(`Sem internet ou servidor indisponível. ${acao} precisa de conexão.`);
+  const recusadaPeloServidor = e => !!e && /revogado|inv[aá]lido|entre com sua matr[ií]cula/i.test(e.message || '');
+  const urlServidor = manual => {
+    const url = String(manual || cfg().url || '').trim();
+    if (!/^https:\/\/script\.google\.com\/macros\/s\/[\w-]+\/exec$/.test(url) && !/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?\//.test(url)) throw new Error('Endereço do servidor inválido.');
+    return url;
+  };
+
+  /** Entra com matrícula e senha (aplicativo "campo"). Precisa de internet. Guarda o token, o usuário e os módulos liberados;
+   *  trocarSenha = 1 deixa o app na tela de trocar a senha provisória. */
+  async function entrar(matricula, senha, urlManual) {
+    const url = urlServidor(urlManual);
+    const mat = String(matricula || '').trim();
+    if (!mat) throw new Error('Informe a matrícula.');
+    if (!senha) throw new Error('Informe a senha.');
+    let aparelhoId;
+    try { aparelhoId = await Envio.idAparelho(); } catch (e) { /* sem banco: entra sem o id do aparelho */ }
     let j;
-    try {
-      const r = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify({ action: 'ativar', codigo: cod }), redirect: 'follow' });
-      j = await r.json();
-    } catch (e) { throw new Error('Sem internet ou servidor indisponível. A ativação precisa de conexão.'); }
-    if (!j.ok) throw new Error(j.erro || 'Falha na ativação.');
-    localStorage.setItem('gdv.url', url); localStorage.setItem('gdv.key', j.token);
-    localStorage.setItem('gdv.nome', j.nome); localStorage.removeItem('gdv.revogado');
+    try { j = await Envio.post({ url, key: '' }, { action: 'entrar', matricula: mat, senha, aplicativo: 'campo', aparelhoId }, 25000); }
+    catch (e) { throw falhaDeRede(e) ? semInternet('Entrar') : e; }
+    if (!j.token || !j.usuario || !j.usuario.id) throw new Error('Resposta inesperada do servidor. Tente de novo.');
+    await reterDoAnterior(j.usuario.id);                                       // antes de trocar a credencial: nada da pessoa anterior sobe com este acesso
+    localStorage.setItem('gdv.url', url); localStorage.setItem('gdv.key', j.token); localStorage.setItem('gdv.nome', j.usuario.nome || '');
+    localStorage.setItem('gdv.usuario', JSON.stringify({ id: j.usuario.id, matricula: j.usuario.matricula || mat, nome: j.usuario.nome || '' }));
+    if (Number(j.trocarSenha) === 1) localStorage.setItem('gdv.revogado', 'senha'); else localStorage.removeItem('gdv.revogado');
+    if (j.modulos) await guardarPermissoes(j.modulos);
     await espelharCred();
-    return j.nome;
+    return j;
+  }
+  /** Troca a senha (a provisória ou a atual). Precisa de internet. Libera o app se era a troca obrigatória. */
+  async function trocarSenha(senhaAtual, senhaNova) {
+    let j;
+    try { j = await Envio.post(cfg(), { action: 'trocarSenha', senhaAtual, senhaNova }, 25000); }
+    catch (e) { throw falhaDeRede(e) ? semInternet('Trocar a senha') : e; }
+    if (localStorage.getItem('gdv.revogado') === 'senha') localStorage.removeItem('gdv.revogado');
+    if (j.modulos) await guardarPermissoes(j.modulos);
+    await espelharCred();
+    return j;
+  }
+  /** Sai: encerra o acesso no servidor (precisa de internet: depois só se volta com internet) e apaga a credencial deste aparelho.
+   *  Os registros não enviados ficam no aparelho, em nome de quem os fez (ver reterDoAnterior). */
+  async function sair() {
+    const c = cfg();
+    if (c.key) {
+      try { await Envio.post(c, { action: 'sair' }, 15000); }
+      catch (e) { if (falhaDeRede(e)) throw semInternet('Sair'); /* o servidor recusou (acesso já encerrado): limpa só aqui */ }
+    }
+    desativar();
   }
   function desativar() { ['gdv.key', 'gdv.nome', 'gdv.revogado'].forEach(k => localStorage.removeItem(k)); espelharCred(); }
-  /** Marca a credencial como recusada pelo servidor (a tela pede novo código) ou limpa a marca. */
+  /** Credencial de versões anteriores (código de ativação, sem token de sessão): apaga e deixa o aparelho em "entrar". Os registros pendentes não são tocados. */
+  function limparCredencialAntiga() {
+    const k = localStorage.getItem('gdv.key');
+    if (k && !ehToken(k)) ['gdv.key', 'gdv.nome', 'gdv.revogado', 'gdv.semCodigo'].forEach(x => localStorage.removeItem(x));
+    else localStorage.removeItem('gdv.semCodigo');
+  }
+  /** Marca a credencial como recusada pelo servidor (a tela pede para entrar de novo) ou limpa a marca. A troca de senha pendente só sai em trocarSenha(). */
   function marcarRevogado(sim) {
-    if (!!localStorage.getItem('gdv.revogado') === !!sim) return;
+    const atual = localStorage.getItem('gdv.revogado') || '';
+    if (sim ? atual === '1' : (!atual || atual === 'senha')) return;
     if (sim) localStorage.setItem('gdv.revogado', '1'); else localStorage.removeItem('gdv.revogado');
     espelharCred();
   }
+  /** Alguma chamada respondeu "troque a senha provisória": a tela de trocar a senha assume. */
+  function exigirTrocaDeSenha() {
+    if (!usuario() || localStorage.getItem('gdv.revogado') === 'senha') return;
+    localStorage.setItem('gdv.revogado', 'senha'); espelharCred();
+    window.dispatchEvent(new Event('gdv-dados'));
+  }
+
+  /* Quem entra depois de OUTRA pessoa neste aparelho não envia, com o seu acesso, o que ela deixou sem enviar (o servidor carimba o
+     usuário pelo acesso). Os ids ficam na meta "retidos" (envio.js os deixa de fora) até a dona ou o dono entrar de novo. */
+  async function reterDoAnterior(novoId) {
+    try {
+      const antes = lerUsuario(), lista = (await Store.meta('retidos')) || [];
+      let nova = null;
+      if (antes && antes.id !== novoId) {
+        const p = await pendentes(), ids = {}; let n = 0;
+        Envio.NOMES.forEach(l => {
+          const ja = new Set(lista.flatMap(e => (e.ids || {})[l] || []));
+          ids[l] = p[l].map(r => r.id).filter(id => !ja.has(id)); n += ids[l].length;
+        });
+        if (n) nova = { usuarioId: antes.id, nome: antes.nome, matricula: antes.matricula, em: Date.now(), ids };
+      }
+      const resto = lista.filter(e => e.usuarioId !== novoId);                // a pessoa que entra recupera os seus
+      if (nova) resto.push(nova);
+      if (nova || resto.length !== lista.length) await Store.setMeta('retidos', resto);
+    } catch (e) { /* sem banco */ }
+  }
+  /** Pessoas com registros retidos neste aparelho (que não são do acesso atual): [{nome, matricula, n}]. */
+  async function retidos() {
+    try {
+      const eu = (usuario() || {}).id || '', ret = await Store.meta('retidos');
+      return (ret || []).filter(e => e.usuarioId !== eu).map(e => ({ nome: e.nome, matricula: e.matricula, n: Envio.NOMES.reduce((s, l) => s + ((e.ids || {})[l] || []).length, 0) }));
+    } catch (e) { return []; }
+  }
 
   /* ---------- Envio em segundo plano (Background Sync, Chrome/Android) ----------
-     O service worker não lê localStorage: a credencial é copiada para a meta "cred" do IndexedDB (ativar, desativar, revogação e
-     ao abrir o app). Ao desativar o aparelho a cópia é apagada. */
+     O service worker não lê localStorage: a credencial é copiada para a meta "cred" do IndexedDB (entrar, sair, revogação e
+     ao abrir o app). Ao sair a cópia é apagada. */
   async function espelharCred() {
     try {
       const c = cfg();
-      if (c.url && c.key) await Store.setMeta('cred', { url: c.url, key: c.key, nome: nome(), revogado: localStorage.getItem('gdv.revogado') ? 1 : 0 });
+      if (c.url && c.key) await Store.setMeta('cred', { url: c.url, key: c.key, nome: nome(), usuarioId: (usuario() || {}).id || '', revogado: localStorage.getItem('gdv.revogado') ? 1 : 0 });
       else await Store.apagar('meta', ['cred']);
     } catch (e) { /* sem banco: o envio em segundo plano só fica indisponível */ }
   }
-  /** Ao abrir o app: o service worker pode ter visto a credencial recusada com o app fechado — a tela pede novo código. */
+  /** Ao abrir o app: o service worker pode ter visto a credencial recusada com o app fechado — a tela pede para entrar de novo. */
   async function importarRevogacao() {
     try {
       const m = await Store.meta('cred'), c = cfg();
@@ -59,6 +149,7 @@ const Sync = (() => {
   }
   /** Ao abrir o app (antes da 1ª tela): traz a revogação vista pelo service worker, espelha a credencial e agenda o envio a cada pendência. */
   async function prepararFundo() {
+    limparCredencialAntiga();
     await importarRevogacao();
     await espelharCred();
     Store.quandoPendente(agendarEnvio);
@@ -121,8 +212,12 @@ const Sync = (() => {
   }
 
   async function chamar(corpo, limiteMs) {
-    try { return await Envio.post(cfg(), corpo, limiteMs); }
-    catch (e) {
+    try {
+      const r = await Envio.post(cfg(), corpo, limiteMs);
+      if (r && Number(r.trocarSenha) === 1) exigirTrocaDeSenha();
+      return r;
+    } catch (e) {
+      if (e.trocarSenha) exigirTrocaDeSenha();
       if (e.semPermissao) await guardarPermissoes(e.permissoes || { ...PERM, [e.semPermissao]: 0 });   // gerência tirou o módulo
       throw e;
     }
@@ -275,7 +370,7 @@ const Sync = (() => {
   }
   async function rodada() {
     const c = cfg();
-    if (rodando || !c.url || !c.key) return;
+    if (rodando || !c.url || !c.key || localStorage.getItem('gdv.revogado') === 'senha') return;   // senha provisória pendente: nada sobe antes da troca
     try { await Store.setMeta('standalone', instaladoAgora()); } catch (e) { /* sem banco */ }
     if (!navigator.onLine) { await atualizarContagem(); return; }
     rodando = true;
@@ -318,14 +413,14 @@ const Sync = (() => {
         semPermissao: semPerm, aviso });
       window.dispatchEvent(new Event('gdv-dados'));
     } catch (e) {
-      const recusada = /revogado|inv[aá]lido/i.test(e.message);
-      if (!recusada) {
+      const recusada = recusadaPeloServidor(e);
+      if (!recusada && !e.trocarSenha) {
         await Envio.guardarErro(e);                                          // vai no próximo sinal; a tela mostra o motivo
         await Envio.avisarFalha(chamar, e, 'app');                           // erro do servidor: "ping" leve só com o sinal (uma vez)
       }
       const p = await pendentes();
       emitir({ tipo: 'erro', msg: Envio.motivoErro(e), pend: p.total });
-      if (recusada && !localStorage.getItem('gdv.revogado')) {             // pede novo código (uma vez)
+      if (recusada && !localStorage.getItem('gdv.revogado')) {             // pede para entrar de novo (uma vez)
         marcarRevogado(true); window.dispatchEvent(new Event('gdv-dados'));
       } else if (p.total) agendarEnvio();                                     // sem internet/servidor: o Android tenta de novo sozinho
     } finally {
@@ -345,11 +440,12 @@ const Sync = (() => {
       corpoSaida = null;
       const c = cfg();
       if (!c.url || !c.key || localStorage.getItem('gdv.revogado') || !pode('veiculos')) return;
-      const p = await pendentes(), enc = p.t.filter(t => Number(t.encerrado) === 1);
+      const p = await pendentes(), ret = await Envio.retidosDeOutros(), meusT = p.t.filter(t => !ret.t.has(t.id));   // sem os retidos de outra pessoa
+      const enc = meusT.filter(t => Number(t.encerrado) === 1);
       if (!enc.length) return;
       const ids = new Set(enc.map(t => t.id));
-      const corpo = { action: 'sync', since: 9e15, key: c.key, turnos: p.t.slice(0, 50).map(limpo),
-        veiculos: p.v.filter(v => ids.has(v.turnoId)).slice(0, 300).map(limpo), aparelho: await Envio.sinal(p, 'app') };
+      const corpo = { action: 'sync', since: 9e15, key: c.key, turnos: meusT.slice(0, 50).map(limpo),
+        veiculos: p.v.filter(v => ids.has(v.turnoId) && !ret.v.has(v.id)).slice(0, 300).map(limpo), aparelho: await Envio.sinal(p, 'app') };
       let txt = JSON.stringify(corpo);
       if (txt.length > 60000) { corpo.veiculos = []; txt = JSON.stringify(corpo); }
       if (txt.length <= 60000) corpoSaida = { url: c.url, txt };
@@ -392,7 +488,7 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, ativar, desativar, consultar, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
+  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
     pceProximoNumero, pceEmitir, pceConsultar, pceBaixarMunicipio, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // PCE — monilíase: Cadastro de imóvel, Termo de Fiscalização do PCE e Relatório de atividades (app real + Code.gs real no fakegas).
 // Dados fictícios no formato do relatório de Autazes (julho/2026): 2 cadastros e 2 termos digitados do papel pela estagiária, termo de campo sem internet,
 // permissão "Digitar do papel", PDFs (impressão e arquivo gerado no aparelho), relatório do período e painel.
@@ -18,7 +19,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
 (async () => {
   const b = await amb.lancar();
   const gerar = (nome, perfil = '') => get('/__gerar?nome=' + encodeURIComponent(nome) + '&perfil=' + perfil);
-  const credencial = async nome => { const g = await gerar(nome); const r = await post({ action: 'ativar', codigo: g.codigo }); return { token: r.token, nome }; };
+  const UIDS = {}, credencial = async (nome, perm = { veiculos: 1, tf: 1, pce: 1, antigo: 0 }) => { const f = await U.fiscal(nome, { permissoes: U.lista(perm) }); UIDS[f.nome] = f.usuario.id; return { token: f.token, nome: f.nome }; };
   const aparelho = async ({ token, nome }, vp = { width: 1366, height: 800 }) => {
     const c = await b.newContext({ viewport: vp, permissions: ['geolocation'], geolocation: { latitude: -3.60, longitude: -59.15, accuracy: 9 }, acceptDownloads: true });
     await c.addInitScript(([t, n]) => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } } catch (e) {} }, [token, nome]);
@@ -38,9 +39,9 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   /* ================= 1. leitura de coordenadas e do número do papel ================= */
   console.log('1) coordenadas por campo e número do papel');
   const adm = await gerar('Gestor Moniliase Painel', 'admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
-  const E = await credencial('Carla Mendes Estagiaria');
-  let r = await post({ action: 'painelPermissoes', key: TOK, nome: E.nome, veiculos: 0, tf: 0, pce: 1, antigo: 1 });
-  ok(r.ok && r.permissoes.antigo === 1, 'painel: estagiária com PCE + Digitar do papel');
+  const E = await credencial('Carla Mendes Estagiaria', { pce: 1 });
+  let r = await U.permissoes(UIDS[E.nome], U.lista({ veiculos: 0, tf: 0, pce: 1, antigo: 1 }));
+  ok(r.ok && r.permissoes.includes('digitarDoPapel'), 'painel: estagiária com PCE + Digitar do papel');
   const A = await aparelho(E);
   const C = await A.evaluate(() => { const L = PCEMon.lerEixo, N = PCEMon.lerNumeroDoc;
     return { a: L('-3,60033', 'lat'), b: L('-3.60033', 'lat'), c: L('3,60033S', 'lat'), d: L('-59,15044W', 'lon'), e: L('59,15044', 'lon'), f: L(`3°36'01,2"S`, 'lat'),

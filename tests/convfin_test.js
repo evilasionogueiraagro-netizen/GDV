@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // Convênios → importação da planilha de movimentação financeira (.xlsx) e metas acompanhando o desembolso (físico × financeiro).
 // Gera no próprio teste uma planilha SINTÉTICA no layout da planilha do gestor (abas "SUBETAPA x.y.z", cabeçalho "VALOR DA SUBETAPA",
 // linha de total sem data, uma linha sem data/memo de valor avulso, memo repetido, data antes do início da execução, data fora da
@@ -63,7 +64,7 @@ function planilha(var2) {
   console.log('1. Servidor: action admConvFinImportar do portal (validações e permissões)');
   await fetch(API + '/__fn?nome=desativarRotinasAutomaticas_');
   const adm = await gerar('Gerente Importação', 'admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
-  const fis = await gerar('Fiscal Comum'), TOKF = (await post({ action: 'ativar', codigo: fis.codigo })).token;
+  const TOKF = (await U.fiscal('Fiscal Comum')).token;
   const SA = await PORTAL.sessao(TOK, 'importacao.adm@gmail.com', 'Iara Importadora Administrativa');
   const IMP = (itens, extra = {}) => post({ action: 'admConvFinImportar', sessao: SA.sessao, convenio: '991272-2025', arquivo: 'teste.xlsx', itens, ...extra });
   const L0 = { chave: 'imp|991272-2025|1.14.3|1/2026', item: '1.14.3', etapa: '1.14', data: '2026-09-01', valor: 120, documento: 'Memo nº 1/2026', quantidade: 1, fonte: 'concedente', descricao: 'Diária NM' };

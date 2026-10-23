@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // gdv:relogio dia=15 hora=10:00   (relatório mensal = mês anterior; nos dias 1–2 os dados do "mês seguinte" cairiam em hoje/ontem e no painel)
 // Rotinas automáticas: encerramento de turno esquecido (> 12 h), gatilhos, backup diário e relatório mensal.
 // Code.gs real via fakegas (ScriptApp/MailApp/DriveApp.getFileById/Session falsos) + painel e app do fiscal no navegador.
@@ -24,8 +25,8 @@ const AUTO = 'Automático (12 h)';
   const AG = Date.now();
   const gAdm = await get('/__gerar?nome=' + encodeURIComponent('Gerente Rotina Silva') + '&perfil=admin');
   const ADM = (await post({ action: 'painelAtivar', codigo: gAdm.codigo })).token;
-  const FIS = (await post({ action: 'ativar', codigo: (await get('/__gerar?nome=' + encodeURIComponent('Fiscal Rotina Souza'))).codigo })).token;
-  const FIS2 = (await post({ action: 'ativar', codigo: (await get('/__gerar?nome=' + encodeURIComponent('Fiscal Sinal Lima'))).codigo })).token;
+  const FISU = await U.fiscal('Fiscal Rotina Souza'), FIS = FISU.token;
+  const FIS2 = (await U.fiscal('Fiscal Sinal Lima')).token;
   ok(ADM && FIS && FIS2, 'credenciais (administrador e dois fiscais)');
   // turno com início em "ini" (ms); fim calculado a partir do horário truncado no minuto, como a planilha
   const T = (id, ini, extra = {}) => ({ id, numeroTF: 'TF-' + id, data: diaM(ini), letra: 'A', inicio: hmM(ini), fim: '', fiscal: 'Fiscal Rotina Souza', local: 'Barreira ' + id,
@@ -270,7 +271,7 @@ const AUTO = 'Automático (12 h)';
 
   /* ================= 6. app do fiscal ================= */
   console.log('6. App do fiscal');
-  const lsApp = { 'gdv.key': FIS, 'gdv.nome': 'Fiscal Rotina Souza', 'gdv.semInstalar': '1' };
+  const lsApp = { ...FISU.ls };
   p = await abrir(APP, lsApp, { viewport: { width: 400, height: 820 }, permissions: ['geolocation'], geolocation: { latitude: -3.119, longitude: -60.021, accuracy: 10 } });
   const sync = () => p.evaluate(async () => { for (let i = 0; i < 40 && Sync.estado().tipo === 'sync'; i++) await new Promise(r => setTimeout(r, 150)); await Sync.sincronizar(); return Sync.estado(); });
   await p.waitForSelector('.modulo');

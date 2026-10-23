@@ -1,21 +1,23 @@
 const amb = require('./lib/amb');
 const { chromium } = require('playwright-core');
 const assert = require('assert');
+const U = require('./lib/usuarios');
 (async () => {
   const b = await amb.lancar();
+  const FU = await U.fiscal('Fiscal Fim a Fim'), TOKEN = FU.token;   // só o token no aparelho (sem nome): o Fiscal 1 do turno fica editável
   const ctx = await b.newContext({ viewport: { width: 400, height: 800 }, permissions: ['geolocation'], geolocation: { latitude: -3.1190275, longitude: -60.0217314, accuracy: 12 } });
   const page = await ctx.newPage();
   const erros = []; page.on('pageerror', e => erros.push(e.message)); page.on('console', m => m.type() === 'error' && erros.push(m.text()));
   page.on('dialog', d => d.accept());
   const dump = async () => (await fetch(amb.API + '/__dump')).json();
   await ctx.addInitScript(() => { if (window !== window.top) { window.print = () => { window.top.__prints = window.top.__prints || []; window.top.__prints.push(document.body.innerText.replace(/\s+/g, ' ')); window.top.__titulo = window.top.document.title; }; } });
-  await ctx.addInitScript(() => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', 'segredo'); } } catch (e) {} });
+  await ctx.addInitScript(t => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); } } catch (e) {} }, TOKEN);
   await fetch(amb.API + '/__off');                      // começa SEM servidor
   await page.goto(amb.APP);
   await page.waitForSelector('.modulo'); console.log('módulos após ativar:', await page.locator('.modulo').count(), '| nav:', (await page.$$eval('#nav button', bs => bs.map(x => x.textContent.trim()))).join(' / '));
   await page.click('.modulo[data-v=home]'); await page.waitForSelector('#fTurno');
   // configura sync (servidor fora do ar) – só salva
-  await page.evaluate(() => { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', 'segredo'); });
+  await page.evaluate(t => { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); }, TOKEN);
   await page.fill('#nTF', '7'); let t0; await page.selectOption('#nPosto', 'Fixa'); 
   await page.selectOption('#nLocal', 'BVA - CEASA'); 
   await page.click('#fTurno button[type=submit]');
@@ -79,7 +81,7 @@ const assert = require('assert');
   // segundo aparelho: contexto limpo, baixa tudo da planilha
   const c2 = await b.newContext(); const p2 = await c2.newPage(); p2.on('dialog', d => d.accept());
   await p2.goto(amb.APP);
-  await p2.evaluate(() => { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', 'segredo'); });
+  await p2.evaluate(t => { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); }, TOKEN);
   await p2.reload(); await p2.waitForSelector('.modulo'); await p2.click('.modulo[data-v=home]');
   await p2.click('nav [data-v=historico]');
   await p2.waitForFunction(() => /veículos/.test(document.querySelector('#hOut')?.textContent || '') && document.querySelector('.kpi b')?.textContent !== '0', null, { timeout: 10000 });
@@ -95,33 +97,36 @@ const assert = require('assert');
   console.log('planilha intacta: veículos =', ((await dump()).V.length - 1));
   // GPS negado: turno deve iniciar mesmo assim
   const c3 = await b.newContext({ permissions: [] }); const p3 = await c3.newPage(); p3.on('dialog', d => d.accept());
-  await p3.goto(amb.APP); await p3.waitForSelector('#fAtivar');
-  console.log('sem ativação -> formulário de turno?', await p3.locator('#fTurno').count(), '| texto antigo presente?', (await p3.textContent('main')).includes('ficam salvos'));
-  await p3.evaluate(() => { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', 'segredo'); });
+  await p3.goto(amb.APP); await p3.waitForSelector('#fEntrar');
+  console.log('sem entrar -> formulário de turno?', await p3.locator('#fTurno').count(), '| texto antigo presente?', (await p3.textContent('main')).includes('ficam salvos'));
+  await p3.evaluate(t => { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); }, TOKEN);
   await p3.reload(); await p3.waitForSelector('.modulo'); await p3.click('.modulo[data-v=home]'); await p3.waitForSelector('#fTurno');
   await p3.fill('#nTF', '9'); await p3.selectOption('#nPosto', 'Móvel'); await p3.fill('#nLocal', 'X'); await p3.fill('#nUnidade', 'MANAUS'); await p3.fill('#nFiscal1', 'Ana Paula Lima');
   await p3.click('#fTurno button[type=submit]'); await p3.waitForSelector('.contador', { timeout: 20000 });
   console.log('GPS negado -> turno iniciou | toast:', (await p3.textContent('#toast')).slice(0, 60));
-  // ---------- ativação por código de 6 dígitos ----------
+  // ---------- entrar com matrícula e senha (tela real, servidor real) ----------
   const URLGS = /sync: \{ url: '([^']+)'/.exec(require('fs').readFileSync(require('path').join(amb.RAIZ, 'web/js/config.js'), 'utf8'))[1];   // endereço oficial do config.js
   const rota = async pg => pg.route(URLGS, async route => {
     const r = await fetch(amb.API + '/', { method: 'POST', body: route.request().postData() });
     await route.fulfill({ status: 200, contentType: 'application/json', headers: { 'access-control-allow-origin': '*' }, body: await r.text() });
   });
   const nomeF = 'Maria das Graças Souza';
-  const g1 = await (await fetch(amb.API + '/__gerar?nome=' + encodeURIComponent(nomeF))).json();
-  console.log('código gerado:', g1.codigo, '| nome de uma palavra:', JSON.stringify(await (await fetch(amb.API + '/__gerar?nome=Joao')).json()));
+  const cm = await U.criar(nomeF);
   const c6 = await b.newContext({ permissions: ['geolocation'], geolocation: { latitude: -3.1, longitude: -60.0, accuracy: 10 } });
   const p6 = await c6.newPage(); p6.on('dialog', d => d.accept()); await rota(p6);
-  await p6.goto(amb.APP); await p6.waitForSelector('#fAtivar');
-  await p6.fill('#aCod', '000000'); await p6.click('#fAtivar button');
-  await p6.waitForFunction(() => document.querySelector('#toast').textContent.includes('incorreto'), null, { timeout: 8000 });
-  console.log('código errado ->', await p6.textContent('#toast'));
-  await p6.fill('#aCod', g1.codigo.slice(0, 3) + ' ' + g1.codigo.slice(3)); await p6.click('#fAtivar button');
-  await p6.waitForSelector('.modulo', { timeout: 8000 }); console.log('após ativar -> tela de módulos:', (await p6.locator('.modulo b').allTextContents()).join(' | '));
+  await p6.goto(amb.APP); await p6.waitForSelector('#fEntrar');
+  console.log('sem acesso -> formulário de turno?', await p6.locator('#fTurno').count(), '| campo do código de ativação?', await p6.locator('#fAtivar, #aCod').count());
+  await p6.fill('#eMat', cm.usuario.matricula); await p6.fill('#eSenha', 'senha-errada-1'); await p6.click('#fEntrar button');
+  await p6.waitForFunction(() => document.querySelector('#toast').textContent.includes('incorreta'), null, { timeout: 8000 });
+  console.log('senha errada ->', await p6.textContent('#toast'));
+  await p6.fill('#eSenha', cm.senhaProvisoria); await p6.click('#fEntrar button');
+  await p6.waitForSelector('#fTrocarSenha', { timeout: 8000 });
+  console.log('senha provisória -> troca obrigatória; módulos antes da troca:', await p6.locator('.modulo').count());
+  await p6.fill('#tAtual', cm.senhaProvisoria); await p6.fill('#tNova', U.SENHA); await p6.fill('#tRepete', U.SENHA); await p6.click('#fTrocarSenha button:not([type=button])');
+  await p6.waitForSelector('.modulo', { timeout: 8000 }); console.log('após trocar a senha -> tela de módulos:', (await p6.locator('.modulo b').allTextContents()).join(' | '));
   await p6.click('.modulo[data-v=home]'); await p6.waitForSelector('#fTurno', { timeout: 8000 }); await p6.waitForSelector('#nFiscal1');
-  console.log('após ativar -> Fiscal 1:', await p6.inputValue('#nFiscal1'), '| somente leitura:', await p6.getAttribute('#nFiscal1', 'readonly') !== null, '| cartão de ativação some:', await p6.locator('#fAtivar').count() === 0);
-  console.log('credencial != código:', await p6.evaluate(c => localStorage.getItem('gdv.key') !== c && localStorage.getItem('gdv.key').length >= 32, g1.codigo));
+  console.log('após entrar -> Fiscal 1:', await p6.inputValue('#nFiscal1'), '| somente leitura:', await p6.getAttribute('#nFiscal1', 'readonly') !== null, '| formulário de entrada some:', await p6.locator('#fEntrar').count() === 0);
+  assert.ok(await p6.evaluate(() => /^u\.[0-9a-f]{64}$/.test(localStorage.getItem('gdv.key'))), 'a credencial guardada é o token de sessão');
   await p6.fill('#nTF', '21'); await p6.selectOption('#nPosto', 'Móvel'); await p6.fill('#nLocal', 'BR-174'); await p6.fill('#nUnidade', 'MANAUS'); await p6.fill('#nFiscal2', 'João Silva');
   await p6.click('#fTurno button[type=submit]'); await p6.waitForSelector('.contador');
   await p6.waitForTimeout(400); await p6.click('nav [data-v=registrar]'); await p6.waitForTimeout(300); await p6.fill('#placa', 'MMM1A11'); await p6.click('#fVeic > button');
@@ -130,23 +135,23 @@ const assert = require('assert');
   const d2 = await dump();
   const linhaT = d2.T.find(r => r[1] === 'TF-021-' + 'B-2026' || String(r[1]).startsWith('TF-021'));
   console.log('planilha: turno do fiscal -> fiscal:', linhaT && linhaT[6], '| usuario:', linhaT && linhaT[linhaT.length - 1]);
-  console.log('planilha: veículo -> usuario:', d2.V.find(r => r[3] === 'MMM1A11')?.slice(-1)[0], '| aba Fiscais:', JSON.stringify(d2.F.slice(1).map(r => [r[0], r[1] === '' ? '(código consumido)' : r[1], r[3]])));
-  // código de uso único
-  const c7 = await b.newContext(); const p7 = await c7.newPage(); await rota(p7);
-  await p7.goto(amb.APP); await p7.waitForSelector('#fAtivar'); await p7.fill('#aCod', g1.codigo); await p7.click('#fAtivar button');
-  await p7.waitForFunction(() => document.querySelector('#toast').textContent.length > 5); console.log('reuso do código ->', await p7.textContent('#toast'));
-  // revogação
-  console.log('revogados:', await (await fetch(amb.API + '/__revogar?nome=' + encodeURIComponent(nomeF))).text());
+  console.log('planilha: veículo -> usuario:', d2.V.find(r => r[3] === 'MMM1A11')?.slice(-1)[0]);
+  // revogação: a gerência encerra a sessão; o app pede para entrar de novo e o que estava pendente continua no aparelho
+  await p6.evaluate(() => Store.salvar('veiculos', { id: 'v-pendente-rev', turnoId: 'x', placa: 'PEN1D11', tipo: 'PA', pessoas: 1, criadoEm: Date.now(), atualizadoEm: Date.now(), pendente: 1 }));
+  await U.revogar(cm.usuario.id);
   await p6.evaluate(() => Sync.sincronizar()); await p6.waitForTimeout(1500);
-  await p6.click('nav [data-v=modulos]'); await p6.click('nav [data-v=config]'); await p6.waitForTimeout(500);
-  console.log('após revogar -> selo:', await p6.textContent('#sync'), '| cartão:', (await p6.locator('#fAtivar h3').textContent()));
+  await p6.click('nav [data-v=modulos]').catch(() => {}); await p6.waitForSelector('#fEntrar');
+  console.log('após revogar -> selo:', await p6.textContent('#sync'), '| cartão:', (await p6.locator('.card.aviso h3').first().textContent()), '| pendente guardado:', await p6.evaluate(async () => !!(await Store.obter('veiculos', 'v-pendente-rev'))));
+  assert.ok(await p6.evaluate(async () => !!(await Store.obter('veiculos', 'v-pendente-rev'))), 'revogado: o registro pendente continua no aparelho');
+  assert.ok(await p6.locator('#fAtivar, #aCod').count() === 0, 'sem campo de código de ativação');
   // bloqueio por tentativas
   const c8 = await b.newContext(); const p8 = await c8.newPage(); await rota(p8);
-  await p8.goto(amb.APP); await p8.waitForSelector('#fAtivar');
-  const g2 = await (await fetch(amb.API + '/__gerar?nome=' + encodeURIComponent('Carlos Eduardo Lima'))).json();
-  for (let i = 0; i < 10; i++) { await p8.fill('#aCod', String(100000 + i)); await p8.click('#fAtivar button'); await p8.waitForTimeout(250); }
-  await p8.fill('#aCod', g2.codigo); await p8.click('#fAtivar button'); await p8.waitForTimeout(600);
-  console.log('após 10 erros, código CERTO ->', await p8.textContent('#toast'));
+  await p8.goto(amb.APP); await p8.waitForSelector('#fEntrar');
+  const cb = await U.criar('Carlos Eduardo Lima');
+  for (let i = 0; i < 10; i++) { await p8.fill('#eMat', cb.usuario.matricula); await p8.fill('#eSenha', 'errada-numero-' + i); await p8.click('#fEntrar button'); await p8.waitForTimeout(250); }
+  await p8.fill('#eMat', cb.usuario.matricula); await p8.fill('#eSenha', cb.senhaProvisoria); await p8.click('#fEntrar button'); await p8.waitForTimeout(600);
+  console.log('após 10 erros, senha CERTA ->', await p8.textContent('#toast'));
+  assert.ok(/Muitas tentativas/.test(await p8.textContent('#toast')), 'depois de 10 erros nem a senha certa entra');
   // chave errada
   const r = await fetch(amb.API + '/', { method: 'POST', body: JSON.stringify({ action: 'sync', key: 'x' }) }).then(r => r.json());
   console.log('chave errada ->', JSON.stringify(r));

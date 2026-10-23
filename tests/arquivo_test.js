@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // Arquivamento anual: a planilha principal fica com o ano atual e o anterior; anos mais antigos vão para "e-GDV – Arquivo AAAA"
 // (pasta "GDV - Arquivo anual"). Code.gs real via fakegas (SpreadsheetApp.create/openById, deleteRows e Drive falsos) + painel no navegador.
 const { API, PAINEL } = amb;
@@ -22,7 +23,7 @@ const linhasArq = (p, n) => (p && p.abas[n] ? p.abas[n].slice(1) : []);
   await props('ROTINAS_DESATIVADAS', '1');   // o painel não encerra o turno antigo aberto (testado sem interferência); o menu arquiva mesmo assim
   const gAdm = await get('/__gerar?nome=' + encodeURIComponent('Gerente Arquivo Silva') + '&perfil=admin');
   const ADM = (await post({ action: 'painelAtivar', codigo: gAdm.codigo })).token;
-  const FIS = (await post({ action: 'ativar', codigo: (await get('/__gerar?nome=' + encodeURIComponent('Fiscal Arquivo Souza'))).codigo })).token;
+  const FIS = (await U.fiscal('Fiscal Arquivo Souza')).token;
   ok(ADM && FIS, 'credenciais (administrador e fiscal)');
 
   /* ================= 1. dados em 4 anos ================= */

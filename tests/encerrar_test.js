@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // "Encerrar turno" pela gerência: action painelEncerrarTurno (Code.gs real via fakegas), proteção contra reabertura no sync,
 // botão/diálogo no painel (Visão geral, aba Barreiras, celular; nunca no Modo TV) e o aviso no app do fiscal.
 const { chromium } = require('playwright-core');
@@ -18,9 +19,8 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
   const AG = Date.now();
   const gAdm = await get('/__gerar?nome=' + encodeURIComponent('Gerente Encerra Silva') + '&perfil=admin');
   const adm = await post({ action: 'painelAtivar', codigo: gAdm.codigo });
-  const gFis = await get('/__gerar?nome=' + encodeURIComponent('Fiscal Encerra Souza'));
-  const fis = await post({ action: 'ativar', codigo: gFis.codigo });
-  ok(adm.ok && fis.ok && adm.token && fis.token, 'credenciais de administrador e de fiscal');
+  const fis = await U.fiscal('Fiscal Encerra Souza');
+  ok(adm.ok && adm.token && fis.token, 'credenciais de administrador e de fiscal');
   const ADM = adm.token, FIS = fis.token;
   const enc = (key, turnoId, fim) => post({ action: 'painelEncerrarTurno', key, turnoId, fim });
   const iniS = AG - 3 * 3600e3;
@@ -174,7 +174,7 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
 
   /* ================= 3. app do fiscal ================= */
   console.log('3. App do fiscal');
-  const lsApp = { 'gdv.key': FIS, 'gdv.nome': 'Fiscal Encerra Souza', 'gdv.semInstalar': '1' };
+  const lsApp = { ...fis.ls };
   p = await abrir(APP, lsApp, { viewport: { width: 400, height: 820 }, permissions: ['geolocation'], geolocation: { latitude: -3.119, longitude: -60.021, accuracy: 10 } });
   const sync = () => p.evaluate(async () => { for (let i = 0; i < 40 && Sync.estado().tipo === 'sync'; i++) await new Promise(r => setTimeout(r, 150)); await Sync.sincronizar(); return Sync.estado(); });
   const iniciarTurno = async n => {

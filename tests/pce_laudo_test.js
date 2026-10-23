@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // PCE — campos novos do levantamento (tipo de local e origem da visita, com "Outro" digitável) e resultado de laboratório do Termo de Colheita.
 // App: salvar, reabrir, sincronizar ida e volta, linha "Local: … · Origem: …" na ficha (PDF); listas com Soja, Amaranthus palmeri e Diaphorina
 // citri; resultado do laboratório no termo (app) → planilha; painel: colunas "Tipo de local"/"Origem" (tabela e CSV), coluna "Resultado" dos
@@ -15,8 +16,7 @@ const linhaDe = async (aba, id) => { const t = await get('/__aba?nome=' + aba); 
 
 (async () => {
   const b = await amb.lancar(), err = [];
-  const g = await get('/__gerar?nome=' + encodeURIComponent('Ana Paula Lima'));
-  const TOKF = (await post({ action: 'ativar', codigo: g.codigo })).token;
+  const TOKF = (await U.fiscal('Ana Paula Lima')).token;
   const c = await b.newContext({ viewport: { width: 420, height: 900 }, permissions: ['geolocation'], geolocation: { latitude: -3.12, longitude: -60.02, accuracy: 9 }, timezoneId: 'America/Manaus' });
   await c.addInitScript(([t]) => {
     if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', 'Ana Paula Lima'); localStorage.setItem('gdv.semInstalar', '1'); }

@@ -4,7 +4,7 @@
 const VERSAO = 'painel-v1';
 // vendor/xlsx (SheetJS, 250 KB) fica fora da lista: só baixa quando o gerente gera o VIGIFITO em .xlsx (e então entra no cache pelo fetch).
 const ARQUIVOS = [
-  './', 'index.html', 'manifest.webmanifest', '../css/design.css', 'css/painel.css', '../js/config.js', '../js/versao.js', '../js/icones.js',
+  './', 'index.html', 'manual.html', 'manifest.webmanifest', '../css/design.css', '../css/manual.css', 'css/painel.css', '../js/config.js', '../js/versao.js', '../js/icones.js',
   '../documentos/pce-docs.js', 'js/painel.js', 'js/painel-barreiras.js', 'js/painel-tf.js', 'js/painel-pce.js', 'js/painel-usuarios.js', 'js/painel-publico.js', 'js/painel-tv.js',
   '../documentos/conv-docs.js', '../documentos/conv-relatorio.html', 'js/docx.js', 'js/painel-convenios.js', '../documentos/indicadores.js', '../documentos/relgdv-docs.js', '../documentos/vigifito-docs.js', '../documentos/relgdv-relatorio.html', 'js/painel-relatorios.js', '../img/brasao.png', '../img/sepror.png',
   'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css', 'vendor/leaflet-heat.js', 'vendor/chart.umd.js',

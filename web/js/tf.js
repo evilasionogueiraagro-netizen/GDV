@@ -24,6 +24,10 @@ const TFUI = (() => {
     return dv(12) === +c[12] && dv(13) === +c[13];
   }
   const docOk = d => (d.length === 11 ? cpfOk(d) : d.length === 14 ? cnpjOk(d) : false);
+  /** Placa que identifica o veículo (padrão antigo ou Mercosul). Reincidência só por CPF/CNPJ válido (docOk; 000.000.000-00 = não identificado) e placa válida. */
+  const placaOk = p => /^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(placaNorm(p));
+  /** Reincidência do TF: histórico do documento OU da placa (o que houver), sem contar duas vezes o mesmo TF anterior. */
+  const reincDe = h => { const d = h && h.doc, p = h && h.placa; return { reincidente: !!((d && d.reincidente) || (p && p.reincidente)), total: Math.max((d && d.total) || 0, (p && p.total) || 0) }; };
   const fmtDoc = d => (d.length === 11 ? d.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.$2.$3-$4') : d.length === 14 ? d.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.$2.$3/$4-$5') : d);
 
   /* ---------- numeração: uma sequência por barreira/ano, consultada na planilha na hora de gerar ---------- */
@@ -437,18 +441,20 @@ const TFUI = (() => {
     const st = $('#tf-st-doc'); st.innerHTML = '<small>Consultando cadastro e histórico…</small>';
     let r; try { r = await buscar(d, ''); } catch (e) { st.textContent = ''; return; }
     if (!S || !$('#tf-doc')) return;
-    S.hist.doc = r.historicoDoc;
+    S.hist.doc = docOk(d) ? r.historicoDoc : null;                              // documento inválido/padrão (000…): fora da reincidência
     let html = docOk(d) ? '' : `<div class="tf-alerta">${icone('alerta')} ${d.length === 11 ? 'CPF' : 'CNPJ'} com dígitos inválidos: confira a digitação.</div>`;
     if (r.pessoa) {
       ['nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone'].forEach(k => { const el = $('#tf-' + k); if (el) el.value = r.pessoa[k] || ''; });
       html += '<div class="tf-ok">✓ Cadastro encontrado — dados preenchidos automaticamente.</div>';
     } else html += '<div class="tf-novo">Novo cadastro — os dados serão salvos na planilha ao gerar o TF.</div>';
-    st.innerHTML = html + histHTML(r.historicoDoc, 'para este documento', r); salvarRascunho();
+    st.innerHTML = html + (docOk(d) ? histHTML(r.historicoDoc, 'para este documento', r) : '<div class="tf-novo">Documento não identifica o fiscalizado (inválido ou padrão 000.000.000-00): não entra na reincidência.</div>'); salvarRascunho();
   }
   async function consultarPlaca() {
     if (!S || !$('#tf-placa')) return;
     const p = placaNorm($('#tf-placa').value); if (p.length < 7) return;
-    const st = $('#tf-st-placa'); let r; try { r = await buscar('', p); } catch (e) { return; }
+    const st = $('#tf-st-placa');
+    if (!placaOk(p)) { if (S) S.hist.placa = null; st.innerHTML = '<div class="tf-novo">Placa fora do padrão: não entra na reincidência.</div>'; return; }
+    let r; try { r = await buscar('', p); } catch (e) { return; }
     if (!S || !$('#tf-placa')) return;
     S.hist.placa = r.historicoPlaca;
     let html = histHTML(r.historicoPlaca, 'para esta placa', r);
@@ -492,7 +498,7 @@ const TFUI = (() => {
     let sug; try { sug = await sugerirNumero(bar.id, a); } catch (e) { btn.disabled = false; btn.textContent = rot; return toast(e.message, true); }
     btn.disabled = false; btn.textContent = rot;
 
-    const turno = S.turnoId ? await Store.obter('turnos', S.turnoId) : null, hist = S.hist.doc, t0 = Date.now(), id = S.id;
+    const turno = S.turnoId ? await Store.obter('turnos', S.turnoId) : null, hist = reincDe(S.hist), t0 = Date.now(), id = S.id;
     // assinaturas desenhadas viram arquivos PNG (gravados só quando o TF for gravado); recusa: sem assinatura do fiscalizado
     const assS = { dono: 'tfs', id, ass: {}, assNovas: { ...S.assNovas } }; if (S.recusa) delete assS.assNovas.fiscalizado;
     const { mapa: assMapa, novos: assArqs } = Anexos.prepararAssinaturas(assS), fotos = S.fotos.slice(), recusa = S.recusa ? 1 : 0;
@@ -514,7 +520,7 @@ const TFUI = (() => {
         doc, nome, rg: pessoa.rg, endereco: pessoa.endereco, municipio: pessoa.municipio, uf: pessoa.uf, telefone: pessoa.telefone, relacao: D.relacao,
         inspecao: D.inspecao ? 1 : 0, coleta: D.coleta ? 1 : 0, amostras: Number(D.amostras) || 0, procedimento: D.procedimento, fiel: D.fiel ? 1 : 0, auto: D.auto ? 1 : 0, advertencia: D.advertencia ? 1 : 0,
         documentos: JSON.stringify(D.docs), produtos: JSON.stringify(prods), constatacao: D.constatacao, enquadramento: D.enquadramento,
-        reincidente: hist && hist.reincidente ? 1 : 0, tfsAnteriores: hist ? hist.total : 0, cancelado: 0, motivoCancel: '', conflito: 0,
+        reincidente: hist.reincidente ? 1 : 0, tfsAnteriores: hist.total, cancelado: 0, motivoCancel: '', conflito: 0,
         numeroSugerido: sug.numero, numeroOrigem: sug.origem !== 'servidor' ? 'provisorio' : (n === sug.numero ? 'sistema' : 'editado'),
         fotos: JSON.stringify(fotos), assinaturas: JSON.stringify(assMapa), recusaAssinatura: recusa
       };
@@ -568,7 +574,7 @@ const TFUI = (() => {
     const efeito = n > sug.ultimo ? `${sug.ultimo ? `O último nº usado nesta barreira em ${a} é ${num4(sug.ultimo)}.` : `Nenhum TF desta barreira em ${a} na planilha.`} Gravando o ${num4(n)}, a sequência desta barreira continua a partir dele: o próximo TF sugerido (também para os fiscais em campo) será o ${num4(n + 1)}.`
       : `O último nº usado nesta barreira em ${a} é ${num4(sug.ultimo)}: o ${num4(n)} é menor e a sequência não muda.`;
     if (!confirm(`Gravar o TF ${num4(n)}/${a} - ${bar.sufixo} (digitado do papel)?\n\n${efeito}`)) return fim();
-    const t0 = Date.now(), nome = (D.nome.trim() || 'NÃO IDENTIFICADO').toUpperCase(), hist = st.hist.doc;
+    const t0 = Date.now(), nome = (D.nome.trim() || 'NÃO IDENTIFICADO').toUpperCase(), hist = reincDe(st.hist);
     const prods = D.produtos.filter(p => p.p && p.q).map(p => `${p.p} - ${p.q} ${p.u}`);
     const pessoa = doc ? { id: doc, tipo: doc.length === 14 ? 'PJ' : 'PF', nome, rg: D.rg.trim(), endereco: D.endereco.trim(), municipio: D.municipio.trim(), uf: D.uf.trim().toUpperCase(), telefone: D.telefone.trim(), criadoEm: t0, atualizadoEm: t0 } : null;
     const placa = doc && D.placa.length >= 7 ? { id: D.placa, doc, nome, criadoEm: t0, atualizadoEm: t0 } : null;
@@ -579,7 +585,7 @@ const TFUI = (() => {
       doc, nome, rg: D.rg.trim(), endereco: D.endereco.trim(), municipio: D.municipio.trim(), uf: D.uf.trim().toUpperCase(), telefone: D.telefone.trim(), relacao: D.relacao,
       inspecao: D.inspecao ? 1 : 0, coleta: D.coleta ? 1 : 0, amostras: Number(D.amostras) || 0, procedimento: D.procedimento, fiel: D.fiel ? 1 : 0, auto: D.auto ? 1 : 0, advertencia: D.advertencia ? 1 : 0,
       documentos: JSON.stringify(D.docs), produtos: JSON.stringify(prods), constatacao: D.constatacao, enquadramento: D.enquadramento,
-      reincidente: hist && hist.reincidente ? 1 : 0, tfsAnteriores: hist ? hist.total : 0, cancelado: 0, motivoCancel: '', conflito: 0,
+      reincidente: hist.reincidente ? 1 : 0, tfsAnteriores: hist.total, cancelado: 0, motivoCancel: '', conflito: 0,
       numeroSugerido: sug.proximo, numeroOrigem: 'papel', fotos: '[]', assinaturas: '{}', recusaAssinatura: 0, registroAntigo: 1, pdfs: JSON.stringify(st.pdfs)
     };
     btn.textContent = 'Gravando…';

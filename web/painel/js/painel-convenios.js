@@ -99,7 +99,7 @@
         <div class="pn-conv-sel">
           <label>Convênio<select id="pn-conv-sel">${E.dados.convenios.map(x => `<option value="${esc(x.id)}" ${x.id === c.id ? 'selected' : ''}>${esc(x.numero || x.id)}</option>`).join('')}</select></label>
           <label>Mês de referência<select id="pn-conv-mes"><option value="total" ${consol() ? 'selected' : ''}>Total (consolidado até hoje)</option>${ms.slice().reverse().map(m => `<option value="${m}" ${m === E.mes ? 'selected' : ''}>${esc(F.mes(m))}</option>`).join('')}</select></label>
-          <div class="pn-conv-botoes"><button type="button" class="pn-btn" data-conv="atualizar">Atualizar</button><button type="button" class="pn-btn" data-conv="editar-conv" id="pn-conv-editar">Editar convênio</button></div>
+          <div class="pn-conv-botoes"><button type="button" class="pn-btn" data-conv="atualizar">Atualizar</button>${P.gerencia ? '<button type="button" class="pn-btn" data-conv="editar-conv" id="pn-conv-editar">Editar convênio</button>' : ''}</div>
         </div>
         <h3 class="pn-conv-nome">${esc(c.nome)}</h3>
         <p class="pn-sub">${esc(c.objeto)} · ${esc(c.meta)}</p>
@@ -346,7 +346,7 @@
       <fieldset class="pn-cartao pn-conv-rel-etapa"><legend>Textos gerais</legend>
         ${Object.entries(CD.ROTULOS_GERAIS).map(([k, rot]) => ta(`pn-cr-g-${k}`, rot + (k === 'providencias' ? ' (uma por linha)' : ''), T.textos.gerais[k], 4)).join('')}</fieldset>
       <div class="pn-cartao pn-conv-rel-acoes">
-        ${consol() ? '' : '<button type="button" class="pn-btn" data-conv="rel-salvar" id="pn-cr-salvar">Salvar textos</button>'}
+        ${consol() || !P.gerencia ? '' : '<button type="button" class="pn-btn" data-conv="rel-salvar" id="pn-cr-salvar">Salvar textos</button>'}
         <button type="button" class="pn-btn pn-btn-prim" data-conv="rel-docx" id="pn-cr-docx">Baixar Word (.docx)</button>
         <button type="button" class="pn-btn pn-btn-prim" data-conv="rel-pdf" id="pn-cr-pdf">Baixar PDF</button>
         <button type="button" class="pn-btn" data-conv="rel-imprimir" id="pn-cr-imprimir">Imprimir</button>
@@ -366,7 +366,7 @@
     return { numero: n >= 1 && n <= 99 ? n : CD.numeroAuto(cfg(), mesEf(cfg())), textos: t };
   }
   async function salvarTextos(silencioso) {
-    if (consol()) return false;                                 // o consolidado não tem mês próprio para guardar textos
+    if (consol() || !P.gerencia) return false;                  // o consolidado não tem mês próprio para guardar textos; sem gerência o painel é só de leitura
     const x = lerTextos(); E.textos.textos = x.textos; E.textos.numero = x.numero;
     if (!silencioso) msg('rel', 'Salvando…', '');
     try {

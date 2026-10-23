@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // E2E do alerta "TF em preenchimento / Apreensão em andamento": aparelho do fiscal (app em 8081) → Code.gs real (fakegas, 8082)
 // → e-GDV Painel (normal e modo TV, outros contextos). Rode com ./rodar.sh tf_alerta_test.js (um fakegas novo).
 const { chromium } = require('playwright-core'); const fs = require('fs');
@@ -27,7 +28,7 @@ const geoVivo = eval(fonteTV.slice(fonteTV.indexOf('const geoVivo = p =>') + 'co
   const doUsuario = async u => (await andamento()).filter(a => a.usuario === u);
 
   /* ---------- aparelhos dos fiscais ---------- */
-  const credencial = async nome => { const g = await get('/__gerar?nome=' + encodeURIComponent(nome)); const r = await post({ action: 'ativar', codigo: g.codigo }); return { token: r.token, nome }; };
+  const credencial = async nome => { const r = await U.fiscal(nome); return { token: r.token, nome }; };
   async function aparelho({ token, nome }, geo, relogio) {
     const c = await b.newContext({ viewport: { width: 400, height: 900 }, permissions: ['geolocation'], geolocation: geo, timezoneId: 'America/Manaus' });
     await c.addInitScript(([t, n]) => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } } catch (e) {} }, [token, nome]);
@@ -39,7 +40,7 @@ const geoVivo = eval(fonteTV.slice(fonteTV.indexOf('const geoVivo = p =>') + 'co
   const sync = async p => { await p.evaluate(() => Sync.sincronizar()); await p.waitForFunction(() => ['ok', 'idle'].includes(Sync.estado().tipo) && !Sync.estado().pend, null, { timeout: 15000 }); };
 
   /* ---------- painel do gestor ---------- */
-  const adminCred = async nome => { const g = await get('/__gerar?nome=' + encodeURIComponent(nome) + '&perfil=admin'); const a = await post({ action: 'painelAtivar', codigo: g.codigo }); return { 'gdv.painel.token': a.token, 'gdv.painel.nome': a.nome }; };
+  const adminCred = async nome => { const a = await amb.gerente(nome); return { 'gdv.painel.token': a.token, 'gdv.painel.nome': a.nome }; };
   async function painel(nome, sessao, o = {}) {
     const c = await b.newContext({ viewport: o.viewport || { width: 1366, height: 900 }, timezoneId: 'America/Manaus', locale: 'pt-BR', permissions: o.permissoes || [], colorScheme: 'light', serviceWorkers: 'block' });
     await c.route('https://tile.openstreetmap.org/**', rt => o.semTiles ? rt.abort('blockedbyclient') : rt.fulfill({ status: 200, contentType: 'image/png', body: PNG }));

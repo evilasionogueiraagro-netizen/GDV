@@ -3,7 +3,6 @@
    - PCE: as partes de PCE do Relatório GDV (Seção I por grupo de pragas com tabelas e mapas, amostras e laudos, quadro PCE, HLB, anexo LGPD);
    - VIGIFITO: indicadores × postos (mensal, período de 10 dias da escala, semestral e anual), ../documentos/vigifito-docs.js (VigDocs);
    - Convênio: o relatório circunstancial mensal do convênio (o mesmo da aba Convênios; os textos são editados lá);
-   - Metas SUASA: aguardando o plano de metas SUASA (estrutura pronta para reaproveitar o motor de metas do convênio);
    - Consolidado: o Relatório Técnico da GDV (parcial mensal e consolidado anual), com a Seção II/VIGIFITO = o relatório VIGIFITO.
    Os números vêm de um motor só (documentos/indicadores.js + apurações do servidor). O painel só mostra e gera: os números manuais são
    lançados no Portal do Administrativo (aqui só leitura, com "lançado pelo Administrativo em … por …"); os textos são redigidos aqui.
@@ -16,7 +15,7 @@
   const P = Painel, esc = P.esc, RD = RelGdvDocs, F = RD.fmt;
   const VD = typeof VigDocs !== 'undefined' ? VigDocs : null, CD = typeof ConvDocs !== 'undefined' ? ConvDocs : null, IND = typeof Indicadores !== 'undefined' ? Indicadores : null;
   const LS = 'gdv.painel.relgdv', XLSX_SRC = 'vendor/xlsx/xlsx.mini.min.js';
-  const RELS = [['pce', 'PCE'], ['vigifito', 'VIGIFITO'], ['convenio', 'Convênio'], ['suasa', 'Metas SUASA'], ['consolidado', 'Consolidado (Relatório GDV)']];
+  const RELS = [['pce', 'PCE'], ['vigifito', 'VIGIFITO'], ['convenio', 'Convênio'], ['consolidado', 'Consolidado (Relatório GDV)']];
   const lembrado = (() => { try { return JSON.parse(P.ls.get(LS) || '{}') || {}; } catch (e) { return {}; } })();
   const hoje = () => P.hoje();
   const pad2 = n => String(n).padStart(2, '0');
@@ -54,7 +53,7 @@
         if (E.cmes !== 'total' && !ms.includes(E.cmes)) E.cmes = ms[ms.length - 1];
         const k = `${c.id}|${E.cmes}|${c.versao || 0}`;
         if (!E.capur[k] || forcar) E.capur[k] = await P.chamar({ action: 'painelConvApuracao', convenio: c.id, de: c.inicioExecucao, ate: consolConv() ? hoje() : CD.fimDoMes(E.cmes) });
-      } else if (E.rel !== 'suasa') {
+      } else {
         if (!E.dados[E.ano] || forcar) E.dados[E.ano] = await P.chamar({ action: 'painelRelGdv', ano: E.ano });
         if (E.anoEstado !== E.ano || forcar) iniciarLancamentos();
         if (ehGdv()) {
@@ -115,7 +114,6 @@
       E.VR = vigCalc(E.vmodo === 'periodo' ? 'periodo' : E.vmodo, { mes: E.mes, periodo: per, semestre: E.vsem });
       return;
     }
-    if (E.rel === 'suasa') return;
     const p = periodo(), ap = E.ap[`${p.de}|${p.ate}`];
     if (!ap || !E.dados[E.ano]) return;
     E.R = RD.calcular({ tipo: E.tipo, ano: E.ano, mes: E.mes, ap, apAno: E.tipo === 'mensal' ? E.ap[`${p.deAno}|${p.ate}`] : ap, lancamentos: lancamentos(),
@@ -171,7 +169,6 @@
     if (E.rel === 'pce') return E.tipo === 'mensal' ? `Relatório PCE Parcial — ${RD.MESES[E.mes - 1]}/${E.ano}` : `Relatório PCE ${E.ano} — Consolidado`;
     if (E.rel === 'vigifito') return `Relatório VIGIFITO — ${E.VR ? E.VR.rotulo : E.ano}`;
     if (E.rel === 'convenio') { const c = cfgConv(); return c ? `Relatório do convênio ${c.numero} — ${consolConv() ? 'consolidado até ' + CD.fmt.data(hoje()) : CD.fmt.mes(E.cmes)}` : 'Relatório do convênio'; }
-    if (E.rel === 'suasa') return 'Metas SUASA';
     return E.tipo === 'mensal' ? `Relatório Técnico Parcial — ${RD.MESES[E.mes - 1]}/${E.ano}` : `Relatório Técnico ${E.ano} — Consolidado`;
   }
   function desenhar() {
@@ -196,13 +193,13 @@
     const sub = E.rel === 'pce' ? 'Seção I por grupo de pragas (tabelas e mapas), amostras e laudos, quadro PCE, HLB e anexo (LGPD).'
       : E.rel === 'vigifito' ? 'Indicadores da planilha de controle por posto. Valores do e-GDV (turnos, veículos, TFs) + lançados pelo Administrativo (linhas manuais e substituições). Word, PDF e Excel (.xlsx com os dados).'
       : E.rel === 'convenio' ? 'Relatório circunstancial técnico do convênio (metas e execução financeira): mensal (parcial) ou o total consolidado desde o início da execução até hoje. Os textos são editados na aba Convênios.'
-      : E.rel === 'suasa' ? 'Relatório de metas do SUASA.' : 'Relatório Técnico da GDV: todas as seções (PCE, VIGIFITO — o mesmo relatório VIGIFITO —, CFO/CFOC, PTV, educação sanitária, HLB).';
+      : 'Relatório Técnico da GDV: todas as seções (PCE, VIGIFITO — o mesmo relatório VIGIFITO —, CFO/CFOC, PTV, educação sanitária, HLB).';
     r.innerHTML = `
       <div class="pn-cartao pn-rg-topo">
         <div class="pn-conv-sel">
           <label>Relatório<select id="pn-rg-rel">${RELS.map(([k, t]) => `<option value="${k}" ${E.rel === k ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
           ${ctl}
-          <div class="pn-conv-botoes"><button type="button" class="pn-btn" data-rg="atualizar" id="pn-rg-atualizar">Atualizar</button>${E.rel === 'vigifito' ? '<button type="button" class="pn-btn" data-rg="postos" id="pn-vig-postos">Postos do VIGIFITO</button>' : ''}</div>
+          <div class="pn-conv-botoes"><button type="button" class="pn-btn" data-rg="atualizar" id="pn-rg-atualizar">Atualizar</button>${E.rel === 'vigifito' && P.gerencia ? '<button type="button" class="pn-btn" data-rg="postos" id="pn-vig-postos">Postos do VIGIFITO</button>' : ''}</div>
         </div>
         <h3 class="pn-conv-nome" id="pn-rg-titulo">${esc(titulo())}</h3>
         <p class="pn-sub">${esc(sub)} Apuração no servidor, independente do período carregado nas outras abas; números manuais lançados no <a href="../administrativo/" target="_blank" rel="noopener">Portal do Administrativo</a>.${ap && ap.apuradoEm ? ` Apurado em ${esc(P.fmt.dataHora(ap.apuradoEm))}.` : ''}</p>
@@ -210,14 +207,13 @@
       ${E.erro ? `<p class="pn-erro" role="alert">${esc(E.erro)}${/a[çc][ãa]o inv[áa]lida/i.test(E.erro) ? ' — o servidor ainda está com o Code.gs antigo: cole o Code.gs novo e crie uma nova versão da implantação.' : ''}</p>` : ''}
       <div id="pn-rg-corpo" class="${E.carregando ? 'carregando' : ''}"></div>`;
     const c = r.querySelector('#pn-rg-corpo');
-    if (E.rel === 'suasa') return desenharSuasa(c);
     if (E.rel === 'convenio') { if (!E.CR) { P.vazio(c, E.carregando ? 'Apurando o convênio…' : 'Sem apuração.'); return; } return desenharConv(c); }
     if (E.rel === 'vigifito') { if (!E.VR) { P.vazio(c, E.carregando ? 'Apurando o VIGIFITO…' : 'Sem apuração.'); return; } return desenharVig(c); }
     if (!E.R) { P.vazio(c, E.carregando ? 'Apurando o relatório…' : 'Sem apuração.'); return; }
     desenharCorpo(c);
   }
   function desenharEdicao() { recalcular(); const c = E.raiz && E.raiz.querySelector('#pn-rg-corpo'); if (!c) return; const y = window.scrollY; c.innerHTML = '';
-    if (E.rel === 'vigifito') desenharVig(c); else if (E.rel === 'convenio') desenharConv(c); else if (E.rel !== 'suasa') desenharCorpo(c); window.scrollTo(0, y); }
+    if (E.rel === 'vigifito') desenharVig(c); else if (E.rel === 'convenio') desenharConv(c); else desenharCorpo(c); window.scrollTo(0, y); }
 
   /* ---------------- PCE / consolidado ---------------- */
   const tabela = (cab, linhas, extra) => `<div class="pn-tab pn-rg-tab ${extra || ''}"><div class="pn-tab-rolo"><table><thead><tr>${cab.map(h => `<th scope="col" class="${h.num ? 'num' : ''}">${esc(h.r)}</th>`).join('')}</tr></thead>` +
@@ -319,7 +315,7 @@
   }
   function barra(c, xlsx, semTextos) {
     const bar = P.el('div', 'pn-cartao pn-conv-rel-acoes pn-rg-acoes');
-    bar.innerHTML = `${semTextos ? '' : '<button type="button" class="pn-btn" data-rg="salvar" id="pn-rg-salvar">Salvar textos</button>'}
+    bar.innerHTML = `${semTextos || !P.gerencia ? '' : '<button type="button" class="pn-btn" data-rg="salvar" id="pn-rg-salvar">Salvar textos</button>'}
       <button type="button" class="pn-btn pn-btn-prim" data-rg="docx" id="pn-rg-docx">Baixar Word (.docx)</button>
       <button type="button" class="pn-btn pn-btn-prim" data-rg="pdf" id="pn-rg-pdf">Baixar PDF</button>
       ${xlsx ? '<button type="button" class="pn-btn pn-btn-prim" data-rg="xlsx" id="pn-rg-xlsx">Baixar Excel (.xlsx)</button>' : ''}
@@ -394,7 +390,7 @@
     if (dlg.showModal) dlg.showModal(); else dlg.setAttribute('open', '');
   }
 
-  /* ---------------- Convênio e Metas SUASA ---------------- */
+  /* ---------------- Convênio ---------------- */
   function desenharConv(c) {
     const R = E.CR;
     P.kpis(c, [{ rotulo: 'Esperado pelo tempo', valor: CD.fmt.pct(R.esperado) }, { rotulo: 'Execução financeira', valor: CD.fmt.pct(R.fin.total.pct), detalhe: `${CD.fmt.moeda(R.fin.total.acum)} de ${CD.fmt.moeda(R.fin.total.previsto)}` },
@@ -409,17 +405,10 @@
     s.appendChild(k);
     barra(c, false, true);
   }
-  function desenharSuasa(c) {
-    const k = P.el('div', 'pn-cartao pn-rg-suasa'); k.id = 'pn-rg-suasa';
-    k.innerHTML = `<h3>Aguardando o plano de metas SUASA</h3>
-      <p>O documento com as metas do SUASA ainda não chegou. Quando chegar, as metas serão configuradas aqui reaproveitando o motor de metas do convênio: metas por etapa, apuração automática pelo e-GDV (os mesmos indicadores do PCE e do VIGIFITO) ou lançamento no Portal do Administrativo, esperado pelo tempo, físico × financeiro e o relatório em Word e PDF.</p>
-      <p class="pn-sub">Enquanto isso, use os relatórios PCE, VIGIFITO, Convênio e Consolidado.</p>`;
-    c.appendChild(k);
-  }
 
   /* ---------------- salvar e gerar ---------------- */
   async function salvar(silencioso) {
-    if (E.rel === 'convenio' || E.rel === 'suasa') return true;
+    if (E.rel === 'convenio' || !P.gerencia) return true;         // sem gerência o painel é só de leitura: gera o relatório sem guardar os textos
     if (!silencioso) setMsg('Salvando…', '');
     try {
       const t = { ...E.textos, assinaturas: (E.textos.assinaturas || []).slice(0, 3) };
@@ -504,7 +493,7 @@
   function render(c) {
     if (!E.raiz) { E.raiz = montar(); desenhar(); }
     c.appendChild(E.raiz);
-    if (!E.carregando && !E.erro && !(E.R || E.VR || E.CR || E.rel === 'suasa')) carregar();
+    if (!E.carregando && !E.erro && !(E.R || E.VR || E.CR)) carregar();
   }
   P.aoSair(() => { if (E.raiz) E.raiz.remove(); Object.assign(E, { raiz: null, dados: {}, ap: {}, vig: {}, conv: null, capur: {}, R: null, VR: null, CR: null, erro: '', textos: null, chaveTxt: '', L: null, listas: null, anoEstado: 0, msg: { t: '', cls: '' } }); });
   P.registrarAba({ id: 'relatorios', titulo: 'Relatórios', render, semFiltros: true,

@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // Envio em segundo plano (Background Sync): o service worker envia os pendentes com o app FECHADO quando a rede volta.
 const { chromium } = require('playwright-core');
 const { API, APP, ORIGEM } = amb;
@@ -18,11 +19,11 @@ const gravarIDB = (pg, store, rec) => pg.evaluate(([s, r]) => new Promise((ok, n
   const b = await amb.lancar();
   const erros = [];
   async function abrirCtx(nome, semSuporte) {
-    const g = await get('/__gerar?nome=' + encodeURIComponent(nome)), a = await post({ action: 'ativar', codigo: g.codigo });
+    const a = await U.fiscal(nome);
     const c = await b.newContext({ viewport: { width: 400, height: 820 }, timezoneId: 'America/Manaus', locale: 'pt-BR', permissions: ['geolocation', 'background-sync'], geolocation: { latitude: -3.119, longitude: -60.021, accuracy: 10 } });
     await c.route('https://nominatim.openstreetmap.org/**', rt => rt.fulfill({ status: 200, contentType: 'application/json', body: '{}' }));
-    await c.addInitScript(([k, n]) => { if (!localStorage.getItem('__init')) { localStorage.setItem('__init', 1); localStorage.setItem('gdv.url', window.__GDV_API);
-      localStorage.setItem('gdv.key', k); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } }, [a.token, nome]);
+    await c.addInitScript(([k]) => { if (!localStorage.getItem('__init')) { localStorage.setItem('__init', 1); localStorage.setItem('gdv.url', window.__GDV_API);
+      Object.entries(k).forEach(([c, v]) => localStorage.setItem(c, v)); } }, [a.ls, nome]);
     if (semSuporte) await c.addInitScript(() => { try { delete window.SyncManager; delete ServiceWorkerRegistration.prototype.sync; delete ServiceWorkerRegistration.prototype.periodicSync; } catch (e) {} });
     const p = await c.newPage();
     p.on('pageerror', e => erros.push('pageerror: ' + e.message)); p.on('console', m => { if (m.type() === 'error') erros.push(m.text() + ' @' + JSON.stringify(m.location())); });
@@ -138,7 +139,7 @@ const gravarIDB = (pg, store, rec) => pg.evaluate(([s, r]) => new Promise((ok, n
   await registrar(p, 'BGR1A11');
   await p.goto(APP + 'manifest.webmanifest');                              // fecha o app
   await A.c.setOffline(false); await fetch(API + '/__on');
-  await fetch(API + '/__revogar?nome=' + encodeURIComponent('Fiscal Fundo Pereira'));
+  { const g = await U.gerente(), l = await U.post({ action: 'usuariosListar', key: g.token }); await U.revogar(l.usuarios.find(u => u.nome === 'Fiscal Fundo Pereira').id); }   // a gerência encerra as sessões
   const r1 = await sw.evaluate(() => enviarEmSegundoPlano());
   ok(r1.motivo === 'credencial revogada', '1º envio: servidor recusa a credencial → resolve (sem repetir)', r1);
   const c1 = (await lerIDB(p, 'meta')).find(m => m.k === 'cred').v;
@@ -151,13 +152,13 @@ const gravarIDB = (pg, store, rec) => pg.evaluate(([s, r]) => new Promise((ok, n
   ok((await aba('Veiculos')).length === n0 && (await lerIDB(p, 'veiculos')).some(v => v.placa === 'BGR1A11' && v.pendente === 1), 'nada enviado; o registro continua guardado no aparelho');
   await p.goto(APP); await p.waitForSelector('#view');
   await p.click('.modulo[data-v=home]').catch(() => {}); await p.waitForTimeout(400);
-  ok(/Acesso revogado/.test(await p.textContent('#view')), 'app reaberto: pede novo código (revogação vista pelo service worker)', (await p.textContent('#view')).slice(0, 80));
+  ok(/Acesso revogado/.test(await p.textContent('#view')), 'app reaberto: acesso revogado, pede para entrar de novo (revogação vista pelo service worker)', (await p.textContent('#view')).slice(0, 80));
   ok(await p.evaluate(() => localStorage.getItem('gdv.revogado')) === '1', 'localStorage gdv.revogado = 1');
-  // desativar o aparelho apaga a cópia da credencial
-  await p.evaluate(() => Sync.desativar()); await p.waitForTimeout(300);
-  ok(!(await p.evaluate(() => Store.meta('cred'))), 'desativar: meta "cred" apagada');
+  // sair do aparelho (o servidor já recusa o acesso: limpa só aqui) apaga a cópia da credencial
+  await p.evaluate(() => Sync.sair()); await p.waitForTimeout(300);
+  ok(!(await p.evaluate(() => Store.meta('cred'))), 'sair: meta "cred" apagada');
   const r3 = await sw.evaluate(() => enviarEmSegundoPlano());
-  ok(r3.motivo === 'aparelho não ativado', 'SW sem credencial: não envia', r3);
+  ok(r3.motivo === 'sem acesso neste aparelho', 'SW sem credencial: não envia', r3);
   await A.c.close();
 
   /* ================= 3. navegador sem Background Sync (iPhone) ================= */

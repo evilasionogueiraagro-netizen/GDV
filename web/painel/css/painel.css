@@ -26,10 +26,12 @@ body { overflow-x: hidden; }
 .pn-login-form { width: 100%; max-width: 400px; }
 .pn-login-form h2 { margin: 0 0 6px; font-size: 20px; }
 .pn-login-form label { display: block; font-size: 13px; color: var(--ink2); margin: 16px 0 6px; }
-.pn-login-form input { width: 100%; font-size: 28px; letter-spacing: 8px; text-align: center; padding: 10px; border-radius: 10px; }
-.pn-botao { display: block; width: 100%; margin-top: 14px; border-radius: 10px; padding: 13px; }
-.pn-botao:disabled { cursor: wait; }
-.pn-erro { margin: 12px 0 0; padding: 10px; font-size: 14px; }
+.pn-login-form input { width: 100%; font-size: 16px; padding: 10px 12px; border: 1px solid var(--base); border-radius: 10px; background: var(--sf); color: var(--ink); }
+.pn-login-form .pn-link { display: block; margin: 10px 0 0; }
+.pn-login-form .pn-btn { display: block; width: 100%; margin-top: 8px; padding: 11px; }
+.pn-botao { display: block; width: 100%; margin-top: 14px; background: var(--marca2); color: #fff; border: 0; border-radius: 10px; padding: 13px; font-weight: 600; cursor: pointer; }
+.pn-botao:disabled { opacity: .6; cursor: wait; }
+.pn-erro { color: var(--critico); background: color-mix(in srgb, var(--critico) 10%, transparent); border-radius: 8px; padding: 10px; margin: 12px 0 0; font-size: 14px; }
 
 /* Cartões e seções */
 .pn-conteudo { max-width: 1400px; margin: 0 auto; padding: 12px 16px 24px; transition: opacity .2s; }
@@ -246,19 +248,14 @@ body.tv .pn-tfaviso { display: none !important; }
   .pn-abas { padding: 0 8px; flex-wrap: wrap; overflow-x: visible; gap: 0 2px; }
   .pn-aba { padding: 9px 8px; font-size: 13.5px; }
 }
-/* Aba Servidores (js/painel-acessos.js): gerar chave de ativação do app de campo e acessos */
+/* Aba Usuários (js/painel-usuarios.js): criar usuário, senha provisória, permissões e sessões */
 .pn-ac-grade { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 10px; align-items: start; }
 @media (min-width: 900px) { .pn-ac-grade { grid-template-columns: minmax(0, 380px) minmax(0, 1fr); } }
-.pn-ac-form label { display: block; font-size: 13px; color: var(--ink2); margin: 0 0 6px; font-weight: 600; }
-.pn-ac-form input { width: 100%; font-size: 16px; padding: 10px 12px; border-radius: 10px; }
-.pn-ac-dica { margin: 6px 0 0; font-size: 12.5px; }
-.pn-ac-res { border-left: 4px solid var(--marca2); }
+.pn-ac-res { border-left: 4px solid var(--marca2); transition: opacity .25s ease, transform .25s ease; }
 .pn-ac-para { color: var(--ink2); font-size: 14px; overflow-wrap: anywhere; }
 .pn-ac-para b { color: var(--ink); }
-.pn-ac-codigo { font: 700 clamp(40px, 11vw, 60px)/1.1 ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .06em; color: var(--ink); margin: 6px 0 4px; user-select: all; white-space: nowrap; }
+.pn-ac-codigo { font: 700 clamp(26px, 7vw, 36px)/1.2 ui-monospace, "SF Mono", Menlo, Consolas, monospace; letter-spacing: .04em; color: var(--ink); margin: 6px 0 4px; user-select: all; overflow-wrap: anywhere; }
 .pn-ac-validade { font-size: 14px; color: var(--ink2); }
-.pn-ac-passos { margin: 12px 0 0; padding-left: 20px; font-size: 14px; line-height: 1.5; }
-.pn-ac-passos a { overflow-wrap: anywhere; }
 .pn-ac-acoes { display: flex; flex-wrap: wrap; gap: 8px 10px; align-items: center; margin-top: 14px; }
 .pn-ac-acoes .pn-btn { text-decoration: none; color: var(--ink); display: inline-flex; align-items: center; min-height: 40px; }
 .pn-ac-acoes .pn-btn-prim { color: #fff; }
@@ -269,61 +266,14 @@ body.tv .pn-tfaviso { display: none !important; }
 .pn-ac-aviso { font-size: 13px; flex-basis: 100%; }
 .pn-ac-aviso.ok { color: var(--bom-txt); } .pn-ac-aviso.erro { color: var(--critico); }
 .pn-ac-aviso:empty { display: none; }
-.pn-ac-filtros { display: flex; flex-wrap: wrap; gap: 10px 14px; align-items: flex-end; }
-.pn-ac-filtros label { display: flex; flex-direction: column; gap: 4px; font-size: 12px; color: var(--ink2); flex: 1 1 180px; max-width: 300px; min-width: 0; }
-.pn-ac-filtros input[type=search], .pn-ac-filtros select { width: 100%; }
-.pn-ac-filtros .pn-ac-check { flex-direction: row; align-items: center; gap: 6px; font-size: 13px; flex: 0 1 auto; padding-bottom: 8px; }
-.pn-ac-cod { font-family: ui-monospace, Menlo, Consolas, monospace; font-weight: 700; white-space: nowrap; }
 .pn-ac-perfil { font-size: 11px; color: var(--ink2); border: 1px solid var(--base); border-radius: 999px; padding: 0 6px; white-space: nowrap; }
-.pn-ac-revogar { color: var(--critico); border-color: color-mix(in srgb, var(--critico) 45%, var(--base)); }
-/* "Remover da lista" (revogado/código vencido): botão no computador; no celular, deslizar a linha revela .pn-ac-desl */
-.pn-ac-remover { color: var(--ink2); }
-.pn-ac-restaurar { color: var(--marca2); }
-.pn-ac-removido { margin-left: 2px; }
-.pn-ac-desl { display: none; }
-.pn-ac-res { transition: opacity .25s ease, transform .25s ease; }
-.pn-ac-res.pn-ac-saindo { opacity: 0; transform: translateY(-6px) scale(.98); }
-#pn-ac-tab tbody tr.pn-ac-sumindo { opacity: 0; transition: opacity .2s ease; }
-@media (max-width: 560px) {
-  #pn-ac-tab tbody tr { position: relative; }
-  #pn-ac-tab tbody td { touch-action: pan-y pinch-zoom; }          /* touch-action não vale em <tr>: vai nas células (o deslize horizontal fica com o JS) */
-  #pn-ac-tab .pn-ac-remover { display: none; }
-  #pn-ac-tab .pn-ac-desl { display: flex; align-items: center; justify-content: center; position: absolute; top: 0; bottom: 0; right: 0; width: 124px;
-    border: 0; border-radius: 0; background: var(--critico); color: #fff; font-weight: 600; font-size: 13px; line-height: 1.2; padding: 0 8px; text-align: center;
-    opacity: 0; visibility: hidden; cursor: pointer; z-index: 1; }
-  #pn-ac-tab .pn-ac-desl.vis { visibility: visible; }
-  #pn-ac-tab tr.pn-ac-aberta td { background: var(--sf); }
-}
-@media (prefers-reduced-motion: reduce) { .pn-ac-res, #pn-ac-tab tbody tr.pn-ac-sumindo { transition: none; } }
 .pn-ac-mods { border: 1px solid var(--base); border-radius: 10px; padding: 8px 12px 10px; margin: 12px 0 0; min-width: 0; }
 .pn-ac-mods legend { font-size: 13px; color: var(--ink2); font-weight: 600; padding: 0 4px; }
-.pn-ac-form .pn-ac-mod { display: flex; align-items: center; gap: 8px; font-weight: 400; color: var(--ink); font-size: 14px; margin: 4px 0; cursor: pointer; }
-.pn-ac-form .pn-ac-mod input { width: 18px; height: 18px; margin: 0; flex: none; accent-color: var(--marca2); }
-.pn-ac-form .pn-botao { margin-top: 12px; }
 .pn-ac-perm { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: center; min-width: 0; }
 .pn-ac-perm label { display: inline-flex; align-items: center; gap: 4px; font-size: 13px; white-space: nowrap; cursor: pointer; }
 .pn-ac-perm input { width: 16px; height: 16px; margin: 0; accent-color: var(--marca2); }
-.pn-ac-perm input:disabled + * , .pn-ac-perm input:disabled { cursor: progress; }
-.pn-ac-perm-m { display: none; }
-.pn-ac-perm-st { font-size: 12px; color: var(--ink2); flex-basis: 100%; }
-.pn-ac-perm-st:empty { display: none; }
-.pn-ac-perm-st.ok { color: var(--bom-txt); } .pn-ac-perm-st.erro { color: var(--critico); }
-/* celular: só Servidor, Situação, Módulos, Código e Revogar (datas e "gerado por" ficam no computador e no CSV) */
-@media (max-width: 560px) { #pn-ac-tab th:nth-child(n+4):nth-child(-n+7), #pn-ac-tab td:nth-child(n+4):nth-child(-n+7), #pn-ac-tab th:nth-child(n+9):nth-child(-n+12), #pn-ac-tab td:nth-child(n+9):nth-child(-n+12) { display: none; }
-  /* As 5 colunas precisam caber em ~340 px com qualquer fonte do sistema (com DejaVu Sans, mais larga que a Inter,
-     a soma das larguras mínimas passava disso e a tabela ganhava rolagem). Letras um pouco menores; a sobra vai
-     primeiro para o nome (30%), para não partir palavras; e, como última válvula, o nome pode quebrar dentro da
-     palavra quando não houver outro jeito (em vez de a tabela ganhar rolagem). */
-  #pn-ac-tab > .pn-cartao { padding-left: 8px; padding-right: 8px; }
-  #pn-ac-tab .pn-ac-perm { flex-direction: column; align-items: flex-start; gap: 2px; } #pn-ac-tab .pn-ac-perm label { font-size: 11.5px; gap: 3px; }
-  #pn-ac-tab .pn-ac-perm input { width: 14px; height: 14px; }
-  #pn-ac-tab .pn-ac-perm-r { display: none; } #pn-ac-tab .pn-ac-perm-m { display: inline; }
-  #pn-ac-tab .pn-ac-cod { font-size: 11px; }
-  #pn-ac-tab td, #pn-ac-tab th { padding-left: 2px; padding-right: 2px; font-size: 12px; }
-  #pn-ac-tab th:first-child { width: 30%; } #pn-ac-tab td:first-child { overflow-wrap: anywhere; }
-  #pn-ac-tab .pn-selo { white-space: normal; align-items: baseline; font-size: 11px; gap: 3px; } #pn-ac-tab .pn-selo::before { width: 7px; height: 7px; }
-  #pn-ac-tab .pn-link { display: block; font-size: 11.5px; } #pn-ac-tab .pn-ac-revogar { padding: 3px; font-size: 11px; } }
-@media (max-width: 560px) { .pn-ac-filtros label { flex: 1 1 100%; max-width: none; } .pn-ac-acoes .pn-btn { flex: 1 1 auto; justify-content: center; } }
+@media (max-width: 560px) { .pn-ac-acoes .pn-btn { flex: 1 1 auto; justify-content: center; } }
+@media (prefers-reduced-motion: reduce) { .pn-ac-res { transition: none; } }
 @media print { .pn-filtros, .pn-abas, .pn-topo button, .pn-mapa-ctl { display: none !important; } }
 
 /* Visão geral: mapa + alertas lado a lado no computador */
@@ -539,13 +489,14 @@ body.tv-mexeu .tv-ctl { opacity: 1; pointer-events: auto; }
 .tv-dica.fixa { background: var(--atencao); color: #0b0b0b; }
 .tv-dica { position: fixed; top: 11.5vh; left: 50%; transform: translateX(-50%); z-index: 61; background: var(--ink); color: var(--pg); font-size: 2.4vh; font-weight: 600; padding: 1.2vh 2.2vw; border-radius: 99px; box-shadow: 0 0.4vh 1.6vh rgba(0,0,0,.35); pointer-events: none; }
 
-/* "Sessão encerrada" (credencial revogada/inválida): tela cheia com o campo do código */
+/* "Sessão encerrada" (sessão revogada/inválida): tela cheia com matrícula e senha */
 body.tv #pn-login:not([hidden]) { position: fixed; inset: 0; z-index: 100; background: var(--pg); display: flex; align-items: center; justify-content: center; padding: 4vh; }
 body.tv .pn-login-form { max-width: 76vh; padding: 4.4vh 4vh; border-radius: 2vh; }
 body.tv .pn-login-form h2 { font-size: 4.6vh; margin-bottom: 1.2vh; }
 body.tv .pn-login-form .pn-sub { font-size: 2.3vh; line-height: 1.45; }
 body.tv .pn-login-form label { font-size: 2.1vh; margin: 3vh 0 1vh; }
-body.tv .pn-login-form input { font-size: 6vh; letter-spacing: 1.8vh; padding: 1.4vh; border-radius: 1.4vh; }
+body.tv .pn-login-form input { font-size: 3.6vh; padding: 1.4vh 1.6vh; border-radius: 1.4vh; }
+body.tv .pn-login-form .pn-link { font-size: 2vh; margin-top: 1.6vh; }
 body.tv .pn-botao { font-size: 2.8vh; padding: 1.8vh; border-radius: 1.4vh; margin-top: 2.2vh; }
 body.tv .pn-erro { font-size: 2.1vh; padding: 1.4vh; }
 /* barreira encerrada no celular, aguardando envio (o aparelho avisou; a planilha ainda não recebeu) */
@@ -561,10 +512,6 @@ body.tv .pn-erro { font-size: 2.1vh; padding: 1.4vh; }
 .tv-selo.aguardando i, .tv-dot.aguardando { background: var(--atencao); }
 .tv-vivo.aguardando { box-shadow: inset 0.6vh 0 0 var(--atencao); padding-left: calc(1.1vw + 0.6vh); }
 .tv-rotulo.aguardando { border-left: 0.7vh solid var(--atencao); }
-/* Servidores: sinal dos aparelhos */
-.pn-ac-velha { color: var(--critico); font-weight: 650; } .pn-ac-erro { color: var(--ink); font-size: 12px; display: block; max-width: 280px; overflow-wrap: anywhere; }
-.pn-ac-sinal-m { display: none; } @media (max-width: 560px) { .pn-ac-sinal-m { display: block; font-size: 11px; color: var(--ink2); margin-top: 2px; } .pn-ac-sinal-m b { color: var(--critico); font-weight: 650; } }
-
 /* Aba "Dashboard público" (js/painel-publico.js) */
 .pn-pub-grade { display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; margin-top: 10px; align-items: start; }
 @media (min-width: 900px) { .pn-pub-grade { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); } }

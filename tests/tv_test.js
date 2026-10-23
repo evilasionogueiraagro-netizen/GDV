@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const Login = require('./lib/login');
 // E2E do modo TV (Sala de Situação), do painel no celular e do mapa sem tiles: painel real (8081) contra o Code.gs real (fakegas, API 8082).
 // Dados semeados como no painel_test.js.
 const { chromium } = require('playwright-core'); const fs = require('fs');
@@ -127,7 +128,8 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
 
 (async () => {
   /* ---------- carga da planilha falsa (igual ao painel_test.js) ---------- */
-  const r = await post({ action: 'sync', key: 'segredo', since: 0, turnos: TURNOS.map(turnoReg), veiculos: veics, tfs: TFS, levantamentos: LEVS, colheitas: COLS });
+  const SEMEADOR = (await Login.campo('Fiscal Semente Teste')).token;
+  const r = await post({ action: 'sync', key: SEMEADOR, since: 0, turnos: TURNOS.map(turnoReg), veiculos: veics, tfs: TFS, levantamentos: LEVS, colheitas: COLS });
   ok(r.ok, 'sync de preparação', r.erro);
   // a barreira esquecida aberta (tE, > 12 h) precisa continuar aberta para testar o estado "aberta > 12 h": sem o encerramento automático
   ok((await get('/__fn?nome=desativarRotinasAutomaticas_')).r === 0, 'rotinas automáticas desativadas (encerramento automático fica para o rotinas_test.js)');
@@ -135,9 +137,9 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   const linhaF = ['id', 'numeroTF', 'data', 'letra', 'inicio', 'fim', 'fiscal', 'local', 'unidade', 'posto', 'encerrado', 'criadoEm', 'atualizadoEm', 'srv_ts', 'latIni', 'lngIni', 'precIni', 'latFim', 'lngFim', 'precFim', 'usuario']
     .map(k => k === 'criadoEm' || k === 'atualizadoEm' || k === 'srv_ts' ? tsF : k === 'usuario' ? 'Rita Gomes' : f[k]);
   await fetch(API + '/__append?aba=Turnos&row=' + encodeURIComponent(JSON.stringify(linhaF)));
-  /** Credencial de administrador própria (como a TV da sala): gera o código e ativa pela API. */
-  const credencial = async nome => { const g = await get('/__gerar?nome=' + encodeURIComponent(nome) + '&perfil=admin'); const a = await post({ action: 'painelAtivar', codigo: g.codigo }); return { token: a.token, nome: a.nome || nome }; };
-  const sessao = c => ({ 'gdv.painel.token': c.token, 'gdv.painel.nome': c.nome });
+  /** Usuário próprio da TV da sala: só a permissão Painel (matrícula e senha; o gerente cria). */
+  const credencial = nome => Login.soLeitura(nome);
+  const sessao = c => Login.lsPainel(c);
   const TV = await credencial('TV Sala da Gerência');
 
   const b = await amb.lancar();
@@ -556,36 +558,37 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   ok(!p.erros.length, 'tv6h: sem erros de console', p.erros);
   await p.context().close();
 
-  /* ================= 8. credencial revogada → "Sessão encerrada" ================= */
-  console.log('8. Credencial revogada');
+  /* ================= 8. sessão encerrada → "Sessão encerrada" ================= */
+  console.log('8. Sessão da TV encerrada pelo gerente');
   const TVR = await credencial('TV Revogar');
   p = await abrir({ nome: 'tvrev', relogio: true, url: WEB + '?tv=1&rotacao=300&rotacaoAoVivo=300', ls: sessao(TVR) });
   await esperarTV(p);
-  ok(await get('/__revogar?nome=' + encodeURIComponent('TV Revogar')) >= 1, 'revogada no servidor (menu e-GDV revoga pelo nome)');
+  const gB = await Login.gerenteBase();
+  const sTV = (await post({ action: 'sessoesListar', key: gB.token, usuarioId: TVR.id })).sessoes;
+  ok(sTV.length === 1 && (await post({ action: 'sessaoEncerrar', key: gB.token, sessaoId: sTV[0].id })).ok, 'sessão encerrada no servidor (o gerente encerra pela aba Usuários)');
   await avanca(p, 61000);
-  ok(await ate(p, () => !document.getElementById('pn-login').hidden), 'próxima atualização: servidor recusa a credencial');
-  ok((await p.textContent('#pn-login-tit')).trim() === 'Sessão encerrada' && /Gere um novo código de administrador e digite aqui/.test(await p.textContent('#pn-login-txt')) && await p.isVisible('#pn-codigo'),
-    'tela cheia "Sessão encerrada. Gere um novo código de administrador e digite aqui" com o campo do código');
+  ok(await ate(p, () => !document.getElementById('pn-login').hidden), 'próxima atualização: servidor recusa a sessão');
+  ok((await p.textContent('#pn-senha-tit')).trim() === 'Modo TV: entrar' && await p.isVisible('#pn-matricula') && await p.isVisible('#pn-login-erro') && !(await p.$('#pn-codigo')),
+    'tela cheia com matrícula e senha e o motivo do servidor, sem campo de código');
   ok(await p.evaluate(() => { const r = document.getElementById('pn-login').getBoundingClientRect(); return r.width >= innerWidth - 1 && r.height >= innerHeight - 1 && document.body.classList.contains('tv'); }), 'continua no modo TV, em tela cheia');
   await p.screenshot({ path: amb.saida('tv_sessao_encerrada.png') });
-  // achado: recarregar (versão nova / TV reiniciada) não pode virar a tela de primeira configuração
+  // achado: recarregar (versão nova / TV reiniciada) não pode esconder o motivo
   await p.reload(); await p.waitForSelector('#pn-login:not([hidden])', { timeout: 15000 });
-  ok((await p.textContent('#pn-login-tit')).trim() === 'Sessão encerrada' && await p.isVisible('#pn-login-erro') && /Gere um novo código/.test(await p.textContent('#pn-login-txt')),
-    'depois de recarregar continua "Sessão encerrada", com o motivo', [(await p.textContent('#pn-login-tit')).trim(), (await p.textContent('#pn-login-erro')).trim()]);
-  await p.keyboard.press('ArrowRight'); ok(await p.isVisible('#pn-login'), 'teclas de navegação não atrapalham a digitação do código');
-  const nov = await get('/__gerar?nome=' + encodeURIComponent('TV Sala da Gerência') + '&perfil=admin');
-  await p.fill('#pn-codigo', nov.codigo); await p.click('#pn-entrar'); await esperarTV(p);
-  ok(await p.isHidden('#pn-login') && (await tela(p)).tela === 'aovivo' && await kpiTV(p, 'andamento') === '3', 'novo código: a TV volta sozinha às telas');
-  ok(await p.evaluate(() => localStorage.getItem('gdv.painel.encerrada') === null), 'novo código apaga o motivo gravado de "Sessão encerrada"');
+  ok(await p.isVisible('#pn-login-erro') && /matr[ií]cula e senha|sess[aã]o/i.test(await p.textContent('#pn-login-erro')),
+    'depois de recarregar continua na tela de entrar, com o motivo', (await p.textContent('#pn-login-erro')).trim());
+  await p.keyboard.press('ArrowRight'); ok(await p.isVisible('#pn-login'), 'teclas de navegação não atrapalham a digitação');
+  await p.fill('#pn-matricula', TVR.matricula); await p.fill('#pn-senha', TVR.senha); await p.click('#pn-entrar-senha'); await esperarTV(p);
+  ok(await p.isHidden('#pn-login') && (await tela(p)).tela === 'aovivo' && await kpiTV(p, 'andamento') === '3', 'entrando de novo com a matrícula e a senha da TV, ela volta sozinha às telas');
+  ok(await p.evaluate(() => localStorage.getItem('gdv.painel.encerrada') === null), 'a nova entrada apaga o motivo gravado de "Sessão encerrada"');
   ok(!p.erros.length, 'tvrev: sem erros de console', p.erros);
   await p.context().close();
 
   p = await abrir({ nome: 'tvnova', url: WEB + '?tv=1' });
   await p.waitForSelector('#pn-login:not([hidden])');
-  ok((await p.textContent('#pn-login-tit')).trim() === 'Modo TV — acesso do administrador' && await p.isVisible('#pn-codigo'), 'TV nova (sem credencial): pede o código, sem dizer "Sessão encerrada"', (await p.textContent('#pn-login-tit')).trim());
-  const cod1 = await get('/__gerar?nome=' + encodeURIComponent('TV Sala da Gerência') + '&perfil=admin');
-  await p.fill('#pn-codigo', cod1.codigo); await p.click('#pn-entrar'); await esperarTV(p);
-  ok((await tela(p)).tela === 'aovivo', 'com o código, a TV entra direto nas telas');
+  ok((await p.textContent('#pn-senha-tit')).trim() === 'Modo TV: entrar' && await p.isVisible('#pn-matricula') && await p.isHidden('#pn-login-erro'), 'TV nova (sem sessão): pede matrícula e senha, sem mensagem de erro');
+  const TVN = await Login.soLeitura('TV Nova Sala');
+  await p.fill('#pn-matricula', TVN.matricula); await p.fill('#pn-senha', TVN.senha); await p.click('#pn-entrar-senha'); await esperarTV(p);
+  ok((await tela(p)).tela === 'aovivo', 'com a matrícula e a senha, a TV entra direto nas telas');
   ok(!p.erros.length, 'tvnova: sem erros de console', p.erros);
   await p.context().close();
 
@@ -637,7 +640,7 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   const extras = [...Array(9).keys()].map(k => ({ id: 'tG' + k, numeroTF: 'TF-G' + k, data: diaM(iniG), letra: 'A', inicio: hmM(iniG), fim: '', fiscal: 'Fiscal ' + k, local: 'Barreira Estrada ' + ['AM-010', 'AM-070', 'BR-174', 'Ponte Rio Negro', 'Porto da Ceasa', 'Zona Leste', 'Puraquequara', 'Tarumã', 'Iranduba'][k],
     unidade: 'MANAUS', posto: 'Móvel', encerrado: 0, criadoEm: Date.now(), atualizadoEm: Date.now(), latIni: String(PM[0] + (k % 3 - 1) * 0.06), lngIni: String(PM[1] + (Math.floor(k / 3) - 1) * 0.06), precIni: '10', latFim: '', lngFim: '', precFim: '' }));
   const vExtra = extras.map((t, k) => ({ id: t.id + '-v', turnoId: t.id, hora: hmM(Date.now() - 5 * 60e3), placa: 'EXT' + k + 'A00', tipo: 'PA', pessoas: 2, obs: '', excluido: 0, criadoEm: Date.now(), atualizadoEm: Date.now() }));
-  ok((await post({ action: 'sync', key: 'segredo', since: 0, turnos: extras, veiculos: vExtra })).ok, '+9 barreiras abertas perto de Manaus');
+  ok((await post({ action: 'sync', key: SEMEADOR, since: 0, turnos: extras, veiculos: vExtra })).ok, '+9 barreiras abertas perto de Manaus');
   for (const [vp, nm] of [[{ width: 1920, height: 1080 }, '1080p'], [{ width: 3840, height: 2160 }, '4K']]) {
     p = await abrir({ nome: 'tvmuitas' + nm, viewport: vp, url: WEB + '?tv=1&rotacao=300&rotacaoAoVivo=300', ls: sessao(TV) });
     await esperarTV(p); await p.waitForFunction(() => document.body.classList.contains('tv-ocioso'), null, { timeout: 8000 }); await p.waitForTimeout(400);

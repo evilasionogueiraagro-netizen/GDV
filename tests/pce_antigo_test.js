@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // PCE — modo "Registro antigo (digitação do papel)": app real (Chromium) + Code.gs real (fakegas, Drive falso).
 const { chromium } = require('playwright-core');
 const { API, APP } = amb;
@@ -18,8 +19,8 @@ const uuid = () => require('crypto').randomUUID();
 
 (async () => {
   const b = await amb.lancar();
-  const gerar = async (nome, perfil = '') => get('/__gerar?nome=' + encodeURIComponent(nome) + '&perfil=' + perfil);
-  const credencial = async nome => { const g = await gerar(nome); const r = await post({ action: 'ativar', codigo: g.codigo }); return { token: r.token, nome }; };
+  const gerar = async (nome, perfil = '') => perfil === 'admin' ? amb.gerente(nome) : amb.usuario(nome);   // conta pronta e token (atalho /__usuario)
+  const UIDS = {}, credencial = async (nome, perm = { veiculos: 1, tf: 1, pce: 1, antigo: 0 }) => { const f = await U.fiscal(nome, { permissoes: U.lista(perm) }); UIDS[f.nome] = f.usuario.id; return { token: f.token, nome: f.nome }; };
   const aparelho = async ({ token, nome }, vp = { width: 1366, height: 768 }) => {
     const c = await b.newContext({ viewport: vp, permissions: ['geolocation'], geolocation: { latitude: -3.5, longitude: -59.5, accuracy: 9 } });
     await c.addInitScript(([t, n]) => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } } catch (e) {} }, [token, nome]);
@@ -71,17 +72,17 @@ const uuid = () => require('crypto').randomUUID();
   /* ================= 2. arquivoEnviar aceita PDF ================= */
   console.log('2) servidor: arquivoEnviar com PDF');
   const enviar = (key, arq, buf) => post({ action: 'arquivoEnviar', key, arquivo: { id: uuid(), dono: 'levantamentos', donoId: 'lev-x', tipo: 'documento', papel: '', mime: 'application/pdf', ...arq }, base64: buf.toString('base64') });
-  const adm = await gerar('Gestora Digitacao', 'admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
+  const adm = await gerar('Gestora Digitacao', 'admin'), TOK = adm.token;
   const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fale com a gerência.';
   // permissão "Digitar do papel" (antigo): padrão desligado, inclusive sem linha na aba Permissoes
   let r = await post({ action: 'sync', key: F.token, since: 0 });
-  ok(r.ok && r.permissoes && r.permissoes.antigo === 0 && r.permissoes.pce === 1, 'padrão: sem linha na aba Permissoes → antigo=0 (módulos liberados): ' + JSON.stringify(r.permissoes));
+  ok(r.ok && r.permissoes && r.permissoes.antigo === 0 && r.permissoes.pce === 1, 'padrão: conta sem "Digitar do papel" → antigo=0: ' + JSON.stringify(r.permissoes));
   r = await enviar(F.token, {}, pdfBuf(30));
   ok(!r.ok && r.erro === SEM_ANT && r.semPermissao === 'antigo' && r.permissoes && r.permissoes.antigo === 0 && !/revogad|inv[aá]lid/i.test(r.erro), 'sem permissão: PDF (documento) recusado: ' + r.erro);
-  r = await post({ action: 'painelPermissoes', key: TOK, nome: 'Fiscal Ana Paula Lima', veiculos: 1, tf: 1, pce: 0, antigo: 1 });
+  r = await U.permissoes(UIDS['Fiscal Ana Paula Lima'], U.lista({ veiculos: 1, tf: 1, pce: 0, antigo: 1 }));
   ok(!r.ok && /PCE/.test(r.erro), 'painel: "Digitar do papel" sem PCE recusado: ' + r.erro);
-  r = await post({ action: 'painelPermissoes', key: TOK, nome: 'Fiscal Ana Paula Lima', veiculos: 1, tf: 1, pce: 1, antigo: 1 });
-  ok(r.ok && r.permissoes.antigo === 1 && r.permissoes.pce === 1, 'painel: Digitar do papel liberado para a fiscal (com PCE)');
+  r = await U.permissoes(UIDS['Fiscal Ana Paula Lima'], U.lista({ veiculos: 1, tf: 1, pce: 1, antigo: 1 }));
+  ok(r.ok && r.permissoes.includes('digitarDoPapel') && r.permissoes.includes('pce'), 'painel: Digitar do papel liberado para a fiscal (com PCE)');
   r = await enviar(F.token, {}, pdfBuf(30));
   ok(r.ok && /drive\.google\.com/.test(r.url), 'PDF válido aceito: ' + (r.erro || r.url));
   let drive = await get('/__drive'), dpdf = drive.arquivos.find(a => /\.pdf$/.test(a.nome));
@@ -99,8 +100,8 @@ const uuid = () => require('crypto').randomUUID();
 
   /* ================= 3. estagiária (só PCE) digita levantamentos do papel ================= */
   console.log('3) estagiária só com PCE: identificação de quem só digita');
-  const E = await credencial('Carla Mendes Estagiaria');
-  r = await post({ action: 'painelPermissoes', key: TOK, nome: 'Carla Mendes Estagiaria', veiculos: 0, tf: 0, pce: 1 }); ok(r.ok && r.permissoes.antigo === 0, 'painel: chave da estagiária só com PCE (sem "Digitar do papel")');
+  const E = await credencial('Carla Mendes Estagiaria', { pce: 1 });
+  r = await U.permissoes(UIDS['Carla Mendes Estagiaria'], U.lista({ veiculos: 0, tf: 0, pce: 1, antigo: 0 })); ok(r.ok && !r.permissoes.includes('digitarDoPapel'), 'painel: chave da estagiária só com PCE (sem "Digitar do papel")');
   const A = await aparelho(E);
   await A.evaluate(() => Sync.sincronizar()); await A.waitForTimeout(800); await A.reload(); await A.waitForTimeout(800);
   ok(await A.evaluate(() => JSON.stringify(Sync.permissoes())) === '{"veiculos":0,"tf":0,"pce":1,"antigo":0}', 'app recebeu permissões: só PCE, antigo=0');
@@ -114,9 +115,7 @@ const uuid = () => require('crypto').randomUUID();
   ok(r.ok && (r.recusados.levantamentos || []).includes(levAntigo.id) && !(await ler('Levantamentos')).some(x => x.id === levAntigo.id), 'sync: levantamento com registroAntigo=1 recusado (recusados) e não gravado');
   r = await post({ action: 'pceEmitir', key: E.token, colheita: { id: uuid(), unidade: 'MANAUS', ano: ANO, numero: 90, registroAntigo: 1, data: `${ANO}-01-10` } });
   ok(!r.ok && r.erro === SEM_ANT && r.semPermissao === 'antigo' && !(await ler('Colheitas')).some(c => c.numero === 90), 'pceEmitir: termo antigo recusado sem permissão: ' + r.erro);
-  r = await post({ action: 'painelPermissoes', key: TOK, nome: 'Carla Mendes Estagiaria', veiculos: 0, tf: 0, pce: 1, antigo: 1 }); ok(r.ok && r.permissoes.antigo === 1, 'painel: estagiária com PCE + Digitar do papel');
-  const acs = await post({ action: 'painelAcessos', key: TOK });
-  ok(acs.acessos.find(a => a.nome === 'Carla Mendes Estagiaria').permissoes.antigo === 1, 'painelAcessos devolve antigo=1');
+  r = await U.permissoes(UIDS['Carla Mendes Estagiaria'], U.lista({ veiculos: 0, tf: 0, pce: 1, antigo: 1 })); ok(r.ok && r.permissoes.includes('digitarDoPapel'), 'painel: estagiária com PCE + Digitar do papel');
   await A.evaluate(() => Sync.sincronizar()); await A.waitForTimeout(800); await A.reload(); await A.waitForTimeout(800);
   ok(await A.evaluate(() => Sync.pode('antigo')), 'app recebeu antigo=1');
   if (!(await A.locator('.modulo').count())) await A.click('nav [data-v=modulos]');
@@ -303,7 +302,7 @@ const uuid = () => require('crypto').randomUUID();
   console.log('9b) fiscal sem a permissão "Digitar do papel" (padrão): nada do papel aparece');
   const G = await credencial('Fiscal Bruno Sem Papel');
   r = await post({ action: 'sync', key: G.token, since: Date.now(), levantamentos: [{ ...levAntigo, id: uuid() }] });
-  ok(r.ok && r.permissoes.antigo === 0 && (r.recusados.levantamentos || []).length === 1, 'sem linha na aba Permissoes: registro antigo recusado no sync');
+  ok(r.ok && r.permissoes.antigo === 0 && (r.recusados.levantamentos || []).length === 1, 'conta sem "Digitar do papel": registro antigo recusado no sync');
   const Gp = await aparelho(G, { width: 390, height: 844 });
   await Gp.evaluate(() => Store.setMeta('pceServidor', { nome: 'Fiscal Bruno Sem Papel', cargo: 'Fiscal Agropecuário Engenheiro Agrônomo', matricula: '2', lotacao: 'Manaus' }));
   await Gp.evaluate(() => Sync.sincronizar()); await Gp.waitForTimeout(800);
@@ -324,7 +323,7 @@ const uuid = () => require('crypto').randomUUID();
   await A.fill('#pce-snome', 'Maria Souza Lima'); await A.dispatchEvent('#pce-snome', 'change'); await A.waitForTimeout(200);
   await A.fill('#pce-hora', '07:45'); await A.fill('#pce-data', `${ANO}-02-20`); await A.fill('#pce-doc', '11144477735'); await A.waitForTimeout(600); await A.fill('#pce-nome', 'Produtor Pendente');
   await A.selectOption('#pce-municipio', 'Manaus'); await A.selectOption('.pce-praga >> nth=0 >> .p-praga', 'Fusarium R4T'); await A.selectOption('.pce-praga >> nth=0 >> .pce-cult >> nth=0 >> .c-cultura', 'Banana'); await A.click('.pce-praga >> nth=0 >> .pce-cult >> nth=0 >> .pce-res-suspeita'); await A.fill('#pce-coord', '-3.1190, -60.0217');
-  r = await post({ action: 'painelPermissoes', key: TOK, nome: 'Carla Mendes Estagiaria', veiculos: 0, tf: 0, pce: 1, antigo: 0 }); ok(r.ok && r.permissoes.antigo === 0, 'painel: tirou "Digitar do papel"');
+  r = await U.permissoes(UIDS['Carla Mendes Estagiaria'], U.lista({ veiculos: 0, tf: 0, pce: 1, antigo: 0 })); ok(r.ok && !r.permissoes.includes('digitarDoPapel'), 'painel: tirou "Digitar do papel"');
   await A.click('#pce-salvar'); await A.waitForSelector('#pce-lev-pronto'); await A.click('#pce-pronto-lista'); await A.waitForSelector('.item.pce-lev');
   await A.waitForFunction(() => !Sync.pode('antigo'), null, { timeout: 10000 });
   await A.waitForTimeout(800);
@@ -337,7 +336,7 @@ const uuid = () => require('crypto').randomUUID();
   ok(/digitar registros antigos \(do papel\).*guardados neste aparelho/.test(await A.textContent('#avisoPerm')), 'tela de módulos: ' + (await A.textContent('#avisoPerm')).trim());
   await A.evaluate(() => go('pcetermo', { antigo: true })); await A.waitForTimeout(400);
   ok(await A.locator('#pceTermoForm').count() === 0 && /digitar registros antigos/.test(await toast(A)), 'termo do papel sem permissão: não abre (aviso)');
-  r = await post({ action: 'painelPermissoes', key: TOK, nome: 'Carla Mendes Estagiaria', veiculos: 0, tf: 0, pce: 1, antigo: 1 }); ok(r.ok, 'painel: devolveu a permissão');
+  r = await U.permissoes(UIDS['Carla Mendes Estagiaria'], U.lista({ veiculos: 0, tf: 0, pce: 1, antigo: 1 })); ok(r.ok, 'painel: devolveu a permissão');
   await sync(A);
   ok((await ler('Levantamentos')).some(x => x.nome === 'PRODUTOR PENDENTE' && x.registroAntigo === 1), 'permissão de volta: o registro guardado subiu sozinho');
   await A.click('nav [data-v=pce]'); await A.waitForSelector('#pce-novolevantigo');

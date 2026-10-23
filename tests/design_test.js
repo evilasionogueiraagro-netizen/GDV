@@ -10,7 +10,7 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== und
 // 1) toda tela (modelos impressos de web/documentos ficam de fora) carrega o design.css primeiro
 const TELAS = { 'index.html': 'css/design.css', 'painel/index.html': '../css/design.css', 'administrativo/index.html': '../css/design.css',
   'dashboard/index.html': '../css/design.css', 'inicio/index.html': '../css/design.css', 'verificar.html': 'css/design.css', 'manual.html': 'css/design.css',
-  'painel/manual.html': '../css/design.css' };
+  'painel/manual.html': '../css/design.css', 'administrativo/manual.html': '../css/design.css' };
 for (const [tela, href] of Object.entries(TELAS)) {
   const h = ler(WEB, tela);
   const dentro = h.slice(0, h.indexOf('</head>'));

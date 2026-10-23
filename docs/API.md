@@ -1,166 +1,112 @@
 # API do e-GDV (apps-script/Code.gs)
 
-Referência das actions do servidor. A fonte da verdade é o `doPost` do `Code.gs`; ao criar, mudar ou remover uma action,
-atualize esta tabela.
+Contrato das actions: ao criar, mudar ou remover uma, atualize esta tabela. Regra de negócio fica em `docs/modulos/`.
 
 ## Protocolo
 
-Um único endpoint (URL `/exec` do Web App, em `web/js/config.js`):
-
-```
-POST <url>/exec
-Content-Type: text/plain;charset=utf-8          ← de propósito: evita o preflight de CORS
-{ "action": "<nome>", ...parâmetros }
-
-200 → { "ok": true, ... }                       sucesso
-200 → { "ok": false, "erro": "<mensagem em português, mostrada ao usuário>" }
-```
-
-- O HTTP é sempre 200: o erro vem em `ok: false`. Em falta de permissão de módulo, a resposta traz também
-  `semPermissao` e `permissoes` (o app atualiza o que guardou).
-- `GET <url>/exec` → `{ ok, servico: 'e-GDV', versao: VERSAO_CODIGO }` (confere a versão publicada).
-  `GET ?p=painel` → HTML do painel (legado; o painel atual roda no GitHub Pages).
-- Clientes: `web/js/sync.js` e `web/js/envio.js` (app e service worker), `web/painel/js/painel.js` (`api`/`chamar`),
-  `web/administrativo/js/adm.js`, `web/dashboard/js/dashboard.js`, `web/js/verificar.js`.
-
-### Contrato independente do Google
-
-Este contrato é o mesmo no Apps Script e no porte para servidor próprio ([PORTABILIDADE.md](PORTABILIDADE.md)). Ao criar
-ou mudar uma action:
-
-- Nada na requisição ou na resposta depende do Google. Link de arquivo vai em `url`, que o cliente abre sem interpretar;
-  `driveId` é só o identificador do arquivo (fora do Google, o caminho dele). O cliente não monta URL do Drive.
-- Nome de campo novo não cita "drive" nem "planilha" (`driveId` fica por compatibilidade).
-- Datas em `aaaa-mm-dd`, `HH:MM` ou milissegundos; nunca objeto `Date` serializado.
-- O cliente só conhece a URL base (`web/js/config.js`) e não depende do formato `script.google.com/.../exec`.
+- `POST <url>/exec` (URL em `web/js/config.js`), `Content-Type: text/plain;charset=utf-8` (evita preflight CORS), corpo `{"action": "<nome>", ...}`.
+- HTTP sempre 200: `{ok: true, ...}` ou `{ok: false, erro}` (em português). Sem módulo liberado: também `semPermissao`, `permissoes`.
+- `GET /exec` → `{ok, servico, versao}`. `doPost` despacha por `req.action`; `adm` + maiúscula vai a `admAcao_`.
+- Regras portáveis: [PORTABILIDADE.md](PORTABILIDADE.md). Campo novo não cita "drive" nem "planilha".
 
 ## Autenticação
 
-| Tipo | Campo | Como se obtém | Validado por |
-|---|---|---|---|
-| Fiscal (aparelho) | `key` | `ativar` com código de 6 dígitos | `autenticar_` (+ `exigirModulo_` em TF/PCE) |
-| Administrador (painel/TV) | `key` | `painelAtivar` com código de administrador, ou a chave mestra `ACCESS_KEY` | `adminDoToken_` |
-| Portal do Administrativo | `sessao` | `admLogin` (Google) ou `admCodigo` | `admSessao_` (30 dias sem uso expira) |
-| Pública | — | — | limitador de taxa e cache próprios |
+- Fiscal (`key`): `ativar` (código de 6 dígitos, uso único) → `autenticar_` (TF/PCE: também `exigirModulo_`).
+- Administrador (`key`, painel/TV): `painelAtivar` (código de administrador) → `adminDoToken_`.
+- Portal (`sessao`): `admLogin` ou `admCodigo` → `admSessao_` (expira após 30 dias sem uso).
 
-As credenciais ficam na aba `Fiscais` (coluna `perfil`: vazio = fiscal, `admin` = administrador); as sessões do portal
-ficam na aba `AdmSessoes`, guardadas só como hash. Uma credencial nunca vale no lugar de outra: `key` de fiscal recebe
-"Acesso restrito" no painel, e a `key` do painel não abre o portal.
-
-Módulos (`veiculos`, `tf`, `pce`, mais a flag `antigo` para "digitar do papel") vêm da aba `Permissoes`; sem linha =
-tudo liberado, exceto `antigo`. O mapa `MODULO_DA_ACAO` diz qual módulo cada action exige.
+- `ACCESS_KEY` (chave mestra, propriedade do script) vale como `key` de fiscal e de administrador.
+- Aba `Fiscais` (`perfil`: vazio = fiscal, `admin` = administrador); sessões em `AdmSessoes` (só hash). Credenciais não se trocam entre tipos.
+- Aba `Permissoes` (`veiculos`, `tf`, `pce`, `antigo` = digitar do papel): sem linha = tudo liberado, exceto `antigo` (só `1`, `sim`, `true`, `s`). `MODULO_DA_ACAO`: action → módulo; `arquivoEnviar` vale `tf` se `arquivo.dono = 'tfs'`.
+- Registro sem módulo liberado (ou `registroAntigo = 1` sem `antigo`) não é gravado no `sync`: volta em `recusados`.
 
 ## App do fiscal (`key` de fiscal)
 
-| Action | Módulo | Parâmetros | Resposta (além de `ok`) | Handler |
-|---|---|---|---|---|
-| `ativar` | — (sem `key`) | `codigo` | `nome`, `token` | `ativar_` |
-| `ping` | — | `aparelho` | `nome`, `agora` | `ping_` |
-| `sync` | por registro | `since`, `aparelho`, listas `turnos`, `veiculos`, `tfs`, `pessoas`, `placas`, `levantamentos`, `colheitas`, `propriedades`, `cadastrosPce`, `termosPce` (máx. 2.000 cada) | `agora`; as mudanças desde `since` das mesmas listas (só do próprio fiscal); `barreiras`, `ultimos`, `ultimosPce`, `ultimosDocPce`, `permissoes`, `recusados` | `sincronizar_` |
-| `tfConsultar` | tf | `doc` (CPF/CNPJ) e/ou `placa` | `pessoa`, `placa`, `historicoDoc`, `historicoPlaca` | `consultar_` |
-| `tfProximoNumero` | tf | `barreira`, `ano` | `ultimo`, `proximo` | `proximoNumero_` |
-| `tfEmitir` | tf | `tf`, `pessoa` (opcional), `placa` (opcional); TF do papel: `tf.registroAntigo = 1` (exige "Digitar do papel"; data não pode ser futura e o ano da data = `tf.ano`), `tf.pdfs` (JSON de ids), `tf.numeroOrigem = 'papel'` | `emitido: true, numero, emitidoEm, srv_ts` ou `emitido: false, ocupadoPor` | `emitir_` |
-| `tfAndamento` | tf | `rascunhoId`, `estado` (`preenchendo`/`fim`), `barreira`, `turnoId`, `placa`, `procedimento`, `local`, `lat`, `lon` | — | `tfAndamento_` |
-| `tfIndiceReincidencia` | tf | `desde` | `agora`, `completo`, `itens` | `tfIndiceReincidencia_` |
-| `pceProximoNumero` | pce | `unidade`, `ano` | `ultimo`, `proximo` | `pceProximoNumero_` |
-| `pceEmitir` | pce | `colheita`, `pessoa`, `propriedade` | como `tfEmitir` (+ `numeroTxt`) | `pceEmitir_` |
-| `pceConsultar` | pce | `doc` | `pessoa`, `propriedades` (com `cnpj`, `empresa`, `endereco`, `uf`, `viaAcesso`, `comercial`, `tipoPropriedade`), contagens e `cadastrosPce` do produtor | `pceConsultar_` |
-| `pceDocNumero` | pce | `tipo` (`termo`/`cadastro`), `unidade`, `ano`, `programa` | `ultimo`, `proximo` | `pceDocNumero_` |
-| `pceDocRegistrar` | pce | `tipo`, `registro`, `pessoa`, `propriedade` | como `pceEmitir` | `pceDocRegistrar_` |
-| `pceBaixarMunicipio` | pce | `municipios` (lista) | `municipios`, `propriedades`, `pessoas`, `cadastrosPce` | `pceBaixarMunicipio_` |
-| `arquivoEnviar` | tf se `arquivo.dono = 'tfs'`, senão pce | `arquivo` {`id` UUID, `dono`, `donoId`, `tipo` (`foto`/`assinatura`/`documento`), `papel`, `mime`, `rotulo`}, `base64` | `id`, `url`, `driveId`, `existente` | `arquivoEnviar_` |
-
-Registros de módulo não liberado (ou `registroAntigo = 1` sem a flag `antigo`) não são gravados no `sync`: voltam em
-`recusados` e ficam pendentes no aparelho.
-
-Levantamento (`levantamentos[]`), campo **`citros`** (coluna `citros` da aba `Levantamentos`): bloco "Cultura do citros" do cadastro de cítricos
-(IN 21/2018, Portaria 317/2021), preenchido só quando o levantamento tem praga de citros; senão `''`. Texto JSON
-`{v: 1, comercial, naoComercial, naoComercialOutros, atividades[], atividadeOutros, situacao, situacaoOutras,
-culturas: [{atividade, cultivar, area, idade, plantas, producao}], entrega, formasEntrega[], compradores[], compradorOutros, beneficia,
-beneficiaTipo, materiais[], origemMaterial, delimitacao: {pintapreta: {tem, tempo, controle, qual}}, deteccao: {hlb|acaro|cancro: {tem, tempo}},
-rt: {nome, conselho}}` (sim/não = `'sim'`/`'nao'`; na detecção `'sim'` = presença e `'nao'` = ausência de sintomas, obrigatória no app para as três;
-códigos das opções em `CONFIG.PCE.citros` e `CITROS_` no `Code.gs`). O servidor normaliza antes de gravar (`citrosTexto_`): só chaves e opções
-conhecidas, textos até 200 caracteres, números ≥ 0 (negativo/inválido = vazio; `idade` e `plantas` inteiros), no máximo 20 linhas em `culturas`;
-`cnpj`/`endereco`/`uf` (app da versão anterior) só se vierem preenchidos (`cnpj` 14 dígitos, `uf` 2 letras); JSON inválido ou sem nada = `''`.
-Campos **`cnpj`**, **`empresa`**, **`endereco`** e **`uf`** (colunas no fim de `Levantamentos`, servidor 2026-10-20a+): identificação do
-produtor/propriedade; o servidor normaliza (`identLev_`: CNPJ só dígitos com 14 ou `''`, UF 2 letras, empresa ≤ 120 e endereço ≤ 200 caracteres).
-`Propriedades` ganha **`empresa`** no fim. Cadastro de citros: `CadastrosPCE` com `programa = 'citros'` (sequência própria por unidade/ano) e
-`dados` = o JSON acima + `levantamentoId`, `codigoPropriedade`, `endereco`, `telefone`, `email`, `empresa`, `culturasAvaliadas[]`, `amostra`.
-Termo de Fiscalização de citros: `TermosPCE` com `programa = 'citros'`, `tipoLocal` = `["<local especificado>"]` e `constatacao` com as frases de
-ausência/presença.
-Registro enviado sem o campo mantém o valor da planilha (como as demais colunas).
-
-TF (`tfs[]` no `sync` e `tf` no `tfEmitir`) e veículo (`veiculos[]`), campos **`ufOrigem`** e **`ufDestino`** (colunas no fim das abas
-`TFs` e `Veiculos`): UF de origem/destino, opcional — sigla de `CONFIG.ufs` (`UFS_` no `Code.gs`: as 27 UFs e `Exterior`). O servidor normaliza
-(`ufNorm_`: maiúscula; desconhecida = `''`); campo não enviado mantém o valor da planilha. No TF elas acompanham o texto livre de `origem`/`destino`;
-TF antigo sem a coluna: o VIGIFITO e o `painelDados` usam a sigla do fim do texto (`ufDoTexto_`, ex.: "PORTO VELHO/RO" → `RO`) e, sem ela, a do
-veículo ligado (`veiculoId`, só no VIGIFITO). O app não envia mais os campos antigos de fiscalização do veículo (`semEducacao`, `medidaFito`,
-`carga`, `produtos`, `partida`, `inspecaoFito`, `docConferido`); ao editar um registro antigo, reenvia os valores que ele já tinha. Esses
-campos ficam na planilha como histórico e não entram em nenhum indicador.
-
-## Painel do administrador (`key` de administrador)
-
-| Action | Parâmetros | O que faz | Handler |
+| action | credencial (módulo) | parâmetros | resposta |
 |---|---|---|---|
-| `painelAtivar` | `codigo` | troca o código de administrador por `token` | `painelAtivar` |
-| `painelSair` | — | revoga a credencial do painel | `painelSair` |
-| `painelDados` | `de`, `ate`, `aoVivo`, `ids` | todos os dados do período (turnos, veículos, TFs, PCE, auditoria da numeração); `aoVivo` = só o que muda (modo TV) | `painelDados` |
-| `painelGerarCodigo` | `nome`, `modulos` | gera código de ativação de fiscal | `painelGerarCodigo` |
-| `painelAcessos` | `ocultos` | lista servidores e situação dos acessos; `oculto = 1` (fiscal ou administrador) só com `ocultos: true`; resposta traz `ocultarAdmin: true` | `painelAcessos` |
-| `painelOcultarAcesso` / `painelRestaurarAcesso` | `nome`, `perfil` | esconde/mostra servidor sem acesso ativo nem código aguardando (`oculto`/`ocultoPor`/`ocultoEm` na aba `Fiscais`; nada é apagado); sem `perfil` = linhas de fiscal, `perfil: 'admin'` = de administrador (recusa o próprio acesso) | `painelOcultarAcesso` |
-| `painelRevogar` | `nome` | revoga os acessos de um fiscal | `painelRevogar` |
-| `painelRevogarAdmin` | `nome` | revoga os acessos de um administrador (painel e TV); recusa o próprio | `painelRevogarAdmin` |
-| `painelPermissoes` | `nome`, `modulos` | grava os módulos liberados de um fiscal | `painelPermissoes` |
-| `painelEncerrarTurno` | `turnoId`, `fim` (HH:MM) | encerra turno esquecido aberto | `painelEncerrarTurno` |
-| `painelPceLaudo` | `id`, `laboratorio` | grava resultado laboratorial do Termo de Colheita | `painelPceLaudo` |
-| `painelPublicoConfig` / `painelPublicoSalvar` | `config` | configuração do dashboard público | `painelPublicoConfig`, `painelPublicoSalvar` |
-| `painelConvenios` | — | convênios, lançamentos, financeiro e relatórios | `painelConvenios` |
-| `painelConvApuracao` | `convenio`, `de`, `ate` | apuração automática das metas | `painelConvApuracao` → `convApurar_` |
-| `painelConvSalvar` | `convenio`, `config` | configuração do convênio | `painelConvSalvar` |
-| `painelConvRelSalvar` | `convenio`, `mes`, `numero`, `textos` | textos do relatório mensal | `painelConvRelSalvar` |
-| `painelRelGdv` | `ano` | textos e lançamentos do Relatório GDV | `painelRelGdv` |
-| `painelRelGdvSalvar` | `tipo` (`mensal`/`anual`/`vigifito`), `ano`, `mes`, `textos` | salva textos (lançamentos: só pelo portal) | `painelRelGdvSalvar` |
-| `painelRelGdvApuracao` | `de`, `ate`, `grupos` | apuração do Relatório GDV (até 1 ano) | `painelRelGdvApuracao` → `relGdvApurar_` |
-| `painelVigDados` | `ano` | dados do VIGIFITO | `painelVigDados` → `vigDados_` |
-| `painelVigConfigSalvar` | `config` | postos e escala do VIGIFITO | `painelVigConfigSalvar` |
-| `painelAdmLista` | `ocultos` | liberados do Portal do Administrativo; removidos (`oculto = 1`) só com `ocultos: true` (vêm com `oculto: 1`, `ocultoPor`, `ocultoEm`); resposta traz `ocultar: true` | `painelAdmLista` |
-| `painelAdmSalvar` | `id`, `nome`, `email`, `ativo` | libera/edita/revoga pessoa no portal; `ativo = 1` também desfaz o "Remover" (`oculto = 0`) | `painelAdmSalvar` |
-| `painelAdmCodigo` | `id` | gera código de login do portal | `painelAdmCodigo` |
-| `painelAdmOcultar` | `id`, `restaurar` | "Remover" (só liberado revogado, `ativo = 0`) → `oculto = 1`, `ocultoPor`, `ocultoEm` na aba `Administrativo` (nada é apagado); `restaurar: true` → `oculto = 0` (mantém `ocultoPor`/`ocultoEm`). Resposta `{ok, id, nome, oculto}` | `painelAdmOcultar` |
+| `ativar` | nenhuma | `codigo` | `nome`, `token` |
+| `ping` | fiscal | `aparelho` | `nome`, `agora` |
+| `sync` | por registro | `since`, `aparelho`; listas `turnos`, `veiculos`, `tfs`, `pessoas`, `placas`, `levantamentos`, `colheitas`, `propriedades`, `cadastrosPce`, `termosPce` (máx. 2.000 cada) | `agora`; mudanças desde `since` (só do fiscal); `barreiras`, `ultimos`, `ultimosPce`, `ultimosDocPce`, `permissoes`, `recusados` |
+| `tfConsultar` | tf | `doc` (CPF/CNPJ) e/ou `placa` | `pessoa`, `placa`, `historicoDoc`, `historicoPlaca` |
+| `tfProximoNumero` | tf | `barreira`, `ano` | `ultimo`, `proximo` |
+| `tfEmitir` | tf | `tf`, `pessoa`, `placa` (opc.); do papel: `tf.registroAntigo = 1` (data não futura; ano = `tf.ano`), `tf.pdfs`, `tf.numeroOrigem = 'papel'` | `emitido: true, numero, emitidoEm, srv_ts`; ou `emitido: false, ocupadoPor` |
+| `tfAndamento` | tf | `rascunhoId`, `estado` (`preenchendo`/`fim`), `barreira`, `turnoId`, `placa`, `procedimento`, `local`, `lat`, `lon` | — |
+| `tfIndiceReincidencia` | tf | `desde` | `agora`, `completo`, `itens` |
+| `pceProximoNumero` | pce | `unidade`, `ano` | `ultimo`, `proximo` |
+| `pceEmitir` | pce | `colheita`, `pessoa`, `propriedade` | como `tfEmitir`, + `numeroTxt` |
+| `pceConsultar` | pce | `doc` | `pessoa`, `propriedades` (`cnpj`, `empresa`, `endereco`, `uf`, `viaAcesso`, `comercial`, `tipoPropriedade`), contagens, `cadastrosPce` |
+| `pceDocNumero` | pce | `tipo` (`termo`/`cadastro`), `unidade`, `ano`, `programa` | `ultimo`, `proximo` |
+| `pceDocRegistrar` | pce | `tipo`, `registro`, `pessoa`, `propriedade` | como `pceEmitir` |
+| `pceBaixarMunicipio` | pce | `municipios` (lista) | `agora`, `municipios`, `propriedades`, `pessoas`, `cadastrosPce` |
+| `arquivoEnviar` | tf/pce | `arquivo` {`id` (UUID), `dono`, `donoId`, `tipo`, `papel`, `mime`, `rotulo`}, `base64` | `id`, `url`, `driveId`, `existente` |
 
-**Legado**: `painelConvLancar`, `painelConvExcluir`, `painelConvFinLancar`, `painelConvFinImportar` e
-`painelConvFinExcluir` só respondem `MSG_PORTAL` (os lançamentos passaram para o portal). Podem sair quando nenhum
-painel antigo estiver em uso.
+### Campos nos registros
+
+- `levantamentos[].citros`: texto JSON (ou `''`) do bloco "Cultura do citros", só com praga de citros. Formato: `{v: 1, comercial, naoComercial, naoComercialOutros, atividades[], atividadeOutros, situacao, situacaoOutras, culturas[{atividade, cultivar, area, idade, plantas, producao}], entrega, formasEntrega[], compradores[], compradorOutros, beneficia, beneficiaTipo, materiais[], origemMaterial, delimitacao.pintapreta{tem, tempo, controle, qual}, deteccao.hlb|acaro|cancro{tem, tempo}, rt{nome, conselho}}`. Sim/não = `'sim'`/`'nao'` (em `deteccao`, `'sim'` = presença). `citrosTexto_` normaliza (textos ≤ 200, números ≥ 0, ≤ 20 `culturas`; inválido = `''`).
+- `levantamentos[]`: `cnpj` (14 dígitos), `empresa` (≤ 120), `endereco` (≤ 200), `uf` (2 letras); `identLev_`.
+- `CadastrosPCE` e `TermosPCE` (`programa = 'citros'`): cadastro = `dados` (JSON acima + `levantamentoId`, `codigoPropriedade`, `endereco`, `telefone`, `email`, `empresa`, `culturasAvaliadas[]`, `amostra`); termo = `tipoLocal`, `constatacao`.
+- `tfs[]`, `tf`, `veiculos[]`: `ufOrigem`, `ufDestino` (opcionais, sigla de `CONFIG.ufs`). TF antigo sem a coluna: UF por `ufDoTexto_` (texto de `origem`/`destino`).
+- Colunas novas no fim de `Levantamentos`, `Propriedades`, `TFs` e `Veiculos`; campo não enviado mantém o da planilha. `veiculos[]`: `semEducacao`, `medidaFito`, `carga`, `produtos`, `partida`, `inspecaoFito`, `docConferido` são só histórico.
+
+## Painel do administrador
+
+Todas com `key` de administrador, exceto `painelAtivar`.
+
+| action | parâmetros | resposta |
+|---|---|---|
+| `painelAtivar` | `codigo` (de administrador) | `nome`, `token` |
+| `painelSair` | — | — |
+| `painelDados` | `de`, `ate`, `aoVivo` (modo TV), `ids` | `periodo`, `turnos`, `veiculos`, `tfs`, `tfsAndamento`, `levantamentos`, `colheitas`, `historicoPce`, `termosPce`, `cadastrosPce`, `barreiras`, `auditoria`; sem `aoVivo`: `rotinas`, `avisoArquivo` |
+| `painelGerarCodigo` | `nome`, `modulos` | `nome`, `codigo`, `expiraEm` |
+| `painelAcessos` | `ocultos` (`true` inclui os removidos) | `acessos`, `agora`, `ocultarAdmin` |
+| `painelOcultarAcesso` / `painelRestaurarAcesso` | `nome`, `perfil` (`admin`; vazio = fiscal) | `ocultos` / `restaurados` |
+| `painelRevogar` / `painelRevogarAdmin` | `nome` | `nome`, `revogados` |
+| `painelPermissoes` | `nome`, `modulos` | `nome`, `permissoes`, `atualizadoEm` |
+| `painelEncerrarTurno` | `turnoId`, `fim` (HH:MM) | `turno` |
+| `painelPceLaudo` | `id`, `laboratorio` | `numeroTxt`, `laboratorio` |
+| `painelPublicoConfig` / `painelPublicoSalvar` | `config` (no salvar) | `config`, `url`, `padrao`, `periodos` |
+| `painelConvenios` | — | `admin`, `hoje`, `convenios`, `semente`, `lancamentos`, `financeiro`, `relatorios` |
+| `painelConvApuracao` | `convenio`, `de`, `ate` | `convenio`, `de`, `ate`, `apuradoEm`, `etapas` |
+| `painelConvSalvar` | `convenio`, `config` | `config` |
+| `painelConvRelSalvar` | `convenio`, `mes`, `numero`, `textos` | `relatorio` |
+| `painelRelGdv` | `ano` | `ano`, `hoje`, `textos`, `lancamentos` |
+| `painelRelGdvSalvar` | `tipo` (`mensal`/`anual`/`vigifito`), `ano`, `mes`, `textos` | `ano`, `gravados`, `usuario`, `atualizadoEm` |
+| `painelRelGdvApuracao` | `de`, `ate` (máx. 1 ano), `grupos` | `apuradoEm`, `meses`, `resumo`, `laboratorio` |
+| `painelVigDados` | `ano` | `ano`, `cfg`, `indicadores`, `lancamentos`, `apuracao` |
+| `painelVigConfigSalvar` | `config` | `config` |
+| `painelAdmLista` | `ocultos` | `max`, `google`, `url`, `ocultar`, `liberados` |
+| `painelAdmSalvar` | `id`, `nome`, `email`, `ativo` | `liberado` |
+| `painelAdmCodigo` | `id` | `nome`, `codigo`, `expiraEm`, `permanente`, `url` |
+| `painelAdmOcultar` | `id`, `restaurar` | `id`, `nome`, `oculto` |
+
+Legado (`MSG_PORTAL`, podem sair): `painelConvLancar`, `painelConvExcluir`, `painelConvFinLancar`, `painelConvFinImportar`, `painelConvFinExcluir`.
 
 ## Portal do Administrativo (`sessao`)
 
-Login sem sessão: `admLogin` (`idToken` do Google, conferido no tokeninfo; precisa da propriedade `GOOGLE_CLIENT_ID`)
-e `admCodigo` (`codigo` gerado no painel; permanente: vale em todo login até o painel gerar outro para a pessoa ou revogar o acesso). Ambos devolvem `sessao`, `nome`, `email`, `expiraEm`, `origem`.
+- Login: `admLogin` (`idToken` do Google; `GOOGLE_CLIENT_ID`) ou `admCodigo` (`codigo` do painel). Ambos devolvem `sessao`, `nome`, `email`, `expiraEm`, `origem`.
+- `adm` + maiúscula exige `sessao`; token do painel ou do app não vale. Toda gravação vai a `AdmHistorico`.
 
-Toda action que começa com `adm` + maiúscula passa por `admAcao_` → mapa `ADM_ACOES_`, que exige `sessao`. Toda
-gravação entra no histórico (aba `AdmHistorico`, com antes/depois).
-
-| Action | Parâmetros | O que faz |
+| action | parâmetros | resposta |
 |---|---|---|
-| `admSair` | — | encerra a sessão |
-| `admDados` | — | dados iniciais do portal: convênios, servidores, lançamentos físicos e financeiros |
-| `admConvLancar` / `admConvExcluir` | `lancamento` / `id` | execução física do convênio |
-| `admConvFinLancar` / `admConvFinExcluir` | `lancamento` (com `municipio` opcional) / `id` | execução financeira |
-| `admConvFinImportar` | `convenio`, `arquivo`, `itens`, `excluir` (máx. 500 por chamada) | importa a planilha de movimentação |
-| `admRelDados` / `admRelLancar` | `ano` / `ano`, `lancamentos` (máx. 3.000) | linhas manuais do Relatório GDV |
-| `admVigDados` | `ano` | dados do VIGIFITO |
-| `admVigLancar` / `admVigImportar` | `lancamentos` / `arquivo`, `itens` | valores manuais do VIGIFITO |
-| `admPlantaoImportar` | `posto` (posto fixo do VIGIFITO), `troca` (HH:MM), `fiscal`, `arquivo`, `dias` [{`data`, `tipos` {PA, UT, CC, CB, ON, MT}, `educacao`}], `cargas` [{`data`, `hora`, `tipo`, `placa`, `origemMun`, `ufOrigem`, `destinoMun`, `ufDestino`, `transportador`, `produto`, `quantidade`, `unidade`, `documento`, `medida` (liberacao/apreensao), `tf`}] (máx. 3.000), `substituir` | relatório de plantão do papel da BVA → turnos e veículos (abas `Turnos`/`Veiculos`, coluna `importacao`); mesmo plantão de novo → `{ok:false, jaImportado, importadoEm, por, resumo}` (com `substituir: 1`: veículos anteriores excluídos, entram os novos); devolve `{ok, turnos, veiculos, cargas, liberacao, apreensao, tfs, educacao, substituidos, turnosDoApp, avisos}` |
-| `admHistorico` | `aba`, `registro` | últimas 300 alterações |
+| `admSair` | — | — |
+| `admDados` | — | `nome`, `email`, `expiraEm`, `hoje`, `painelUrl`, `convenios`, `servidores`, `lancamentos`, `financeiro` |
+| `admConvLancar` / `admConvFinLancar` | `lancamento` (`municipio` opcional no financeiro) | `lancamento`, `financeiro` ou `avisos` |
+| `admConvExcluir` / `admConvFinExcluir` | `id` | `id` |
+| `admConvFinImportar` | `convenio`, `arquivo`, `itens`, `excluir` (máx. 500) | `novos`, `atualizados`, `iguais`, `excluidos`, `lancamentos`, `arquivo` |
+| `admRelDados` | `ano` | `ano`, `hoje`, `lancamentos` |
+| `admRelLancar` | `ano`, `lancamentos` (máx. 3.000) | `ano`, `gravados`, `usuario`, `atualizadoEm` |
+| `admVigDados` | `ano` | como `painelVigDados` |
+| `admVigLancar` / `admVigImportar` | `lancamentos` / `arquivo`, `itens` | `novos`, `atualizados`, `iguais`, `excluidos` |
+| `admPlantaoImportar` | `posto` (VIGIFITO), `troca` (HH:MM), `fiscal`, `arquivo`, `dias` [{`data`, `tipos` {PA, UT, CC, CB, ON, MT}, `educacao`}], `cargas` [{`data`, `hora`, `tipo`, `placa`, `origemMun`, `ufOrigem`, `destinoMun`, `ufDestino`, `transportador`, `produto`, `quantidade`, `unidade`, `documento`, `medida`, `tf`}] (máx. 3.000), `substituir` | `id`, `turnos`, `veiculos`, `cargas`, `liberacao`, `apreensao`, `tfs`, `educacao`, `substituidos`, `turnosDoApp`, `avisos`. Já importado: `ok: false`, `jaImportado`, `importadoEm`, `por`, `resumo` |
+| `admHistorico` | `aba`, `registro` | `historico` (últimas 300) |
 
 ## Públicas (sem credencial)
 
-| Action | Parâmetros | O que faz | Proteções |
+| action | parâmetros | resposta | proteções |
 |---|---|---|---|
-| `tfVerificar` | `id` (UUID do TF) | autenticidade do TF (`verificar.html`, QR code) | placa mascarada; máx. 30 ids inválidos/min |
-| `publicoDados` | `periodo` (`15d`, `30d`, `ano`, `anoAnterior`, `tudo`, `intervalo` + `de`/`ate` AAAA-MM-DD; intervalo inválido → `{ok:false, intervaloInvalido:true, erro}`), `previa` (+ `key` de admin para pré-visualizar) | números agregados do dashboard público | cache de 5 min, limite de recálculos, números < 3 suprimidos, grade de ~11 km |
+| `tfVerificar` | `id` (UUID do TF) | `encontrado`, `tf` (dados mascarados) | placa mascarada; máx. 30 ids inválidos/min |
+| `publicoDados` | `periodo` (`15d`, `30d`, `ano`, `anoAnterior`, `tudo`, `intervalo` + `de`/`ate`), `previa` (+ `key` de admin) | `periodo`, `periodos`, `numeros`, `mapa`, `aoVivo`, `atualizadoEm`; `ativo: false` se desligado; intervalo inválido: `ok: false`, `erro` | cache de 5 min; números < 3 suprimidos; grade ~11 km |
 
-## Funções fora do `doPost`
+## Fora do doPost
 
-Chamadas pelo menu da planilha (`onOpen` → `menu*`) ou por gatilhos de tempo: `encerrarTurnosAutomatico`,
-`backupDiario`, `arquivarAnosAntigos`, `relatorioMensal`. Ativadas pelo menu **e-GDV → Ativar rotinas automáticas**.
+Gatilhos, sem action: `encerrarTurnosAutomatico`, `backupDiario`, `arquivarAnosAntigos`, `relatorioMensal` ([modulos/rotinas.md](modulos/rotinas.md)).

@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // PCE: produtor que não assina — foto dele segurando um documento de identificação no lugar da assinatura (tela, rascunho, PDF, Drive, edição).
 const { API, APP } = amb;
 const get = p => fetch(API + p).then(r => r.json());
@@ -8,7 +9,7 @@ let falhas = 0;
 const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== undefined ? ' -> ' + JSON.stringify(x) : '')); if (!c) falhas++; };
 (async () => {
   const b = await amb.lancar();
-  const g = await get('/__gerar?nome=' + encodeURIComponent('Ana Paula Lima')); const r = await post({ action: 'ativar', codigo: g.codigo });
+  const r = await U.fiscal('Ana Paula Lima');
   const c = await b.newContext({ viewport: { width: 400, height: 900 }, permissions: ['geolocation'], geolocation: { latitude: -3.12, longitude: -60.02, accuracy: 9 } });
   await c.addInitScript(([t]) => { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', 'Ana Paula Lima'); localStorage.setItem('gdv.semInstalar', '1'); } }, [r.token]);
   await c.addInitScript(() => { if (window !== window.top) window.print = () => { const d = document; window.top.__prints = window.top.__prints || [];

@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 const { chromium } = require('playwright-core'); const assert = require('assert');
 const { API, APP } = amb;
 const ANO = new Date(Date.now() - 4 * 3600e3).getUTCFullYear();   // ano corrente em Manaus (o app numera TF/turno pelo ano)
@@ -6,7 +7,7 @@ const get = p => fetch(API + p).then(r => r.json());
 const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw new Error(m); };
 (async () => {
   const b = await amb.lancar();
-  const credencial = async nome => { const g = await get('/__gerar?nome=' + encodeURIComponent(nome)); const r = await (await fetch(API, { method: 'POST', body: JSON.stringify({ action: 'ativar', codigo: g.codigo }) })).json(); return { token: r.token, nome }; };
+  const credencial = async nome => { const f = await U.fiscal(nome); return { token: f.token, nome: f.nome }; };
   const aparelho = async ({ token, nome }) => {
     const c = await b.newContext({ viewport: { width: 400, height: 900 }, permissions: ['geolocation'], geolocation: { latitude: -3.119, longitude: -60.0217, accuracy: 10 } });
     await c.addInitScript(([t, n]) => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } } catch (e) {} }, [token, nome]);
@@ -47,7 +48,7 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   const confirmar = async p => { await p.click('#tf-m-ok'); };
 
   console.log('0) tela de módulos');
-  { const P = await aparelho(fA); const tit = await P.locator('.modulo b').allTextContents(); ok(tit.length === 3 && /Educação Sanitária\/Fiscalização de Trânsito/.test(tit[0]) && /Termo de Fiscalização/.test(tit[1]) && tit[2] === 'PCE', 'após ativar: três módulos (veículos, TF, PCE) — ' + tit.join(' | ')); ok(/Olá, Ana/.test(await P.textContent('#view')), 'saudação com o nome vinculado'); await P.ctx.close(); }
+  { const P = await aparelho(fA); const tit = await P.locator('.modulo b').allTextContents(); ok(tit.length === 3 && /Educação Sanitária\/Fiscalização de Trânsito/.test(tit[0]) && /Termo de Fiscalização/.test(tit[1]) && tit[2] === 'PCE', 'após entrar: três módulos (veículos, TF, PCE) — ' + tit.join(' | ')); ok(/Olá, Ana/.test(await P.textContent('#view')), 'saudação com o nome vinculado'); await P.ctx.close(); }
   console.log('A) Ana: o número vem da planilha na hora de gerar, num popup editável, antes do PDF');
   const A = await aparelho(fA); await irTF(A); await novoTF(A);
   ok((await A.inputValue('#tf-num')) === '1' && /Próximo nº pela planilha/.test(await numeroTela(A)) && /Nenhum TF desta barreira/.test(await numeroTela(A)), 'no formulário o nº já aparece (1, pela planilha) e é editável: "' + await numeroTela(A) + '"');
@@ -156,9 +157,9 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   ok((await A.inputValue('#tf-nome')) === 'RASCUNHO TESTE', 'rascunho restaurado ao reabrir (confirmado)');
   await A.click('[data-tf=descartar]'); await A.waitForSelector('button[data-tf=novo]');
 
-  console.log('F) sem ativação não abre o TF');
+  console.log('F) sem entrar não abre o TF');
   const c0 = await b.newContext({ viewport: { width: 400, height: 900 } }); const p0 = await c0.newPage(); await p0.addInitScript(() => localStorage.setItem('gdv.semInstalar', '1')); await p0.goto(APP); await p0.waitForSelector('#view *', { state: 'attached' });
-  await p0.waitForTimeout(600); ok(await p0.locator('#fAtivar').count() === 1 && await p0.locator('.modulo').count() === 0 && await p0.locator('#tfForm').count() === 0, 'sem ativação não há módulos: aparece só o cartão de ativação');
+  await p0.waitForTimeout(600); ok(await p0.locator('#fEntrar').count() === 1 && await p0.locator('.modulo').count() === 0 && await p0.locator('#tfForm').count() === 0, 'sem entrar não há módulos: aparece só o formulário de entrada');
 
   ok(![A, Bd].some(p => p.err.length), 'sem erros de console/página: ' + JSON.stringify([...A.err, ...Bd.err]));
   console.log('OK'); await b.close();

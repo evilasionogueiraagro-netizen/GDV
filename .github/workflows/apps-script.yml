@@ -1,5 +1,5 @@
 name: Publicar Apps Script
-# Depois que os testes passam na main, publica apps-script/ (Code.gs + appsscript.json) na implantação atual do Web App,
+# Depois que os testes passam na main, publica apps-script/ (os .gs + appsscript.json) na implantação atual do Web App,
 # com o clasp: a URL /exec não muda. Só publica quando a versão no ar (GET /exec) for diferente do VERSAO_CODIGO do
 # repositório, então merge só de front não gera versão nova.
 # Configuração (uma vez, pelo dono do repositório): docs/PUBLICACAO-BACK.md.
@@ -63,7 +63,8 @@ jobs:
           [ -n "$CLASPRC_JSON" ] && [ -n "$SCRIPT_ID" ] || { echo "::error::Faltam os segredos do repositório CLASPRC_JSON e APPS_SCRIPT_ID (docs/PUBLICACAO-BACK.md)."; exit 1; }
           umask 077
           printf '%s' "$CLASPRC_JSON" > ~/.clasprc.json
-          jq -n --arg id "$SCRIPT_ID" '{scriptId: $id, rootDir: "apps-script"}' > .clasp.json
+          # Code.gs sobe primeiro; a ordem dos demais .gs não importa (tests/ordem_arquivos_test.js confere)
+          jq -n --arg id "$SCRIPT_ID" '{scriptId: $id, rootDir: "apps-script", filePushOrder: ["apps-script/Code.gs"]}' > .clasp.json
 
       - name: Enviar o código
         if: steps.alvo.outputs.publicar == '1'

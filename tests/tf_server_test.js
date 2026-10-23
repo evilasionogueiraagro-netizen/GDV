@@ -1,10 +1,11 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 const assert = require('assert'); const B = amb.API;
 const ANO = new Date(Date.now() - 4 * 3600e3).getUTCFullYear();   // o servidor informa o último nº do ano corrente
 const post = b => fetch(B + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 const get = p => fetch(B + p).then(r => r.json());
 const fn = (nome, ...args) => get('/__fn?nome=' + nome + '&args=' + encodeURIComponent(JSON.stringify(args)));
-const ativar = async nome => { const g = await get('/__gerar?nome=' + encodeURIComponent(nome)); const r = await post({ action: 'ativar', codigo: g.codigo }); assert.ok(r.ok); return r.token; };
+const ativar = async nome => { const r = await U.fiscal(nome); assert.ok(r.token); return r.token; };
 const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); assert.ok(c, m); };
 (async () => {
   const A = await ativar('Ana Paula Lima'), Bk = await ativar('Bruno Costa Souza');

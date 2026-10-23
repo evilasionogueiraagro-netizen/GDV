@@ -15,7 +15,7 @@ Modelo em [../arquitetura.md](../arquitetura.md) e abas em [../banco.md](../banc
 | 22/10/2026 | Toda chamada consulta a planilha no servidor | revogar ou mudar permissão vale na hora |
 | 22/10/2026 | Login salvo no aparelho até sair ou ser revogado; uma sessão por aparelho, revogável sozinha | o campo fica dias sem internet |
 | 22/10/2026 | A TV da sala tem usuário próprio, só com `painel` | revoga sem derrubar ninguém e a TV não guarda a senha do gerente |
-| 22/10/2026 | Transição: os códigos de hoje continuam até cada pessoa ter login; o gerente desliga quando todos estiverem cadastrados | ninguém é derrubado no dia |
+| 22/10/2026 | Sem transição: no merge, códigos e `ACCESS_KEY` saem; antes, o gerente cria as contas e o campo envia o pendente | o login ainda não está em uso |
 | 22/10/2026 | O dashboard continua público, sem login | já mascara os dados |
 | 16/10/2026 | A chave mestra `ACCESS_KEY` sai (hoje vale até nas actions do fiscal) | credencial fora do controle do gerente |
 | 20/10/2026 | Senha e token só como hash com sal; limite de tentativas por matrícula e geral | quem lê a planilha não se passa por outro |

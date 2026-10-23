@@ -22,6 +22,13 @@ Falta, nesta ordem:
    - Check-out opcional pelo QR.
 3. Salvar cada PDF automaticamente na pasta TERMOS_EMITIDOS do PC.
 
+Com o login por matrícula e senha (22/10/2026), o QR deixa de identificar a pessoa e passa a provar só a **presença**:
+- **Identidade:** quem é a pessoa vem do login do celular. O QR prova que ela está na BVA, junto com o GPS. O check-in grava o `usuarioId`, e não um nome digitado.
+- **PC da BVA:** cada BVA tem um usuário próprio, como a TV, com uma permissão nova da página da barreira. Ele só mostra o QR e os TFs daquela BVA, e o gerente revoga quando quiser.
+- **QR:** é assinado pelo servidor e muda a cada ~30 s. Sem internet no celular, o app guarda a leitura com hora e GPS e o servidor valida no envio, pela janela de validade do QR.
+- **Fiscais do turno:** cada fiscal lê o QR com o próprio login e entra em `FiscaisDosTurnos`, o que acaba com o "Fiscal 2" digitado.
+- **Aba nova prevista:** `CheckinsNasBarreiras` (usuarioId, barreiraId, turnoId, em, lat, lon).
+
 ---
 
 ## 2. PCE em campo: propriedade cadastrada e vários levantamentos por visita

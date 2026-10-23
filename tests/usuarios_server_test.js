@@ -358,7 +358,8 @@ const MSG_ENTRE = 'Entre com sua matrícula e senha.';
     (await aba('PermissoesDosUsuarios'))[0].join() === 'id,usuarioId,permissao,concedidaEm,concedidaPor,revogadaEm,revogadaPor' &&
     (await aba('SessoesDosUsuarios'))[0].join() === 'id,usuarioId,tokenHash,aplicativo,aparelhoId,criadaEm,ultimoUso,encerradaEm,encerradaPor,motivoDoEncerramento' &&
     (await aba('HistoricoDeAlteracoes'))[0].join() === 'id,em,usuarioId,acao,tabela,registroId,antes,depois', 'cabeçalhos das quatro abas novas');
-  r = await get('/__doget?p='); ok(JSON.parse(r.json).versao === '2026-10-23a', 'VERSAO_CODIGO do back: 2026-10-23a', r.json);
+  const VERSAO = (require('fs').readFileSync(require('path').join(__dirname, '..', 'apps-script', 'Code.gs'), 'utf8').match(/const VERSAO_CODIGO = '([^']+)'/) || [])[1];
+  r = await get('/__doget?p='); ok(VERSAO && JSON.parse(r.json).versao === VERSAO, 'GET /exec mostra o VERSAO_CODIGO do Code.gs', r.json);
   console.log(falhas ? 'FALHOU=' + falhas : 'OK');
   process.exit(falhas ? 1 : 0);
 })().catch(e => { console.error('FALHOU', e); process.exit(1); });

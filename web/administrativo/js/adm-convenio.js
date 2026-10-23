@@ -346,7 +346,7 @@
   function secaoImp(raiz, v) {
     const s = A.secao(v, 'Importar planilha de movimentação', 'Planilha do gestor (.xlsx; uma aba "SUBETAPA x.y.z" por item do plano). Lida aqui no navegador; a coluna NOME não é lida nem enviada. Pode repetir todo mês: o que já foi importado não duplica.');
     const box = A.el('div', 'pn-cartao pn-conv-imp');
-    box.innerHTML = `<div class="pn-conv-acoes"><label class="pn-btn pn-btn-prim pn-conv-imp-btn" for="pn-conv-imp-arq">📥 Importar planilha de movimentação (.xlsx)</label>
+    box.innerHTML = `<div class="pn-conv-acoes"><label class="pn-btn pn-btn-prim pn-conv-imp-btn" for="pn-conv-imp-arq">${icone('baixar')} Importar planilha de movimentação (.xlsx)</label>
       <input type="file" id="pn-conv-imp-arq" accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" class="pn-conv-imp-arq">${msgHtml('imp')}</div>
       <div id="pn-conv-imp-previa"></div>`;
     s.appendChild(box);

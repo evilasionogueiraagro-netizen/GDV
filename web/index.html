@@ -8,18 +8,20 @@
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" href="img/icon-192.png">
 <link rel="apple-touch-icon" href="img/icon-192.png">
+<link rel="stylesheet" href="css/design.css">
 <link rel="stylesheet" href="css/app.css">
 </head>
-<body>
-<header>
+<body class="toque">
+<header class="barra-topo">
   <img src="img/logo-adaf.png" alt="ADAF">
   <div><h1>e-GDV – Fiscalização</h1><div id="sync">…</div></div>
 </header>
-<div id="atualizar" hidden>🔄 Nova versão do app disponível. <button id="btnAtualizar" type="button">Atualizar agora</button></div>
+<div id="atualizar" hidden><span><span data-icone="sincronizar"></span> Nova versão do app disponível.</span> <button id="btnAtualizar" type="button">Atualizar agora</button></div>
 <main id="view"></main>
 <nav id="nav"></nav>
 <div id="toast"></div>
 <script src="js/versao.js"></script>
+<script src="js/icones.js"></script>
 <script src="js/config.js"></script>
 <script src="js/store.js"></script>
 <script src="js/envio.js"></script>

@@ -196,7 +196,7 @@
       { chave: 'aparelhoId', rotulo: 'Aparelho', fmt: v => v || '—' },
       { chave: 'criadaEm', rotulo: 'Aberta em', num: true, fmt: v => dataHora(v) || '—' },
       { chave: 'ultimoUso', rotulo: 'Último uso', num: true, fmt: v => dataHora(v) || '—' },
-      { chave: 'id', rotulo: '', csv: () => '', html: id => `<button type="button" class="pn-btn pn-btn-mini pn-btn-encerrar" data-us="encerrar" data-sessao="${esc(id)}">Encerrar</button>` }
+      { chave: 'id', rotulo: '', csv: () => '', html: id => `<button type="button" class="pn-btn pn-btn-mini pn-btn-encerrar" data-us="encerrar" data-sessao="${esc(id)}">${icone('parar')} Encerrar</button>` }
     ], lista, { simples: true, id: 'us-sessoes', ordenar: 'ultimoUso', desc: true, busca: false, vazio: 'Nenhuma sessão aberta.' });
     const f = P.el('div', 'pn-conv-acoes', '<button type="button" class="pn-btn" data-us="fechar-sessoes">Fechar</button>'); c.appendChild(f);
   }
@@ -237,7 +237,7 @@
   function montar() {
     const r = P.el('section', 'pn-secao pn-us'); r.id = 'pn-us';
     r.innerHTML = `
-      <h2>Usuários (matrícula e senha)</h2>
+      <h2>${icone('pessoa')} Usuários (matrícula e senha)</h2>
       <p class="pn-sub">Uma conta por pessoa, com matrícula e senha, para o app de campo, o painel e o portal. Você escolhe o que cada uma pode usar; a senha provisória
         é entregue por você e trocada pela própria pessoa no primeiro acesso. A TV da sala usa um usuário só com "Painel (ver)".</p>
       <div class="pn-ac-grade">

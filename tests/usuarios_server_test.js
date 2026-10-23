@@ -82,8 +82,15 @@ const MSG_ENTRE = 'Entre com sua matrícula e senha.';
     'sessões encerradas guardam motivo e quem encerrou', ses.map(s => [s.aplicativo, s.motivoDoEncerramento, s.encerradaPor]));
   const us = await linhasDe('Usuarios'), u1 = us.find(u => u.matricula === 'GDV0001');
   const tudo = JSON.stringify(await get('/__tudo'));
-  ok(u1.senhaHash.length === 64 && u1.senhaHash !== sha(SENHA) && u1.senhaSal.length === 32 && u1.senhaProvisoria === 0 && u1.senhaAlteradaEm > 0 && !tudo.includes(SENHA) && !tudo.includes(G1.senhaProvisoria),
-    'planilha: hash com sal (não é o SHA-256 simples), nenhuma senha em claro', { hash: u1.senhaHash, sal: u1.senhaSal });
+  ok(/^\$2a\$04\$.{53}$/.test(u1.senhaHash) && u1.senhaSal === '' && u1.senhaProvisoria === 0 && u1.senhaAlteradaEm > 0 && !tudo.includes(SENHA) && !tudo.includes(G1.senhaProvisoria),
+    'planilha: hash bcrypt (custo da propriedade SENHA_CUSTO, sal dentro do hash), nenhuma senha em claro', { hash: u1.senhaHash, sal: u1.senhaSal });
+  // hash de antes do bcrypt (SHA-256 com senhaSal): não entra mais; o gerente gera senha nova
+  const editarU1 = (col, v) => fetch(API + '/__editar?aba=Usuarios&col=' + col + '&valor=' + encodeURIComponent(JSON.stringify(v)) + '&onde=matricula:GDV0001');
+  await editarU1('senhaHash', sha(SENHA)); await editarU1('senhaSal', 'ab'.repeat(16));
+  r = await entrar('GDV0001', SENHA, 'painel'); ok(!r.ok && r.erro === 'Matrícula ou senha incorreta.', 'hash SHA-256 antigo: a senha não entra mais', r);
+  await editarU1('senhaHash', u1.senhaHash); await editarU1('senhaSal', '');
+  r = await entrar('GDV0001', SENHA, 'painel'); ok(r.ok, 'de volta ao bcrypt: entra', r);
+  await zerarTentativas('GDV0001');
   ok(us.length === 1 && u1.criadoPor === 'planilha', 'a conta do menu: criadoPor = planilha (e o segundo gerente não foi gravado)');
 
   /* ================= 4. permissões, matrícula e nome ================= */
@@ -348,7 +355,7 @@ const MSG_ENTRE = 'Entre com sua matrícula e senha.';
   const perm = H.find(h => h.acao === 'usuario.permissoes' && h.registroId === PF.usuario.id);
   ok(perm && JSON.parse(perm.antes).permissoes.includes('fiscalizacaoDeTransito') && !JSON.parse(perm.depois).permissoes.includes('fiscalizacaoDeTransito') && perm.usuarioId === u1.id, 'permissões: antes e depois em JSON e quem mudou', perm);
   const todosUs = await linhasDe('Usuarios');
-  const segredos = todosUs.flatMap(u => [u.senhaHash, u.senhaSal]).concat([SENHA, G1.senhaProvisoria, PF.senhaProvisoria, NS.senhaProvisoria]);
+  const segredos = todosUs.flatMap(u => [u.senhaHash, u.senhaSal]).filter(Boolean).concat([SENHA, G1.senhaProvisoria, PF.senhaProvisoria, NS.senhaProvisoria]);
   const textoH = JSON.stringify(H);
   ok(segredos.every(s => s && !textoH.includes(s)), 'o histórico nunca traz hash, sal nem senha');
   const sesTudo = JSON.stringify(await linhasDe('SessoesDosUsuarios'));

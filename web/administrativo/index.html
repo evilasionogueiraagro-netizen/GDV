@@ -17,23 +17,29 @@
   <div class="pn-usuario" id="adm-usuario" hidden><span id="adm-nome"></span><button type="button" id="adm-sair" class="pn-btn-topo">Sair</button></div>
 </header>
 
-<!-- Login: Google (quando o Client ID estiver configurado) ou código de ativação gerado pelo gerente no painel -->
+<!-- Login único: matrícula e senha; a senha provisória exige a troca no primeiro acesso -->
 <main id="adm-login" class="pn-login" hidden>
   <div class="pn-cartao pn-login-form adm-login">
-    <h2>Acesso do Administrativo</h2>
-    <p class="pn-sub">Lançamentos do convênio, linhas manuais dos relatórios e VIGIFITO. Só para os e-mails liberados pelo gerente.</p>
-    <div id="adm-google" class="adm-google" hidden>
-      <div id="adm-google-btn" class="adm-google-btn" aria-label="Entrar com o Google"></div>
-      <p class="pn-sub adm-ou">ou</p>
-    </div>
-    <details id="adm-cod-box" class="adm-cod-box">
-      <summary>Entrar com um código de ativação</summary>
-      <form id="adm-cod-form" autocomplete="off">
-        <label for="adm-codigo">Código de 6 dígitos (gerado pelo gerente no painel, aba Servidores)</label>
-        <input id="adm-codigo" inputmode="numeric" pattern="[0-9]*" maxlength="6" placeholder="000000" required>
-        <button type="submit" class="pn-botao pn-btn pn-btn-prim" id="adm-entrar">Entrar</button>
-      </form>
-    </details>
+    <h2 id="adm-login-tit">Acesso do Administrativo</h2>
+    <p class="pn-sub" id="adm-login-txt">Lançamentos do convênio, linhas manuais dos relatórios e VIGIFITO. Entre com a matrícula e a senha que o gerente criou para você.</p>
+    <form id="adm-senha-form" autocomplete="on" novalidate>
+      <div id="adm-senha-campos">
+        <label for="adm-matricula">Matrícula</label>
+        <input id="adm-matricula" name="matricula" autocomplete="username" autocapitalize="none" spellcheck="false" required>
+        <label for="adm-senha">Senha</label>
+        <input id="adm-senha" name="senha" type="password" autocomplete="current-password" required>
+      </div>
+      <div id="adm-troca" hidden>
+        <p class="pn-sub">Você entrou com uma senha provisória. Crie a sua senha para continuar (no mínimo 8 caracteres).</p>
+        <label for="adm-senha-nova">Senha nova</label>
+        <input id="adm-senha-nova" type="password" autocomplete="new-password" minlength="8">
+        <label for="adm-senha-nova2">Repita a senha nova</label>
+        <input id="adm-senha-nova2" type="password" autocomplete="new-password" minlength="8">
+      </div>
+      <button type="button" class="pn-link" id="adm-ver-senha">Mostrar a senha</button>
+      <button type="submit" class="pn-botao pn-btn pn-btn-prim" id="adm-entrar-senha">Entrar</button>
+      <button type="button" class="pn-btn" id="adm-troca-voltar" hidden>Cancelar</button>
+    </form>
     <p class="pn-erro" id="adm-login-erro" role="alert" hidden></p>
   </div>
 </main>

@@ -45,4 +45,35 @@ async function lancar(opts = {}) {
   return b;
 }
 
-module.exports = { RAIZ, TESTES, SAIDA, PORTA_WEB, PORTA_API, ORIGEM, APP, PAINEL, API, API_URL, saida, chromiumPath, lancar };
+// Atalho de teste (fakegas /__usuario): conta com senha definitiva e sessão aberta, sem passar pelo login. Mesmo nome = mesma conta
+// (sessão nova). o = {permissoes: [...], aplicativo: campo|painel|administracao, matricula, aparelhoId}. Devolve a resposta do `entrar`
+// ({token, usuario, permissoes, modulos}) + matricula e senha. Padrão: campo = campo + 3 módulos; painel = gerencia; administracao.
+async function usuario(nome, o = {}) {
+  const q = new URLSearchParams({ nome });
+  if (o.permissoes) q.set('permissoes', [].concat(o.permissoes).join(','));
+  ['aplicativo', 'matricula', 'aparelhoId'].forEach(k => { if (o[k]) q.set(k, o[k]); });
+  const r = await fetch(API + '/__usuario?' + q).then(x => x.json());
+  if (!r.ok) throw new Error('/__usuario (' + nome + '): ' + r.erro);
+  return r;
+}
+const gerente = (nome, o = {}) => usuario(nome, { aplicativo: 'painel', ...o });   // painel com gerencia (vale tudo)
+/**
+ * Módulos do campo de um usuário (pelo nome) com a action real usuarioPermissoes: m = {veiculos, tf, pce, antigo} (0/1), como no app.
+ * Devolve a resposta, com permissoes no formato dos módulos ({veiculos, tf, pce, antigo}) quando ok.
+ */
+async function modulos(tokGerente, nome, m) {
+  const post = b => fetch(API_URL, { method: 'POST', body: JSON.stringify(b) }).then(x => x.json());
+  const L = await post({ action: 'usuariosListar', key: tokGerente });
+  if (!L.ok) return L;
+  const u = L.usuarios.find(x => x.nome === nome);
+  if (!u) return { ok: false, erro: 'usuário não encontrado: ' + nome };
+  const perms = ['campo'].concat(m.veiculos ? ['fiscalizacaoDeTransito'] : [], m.tf ? ['termoDeBarreira'] : [], m.pce ? ['pce'] : [], m.antigo ? ['digitarDoPapel'] : []);
+  const r = await post({ action: 'usuarioPermissoes', key: tokGerente, usuarioId: u.id, permissoes: perms });
+  if (r.ok) r.permissoes = { veiculos: m.veiculos ? 1 : 0, tf: m.tf ? 1 : 0, pce: m.pce ? 1 : 0, antigo: m.pce && m.antigo ? 1 : 0 };
+  return r;
+}
+let tokCarga = null;
+/** Token de um gerente só para carregar dados de teste (sync com tudo liberado); o mesmo em todo o teste. */
+async function carga() { return tokCarga || (tokCarga = (await gerente('Carga Dados Teste')).token); }
+
+module.exports = { RAIZ, TESTES, SAIDA, PORTA_WEB, PORTA_API, ORIGEM, APP, PAINEL, API, API_URL, saida, chromiumPath, lancar, usuario, gerente, carga, modulos };

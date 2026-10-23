@@ -118,7 +118,7 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
 
 (async () => {
   /* ---------- carga da planilha falsa ---------- */
-  const r = await post({ action: 'sync', key: 'segredo', since: 0, turnos: TURNOS.map(turnoReg), veiculos: veics, tfs: TFS, levantamentos: LEVS, colheitas: COLS });
+  const r = await post({ action: 'sync', key: await amb.carga(), since: 0, turnos: TURNOS.map(turnoReg), veiculos: veics, tfs: TFS, levantamentos: LEVS, colheitas: COLS });
   ok(r.ok, 'sync de preparação', r.erro);
   // a barreira esquecida aberta (tE, > 12 h) precisa continuar aberta para testar o estado "aberta > 12 h": sem o encerramento automático
   ok((await get('/__fn?nome=desativarRotinasAutomaticas_')).r === 0, 'rotinas automáticas desativadas (encerramento automático fica para o rotinas_test.js)');
@@ -126,8 +126,7 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   const linhaF = ['id', 'numeroTF', 'data', 'letra', 'inicio', 'fim', 'fiscal', 'local', 'unidade', 'posto', 'encerrado', 'criadoEm', 'atualizadoEm', 'srv_ts', 'latIni', 'lngIni', 'precIni', 'latFim', 'lngFim', 'precFim', 'usuario']
     .map(k => k === 'criadoEm' || k === 'atualizadoEm' || k === 'srv_ts' ? tsF : k === 'usuario' ? 'Rita Gomes' : f[k]);
   await fetch(API + '/__append?aba=Turnos&row=' + encodeURIComponent(JSON.stringify(linhaF)));
-  const adm = await get('/__gerar?nome=' + encodeURIComponent('Evilasio Admin') + '&perfil=admin');
-  const fis = await get('/__gerar?nome=' + encodeURIComponent('Pedro Alves Lima'));
+  const adm = await amb.gerente('Evilasio Admin');   // sessão de gerente pronta (atalho /__usuario)
 
   const b = await amb.lancar();
   const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
@@ -159,14 +158,11 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   let p = await abrir();
   await p.waitForSelector('#pn-login:not([hidden])');
   ok(await p.isHidden('#pn-app'), 'sem credencial: só a tela de login');
-  await p.fill('#pn-codigo', '000000'); await p.click('#pn-entrar');
-  await p.waitForSelector('#pn-login-erro:not([hidden])'); ok(/incorreto ou já usado/.test(await p.textContent('#pn-login-erro')), 'código errado: mensagem do servidor', await p.textContent('#pn-login-erro'));
-  await p.fill('#pn-codigo', fis.codigo); await p.click('#pn-entrar'); await p.waitForFunction(() => /FISCAL/.test(document.querySelector('#pn-login-erro').textContent));
-  ok(true, 'código de fiscal: "Este é um código de FISCAL…"');
-  await p.fill('#pn-codigo', adm.codigo); await p.click('#pn-entrar'); await esperarDados(p);
-  ok((await p.textContent('#pn-nome')).trim() === 'Evilasio Admin', 'código de admin entra; nome no topo');
+  // a tela de entrar com matrícula e senha é do front novo; aqui a sessão entra pronta
+  p = await abrir({}, { 'gdv.painel.token': adm.token, 'gdv.painel.nome': 'Evilasio Admin' }); await esperarDados(p);
+  ok((await p.textContent('#pn-nome')).trim() === 'Evilasio Admin', 'sessão de gerente abre o painel; nome no topo');
   ok((await p.evaluate(() => localStorage.getItem('gdv.painel.token') || '')).length >= 32, 'credencial guardada em gdv.painel.token');
-  const abas = await p.$$eval('.pn-aba', a => a.map(x => x.dataset.aba)); ok(abas.join() === 'geral,barreiras,tf,pce,convenios,relatorios,acessos,publico', 'abas na ordem Visão geral | Barreiras | TF | PCE | Convênios | Relatórios | Servidores | Dashboard público', abas);
+  const abas = await p.$$eval('.pn-aba', a => a.map(x => x.dataset.aba)); ok(abas.join() === 'geral,barreiras,tf,pce,convenios,relatorios,usuarios,publico', 'abas na ordem Visão geral | Barreiras | TF | PCE | Convênios | Relatórios | Usuários | Dashboard público', abas);
   await p.reload(); await esperarDados(p); ok(await p.isVisible('#pn-app'), 'recarregar mantém a sessão');
   ok(/Atualizado às \d{2}:\d{2}/.test(await p.textContent('#pn-status')), 'indicador "Atualizado às HH:MM"', (await p.textContent('#pn-status')).trim());
 
@@ -362,7 +358,7 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   console.log('7. Atualização automática (60 s)');
   await p.evaluate(() => window.scrollTo(0, 600)); const y0 = await p.evaluate(() => scrollY);
   const v0 = (await lerKpis(p))['Veículos abordados'];
-  const novo = await post({ action: 'sync', key: 'segredo', since: 0, turnos: [], veiculos: [{ id: 'tD-novo', turnoId: 'tD', hora: hmM(Date.now()), placa: 'NOV1A23', tipo: 'ON', pessoas: 40, obs: '', excluido: 0, criadoEm: Date.now(), atualizadoEm: Date.now() }] });
+  const novo = await post({ action: 'sync', key: await amb.carga(), since: 0, turnos: [], veiculos: [{ id: 'tD-novo', turnoId: 'tD', hora: hmM(Date.now()), placa: 'NOV1A23', tipo: 'ON', pessoas: 40, obs: '', excluido: 0, criadoEm: Date.now(), atualizadoEm: Date.now() }] });
   ok(novo.ok, 'novo veículo sincronizado por outro aparelho');
   const reqs = []; p.on('request', rq => { if (rq.method() === 'POST' && rq.url().startsWith(amb.API)) reqs.push(rq.postData() || ''); });
   const t0 = Date.now();
@@ -396,18 +392,18 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
 
   /* ================= 9. revogação e sair ================= */
   console.log('9. Revogação e sair');
-  await get('/__fn?nome=revogar_&args=' + encodeURIComponent(JSON.stringify(['Evilasio Admin'])));
+  const adm2 = await amb.gerente('Segundo Admin Teste');   // outro gerente encerra as sessões do primeiro (aparelho perdido)
+  for (const se of (await post({ action: 'sessoesListar', key: adm2.token, usuarioId: adm.usuario.id })).sessoes) await post({ action: 'sessaoEncerrar', key: adm2.token, sessaoId: se.id });
   await pcl.click('#pn-atualizar');
   await pcl.waitForSelector('#pn-login:not([hidden])', { timeout: 10000 }).catch(() => {});
   ok(await pcl.isVisible('#pn-login') && /revogada/.test(await pcl.textContent('#pn-login-erro')), 'credencial revogada volta ao login com a mensagem', await pcl.textContent('#pn-login-erro'));
   ok(!(await pcl.evaluate(() => localStorage.getItem('gdv.painel.token'))), 'credencial apagada do aparelho');
-  const adm2 = await get('/__gerar?nome=' + encodeURIComponent('Segundo Admin') + '&perfil=admin');
-  await pcl.fill('#pn-codigo', adm2.codigo); await pcl.click('#pn-entrar'); await esperarDados(pcl);
-  const tok2 = await pcl.evaluate(() => localStorage.getItem('gdv.painel.token'));
-  await pcl.click('#pn-sair'); await pcl.waitForSelector('#pn-login:not([hidden])'); await pcl.waitForTimeout(800);
+  const p2 = await abrir({}, { 'gdv.painel.token': adm2.token, 'gdv.painel.nome': 'Segundo Admin Teste' }); await esperarDados(p2);
+  const tok2 = adm2.token;
+  await p2.click('#pn-sair'); await p2.waitForSelector('#pn-login:not([hidden])'); await p2.waitForTimeout(800);
   const dSair = await post({ action: 'painelDados', key: tok2 });
   ok(!dSair.ok && /revogada/.test(dSair.erro), 'Sair revoga a credencial no servidor (cópia do token não lê mais)', dSair.erro);
-  ok(!(await pcl.evaluate(() => localStorage.getItem('gdv.painel.token'))), 'Sair apaga a credencial e volta ao login');
+  ok(!(await p2.evaluate(() => localStorage.getItem('gdv.painel.token'))), 'Sair apaga a credencial e volta ao login');
 
   const errs = [...new Set(erros)];
   ok(!errs.length, 'sem erros de console/página/HTTP', errs);

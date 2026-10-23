@@ -36,9 +36,6 @@ function mkSheet(name) {
 sheets.Turnos = mkSheet('Turnos');
 sheets.Turnos._rows.push(['id','numeroTF','data','letra','inicio','fim','fiscal','local','unidade','posto','encerrado','criadoEm','atualizadoEm','srv_ts']);
 sheets.Turnos._rows.push(['antigo-1','TF-001-A-' + diaManaus(3).slice(0, 4),diaManaus(3),'A','04:00','12:00','Maria','CEASA','MANAUS','Fixa',1,1,1,1]);
-sheets.Fiscais = mkSheet('Fiscais');
-sheets.Fiscais._rows.push(['nome','codigo','expiraEm','ativo','token','ativadoEm']);
-sheets.Fiscais._rows.push(['Antigo Fiscal','',1,1,'tok-antigo',1]);
 // Planilhas (a principal "fake" e as criadas com SpreadsheetApp.create, ex.: arquivo anual). id → {nome, sheets, api}
 const planilhas = {};
 function mkSS(id, nome, shs) {
@@ -48,7 +45,7 @@ function mkSS(id, nome, shs) {
   return api;
 }
 const ss = mkSS('fake', 'GDV planilha', sheets);
-const props = { ACCESS_KEY: 'segredo' };
+const props = {};
 const cache = new Map();
 let emailAtual = '', emailDono = 'dono@exemplo.gov.br';
 const gatilhos = [], emails = []; let trigSeq = 0;
@@ -120,23 +117,33 @@ const ctx = {
     computeDigest: (alg, txt) => Array.from(require('crypto').createHash(alg).update(String(txt), 'utf8').digest()).map(b => (b > 127 ? b - 256 : b)) },
   DriveApp,
   Session: { getActiveUser: () => ({ getEmail: () => emailAtual }), getEffectiveUser: () => ({ getEmail: () => emailDono }) },
-  HtmlService: { createHtmlOutput: h => ({ kind: 'html', content: h, setTitle() { return this; } }), createHtmlOutputFromFile: n => ({ kind: 'arquivo', name: n, setTitle() { return this; }, addMetaTag() { return this; } }) },
   CacheService: { getScriptCache: () => ({ get: k => cache.get(k) ?? null, put: (k, v) => cache.set(k, v), remove: k => cache.delete(k) }) },
-  ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ getContent: () => t, setMimeType() { return this; } }) },
-  // UrlFetchApp falso: só o tokeninfo do Google (login do Portal do Administrativo). Os testes registram as respostas por token em
-  // /__tokeninfo?token=&status=&body= ; token desconhecido = 400 {"error":"invalid_token"}. /__fetches lista as URLs (com o token mascarado).
-  UrlFetchApp: { fetch: (url, opts) => {
-    const m = /[?&]id_token=([^&]*)/.exec(String(url)), t = m ? decodeURIComponent(m[1]) : '';
-    fetches.push(String(url).replace(/id_token=[^&]*/, 'id_token=***'));
-    if (!/^https:\/\/oauth2\.googleapis\.com\/tokeninfo\?/.test(String(url))) throw new Error('UrlFetchApp falso: URL não esperada ' + url);
-    const r = tokeninfo[t] || { status: 400, body: JSON.stringify({ error: 'invalid_token', error_description: 'Invalid Value' }) };
-    return { getResponseCode: () => r.status, getContentText: () => r.body };
-  } }
+  ContentService: { MimeType: { JSON: 'json' }, createTextOutput: t => ({ getContent: () => t, setMimeType() { return this; } }) }
 };
-const tokeninfo = {}, fetches = [];
 vm.createContext(ctx);
-vm.runInContext(fs.readFileSync(path.join(RAIZ, 'apps-script', 'Code.gs'), 'utf8'), ctx);
+// Todos os .gs, como no Apps Script: um escopo global só. Code.gs primeiro (como no workflow de publicação); a ordem
+// dos demais não importa (ordem_arquivos_test confere).
+for (const arq of require('./lib/arquivos-gs').arquivosGs()) vm.runInContext(fs.readFileSync(arq, 'utf8'), ctx, { filename: arq });
 let online = true;
+// /__usuario?nome=&permissoes=a,b&aplicativo=campo|painel|administracao&matricula=&aparelhoId= (só nos testes): cria a conta pelas
+// funções reais (criarUsuario_, entrar_, trocarSenha_) com a senha SENHA_TESTE, ou reaproveita a do mesmo nome (ou matrícula), e entra.
+// Permissões padrão: campo = campo + os três módulos; painel = gerencia; administracao = administracao. Devolve a resposta do entrar + matricula, senha.
+const SENHA_TESTE = 'senha-de-teste';
+function usuarioDeTeste(q) {
+  const app = q.get('aplicativo') || 'campo', mat = q.get('matricula') || '', nome = q.get('nome') || '';
+  const padrao = { campo: ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce'], painel: ['gerencia'], administracao: ['administracao'] };
+  const perms = q.has('permissoes') ? q.get('permissoes').split(',').map(p => p.trim()).filter(Boolean) : padrao[app] || [];
+  let u = ctx.lerLeitura_('Usuarios').find(x => x.id && (mat ? ctx.chaveMatricula_(x.matricula) === ctx.chaveMatricula_(mat) : ctx.nomeChave_(x.nome) === ctx.nomeChave_(nome)));
+  if (!u) {
+    const r = ctx.criarUsuario_({ matricula: mat, nome, permissoes: perms }, { quem: 'teste' });
+    const e = ctx.entrar_({ matricula: r.usuario.matricula, senha: r.senhaProvisoria, aplicativo: perms.includes(app) || perms.includes('gerencia') ? app : ['campo', 'painel', 'administracao'].find(p => perms.includes(p)) || app });
+    ctx.trocarSenha_({ key: e.token, senhaAtual: r.senhaProvisoria, senhaNova: SENHA_TESTE });
+    ctx.sair_({ key: e.token });
+    u = r.usuario;
+  }
+  const e = ctx.entrar_({ matricula: u.matricula, senha: SENHA_TESTE, aplicativo: app, aparelhoId: q.get('aparelhoId') || '' });
+  return Object.assign(e, { matricula: u.matricula, senha: SENHA_TESTE });
+}
 var lockFalha = 0;   // /__lockfalha?n=K: a K-ésima próxima waitLock dá timeout (teste)
 http.createServer((req, res) => {
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -149,14 +156,13 @@ http.createServer((req, res) => {
   if (req.url.startsWith('/__criarArquivo')) { const q = new URL(req.url, 'http://x').searchParams, pasta = drive.itens[props[q.get('pastaProp')]];   // arquivo numa pasta guardada nas propriedades
     if (!pasta) return res.end('sem pasta'); const a = pasta.api.createFile(ctx.Utilities.newBlob([], 'application/octet-stream', q.get('nome'))); return res.end(a.getId()); }
   if (req.url.startsWith('/__drivefalha')) { driveFalha = new URL(req.url, 'http://x').searchParams.get('v') === '1'; return res.end('ok'); }
-  if (req.url.startsWith('/__tokeninfo')) { const q = new URL(req.url, 'http://x').searchParams; tokeninfo[q.get('token')] = { status: Number(q.get('status')) || 200, body: q.get('body') || '{}' }; return res.end('ok'); }
-  if (req.url === '/__fetches') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify(fetches)); }
   if (req.url === '/__tudo') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify(Object.fromEntries(Object.entries(sheets).map(([n, sh]) => [n, sh._rows])))); }
   if (req.url === '/__off') { online = false; return res.end('off'); }
   if (req.url === '/__on') { online = true; return res.end('on'); }
-  if (req.url.startsWith('/__gerar')) { const n = new URL(req.url, 'http://x').searchParams.get('nome'); res.setHeader('content-type', 'application/json'); try { return res.end(JSON.stringify(ctx.gerarCodigo_(n, new URL(req.url, 'http://x').searchParams.get('perfil') || ''))); } catch (e) { return res.end(JSON.stringify({ erro: e.message })); } }
-  if (req.url.startsWith('/__revogar')) { const n = new URL(req.url, 'http://x').searchParams.get('nome'); return res.end(String(ctx.revogar_(n))); }
-  if (req.url.startsWith('/__expirar')) { const c = new URL(req.url, 'http://x').searchParams.get('codigo'); sheets.Fiscais._rows.forEach((r, i) => { if (i > 0 && String(r[1]) === c) r[2] = 1; }); return res.end('ok'); }
+  if (req.url.startsWith('/__usuario')) { res.setHeader('content-type', 'application/json');   // atalho de teste: conta pronta (senha definitiva) e token
+    try { return res.end(JSON.stringify(usuarioDeTeste(new URL(req.url, 'http://x').searchParams))); } catch (e) { return res.end(JSON.stringify({ ok: false, erro: e.message })); } }
+  if (req.url.startsWith('/__gerente')) { const q = new URL(req.url, 'http://x').searchParams; res.setHeader('content-type', 'application/json');   // primeiro gerente (como o menu e-GDV → Criar o primeiro gerente): {usuario, senhaProvisoria}
+    try { return res.end(JSON.stringify(ctx.criarGerente_(q.get('matricula') || '', q.get('nome')))); } catch (e) { return res.end(JSON.stringify({ erro: e.message })); } }
   if (req.url.startsWith('/__append')) { const q = new URL(req.url, 'http://x').searchParams; (sheets[q.get('aba')] = sheets[q.get('aba')] || mkSheet(q.get('aba')))._rows.push(JSON.parse(q.get('row'))); return res.end('ok'); }
   if (req.url.startsWith('/__editar')) { const q = new URL(req.url, 'http://x').searchParams, sh = sheets[q.get('aba')]; if (!sh) return res.end('sem aba');   // /__editar?aba=&col=&valor=&onde=coluna:valor (todas as linhas que casam)
     const cab = sh._rows[0], c = cab.indexOf(q.get('col')), [oc, ov] = (q.get('onde') || '').split(/:(.*)/); const io = oc ? cab.indexOf(oc) : -1; let n = 0;
@@ -164,7 +170,7 @@ http.createServer((req, res) => {
   if (req.url.startsWith('/__fn')) { const q = new URL(req.url, 'http://x').searchParams; res.setHeader('content-type', 'application/json');
     try { return res.end(JSON.stringify({ r: ctx[q.get('nome')](...JSON.parse(q.get('args') || '[]')) })); } catch (e) { return res.end(JSON.stringify({ erro: e.message })); } }
   if (req.url.startsWith('/__doget')) { const q = new URL(req.url, 'http://x').searchParams; res.setHeader('content-type', 'application/json');
-    const o = ctx.doGet({ parameter: { p: q.get('p') } }); return res.end(JSON.stringify(o.kind ? { kind: o.kind, name: o.name } : { json: o.getContent() })); }
+    const o = ctx.doGet({ parameter: { p: q.get('p') } }); return res.end(JSON.stringify({ json: o.getContent() })); }
   if (req.url === '/__drive') { res.setHeader('content-type', 'application/json');
     return res.end(JSON.stringify({ pastaRaiz: props.PASTA_ARQUIVOS || null, arquivos: Object.values(drive.itens).filter(x => x.kind === 'arquivo').map(a => ({ id: a.id, nome: a.nome, caminho: caminho(drive.itens[a.pai]), mime: a.mime, tamanho: a.bytes.length, lixeira: a.trashed, compartilhado: a.compartilhado })),
       pastas: Object.values(drive.itens).filter(x => x.kind === 'pasta' && !x.trashed).map(caminho) })); }
@@ -174,7 +180,7 @@ http.createServer((req, res) => {
       url: p.api.getUrl(), abas: Object.fromEntries(Object.entries(p.sheets).map(([n, sh]) => [n, sh._rows])) }])))); }
   if (req.url === '/__apagarPasta') { const f = drive.itens[props.PASTA_ARQUIVOS]; if (f) f.trashed = true; return res.end('ok'); }
   if (req.url.startsWith('/__aba')) { const n = new URL(req.url, 'http://x').searchParams.get('nome'); res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify(sheets[n] ? sheets[n]._rows : null)); }
-  if (req.url === '/__dump') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ T: sheets.Turnos && sheets.Turnos._rows, V: sheets.Veiculos && sheets.Veiculos._rows, F: sheets.Fiscais && sheets.Fiscais._rows })); }
+  if (req.url === '/__dump') { res.setHeader('content-type', 'application/json'); return res.end(JSON.stringify({ T: sheets.Turnos && sheets.Turnos._rows, V: sheets.Veiculos && sheets.Veiculos._rows })); }
   if (!online) { req.destroy(); return; }
   let b = ''; req.on('data', c => b += c);
   req.on('end', () => { res.setHeader('content-type', 'application/json'); res.end(ctx.doPost({ postData: { contents: b } }).getContent()); });

@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // VIGIFITO (motor de indicadores + relatório por posto + Portal do Administrativo): turnos fixos (BVA Jundiá) e volantes (Tabatinga) com
 // veículos (pessoas a bordo e UF de origem/destino opcional) e TFs (UF de origem/destino — inclusive TF antigo só com o texto "BOA VISTA/RR" —,
 // produtos em kg/t/caixas, documentos, inspeção, amostra) e os indicadores CALCULADOS deles (educação sanitária = pessoas; medida
@@ -8,7 +9,7 @@ const amb = require('./lib/amb');
 // SINTÉTICA (gerada aqui) no layout da planilha de controle (histórico), com avisos e idempotência; app de campo: veículo sem o bloco de fiscalização, com UF opcional, e TF lavrado dele; central de relatórios do painel: VIGIFITO mensal,
 // por período, semestral e anual (automáticos por posto, manuais, substituição, totais por município, fixas, volantes e geral; nada de
 // negativo ou decimal em contagem), saídas .docx (zip/XML), PDF e .xlsx (abas e células conferidas), consistência com o convênio (1.10)
-// e com o consolidado; PCE, Convênio e Metas SUASA na central.
+// e com o consolidado; PCE e Convênio na central.
 const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
 const X = require(path.join(amb.RAIZ, 'web/painel/vendor/xlsx/xlsx.mini.min.js'));
 global.Indicadores = require(path.join(amb.RAIZ, 'web/documentos/indicadores.js'));
@@ -18,7 +19,7 @@ const PORTAL = require('./lib/portal');
 const { API } = amb;
 const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 const get = p => fetch(API + p).then(r => r.json());
-const gerar = (nome, perfil) => get('/__gerar?nome=' + encodeURIComponent(nome) + (perfil ? '&perfil=' + perfil : ''));
+const gerar = (nome, perfil = '') => perfil === 'admin' ? amb.gerente(nome) : amb.usuario(nome);   // conta pronta e token (atalho /__usuario)
 let falhas = 0;
 const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x === undefined ? '' : ' → ' + (typeof x === 'string' ? x : JSON.stringify(x)).slice(0, 700))); if (!c) falhas++; };
 const SAIDA = process.env.GDV_SAIDA_VIGIFITO || '';
@@ -72,7 +73,7 @@ function planilhaVig() {
   console.log(`1. Dados de ${A}, apuração por posto (mês e período de 10 dias)`);
   const P1 = per(d(1, 13)), P2 = per(d(1, 14));
   ok(P2 === d(1, 14) && P1 < P2, `escala: ${d(1, 14)} (dia da troca) abre um período; ${d(1, 13)} fica no anterior`, [P1, P2]);
-  let r = await post({ action: 'sync', key: 'segredo', since: 0,
+  let r = await post({ action: 'sync', key: (await U.fiscal('Fiscal Vigifito Sync')).token, since: 0,
     turnos: [T('j1', d(1, 14), 'BVA - JUNDIÁ', 'Fixa', 'BVA - JUNDIÁ'), T('j2', d(1, 13), 'BVA - JUNDIÁ', 'Fixa', 'BVA - JUNDIÁ'), T('j3', d(3, 10), 'BVA - JUNDIÁ', 'Fixa', 'BVA - JUNDIÁ'),
       T('v1', d(2, 5), 'Porto de Tabatinga', 'Móvel', 'TABATINGA'), T('v2', d(8, 20), 'Porto Público', 'Móvel', 'TABATINGA'), T('c1', d(3, 5), 'BVA - CEASA', 'Fixa', 'BVA - CEASA')],
     // veículos: pessoas a bordo (educação sanitária) e UF opcional. a1 RR→AM tem o TF f1 ligado (conta só pelo TF); a2 AM→PA sem TF (carga para
@@ -95,10 +96,10 @@ function planilhaVig() {
       lat: '-4.2', lon: '-69.9', culturas: '[]', pragas: JSON.stringify([{ praga: 'Monilíase do Cacaueiro', culturas: [{ cultura: 'Cacau', area: '2', resultado: 'detectada', coleta: 'Sim' }] }]), fotos: '[]', assinaturas: '{}', excluido: 0, criadoEm: agora, atualizadoEm: agora }] });
   ok(r.ok, 'turnos, veículos, TFs e levantamento sincronizados', r.erro);
   await fetch(API + '/__fn?nome=desativarRotinasAutomaticas_');
-  const adm = await gerar('Gerente Vigifito', 'admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
+  const adm = await gerar('Gerente Vigifito', 'admin'), TOK = adm.token;
   const SA = await PORTAL.sessao(TOK, 'vigi.adm@gmail.com', 'Vera Vigifito Administrativa');
-  const fis = await gerar('Fiscal Curioso'), TOKF = (await post({ action: 'ativar', codigo: fis.codigo })).token;
-  r = await post({ action: 'painelVigDados', key: TOKF, ano: A }); ok(!r.ok && /Acesso restrito/.test(r.erro), 'fiscal recusado em painelVigDados', r.erro);
+  const TOKF = (await U.fiscal('Fiscal Curioso')).token;
+  r = await post({ action: 'painelVigDados', key: TOKF, ano: A }); ok(!r.ok && /não inclui o painel/.test(r.erro), 'fiscal recusado em painelVigDados', r.erro);
   const VDp = await post({ action: 'painelVigDados', key: TOK, ano: A });
   const ap = VDp.apuracao, pm = (p, m) => (ap.porMes[p] || {})[`${A}-${String(m).padStart(2, '0')}`] || {};
   ok(VDp.ok && VDp.cfg.postos.length === 11 && VDp.cfg.ancora === '2025-01-05' && VDp.cfg.ciclo === 9, 'configuração semente: 11 postos da planilha, escala 05/01/2025 a cada 9 dias', VDp.cfg && VDp.cfg.postos.map(p => p.id));
@@ -147,7 +148,8 @@ function planilhaVig() {
     [{ periodo: 'P' + d(1, 6), posto: 'pf-jundia', indicador: 'partidas', valor: 1 }, /escala/], [{ periodo: `${A}-01`, posto: 'nao-existe', indicador: 'partidas', valor: 1 }, /posto/],
     [{ periodo: `${A}-13`, posto: 'pf-jundia', indicador: 'partidas', valor: 1 }, /período inválido/], [{ periodo: `${A}-01`, posto: 'pf-jundia', indicador: 'xyz', valor: 1 }, /indicador/]];
   for (const [l, re] of erros) { const x = await VL([l]); ok(!x.ok && re.test(x.erro), `validação: ${re.source}`, x.erro || x); }
-  r = await post({ action: 'admVigLancar', sessao: TOK, lancamentos: [erros[0][0]] }); ok(!r.ok && /Sessão do portal/.test(r.erro), 'credencial do painel não grava no VIGIFITO');
+  r = await post({ action: 'admVigLancar', sessao: (await amb.usuario('Visitante Painel Vigifito', { aplicativo: 'painel', permissoes: ['painel'] })).token, lancamentos: [erros[0][0]] });
+  ok(!r.ok && /não inclui o Portal do Administrativo/.test(r.erro), 'conta só do painel não grava no VIGIFITO', r.erro);
   r = await VL([{ periodo: `${A}-02`, posto: 'pf-jundia', indicador: 'partidas', valor: 4 }]); ok(!r.ok && /justificativa/.test(r.erro), 'partidas vêm dos TFs: valor manual só como substituição, com justificativa', r.erro);
   r = await VL([{ periodo: `${A}-01`, posto: 'pf-jundia', indicador: 'capacitacao', valor: 3 }, { periodo: `${A}-01`, posto: 'pf-jundia', indicador: 'madeira', valor: 12.5 },
     { periodo: `${A}-02`, posto: 'pf-jundia', indicador: 'madeira', valor: 10 }, { periodo: `${A}-03`, posto: 'pf-jundia', indicador: 'madeira', valor: 11 }, { periodo: `${A}-04`, posto: 'pf-jundia', indicador: 'madeira', valor: 300 },
@@ -202,7 +204,7 @@ function planilhaVig() {
   await pa.context().close();
 
   /* ================= 4. central de relatórios ================= */
-  console.log('4. Central de relatórios: VIGIFITO mensal, período, semestral e anual; PCE; convênio; Metas SUASA');
+  console.log('4. Central de relatórios: VIGIFITO mensal, período, semestral e anual; PCE; convênio');
   const ctx = await b.newContext({ viewport: { width: 1366, height: 900 }, timezoneId: 'America/Manaus', locale: 'pt-BR', serviceWorkers: 'block', acceptDownloads: true });
   await ctx.route('https://tile.openstreetmap.org/**', rt => rt.fulfill({ status: 200, contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64') }));
   await ctx.addInitScript(([tok, url, ano]) => {
@@ -216,7 +218,7 @@ function planilhaVig() {
   await p.click('.pn-aba[data-aba=relatorios]');
   const esperar = (cond, arg) => p.waitForFunction(([c, a]) => { const s = Painel.aba('relatorios').estado(); return !s.carregando && new Function('s', 'a', 'return ' + c)(s, a); }, [cond, arg], { timeout: 30000 });
   await esperar('s.rel === "vigifito" && s.VR && s.VR.tipo === "mensal"');
-  ok((await p.$$eval('#pn-rg-rel option', os => os.map(o => o.textContent))).join('|') === 'PCE|VIGIFITO|Convênio|Metas SUASA|Consolidado (Relatório GDV)', 'central: tipos PCE, VIGIFITO, Convênio, Metas SUASA e Consolidado');
+  ok((await p.$$eval('#pn-rg-rel option', os => os.map(o => o.textContent))).join('|') === 'PCE|VIGIFITO|Convênio|Consolidado (Relatório GDV)', 'central: tipos PCE, VIGIFITO, Convênio e Consolidado (sem Metas SUASA)');
   const cel = (g, k) => p.evaluate(([g, k]) => { const R = Painel.aba('relatorios').estado().VR, gr = R.grupos.find(x => x.id === g); const x = R.tot(gr.ids, k); return { v: x.v, o: Object.keys(x.origens).sort().join() }; }, [g, k]);
   let c = await cel('pf-jundia', 'veiculos');
   ok(c.v === 5 && c.o === 'auto', 'mensal (janeiro): Jundiá 5 veículos (e-GDV)', c);
@@ -328,9 +330,6 @@ print(json.dumps({'tabelas':x.count('<w:tbl>'),'paisagem':x.count('w:orient="lan
   const cvc = await baixar('#pn-rg-docx');
   ok(cvc.buf.slice(0, 2).toString() === 'PK' && /Relatorio_Convenio_991272-2025_Consolidado_ate_\d{4}-\d{2}-\d{2}\.docx/.test(cvc.nome), 'consolidado em Word', cvc.nome);
   await shot(p, 'central_convenio_consolidado');
-  // Metas SUASA
-  await p.selectOption('#pn-rg-rel', 'suasa'); await p.waitForSelector('#pn-rg-suasa');
-  ok(/Aguardando o plano de metas SUASA/.test(await p.textContent('#pn-rg-suasa')) && !(await p.$('#pn-rg-docx')), 'Metas SUASA: "aguardando o plano de metas SUASA" (sem gerar)');
   // postos do VIGIFITO (configuração editável): mapear a CEASA num posto novo
   await p.selectOption('#pn-rg-rel', 'vigifito'); await esperar('s.rel === "vigifito" && s.VR');
   await p.click('#pn-vig-postos'); await p.waitForSelector('#pn-vig-cfg[open]');
@@ -356,7 +355,7 @@ print(json.dumps({'tabelas':x.count('<w:tbl>'),'paisagem':x.count('w:orient="lan
   /* ================= 5. app de campo: veículo (UF opcional) e TF lavrado dele ================= */
   console.log('5. App das barreiras: veículo sem o bloco de fiscalização, UF opcional, TF do veículo → VIGIFITO calculado');
   const ca = await b.newContext({ viewport: { width: 400, height: 860 }, permissions: ['geolocation'], geolocation: { latitude: -2.05, longitude: -60.02, accuracy: 10 }, timezoneId: 'America/Manaus', locale: 'pt-BR' });
-  await ca.addInitScript(() => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', 'segredo'); } } catch (e) { /* */ } });
+  await ca.addInitScript(t => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); } } catch (e) { /* */ } }, TOKF);
   const pg = await ca.newPage(); const errosApp = [];
   pg.on('pageerror', e => errosApp.push(e.message)); pg.on('dialog', dd => dd.accept());
   await pg.goto(amb.APP); await pg.waitForSelector('.modulo'); await pg.click('.modulo[data-v=home]'); await pg.waitForSelector('#fTurno');

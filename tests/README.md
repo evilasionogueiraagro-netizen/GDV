@@ -1,64 +1,70 @@
 # Testes automáticos do GDV
 
-- `fakegas.js`: executa o `apps-script/Code.gs` **real** numa VM do Node, com SpreadsheetApp, Lock, Cache, Properties, Utilities, Drive, ScriptApp, MailApp, Session e HtmlService falsos (tudo em memória). `Utilities.computeDigest` (SHA-256) é o real do Node; o Cache falso ignora o prazo de validade (`put(k, v, segundos)` guarda para sempre). Serve a API (`doPost` e as rotas de controle `/__*` usadas pelos testes) na porta **8082** e a pasta `web/` na **8081**.
-- `*.js` (exceto `fakegas.js` e `run.js`): um teste cada. Os do app/painel/TV usam o Chromium via `playwright-core`; os `*_server_test.js` só falam HTTP com o fakegas.
-- `arquivo_test.js`: arquivamento anual (dados em 4 anos; `e-GDV – Arquivo AAAA` em `GDV - Arquivo anual`, turno aberto não sai, idempotência, continuação com lote pequeno, TFs/Levantamentos intocados, sync/painel depois, faixa do painel e gatilho). O fakegas cria planilhas novas (`SpreadsheetApp.create`/`openById`, `deleteRows`, `File.moveTo`); `/__planilhas` mostra as planilhas criadas com as abas.
-- `tf_anexos_test.js`: fotos e assinatura na tela no TF (Drive falso em `GDV - Arquivos/TF/<ano>`), recusa, anexo fotográfico e PDF (precisa do `pypdf`, como o `tf_paginas`), QR code e `verificar.html`, índice de reincidência sem internet e permissões.
-- `publico_test.js`: dashboard público (`web/dashboard/`, actions `publicoDados`/`painelPublicoConfig`/`painelPublicoSalvar`): desligado → "indisponível"; o gerente liga pela aba do painel e desliga blocos; mapa e números em 360 px e desktop, claro e escuro; nenhum dado pessoal nem coordenada exata no JSON; "barreiras agora" só com BVA fixa; fiscal não salva; períodos, pré-visualização, sem conexão, cache e limitador. Com `GDV_SAIDA_PUBLICO=<pasta>` copia as capturas para essa pasta também.
-- `pce_campo_test.js`: PCE em campo — `pceBaixarMunicipio` (2 municípios na planilha, colunas acrescentadas à mão, resumo do histórico, nada de outros produtores, recusa sem PCE), download no app, consulta **sem internet** (`context.setOffline`) por CPF, nome e código, levantamento preenchido, "Enviar ao produtor" (PDF gerado no aparelho, `navigator.share` simulado; confere os PDFs com `pypdf` se houver), mapa "Perto de mim" (pontos, cores, lista por distância a partir de geolocalização fixa, raio), "Fazer levantamento aqui", rota e link do Google Maps (trechos), apagar do aparelho, atualização automática e limpeza ao perder o PCE. O fakegas ganhou `getLastColumn`.
-- `pce_moniliase_test.js`: PCE monilíase — digitação do papel de 2 cadastros e 2 termos fictícios no formato do relatório de Autazes (números do papel preservados, `numeroOrigem = papel`, coordenadas `-3,60033 / -59,15044W`, nº repetido recusado), ligação termo ↔ cadastro, PDFs (impressão e arquivo; páginas com `pypdf` se houver), relatório de 08–10/07/2026 em Autazes (termos emitidos = 2, plantas = soma, Educação Sanitária = termos com a ação + folders digitados no relatório, "não realizada" sem nenhum dos dois, anexos), permissão Papel, termo de campo sem internet (número provisório) e sincronização, "criar cadastro" a partir do termo, painel (KPI, tabela, relatório e auditoria). Com `GDV_SAIDA_MONILIASE=<pasta>` copia capturas e PDFs para essa pasta.
-- `convenio_test.js`: aba Convênios do painel (Convênio SUASA nº 991272/2025 – MAPA/ADAF; actions `painelConv*`): turnos/veículos/TFs (BVA Jundiá, CEASA, Aeroporto fora da meta, volante em Tabatinga e em Manaus, com apreensão e rechaço), levantamentos PCE de monilíase em 5 municípios e Termos de Fiscalização do PCE em meses diferentes; apuração automática pelo servidor e na tela (1.4 municípios + propriedades por município, 1.9 turnos volantes de Tabatinga, 1.10 veículos por BVA), esperado pelo tempo e alertas; lançamentos manuais pelo Portal do Administrativo (1.3, 1.5, 1.14, bem da 1.1, ajuste com justificativa), edição e exclusão lógica (o painel mostra só leitura); financeiro (saldos, %, CSV); textos do relatório salvos e herdados no mês seguinte; relatório de setembro/2026 em PDF (texto da impressão e arquivo, páginas com `pypdf`) e Word (zip e XML válidos, `python-docx`, 5 tabelas com bordas — resumo, 3 financeiras e físico × financeiro —, números; se houver LibreOffice, `soffice --headless --convert-to pdf`); fiscal recusado em todas as actions; nenhum CPF/nome/placa; configuração (BVAs de `CONFIG.bvas`, metas); 390 px sem rolagem horizontal, claro e escuro. Com `GDV_SAIDA_CONVENIO=<pasta>` copia capturas, PDF, .docx e CSV para essa pasta.
-- `convfin_test.js`: Convênios → importação da planilha de movimentação (`painelConvFinImportar`) e físico × financeiro. Gera no teste (SheetJS vendorizada, no Node) uma planilha **sintética** no layout do gestor — abas `SUBETAPA x.y.z` com **nomes fictícios** na coluna NOME, linha de total sem data, linha sem data/memo de valor avulso, memo repetido, data antes do início da execução, data fora da vigência, subetapa fora do plano, aba `SOMA` e aba `CONSOLIDADA` desatualizada —, importa pelo Portal do Administrativo (`setInputFiles`; a importação saiu do painel), confere a prévia (contagens, avisos, totais, conferência com a SOMA, decisão da linha sem data), grava, confere o Financeiro (por etapa, natureza e fonte), **reimporta sem duplicar**, altera um valor e tira um memo (atualiza a mesma linha; o ausente só sai quando marcado), e confere que **nenhum nome** chegou ao servidor (corpo de todas as requisições e aba `ConvFinanceiro`) nem ao relatório. Metas: % financeiro, diárias usadas/previstas, alerta "financeiro à frente do físico", custo por unidade, projeção do saldo (etapa e item); relatório com a tabela "Físico × Financeiro por etapa" (impressão, PDF e `.docx` com `python-docx`); celular 390 px. A SheetJS só é baixada no clique. Com `GDV_SAIDA_CONVFIN=<pasta>` copia as capturas.
-- `relgdv_test.js`: Relatório GDV (aba Relatórios; actions `painelRelGdv`, `painelRelGdvSalvar`, `painelRelGdvApuracao`): levantamentos do **ano anterior** em meses diferentes (citros com HLB/cancro/Diaphorina, soja com Amaranthus, monilíase com detecção e suspeita, carambola, R4T, praga fora dos grupos, excluído), tipos de local (Viveiro, UP), propriedades novas e antigas (aba `Propriedades`), Termos de Fiscalização do PCE (Educação Sanitária, UP/UC, cancelado), Termos de Colheita com resultados (positivo, negativo, aguardando > 30 dias), turnos fixos e volantes com veículos e TFs (kg, t, caixas e unidades); apuração (propriedades e área distintas no ano ≠ soma dos meses, UP/UC por visita, toneladas só de massa, anexo mascarado); aba: tabelas por grupo (total = soma das linhas), quadro PCE (mês, acumulado, total anual), VIGIFITO (total = fixas + volantes), lançamentos manuais e linhas de tabela pelo Portal do Administrativo (só leitura no painel), textos salvos no painel e recarregados; relatório **mensal** e **anual** pela impressão (texto), **PDF** (arquivo; páginas com `pypdf`) e **Word** (zip, XML, `python-docx`, seções em paisagem, mapas; se houver, `soffice --headless --convert-to pdf`); nenhum CPF/nome completo; fiscal recusado; 390 px claro/escuro. `GDV_RELGDV_SO_SERVIDOR=1` roda só a parte do servidor; com `GDV_SAIDA_RELGDV=<pasta>` copia capturas, PDFs e .docx.
-- `pce_laudo_test.js`: campos novos do levantamento (tipo de local e origem da visita, "Outro" digitável; listas com Soja, Amaranthus e Diaphorina): salvar, reabrir, sincronizar ida e volta, linha na ficha (PDF), colunas e CSV no painel; resultado de laboratório no app (validação, planilha com quem/quando, número do termo intacto), no painel (`painelPceLaudo`: coluna Resultado, registro, alertas de atenção > 30 dias e crítico positivo) e o reenvio do termo editado sem internet não apaga o resultado do painel (mesclagem pelo `atualizadoEm` do resultado, nos dois sentidos).
-- `pce_citros_test.js`: citros e a visita completa: CPF/CNPJ primeiro (produtor cadastrado via sync autopreenche produtor e propriedade com CNPJ, empresa, endereço e UF; CPF novo libera os campos; sem internet busca no aparelho), ordem dos cards, bloco "🍊 Cultura do citros" único dentro de "Pragas e doenças" (só com praga de citros, um só com duas), detecção de HLB/Ácaro/Cancro obrigatória (ausência/presença; detectada pré-marca presença), Cadastro de citros (programa `citros`) e Termo de Fiscalização preenchido (identificação, data/hora, local, frases, enquadramento), PDF cadastro + termo (títulos, marcações X, vias; capturas e PDF em `saida/`), planilha (`Levantamentos`, `CadastrosPCE`, `TermosPCE`), reabrir, registro da versão anterior e validação do servidor (`identLev_`). Com `GDV_SAIDA_CITROS=<pasta>` copia as capturas.
-- `adm_test.js`: Portal do Administrativo (`web/administrativo/`; actions `adm*` e `painelAdm*`): liberados no painel (e-mail normalizado, máximo `ADM_MAX`, revogar), login com Google simulado (o fakegas tem um `UrlFetchApp` falso do tokeninfo: `/__tokeninfo?token=&status=&body=` registra a resposta, `/__fetches` lista as URLs com o token mascarado) — token válido, `aud` errado, expirado, e-mail não verificado, não liberado, emissor errado, token inválido —, bloqueio após 10 recusas, login por código (uso único, vencido), sessão só com hash (`/__tudo` devolve todas as abas), expirada, revogada e encerrada; sessão do portal × credenciais do painel/app; desembolso (servidor da lista, avisos de memorando repetido e diária acima do previsto, data fora da vigência), importação pela action, físico e linhas de relatório com histórico; o painel não grava mais (actions antigas recusam) e não recebe nomes de servidores; telas (login com o botão do Google simulado por `route`, desembolso com saldo ao vivo, físico, linhas dos relatórios, histórico, celular claro/escuro) e o bloco de liberados no painel. Com `GDV_SAIDA_ADM=<pasta>` copia as capturas.
-- `vigifito_test.js`: VIGIFITO — turnos fixos (Jundiá, inclusive no dia da troca da escala) e volantes (Tabatinga) com veículos (pessoas a bordo, UF de origem/destino opcional, registros com os campos antigos de fiscalização que **não contam mais**) e TFs (UF de origem/destino, TF antigo só com o texto "BOA VISTA/RR" → UF extraída, TF sem UF herdando a do veículo ligado, kg/t/caixas, documentos, inspeção, amostra, cancelado) e os indicadores **calculados** deles (educação sanitária = pessoas; medida fitossanitária e partidas = TFs; inspeção e documentos dos TFs; internalização/importação e cargas para outros estados/exportação em t, sem contar duas vezes o veículo com TF ligado; auto de destruição); `ufDoTexto_` com casos válidos e inválidos; BVA sem posto (não mapeada); apuração por posto, mês e período de 10 dias; mesmo número no convênio (1.10) e no Relatório GDV; valores manuais e substituição pelo portal (validações); importação de uma planilha VIGIFITO **sintética** (gerada no teste, layout da planilha de controle) com avisos e idempotência; central de relatórios: VIGIFITO mensal, período, semestral e anual (totais por município, fixas, volantes e geral; sem negativo/decimal em contagem), .docx (zip/XML; LibreOffice se houver), PDF e .xlsx (abas e células), consolidado = VIGIFITO, PCE, Convênio e Metas SUASA; postos editáveis; **app de campo**: formulário do veículo sem o bloco "Fiscalização (opcional)", com "Origem e destino (opcional)" gravando `ufOrigem`/`ufDestino` (vazias quando não escolhidas), edição de um registro antigo preservando os campos antigos, lista do turno (origem → destino), TF lavrado do veículo com a UF pré-preenchida gravando as colunas novas da aba TFs e o VIGIFITO do ano corrente calculado deles. Com `GDV_SAIDA_VIGIFITO=<pasta>` copia capturas, .docx, .pdf e .xlsx.
-- `lib/portal.js`: libera uma pessoa no portal e abre o portal já com a sessão (usado por `adm_test`, `convenio_test`, `convfin_test`, `relgdv_test` e `vigifito_test`, que agora lançam pelo portal).
-- `run.js`: executor. Roda os testes **um de cada vez**, cada um com um fakegas novo (planilha vazia).
-- `lib/amb.js`: portas, URLs, pasta de saída e abertura do navegador (comum a todos os testes). `lib/relogio.js`: relógio deslocado para testes que dependem da data.
-- `saida/` (fora do git): screenshots, PDFs, `logs/<teste>.log`, `logs/<teste>.fakegas.log` e `resumo.txt`.
+Dois tipos: o `Code.gs` real no Node (`fakegas.js`) e as telas no Chromium (`playwright-core`). Os `*_server_test.js` só falam HTTP com o fakegas (são rápidos). O que cada área faz: [docs/README.md](../docs/README.md).
 
-## Rodar localmente
+## fakegas.js
+Roda `apps-script/Code.gs` **real** numa VM do Node, com `SpreadsheetApp`, `LockService`, `CacheService`, `PropertiesService`, `Utilities`, `DriveApp`, `ScriptApp`, `MailApp`, `Session`, `HtmlService` e `UrlFetchApp` falsos, em memória.
+- API (`doPost` e rotas `/__*`) na porta **8082** (`GDV_PORTA_API`); `web/` na **8081** (`GDV_PORTA_WEB`).
+- `Utilities.computeDigest` (SHA-256) é o real. O Cache ignora a validade: `put(k, v, segundos)` guarda para sempre.
+- Rotas úteis: `/__aba?nome=` (linhas cruas), `/__planilhas`, `/__tudo` (todas as abas), `/__tokeninfo` e `/__fetches` (login Google simulado). As demais, no fim do arquivo.
+- Serviço Google novo no `Code.gs` precisa existir aqui ([PORTABILIDADE.md](../docs/PORTABILIDADE.md)).
+- À mão: `node fakegas.js` num terminal e `node tv_test.js` em outro (só um fakegas por vez nas mesmas portas).
 
-Precisa de Node 20+ e de `python3` com `pypdf` (`pip install pypdf`): sem ele falham `tf_paginas`, `convenio_test`, `convfin_test`, `relgdv_test` e `vigifito_test` (o `tf_anexos_test` só pula a conferência das páginas do PDF). Para não mexer no Python do sistema, use um venv e ponha o `bin/` dele no começo do `PATH` ao rodar os testes. O `convenio_test` usa também `python-docx` (`pip install python-docx`) e, se houver, o LibreOffice (`soffice`).
+## Rodar
+Node 20+ e `python3` com `pypdf` (`pip install pypdf`); sem ele falham `tf_paginas`, `convenio_test`, `convfin_test`, `relgdv_test` e `vigifito_test`. `convenio_test` usa `python-docx` e, se houver, `soffice`. Para não mexer no Python do sistema, use um venv e ponha o `bin/` dele no `PATH`.
 
 ```sh
 cd tests
-npm ci                                # instala o playwright-core (fixo em 1.54.2)
-npx playwright-core install chromium  # baixa o Chromium dessa versão (em Linux novo: install --with-deps chromium)
-node run.js --paralelo 4              # todos, em 4 partes ao mesmo tempo (~6 min; portas 8081/8082 a 8087/8088)
-node run.js                           # todos, em fila (~11 min)
+npm ci                                # playwright-core fixo em 1.54.2
+npx playwright-core install chromium  # Linux novo: install --with-deps chromium
+node run.js --paralelo 4              # tudo em 4 partes ao mesmo tempo (portas 8081/8082 a 8087/8088)
+node run.js                           # tudo em fila (~11 min)
 node run.js tv_test painel_test       # só alguns (com ou sem .js)
-node run.js -v tf_e2e                 # mostra a saída do teste ao vivo
-node run.js --lista                   # lista os testes
-node run.js --parte 2/3               # 2ª de 3 partes equilibradas (como no CI)
+node run.js -v tf_e2e                 # mostra a saída ao vivo
+node run.js --lista                   # lista os testes (respeita --parte)
+node run.js --parte 2/3               # 2ª de 3 partes equilibradas (o CI usa --parte N/4 --tentativas 2)
 ```
 
-O executor imprime `OK`/`FALHOU` por teste, as últimas linhas da saída de quem falhou e um resumo; sai com código ≠ 0 se algum falhar. Um teste falha se terminar com código ≠ 0, imprimir uma linha com `✗` ou imprimir `FALHOU=N` com N > 0.
+Opções:
+- `--paralelo N` (`-j N`): N partes ao mesmo tempo, cada uma com seu fakegas. Sai com código 1 se algo falhar. Rode antes de cada push.
+- `--parte i/n`: a parte `i` de `n`, dividida pelo `PESO` (abaixo).
+- `--tentativas N` (ou `GDV_TENTATIVAS`, padrão 1): repete quem falhou; o resumo marca os instáveis.
+- `-v`: saída ao vivo. Variáveis: `GDV_TIMEOUT` (360 s por teste), `GDV_PORTA_WEB` / `GDV_PORTA_API`, `CHROMIUM_PATH`.
 
-Variáveis de ambiente:
+Um teste falha se sair com código ≠ 0, se imprimir `✗` ou se imprimir `FALHOU=N` com N > 0.
 
-| Variável | Padrão | Para quê |
-|---|---|---|
-| `GDV_PORTA_WEB` / `GDV_PORTA_API` | 8081 / 8082 | portas do fakegas (os testes usam as mesmas) |
-| `CHROMIUM_PATH` | Chromium do Playwright; senão `/opt/pw-browsers/chromium-*/chrome-linux/chrome` | navegador usado nos testes |
-| `GDV_TIMEOUT` | 360 | tempo máximo de cada teste (s) |
-| `GDV_TENTATIVAS` (ou `--tentativas N`) | 1 | repete quem falhar; o resumo aponta quem só passou na repetição |
+Saída em `tests/saida/` (fora do git): capturas, PDFs e `logs/`. Para copiar as capturas de uma área: `GDV_SAIDA_<AREA>=<pasta>`, com `ADM`, `CITROS`, `CONVENIO`, `CONVFIN`, `MONILIASE`, `PUBLICO`, `RELGDV` ou `VIGIFITO`. `GDV_RELGDV_SO_SERVIDOR=1` roda só o servidor do Relatório GDV.
 
-Para usar o fakegas à mão (ex.: depurar um teste): `node fakegas.js` em um terminal e `node tv_test.js` em outro. Só pode haver um fakegas por vez nas mesmas portas.
+## Testes por área
+Principais (a lista completa é `node run.js --lista`):
+- `arquivo_test`: arquivamento anual (planilhas `e-GDV – Arquivo AAAA`).
+- `tf_anexos_test`: fotos, assinatura, PDF e QR code do TF; reincidência; permissões.
+- `pce_campo_test`: PCE em campo (download por município, consulta sem internet, mapa).
+- `pce_moniliase_test`: PCE de monilíase (papel, termos, PDFs, relatório).
+- `pce_citros_test`: citros e a visita completa (cadastro, termo, PDF).
+- `pce_laudo_test`: resultado de laboratório, no app e no painel (`painelPceLaudo`).
+- `publico_test`: dashboard público (`web/dashboard/`).
+- `convenio_test`: aba Convênios (`painelConv*`), relatório em PDF e Word.
+- `convfin_test`: importação da planilha de movimentação (`painelConvFinImportar`).
+- `relgdv_test`: Relatório GDV (`painelRelGdv*`).
+- `vigifito_test`: VIGIFITO, central de relatórios e app de campo.
+- `adm_test`: Portal do Administrativo (`adm*`, `painelAdm*`).
+- `lib/portal.js`: libera uma pessoa no portal e abre a sessão (usado pelos testes do portal).
+- `lib/usuarios.js`: cria contas (`fiscal`, `criar`), troca permissões, revoga sessões e semeia o navegador com o login (substitui os códigos de ativação).
 
 ## Escrever um teste novo
+1. Crie `tests/<nome>_test.js` (o `run.js` pega todo `.js` da pasta, exceto `fakegas.js` e `run.js`). Comece com `const amb = require('./lib/amb');`:
+   - `amb.API` (sem barra final), `amb.APP`, `amb.PAINEL`, `amb.ORIGEM`, em vez de `localhost:8081/8082`;
+   - `const b = await amb.lancar();` para o Chromium. Na página, a API está em `window.__GDV_API`;
+   - `amb.saida('arquivo.png')` para capturas e PDFs; `amb.RAIZ` para o repositório.
+2. Imprima `  ✓ mensagem` ou `  ✗ mensagem` por verificação; termine com `process.exitCode = 1` se algo falhar.
+3. Não dependa da data de hoje: use `Date.now()` (Manaus = UTC−4) e o ano corrente. Dia fixo do mês: `// gdv:relogio dia=15 hora=10:00` no topo (fakegas, teste e navegador usam esse dia). Para avançar o tempo na página: `page.clock`.
+4. O fakegas já traz a linha de turno `antigo-1` (3 dias atrás) e o fiscal "Antigo Fiscal".
+5. Confira pelas actions (HTTP): é o que o porte também roda. Com `/__aba`, ache a coluna pelo nome em `TABELAS`, não por índice. O que só existe no Google (Drive, gatilhos, `LockService`) fica em teste ou trecho separado, para o porte marcar "não se aplica".
+6. Demorou ou mudou muito de tempo? Atualize o `PESO`.
 
-1. Crie `tests/<nome>_test.js` (o executor pega qualquer `.js` desta pasta). Comece com `const amb = require('./lib/amb');` e use:
-   - `amb.API` (sem barra final), `amb.APP`, `amb.PAINEL`, `amb.ORIGEM` em vez de `localhost:8081/8082`;
-   - `const b = await amb.lancar();` para abrir o Chromium. Nos scripts que rodam no navegador, o endereço da API é `window.__GDV_API` (ex.: `localStorage.setItem('gdv.url', window.__GDV_API)`);
-   - `amb.saida('arquivo.png')` para screenshots/PDFs; `amb.RAIZ` para ler arquivos do repositório.
-2. Imprima `  ✓ mensagem` / `  ✗ mensagem` por verificação e termine com código ≠ 0 se algo falhou (ex.: `process.exitCode = 1`).
-3. Não dependa da data de hoje: monte datas a partir de `Date.now()` (horário de Manaus = UTC−4) e use o ano corrente. Se o teste precisar de um dia específico do mês, ponha no topo `// gdv:relogio dia=15 hora=10:00`: o executor desloca o relógio do fakegas, do teste e do navegador para esse dia do mês corrente (como faz o `rotinas_test`). Para avançar o tempo dentro de uma página, use `page.clock`.
-4. O fakegas já traz a linha de turno `antigo-1` (3 dias atrás) e o fiscal "Antigo Fiscal"; as rotas `/__gerar`, `/__aba`, `/__fn`, `/__props`, `/__off`/`/__on` etc. estão no fim de `fakegas.js`.
-5. Se o teste for demorado, acrescente o tempo aproximado em `PESO` no `run.js` (equilibra as partes do CI).
-6. Confira o resultado pelas actions (HTTP) sempre que der. O porte para servidor próprio
-   ([docs/PORTABILIDADE.md](../docs/PORTABILIDADE.md)) roda estes mesmos testes e refaz as rotas `/__*` sobre o banco.
-   Quando precisar do `/__aba` (devolve as linhas cruas), ache a coluna pelo nome em `TABELAS`, não por índice fixo; o que só existe no Google (pastas do Drive,
-   gatilhos, `LockService`) fica num teste ou num trecho separado, para o porte poder marcar "não se aplica".
+## PESO (run.js)
+Objeto `PESO` em `tests/run.js`: segundos aproximados de cada teste, medidos no CI, só para dividir as partes de forma equilibrada (`--parte`, `--paralelo`). Teste sem entrada conta 60 s.
+
+## CI
+`testes.yml` roda 4 partes (`--parte N/4 --tentativas 2`) em cada PR e push para a `main`. Branch sem PR: Actions → Testes automáticos → Run workflow. O back só é publicado se as 4 partes passam ([PUBLICACAO-BACK.md](../docs/PUBLICACAO-BACK.md)).

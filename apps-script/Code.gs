@@ -135,7 +135,7 @@ const TABELAS = {
   VigConfig: ['id', 'config', 'atualizadoEm', 'atualizadoPor'],
   VigLancamentos: ['id', 'ano', 'periodo', 'posto', 'indicador', 'valor', 'substitui', 'justificativa', 'origem', 'arquivo', 'usuario', 'admId', 'atualizadoEm', 'excluido'],
   // Login com matrícula e senha (usuarios.gs). Nada é apagado: revogar = preencher revogadaEm/encerradaEm; desativar = ativo 0.
-  // Usuarios: senhaHash/senhaSal = SHA-256 iterado sobre sal + senha (a senha nunca é guardada); senhaProvisoria = 1: troca obrigatória no próximo acesso.
+  // Usuarios: senhaHash = bcrypt (sal dentro do hash; senhaSal fica vazio, coluna do formato antigo) (a senha nunca é guardada); senhaProvisoria = 1: troca obrigatória no próximo acesso.
   // criadoPor/atualizadoPor = id do usuário ou "planilha" (menu da planilha).
   Usuarios: ['id', 'matricula', 'nome', 'senhaHash', 'senhaSal', 'senhaProvisoria', 'senhaAlteradaEm', 'ativo',
              'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor'],
@@ -165,7 +165,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-23b';
+const VERSAO_CODIGO = '2026-10-23d';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado

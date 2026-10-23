@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // Volante que não conta veículos (CONFIG.volantesSoPessoas: Tabatinga, educação sanitária da monilíase no porto, meta 1.9 do convênio):
 // app real (Chromium) + Code.gs real. Confere: no volante com unidade TABATINGA o "Só educação sanitária" vem marcado e o local do porto
 // sugerido; o turno mostra o contador de pessoas orientadas (+1/+5/+10/corrigir) no lugar de "Registrar veículo"; o total vai para a
@@ -15,7 +16,7 @@ const diaManaus = ms => new Date(ms - 4 * 3600e3).toISOString().slice(0, 10);
 (async () => {
   const b = await amb.lancar();
   try {
-    const g = await get('/__gerar?nome=' + encodeURIComponent('Fiscal Ficticio Teste')), F = await post({ action: 'ativar', codigo: g.codigo });
+    const F = await U.fiscal('Fiscal Ficticio Teste');
     const ctx = await b.newContext({ viewport: { width: 400, height: 860 }, permissions: ['geolocation'], geolocation: { latitude: -3.1190, longitude: -60.0217, accuracy: 10 } });
     // sem internet de fora (endereço pela localização): o resultado não pode depender do ambiente (no CI a consulta funciona)
     await ctx.route(u => !/^https?:\/\/(localhost|127\.0\.0\.1)[:/]/.test(String(u)), r => r.abort());
@@ -56,7 +57,7 @@ const diaManaus = ms => new Date(ms - 4 * 3600e3).toISOString().slice(0, 10);
     const t = (await ler('Turnos')).find(x => x.unidade === 'TABATINGA');
     ok(t && t.pessoasEducacao === 12 && t.soPessoas === 1 && t.posto === 'Móvel' && t.encerrado === 1, 'Turnos: volante, soPessoas = 1, pessoasEducacao = 12, encerrado', t);
     ok(!(await ler('Veiculos')).some(v => v.turnoId === (t && t.id)), 'nenhum veículo gravado no turno');
-    const adm = await get('/__gerar?nome=' + encodeURIComponent('Gestora Ficticia Teste') + '&perfil=admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
+    const adm = await amb.gerente('Gestora Ficticia Teste'), TOK = adm.token;
     const hoje = diaManaus(Date.now());
     const PD = await post({ action: 'painelDados', key: TOK, de: hoje, ate: hoje });
     const tp = PD.ok && (PD.turnos || []).find(x => x.id === (t && t.id));

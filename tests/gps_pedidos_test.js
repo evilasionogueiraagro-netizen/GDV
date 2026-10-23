@@ -1,11 +1,11 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 const { chromium } = require('playwright-core');
 const { API, APP } = amb;
 const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) process.exitCode = 1; };
 (async () => {
   const b = await amb.lancar();
-  const g = await (await fetch(API + '/__gerar?nome=' + encodeURIComponent('Pessoa Ficticia Alfa'))).json();
-  const r = await (await fetch(API, { method: 'POST', body: JSON.stringify({ action: 'ativar', codigo: g.codigo }) })).json();
+  const r = await U.fiscal('Pessoa Ficticia Alfa');
   const c = await b.newContext({ viewport: { width: 400, height: 900 } });                // SEM permissão de localização (estado "prompt")
   await c.addInitScript(([t]) => {
     if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', 'Pessoa Ficticia Alfa'); localStorage.setItem('gdv.semInstalar', '1'); }

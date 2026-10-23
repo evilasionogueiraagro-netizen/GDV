@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const U = require('./lib/usuarios');
 // Relatório GDV (painel → aba Relatórios; actions painelRelGdv, painelRelGdvSalvar e painelRelGdvApuracao do Code.gs real via fakegas):
 // levantamentos em meses diferentes do ano anterior (citros com HLB/cancro/Diaphorina, soja com Amaranthus, monilíase com detecção e
 // suspeita, carambola, R4T e uma praga fora dos grupos), tipos de local (Viveiro, UP), propriedades novas e antigas, Termos de
@@ -12,7 +13,7 @@ const { API } = amb;
 const PORTAL = require('./lib/portal');
 const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 const get = p => fetch(API + p).then(r => r.json());
-const gerar = (nome, perfil) => get('/__gerar?nome=' + encodeURIComponent(nome) + (perfil ? '&perfil=' + perfil : ''));
+const gerar = (nome, perfil = '') => perfil === 'admin' ? amb.gerente(nome) : amb.usuario(nome);   // conta pronta e token (atalho /__usuario)
 let falhas = 0;
 const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x === undefined ? '' : ' → ' + (typeof x === 'string' ? x : JSON.stringify(x)).slice(0, 700))); if (!c) falhas++; };
 const SAIDA = process.env.GDV_SAIDA_RELGDV || '';
@@ -60,7 +61,7 @@ const GRUPOS = [{ id: 'citros', colunas: [{ rotulo: 'HLB', pragas: ['HLB', 'Gree
 (async () => {
   /* ================= 1. servidor ================= */
   console.log(`1. Servidor: dados de ${A}, permissões e apuração`);
-  let r = await post({ action: 'sync', key: 'segredo', since: 0, levantamentos: LEVS,
+  let r = await post({ action: 'sync', key: await U.semeador(), since: 0, levantamentos: LEVS,
     propriedades: [{ id: 'OLD-1', codigo: 'OLD-1', nome: 'Sítio OLD-1', doc: CPF, municipio: 'Manaus', criadoEm: Date.UTC(A - 1, 4, 1), atualizadoEm: agora }],
     termosPce: [TPCE('p1', d(3, 12), 'Tabatinga', { acoes: '["Levantamento","Educação Sanitária"]' }), TPCE('p2', d(3, 10), 'Humaitá', { propriedadeId: 'SOJ-1', tipoLocal: '["Unidade de Produção (UP)"]', acoes: '["Fiscalização"]' }),
       TPCE('p3', d(6, 2), 'Manaus', { propriedadeId: 'UC-9', tipoLocal: '["Unidade de Consolidação (UC)"]' }), TPCE('p4', d(3, 25), 'Manaus', { cancelado: 1, acoes: '["Educação Sanitária"]' })],
@@ -78,15 +79,15 @@ const GRUPOS = [{ id: 'citros', colunas: [{ rotulo: 'HLB', pragas: ['HLB', 'Gree
       TF('f6', '', d(3, 20), 'liberacao', ['COCO - 100 Unidades'])] });
   ok(r.ok, 'dados de teste sincronizados', r.erro);
   await fetch(API + '/__fn?nome=desativarRotinasAutomaticas_');
-  const adm = await gerar('Gerente Relatorio', 'admin'), TOK = (await post({ action: 'painelAtivar', codigo: adm.codigo })).token;
-  const fis = await gerar('Fiscal Curioso'), TOKF = (await post({ action: 'ativar', codigo: fis.codigo })).token;
+  const adm = await gerar('Gerente Relatorio', 'admin'), TOK = adm.token;
+  const TOKF = (await U.fiscal('Fiscal Curioso')).token;
   ok(TOK && TOKF, 'credenciais de administrador e de fiscal');
   const SA = await PORTAL.sessao(TOK, 'relatorio.adm@gmail.com', 'Rita Relatorio Administrativa');
   for (const a of ['painelRelGdv', 'painelRelGdvSalvar', 'painelRelGdvApuracao', 'painelPceLaudo']) {
     const x = await post({ action: a, key: TOKF, ano: A, de: d(1, 1), ate: d(12, 31), grupos: GRUPOS, tipo: 'mensal', mes: '03', textos: { introducao: 'x' }, id: 'c1', laboratorio: { resultado: 'negativo' } });
-    ok(!x.ok && /Acesso restrito/.test(x.erro), `fiscal comum recusado em ${a}`, x);
+    ok(!x.ok && /não inclui o painel/.test(x.erro), `fiscal comum recusado em ${a}`, x);
   }
-  r = await post({ action: 'painelRelGdvApuracao', de: d(1, 1), ate: d(12, 31), grupos: GRUPOS }); ok(!r.ok && /Sessão do painel inválida/.test(r.erro), 'sem credencial: recusado', r.erro);
+  r = await post({ action: 'painelRelGdvApuracao', de: d(1, 1), ate: d(12, 31), grupos: GRUPOS }); ok(!r.ok && /Entre com sua matrícula e senha/.test(r.erro), 'sem credencial: recusado', r.erro);
   r = await post({ action: 'painelRelGdvApuracao', key: TOK, de: d(1, 1), ate: `${A + 1}-03-01`, grupos: GRUPOS }); ok(!r.ok && /longo demais/.test(r.erro), 'período maior que um ano recusado', r.erro);
   const erros = [[{ lancamentos: [{ mes: '13', chave: 'pce.capacitacao', valor: 1 }] }, /Mês inválido/], [{ lancamentos: [{ mes: '03', chave: 'x.y', valor: 1 }] }, /inválida/],
     [{ lancamentos: [{ mes: '03', chave: 'pce.capacitacao', valor: -2 }] }, /inválido/], [{ lancamentos: [{ mes: '03', chave: 'pce.capacitacao', valor: 'dez' }] }, /número/]];

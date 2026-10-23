@@ -17,7 +17,6 @@ const NOME_APLICATIVO_USUARIO_ = { campo: 'o app de campo', painel: 'o painel', 
 const RE_MATRICULA_ = /^[A-Za-z0-9.\-]{3,20}$/;
 const RE_TOKEN_USUARIO_ = /^u\.[0-9a-f]{64}$/;
 const SENHA_MIN_ = 8;
-const SENHA_ITERACOES_ = 1000;
 const SENHA_ALFABETO_ = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789';   // sem 0/O/1/l/I
 const USO_SESSAO_MS_ = 5 * 60 * 1000;                        // ultimoUso grava no máximo uma vez a cada 5 min por sessão
 const LOGIN_FALHAS_MATRICULA_ = 10, LOGIN_FALHAS_TOTAL_ = 50, LOGIN_JANELA_S_ = 900;   // 10 por matrícula e 50 no total em 15 min
@@ -37,8 +36,8 @@ const MSG_SO_GERENCIA_ = 'Só a gerência pode fazer esta alteração (o seu ace
 
 /* ---------- Utilidades ---------- */
 
-/** Chave de comparação da matrícula: sem espaços nas pontas e sem diferença de maiúscula/minúscula. */
-function chaveMatricula_(v) { return String(v === null || v === undefined ? '' : v).trim().toLowerCase(); }
+/** Chave de comparação da matrícula: sem ponto, hífen, espaço e diferença de maiúscula/minúscula (123.456-7 = 1234567). A planilha guarda como foi digitada. */
+function chaveMatricula_(v) { return String(v === null || v === undefined ? '' : v).replace(/[.\-\s]/g, '').toLowerCase(); }
 
 /** Matrícula informada → texto sem espaços nas pontas, ou erro. */
 function matriculaValida_(v) {
@@ -78,24 +77,34 @@ function senhaProvisoriaNova_() {
   return s;
 }
 
-/** SHA-256 iterado 1000 vezes sobre sal + senha (sal aleatório por senha). Só o hash e o sal ficam na planilha. */
-function hashSenha_(senha, sal) {
-  let h = hexSha_(sal + '|' + senha);
-  for (let i = 1; i < SENHA_ITERACOES_; i++) h = hexSha_(sal + h);
-  return h;
-}
+const SENHA_CUSTO_PADRAO_ = 10;   // bcrypt: 2^10 rodadas; a propriedade SENHA_CUSTO muda (4 a 14; os testes usam 4)
+let HASH_FICTICIO_ = '';          // conferido quando a matrícula não existe, para o tempo da resposta não revelar isso
 
-function iguaisSeguro_(a, b) {
-  a = String(a); b = String(b);
-  let d = a.length ^ b.length;
-  for (let i = 0; i < Math.max(a.length, b.length); i++) d |= (a.charCodeAt(i) || 0) ^ (b.charCodeAt(i) || 0);
-  return d === 0;
+/** bcryptjs (bcrypt.gs) com o aleatório do Apps Script (UUIDs do Utilities, de gerador seguro). */
+function bcrypt_() {
+  const b = dcodeIO.bcrypt;
+  b.setRandomFallback(function (n) {
+    const h = aleatorioHex_(n * 2), a = [];
+    for (let i = 0; i < n; i++) a.push(parseInt(h.substr(i * 2, 2), 16));
+    return a;
+  });
+  return b;
 }
+function custoSenha_() { const c = Math.floor(Number(prop_('SENHA_CUSTO'))); return c >= 4 && c <= 14 ? c : SENHA_CUSTO_PADRAO_; }
+function ehBcrypt_(h) { return /^\$2[aby]\$\d{2}\$/.test(String(h || '')); }
 
-/** Confere a senha de um usuário (linha de Usuarios). Sem usuário também calcula um hash, para o tempo não revelar se a matrícula existe. */
+/** Hash da senha em bcrypt ($2a$...). O sal fica dentro do próprio hash: a coluna senhaSal fica vazia. */
+function hashSenha_(senha) { const b = bcrypt_(); return b.hashSync(senha, b.genSaltSync(custoSenha_())); }
+
+/**
+ * Confere a senha de um usuário (linha de Usuarios). Sem usuário, ou com hash fora do bcrypt (o SHA-256 de antes de 2026-10-23d não vale
+ * mais: o gerente gera senha nova), também confere um hash, para o tempo não revelar se a matrícula existe.
+ */
 function senhaConfere_(u, senha) {
-  if (!u || !u.senhaSal || !u.senhaHash) { hashSenha_(senha, 'sal-ficticio'); return false; }
-  return iguaisSeguro_(hashSenha_(senha, u.senhaSal), u.senhaHash);
+  if (u && ehBcrypt_(u.senhaHash)) return bcrypt_().compareSync(senha, String(u.senhaHash));
+  if (!HASH_FICTICIO_) HASH_FICTICIO_ = hashSenha_(aleatorioHex_(16));
+  bcrypt_().compareSync(senha, HASH_FICTICIO_);
+  return false;
 }
 
 /** Texto que identifica um autor nas colunas criadoPor/atualizadoPor: nunca começa com caractere de fórmula. */
@@ -313,13 +322,13 @@ function trocarSenha_(req) {
   reservarTentativa_(chave);
   if (!senhaConfere_(s.u, atual)) throw new Error('A senha atual não confere.');
   devolverTentativa_(chave);
-  const sal = aleatorioHex_(32), hash = hashSenha_(nova, sal);
+  const hash = hashSenha_(nova);
   comLock_(function () {
     const u = lerLinhas_('Usuarios').filter(function (x) { return x.id === s.u.id; })[0];
     const sessao = lerLinhas_('SessoesDosUsuarios').filter(function (x) { return x.id === s.sessao.id; })[0];
     if (!u || u.ativo !== 1 || u.senhaHash !== s.u.senhaHash || !sessao || sessao.encerradaEm) throw new Error(MSG_SESSAO_);
     const agora = Date.now();
-    atualizar_('Usuarios', u._linha, { senhaHash: hash, senhaSal: sal, senhaProvisoria: 0, senhaAlteradaEm: agora, atualizadoEm: agora, atualizadoPor: u.id });
+    atualizar_('Usuarios', u._linha, { senhaHash: hash, senhaSal: '', senhaProvisoria: 0, senhaAlteradaEm: agora, atualizadoEm: agora, atualizadoPor: u.id });
     const n = encerrarSessoesAbertas_(function (x) { return x.usuarioId === u.id && x.id !== sessao.id; }, 'senha trocada', u.id);
     historicoAcesso_([{ usuarioId: u.id, acao: 'usuario.trocarSenha', tabela: 'Usuarios', registroId: u.id,
                         antes: { senhaProvisoria: u.senhaProvisoria }, depois: { senhaProvisoria: 0, sessoesEncerradas: n } }]);
@@ -385,13 +394,13 @@ function usuariosListar_(req) {
 function criarUsuario_(d, autor) {
   const nome = nomeServidor_(d.nome), perms = permissoesValidas_(d.permissoes);
   const matriculaPedida = d.matricula === null || d.matricula === undefined || String(d.matricula).trim() === '' ? '' : matriculaValida_(d.matricula);
-  const senha = senhaProvisoriaNova_(), sal = aleatorioHex_(32), hash = hashSenha_(senha, sal);
+  const senha = senhaProvisoriaNova_(), hash = hashSenha_(senha);
   return comLock_(function () {
     const todos = lerLinhas_('Usuarios').filter(function (x) { return x.id; });
     const matricula = matriculaPedida || proximaMatricula_(todos);
     if (todos.some(function (x) { return chaveMatricula_(x.matricula) === chaveMatricula_(matricula); })) throw new Error('Já existe um usuário com a matrícula ' + matricula + '.');
     const agora = Date.now(), id = uuid_();
-    inserir_('Usuarios', [{ id: id, matricula: matricula, nome: nome, senhaHash: hash, senhaSal: sal, senhaProvisoria: 1, senhaAlteradaEm: agora, ativo: 1,
+    inserir_('Usuarios', [{ id: id, matricula: matricula, nome: nome, senhaHash: hash, senhaSal: '', senhaProvisoria: 1, senhaAlteradaEm: agora, ativo: 1,
                             criadoEm: agora, criadoPor: autor.quem, atualizadoEm: agora, atualizadoPor: autor.quem }]);
     inserir_('PermissoesDosUsuarios', perms.map(function (p) { return { id: uuid_(), usuarioId: id, permissao: p, concedidaEm: agora, concedidaPor: autor.quem }; }));
     historicoAcesso_([{ usuarioId: autor.quem, acao: 'usuario.criar', tabela: 'Usuarios', registroId: id, antes: '',
@@ -433,14 +442,14 @@ function usuarioPermissoes_(req) {
  * Usada pela action usuarioNovaSenha (a gerência, para qualquer conta) e pelo menu da planilha (só gerente: novaSenhaGerente_).
  */
 function definirSenhaProvisoria_(criterio, autor) {
-  const senha = senhaProvisoriaNova_(), sal = aleatorioHex_(32), hash = hashSenha_(senha, sal);
+  const senha = senhaProvisoriaNova_(), hash = hashSenha_(senha);
   return comLock_(function () {
     const u = lerLinhas_('Usuarios').filter(function (x) {
       return x.id && (criterio.id ? x.id === criterio.id : chaveMatricula_(x.matricula) === chaveMatricula_(criterio.matricula));
     })[0];
     if (!u) throw new Error('Usuário não encontrado.');
     const agora = Date.now();
-    atualizar_('Usuarios', u._linha, { senhaHash: hash, senhaSal: sal, senhaProvisoria: 1, senhaAlteradaEm: agora, atualizadoEm: agora, atualizadoPor: autor.quem });
+    atualizar_('Usuarios', u._linha, { senhaHash: hash, senhaSal: '', senhaProvisoria: 1, senhaAlteradaEm: agora, atualizadoEm: agora, atualizadoPor: autor.quem });
     const n = encerrarSessoesAbertas_(function (s) { return s.usuarioId === u.id; }, 'nova senha provisória', autor.quem);
     historicoAcesso_([{ usuarioId: autor.quem, acao: 'usuario.novaSenha', tabela: 'Usuarios', registroId: u.id,
                         antes: { senhaProvisoria: u.senhaProvisoria }, depois: { senhaProvisoria: 1, sessoesEncerradas: n } }]);

@@ -85,9 +85,9 @@ const GRUPOS = [{ id: 'citros', colunas: [{ rotulo: 'HLB', pragas: ['HLB', 'Gree
   const SA = await PORTAL.sessao(TOK, 'relatorio.adm@gmail.com', 'Rita Relatorio Administrativa');
   for (const a of ['painelRelGdv', 'painelRelGdvSalvar', 'painelRelGdvApuracao', 'painelPceLaudo']) {
     const x = await post({ action: a, key: TOKF, ano: A, de: d(1, 1), ate: d(12, 31), grupos: GRUPOS, tipo: 'mensal', mes: '03', textos: { introducao: 'x' }, id: 'c1', laboratorio: { resultado: 'negativo' } });
-    ok(!x.ok && /Acesso restrito/.test(x.erro), `fiscal comum recusado em ${a}`, x);
+    ok(!x.ok && /não inclui o painel/.test(x.erro), `fiscal comum recusado em ${a}`, x);
   }
-  r = await post({ action: 'painelRelGdvApuracao', de: d(1, 1), ate: d(12, 31), grupos: GRUPOS }); ok(!r.ok && /Sessão do painel inválida/.test(r.erro), 'sem credencial: recusado', r.erro);
+  r = await post({ action: 'painelRelGdvApuracao', de: d(1, 1), ate: d(12, 31), grupos: GRUPOS }); ok(!r.ok && /Entre com sua matrícula e senha/.test(r.erro), 'sem credencial: recusado', r.erro);
   r = await post({ action: 'painelRelGdvApuracao', key: TOK, de: d(1, 1), ate: `${A + 1}-03-01`, grupos: GRUPOS }); ok(!r.ok && /longo demais/.test(r.erro), 'período maior que um ano recusado', r.erro);
   const erros = [[{ lancamentos: [{ mes: '13', chave: 'pce.capacitacao', valor: 1 }] }, /Mês inválido/], [{ lancamentos: [{ mes: '03', chave: 'x.y', valor: 1 }] }, /inválida/],
     [{ lancamentos: [{ mes: '03', chave: 'pce.capacitacao', valor: -2 }] }, /inválido/], [{ lancamentos: [{ mes: '03', chave: 'pce.capacitacao', valor: 'dez' }] }, /número/]];

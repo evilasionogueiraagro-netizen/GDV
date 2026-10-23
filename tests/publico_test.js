@@ -70,14 +70,14 @@ const PROIBIDOS = [CPF, CNPJ, CPF2, '529.982.247-25', '***.982', 'Fulano Secreto
   ok(d.ok && C0.ativo === false && C0.blocos.aoVivo === false && C0.blocos.calor === false && C0.blocos.supressaoPequenos === true && C0.blocos.veiculos === true && C0.blocos.levantamentos === true,
     'padrão: desligado, aoVivo e calor desligados, supressão ligada, agregados ligados', C0);
   ok(/\/GDV\/dashboard\/$/.test(d.url), 'URL pública padrão', d.url);
-  d = await post({ action: 'painelPublicoSalvar', key: TOKF, config: { ativo: true } }); ok(!d.ok && /Acesso restrito/.test(d.erro), 'credencial de fiscal NÃO salva a configuração', d.erro);
-  d = await post({ action: 'painelPublicoConfig', key: TOKF }); ok(!d.ok && /Acesso restrito/.test(d.erro), 'fiscal também não lê a configuração', d.erro);
-  d = await post({ action: 'painelPublicoSalvar', config: { ativo: true } }); ok(!d.ok && /Sessão do painel inválida/.test(d.erro), 'sem credencial: recusado', d.erro);
+  d = await post({ action: 'painelPublicoSalvar', key: TOKF, config: { ativo: true } }); ok(!d.ok && /não inclui o painel/.test(d.erro), 'conta do app de campo NÃO salva a configuração', d.erro);
+  d = await post({ action: 'painelPublicoConfig', key: TOKF }); ok(!d.ok && /não inclui o painel/.test(d.erro), 'fiscal também não lê a configuração', d.erro);
+  d = await post({ action: 'painelPublicoSalvar', config: { ativo: true } }); ok(!d.ok && /Entre com sua matrícula e senha/.test(d.erro), 'sem credencial: recusado', d.erro);
   d = await post({ action: 'painelPublicoSalvar', key: TOK, config: { blocos: { cpfs: true } } }); ok(!d.ok && /Bloco desconhecido: cpfs/.test(d.erro), 'chave desconhecida recusada', d.erro);
   d = await post({ action: 'painelPublicoSalvar', key: TOK, config: { periodos: [] } }); ok(!d.ok && /pelo menos um período/.test(d.erro), 'sem período recusado', d.erro);
   d = await post({ action: 'painelPublicoSalvar', key: TOK, config: { modos: { mapa: false, numeros: false } } }); ok(!d.ok && /pelo menos um modo/.test(d.erro), 'sem modo recusado', d.erro);
   ok((await post({ action: 'publicoDados' })).ativo === false, 'tentativas recusadas não ligaram o dashboard');
-  d = await post({ action: 'publicoDados', previa: true, key: TOKF }); ok(!d.ok && /Acesso restrito/.test(d.erro), 'pré-visualização exige administrador', d.erro);
+  d = await post({ action: 'publicoDados', previa: true, key: TOKF }); ok(!d.ok && /não inclui o painel/.test(d.erro), 'pré-visualização exige o painel', d.erro);
 
   /* ================= 2. página desligada ================= */
   console.log('2. Página pública desligada');

@@ -67,9 +67,9 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
   ok(SA.sessao, 'sessão do Portal do Administrativo (quem lança)');
   for (const a of ['painelConvenios', 'painelConvApuracao', 'painelConvSalvar', 'painelConvLancar', 'painelConvExcluir', 'painelConvFinLancar', 'painelConvFinExcluir', 'painelConvRelSalvar']) {
     const r = await post({ action: a, key: TOKF, convenio: '991272-2025', config: {}, lancamento: { etapa: '1.5' }, id: 'x', mes: '2026-09', numero: 1, textos: {} });
-    ok(!r.ok && /Acesso restrito/.test(r.erro), `fiscal comum recusado em ${a}`, r);
+    ok(!r.ok && /não inclui o painel/.test(r.erro), `fiscal comum recusado em ${a}`, r);
   }
-  d = await post({ action: 'painelConvenios' }); ok(!d.ok && /Sessão do painel inválida/.test(d.erro), 'sem credencial: recusado', d.erro);
+  d = await post({ action: 'painelConvenios' }); ok(!d.ok && /Entre com sua matrícula e senha/.test(d.erro), 'sem credencial: recusado', d.erro);
   d = await post({ action: 'painelConvenios', key: TOK });
   const C = d.convenios && d.convenios[0];
   ok(d.ok && C.id === '991272-2025' && C.inicioExecucao === '2026-03-01' && C.vigencia.fim === '2027-04-01' && C.valores.global === 2268042, 'semente do convênio (nº, vigência, início da execução, valor global)', C && C.vigencia);

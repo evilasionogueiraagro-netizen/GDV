@@ -68,9 +68,9 @@ function planilha(var2) {
   const SA = await PORTAL.sessao(TOK, 'importacao.adm@gmail.com', 'Iara Importadora Administrativa');
   const IMP = (itens, extra = {}) => post({ action: 'admConvFinImportar', sessao: SA.sessao, convenio: '991272-2025', arquivo: 'teste.xlsx', itens, ...extra });
   const L0 = { chave: 'imp|991272-2025|1.14.3|1/2026', item: '1.14.3', etapa: '1.14', data: '2026-09-01', valor: 120, documento: 'Memo nº 1/2026', quantidade: 1, fonte: 'concedente', descricao: 'Diária NM' };
-  let d = await post({ action: 'painelConvFinImportar', key: TOKF, convenio: '991272-2025', itens: [L0] }); ok(!d.ok && /Acesso restrito/.test(d.erro), 'fiscal comum recusado', d.erro);
+  let d = await post({ action: 'painelConvFinImportar', key: TOKF, convenio: '991272-2025', itens: [L0] }); ok(!d.ok && /não inclui o painel/.test(d.erro), 'fiscal comum recusado', d.erro);
   d = await post({ action: 'painelConvFinImportar', key: TOK, convenio: '991272-2025', itens: [L0] }); ok(!d.ok && /Portal do Administrativo/.test(d.erro), 'painel não importa mais (só o portal)', d.erro);
-  d = await post({ action: 'admConvFinImportar', sessao: TOKF, convenio: '991272-2025', itens: [L0] }); ok(!d.ok && /Sessão do portal/.test(d.erro), 'credencial de fiscal não vale no portal', d.erro);
+  d = await post({ action: 'admConvFinImportar', sessao: TOKF, convenio: '991272-2025', itens: [L0] }); ok(!d.ok && /não inclui o Portal do Administrativo/.test(d.erro), 'conta só do app de campo não vale no portal', d.erro);
   const erros = [
     [[{ ...L0, chave: 'outra|1' }], /chave de importação inválida/], [[{ ...L0, item: '1.4.3' }], /não existe na etapa/], [[{ ...L0, data: '2028-01-01' }], /fora da vigência/],
     [[{ ...L0, valor: -5 }], /valor inválido/], [[{ ...L0, descricao: 'Diária de 529.982.247-25' }], /CPF/], [[L0, L0], /chave repetida/],

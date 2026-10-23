@@ -22,10 +22,8 @@ async function entrarPronto(matricula, senhaProvisoria, senhaNova, aplicativo = 
 /** Gerente de partida (permissão gerencia, vale todas). */
 async function gerenteBase() {
   if (base) return base;
-  const g = await (await fetch(amb.API + '/__gerente?matricula=base.teste&nome=' + encodeURIComponent('Gerente Base Teste'))).json();
-  if (g.erro) throw new Error('/__gerente: ' + g.erro);
-  const s = await entrarPronto(g.usuario.matricula, g.senhaProvisoria, SENHA);
-  base = { id: g.usuario.id, matricula: g.usuario.matricula, nome: g.usuario.nome, senha: SENHA, token: s.token, permissoes: s.permissoes };
+  const g = await amb.gerente('Gerente Base Teste', { matricula: 'base.teste' });   // atalho /__usuario: convive com amb.gerente/amb.carga no mesmo teste
+  base = { id: g.usuario.id, matricula: g.matricula, nome: g.usuario.nome, senha: g.senha, token: g.token, permissoes: g.permissoes };
   return base;
 }
 

@@ -243,8 +243,24 @@ const Painel = (() => {
   const ordemVivo = t => t.tfAndamento ? -1 : ORDEM_SITUACAO[t.situacao];
   const tfApreensao = t => !!(t.tfAndamento && t.tfAndamento.some(a => a.apreensao));
   const rotuloTF = t => tfApreensao(t) ? 'Apreensão em andamento' : 'TF em preenchimento';
+  /**
+   * Mesmo servidor digitado de jeitos diferentes ("SANDOVAL SALERNO PINHEIRO" e "Sandoval Salerno Pinheiro", com ou sem acento, espaço a
+   * mais) vira um nome só em todas as abas: a grafia mais usada nos registros (no empate, a primeira em ordem alfabética).
+   */
+  function nomesCanonicos(r) {
+    const cont = {};
+    const somar = s => separarNomes(s).forEach(n => { const k = norm(n); if (!k) return; const c = cont[k] = cont[k] || {}; c[n] = (c[n] || 0) + 1; });
+    (r.turnos || []).forEach(x => somar(x.fiscal)); (r.tfs || []).forEach(x => somar(x.fiscal));
+    ['levantamentos', 'colheitas', 'termosPce', 'cadastrosPce'].forEach(k => (r[k] || []).forEach(x => somar(x.servidor)));
+    const melhor = {};
+    Object.keys(cont).forEach(k => { melhor[k] = Object.entries(cont[k]).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'pt-BR'))[0][0]; });
+    const um = n => melhor[norm(n)] || n;
+    return s => { const ns = separarNomes(s); return ns.length ? ns.map(um).join(' e ') : s; };
+  }
+
   function normalizar(r) {
     const de = r.de || r._de, ate = r.ate || r._ate;
+    const nomeCanon = nomesCanonicos(r);
     const barreiras = (r.barreiras || []).map(b => ({ ...b }));
     const nomeBarreira = {}; barreiras.forEach(b => { nomeBarreira[b.id] = b.bva || b.nome || b.id; });
     const vivos = x => x && !(Number(x.excluido) === 1);
@@ -256,7 +272,7 @@ const Painel = (() => {
     });
     const tAgora = agora();
     const turnos = (r.turnos || []).filter(vivos).map(t0 => {
-      const t = { ...t0 };
+      const t = { ...t0 }; t.fiscal = nomeCanon(t.fiscal);
       t.latIni = num(t.latIni); t.lonIni = num(t.lngIni != null ? t.lngIni : t.lonIni); t.latFim = num(t.latFim); t.lonFim = num(t.lngFim != null ? t.lngFim : t.lonFim);
       t.encerrado = Number(t.encerrado) === 1; t.emAndamento = !t.encerrado;
       const fimOk = t.latFim != null && t.lonFim != null;
@@ -301,7 +317,7 @@ const Painel = (() => {
     tfsAndamento.forEach(a => { const t = a.turno; if (!t) return; (t.tfAndamento = t.tfAndamento || []).push(a);
       if (a.sinalMs > (t.ultimoSinal || 0)) { t.ultimoSinal = a.sinalMs; situar(t, tAgora); } });       // o batimento do TF também é sinal do aparelho
     const tfsTodos = (r.tfs || []).filter(vivos).map(x => {
-      const t = { ...x }; t.data = isoDe(t.data); t.cancelado = Number(t.cancelado) === 1; t.numero = num(t.numero); t.ano = num(t.ano) || (t.data ? +t.data.slice(0, 4) : null);
+      const t = { ...x }; t.fiscal = nomeCanon(t.fiscal); t.data = isoDe(t.data); t.cancelado = Number(t.cancelado) === 1; t.numero = num(t.numero); t.ano = num(t.ano) || (t.data ? +t.data.slice(0, 4) : null);
       t.reincidente = Number(t.reincidente) === 1; t.conflito = Number(t.conflito) === 1; t.auto = Number(t.auto) === 1; t.advertencia = Number(t.advertencia) === 1;
       t.produtosLista = parseProdutos(t.produtos); t.barreiraNome = nomeBarreira[t.barreira] || t.barreira || '';
       t.procedimentoNome = PROC[t.procedimento] || (t.procedimento ? String(t.procedimento) : 'Não informado');
@@ -316,7 +332,7 @@ const Painel = (() => {
     // barreira do cadastro de cada turno, vinda dos TFs lavrados nele (o turno só guarda o local digitado)
     tfsTodos.forEach(tf => { const tr = turnoPorId[tf.turnoId]; if (tr && tf.barreiraNome && !tr.barreirasTF.includes(tf.barreiraNome)) tr.barreirasTF.push(tf.barreiraNome); });
     const levantamentos = (r.levantamentos || []).filter(vivos).map(x => {
-      const l = { ...x }; l.data = isoDe(l.data); l.lat = num(l.lat); l.lon = num(l.lon); l.doc = fmt.mascarar(l.doc);
+      const l = { ...x }; l.servidor = nomeCanon(l.servidor); l.data = isoDe(l.data); l.lat = num(l.lat); l.lon = num(l.lon); l.doc = fmt.mascarar(l.doc);
       // uma linha por cultura × praga avaliada. praga = nome só quando detectada ou suspeita (as duas contam como detecção);
       // resultado = detectada | suspeita | nao_detectada (registro anterior sem resultado: praga preenchida = detectada)
       l.culturasLista = lerJSON(l.culturas, []).filter(c => c && c.cultura).map(c => {
@@ -339,7 +355,7 @@ const Painel = (() => {
       return l;
     });
     const colheitasTodas = (r.colheitas || []).filter(vivos).map(x => {
-      const c = { ...x }; c.data = isoDe(c.data); c.lat = num(c.lat); c.lon = num(c.lon); c.cancelado = Number(c.cancelado) === 1; c.numero = num(c.numero);
+      const c = { ...x }; c.servidor = nomeCanon(c.servidor); c.data = isoDe(c.data); c.lat = num(c.lat); c.lon = num(c.lon); c.cancelado = Number(c.cancelado) === 1; c.numero = num(c.numero);
       c.ano = num(c.ano) || (c.data ? +c.data.slice(0, 4) : null); c.conflito = Number(c.conflito) === 1; c.doc = fmt.mascarar(c.doc);
       c.municipio = municipioNome(c.municipio) || c.municipio || municipioDe(c.lat, c.lon) || ''; return c;
     });
@@ -348,10 +364,10 @@ const Painel = (() => {
     const auditoria = r.auditoria ? { tf: auditoriaDoServidor(r.auditoria.tf, g => nomeBarreira[g] || g), pce: auditoriaDoServidor(r.auditoria.pce, g => g) }
       : { tf: auditarNumeracao(tfsTodos, t => t.barreiraNome || t.barreira), pce: auditarNumeracao(colheitasTodas, 'unidade') };
     // PCE monilíase: Termos de Fiscalização do PCE e Cadastros de imóvel (servidor antigo sem essas listas: vazias)
-    const termosPceTodos = (r.termosPce || []).filter(vivos).map(x => ({ ...x, data: isoDe(x.data), lat: num(x.lat), lon: num(x.lon), cancelado: Number(x.cancelado) === 1,
+    const termosPceTodos = (r.termosPce || []).filter(vivos).map(x => ({ ...x, servidor: nomeCanon(x.servidor), data: isoDe(x.data), lat: num(x.lat), lon: num(x.lon), cancelado: Number(x.cancelado) === 1,
       conflito: Number(x.conflito) === 1, numero: num(x.numero), plantasInspecionadas: num(x.plantasInspecionadas) || 0,
       municipio: municipioNome(x.municipio) || x.municipio || '' }));
-    const cadastrosPce = (r.cadastrosPce || []).filter(vivos).map(x => ({ ...x, data: isoDe(x.data), lat: num(x.lat), lon: num(x.lon), numero: num(x.numero),
+    const cadastrosPce = (r.cadastrosPce || []).filter(vivos).map(x => ({ ...x, servidor: nomeCanon(x.servidor), data: isoDe(x.data), lat: num(x.lat), lon: num(x.lon), numero: num(x.numero),
       totalPlantas: num(x.totalPlantas) || 0, municipio: municipioNome(x.municipio) || x.municipio || '' }));
     if (r.auditoria) { auditoria.termosPce = auditoriaDoServidor(r.auditoria.termosPce || [], g => g); auditoria.cadastrosPce = auditoriaDoServidor(r.auditoria.cadastrosPce || [], g => g); }
     return { agora: num(r.agora) || tAgora, de, ate, barreiras, auditoria, turnosTodos: turnos, veiculosTodos: veiculos, tfsTodos, levantamentos, colheitasTodas, historicoPce, tfsAndamento,

@@ -391,6 +391,7 @@ function cargaProdutos(v) {
   let l = []; try { l = JSON.parse((v && v.produtos) || '[]'); } catch (e) { l = []; }
   return (Array.isArray(l) ? l : []).map(t => { const m = /^(.*?)\s+-\s+([\d.,]+)\s*(.*)$/.exec(String(t)); return m ? { p: m[1], q: m[2], u: m[3] } : { p: String(t), q: '', u: '' }; });
 }
+const lugar = (cidade, uf) => [cidade, uf].filter(Boolean).join('/') || '?';      // "Boa Vista/RR", "RR", "Boa Vista" ou "?"
 const opcoesUF = atual => `<option value="">—</option>${CONFIG.ufs.map(u => `<option ${atual === u ? 'selected' : ''}>${u}</option>`).join('')}`;
 async function registrar() {
   const t = await turnoAtual();
@@ -405,8 +406,10 @@ async function registrar() {
       <label class="tipo-card"><input type="radio" name="tipo" value="${c}" ${c === tipo ? 'checked' : ''}>${icone(x.icone)}<span>${x.nome}</span></label>`).join('')}</div>
     <label>Pessoas a bordo (estimativa)<input id="pessoas" type="number" min="0" inputmode="numeric" value="${v ? v.pessoas : CONFIG.tipos[tipo].pessoas}"></label>
     <div class="veic-ufs" role="group" aria-label="Origem e destino (opcional)"><div class="veic-ufs-rot">Origem e destino <small>(opcional)</small></div>
-      <label>UF de origem<select id="vUfOri">${opcoesUF(v && v.ufOrigem)}</select></label>
-      <label>UF de destino<select id="vUfDes">${opcoesUF(v && v.ufDestino)}</select></label></div>
+      <label>Cidade de origem<input id="vMunOri" maxlength="60" autocomplete="off" autocapitalize="words" placeholder="ex.: Boa Vista" value="${esc(v && v.origemMun || '')}"></label>
+      <label>UF<select id="vUfOri" aria-label="UF de origem">${opcoesUF(v && v.ufOrigem)}</select></label>
+      <label>Cidade de destino<input id="vMunDes" maxlength="60" autocomplete="off" autocapitalize="words" placeholder="ex.: Manaus" value="${esc(v && v.destinoMun || '')}"></label>
+      <label>UF<select id="vUfDes" aria-label="UF de destino">${opcoesUF(v && v.ufDestino)}</select></label></div>
     <label>Observações<textarea id="obs" rows="3">${esc(v ? v.obs : '')}</textarea></label>
     <button class="botao">${icone('salvar')} Salvar</button></form>`);
   const placa = $('#placa');
@@ -426,7 +429,8 @@ async function registrar() {
     // educação sanitária, medida fitossanitária, partidas, documentos e inspeção saem das pessoas a bordo e dos TFs (servidor); ao editar um
     // registro antigo, os campos de fiscalização que ele já tinha ficam como estavam ({ ...v, ...dados })
     const dados = { turnoId: t.id, placa: p, tipo: tp, pessoas: Math.max(0, parseInt($('#pessoas').value, 10) || 0), obs: $('#obs').value.trim(), excluido: 0,
-      ufOrigem: $('#vUfOri').value, ufDestino: $('#vUfDes').value };
+      ufOrigem: $('#vUfOri').value, ufDestino: $('#vUfDes').value,
+      origemMun: $('#vMunOri').value.trim().replace(/\s+/g, ' '), destinoMun: $('#vMunDes').value.trim().replace(/\s+/g, ' ') };
     if (v) { await Store.salvar('veiculos', { ...v, ...dados }); toast('Registro atualizado.'); Sync.sincronizar(); go('lista'); }
     else { await Store.salvar('veiculos', { ...dados, hora: agoraHM() }); toast(p ? `${p} registrado.` : 'Veículo registrado (sem placa).'); Sync.sincronizar(); go('registrar'); }
   };
@@ -450,7 +454,7 @@ async function lista() {
         <div class="hora">${esc(x.hora)}</div></div>
         <div class="info"><b>Pessoas:</b> ${Number(x.pessoas) || 0}</div>
         ${Number(x.carga) ? `<div class="info veic-carga"><b>Carga:</b> ${esc(cargaProdutos(x).map(c => c.p + (c.q ? ` ${c.q} ${c.u}` : '')).join('; ') || 'vegetais/partes')}</div>` : ''}
-        ${x.ufOrigem || x.ufDestino ? `<div class="info veic-uf"><b>Origem → destino:</b> ${esc(x.ufOrigem || '?')} → ${esc(x.ufDestino || '?')}</div>` : ''}
+        ${x.ufOrigem || x.ufDestino || x.origemMun || x.destinoMun ? `<div class="info veic-uf"><b>Origem → destino:</b> ${esc(lugar(x.origemMun, x.ufOrigem))} → ${esc(lugar(x.destinoMun, x.ufDestino))}</div>` : ''}
         ${x.obs ? `<div class="info"><b>Obs:</b> ${esc(x.obs)}</div>` : ''}
         ${x.pendente ? `<div class="info pend">${icone('pendente')} aguardando envio</div>` : ''}
         <div class="botoes"><button class="editar" data-edit="${esc(x.id)}">Editar</button>

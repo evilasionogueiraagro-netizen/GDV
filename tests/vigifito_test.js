@@ -368,15 +368,17 @@ print(json.dumps({'tabelas':x.count('<w:tbl>'),'paisagem':x.count('w:orient="lan
   ok(/Origem e destino/.test(form) && (await pg.inputValue('#vUfOri')) === '' && (await pg.inputValue('#vUfDes')) === '' && (await pg.$$eval('#vUfOri option', os => os.length)) === 29,
     'formulário: "Origem e destino (opcional)" com UF de origem e de destino vazias (27 UFs + Exterior)');
   await shot(pg, 'app_veiculo_uf');
-  const salvarVeic = async (placa, pessoas, ori, des) => {
+  const salvarVeic = async (placa, pessoas, ori, des, munOri, munDes) => {
     await pg.fill('#placa', placa); await pg.fill('#pessoas', String(pessoas));
+    if (munOri) await pg.fill('#vMunOri', munOri); if (munDes) await pg.fill('#vMunDes', munDes);
     if (ori) await pg.selectOption('#vUfOri', ori); if (des) await pg.selectOption('#vUfDes', des);
     await pg.evaluate(() => { document.querySelector('#toast').textContent = ''; });
     await pg.click('#fVeic > button'); await pg.waitForFunction(() => /registrado/.test(document.querySelector('#toast').textContent), null, { timeout: 8000 });
     await pg.waitForTimeout(300); await pg.waitForSelector('#fVeic');
   };
-  await salvarVeic('ABC1D23', 3, 'PA', 'AM');
-  ok((await pg.inputValue('#vUfOri')) === '' && (await pg.inputValue('#vUfDes')) === '', 'depois de salvar, o próximo registro começa sem UF');
+  await salvarVeic('ABC1D23', 3, 'PA', 'AM', 'Belém', 'Manaus');
+  ok((await pg.inputValue('#vUfOri')) === '' && (await pg.inputValue('#vUfDes')) === '' && (await pg.inputValue('#vMunOri')) === '' && (await pg.inputValue('#vMunDes')) === '',
+    'depois de salvar, o próximo registro começa sem cidade nem UF');
   await salvarVeic('XYZ9A88', 4);
   // registro ANTIGO (com os campos de fiscalização de antes) no aparelho: editar não zera esses campos
   await pg.evaluate(async () => { const t = await Store.meta('turnoAtual'); const ag = Date.now();
@@ -387,15 +389,15 @@ print(json.dumps({'tabelas':x.count('<w:tbl>'),'paisagem':x.count('w:orient="lan
   ok(/Editar veículo/.test(await pg.textContent('#fVeic h3')) && (await pg.inputValue('#vUfDes')) === '', 'editar registro antigo: mesmo formulário (sem o bloco antigo)');
   await pg.selectOption('#vUfDes', 'PA'); await pg.click('#fVeic > button'); await pg.waitForSelector('.item');
   const itens = await pg.textContent('#itens');
-  ok(/Origem → destino:\s*PA → AM/.test(itens) && /Origem → destino:\s*\? → PA/.test(itens) && /Carga:.*MANGA/.test(itens), 'lista do turno mostra origem → destino (e a carga do registro antigo)', itens);
+  ok(/Origem → destino:\s*Belém\/PA → Manaus\/AM/.test(itens) && /Origem → destino:\s*\? → PA/.test(itens) && /Carga:.*MANGA/.test(itens), 'lista do turno mostra origem → destino com cidade e UF (e a carga do registro antigo)', itens);
   let vrows = null;
   for (let i = 0; i < 40 && !vrows; i++) {
     await pg.waitForTimeout(500); const vv = await get('/__aba?nome=Veiculos'), cb = vv[0];
     const obj = l => Object.fromEntries(cb.map((k, j) => [k, l[j]])), achar = pl => vv.find(x => x[cb.indexOf('placa')] === pl);
     if (achar('ABC1D23') && achar('XYZ9A88') && achar('QWE1R23') && achar('QWE1R23')[cb.indexOf('ufDestino')] === 'PA') vrows = { a: obj(achar('ABC1D23')), b: obj(achar('XYZ9A88')), c: obj(achar('QWE1R23')) };
   }
-  ok(vrows && vrows.a.ufOrigem === 'PA' && vrows.a.ufDestino === 'AM' && vrows.a.pessoas === 3 && vrows.b.ufOrigem === '' && vrows.b.ufDestino === '' && !vrows.a.carga && !vrows.a.medidaFito && !vrows.a.partida && vrows.a.semEducacao !== 1,
-    'sincronizado: UF de origem/destino gravadas (vazias quando não escolhidas); campos antigos não são mais enviados', vrows && [vrows.a, vrows.b]);
+  ok(vrows && vrows.a.ufOrigem === 'PA' && vrows.a.ufDestino === 'AM' && vrows.a.origemMun === 'Belém' && vrows.a.destinoMun === 'Manaus' && vrows.b.origemMun === '' && vrows.a.pessoas === 3 && vrows.b.ufOrigem === '' && vrows.b.ufDestino === '' && !vrows.a.carga && !vrows.a.medidaFito && !vrows.a.partida && vrows.a.semEducacao !== 1,
+    'sincronizado: cidade e UF de origem/destino gravadas (vazias quando não escolhidas); campos antigos não são mais enviados', vrows && [vrows.a, vrows.b]);
   ok(vrows && vrows.c.carga === 1 && vrows.c.docConferido === 1 && vrows.c.medidaFito === 1 && vrows.c.partida === 1 && JSON.parse(vrows.c.produtos || '[]').length === 1 && vrows.c.ufDestino === 'PA',
     'registro antigo editado: UF nova gravada e os campos antigos de fiscalização preservados (histórico)', vrows && vrows.c);
   // TF lavrado do veículo PA → AM: a UF vem do registro do veículo

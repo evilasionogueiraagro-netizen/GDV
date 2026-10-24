@@ -6,6 +6,7 @@
   const LIMITE_LINHA = 45;                 // períodos maiores que isto: série semanal em vez de diária
 
   const nomeTipo = c => (P.TIPOS[c] && P.TIPOS[c].nome) || (c ? String(c) : 'Não informado');
+  const lugar = (cidade, uf) => [cidade, uf].filter(Boolean).join('/') || '?';      // "Boa Vista/RR", "RR", "Boa Vista" ou "?"
   const minDe = hm => { const m = String(hm || '').match(/^(\d{1,2}):(\d{2})/); return m ? (+m[1]) * 60 + (+m[2]) : null; };
   const letraDe = t => { const l = String(t.letra || '').trim().toUpperCase(); if (l === 'A' || l === 'B') return l;
     const h = parseInt(t.inicio, 10); return isNaN(h) ? '' : (h >= 4 && h < 12 ? 'A' : 'B'); };
@@ -261,10 +262,10 @@
       { chave: 'data', rotulo: 'Data', fmt: fmt.data, ordem: l => (l.data || '') + (l.hora || '') }, { chave: 'hora', rotulo: 'Hora', fmt: v => v || '—' },
       { chave: 'placa', rotulo: 'Placa', fmt: v => v || '—' }, { chave: 'tipo', rotulo: 'Tipo', fmt: v => nomeTipo(v) },
       { chave: 'pessoas', rotulo: 'Pessoas', num: true, fmt: fmt.int }, { chave: 'local', rotulo: 'Barreira / local', fmt: v => v || '—' },
-      { chave: 'carga', rotulo: 'Origem → destino', fmt: (v, l) => [l.ufOrigem || l.ufDestino ? `${l.ufOrigem || '?'} → ${l.ufDestino || '?'}` : '', l.carga ? `carga (registro antigo): ${l.produtos || 'vegetais/partes'}` : ''].filter(Boolean).join(' · ') || '—',
-        ordem: l => (l.ufOrigem || '') + (l.ufDestino || '') },
+      { chave: 'carga', rotulo: 'Origem → destino', fmt: (v, l) => [l.ufOrigem || l.ufDestino || l.origemMun || l.destinoMun ? `${lugar(l.origemMun, l.ufOrigem)} → ${lugar(l.destinoMun, l.ufDestino)}` : '', l.carga ? `carga (registro antigo): ${l.produtos || 'vegetais/partes'}` : ''].filter(Boolean).join(' · ') || '—',
+        ordem: l => (l.ufOrigem || '') + (l.origemMun || '') + (l.ufDestino || '') + (l.destinoMun || '') },
       { chave: 'fiscal', rotulo: 'Fiscais', fmt: v => v || '—' }],
-    veiculos, { titulo: 'Veículos registrados', subtitulo: 'Busque por placa para ver as passagens de um veículo. Origem → destino = UFs opcionais do registro do veículo (entram no VIGIFITO quando o veículo não tem TF). Observações não são exibidas.', csv: 'barreiras-veiculos.csv', id: 'bar-veiculos', ordenar: 'data', limite: 15 });
+    veiculos, { titulo: 'Veículos registrados', subtitulo: 'Busque por placa para ver as passagens de um veículo. Origem → destino = cidade e UF opcionais do registro do veículo (entram no VIGIFITO quando o veículo não tem TF). Observações não são exibidas.', csv: 'barreiras-veiculos.csv', id: 'bar-veiculos', ordenar: 'data', limite: 15 });
   }
 
   // estilos próprios desta aba (poucos; os tokens vêm de css/painel.css)

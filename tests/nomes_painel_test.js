@@ -1,19 +1,22 @@
 const amb = require('./lib/amb');
 // Painel: o mesmo servidor digitado de jeitos diferentes (maiúsculas, acento, espaço a mais) conta como uma pessoa só nos gráficos
-// "Por fiscal" (aba TF) e "Produtividade por fiscal" (aba Barreiras) e no filtro de fiscal. Vale a grafia mais usada. Dados fictícios.
+// "Por fiscal" (aba TF) e "Produtividade por fiscal" (aba Barreiras) e no filtro de fiscal. Vale a grafia mais usada. TF do papel (sem
+// turno) com o local digitado de vários jeitos entra na linha da barreira escolhida em "Desempenho por barreira". Dados fictícios.
 const { API, PAINEL: WEB } = amb;
 const post = b => fetch(API, { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 let falhas = 0;
 const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x === undefined ? '' : ' → ' + JSON.stringify(x).slice(0, 500))); if (!c) falhas++; };
 const hoje = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10), ANO = Number(hoje.slice(0, 4)), ag = Date.now();
-const TF = (n, fiscal, proc) => ({ id: 'n' + n, barreira: 'BVA-CEASA', ano: ANO, numero: n, numeroTxt: `${String(n).padStart(4, '0')}/${ANO} - BVA - CEASA`, data: hoje, hora: '09:00',
-  fiscal, local: 'BVA - CEASA', placa: 'ABC1D23', doc: '52998224725', nome: 'Fulano Ficticio Teste', procedimento: proc, produtos: '[]', cancelado: 0, criadoEm: ag + n, atualizadoEm: ag + n, emitidoEm: ag + n });
-const TURNO = (id, fiscal) => ({ id, numeroTF: 'TF-' + id, data: hoje, letra: 'A', inicio: '06:00', fim: '12:00', fiscal, local: 'BVA - CEASA', unidade: 'MANAUS', posto: 'Fixa', encerrado: 1, criadoEm: ag, atualizadoEm: ag });
+const TF = (n, fiscal, proc, x = {}) => ({ id: 'n' + n, barreira: 'BVA-CEASA', ano: ANO, numero: n, numeroTxt: `${String(n).padStart(4, '0')}/${ANO} - BVA - CEASA`, data: hoje, hora: '09:00',
+  fiscal, local: 'BVA - CEASA', placa: 'ABC1D23', doc: '52998224725', nome: 'Fulano Ficticio Teste', procedimento: proc, produtos: '[]', cancelado: 0, criadoEm: ag + n, atualizadoEm: ag + n, emitidoEm: ag + n, ...x });
+const TURNO = (id, fiscal, local = 'BVA - CEASA') => ({ id, numeroTF: 'TF-' + id, data: hoje, letra: 'A', inicio: '06:00', fim: '12:00', fiscal, local, unidade: 'MANAUS', posto: 'Fixa', encerrado: 1, criadoEm: ag, atualizadoEm: ag });
 
 (async () => {
   const tfs = [TF(1, 'FULANO FICTICIO TESTE', 'apreensao'), TF(2, 'FULANO FICTICIO TESTE', 'apreensao'), TF(3, 'Fulano  Fictício Teste', 'liberacao'),
-    TF(4, 'Beltrano Ficticio Teste e fulano ficticio teste', 'liberacao'), TF(5, 'BELTRANO FICTICIO TESTE', 'apreensao')];
-  const turnos = [TURNO('n1', 'Fulano Ficticio Teste'), TURNO('n2', 'FULANO FICTICIO TESTE e Beltrano Ficticio Teste')];
+    TF(4, 'Beltrano Ficticio Teste e fulano ficticio teste', 'liberacao'), TF(5, 'BELTRANO FICTICIO TESTE', 'apreensao'),
+    // TFs do papel da BVA - Jundiá: sem turno, local digitado de jeitos diferentes
+    TF(6, 'Ciclano Ficticio Teste', 'apreensao', { barreira: 'BVA-JUNDIÁ', local: 'BR 174 km75' }), TF(7, 'Ciclano Ficticio Teste', 'apreensao', { barreira: 'BVA-JUNDIÁ', local: 'BR 174, KM 75, PVA JUNDIÁ - RORAINÓPOLIS' })];
+  const turnos = [TURNO('n1', 'Fulano Ficticio Teste'), TURNO('n2', 'FULANO FICTICIO TESTE e Beltrano Ficticio Teste'), TURNO('n3', 'Ciclano Ficticio Teste', 'BVA - JUNDIÁ')];
   const veiculos = [{ id: 'nv1', turnoId: 'n1', hora: '07:00', placa: 'ABC1D23', tipo: 'PA', pessoas: 2, criadoEm: ag, atualizadoEm: ag },
     { id: 'nv2', turnoId: 'n2', hora: '08:00', placa: 'ABC1D24', tipo: 'PA', pessoas: 1, criadoEm: ag, atualizadoEm: ag }];
   const TOK = await amb.carga();   // gerente: grava os registros e abre o painel
@@ -39,6 +42,11 @@ const TURNO = (id, fiscal) => ({ id, numeroTF: 'TF-' + id, data: hoje, letra: 'A
     ok(gf && fulanos.length === 1 && iF >= 0 && gf.totais[iF] === 4, 'TF "Por fiscal": as 3 grafias de Fulano viram uma barra só (a mais usada), com 4 TFs', gf);
     const iB = gf && gf.labels.findIndex(l => /beltrano/i.test(l));
     ok(gf && gf.labels.filter(l => /beltrano/i.test(l)).length === 1 && gf.totais[iB] === 2, 'Beltrano: uma barra com 2 TFs', gf);
+
+    const desemp = await p.evaluate(() => { const s = [...document.querySelectorAll('.pn-secao')].find(x => /Desempenho por barreira/.test(x.querySelector('h2').textContent));
+      return s ? [...s.querySelectorAll('tbody tr')].map(tr => [...tr.cells].slice(0, 5).map(c => c.textContent.trim())) : null; });
+    ok(desemp && desemp.length === 2 && desemp.some(l => l[0] === 'BVA - JUNDIÁ' && l[1] === '1' && l[4] === '2') && !desemp.some(l => /BR 174/.test(l[0])),
+      'Desempenho por barreira: só BVA - CEASA e BVA - JUNDIÁ; os TFs do papel ("BR 174 km75"…) entram na linha do Jundiá com o turno', desemp);
 
     await aba('barreiras');
     const gb = await grafico('Produtividade por fiscal');

@@ -24,8 +24,8 @@ const TABELAS = {
              // HISTÓRICO (o formulário não grava mais; não entram mais em nenhum cálculo; colunas mantidas pelos dados antigos):
              // semEducacao, medidaFito, carga, produtos (JSON ["PRODUTO - 10 Kg", …]), partida, inspecaoFito, docConferido
              'semEducacao', 'medidaFito', 'carga', 'produtos', 'ufOrigem', 'ufDestino', 'partida', 'inspecaoFito', 'docConferido',
-             // relatório de plantão do papel importado no portal (admPlantaoImportar; o app não grava): município de origem/destino,
-             // transportador, carga (JSON [{p, q, u}], como os produtos do TF), medida (liberacao | apreensao), nº do TF do papel,
+             // município de origem/destino: cidade digitada no registro do veículo (app) ou do relatório de plantão do papel importado
+             // no portal (admPlantaoImportar). Só do papel (o app não grava): transportador, carga (JSON [{p, q, u}], como os produtos do TF), medida (liberacao | apreensao), nº do TF do papel,
              // documento apresentado e o id da importação. Carga com nº do TF conta no VIGIFITO como o TF de barreira (motorBarreira_).
              'origemMun', 'destinoMun', 'transportador', 'cargaPapel', 'medidaPapel', 'tfPapel', 'docPapel', 'importacao'],
   // HISTÓRICO (não vale mais como credencial): códigos de ativação e credenciais antigas dos fiscais e administradores.
@@ -165,7 +165,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-23d';
+const VERSAO_CODIGO = '2026-10-24a';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado

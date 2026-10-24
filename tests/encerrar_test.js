@@ -173,7 +173,8 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
 
   /* ================= 3. app do fiscal ================= */
   console.log('3. App do fiscal');
-  const lsApp = { ...fis.ls };
+  // conta própria do aparelho: os turnos de teste do fiscal acima ainda abertos virariam o turno deste aparelho (mesmo login em dois aparelhos)
+  const lsApp = { ...(await U.fiscal('Fiscal Aparelho Souza')).ls };
   p = await abrir(APP, lsApp, { viewport: { width: 400, height: 820 }, permissions: ['geolocation'], geolocation: { latitude: -3.119, longitude: -60.021, accuracy: 10 } });
   const sync = () => p.evaluate(async () => { for (let i = 0; i < 40 && Sync.estado().tipo === 'sync'; i++) await new Promise(r => setTimeout(r, 150)); await Sync.sincronizar(); return Sync.estado(); });
   const iniciarTurno = async n => {

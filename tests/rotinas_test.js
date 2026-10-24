@@ -270,7 +270,8 @@ const AUTO = 'Automático (12 h)';
 
   /* ================= 6. app do fiscal ================= */
   console.log('6. App do fiscal');
-  const lsApp = { ...FISU.ls };
+  // conta própria do aparelho: os turnos de teste do fiscal acima ainda abertos virariam o turno deste aparelho (mesmo login em dois aparelhos)
+  const lsApp = { ...(await U.fiscal('Fiscal Aparelho Rotina')).ls };
   p = await abrir(APP, lsApp, { viewport: { width: 400, height: 820 }, permissions: ['geolocation'], geolocation: { latitude: -3.119, longitude: -60.021, accuracy: 10 } });
   const sync = () => p.evaluate(async () => { for (let i = 0; i < 40 && Sync.estado().tipo === 'sync'; i++) await new Promise(r => setTimeout(r, 150)); await Sync.sincronizar(); return Sync.estado(); });
   await p.waitForSelector('.modulo');

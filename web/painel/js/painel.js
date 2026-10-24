@@ -258,6 +258,41 @@ const Painel = (() => {
     return s => { const ns = separarNomes(s); return ns.length ? ns.map(um).join(' e ') : s; };
   }
 
+  /**
+   * O mesmo login com o turno aberto em dois aparelhos (o PC e o celular da BVA, cada um com o seu turno) na mesma barreira e com os
+   * horários se sobrepondo é uma barreira só: vira um turno, com os veículos dos dois, do primeiro início ao último fim (as horas não
+   * dobram). t.ids guarda os turnos da planilha que entraram (o "Encerrar turno" do painel encerra todos).
+   */
+  function unirAparelhos(turnos, tAgora) {
+    const chave = t => t.usuario && t.local ? String(t.usuario) + '|' + norm(t.local).replace(/ /g, '') : '';
+    const fimDe = t => t.emAndamento ? tAgora : (t.fimMs != null ? t.fimMs : t.inicioMs);
+    const foto = t => ({ id: t.id, data: t.data, inicio: t.inicio, inicioMs: t.inicioMs, emAndamento: t.emAndamento, encerradoNoCelular: t.encerradoNoCelular, fimNoCelular: t.fimNoCelular });
+    const grupos = {}, out = [];
+    turnos.slice().sort((a, b) => (a.inicioMs || 0) - (b.inicioMs || 0)).forEach(t => {
+      t.ids = [t.id]; t.unidos = [foto(t)];
+      const k = chave(t), g = k && t.inicioMs != null && (grupos[k] || []).find(x => x.inicioMs != null && t.inicioMs <= fimDe(x) && fimDe(t) >= x.inicioMs);
+      if (!g) { if (k) (grupos[k] = grupos[k] || []).push(t); out.push(t); return; }
+      g.ids.push(t.id); g.unidos.push(foto(t));
+      t.veiculosLista.forEach(v => { v.turnoId = g.id; });                       // cópias do painel: a planilha fica como está
+      g.veiculosLista = g.veiculosLista.concat(t.veiculosLista).sort((a, b) => (a.sinal || 0) - (b.sinal || 0) || String(a.hora).localeCompare(String(b.hora)));
+      g.nVeiculos = g.veiculosLista.length; g.ultimoVeiculo = g.veiculosLista[g.nVeiculos - 1] || null;
+      g.pessoasEducacao = Math.max(num(g.pessoasEducacao) || 0, num(t.pessoasEducacao) || 0);   // contador de pessoas: o mesmo nos dois aparelhos
+      g.nPessoas = g.veiculosLista.reduce((s, v) => s + v.pessoas, 0) + (num(g.pessoasEducacao) || 0);
+      if ((t.ultimoSinal || 0) > (g.ultimoSinal || 0)) { g.ultimoSinal = t.ultimoSinal; g.aparelho = t.aparelho || g.aparelho; }
+      if (t.tfAndamento) g.tfAndamento = (g.tfAndamento || []).concat(t.tfAndamento);
+      const aberto = g.unidos.some(x => x.emAndamento);
+      if (!aberto && fimDe(t) > fimDe(g)) { g.fim = t.fim; g.fimMs = t.fimMs; }
+      g.encerrado = !aberto; g.emAndamento = aberto; if (aberto) g.fimMs = null;
+      g.encerradoNoCelular = aberto && g.unidos.filter(x => x.emAndamento).every(x => x.encerradoNoCelular);
+      g.fimNoCelular = g.encerradoNoCelular ? g.unidos.map(x => x.fimNoCelular).filter(Boolean).sort().pop() || '' : '';
+      g.semPlaca = Number(g.semPlaca) && Number(t.semPlaca) ? 1 : 0;
+      if (g.emAndamento) duracaoAberto(g, tAgora);
+      else g.duracaoMin = g.inicioMs != null && g.fimMs != null ? Math.max(0, (g.fimMs - g.inicioMs) / 60000) : null;
+      situar(g, tAgora);
+    });
+    return out;
+  }
+
   function normalizar(r) {
     const de = r.de || r._de, ate = r.ate || r._ate;
     const nomeCanon = nomesCanonicos(r);
@@ -271,7 +306,7 @@ const Painel = (() => {
       (veicPorTurno[v.turnoId] = veicPorTurno[v.turnoId] || []).push(o); return o;
     });
     const tAgora = agora();
-    const turnos = (r.turnos || []).filter(vivos).map(t0 => {
+    const turnos = unirAparelhos((r.turnos || []).filter(vivos).map(t0 => {
       const t = { ...t0 }; t.fiscal = nomeCanon(t.fiscal);
       t.latIni = num(t.latIni); t.lonIni = num(t.lngIni != null ? t.lngIni : t.lonIni); t.latFim = num(t.latFim); t.lonFim = num(t.lngFim != null ? t.lngFim : t.lonFim);
       t.encerrado = Number(t.encerrado) === 1; t.emAndamento = !t.encerrado;
@@ -300,8 +335,8 @@ const Painel = (() => {
       t.noPeriodo = (!de || t.data >= de) && (!ate || t.data <= ate);
       vs.forEach(v => { v.municipio = t.municipio; });
       return t;
-    });
-    const turnoPorId = {}; turnos.forEach(t => { turnoPorId[t.id] = t; });
+    }), tAgora);
+    const turnoPorId = {}; turnos.forEach(t => { t.ids.forEach(id => { turnoPorId[id] = t; }); });
     // TF sendo preenchido agora no aparelho (aba Andamento): liga-se ao turno aberto pelo turnoId; sem turno aberto fica avulso
     const tfsAndamento = (r.tfsAndamento || []).map(x => {
       const a = { ...x, lat: num(x.lat), lon: num(x.lon), inicioMs: num(x.inicioTs), sinalMs: num(x.atualizadoTs) };
@@ -322,7 +357,7 @@ const Painel = (() => {
       t.produtosLista = parseProdutos(t.produtos); t.barreiraNome = nomeBarreira[t.barreira] || t.barreira || '';
       t.procedimentoNome = PROC[t.procedimento] || (t.procedimento ? String(t.procedimento) : 'Não informado');
       t.doc = fmt.mascarar(t.doc);
-      const tr = turnoPorId[t.turnoId]; t.turno = tr ? { id: tr.id, local: tr.local, municipio: tr.municipio } : null;
+      const tr = turnoPorId[t.turnoId]; t.turno = tr ? { id: tr.id, local: tr.local, municipio: tr.municipio } : null; if (tr) t.turnoId = tr.id;
       // local que casa com o turno (o TF herda o local do turno no app); sem turno (TF do papel), a barreira escolhida e só depois o
       // local digitado ("BR 174 km75", "BR 174, KM 75, PVA JUNDIÁ"…, que variam de TF para TF)
       t.localBarreira = (tr && tr.local) || t.barreiraNome || t.local || '';
@@ -1384,8 +1419,15 @@ const Painel = (() => {
       if (!RE_HM.test(fim)) { mostrarErro('Informe o horário de encerramento no formato HH:MM.'); inp.focus(); return; }
       ok.disabled = true; ok.textContent = 'Encerrando…'; mostrarErro('');
       try {
-        const j = await chamar({ action: 'painelEncerrarTurno', turnoId: t.id, fim });
-        aplicarEncerramento(j.turno || { id: t.id, encerrado: 1, fim });
+        // turno aberto em dois aparelhos (unirAparelhos): encerra os dois; o que começou depois do horário escolhido fecha no próprio início
+        const feitos = [];
+        try {
+          for (const x of (t.unidos || [t]).filter(u => u.emAndamento)) {
+            const fx = x.id === t.id || x.inicioMs == null || msDe(x.data, fim) >= x.inicioMs || msDe(t.data, fim) < t.inicioMs ? fim : x.inicio;
+            const j = await chamar({ action: 'painelEncerrarTurno', turnoId: x.id, fim: fx });
+            feitos.push(j.turno || { id: x.id, encerrado: 1, fim: fx });
+          }
+        } finally { if (feitos.length) aplicarEncerramento(feitos); }
         dlg.close(); avisar('Turno encerrado');
       } catch (e) {
         if (!S.token) { dlg.close(); return; }                       // sessão encerrada: chamar() já voltou ao login
@@ -1398,11 +1440,11 @@ const Painel = (() => {
     inp.focus();
   }
   /** Turno encerrado no painel: atualiza os dados já carregados na hora e busca a situação ao vivo no servidor. */
-  function aplicarEncerramento(r) {
-    const B = S.bruto;
+  function aplicarEncerramento(rs) {
+    const B = S.bruto, por = {}; [].concat(rs).forEach(r => { por[r.id] = r; });
     if (B && Array.isArray(B.turnos)) {
-      B.turnos = B.turnos.map(x => x.id !== r.id ? x : { ...x, encerrado: 1, emAndamento: false, fim: r.fim, fimTs: r.fimTs != null ? r.fimTs : x.fimTs,
-        encerradoPor: r.encerradoPor || S.nome || '', encerradoEm: r.encerradoEm || agora(), atualizadoEm: r.atualizadoEm || x.atualizadoEm, srv_ts: r.srv_ts || x.srv_ts });
+      B.turnos = B.turnos.map(x => { const r = por[x.id]; return !r ? x : { ...x, encerrado: 1, emAndamento: false, fim: r.fim, fimTs: r.fimTs != null ? r.fimTs : x.fimTs,
+        encerradoPor: r.encerradoPor || S.nome || '', encerradoEm: r.encerradoEm || agora(), atualizadoEm: r.atualizadoEm || x.atualizadoEm, srv_ts: r.srv_ts || x.srv_ts }; });
       S.todos = normalizar(B); recalcular(true); processarTF();
     }
     if (S.carregando) S.repetir = true; else carregarAoVivo();

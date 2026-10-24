@@ -323,8 +323,9 @@ const Painel = (() => {
       t.procedimentoNome = PROC[t.procedimento] || (t.procedimento ? String(t.procedimento) : 'Não informado');
       t.doc = fmt.mascarar(t.doc);
       const tr = turnoPorId[t.turnoId]; t.turno = tr ? { id: tr.id, local: tr.local, municipio: tr.municipio } : null;
-      // local que casa com o turno (o TF herda o local do turno no app); sem turno, o local digitado ou a barreira do cadastro
-      t.localBarreira = (tr && tr.local) || t.local || t.barreiraNome || '';
+      // local que casa com o turno (o TF herda o local do turno no app); sem turno (TF do papel), a barreira escolhida e só depois o
+      // local digitado ("BR 174 km75", "BR 174, KM 75, PVA JUNDIÁ"…, que variam de TF para TF)
+      t.localBarreira = (tr && tr.local) || t.barreiraNome || t.local || '';
       t.municipio = (tr && tr.municipio) || null;
       t.municipioOrigem = municipioNome(t.origem); t.municipioDestino = municipioNome(t.destino);
       return t;

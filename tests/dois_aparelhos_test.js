@@ -1,7 +1,7 @@
 const amb = require('./lib/amb');
 const U = require('./lib/usuarios');
-// O mesmo login com a barreira aberta em dois aparelhos (o PC e o celular da BVA). App: o segundo aparelho vê o turno em andamento e
-// entra nele; os veículos dos dois vão para o mesmo turno (uma linha em Turnos). Painel: turnos do mesmo login na mesma barreira com
+// O mesmo login com a barreira aberta em dois aparelhos (o PC e o celular da BVA). App: o segundo aparelho já abre no turno em
+// andamento (sem formulário de novo turno); os veículos dos dois vão para o mesmo turno (uma linha em Turnos). Painel: turnos do mesmo login na mesma barreira com
 // horários sobrepostos (lançados antes desta mudança) são uma barreira em andamento só, com os veículos somados, e o "Encerrar turno"
 // encerra os dois. Dados fictícios.
 const { API, PAINEL: WEB, APP } = amb;
@@ -29,28 +29,27 @@ const aba = async n => { const rows = await get('/__aba?nome=' + n); const cab =
     const registrar = async (p, placa) => { await p.click('nav [data-v=registrar]'); await p.waitForSelector('#fVeic'); await p.fill('#placa', placa); await p.click('#fVeic > button'); await p.waitForTimeout(500); };
     const sinc = p => p.evaluate(() => Sync.sincronizar());
 
-    console.log('1) app: o segundo aparelho entra no turno aberto');
+    console.log('1) app: o segundo aparelho abre direto no turno em andamento');
     const cel = await abrirApp(F.ls);
     await cel.waitForSelector('#fTurno'); await cel.fill('#nTF', '7'); await cel.selectOption('#nPosto', 'Fixa'); await cel.selectOption('#nLocal', 'BVA - CEASA');
     await cel.click('#fTurno button[type=submit]'); await cel.waitForSelector('#encerrar');
     await registrar(cel, 'ABC1D23'); await sinc(cel);
     const pc = await abrirApp({ ...F.ls, 'gdv.key': e2.token });
-    await pc.waitForSelector('#fTurno'); await sinc(pc);
-    await pc.waitForSelector('[data-entrar]', { timeout: 8000 }).catch(() => {});
-    ok(/Turno em andamento com o seu login/.test(await pc.textContent('main')) && /BVA - CEASA/.test(await pc.textContent('#nAbertoBox')), 'PC: aparece o turno aberto no celular, com "Continuar neste turno"');
-    await pc.click('[data-entrar]'); await pc.waitForSelector('#encerrar');
+    await pc.waitForSelector('#encerrar', { timeout: 10000 }).catch(() => {});
+    ok(await pc.locator('#encerrar').count() === 1 && !(await pc.locator('#fTurno').count()) && /BVA - CEASA/.test(await pc.textContent('main')) && !/Continuar neste turno/.test(await pc.textContent('main')),
+      'PC: abre no turno em andamento do celular (sem "Iniciar turno" nem botão de continuar)', await pc.textContent('main'));
     await registrar(pc, 'ABC1D24'); await sinc(pc); await sinc(cel);
     await cel.click('nav [data-v=home]'); await cel.waitForSelector('.contador h1');
     ok((await cel.textContent('.contador h1')).trim() === '2', 'celular: o turno mostra os 2 veículos (1 de cada aparelho)', await cel.textContent('.contador h1'));
+    await pc.click('nav [data-v=home]'); await pc.waitForSelector('.contador h1');
+    ok((await pc.textContent('.contador h1')).trim() === '2', 'PC: o mesmo turno com os 2 veículos', await pc.textContent('.contador h1'));
     const ts = (await aba('Turnos')).filter(t => t.usuario === F.nome), vs = await aba('Veiculos');
     ok(ts.length === 1 && vs.filter(v => v.turnoId === ts[0].id).length === 2, 'planilha: 1 turno com os 2 veículos', [ts.length, vs.filter(v => ts[0] && v.turnoId === ts[0].id).length]);
 
-    console.log('2) app: iniciar outro turno na mesma BVA pergunta e entra no aberto');
-    const pc2 = await abrirApp({ ...F.ls, 'gdv.key': e2.token, 'gdv.outro': '1' });
-    await pc2.evaluate(() => Store.setMeta('turnoAtual', '')); await pc2.click('nav [data-v=home]').catch(() => {}); await pc2.click('.modulo[data-v=home]').catch(() => {});
-    await pc2.waitForSelector('#fTurno'); await pc2.fill('#nTF', '8'); await pc2.selectOption('#nPosto', 'Fixa'); await pc2.selectOption('#nLocal', 'BVA - CEASA');
-    await pc2.click('#fTurno button[type=submit]'); await pc2.waitForSelector('#encerrar'); await sinc(pc2);
-    ok((await aba('Turnos')).filter(t => t.usuario === F.nome).length === 1, 'confirmou "continuar": nenhum turno novo na planilha');
+    console.log('2) app: encerrou num aparelho, o outro sai do turno');
+    await cel.click('#encerrar'); await cel.waitForSelector('[data-doc=termo]'); await sinc(cel); await sinc(pc);
+    await pc.click('nav [data-v=home]'); await pc.waitForSelector('#fTurno', { timeout: 8000 }).catch(() => {});
+    ok(await pc.locator('#fTurno').count() === 1 && /encerrado fora deste aparelho/.test(await pc.textContent('main')), 'PC: aviso de turno encerrado e formulário de novo turno', await pc.textContent('main'));
 
     console.log('3) painel: dois turnos do mesmo login abertos na mesma barreira contam como um');
     const K = await amb.carga(), AG = Date.now(), ini1 = AG - 3 * 3600e3, ini2 = AG - 40 * 60e3;
@@ -69,7 +68,7 @@ const aba = async n => { const rows = await get('/__aba?nome=' + n); const cab =
     const jun = cards.filter(x => /JUNDIÁ/.test(x.txt));
     ok(jun.length === 1 && jun[0].id === 'dj1' && /\b3\s*veículos/.test(jun[0].txt), 'Visão geral: um cartão da BVA - JUNDIÁ, com os 3 veículos dos dois turnos', cards);
     const kpi = await p.evaluate(() => { const k = [...document.querySelectorAll('#pn-conteudo .pn-kpi')].find(k => /Barreiras em andamento agora/.test(k.textContent)); return k && k.querySelector('.pn-kpi-val').textContent.trim(); });
-    ok(kpi === '2', '"Barreiras em andamento agora" = 2 (CEASA e Jundiá)', kpi);
+    ok(kpi === '1', '"Barreiras em andamento agora" = 1 (só o Jundiá: o turno da CEASA foi encerrado)', kpi);
     await p.click('[data-encerrar=dj1]'); await p.waitForSelector('#pn-encerrar[open]'); await p.fill('#pn-enc-fim', hmM(AG - 60 * 60e3));
     await p.click('#pn-enc-ok'); await p.waitForSelector('#pn-toast.on', { timeout: 10000 });
     const tj = (await aba('Turnos')).filter(t => /^dj/.test(t.id));

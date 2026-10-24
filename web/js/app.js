@@ -19,9 +19,13 @@ function toast(t, erro) {
 
 async function turnoAtual() {
   const id = await Store.meta('turnoAtual');
-  if (!id) return null;
-  const t = await Store.obter('turnos', id);
-  return t && !t.encerrado ? t : null;
+  const t = id ? await Store.obter('turnos', id) : null;
+  if (t && !t.encerrado) return t;
+  // sem turno neste aparelho: o turno aberto com o mesmo login em outro aparelho (o PC e o celular da BVA) é o turno deste também
+  const [outro] = await turnosAbertosOutros();
+  if (!outro) return null;
+  await Store.setMeta('turnoAtual', outro.id);
+  return outro;
 }
 async function veiculosDe(turnoId) {
   return Docs.ordenar((await Store.todos('veiculos')).filter(v => v.turnoId === turnoId && !v.excluido));
@@ -280,35 +284,23 @@ function homePessoas(t, mostrar) {
 }
 /* ---------- turno aberto em outro aparelho (o PC e o celular da BVA com o mesmo login) ---------- */
 // O aparelho recebe na sincronização os turnos e veículos do próprio login. Um turno ainda aberto que não é o deste aparelho é o de
-// outro aparelho: o fiscal entra nele em vez de abrir outro, e os veículos lançados nos dois vão para o mesmo turno (e o mesmo Termo).
+// outro aparelho: vira o turno deste também (turnoAtual), e os veículos lançados nos dois vão para o mesmo turno (e o mesmo Termo).
 async function turnosAbertosOutros() {
   const eu = Sync.nome(), limite = Date.now() - 24 * 3600e3;
   return (await Store.todos('turnos')).filter(t => !Number(t.encerrado) && !t.excluido && (!t.usuario || !eu || t.usuario === eu) &&
     (Number(t.criadoEm) || Date.parse(t.data + 'T' + (t.inicio || '00:00') + ':00-04:00') || 0) >= limite)
     .sort((a, b) => (Number(b.criadoEm) || 0) - (Number(a.criadoEm) || 0));
 }
-async function entrarNoTurno(t) {
-  await Store.setMeta('turnoAtual', t.id);
-  try { localStorage.removeItem(LS_AVISO_ENC); } catch (e) { /* sem armazenamento */ }
-  toast('Você entrou no turno em andamento: os veículos deste aparelho vão para o mesmo turno.');
-  Sync.sincronizar(); go('home');
-}
-async function cartaoTurnoAberto() {
-  const box = $('#nAbertoBox'); if (!box) return;
-  const abertos = await turnosAbertosOutros(); if (!$('#nAbertoBox')) return;
-  const nV = {}; (await Store.todos('veiculos')).forEach(v => { if (!v.excluido) nV[v.turnoId] = (nV[v.turnoId] || 0) + 1; });
-  box.innerHTML = abertos.map(t => `<div class="card aviso"><h3>${icone('celular')} Turno em andamento com o seu login</h3>
-    <p><b>${esc(t.local)}</b> · início ${dBR(t.data)} ${esc(t.inicio)}</p><p><small>${esc(t.fiscal)} · ${nV[t.id] || 0} veículo(s)</small></p>
-    <button class="botao" type="button" data-entrar="${esc(t.id)}">${icone('mais')} Continuar neste turno</button>
-    <p class="dica">Use quando a mesma equipe lança no PC e no celular da barreira: tudo entra no mesmo turno.</p></div>`).join('');
-  box.querySelectorAll('[data-entrar]').forEach(b => { b.onclick = () => { const t = abertos.find(x => x.id === b.dataset.entrar); if (t) entrarNoTurno(t); }; });
-}
-window.addEventListener('gdv-sync-fim', () => { if ($('#nAbertoBox')) cartaoTurnoAberto().catch(() => {}); });
+// o turno foi aberto no outro aparelho enquanto este mostrava "Iniciar turno": passa direto para o turno em andamento
+window.addEventListener('gdv-sync-fim', async () => {
+  if (!$('#fTurno') || !(await turnosAbertosOutros()).length || !$('#fTurno')) return;
+  toast('Turno em andamento no outro aparelho com o seu login: continue lançando por aqui.'); go('home');
+});
 
 function novoTurno() {
   if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());   // turno só depois de entrar
   const ls = k => esc(localStorage.getItem('gdv.' + k) || '');
-  view(`${avisoAtivacao()}${avisoTurnoEncerrado()}<div id="nAbertoBox"></div><form class="card" id="fTurno"><h3>Iniciar turno</h3>
+  view(`${avisoAtivacao()}${avisoTurnoEncerrado()}<form class="card" id="fTurno"><h3>Iniciar turno</h3>
     <label>Nº do Termo de Fiscalização<input id="nTF" type="number" min="1" inputmode="numeric" required placeholder="ex.: 12"></label>
     <label>Tipo de posto<select id="nPosto">${CONFIG.postos.map(p => `<option value="${p}" ${localStorage.getItem('gdv.posto') === p ? 'selected' : ''}>${p === 'Móvel' ? 'Volante (móvel)' : p}</option>`).join('')}</select></label>
     <div id="nLocalBox"></div>
@@ -364,13 +356,10 @@ function novoTurno() {
   $('#nUnidade').addEventListener('input', e => { e.target.dataset.editado = '1'; soPessoasDoMunicipio(); });
   $('#fTurno').addEventListener('change', e => { if (e.target && e.target.id === 'nSoPessoas') e.target.dataset.mexeu = '1'; });
   $('#nPosto').onchange = montarLocal; montarLocal();
-  cartaoTurnoAberto().catch(() => {});
   $('#fTurno').onsubmit = async e => {
     e.preventDefault();
-    // a mesma barreira já está aberta em outro aparelho deste login: entrar nela (senão a barreira aparece duas vezes no painel)
-    const nl = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '');
-    const mesmo = (await turnosAbertosOutros()).find(t => nl(t.local) === nl($('#nLocal').value));
-    if (mesmo && confirm(`Já existe um turno aberto em ${mesmo.local} (início ${mesmo.inicio}) em outro aparelho com o seu login.\n\nOK: continuar nesse turno (os veículos dos dois aparelhos ficam juntos).\nCancelar: iniciar outro turno.`)) return entrarNoTurno(mesmo);
+    // o outro aparelho abriu o turno enquanto este formulário estava na tela: entra nele em vez de abrir outro
+    if ((await turnosAbertosOutros()).length) { toast('Turno em andamento no outro aparelho com o seu login: continue lançando por aqui.'); return go('home'); }
     const nomes = ['#nFiscal1', '#nFiscal2'].map(id => $(id).value.trim().replace(/\s+/g, ' ')).filter(Boolean);
     if (!nomes.length) { toast('Informe o nome completo de pelo menos um fiscal.', true); $('#nFiscal1').focus(); return; }
     const curto = nomes.find(n => n.split(' ').length < 2);

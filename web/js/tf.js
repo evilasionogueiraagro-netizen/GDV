@@ -339,7 +339,8 @@ const TFUI = (() => {
       const bPad = localStorage.getItem('gdv.barreira');
       D.barreira = bars.some(b => b.id === bPad) ? bPad : bars[0].id;
       D.local = (tr && tr.local) || (bars.find(b => b.id === D.barreira) || {}).local || '';
-      if (veic) { D.placa = veic.placa; D.ufOrigem = veic.ufOrigem || ''; D.ufDestino = veic.ufDestino || ''; }   // origem/destino do registro do veículo
+      if (veic) { D.placa = veic.placa; D.ufOrigem = veic.ufOrigem || ''; D.ufDestino = veic.ufDestino || '';    // origem/destino do registro do veículo
+        D.origem = veic.origemMun || D.origem; D.destino = veic.destinoMun || D.destino; }
     }
     if (!bars.some(b => b.id === D.barreira)) D.barreira = bars[0].id;
     view(formHTML(D, bars));

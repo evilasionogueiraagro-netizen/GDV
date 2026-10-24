@@ -255,7 +255,7 @@ nav button span { font-size:9.5px; } nav button.on { color:var(--link); font-wei
 .pce-outro-l[hidden], #pce-modal-lab label[hidden] { display:none !important; }
 .pce-lista-outro { min-width:0; } .pce-outro-l { margin-top:6px; }
 /* Veículo: origem e destino (opcionais) */
-.veic-ufs { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:0 8px; border:1px solid var(--grade); border-radius:10px; padding:6px 12px 2px; margin:10px 0; }
+.veic-ufs { display:grid; grid-template-columns:minmax(0,2fr) minmax(0,1fr); gap:0 8px; border:1px solid var(--grade); border-radius:10px; padding:6px 12px 2px; margin:10px 0; }
 .veic-ufs-rot { grid-column:1 / -1; font-size:14px; color:var(--mut); }
 .veic-ufs select { min-width:0; }
 /* ---------- Ícones (web/js/icones.js, docs/DESIGN.md): SVG de traço em currentColor, sempre com texto ao lado ---------- */

@@ -20,7 +20,8 @@ const NOME_MODULO = { veiculos: 'Educação Sanitária/Fiscalização de Trânsi
 // actions do app que pertencem a um módulo (o servidor recusa se o módulo não estiver liberado para quem chama)
 const MODULO_DA_ACAO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf', tfIndiceReincidencia: 'tf',
                          pceProximoNumero: 'pce', pceEmitir: 'pce', pceConsultar: 'pce', pceBaixarMunicipio: 'pce', pceMapaGeral: 'pce', arquivoEnviar: 'pce',
-                         pceDocNumero: 'pce', pceDocRegistrar: 'pce' };
+                         pceDocNumero: 'pce', pceDocRegistrar: 'pce',
+                         turnoConvidar: 'veiculos', turnoParear: 'veiculos', turnoSair: 'veiculos' };
 const MSG_SEM_ANTIGO = 'Sem autorização para digitar registros antigos (do papel). Fale com a gerência.';
 
 /**

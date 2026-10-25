@@ -15,8 +15,9 @@ const TABELAS = {
            'latIni', 'lngIni', 'precIni', 'latFim', 'lngFim', 'precFim', 'usuario', 'semPlaca',   // colunas novas ficam sempre no fim (semPlaca=1: placa opcional no turno)
            'encerradoPor', 'encerradoEm',    // turno encerrado fora do aparelho: nome do administrador (painel) ou "Automático (12 h)", e quando (ms)
            'importacao',                     // turno criado pela importação do relatório de plantão do papel (portal): id da importação
-           'pessoasEducacao', 'soPessoas'],  // turno que não conta veículos (soPessoas = 1; ex.: volante de Tabatinga, educação sanitária da monilíase):
+           'pessoasEducacao', 'soPessoas',   // turno que não conta veículos (soPessoas = 1; ex.: volante de Tabatinga, educação sanitária da monilíase):
                                              // pessoas orientadas contadas no próprio turno
+           'colegas'],                       // fiscais que entraram no turno com o próprio login pelo código do dono (JSON [nomes]); só o servidor grava
   Veiculos: ['id', 'turnoId', 'hora', 'placa', 'tipo', 'pessoas', 'obs',
              'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
              // ufOrigem/ufDestino: "Origem e destino (opcional)" do formulário do veículo (sigla de CONFIG.ufs ou "Exterior"; vazio = não
@@ -145,7 +146,10 @@ const TABELAS = {
   SessoesDosUsuarios: ['id', 'usuarioId', 'tokenHash', 'aplicativo', 'aparelhoId', 'criadaEm', 'ultimoUso',
                        'encerradaEm', 'encerradaPor', 'motivoDoEncerramento'],
   // Toda mudança de acesso: quem, quando, o quê (antes/depois em JSON, nunca com hash de senha).
-  HistoricoDeAlteracoes: ['id', 'em', 'usuarioId', 'acao', 'tabela', 'registroId', 'antes', 'depois']
+  HistoricoDeAlteracoes: ['id', 'em', 'usuarioId', 'acao', 'tabela', 'registroId', 'antes', 'depois'],
+  // Turno compartilhado (turnos-compartilhados.gs): o dono do turno gera um código (válido por 15 min); o colega, com o próprio login,
+  // entra com ele (colega/entrouEm) e sai quando quiser (saiuEm). Cada convite é uma linha; nada é apagado.
+  Pareamentos: ['id', 'turnoId', 'dono', 'codigo', 'criadoEm', 'expiraEm', 'colega', 'entrouEm', 'saiuEm']
 };
 const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
                           'expiraEm', 'ativo', 'ativadoEm', 'oculto', 'ocultoEm',
@@ -156,7 +160,8 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criad
                           'totalPlantas', 'plantasInspecionadas', 'importadoEm',
                           'ultimoAcesso', 'codigoExpira', 'ultimoUso', 'revogado', 'substitui',
                           'semEducacao', 'medidaFito', 'carga', 'partida', 'inspecaoFito', 'docConferido', 'pessoasEducacao', 'soPessoas',
-                          'senhaProvisoria', 'senhaAlteradaEm', 'criadaEm', 'encerradaEm', 'concedidaEm', 'revogadaEm'];   // lat/lon/precisao ficam como texto (como em Turnos)
+                          'senhaProvisoria', 'senhaAlteradaEm', 'criadaEm', 'encerradaEm', 'concedidaEm', 'revogadaEm',
+                          'entrouEm', 'saiuEm'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, pragas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000,
                         dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000, citros: 20000, cargaPapel: 3000 };   // demais colunas: 500
@@ -165,7 +170,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-25a';
+const VERSAO_CODIGO = '2026-10-25b';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -220,6 +225,9 @@ function doPost(e) {
     if (req.action === 'arquivoEnviar') return json_(arquivoEnviar_(req, usuario));
     if (req.action === 'tfAndamento') return json_(tfAndamento_(req, usuario));
     if (req.action === 'tfIndiceReincidencia') return json_(tfIndiceReincidencia_(req));
+    if (req.action === 'turnoConvidar') return json_(turnoConvidar_(req, usuario));
+    if (req.action === 'turnoParear') return json_(turnoParear_(req, usuario));
+    if (req.action === 'turnoSair') return json_(turnoSair_(req, usuario));
     throw new Error('Ação inválida.');
   } catch (err) {
     const r = { ok: false, erro: String(err.message || err) };
@@ -320,11 +328,13 @@ function sincronizar_(req, usuario) {
       registrarAparelho_(req.aparelho, usuario, agora, req.key, 'ok', { turnos: T.turnos.length, veiculos: T.veiculos.length, tfs: T.tfs.length,
         levantamentos: T.levantamentos.length, colheitas: T.colheitas.length, encerrados: encerrados });
     } catch (e) { /* aba Aparelhos com problema: o envio dos registros continua valendo */ }
+    const comp = turnosCompartilhados_(usuario, agora);
     return {
       ok: true,
       agora: agora,
-      turnos: lerMudancas_('Turnos', since, usuario),       // cada aparelho recebe só os turnos/veículos do próprio fiscal
-      veiculos: lerMudancas_('Veiculos', since, usuario),
+      // cada aparelho recebe os turnos/veículos do próprio fiscal e, do turno compartilhado (pareamento), o turno e os veículos de todos
+      turnos: lerMudancasTurnos_('Turnos', since, usuario, comp.turnos, 'id'),
+      veiculos: lerMudancasTurnos_('Veiculos', since, usuario, comp.veiculos, 'turnoId'),
       tfs: lerMudancas_('TFs', since, usuario),          // cada fiscal recebe só os próprios TFs
       barreiras: listarBarreiras_(),
       ultimos: ultimosPorBarreira_(),                   // último nº usado em cada barreira (ano atual): base para propor número sem internet

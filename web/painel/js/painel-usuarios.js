@@ -206,6 +206,27 @@
     return (u.ativo ? '<span class="pn-selo bom">Ativo</span>' : '<span class="pn-selo serio">Desativado</span>')
       + (u.senhaProvisoria ? ' <span class="pn-selo atencao" title="A pessoa ainda não criou a própria senha">Senha provisória</span>' : '');
   }
+  /* ---------- versão do app de campo nos aparelhos (aba Aparelhos: sinal de cada sincronização) ---------- */
+  const PLATAFORMA = { android: 'Android', ios: 'iPhone', outro: 'PC/outro' };
+  const PARADO_MS = 30 * 864e5;                       // sem sinal há mais de 30 dias: aparelho fora de uso (não conta como desatualizado)
+  const versaoAtual = () => (typeof VERSAO_APP !== 'undefined' ? VERSAO_APP : '');   // a do app publicado junto com este painel (js/versao.js)
+  const curta = v => String(v || '').replace(/^gdv-/, '') || '?';
+  /** Situação de um aparelho: atual | velho | parado | sem (sem versão: sinal de app antigo). */
+  function sitAparelho(a) {
+    if (!a.ultimoSinal || P.agora() - a.ultimoSinal > PARADO_MS) return 'parado';
+    if (!a.versao) return 'sem';
+    return a.versao === versaoAtual() ? 'atual' : 'velho';
+  }
+  const desatualizados = u => (u.aparelhos || []).filter(a => ['velho', 'sem'].includes(sitAparelho(a))).length;
+  function appHTML(u) {
+    const l = (u.aparelhos || []).slice(0, 3);
+    if (!l.length) return '<span class="pn-sub">nenhum sinal</span>';
+    return l.map(a => {
+      const st = sitAparelho(a), sel = { atual: ['bom', 'Atualizado'], velho: ['serio', 'Desatualizado'], sem: ['serio', 'Desatualizado'], parado: ['', 'Sem uso'] }[st];
+      return `<div class="pn-us-ap"><span class="pn-selo ${sel[0]}" title="Versão do app neste aparelho: ${esc(curta(a.versao))}${versaoAtual() ? ' · publicada: ' + esc(curta(versaoAtual())) : ''}">${sel[1]}</span>`
+        + ` <small>${esc(PLATAFORMA[a.plataforma] || 'Aparelho')} · v. ${esc(curta(a.versao))} · sinal ${esc(dataHora(a.ultimoSinal) || '—')}</small></div>`;
+    }).join('') + ((u.aparelhos || []).length > 3 ? `<small class="pn-sub">+${(u.aparelhos || []).length - 3} aparelho(s)</small>` : '');
+  }
   function acoesHTML(u) {
     const id = esc(u.id);
     return `<span class="pn-conv-acoes-lin"><button type="button" class="pn-btn pn-btn-mini" data-us="permissoes" data-id="${id}">Permissões</button>`
@@ -218,18 +239,21 @@
     box.innerHTML = '';
     if (E.erro && !E.lista) { box.innerHTML = `<div class="pn-cartao pn-falha" role="alert"><b>Não foi possível carregar os usuários.</b><p class="pn-sub">${esc(E.erro)}</p></div>`; return; }
     if (!E.lista) { P.vazio(box, 'Carregando os usuários…'); return; }
+    const nDes = E.lista.reduce((n, u) => n + desatualizados(u), 0);
     P.tabela(box, [
       { chave: 'matricula', rotulo: 'Matrícula', html: v => `<b>${esc(v)}</b>` },
       { chave: 'nome', rotulo: 'Nome' },
       { chave: 'permissoes', rotulo: 'Permissões', ordem: u => permissoesDe(u).length, csv: v => (v || []).map(rotulo).join(', '),
         html: v => (v || []).length ? (v || []).map(p => `<span class="pn-ac-perfil">${esc(rotulo(p))}</span>`).join(' ') : '<span class="pn-sub">nenhuma</span>' },
       { chave: 'ativo', rotulo: 'Situação', ordem: u => (u.ativo ? 1 : 0), html: (v, u) => situacaoHTML(u) },
+      { chave: 'aparelhos', rotulo: 'App nos aparelhos', ordem: u => desatualizados(u) * 10 + (u.aparelhos || []).length, html: (v, u) => appHTML(u),
+        csv: (v, u) => (u.aparelhos || []).map(a => `${PLATAFORMA[a.plataforma] || 'Aparelho'} ${curta(a.versao)} (${{ atual: 'atualizado', velho: 'desatualizado', sem: 'desatualizado', parado: 'sem uso' }[sitAparelho(a)]})`).join('; ') },
       { chave: 'ultimoAcesso', rotulo: 'Último acesso', num: true, fmt: v => dataHora(v) || 'nunca' },
       { chave: 'sessoesAbertas', rotulo: 'Sessões abertas', num: true,
         html: (v, u) => v ? `<button type="button" class="pn-link" data-us="sessoes" data-id="${esc(u.id)}">${P.fmt.int(v)} (ver)</button>` : '0' },
       { chave: 'id', rotulo: '', csv: () => '', html: (v, u) => acoesHTML(u) }
     ], E.lista, { id: 'usuarios', titulo: `Usuários (${E.lista.length})`, ordenar: 'nome', desc: false, limite: 50,
-      subtitulo: `${E.lidoEm ? 'Lista lida às ' + P.horaManaus(E.lidoEm) : ''}${E.erro ? ' · falha ao atualizar: ' + E.erro : ''}`,
+      subtitulo: `${E.lidoEm ? 'Lista lida às ' + P.horaManaus(E.lidoEm) : ''}${nDes ? ` · ${nDes} aparelho(s) com o app desatualizado: peça para abrir o app com internet (ele se atualiza sozinho)` : ''}${E.erro ? ' · falha ao atualizar: ' + E.erro : ''}`,
       vazio: 'Nenhum usuário ainda. Crie o primeiro acima.' });
   }
 

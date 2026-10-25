@@ -74,6 +74,14 @@ const aba = async n => { const rows = await get('/__aba?nome=' + n); const cab =
     const tj = (await aba('Turnos')).filter(t => /^dj/.test(t.id));
     ok(tj.length === 2 && tj.every(t => String(t.encerrado) === '1'), 'Encerrar turno encerra os dois turnos da planilha', tj.map(t => [t.id, t.encerrado, t.fim]));
     ok(tj.find(t => t.id === 'dj2').fim === hmM(ini2), 'o turno que começou depois do horário escolhido fecha no próprio início (não vira o dia seguinte)', tj.map(t => [t.id, t.inicio, t.fim]));
+    console.log('4) painel → Usuários: versão do app em cada aparelho');
+    const rv = await post({ action: 'sync', key: F.token, since: 9e15, turnos: [], veiculos: [], aparelho: { id: 'aparelho-antigo-teste', versao: 'gdv-0000000', plataforma: 'android', standalone: 1, online: 1 } });
+    ok(rv.ok, 'um terceiro aparelho do mesmo login manda sinal com uma versão antiga do app', rv.erro);
+    await p.click('.pn-aba[data-aba=usuarios]'); await p.waitForSelector('#pn-us-lista table', { timeout: 20000 });
+    await p.click('#pn-us-lista button[data-us]').catch(() => {}); await p.keyboard.press('Escape').catch(() => {});
+    const linha = await p.evaluate(n => { const tr = [...document.querySelectorAll('#pn-us-lista tbody tr')].find(x => x.textContent.includes(n)); return tr ? tr.textContent.replace(/\s+/g, ' ') : ''; }, F.nome);
+    ok(/Atualizado/.test(linha) && /Desatualizado/.test(linha) && /v\. 0000000/.test(linha) && /Android/.test(linha), 'linha do usuário: aparelhos atualizados e o antigo como "Desatualizado" (versão e plataforma)', linha);
+    { const tx = await p.textContent('#pn-us-lista'); ok(/\d+ aparelho\(s\) com o app desatualizado/.test(tx), 'resumo acima da lista: aparelhos com o app desatualizado', tx.slice(0, 300)); }
     ok(!err.length && !cel.erros.length && !pc.erros.length, 'sem erros de página', err.concat(cel.erros, pc.erros));
   } finally { await b.close(); }
   console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.');

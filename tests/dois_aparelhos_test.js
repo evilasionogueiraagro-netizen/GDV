@@ -46,6 +46,18 @@ const aba = async n => { const rows = await get('/__aba?nome=' + n); const cab =
     const ts = (await aba('Turnos')).filter(t => t.usuario === F.nome), vs = await aba('Veiculos');
     ok(ts.length === 1 && vs.filter(v => v.turnoId === ts[0].id).length === 2, 'planilha: 1 turno com os 2 veículos', [ts.length, vs.filter(v => ts[0] && v.turnoId === ts[0].id).length]);
 
+    console.log('1b) app: versão na tela de Status');
+    const status = async () => { await pc.click('nav [data-v=modulos]'); await pc.click('[data-v=config]'); await pc.waitForSelector('#cVer');
+      await pc.waitForFunction(() => !/conferindo/.test(document.querySelector('#cVer').textContent), null, { timeout: 8000 }).catch(() => {}); return pc.textContent('main'); };
+    let st = await status();
+    ok(/Versão do app:\s*v13\s*· atualizada/.test(st), 'Status: versão do app em uso e "atualizada"', st);
+    // a publicação nova: o arquivo de versão no servidor muda (a requisição passa pelo service worker; troca-se a resposta na página)
+    await pc.evaluate(() => { const f0 = window.fetch; window.__fetch0 = f0;
+      window.fetch = (u, o) => /js\/versao\.js/.test(String(u)) ? Promise.resolve(new Response("const VERSAO_APP = 'gdv-abc1234';", { status: 200 })) : f0(u, o); });
+    st = await status();
+    ok(/há versão nova \(abc1234\)/.test(st) && await pc.locator('#cVerAtualizar').count() === 1, 'publicada outra versão: "há versão nova" com o botão Atualizar agora', st);
+    await pc.evaluate(() => { window.fetch = window.__fetch0; }); await pc.click('nav [data-v=modulos]'); await pc.click('.modulo[data-v=home]');
+
     console.log('2) app: encerrou num aparelho, o outro sai do turno');
     await cel.click('#encerrar'); await cel.waitForSelector('[data-doc=termo]'); await sinc(cel); await sinc(pc);
     await pc.click('nav [data-v=home]'); await pc.waitForSelector('#fTurno', { timeout: 8000 }).catch(() => {});
@@ -74,6 +86,14 @@ const aba = async n => { const rows = await get('/__aba?nome=' + n); const cab =
     const tj = (await aba('Turnos')).filter(t => /^dj/.test(t.id));
     ok(tj.length === 2 && tj.every(t => String(t.encerrado) === '1'), 'Encerrar turno encerra os dois turnos da planilha', tj.map(t => [t.id, t.encerrado, t.fim]));
     ok(tj.find(t => t.id === 'dj2').fim === hmM(ini2), 'o turno que começou depois do horário escolhido fecha no próprio início (não vira o dia seguinte)', tj.map(t => [t.id, t.inicio, t.fim]));
+    console.log('4) painel → Usuários: versão do app em cada aparelho');
+    const rv = await post({ action: 'sync', key: F.token, since: 9e15, turnos: [], veiculos: [], aparelho: { id: 'aparelho-antigo-teste', versao: 'gdv-0000000', plataforma: 'android', standalone: 1, online: 1 } });
+    ok(rv.ok, 'um terceiro aparelho do mesmo login manda sinal com uma versão antiga do app', rv.erro);
+    await p.click('.pn-aba[data-aba=usuarios]'); await p.waitForSelector('#pn-us-lista table', { timeout: 20000 });
+    await p.click('#pn-us-lista button[data-us]').catch(() => {}); await p.keyboard.press('Escape').catch(() => {});
+    const linha = await p.evaluate(n => { const tr = [...document.querySelectorAll('#pn-us-lista tbody tr')].find(x => x.textContent.includes(n)); return tr ? tr.textContent.replace(/\s+/g, ' ') : ''; }, F.nome);
+    ok(/Atualizado/.test(linha) && /Desatualizado/.test(linha) && /v\. 0000000/.test(linha) && /Android/.test(linha), 'linha do usuário: aparelhos atualizados e o antigo como "Desatualizado" (versão e plataforma)', linha);
+    { const tx = await p.textContent('#pn-us-lista'); ok(/\d+ aparelho\(s\) com o app desatualizado/.test(tx), 'resumo acima da lista: aparelhos com o app desatualizado', tx.slice(0, 300)); }
     ok(!err.length && !cel.erros.length && !pc.erros.length, 'sem erros de página', err.concat(cel.erros, pc.erros));
   } finally { await b.close(); }
   console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.');

@@ -630,6 +630,21 @@ function barras(pares) {                                    // [rótulo, valor, 
 }
 
 /* ---------- Status da sincronização ---------- */
+/** Versão do app (a mesma que o painel mostra em Usuários): "gdv-abc1234" → "abc1234". */
+const versaoCurta = v => String(v || '').replace(/^gdv-/, '') || '?';
+/** Status: compara a versão em uso com a publicada (js/versao.js direto do servidor); diferente, oferece recarregar o app. */
+async function conferirVersao() {
+  const el = $('#cVer'); if (!el) return;
+  if (!navigator.onLine) { el.textContent = '(sem internet para conferir se há versão nova)'; return; }
+  el.textContent = '(conferindo…)';
+  const txt = await fetch('js/versao.js?t=' + Date.now(), { cache: 'no-store' }).then(r => r.ok ? r.text() : '');
+  const pub = (/VERSAO_APP\s*=\s*'([^']+)'/.exec(txt) || [])[1];
+  if (!$('#cVer')) return;
+  if (!pub) { el.textContent = ''; return; }
+  if (pub === Envio.versaoApp()) { el.textContent = '· atualizada'; return; }
+  el.innerHTML = `· <b>há versão nova (${esc(versaoCurta(pub))})</b> <button class="botao sec mini" type="button" id="cVerAtualizar">${icone('sincronizar')} Atualizar agora</button>`;
+  $('#cVerAtualizar').onclick = () => location.reload();
+}
 async function config() {
   const mostrar = tela();
   const ult = await Store.meta('ultimaSync'), ret = await Sync.retidos();
@@ -640,9 +655,11 @@ async function config() {
     ${u ? `<p>Entrou como: <b>${esc(u.nome)}</b> (matrícula ${esc(u.matricula)})</p>` : Sync.nome() ? `<p>Fiscal vinculado: <b>${esc(Sync.nome())}</b></p>` : ''}<p id="cEst"></p>
     ${ret.length ? `<p>Guardados neste aparelho, de outras pessoas (só são enviados quando elas entrarem de novo): ${ret.map(r => `${esc(r.nome)} (${r.n})`).join(', ')}.</p>` : ''}
     <p>Última sincronização: ${ult ? new Date(ult).toLocaleString('pt-BR') : 'nunca'}</p>
+    <p>Versão do app: <b>${esc(versaoCurta(Envio.versaoApp()))}</b> <span id="cVer"></span></p>
     <p class="dica">A sincronização é automática quando há internet (a cada 20 s com turno aberto; sem turno, a cada minuto). Para forçar agora, toque no selo no topo da tela.</p>
     <p><a href="manual.html">${icone('manual')} Manual do fiscal</a></p>
     ${Sync.ativado() ? '<button class="botao sec" data-sair="1">Sair</button>' : ''}</div>`);
+  conferirVersao().catch(() => {});
   const e = Sync.estado();
   $('#cEst').textContent = (navigator.onLine ? 'Online' : 'Offline') + ' · pendentes de envio: ' + (e.pend || 0) + (e.pend ? avisoEnvio() : '') + (e.tipo === 'erro' ? ' · erro: ' + e.msg : '');
 }

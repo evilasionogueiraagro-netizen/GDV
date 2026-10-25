@@ -94,7 +94,7 @@ const MSG_ENTRE = 'Entre com sua matrícula e senha.';
   ok(us.length === 1 && u1.criadoPor === 'planilha', 'a conta do menu: criadoPor = planilha (e o segundo gerente não foi gravado)');
 
   /* ================= 4. permissões, matrícula e nome ================= */
-  console.log('4. Permissões (lista exata), digitarDoPapel exige pce, gerencia vale tudo; matrícula e nome');
+  console.log('4. Permissões (lista exata), digitarDoPapel exige pce, gerencia abre os aplicativos (módulos só marcados); matrícula e nome');
   const cria = (nome, permissoes, extra = {}) => post({ action: 'usuarioCriar', key: GT, nome, permissoes, ...extra });
   r = await cria('Fulano Ficticio Campo', ['campo', 'pce', 'digitarDoPapel', 'inventada']); ok(!r.ok && /Permissão desconhecida: inventada/.test(r.erro), 'permissão desconhecida recusada', r.erro);
   r = await cria('Fulano Ficticio Campo', ['campo', 'digitarDoPapel']); ok(!r.ok && /só vale com o módulo PCE/.test(r.erro), 'digitarDoPapel sem pce recusado com mensagem clara', r.erro);
@@ -137,7 +137,8 @@ const MSG_ENTRE = 'Entre com sua matrícula e senha.';
     'mapeamento: veiculos = fiscalizacaoDeTransito, tf = termoDeBarreira, pce, antigo = digitarDoPapel', eF);
   ok(JSON.stringify(eM.modulos) === '{"veiculos":1,"tf":0,"pce":0,"antigo":0}', 'só fiscalizacaoDeTransito: {veiculos:1, tf:0, pce:0, antigo:0}', eM.modulos);
   ok(JSON.stringify(e3.modulos) === '{"veiculos":0,"tf":1,"pce":1,"antigo":0}', 'termoDeBarreira + pce sem digitarDoPapel: antigo = 0', e3.modulos);
-  ok(JSON.stringify(eG.modulos) === '{"veiculos":1,"tf":1,"pce":1,"antigo":1}' && eG.permissoes.length === 8, 'gerencia vale como todas (permissões e módulos)', eG);
+  ok(JSON.stringify(eG.modulos) === '{"veiculos":0,"tf":0,"pce":0,"antigo":0}' && eG.permissoes.join() === 'campo,painel,administracao,gerencia',
+    'só gerencia: abre os três aplicativos, mas nenhum módulo do campo (módulo vale só marcado, também para o gerente)', eG);
   r = await entrar('portal1', SENHA, 'campo'); ok(!r.ok && /não inclui o app de campo/.test(r.erro), 'conta só do portal não entra no campo', r.erro);
   r = await entrar('campo1', SENHA, 'painel'); ok(!r.ok && /não inclui o painel/.test(r.erro), 'conta de campo não entra no painel', r.erro);
   r = await entrar('gerencia2', SENHA, 'administracao'); ok(r.ok, 'gerencia entra em qualquer aplicativo');
@@ -277,7 +278,13 @@ const MSG_ENTRE = 'Entre com sua matrícula e senha.';
   ok(r.ok && r.recusados.tfs.length === 1 && r.recusados.tfs[0] === 'lg-f5' && r.tfs.some(t => t.id === 'lg-f6'), 'sync: registro antigo sem digitarDoPapel volta em recusados; o normal do mesmo lote entra', r.recusados);
   r = await post({ action: 'sync', key: eS.token, since: 0 }); ok(!r.ok && /não inclui o app de campo/.test(r.erro), 'quem não tem a permissão campo não sincroniza (mesmo com módulos)', r.erro);
   r = await post({ action: 'tfEmitir', key: eS.token, tf: TF('lg-f7', 7) }); ok(!r.ok && /não inclui o app de campo/.test(r.erro), 'nem emite TF', r.erro);
-  r = await post({ action: 'sync', key: eG3.token, since: 0 }); ok(r.ok && r.permissoes.antigo === 1, 'gerencia sincroniza com tudo liberado', r.permissoes);
+  // o caso do gerente que desmarcou o PCE no próprio perfil: os outros módulos continuam, o PCE some (e o sync recusa levantamento)
+  const PG4 = await cria('Gerencia Sem Pce Ficticia', ['gerencia', 'fiscalizacaoDeTransito', 'termoDeBarreira'], { matricula: 'gerencia4' }), eG4 = await pronta(PG4, 'campo');
+  ok(JSON.stringify(eG4.modulos) === '{"veiculos":1,"tf":1,"pce":0,"antigo":0}', 'gerente com o PCE desmarcado: PCE fora dos módulos', eG4.modulos);
+  r = await post({ action: 'sync', key: eG4.token, since: 0, levantamentos: [{ id: 'lev-ger-sem-pce', data: '2026-10-25', criadoEm: 1, atualizadoEm: 1 }] });
+  ok(r.ok && r.permissoes.pce === 0 && (r.recusados.levantamentos || []).includes('lev-ger-sem-pce'), 'gerente sem PCE: levantamento volta em recusados', r.recusados);
+  r = await post({ action: 'pceConsultar', key: eG4.token, doc: '52998224725' }); ok(!r.ok && r.semPermissao === 'pce', 'gerente sem PCE: action do PCE recusada', r.erro);
+  r = await post({ action: 'sync', key: eG3.token, since: 0 }); ok(r.ok && r.permissoes.pce === 0 && r.permissoes.tf === 0 && r.permissoes.veiculos === 0, 'gerencia sem módulos marcados: sincroniza, mas nenhum módulo liberado', r.permissoes);
   const ap = (await linhasDe('Aparelhos')).find(a => a.id === 'aparelho-campo-001');
   ok(ap && ap.usuario === 'Fulano Ficticio Campo' && ap.cred === 'u.' + sha(tokF).slice(0, 6) && ap.cred !== tokF.slice(0, 8), 'Aparelhos.cred não guarda o início do token (só parte do SHA-256)', ap && ap.cred);
   // ultimoUso: grava no máximo uma vez a cada 5 minutos por sessão

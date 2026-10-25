@@ -46,6 +46,18 @@ const aba = async n => { const rows = await get('/__aba?nome=' + n); const cab =
     const ts = (await aba('Turnos')).filter(t => t.usuario === F.nome), vs = await aba('Veiculos');
     ok(ts.length === 1 && vs.filter(v => v.turnoId === ts[0].id).length === 2, 'planilha: 1 turno com os 2 veículos', [ts.length, vs.filter(v => ts[0] && v.turnoId === ts[0].id).length]);
 
+    console.log('1b) app: versão na tela de Status');
+    const status = async () => { await pc.click('nav [data-v=modulos]'); await pc.click('[data-v=config]'); await pc.waitForSelector('#cVer');
+      await pc.waitForFunction(() => !/conferindo/.test(document.querySelector('#cVer').textContent), null, { timeout: 8000 }).catch(() => {}); return pc.textContent('main'); };
+    let st = await status();
+    ok(/Versão do app:\s*v13\s*· atualizada/.test(st), 'Status: versão do app em uso e "atualizada"', st);
+    // a publicação nova: o arquivo de versão no servidor muda (a requisição passa pelo service worker; troca-se a resposta na página)
+    await pc.evaluate(() => { const f0 = window.fetch; window.__fetch0 = f0;
+      window.fetch = (u, o) => /js\/versao\.js/.test(String(u)) ? Promise.resolve(new Response("const VERSAO_APP = 'gdv-abc1234';", { status: 200 })) : f0(u, o); });
+    st = await status();
+    ok(/há versão nova \(abc1234\)/.test(st) && await pc.locator('#cVerAtualizar').count() === 1, 'publicada outra versão: "há versão nova" com o botão Atualizar agora', st);
+    await pc.evaluate(() => { window.fetch = window.__fetch0; }); await pc.click('nav [data-v=modulos]'); await pc.click('.modulo[data-v=home]');
+
     console.log('2) app: encerrou num aparelho, o outro sai do turno');
     await cel.click('#encerrar'); await cel.waitForSelector('[data-doc=termo]'); await sinc(cel); await sinc(pc);
     await pc.click('nav [data-v=home]'); await pc.waitForSelector('#fTurno', { timeout: 8000 }).catch(() => {});

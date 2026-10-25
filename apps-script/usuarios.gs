@@ -136,8 +136,15 @@ function permissoesAtivasPorUsuario_(linhas) {
   return por;
 }
 
-/** `gerencia` vale como todas: a lista efetiva de quem tem gerência traz todas as permissões. */
-function permissoesEfetivas_(lista) { return lista.indexOf('gerencia') >= 0 ? PERMISSOES_USUARIO_.slice() : lista.slice(); }
+/**
+ * Permissões que valem: gerência abre os três aplicativos (campo, painel, portal) e as contas; os módulos do app de campo
+ * (fiscalizacaoDeTransito, termoDeBarreira, pce, digitarDoPapel) valem só os marcados, também para o gerente.
+ */
+const APPS_DA_GERENCIA_ = ['campo', 'painel', 'administracao'];
+function permissoesEfetivas_(lista) {
+  if (lista.indexOf('gerencia') < 0) return lista.slice();
+  return PERMISSOES_USUARIO_.filter(function (p) { return lista.indexOf(p) >= 0 || APPS_DA_GERENCIA_.indexOf(p) >= 0; });
+}
 
 /** Permissões → módulos do campo no formato que o app e o sync usam: veiculos = fiscalizacaoDeTransito, tf = termoDeBarreira, pce, antigo = digitarDoPapel (exige pce). */
 function modulosDasPermissoes_(lista) {
@@ -156,7 +163,7 @@ function permissoesValidas_(lista) {
     if (v.indexOf(p) < 0) v.push(p);
   });
   if (!v.length) throw new Error('Marque pelo menos uma permissão. Para tirar todo o acesso, desative a conta.');
-  if (v.indexOf('digitarDoPapel') >= 0 && v.indexOf('pce') < 0 && v.indexOf('gerencia') < 0) {
+  if (v.indexOf('digitarDoPapel') >= 0 && v.indexOf('pce') < 0) {
     throw new Error('“Digitar do papel” só vale com o módulo PCE: marque também o PCE (ou desmarque “Digitar do papel”).');
   }
   return PERMISSOES_USUARIO_.filter(function (p) { return v.indexOf(p) >= 0; });
@@ -182,7 +189,7 @@ function credAparelho_(key) {
  * Valida o token e devolve {sessao, u, usuario, lista, permissoes, modulos, provisoria}. Falha com erro claro: sem token → MSG_ENTRE_;
  * token desconhecido/encerrado/usuário desativado → opcoes.invalida (padrão MSG_SESSAO_); os dois com entrar = 1 (a tela volta ao login);
  * senha provisória pendente → MSG_TROCAR_SENHA_ com trocarSenha = 1 (a menos que opcoes.provisoria); sem a permissão opcoes.permissao
- * (gerencia vale como todas). Lê a planilha a cada chamada. Preenche USUARIO_ATUAL_.
+ * (gerencia abre os aplicativos: campo, painel e portal). Lê a planilha a cada chamada. Preenche USUARIO_ATUAL_.
  */
 function sessaoNova_(token, opcoes) {
   opcoes = opcoes || {};

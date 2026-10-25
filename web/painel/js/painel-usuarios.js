@@ -105,7 +105,7 @@
       if (nome.length > NOME_MAX) return `Nome longo demais (máximo de ${NOME_MAX} caracteres).`;
     }
     if (!permissoes.length) return 'Marque pelo menos uma permissão.';
-    if (permissoes.indexOf('digitarDoPapel') >= 0 && permissoes.indexOf('pce') < 0 && permissoes.indexOf('gerencia') < 0) return '"Digitar do papel" exige o PCE.';
+    if (permissoes.indexOf('digitarDoPapel') >= 0 && permissoes.indexOf('pce') < 0) return '"Digitar do papel" exige o PCE.';
     return '';
   }
 

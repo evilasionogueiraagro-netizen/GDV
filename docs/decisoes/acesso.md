@@ -12,6 +12,7 @@ Modelo em [../arquitetura.md](../arquitetura.md) e abas em [../banco.md](../banc
 | 22/10/2026 | Senha esquecida: o gerente gera nova senha provisória e a pessoa troca no acesso seguinte. Senha de gerente: outro gerente ou o menu da planilha | sem depender de e-mail |
 | 22/10/2026 | O primeiro gerente nasce pelo menu da planilha | alguém precisa começar |
 | 22/10/2026 | Permissões: por app (`campo`, `painel`, `administracao`), por módulo do campo (`fiscalizacaoDeTransito`, `termoDeBarreira`, `pce`, `digitarDoPapel`) e `gerencia` (libera acessos). O gerente tem tudo | o gerente decide o que cada um faz |
+| 25/10/2026 | Gerência abre os três aplicativos e as contas, mas os módulos do campo valem só os marcados, também para o gerente | o módulo desmarcado some do app de quem for |
 | 22/10/2026 | Toda chamada consulta a planilha no servidor | revogar ou mudar permissão vale na hora |
 | 22/10/2026 | Login salvo no aparelho até sair ou ser revogado; uma sessão por aparelho, revogável sozinha | o campo fica dias sem internet |
 | 22/10/2026 | A TV da sala tem usuário próprio, só com `painel` | revoga sem derrubar ninguém e a TV não guarda a senha do gerente |

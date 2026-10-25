@@ -148,9 +148,11 @@ function mascararDoc_(v) {
 }
 function tipoDoc_(v) { const n = digitos_(v).length; return n === 11 ? 'CPF' : n === 14 ? 'CNPJ' : ''; }
 /** Quantidade "1.234,5" / "1234.5" / "12" → número; null se não der para ler. */
-function quantidade_(q) {
+function quantidade_(q, u) {
   let s = String(q || '').trim();
   if (!s) return null;
+  // em tonelada, um ponto só e sem vírgula é decimal: "12.723 Ton" = 12,723 t (doze mil toneladas numa carga não existe)
+  if (u !== undefined && toneladas_(1, u) === 1 && s.indexOf(',') < 0 && /^\d+\.\d+$/.test(s)) { const t = Number(s); return isFinite(t) ? t : null; }
   if (s.indexOf(',') >= 0) s = s.replace(/\./g, '').replace(',', '.');
   else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, '');      // "1.500" = mil e quinhentos (separador de milhar do pt-BR)
   const n = Number(s);
@@ -163,10 +165,10 @@ function produtosTF_(v) {
   return lista.map(function (x) {
     if (x && typeof x === 'object') {
       const p = String(x.p || x.produto || '').trim(), q = String(x.q || x.quantidade || '').trim(), u = String(x.u || x.unidade || '').trim();
-      return { produto: p, quantidade: quantidade_(q), unidade: u, texto: (p + (q ? ' - ' + q + ' ' + u : '')).trim() };
+      return { produto: p, quantidade: quantidade_(q, u), unidade: u, texto: (p + (q ? ' - ' + q + ' ' + u : '')).trim() };
     }
     const t = String(x || '').trim(), m = /^(.*?)\s+-\s+([\d.,]+)\s*(.*)$/.exec(t);
-    return m ? { produto: m[1].trim(), quantidade: quantidade_(m[2]), unidade: m[3].trim(), texto: t }
+    return m ? { produto: m[1].trim(), quantidade: quantidade_(m[2], m[3].trim()), unidade: m[3].trim(), texto: t }
              : { produto: t, quantidade: null, unidade: '', texto: t };
   }).filter(function (p) { return p.produto; });
 }

@@ -49,7 +49,7 @@ const hoje = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10);
 
     console.log('3) colega entra com o próprio login');
     const pb = await abrirApp(B.ls);
-    await pb.waitForSelector('#parearBox summary'); await pb.click('#parearBox summary'); await pb.screenshot({ path: amb.saida('pareamento_entrar.png') }); await pb.fill('#pCodigo', codigo.slice(0, 3) + ' ' + codigo.slice(3)); await pb.click('#fParear button');
+    await pb.waitForSelector('#parearBox summary'); await pb.click('#parearBox summary'); await pb.screenshot({ path: amb.saida('pareamento_entrar.png') }); await pb.fill('#pCodigo', codigo.slice(0, 3) + ' ' + codigo.slice(3)); await pb.click('#fParear button[type=submit]');
     await pb.waitForSelector('.contador h1', { timeout: 10000 });
     const telaB = await pb.textContent('main');
     ok(/Turno de Fulano Ficticio Teste/.test(telaB) && /colaborando/.test(telaB) && (await pb.textContent('#encerrar')).includes('Sair do turno') && !(await pb.locator('#convidar').count()),
@@ -88,12 +88,30 @@ const hoje = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10);
     await pa.click('#fTurno button[type=submit]'); await pa.waitForSelector('#convidar'); await sinc(pa);
     await pa.click('#convidar'); await pa.waitForSelector('.codigo-par', { timeout: 10000 });
     const cod2 = (await pa.textContent('.codigo-par')).replace(/\D/g, ''), turno2 = await pa.evaluate(() => Store.meta('turnoAtual'));
-    await pb.click('#parearBox summary'); await pb.fill('#pCodigo', cod2); await pb.click('#fParear button'); await pb.waitForSelector('.contador h1', { timeout: 10000 });
+    // QR Code do convite: a imagem gerada no aparelho do dono é lida pelo jsQR (o leitor do app sem BarcodeDetector, como no iPhone)
+    const svg = await pa.$eval('#convite .qr-par svg', e => e.outerHTML);
+    const lido = await pb.evaluate(async svg => {
+      if (typeof jsQR !== 'function') await new Promise((ok, no) => { const s = document.createElement('script'); s.src = 'vendor/jsQR.js'; s.onload = ok; s.onerror = no; document.head.appendChild(s); });
+      const img = new Image(); img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg); await img.decode();
+      const c = document.createElement('canvas'); c.width = c.height = 400; const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, 400, 400); g.drawImage(img, 0, 0, 400, 400);
+      const r = jsQR(g.getImageData(0, 0, 400, 400).data, 400, 400); return r ? r.data : null; }, svg);
+    ok(lido && lido.endsWith('?parear=' + cod2), 'convite: o QR Code tem o link do app com o código (lido pelo jsQR)', lido);
+    await pb.click('#parearBox summary');
+    ok(await pb.locator('#pLerQR').count() === 1, 'colega: botão "Ler QR Code" no formulário');
+    await pb.evaluate(t => { LeitorQR.ler = async () => t; }, lido);           // a câmera do teste não vê o QR: o leitor devolve o texto lido acima
+    await pb.click('#pLerQR'); await pb.waitForSelector('.contador h1', { timeout: 10000 });
     await pb.click('#encerrar'); await pb.waitForSelector('#fTurno'); await pb.waitForTimeout(1500);
     const p2 = (await aba('Pareamentos')).find(x => x.codigo === cod2), t2 = (await aba('Turnos')).find(t => t.id === turno2);
     ok(p2 && Number(p2.saiuEm) > 0 && String(t2.encerrado) === '0', '"Sair do turno": o colega sai (saiuEm) e o turno do dono continua aberto', [p2 && p2.saiuEm, t2 && t2.encerrado]);
+    console.log('6) link do QR aberto pela câmera do aparelho (?parear=)');
+    await pa.click('#convidar'); await pa.waitForFunction(c => (document.querySelector('.codigo-par') || {}).textContent && document.querySelector('.codigo-par').textContent.replace(/\D/g, '') !== c, cod2, { timeout: 10000 });
+    const cod3 = (await pa.textContent('.codigo-par')).replace(/\D/g, '');
+    const pc = await abrirApp(C.ls); await pc.waitForSelector('#fTurno');
+    await pc.goto(amb.APP + '?parear=' + cod3); await pc.waitForSelector('.contador h1', { timeout: 15000 }).catch(() => {});
+    ok(/Turno de Fulano Ficticio Teste/.test(await pc.textContent('main')) && !/parear=/.test(pc.url()), 'abrir o link do QR: confirma e entra no turno do colega (o código sai do endereço)', pc.url());
     let ult = null;
-    for (let i = 0; i < 11; i++) ult = await post({ action: 'turnoParear', key: C.token, codigo: String(100000 + i) });
+    const D = await U.fiscal('Fulano Tentativas Teste');
+    for (let i = 0; i < 11; i++) ult = await post({ action: 'turnoParear', key: D.token, codigo: String(100000 + i) });
     ok(!ult.ok && /Muitos códigos errados/.test(ult.erro), 'depois de 10 códigos errados, o login espera 15 min', ult.erro);
     ok(!pa.erros.length && !pb.erros.length, 'sem erros de página', pa.erros.concat(pb.erros));
   } finally { await b.close(); }

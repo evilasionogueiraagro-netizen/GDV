@@ -73,6 +73,10 @@ const camposLocal = (g, sufixo) => g ? { ['lat' + sufixo]: g.lat, ['lng' + sufix
 const temFicha = t => { const b = CONFIG.bvas.find(x => x.nome === t.local); return b ? !!b.ficha : /ceasa/i.test(t.local || ''); };
 /** Turno que não conta veículos (soPessoas = 1, ex.: volante de Tabatinga): conta só as pessoas orientadas (turno.pessoasEducacao). */
 const soPessoas = t => !!(t && Number(t.soPessoas) === 1);
+/** Turno compartilhado: o turno é de outro login (o colega entrou pelo código do dono). Só o dono encerra; o colega sai. */
+const souColega = t => !!(t && t.usuario && Sync.nome() && t.usuario !== Sync.nome());
+const botaoFim = t => souColega(t) ? `<button class="botao vermelho" id="encerrar">${icone('voltar')} Sair do turno</button>`
+  : `<button class="botao vermelho" id="encerrar">${icone('parar')} Encerrar turno</button>`;
 const cfgSoPessoas = unidade => ((CONFIG.volantesSoPessoas || {})[String(unidade || '').trim().toUpperCase()]) || null;
 const pessoasDoTurno = (t, v) => (v || []).reduce((s, x) => s + (Number(x.pessoas) || 0), 0) + (Number(t && t.pessoasEducacao) || 0);
 /* ---------- módulos e navegação ---------- */
@@ -245,16 +249,54 @@ async function home() {
   mostrar(`${avisoAtivacao()}
     <div class="card"><h3>Turno atual</h3>
       <p><b>${esc(t.numeroTF)}</b></p>
-      <p><b>Fiscal:</b> ${esc(t.fiscal)}</p><p><b>Local:</b> ${esc(t.local)}</p>
+      <p><b>Fiscal:</b> ${esc(Docs.fiscaisDoTurno(t))}</p><p><b>Local:</b> ${esc(t.local)}</p>
       <p><b>Data:</b> ${dBR(t.data)} &nbsp; <b>Posto:</b> ${esc(t.posto || '')}</p>
       <p><b>Início do turno:</b> ${esc(t.inicio)}</p>
-      <p><small>${Number(t.semPlaca) ? 'Placa do veículo opcional neste turno.' : 'Placa do veículo obrigatória neste turno.'}</small></p></div>
+      <p><small>${Number(t.semPlaca) ? 'Placa do veículo opcional neste turno.' : 'Placa do veículo obrigatória neste turno.'}</small></p>
+      ${souColega(t) ? `<p class="dica">Turno de <b>${esc(t.usuario)}</b>: você está colaborando com o seu login. Os veículos e TFs que você lançar entram neste turno; só quem abriu encerra.</p>` : ''}</div>
+    <div id="conviteBox"></div>
     <div class="card contador"><h1>${v.length}</h1><p>Veículos registrados</p></div>
     <button class="botao" data-go="registrar">${icone('mais')} Registrar veículo</button>
     <button class="botao" data-go="lista">${icone('lista')} Lista de veículos</button>
     <button class="botao" data-go="resumo">${icone('resumo')} Resumo e documentos</button>
-    <button class="botao vermelho" id="encerrar">${icone('parar')} Encerrar turno</button>`);
+    ${souColega(t) ? '' : `<button class="botao sec" id="convidar">${icone('pessoa')} Convidar colega para este turno</button>`}
+    ${botaoFim(t)}`);
   $('#encerrar').onclick = () => encerrarTurno(t);
+  if ($('#convidar')) $('#convidar').onclick = () => convidarColega(t);
+}
+/** Dono do turno: código de 6 números (15 min) para um colega entrar com o próprio login. Precisa de internet. */
+async function convidarColega(t) {
+  if (!navigator.onLine) return toast('Sem internet: o convite precisa de conexão (nos dois aparelhos).', true);
+  const b = $('#convidar'); b.disabled = true; b.textContent = 'Gerando o código…';
+  try {
+    await Sync.sincronizar();                                    // o turno precisa estar no servidor
+    const r = await Sync.convidarColega(t.id);
+    const box = $('#conviteBox'); if (!box) return;
+    const hora = new Date(r.expiraEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    box.innerHTML = `<div class="card aviso" id="convite"><h3>${icone('pessoa')} Código para o colega</h3>
+      <div class="codigo-par" aria-label="Código ${esc(r.codigo.split('').join(' '))}">${esc(r.codigo.slice(0, 3))} ${esc(r.codigo.slice(3))}</div>
+      <p>Vale até <b>${esc(hora)}</b> e para uma pessoa. No app do colega, com o login dele: <b>Turno → Entrar no turno de um colega</b> e digite o código.</p>
+      <p class="dica">Ele passa a lançar veículos e TFs neste turno e o nome dele entra no Termo. Para mais de um colega, gere um código para cada.</p></div>`;
+  } catch (e) { toast(e.message || 'Não foi possível gerar o código.', true); }
+  finally { const b2 = $('#convidar'); if (b2) { b2.disabled = false; b2.innerHTML = `${icone('pessoa')} Convidar outro colega`; } }
+}
+/** Colega: sai do turno compartilhado (o que lançou continua no turno). Sem internet, sai só deste aparelho. */
+async function sairDoTurno(t) {
+  if (!confirm(`Sair do turno de ${t.usuario}?\n\nO que você lançou continua no turno. Para voltar, peça um código novo.`)) return;
+  await Store.setMeta('turnoAtual', '');
+  Sync.sincronizar().catch(() => {}).then(() => Sync.sairDoTurno(t.id)).catch(() => {});   // pendentes sobem; o servidor registra a saída
+  toast('Você saiu do turno do colega.'); go('home');
+}
+/** Colega: entra no turno do dono com o código. */
+async function entrarComCodigo(codigo) {
+  if (!navigator.onLine) return toast('Sem internet: para entrar no turno do colega é preciso conexão.', true);
+  const b = $('#fParear button'); b.disabled = true; b.textContent = 'Entrando…';
+  try {
+    const r = await Sync.parearTurno(codigo);
+    await Store.setMeta('turnoAtual', r.turno.id);
+    try { localStorage.removeItem(LS_AVISO_ENC); } catch (e) { /* sem armazenamento */ }
+    toast(`Você entrou no turno de ${r.dono}.`); Sync.sincronizar(); go('home');
+  } catch (e) { toast(e.message || 'Não foi possível entrar no turno.', true); const b2 = $('#fParear button'); if (b2) { b2.disabled = false; b2.innerHTML = `${icone('pessoa')} Entrar no turno`; } }
 }
 /** Turno de BVA sem contagem de veículos: contador de pessoas orientadas (educação sanitária), gravado no turno. */
 function homePessoas(t, mostrar) {
@@ -269,7 +311,7 @@ function homePessoas(t, mostrar) {
     <div class="card contador" id="pesCont"><h1>${n}</h1><p>Pessoas orientadas (educação sanitária)</p></div>
     <div class="duas pes-botoes"><button class="botao" data-pes="1">+1 pessoa</button><button class="botao" data-pes="5">+5</button></div>
     <div class="duas pes-botoes"><button class="botao sec" data-pes="10">+10</button><button class="botao sec" data-pes="corrigir">${icone('editar')} Corrigir total</button></div>
-    <button class="botao vermelho" id="encerrar">⏹ Encerrar turno</button>`);
+    ${botaoFim(t)}`);
   document.querySelectorAll('[data-pes]').forEach(b => b.onclick = async () => {
     const atual = (await Store.obter('turnos', t.id)) || t; let total = Number(atual.pessoasEducacao) || 0;
     if (b.dataset.pes === 'corrigir') {
@@ -300,7 +342,11 @@ window.addEventListener('gdv-sync-fim', async () => {
 function novoTurno() {
   if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());   // turno só depois de entrar
   const ls = k => esc(localStorage.getItem('gdv.' + k) || '');
-  view(`${avisoAtivacao()}${avisoTurnoEncerrado()}<form class="card" id="fTurno"><h3>Iniciar turno</h3>
+  view(`${avisoAtivacao()}${avisoTurnoEncerrado()}<details class="card parear" id="parearBox"><summary>${icone('pessoa')} Entrar no turno de um colega (código)</summary><form id="fParear">
+      <p class="dica">O colega que abriu o turno toca em "Convidar colega" e te passa o código. Você lança com o seu login no turno dele.</p>
+      <label>Código de 6 números<input id="pCodigo" inputmode="numeric" autocomplete="off" maxlength="7" placeholder="000 000"></label>
+      <button class="botao sec" type="submit">${icone('pessoa')} Entrar no turno</button></form></details>
+    <form class="card" id="fTurno"><h3>Iniciar turno</h3>
     <label>Nº do Termo de Fiscalização<input id="nTF" type="number" min="1" inputmode="numeric" required placeholder="ex.: 12"></label>
     <label>Tipo de posto<select id="nPosto">${CONFIG.postos.map(p => `<option value="${p}" ${localStorage.getItem('gdv.posto') === p ? 'selected' : ''}>${p === 'Móvel' ? 'Volante (móvel)' : p}</option>`).join('')}</select></label>
     <div id="nLocalBox"></div>
@@ -308,6 +354,8 @@ function novoTurno() {
     <label>Fiscal 1 — nome completo *${Sync.nome() ? ` <small>(${Sync.usuario() ? 'da sua conta' : 'vinculado a este aparelho'})</small>` : ''}<input id="nFiscal1" autocomplete="off" ${Sync.nome() ? 'readonly' : ''} value="${Sync.nome() ? esc(Sync.nome()) : ls('fiscal1')}" placeholder="Nome e sobrenome"></label>
     <label>Fiscal 2 — nome completo (opcional)<input id="nFiscal2" autocomplete="off" value="${ls('fiscal2')}" placeholder="Nome e sobrenome"></label>
     <button class="botao" type="submit">Iniciar turno</button></form>`);
+  $('#fParear').onsubmit = e => { e.preventDefault(); const c = $('#pCodigo').value.replace(/\D/g, '');
+    if (c.length !== 6) return toast('Digite os 6 números do código.', true); entrarComCodigo(c); };
   // Fixa: lista das BVAs (CONFIG.bvas). Volante: endereço da coordenada, editável. A placa só é obrigatória onde a BVA exige.
   let gpsVolante = null;
   const bvaDe = nome => CONFIG.bvas.find(b => b.nome === nome);
@@ -476,7 +524,7 @@ async function resumo() {
   if (!mostrar.viva()) return;
   if (soPessoas(t)) {
     view(`<div class="card"><h3>${esc(t.numeroTF)}</h3><div class="total">PESSOAS ORIENTADAS<br>${pessoasDoTurno(t, v)}<small>educação sanitária (sem contagem de veículos neste turno)</small></div></div>
-      <button class="botao vermelho" id="encerrar">⏹ Encerrar turno</button>
+      ${botaoFim(t)}
       <p class="dica">Início do turno: ${esc(t.inicio)}. Ao encerrar, o horário final é registrado e o Termo de Fiscalização fica disponível.<br>Na janela de impressão, escolha “Salvar como PDF”.</p>`);
     $('#encerrar').onclick = () => encerrarTurno(t); return;
   }
@@ -484,12 +532,13 @@ async function resumo() {
     ${Object.entries(CONFIG.tipos).map(([c, x]) => `<div class="resumo-item"><span>${icone(x.icone)} ${x.nome}</span><strong>${por[c] || 0}</strong></div>`).join('')}
     <div class="total">TOTAL DE VEÍCULOS<br>${v.length}<small>${v.reduce((s, x) => s + (Number(x.pessoas) || 0), 0)} pessoas fiscalizadas</small></div></div>
     ${temFicha(t) ? `<button class="botao" data-doc="ficha" data-id="${t.id}">${icone('formulario')} Ficha de Campo (PDF)</button>` : ''}
-    <button class="botao vermelho" id="encerrar">${icone('parar')} Encerrar turno</button>
+    ${botaoFim(t)}
     <p class="dica">Início do turno: ${esc(t.inicio)}. Ao encerrar, o horário final é registrado e o Termo de Fiscalização fica disponível.<br>Na janela de impressão, escolha “Salvar como PDF”.</p>`);
   $('#encerrar').onclick = () => encerrarTurno(t);
 }
 /** Encerra o turno (botão na tela do turno e no Resumo). */
 async function encerrarTurno(t) {
+  if (souColega(t)) return sairDoTurno(t);
   const fim = agoraHM();
   if (!confirm(`Encerrar o turno agora (${fim})? Esta ação é definitiva: não será possível registrar novos veículos nem reabrir o turno.`)) return;
   const b = $('#encerrar'); b.disabled = true; b.textContent = 'Encerrando…';

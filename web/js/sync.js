@@ -289,6 +289,17 @@ const Sync = (() => {
   /** Cadastro + histórico (reincidência) de um CPF/CNPJ e/ou placa, consultados no servidor. */
   const consultar = (doc, placa) => chamar({ action: 'tfConsultar', doc, placa });
 
+  /* Turno compartilhado (pareamento): o dono pede um código de 6 números; o colega, com o próprio login, entra com ele e recebe o
+     turno e os veículos já lançados; depois a sincronização traz os lançamentos de todos. Precisa de internet nos dois. */
+  const convidarColega = turnoId => chamar({ action: 'turnoConvidar', turnoId }, 20000);
+  async function parearTurno(codigo) {
+    const r = await chamar({ action: 'turnoParear', codigo }, 20000);
+    await Store.gravar('turnos', { ...r.turno, pendente: 0 });
+    for (const v of r.veiculos || []) await Store.gravar('veiculos', { ...v, pendente: 0 });
+    return r;
+  }
+  const sairDoTurno = turnoId => chamar({ action: 'turnoSair', turnoId }, 20000);
+
   /* ---------- Índice de reincidência (consulta do TF sem internet) ----------
      Resumo de TODOS os TFs não cancelados (todas as barreiras) por hash do CPF/CNPJ e da placa: {h: {n, ap, re, au, li, ad, ult}}, sem dados
      pessoais em claro. Guardado na meta "tfIndice" {agora (hora do servidor), baixadoEm, itens}; atualizado (incremental) no máximo 1x a cada
@@ -489,7 +500,7 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
+  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, sairDoTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
     pceProximoNumero, pceEmitir, pceConsultar, pceBaixarMunicipio, pceMapaGeral, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

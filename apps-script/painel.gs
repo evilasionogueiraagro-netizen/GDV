@@ -82,6 +82,8 @@ function lerLeitura_(nome) {                       // leitura pura: não cria ab
     .map(function (l) { return paraObjeto_(cols, l); });
   // painel e relatórios: a mesma BVA fixa com um nome só (no volante o local é o endereço e fica como está)
   if (nome === 'Turnos') linhas.forEach(function (t) { const p = normPub_(t.posto); if (p.indexOf('mov') < 0 && p.indexOf('volante') < 0) t.local = localCanon_(t.local); });
+  // turno compartilhado: os colegas que entraram pelo código contam como fiscais do turno (painel, relatórios, produtividade)
+  if (nome === 'Turnos') linhas.forEach(function (t) { if (t.colegas) t.fiscal = fiscaisComColegas_(t.fiscal, t.colegas); });
   return linhas;
 }
 

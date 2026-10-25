@@ -107,9 +107,12 @@ function gravar_(nome, recebidos, ts, usuario) {
       novas.push(linha);
     } else {
       const atual = paraObjeto_(cols, t.valores[idx[id]]);
+      // turno de outro login (turno compartilhado: o colega tem o turno do dono no aparelho): só o dono grava o turno
+      if (nome === 'Turnos' && atual.usuario && atual.usuario !== usuario) return;
       if (o.atualizadoEm >= atual.atualizadoEm) {   // última edição vence
         // campo que o app NÃO enviou (ex.: TF não conhece o e-mail da pessoa, versão antiga do app) mantém o valor da planilha
         cols.forEach(function (c, i) { if (c !== 'srv_ts' && c !== 'usuario' && !(c in r)) linha[i] = t.valores[idx[id]][i]; });
+        if (nome === 'Turnos') { const ic = cols.indexOf('colegas'); linha[ic] = t.valores[idx[id]][ic]; }   // colegas: só o pareamento grava
         // turno já encerrado na planilha não reabre: um envio do aparelho com encerrado = 0 (edição local feita antes de saber do
         // encerramento) mantém o encerramento; encerrado pela gerência, o horário final e quem encerrou também não mudam
         if (nome === 'Turnos' && atual.encerrado === 1 && (o.encerrado !== 1 || atual.encerradoPor)) {

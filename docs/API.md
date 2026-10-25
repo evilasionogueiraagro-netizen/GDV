@@ -26,12 +26,15 @@ Contrato das actions: ao criar, mudar ou remover uma, atualize esta tabela. Regr
 |---|---|---|---|
 | `ativar` | nenhuma | `codigo` | `nome`, `token` |
 | `ping` | fiscal | `aparelho` | `nome`, `agora` |
-| `sync` | por registro | `since`, `aparelho`; listas `turnos`, `veiculos`, `tfs`, `pessoas`, `placas`, `levantamentos`, `colheitas`, `propriedades`, `cadastrosPce`, `termosPce` (máx. 2.000 cada) | `agora`; mudanças desde `since` (só do fiscal); `barreiras`, `ultimos`, `ultimosPce`, `ultimosDocPce`, `permissoes`, `recusados` |
+| `sync` | por registro | `since`, `aparelho`; listas `turnos`, `veiculos`, `tfs`, `pessoas`, `placas`, `levantamentos`, `colheitas`, `propriedades`, `cadastrosPce`, `termosPce` (máx. 2.000 cada) | `agora`; mudanças desde `since` (do fiscal e dos turnos compartilhados); `barreiras`, `ultimos`, `ultimosPce`, `ultimosDocPce`, `permissoes`, `recusados` |
 | `tfConsultar` | tf | `doc` (CPF/CNPJ) e/ou `placa` | `pessoa`, `placa`, `historicoDoc`, `historicoPlaca` |
 | `tfProximoNumero` | tf | `barreira`, `ano` | `ultimo`, `proximo` |
 | `tfEmitir` | tf | `tf`, `pessoa`, `placa` (opc.); do papel: `tf.registroAntigo = 1` (data não futura; ano = `tf.ano`), `tf.pdfs`, `tf.numeroOrigem = 'papel'` | `emitido: true, numero, emitidoEm, srv_ts`; ou `emitido: false, ocupadoPor` |
 | `tfAndamento` | tf | `rascunhoId`, `estado` (`preenchendo`/`fim`), `barreira`, `turnoId`, `placa`, `procedimento`, `local`, `lat`, `lon` | — |
 | `tfIndiceReincidencia` | tf | `desde` | `agora`, `completo`, `itens` |
+| `turnoConvidar` | veiculos (dono) | `turnoId` | `codigo`, `expiraEm` |
+| `turnoParear` | veiculos | `codigo` | `turno`, `veiculos`, `dono` |
+| `turnoSair` | veiculos | `turnoId` | `saiu` |
 | `pceProximoNumero` | pce | `unidade`, `ano` | `ultimo`, `proximo` |
 | `pceEmitir` | pce | `colheita`, `pessoa`, `propriedade` | como `tfEmitir`, + `numeroTxt` |
 | `pceConsultar` | pce | `doc` | `pessoa`, `propriedades` (`cnpj`, `empresa`, `endereco`, `uf`, `viaAcesso`, `comercial`, `tipoPropriedade`), contagens, `cadastrosPce` |

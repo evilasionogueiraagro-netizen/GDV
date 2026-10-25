@@ -11,16 +11,19 @@ O que faz uma barreira aparecer (ou continuar) em andamento no painel. Veja tamb
 - Último sinal da barreira: o maior entre turno, último veículo e sinal do aparelho.
 - Alertas: sem sinal há mais de 30 min; turno aberto há mais de 12 h.
 - Encerramento do fiscal só sai com internet e app aberto; sem sinal, fica no aparelho.
+- Mesmo login em vários aparelhos: o aparelho sem turno entra no turno aberto do login (24 h). Painel junta turnos do mesmo login, mesma barreira e horários sobrepostos.
+- Turno compartilhado (outro login): o dono gera um código (`turnoConvidar`, 15 min, uma pessoa); o colega entra (`turnoParear`), lança no turno e só sai (`turnoSair`). Só o dono grava e encerra o turno; o colega conta como fiscal do turno (`colegas`).
 - TV em quiosque: Chrome com `--autoplay-policy=no-user-gesture-required` (som sem clique).
 
 ## Dados
 - `Andamento`: `placa`, `procedimento`, `local`, `turnoId`, `lat`/`lon`, `estado`, `inicioTs`, `atualizadoTs`.
-- `Turnos`: `encerradoPor`, `encerradoEm` (no fim).
+- `Turnos`: `encerradoPor`, `encerradoEm` (no fim), `colegas` (JSON de nomes; só o servidor grava).
+- `Pareamentos`: `turnoId`, `dono`, `codigo`, `expiraEm`, `colega`, `entrouEm`, `saiuEm`.
 - `Aparelhos`: `ultimoSinal`, `situacao` (`ok`/`erro`), `turnoAtual`, `turnosEncerradosPendentes`, `ultimoErro`; sem sinal (versão antiga) = `legado-…`.
 
 ## Código
 - `web/js/tf.js`, `web/js/envio.js` (`Envio.sinal`); `web/painel/js/painel.js` (alertas, Encerrar turno).
-- `Code.gs`: `tfAndamento`, `painelEncerrarTurno`, `painelDados`, `sync`, `ping`.
+- `Code.gs`: `tfAndamento`, `painelEncerrarTurno`, `painelDados`, `sync`, `ping`; `turnos-compartilhados.gs`.
 
 ## LGPD
 - `Andamento` não guarda CPF nem nome do fiscalizado.

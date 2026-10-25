@@ -127,11 +127,11 @@ for (const arq of require('./lib/arquivos-gs').arquivosGs()) vm.runInContext(fs.
 let online = true;
 // /__usuario?nome=&permissoes=a,b&aplicativo=campo|painel|administracao&matricula=&aparelhoId= (só nos testes): cria a conta pelas
 // funções reais (criarUsuario_, entrar_, trocarSenha_) com a senha SENHA_TESTE, ou reaproveita a do mesmo nome (ou matrícula), e entra.
-// Permissões padrão: campo = campo + os três módulos; painel = gerencia; administracao = administracao. Devolve a resposta do entrar + matricula, senha.
+// Permissões padrão: campo = campo + os três módulos; painel = gerencia + os módulos do campo (gerência não libera módulo sozinha); administracao = administracao. Devolve a resposta do entrar + matricula, senha.
 const SENHA_TESTE = 'senha-de-teste';
 function usuarioDeTeste(q) {
   const app = q.get('aplicativo') || 'campo', mat = q.get('matricula') || '', nome = q.get('nome') || '';
-  const padrao = { campo: ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce'], painel: ['gerencia'], administracao: ['administracao'] };
+  const padrao = { campo: ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce'], painel: ['gerencia', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce', 'digitarDoPapel'], administracao: ['administracao'] };
   const perms = q.has('permissoes') ? q.get('permissoes').split(',').map(p => p.trim()).filter(Boolean) : padrao[app] || [];
   let u = ctx.lerLeitura_('Usuarios').find(x => x.id && (mat ? ctx.chaveMatricula_(x.matricula) === ctx.chaveMatricula_(mat) : ctx.nomeChave_(x.nome) === ctx.nomeChave_(nome)));
   if (!u) {

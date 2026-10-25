@@ -22,6 +22,7 @@
     if (o && !Array.isArray(o) && typeof o === 'object') o = Object.keys(o).filter(k => String(o[k] || '').trim());
     return Array.isArray(o) ? o.map(x => String(x).trim().toLowerCase()).filter(Boolean) : [];
   }
+  const QTD_MAX_KG = 60000;                // acima disto num produto de um TF, alerta de quantidade fora do comum (carreta: até ~57 t)
   /** Unidade canônica: Kg e Ton viram kg (Ton × 1000); demais ficam como estão. */
   function unidade(u) {
     const n = norm(u);
@@ -68,6 +69,11 @@
     const sem = d.tfs.filter(t => procDe(t) === SEM);
     if (sem.length) A.push({ nivel: 'atencao', titulo: `${sem.length} TF(s) sem procedimento marcado`,
       detalhe: sem.slice(0, 10).map(t => `${t.numeroTxt || t.numero || '?'} (${fmt.dataCurta(t.data)})`).join(', ') + '. Conferir se foi liberação, apreensão ou rechaço.' });
+    // quantidade impossível para uma carga (mais de 60 t num item): erro de digitação que distorce "Quantidades por produto"
+    const exag = d.tfs.filter(t => t.produtosLista.some(x => { const [u, f] = unidade(x.unidade); return u === 'kg' && x.qtd != null && x.qtd * f > QTD_MAX_KG; }));
+    if (exag.length) A.push({ nivel: 'atencao', titulo: `${exag.length} TF(s) com quantidade fora do comum (mais de ${fmt.int(QTD_MAX_KG / 1000)} t num produto)`,
+      detalhe: exag.slice(0, 8).map(t => `${t.numeroTxt || t.numero || '?'}: ${t.produtosLista.map(x => `${x.produto} ${fmt.num(x.qtd, 3)} ${x.unidade}`).join('; ')}`).join(' · ') +
+        '. Conferir a quantidade no TF: ela entra no total de "Quantidades por produto".' });
     const reincRech = d.tfs.filter(t => t.reincidente && t.procedimento === 'rechaco');
     if (reincRech.length) A.push({ nivel: 'atencao', titulo: `${reincRech.length} reincidente(s) com novo rechaço no período`,
       detalhe: reincRech.slice(0, 8).map(t => `TF ${t.numeroTxt || t.numero} · ${t.placa || 's/ placa'} · ${t.doc || ''}`).join('; ') });

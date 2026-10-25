@@ -33,7 +33,6 @@ const diaManaus = ms => new Date(ms - 4 * 3600e3).toISOString().slice(0, 10);
     ok(!(await p.isChecked('#nSoPessoas')), 'volante em outro município: "Só educação sanitária" desmarcado');
     await p.fill('#nUnidade', 'TABATINGA'); await p.waitForTimeout(300);
     ok(await p.isChecked('#nSoPessoas') && /Porto Hidroviário de Tabatinga/.test(await p.inputValue('#nLocal')), 'unidade TABATINGA: "Só educação sanitária" marcado e o local do porto sugerido', await p.inputValue('#nLocal'));
-    await p.fill('#nFiscal2', 'Beltrano Ficticio Teste');
     await p.click('#fTurno button[type=submit]'); await p.waitForSelector('#pesCont');
     ok(!(await p.locator('[data-go=registrar]').count()) && /Pessoas orientadas/.test(await p.textContent('#pesCont')) && /Monilíase/.test(await p.textContent('main')),
       'tela do turno: contador "Pessoas orientadas" (monilíase), sem "Registrar veículo"');

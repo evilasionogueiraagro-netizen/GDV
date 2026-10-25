@@ -351,8 +351,7 @@ function novoTurno() {
     <label>Tipo de posto<select id="nPosto">${CONFIG.postos.map(p => `<option value="${p}" ${localStorage.getItem('gdv.posto') === p ? 'selected' : ''}>${p === 'Móvel' ? 'Volante (móvel)' : p}</option>`).join('')}</select></label>
     <div id="nLocalBox"></div>
     <label>Unidade (Termo) <small id="nUnidadeInfo"></small><input id="nUnidade" required autocomplete="off"></label>
-    <label>Fiscal 1 — nome completo *${Sync.nome() ? ` <small>(${Sync.usuario() ? 'da sua conta' : 'vinculado a este aparelho'})</small>` : ''}<input id="nFiscal1" autocomplete="off" ${Sync.nome() ? 'readonly' : ''} value="${Sync.nome() ? esc(Sync.nome()) : ls('fiscal1')}" placeholder="Nome e sobrenome"></label>
-    <label>Fiscal 2 — nome completo (opcional)<input id="nFiscal2" autocomplete="off" value="${ls('fiscal2')}" placeholder="Nome e sobrenome"></label>
+    <label>Fiscal — nome completo *${Sync.nome() ? ` <small>(${Sync.usuario() ? 'da sua conta' : 'vinculado a este aparelho'})</small>` : ''}<input id="nFiscal1" autocomplete="off" ${Sync.nome() ? 'readonly' : ''} value="${Sync.nome() ? esc(Sync.nome()) : ls('fiscal1')}" placeholder="Nome e sobrenome"></label>
     <button class="botao" type="submit">Iniciar turno</button></form>`);
   $('#fParear').onsubmit = e => { e.preventDefault(); const c = $('#pCodigo').value.replace(/\D/g, '');
     if (c.length !== 6) return toast('Digite os 6 números do código.', true); entrarComCodigo(c); };
@@ -406,8 +405,9 @@ function novoTurno() {
   $('#nPosto').onchange = montarLocal; montarLocal();
   $('#fTurno').onsubmit = async e => {
     e.preventDefault();
-    const nomes = ['#nFiscal1', '#nFiscal2'].map(id => $(id).value.trim().replace(/\s+/g, ' ')).filter(Boolean);
-    if (!nomes.length) { toast('Informe o nome completo de pelo menos um fiscal.', true); $('#nFiscal1').focus(); return; }
+    // um fiscal por login: o colega entra no turno com o próprio login ("Convidar colega"), não digitado aqui
+    const nomes = ['#nFiscal1'].map(id => $(id).value.trim().replace(/\s+/g, ' ')).filter(Boolean);
+    if (!nomes.length) { toast('Informe o nome completo do fiscal.', true); $('#nFiscal1').focus(); return; }
     const curto = nomes.find(n => n.split(' ').length < 2);
     if (curto) { toast(`Informe o nome completo (nome e sobrenome): "${curto}"`, true); return; }
     const data = hojeISO(), inicio = agoraHM(), letra = letraDoTurno(inicio);   // horário = instante do clique
@@ -427,7 +427,7 @@ function novoTurno() {
     });
     ['local', 'unidade', 'posto'].forEach(k => localStorage.setItem('gdv.' + k, t[k]));
     if (t.posto === 'Móvel') localStorage.setItem('gdv.unidadeVolante', t.unidade);
-    localStorage.setItem('gdv.fiscal1', $('#nFiscal1').value.trim()); localStorage.setItem('gdv.fiscal2', $('#nFiscal2').value.trim());
+    localStorage.setItem('gdv.fiscal1', $('#nFiscal1').value.trim());
     await Store.setMeta('turnoAtual', t.id);
     try { localStorage.removeItem(LS_AVISO_ENC); } catch (e2) { /* sem armazenamento */ }
     Sync.sincronizar(); go('home');

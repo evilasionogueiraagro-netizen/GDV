@@ -268,6 +268,8 @@ body.tv .pn-tfaviso { display: none !important; }
 .pn-ac-aviso.ok { color: var(--bom-txt); } .pn-ac-aviso.erro { color: var(--critico); }
 .pn-ac-aviso:empty { display: none; }
 .pn-ac-perfil { font-size: 11px; color: var(--ink2); border: 1px solid var(--base); border-radius: 999px; padding: 0 6px; white-space: nowrap; }
+.pn-us-ap { white-space: nowrap; line-height: 1.6; }
+.pn-us-ap small { color: var(--ink2); }
 .pn-ac-mods { border: 1px solid var(--base); border-radius: 10px; padding: 8px 12px 10px; margin: 12px 0 0; min-width: 0; }
 .pn-ac-mods legend { font-size: 13px; color: var(--ink2); font-weight: 600; padding: 0 4px; }
 .pn-ac-perm { display: flex; flex-wrap: wrap; gap: 2px 10px; align-items: center; min-width: 0; }

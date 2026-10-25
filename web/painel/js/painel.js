@@ -189,11 +189,20 @@ const Painel = (() => {
   /* ---------------- normalização dos dados ---------------- */
   const PROC = (typeof CONFIG !== 'undefined' && CONFIG.TF && CONFIG.TF.procedimentos) || { liberacao: 'Liberação', apreensao: 'Apreensão p/ destruição', rechaco: 'Rechaço (retorno à origem)' };
   const separarNomes = s => String(s || '').split(/\s+e\s+|,|;|\//).map(x => x.trim()).filter(Boolean);
+  /**
+   * Quantidade digitada no TF ("1.500" = mil e quinhentos; "1.500,5"). Em tonelada, um ponto só e sem vírgula é decimal: "12.723 Ton" é
+   * 12,723 t (doze mil toneladas num caminhão não existe). Nas outras unidades o ponto seguido de 3 dígitos continua sendo o de milhar.
+   */
+  function qtdTexto(q, u) {
+    const t = String(q || '');
+    if (/^(t|ton|tons|tonelada|toneladas)$/.test(norm(u)) && !t.includes(',') && (t.match(/\./g) || []).length === 1) return num(t);
+    return num(t.replace(/\.(?=\d{3}\b)/g, ''));
+  }
   function parseProdutos(v) {
     return lerJSON(v, []).map(x => {
       if (x && typeof x === 'object') return { produto: String(x.p || x.produto || '').trim(), qtd: num(x.quantidade != null ? x.quantidade : x.q != null ? x.q : x.qtd), unidade: String(x.u || x.unidade || '').trim() };
       const m = String(x).match(/^(.*?)\s+-\s+([\d.,]+)\s*(.*)$/);
-      return m ? { produto: m[1].trim(), qtd: num(m[2].replace(/\.(?=\d{3}\b)/g, '')), unidade: m[3].trim() } : { produto: String(x).trim(), qtd: null, unidade: '' };
+      return m ? { produto: m[1].trim(), qtd: qtdTexto(m[2], m[3]), unidade: m[3].trim() } : { produto: String(x).trim(), qtd: null, unidade: '' };
     }).filter(p => p.produto);
   }
   /** Propriedade distinta: código do cadastro; sem código, nome + município (mesma regra na Visão geral e no PCE). */

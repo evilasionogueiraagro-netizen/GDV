@@ -274,29 +274,11 @@ async function convidarColega(t) {
     const box = $('#conviteBox'); if (!box) return;
     const hora = new Date(r.expiraEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
     box.innerHTML = `<div class="card aviso" id="convite"><h3>${icone('pessoa')} Convite para o colega</h3>
-      <div class="qr-par">${qrConvite(r.codigo)}</div>
       <div class="codigo-par" aria-label="Código ${esc(r.codigo.split('').join(' '))}">${esc(r.codigo.slice(0, 3))} ${esc(r.codigo.slice(3))}</div>
-      <p>Vale até <b>${esc(hora)}</b> e para uma pessoa. No app do colega, com o login dele: <b>Turno → Entrar no turno de um colega</b> e toque em <b>Ler QR Code</b> (ou digite o código).</p>
+      <p>Vale até <b>${esc(hora)}</b> e para uma pessoa. No app do colega, com o login dele: <b>Turno → Entrar no turno de um colega</b> e digite o código.</p>
       <p class="dica">Ele passa a lançar veículos e TFs neste turno e o nome dele entra no Termo. Para mais de um colega, gere um código para cada.</p></div>`;
   } catch (e) { toast(e.message || 'Não foi possível gerar o código.', true); }
   finally { const b2 = $('#convidar'); if (b2) { b2.disabled = false; b2.innerHTML = `${icone('pessoa')} Convidar outro colega`; } }
-}
-/** QR do convite: o endereço do app com ?parear=código (o leitor do app tira o código; aberto pela câmera do Android, o app já entra). */
-const linkConvite = codigo => location.origin + location.pathname + '?parear=' + codigo;
-function qrConvite(codigo) {
-  if (typeof qrcode !== 'function') return '';                         // vendor/qrcode.js (o mesmo do QR do TF)
-  const q = qrcode(0, 'M'); q.addData(linkConvite(codigo)); q.make();
-  return q.createSvgTag({ cellSize: 6, margin: 2, scalable: true, alt: 'QR Code do convite para o turno' });
-}
-/** Código de 6 números no texto lido do QR ("…?parear=123456" ou só "123456"). */
-const codigoDoQR = txt => { const m = /(?:[?&]parear=)(\d{6})\b/.exec(String(txt || '')) || /^\s*(\d{6})\s*$/.exec(String(txt || '')); return m ? m[1] : ''; };
-async function lerQRConvite() {
-  const txt = await LeitorQR.ler('Ler o QR Code do convite');
-  if (txt == null) return;
-  const c = codigoDoQR(txt);
-  if (!c) return toast('Este QR Code não é um convite de turno do e-GDV.', true);
-  const inp = $('#pCodigo'); if (inp) inp.value = c.slice(0, 3) + ' ' + c.slice(3);
-  entrarComCodigo(c);
 }
 /** Colega: sai do turno compartilhado (o que lançou continua no turno). Sem internet, sai só deste aparelho. */
 async function sairDoTurno(t) {
@@ -360,20 +342,17 @@ window.addEventListener('gdv-sync-fim', async () => {
 function novoTurno() {
   if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());   // turno só depois de entrar
   const ls = k => esc(localStorage.getItem('gdv.' + k) || '');
-  view(`${avisoAtivacao()}${avisoTurnoEncerrado()}<details class="card parear" id="parearBox"><summary>${icone('pessoa')} Entrar no turno de um colega (QR Code ou código)</summary><form id="fParear">
-      <p class="dica">O colega que abriu o turno toca em "Convidar colega" e mostra o QR Code (ou te passa o código). Você lança com o seu login no turno dele.</p>
+  view(`${avisoAtivacao()}${avisoTurnoEncerrado()}<details class="card parear" id="parearBox"><summary>${icone('pessoa')} Entrar no turno de um colega (código)</summary><form id="fParear">
+      <p class="dica">O colega que abriu o turno toca em "Convidar colega" e te passa o código. Você lança com o seu login no turno dele.</p>
       <label>Código de 6 números<input id="pCodigo" inputmode="numeric" autocomplete="off" maxlength="7" placeholder="000 000"></label>
-      ${LeitorQR.disponivel() ? `<button class="botao" type="button" id="pLerQR">${icone('camera')} Ler QR Code</button>` : ''}
       <button class="botao sec" type="submit">${icone('pessoa')} Entrar no turno</button></form></details>
     <form class="card" id="fTurno"><h3>Iniciar turno</h3>
     <label>Nº do Termo de Fiscalização<input id="nTF" type="number" min="1" inputmode="numeric" required placeholder="ex.: 12"></label>
     <label>Tipo de posto<select id="nPosto">${CONFIG.postos.map(p => `<option value="${p}" ${localStorage.getItem('gdv.posto') === p ? 'selected' : ''}>${p === 'Móvel' ? 'Volante (móvel)' : p}</option>`).join('')}</select></label>
     <div id="nLocalBox"></div>
     <label>Unidade (Termo) <small id="nUnidadeInfo"></small><input id="nUnidade" required autocomplete="off"></label>
-    <label>Fiscal 1 — nome completo *${Sync.nome() ? ` <small>(${Sync.usuario() ? 'da sua conta' : 'vinculado a este aparelho'})</small>` : ''}<input id="nFiscal1" autocomplete="off" ${Sync.nome() ? 'readonly' : ''} value="${Sync.nome() ? esc(Sync.nome()) : ls('fiscal1')}" placeholder="Nome e sobrenome"></label>
-    <label>Fiscal 2 — nome completo (opcional)<input id="nFiscal2" autocomplete="off" value="${ls('fiscal2')}" placeholder="Nome e sobrenome"></label>
+    <label>Fiscal — nome completo *${Sync.nome() ? ` <small>(${Sync.usuario() ? 'da sua conta' : 'vinculado a este aparelho'})</small>` : ''}<input id="nFiscal1" autocomplete="off" ${Sync.nome() ? 'readonly' : ''} value="${Sync.nome() ? esc(Sync.nome()) : ls('fiscal1')}" placeholder="Nome e sobrenome"></label>
     <button class="botao" type="submit">Iniciar turno</button></form>`);
-  if ($('#pLerQR')) $('#pLerQR').onclick = () => lerQRConvite();
   $('#fParear').onsubmit = e => { e.preventDefault(); const c = $('#pCodigo').value.replace(/\D/g, '');
     if (c.length !== 6) return toast('Digite os 6 números do código.', true); entrarComCodigo(c); };
   // Fixa: lista das BVAs (CONFIG.bvas). Volante: endereço da coordenada, editável. A placa só é obrigatória onde a BVA exige.
@@ -426,14 +405,16 @@ function novoTurno() {
   $('#nPosto').onchange = montarLocal; montarLocal();
   $('#fTurno').onsubmit = async e => {
     e.preventDefault();
-    // o outro aparelho abriu o turno enquanto este formulário estava na tela: entra nele em vez de abrir outro
-    if ((await turnosAbertosOutros()).length) { toast('Turno em andamento no outro aparelho com o seu login: continue lançando por aqui.'); return go('home'); }
-    const nomes = ['#nFiscal1', '#nFiscal2'].map(id => $(id).value.trim().replace(/\s+/g, ' ')).filter(Boolean);
-    if (!nomes.length) { toast('Informe o nome completo de pelo menos um fiscal.', true); $('#nFiscal1').focus(); return; }
+    // um fiscal por login: o colega entra no turno com o próprio login ("Convidar colega"), não digitado aqui
+    const nomes = ['#nFiscal1'].map(id => $(id).value.trim().replace(/\s+/g, ' ')).filter(Boolean);
+    if (!nomes.length) { toast('Informe o nome completo do fiscal.', true); $('#nFiscal1').focus(); return; }
     const curto = nomes.find(n => n.split(' ').length < 2);
     if (curto) { toast(`Informe o nome completo (nome e sobrenome): "${curto}"`, true); return; }
     const data = hojeISO(), inicio = agoraHM(), letra = letraDoTurno(inicio);   // horário = instante do clique
     const btn = $('#fTurno button[type=submit]'); btn.disabled = true; btn.textContent = 'Obtendo localização…';
+    // o outro aparelho abriu o turno enquanto este formulário estava na tela: entra nele em vez de abrir outro
+    // (depois da validação e com o botão já travado: dois toques seguidos não abrem dois turnos)
+    if ((await turnosAbertosOutros()).length) { toast('Turno em andamento no outro aparelho com o seu login: continue lançando por aqui.'); return go('home'); }
     const gps = (await pegarLocal()) || gpsVolante;
     if (!gps) toast('Turno iniciado sem coordenadas (GPS indisponível ou permissão negada).', true);
     const t = await Store.salvar('turnos', {
@@ -446,7 +427,7 @@ function novoTurno() {
     });
     ['local', 'unidade', 'posto'].forEach(k => localStorage.setItem('gdv.' + k, t[k]));
     if (t.posto === 'Móvel') localStorage.setItem('gdv.unidadeVolante', t.unidade);
-    localStorage.setItem('gdv.fiscal1', $('#nFiscal1').value.trim()); localStorage.setItem('gdv.fiscal2', $('#nFiscal2').value.trim());
+    localStorage.setItem('gdv.fiscal1', $('#nFiscal1').value.trim());
     await Store.setMeta('turnoAtual', t.id);
     try { localStorage.removeItem(LS_AVISO_ENC); } catch (e2) { /* sem armazenamento */ }
     Sync.sincronizar(); go('home');
@@ -796,13 +777,4 @@ if ('serviceWorker' in navigator) {
   go('modulos');
   await Sync.atualizarContagem();
   Sync.iniciar();
-  // aberto pelo QR do convite (câmera do aparelho): ?parear=código → entra no turno do colega (com o login deste aparelho)
-  const cod = codigoDoQR(location.search);
-  if (cod) {
-    history.replaceState(null, '', location.pathname);
-    if (Sync.ativado() && !localStorage.getItem('gdv.revogado')) {
-      if (await turnoAtual()) toast('Você já está num turno: saia ou encerre antes de entrar no turno do colega.', true);
-      else if (confirm('Entrar no turno do colega com o seu login?')) entrarComCodigo(cod);
-    } else toast('Entre com a sua matrícula e senha e depois leia o QR Code do convite de novo.', true);
-  }
 })();

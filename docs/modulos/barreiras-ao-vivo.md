@@ -12,7 +12,7 @@ O que faz uma barreira aparecer (ou continuar) em andamento no painel. Veja tamb
 - Alertas: sem sinal há mais de 30 min; turno aberto há mais de 12 h.
 - Encerramento do fiscal só sai com internet e app aberto; sem sinal, fica no aparelho.
 - Mesmo login em vários aparelhos: o aparelho sem turno entra no turno aberto do login (24 h). Painel junta turnos do mesmo login, mesma barreira e horários sobrepostos.
-- Turno compartilhado (outro login): o dono gera um código (`turnoConvidar`, 15 min, uma pessoa); o colega entra (`turnoParear`), lança no turno e só sai (`turnoSair`). Só o dono grava e encerra o turno; o colega conta como fiscal do turno (`colegas`).
+- Turno compartilhado (outro login): o dono gera um código e QR Code (`turnoConvidar`, 15 min, uma pessoa; QR = link `?parear=`); o colega lê o QR no app (`js/leitor-qr.js`, `vendor/jsQR.js`) ou digita e entra (`turnoParear`), lança no turno e só sai (`turnoSair`). Só o dono grava e encerra o turno; o colega conta como fiscal do turno (`colegas`).
 - TV em quiosque: Chrome com `--autoplay-policy=no-user-gesture-required` (som sem clique).
 
 ## Dados

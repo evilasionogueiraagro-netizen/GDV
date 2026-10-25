@@ -3,6 +3,14 @@ const Docs = (() => {
   const MESES = ['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
   const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
   const dataBR = iso => iso.split('-').reverse().join('/');
+  /** Fiscais do turno: os digitados no início e os colegas que entraram pelo código (turno compartilhado), sem repetir. */
+  function fiscaisDoTurno(t) {
+    const chave = n => String(n || '').trim().replace(/\s+/g, ' ').toLowerCase();
+    const nomes = String((t && t.fiscal) || '').split(/\s+e\s+|,|;|\//).map(x => x.trim()).filter(Boolean), vistos = new Set(nomes.map(chave));
+    let col = []; try { col = JSON.parse((t && t.colegas) || '[]') || []; } catch (e) { col = []; }
+    (Array.isArray(col) ? col : []).forEach(n => { n = String(n || '').trim(); if (n && !vistos.has(chave(n))) { vistos.add(chave(n)); nomes.push(n); } });
+    return nomes.join(' e ');
+  }
 
   function abrirModelo(arquivo) {
     return new Promise((ok, no) => {
@@ -43,7 +51,7 @@ const Docs = (() => {
       const set = (id, t) => { const e = pg.querySelector('#' + id); if (e) e.textContent = t; };
       set('local', turno.local);
       set('data', dataBR(turno.data));
-      set('fiscal', turno.fiscal);
+      set('fiscal', fiscaisDoTurno(turno));
       set('turnoHorario', `das ${turno.inicio || '__:__'} às ${turno.fim || '__:__'}`);   // horário real de início/encerramento
       set('total', veiculos.length);
       for (let n = 1; n <= porFolha; n++) {
@@ -95,7 +103,7 @@ const Docs = (() => {
     set('idMunicipio', (volante ? turno.unidade : bva.municipio || turno.unidade || '').toUpperCase());
     set('idUf', 'AMAZONAS');
     set('idCoordenadas', textoCoordenadas(turno));
-    set('servidorNome', turno.fiscal);
+    set('servidorNome', fiscaisDoTurno(turno));
     const pessoas = veiculos.reduce((s, v) => s + (Number(v.pessoas) || 0), 0) + (Number(turno.pessoasEducacao) || 0);
     const lavrados = (await Store.todos('tfs')).filter(x => x.turnoId === turnoId && !x.cancelado).sort((a, b) => a.numero - b.numero).map(x => x.numeroTxt);
     const ini = turno.inicio || '__:__', fim = turno.fim || '__:__';
@@ -104,7 +112,7 @@ const Docs = (() => {
     const tema = temaCfg ? esc(temaCfg).replace(/\(([^)]+)\)/, '(<i>$1</i>)') : '';
     d.getElementById('descricaoTexto').innerHTML = `
 <p>Em <strong>${esc(dia)}/${esc(mes)}/${esc(ano)}</strong>, das <strong>${esc(ini)}</strong> às <strong>${esc(fim)}</strong> hora(s), ao realizar fiscalização no(a)
-<strong>${esc(turno.local)}</strong>, pelo(s) servidor(es) <strong>${esc(turno.fiscal)}</strong>, constatou-se:</p>
+<strong>${esc(turno.local)}</strong>, pelo(s) servidor(es) <strong>${esc(fiscaisDoTurno(turno))}</strong>, constatou-se:</p>
 ${soPes ? `<p>Foram realizadas <strong>${pessoas}</strong> ações de educação sanitária (pessoas orientadas)${tema ? ` sobre a <strong>${tema}</strong>` : ''}.</p>`
   : `<p>Foram fiscalizados <strong>${veiculos.length}</strong> veículos e realizadas <strong>${pessoas}</strong> ações de educação sanitária (pessoas orientadas),
 com inspeção de veículos, cargas, bagagens, pessoas e demais materiais sujeitos ao controle da Defesa Agropecuária.</p>`}
@@ -441,5 +449,5 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     return f.contentDocument.querySelectorAll('.a4').length;
   }
 
-  return { ficha, termo, tf, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, nomePdfMon, ordenar, esc };
+  return { ficha, termo, tf, fiscaisDoTurno, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, nomePdfMon, ordenar, esc };
 })();

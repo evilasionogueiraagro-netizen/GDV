@@ -24,7 +24,8 @@ const U = require('./lib/usuarios');
   console.log('sem fiscal ->', await page.textContent('#toast'));
   await page.fill('#nFiscal1', 'Joao'); await page.click('#fTurno button[type=submit]');
   console.log('nome curto ->', await page.textContent('#toast'));
-  await page.fill('#nFiscal1', 'João  Silva'); await page.fill('#nFiscal2', 'Maria das Graças Souza');
+  await page.fill('#nFiscal1', 'João  Silva');
+  console.log('campo Fiscal 2 (o colega entra com o próprio login)?', await page.locator('#nFiscal2').count());
   await page.click('#fTurno button[type=submit]'); await page.waitForSelector('.contador');
   // registra 3 veículos
   for (const [pl, tipo] of [['ABC1D23', 'PA'], ['XYZ9K88', 'ON'], ['QQQ1A11', 'CC']]) {
@@ -127,7 +128,7 @@ const U = require('./lib/usuarios');
   await p6.click('.modulo[data-v=home]'); await p6.waitForSelector('#fTurno', { timeout: 8000 }); await p6.waitForSelector('#nFiscal1');
   console.log('após entrar -> Fiscal 1:', await p6.inputValue('#nFiscal1'), '| somente leitura:', await p6.getAttribute('#nFiscal1', 'readonly') !== null, '| formulário de entrada some:', await p6.locator('#fEntrar').count() === 0);
   assert.ok(await p6.evaluate(() => /^u\.[0-9a-f]{64}$/.test(localStorage.getItem('gdv.key'))), 'a credencial guardada é o token de sessão');
-  await p6.fill('#nTF', '21'); await p6.selectOption('#nPosto', 'Móvel'); await p6.fill('#nLocal', 'BR-174'); await p6.fill('#nUnidade', 'MANAUS'); await p6.fill('#nFiscal2', 'João Silva');
+  await p6.fill('#nTF', '21'); await p6.selectOption('#nPosto', 'Móvel'); await p6.fill('#nLocal', 'BR-174'); await p6.fill('#nUnidade', 'MANAUS');
   await p6.click('#fTurno button[type=submit]'); await p6.waitForSelector('.contador');
   await p6.waitForTimeout(400); await p6.click('nav [data-v=registrar]'); await p6.waitForTimeout(300); await p6.fill('#placa', 'MMM1A11'); await p6.click('#fVeic > button');
   await p6.waitForFunction(() => document.querySelector('#toast').textContent.includes('registrado'));

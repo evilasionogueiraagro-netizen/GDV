@@ -15,7 +15,10 @@ const TURNO = (id, fiscal, local = 'BVA - CEASA') => ({ id, numeroTF: 'TF-' + id
   const tfs = [TF(1, 'FULANO FICTICIO TESTE', 'apreensao'), TF(2, 'FULANO FICTICIO TESTE', 'apreensao'), TF(3, 'Fulano  Fictício Teste', 'liberacao'),
     TF(4, 'Beltrano Ficticio Teste e fulano ficticio teste', 'liberacao'), TF(5, 'BELTRANO FICTICIO TESTE', 'apreensao'),
     // TFs do papel da BVA - Jundiá: sem turno, local digitado de jeitos diferentes
-    TF(6, 'Ciclano Ficticio Teste', 'apreensao', { barreira: 'BVA-JUNDIÁ', local: 'BR 174 km75' }), TF(7, 'Ciclano Ficticio Teste', 'apreensao', { barreira: 'BVA-JUNDIÁ', local: 'BR 174, KM 75, PVA JUNDIÁ - RORAINÓPOLIS' })];
+    TF(6, 'Ciclano Ficticio Teste', 'apreensao', { barreira: 'BVA-JUNDIÁ', local: 'BR 174 km75' }), TF(7, 'Ciclano Ficticio Teste', 'apreensao', { barreira: 'BVA-JUNDIÁ', local: 'BR 174, KM 75, PVA JUNDIÁ - RORAINÓPOLIS' }),
+    // quantidades como o TF grava ("PRODUTO - qtd unidade"): "12.723 Ton" é 12,723 t; "1.500 Kg" é mil e quinhentos; 80 t num produto = alerta
+    TF(8, 'Ciclano Ficticio Teste', 'liberacao', { produtos: JSON.stringify(['LARANJA - 12.723 Ton']) }),
+    TF(9, 'Ciclano Ficticio Teste', 'apreensao', { produtos: JSON.stringify(['MANGA - 1.500 Kg', 'LIMÃO - 80 Ton']) })];
   const turnos = [TURNO('n1', 'Fulano Ficticio Teste'), TURNO('n2', 'FULANO FICTICIO TESTE e Beltrano Ficticio Teste'), TURNO('n3', 'Ciclano Ficticio Teste', 'BVA - JUNDIÁ')];
   const veiculos = [{ id: 'nv1', turnoId: 'n1', hora: '07:00', placa: 'ABC1D23', tipo: 'PA', pessoas: 2, criadoEm: ag, atualizadoEm: ag },
     { id: 'nv2', turnoId: 'n2', hora: '08:00', placa: 'ABC1D24', tipo: 'PA', pessoas: 1, criadoEm: ag, atualizadoEm: ag }];
@@ -47,6 +50,13 @@ const TURNO = (id, fiscal, local = 'BVA - CEASA') => ({ id, numeroTF: 'TF-' + id
       return s ? [...s.querySelectorAll('tbody tr')].map(tr => [...tr.cells].slice(0, 5).map(c => c.textContent.trim())) : null; });
     ok(desemp && desemp.length === 2 && desemp.some(l => l[0] === 'BVA - JUNDIÁ' && l[1] === '1' && l[4] === '2') && !desemp.some(l => /BR 174/.test(l[0])),
       'Desempenho por barreira: só BVA - CEASA e BVA - JUNDIÁ; os TFs do papel ("BR 174 km75"…) entram na linha do Jundiá com o turno', desemp);
+
+    const qtd = await p.evaluate(() => { const s = [...document.querySelectorAll('.pn-secao')].find(x => /Quantidades por produto/.test(x.querySelector('h2').textContent));
+      return s ? Object.fromEntries([...s.querySelectorAll('tbody tr')].map(tr => [tr.cells[0].textContent.trim(), [...tr.cells].map(c => c.textContent.trim())])) : null; });
+    ok(qtd && qtd.LARANJA && qtd.LARANJA[3] === '12.723' && qtd.MANGA && qtd.MANGA[4] === '1.500' && qtd['LIMÃO'] && qtd['LIMÃO'][4] === '80.000',
+      'Quantidades por produto: "12.723 Ton" = 12.723 kg (não 12 milhões), "1.500 Kg" = 1.500 kg, "80 Ton" = 80.000 kg', qtd);
+    const alertas = await p.textContent('#pn-conteudo');
+    ok(/1 TF\(s\) com quantidade fora do comum/.test(alertas) && /LIMÃO 80 Ton/.test(alertas), 'alerta: TF com 80 t num produto (o de 12,723 t não entra)');
 
     await aba('barreiras');
     const gb = await grafico('Produtividade por fiscal');

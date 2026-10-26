@@ -63,6 +63,12 @@ const aba = async n => { const rows = await get('/__aba?nome=' + n); const cab =
     await pc.click('nav [data-v=home]'); await pc.waitForSelector('#fTurno', { timeout: 8000 }).catch(() => {});
     ok(await pc.locator('#fTurno').count() === 1 && /encerrado fora deste aparelho/.test(await pc.textContent('main')), 'PC: aviso de turno encerrado e formulário de novo turno', await pc.textContent('main'));
 
+    console.log('2b) app: novo turno com o mesmo nº na mesma BVA vira a letra seguinte');
+    await cel.click('[data-go=home]'); await cel.waitForSelector('#fTurno'); await cel.fill('#nTF', '7'); await cel.selectOption('#nPosto', 'Fixa'); await cel.selectOption('#nLocal', 'BVA - CEASA');
+    await cel.click('#fTurno button[type=submit]'); await cel.waitForSelector('#encerrar');
+    ok(/TF-007-B-/.test(await cel.textContent('main')), 'mesmo nº 7 na BVA - CEASA depois do turno A: TF-007-B', (await cel.textContent('main')).slice(0, 200));
+    await cel.click('#encerrar'); await cel.waitForSelector('[data-doc=termo]'); await sinc(cel);
+
     console.log('3) painel: dois turnos do mesmo login abertos na mesma barreira contam como um');
     const K = await amb.carga(), AG = Date.now(), ini1 = AG - 3 * 3600e3, ini2 = AG - 40 * 60e3;
     const T = (id, ini) => ({ id, numeroTF: 'TF-' + id, data: diaM(ini), letra: 'A', inicio: hmM(ini), fim: '', fiscal: 'Beltrano Ficticio Teste', local: 'BVA - JUNDIÁ', unidade: 'BVA - JUNDIÁ',

@@ -113,3 +113,35 @@ function turnoSair_(req, usuario) {
     return { ok: true, saiu: ps.length };
   });
 }
+
+/* ---------- Letra do turno pela ordem do número ----------
+ * O fiscal digita o nº do Termo de Fiscalização do turno; a letra vem da ordem: o 1º turno com aquele nº (na mesma BVA/local e no
+ * mesmo ano) é A, o 2º B, o 3º C… O aparelho propõe a letra pelo que conhece; o servidor confere com todos os turnos e corrige
+ * (numeroTF e letra) na primeira gravação. Depois disso a letra é do servidor: um envio do aparelho não muda mais.
+ */
+const RE_NUMERO_TURNO_ = /^TF-(\d+)-([A-Z])-(\d{4})$/;
+function chaveNumeroTurno_(t) {
+  const m = RE_NUMERO_TURNO_.exec(String(t.numeroTF || '').trim());
+  return m ? Number(m[1]) + '|' + m[3] + '|' + normPub_(t.local).replace(/ /g, '') : '';
+}
+/** Ajusta letra e numeroTF dos turnos recebidos no sync (chamar dentro do lock, antes de gravar_). */
+function letrasDosTurnos_(recebidos) {
+  if (!recebidos.length) return;
+  const gravados = {}, usadas = {};
+  lerLeitura_('Turnos').forEach(function (t) {
+    if (!t.id) return;
+    gravados[t.id] = t;
+    const k = chaveNumeroTurno_(t); if (k && t.excluido !== 1) (usadas[k] = usadas[k] || {})[t.letra] = true;
+  });
+  recebidos.forEach(function (r) {
+    if (!r || !r.id) return;
+    const g = gravados[String(r.id)];
+    if (g) { if (g.numeroTF) { r.numeroTF = g.numeroTF; r.letra = g.letra; } return; }   // já gravado: a letra não muda
+    const m = RE_NUMERO_TURNO_.exec(String(r.numeroTF || '').trim()), k = chaveNumeroTurno_(r);
+    if (!m || !k) return;
+    const u = usadas[k] = usadas[k] || {};
+    let i = 0; while (u[String.fromCharCode(65 + i)] && i < 25) i++;
+    const letra = String.fromCharCode(65 + i);
+    u[letra] = true; r.letra = letra; r.numeroTF = 'TF-' + m[1] + '-' + letra + '-' + m[3];
+  });
+}

@@ -339,6 +339,17 @@ window.addEventListener('gdv-sync-fim', async () => {
   toast('Turno em andamento no outro aparelho com o seu login: continue lançando por aqui.'); go('home');
 });
 
+/**
+ * Letra do turno pela ordem do nº: o 1º turno com o mesmo nº (mesma BVA/local, mesmo ano) é A, o 2º B, o 3º C… Proposta pelo que o
+ * aparelho conhece (os turnos do login e os compartilhados); o servidor confere com os de todos e corrige na sincronização.
+ */
+async function letraProposta(n, local, ano) {
+  const nl = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+  const usadas = new Set((await Store.todos('turnos')).filter(t => !Number(t.excluido) && nl(t.local) === nl(local))
+    .map(t => /^TF-(\d+)-([A-Z])-(\d{4})$/.exec(String(t.numeroTF || ''))).filter(m => m && Number(m[1]) === n && m[3] === ano).map(m => m[2]));
+  let i = 0; while (usadas.has(String.fromCharCode(65 + i)) && i < 25) i++;
+  return String.fromCharCode(65 + i);
+}
 function novoTurno() {
   if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());   // turno só depois de entrar
   const ls = k => esc(localStorage.getItem('gdv.' + k) || '');
@@ -347,7 +358,7 @@ function novoTurno() {
       <label>Código de 6 números<input id="pCodigo" inputmode="numeric" autocomplete="off" maxlength="7" placeholder="000 000"></label>
       <button class="botao sec" type="submit">${icone('pessoa')} Entrar no turno</button></form></details>
     <form class="card" id="fTurno"><h3>Iniciar turno</h3>
-    <label>Nº do Termo de Fiscalização<input id="nTF" type="number" min="1" inputmode="numeric" required placeholder="ex.: 12"></label>
+    <label>Nº do Termo de Fiscalização <small>(a letra do turno vem sozinha: o 1º turno com este nº é A, o 2º B, o 3º C)</small><input id="nTF" type="number" min="1" inputmode="numeric" required placeholder="ex.: 12"></label>
     <label>Tipo de posto<select id="nPosto">${CONFIG.postos.map(p => `<option value="${p}" ${localStorage.getItem('gdv.posto') === p ? 'selected' : ''}>${p === 'Móvel' ? 'Volante (móvel)' : p}</option>`).join('')}</select></label>
     <div id="nLocalBox"></div>
     <label>Unidade (Termo) <small id="nUnidadeInfo"></small><input id="nUnidade" required autocomplete="off"></label>
@@ -410,15 +421,16 @@ function novoTurno() {
     if (!nomes.length) { toast('Informe o nome completo do fiscal.', true); $('#nFiscal1').focus(); return; }
     const curto = nomes.find(n => n.split(' ').length < 2);
     if (curto) { toast(`Informe o nome completo (nome e sobrenome): "${curto}"`, true); return; }
-    const data = hojeISO(), inicio = agoraHM(), letra = letraDoTurno(inicio);   // horário = instante do clique
+    const data = hojeISO(), inicio = agoraHM();                                  // horário = instante do clique
     const btn = $('#fTurno button[type=submit]'); btn.disabled = true; btn.textContent = 'Obtendo localização…';
     // o outro aparelho abriu o turno enquanto este formulário estava na tela: entra nele em vez de abrir outro
     // (depois da validação e com o botão já travado: dois toques seguidos não abrem dois turnos)
     if ((await turnosAbertosOutros()).length) { toast('Turno em andamento no outro aparelho com o seu login: continue lançando por aqui.'); return go('home'); }
+    const nTF = parseInt($('#nTF').value, 10), letra = await letraProposta(nTF, $('#nLocal').value.trim(), data.slice(0, 4));
     const gps = (await pegarLocal()) || gpsVolante;
     if (!gps) toast('Turno iniciado sem coordenadas (GPS indisponível ou permissão negada).', true);
     const t = await Store.salvar('turnos', {
-      numeroTF: `TF-${pad(parseInt($('#nTF').value, 10), 3)}-${letra}-${data.slice(0, 4)}`,
+      numeroTF: `TF-${pad(nTF, 3)}-${letra}-${data.slice(0, 4)}`,
       data, letra, posto: $('#nPosto').value,
       inicio, fim: '', ...camposLocal(gps, 'Ini'),
       fiscal: nomes.join(' e '), local: $('#nLocal').value.trim(),

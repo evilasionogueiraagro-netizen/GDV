@@ -180,4 +180,3 @@ const CONFIG = {
   }
 };
 
-const letraDoTurno = hora => { const h = parseInt(hora, 10); return h >= 4 && h < 12 ? 'A' : 'B'; };

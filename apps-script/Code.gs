@@ -170,7 +170,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-25c';
+const VERSAO_CODIGO = '2026-10-26a';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -285,6 +285,7 @@ function sincronizar_(req, usuario) {
   lock.waitLock(30000);
   try {
     const agora = Date.now();
+    letrasDosTurnos_(T.turnos);                                                        // A, B, C… pela ordem do nº do turno (turnos-compartilhados.gs)
     gravar_('Turnos', T.turnos, agora, usuario);
     gravar_('Veiculos', T.veiculos, agora, usuario);
     T.tfs.forEach(function (t) { if (t && !t.emitidoEm) t.emitidoEm = agora; });            // momento em que a planilha recebeu o TF

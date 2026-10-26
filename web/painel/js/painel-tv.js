@@ -482,7 +482,8 @@
     const cr = cartao(g, 'Ranking das barreiras', 'Veículos abordados nos 7 dias, por barreira / local');
     const dias = [...Array(7).keys()].map(i => P.somaDias(de, i));
     const rotDia = dias.map(x => { const [a, mm, dd] = x.split('-').map(Number); return `${P.DIAS_SEMANA[new Date(a, mm - 1, dd).getDay()]} ${fmt.dataCurta(x)}`; });
-    const ds = [{ label: 'Turno A (04h–12h)', data: K.porDia.A, cor: p.serie[0] }, { label: 'Turno B (12h–20h)', data: K.porDia.B, cor: p.serie[1] }];
+    const ds = [{ label: 'Turno A', data: K.porDia.A, cor: p.serie[0] }, { label: 'Turno B', data: K.porDia.B, cor: p.serie[1] }];
+    if (K.porDia.C && K.porDia.C.some(Boolean)) ds.push({ label: 'Turno C (e seguintes)', data: K.porDia.C, cor: p.serie[3] || p.serie[2] });
     if (K.porDia.X.some(Boolean)) ds.push({ label: 'Sem turno', data: K.porDia.X, cor: p.serie[2] });
     legenda(cd, ds.map(x => ({ cor: x.cor, txt: x.label })));
     const top = K.porBar.slice(0, 8);

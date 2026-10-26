@@ -8,7 +8,8 @@
   const nomeTipo = c => (P.TIPOS[c] && P.TIPOS[c].nome) || (c ? String(c) : 'Não informado');
   const lugar = (cidade, uf) => [cidade, uf].filter(Boolean).join('/') || '?';      // "Boa Vista/RR", "RR", "Boa Vista" ou "?"
   const minDe = hm => { const m = String(hm || '').match(/^(\d{1,2}):(\d{2})/); return m ? (+m[1]) * 60 + (+m[2]) : null; };
-  const letraDe = t => { const l = String(t.letra || '').trim().toUpperCase(); if (l === 'A' || l === 'B') return l;
+  // letra do turno (A, B, C…: ordem do nº do turno, dada pelo servidor); registro antigo sem letra: pelo horário de início
+  const letraDe = t => { const l = String(t.letra || '').trim().toUpperCase(); if (/^[A-Z]$/.test(l)) return l;
     const h = parseInt(t.inicio, 10); return isNaN(h) ? '' : (h >= 4 && h < 12 ? 'A' : 'B'); };
   // horas de barreira: turno aberto há mais de 12 h (provavelmente esquecido) conta 12 h (duracaoContabilMin, ver Painel.normalizar)
   const horasDe = lista => lista.reduce((s, t) => s + (t.duracaoContabilMin || 0), 0);
@@ -96,12 +97,14 @@
     // barras pela data do turno (v.data): fecham com o KPI "Veículos abordados" mesmo quando o turno passa da meia-noite do último dia
     const serieLetra = L => P.porDia(veiculos.filter(v => letraDe(turnoPorId[v.turnoId] || {}) === L), f.de, f.ate, v => v.data);
     const sA = serieLetra('A'), sB = serieLetra('B'), sX = serieLetra('');
+    // C, D…: dias com mais de dois turnos (mesmo nº de TF); somam numa série "Turno C+" só quando existem
+    const sC = P.porDia(veiculos.filter(v => { const l = letraDe(turnoPorId[v.turnoId] || {}); return l && l > 'B'; }), f.de, f.ate, v => v.data);
     const semanal = sA.labels.length > LIMITE_LINHA;
     const agrupar = sr => { if (!semanal) return sr; const o = { labels: [], valores: [] };
       for (let i = 0; i < sr.valores.length; i += 7) { o.labels.push(sr.labels[i]); o.valores.push(sr.valores.slice(i, i + 7).reduce((a, b) => a + b, 0)); } return o; };
-    const wA = agrupar(sA), wB = agrupar(sB), wX = agrupar(sX);
+    const wA = agrupar(sA), wB = agrupar(sB), wC = agrupar(sC), wX = agrupar(sX);
     const h24 = Array(24).fill(0); veiculos.forEach(v => { if (v.horaNum != null && v.horaNum >= 0 && v.horaNum < 24) h24[v.horaNum]++; });
-    return { turnoPorId, semanal, porDia: { labels: wA.labels, A: wA.valores, B: wB.valores, X: wX.valores }, h24, cob: cobertura(turnos),
+    return { turnoPorId, semanal, porDia: { labels: wA.labels, A: wA.valores, B: wB.valores, C: wC.valores, X: wX.valores }, h24, cob: cobertura(turnos),
              porBar: agregar(turnos, t => t.local || 'Sem local').sort((a, b) => b.veiculos - a.veiculos) };
   }
 
@@ -149,9 +152,10 @@
     const vComDia = veiculos.map(v => ({ v, dia: v.dia || v.data }));            // dia real da passagem (Painel.normalizar)
     const semanal = K.semanal;
     const dsDia = [{ label: 'Turno A', data: K.porDia.A }, { label: 'Turno B', data: K.porDia.B }];
+    if (K.porDia.C.some(Boolean)) dsDia.push({ label: 'Turno C (e seguintes)', data: K.porDia.C });
     if (K.porDia.X.some(Boolean)) dsDia.push({ label: 'Sem turno', data: K.porDia.X });
     P.grafico(g1, 'bar-vdia', { type: 'bar', titulo: semanal ? 'Veículos por semana' : 'Veículos por dia',
-      subtitulo: `Pela data de início do turno (turno que passa da meia-noite conta no dia em que começou). Empilhado por turno: A (04h–12h) e B (12h–20h)${semanal ? '. Cada barra = 7 dias a partir da data indicada.' : ''}`,
+      subtitulo: `Pela data de início do turno (turno que passa da meia-noite conta no dia em que começou). Empilhado por turno (A, B, C: ordem dos turnos com o mesmo nº de TF)${semanal ? '. Cada barra = 7 dias a partir da data indicada.' : ''}`,
       tabelaRotulo: semanal ? 'Semana iniciada em' : 'Dia',
       data: { labels: K.porDia.labels, datasets: dsDia },
       options: { scales: { x: { stacked: true }, y: { stacked: true } } } });

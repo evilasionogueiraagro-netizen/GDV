@@ -39,6 +39,17 @@ const TF = (n, doc, placa, proc, hora) => ({ id: 'r' + n, barreira: 'BVA-CEASA',
   const crypto = require('crypto'), h = t => crypto.createHash('sha256').update(t).digest('hex').slice(0, 16), hs = new Set((ix.itens || []).map(i => i.h));
   ok(ix.ok && !hs.has(h('doc:00000000000')) && !hs.has(h('doc:11111111111')) && !hs.has(h('placa:XXX')) && hs.has(h('doc:52998224725')) && hs.has(h('placa:ABC1D11')),
     'índice offline: sem as chaves do documento padrão/inválido e da placa inválida');
+  console.log('3) documento padrão não liga a nenhum nome');
+  const pes = (n, nome) => ({ id: n, tipo: 'PF', nome, endereco: 'Rua Ficticia', municipio: 'Manaus', uf: 'AM', telefone: '', criadoEm: ag, atualizadoEm: ag });
+  r = await post({ action: 'sync', key: K, since: 0, pessoas: [pes('00000000000', 'Fulano Ficticio Teste'), pes('52998224725', 'Ciclano Ficticio Teste')],
+    placas: [{ id: 'ABC1D99', doc: '00000000000', nome: 'Fulano Ficticio Teste', criadoEm: ag, atualizadoEm: ag }, { id: 'ABC1D98', doc: '52998224725', nome: 'Ciclano Ficticio Teste', criadoEm: ag, atualizadoEm: ag }] });
+  ok(r.ok, 'sync com cadastro do CPF 000 e do CPF válido', r.erro);
+  const aba = async n => { const rows = await fetch(API + '/__aba?nome=' + n).then(x => x.json()); const cab = rows[0]; return rows.slice(1).map(l => Object.fromEntries(cab.map((c, i) => [c, l[i]]))); };
+  const P = await aba('Pessoas'), PL = await aba('Placas');
+  ok(!P.some(p => /^0+$/.test(String(p.id))) && P.some(p => String(p.id) === '52998224725'), 'Pessoas: o CPF 000 não vira cadastro; o válido entra', P.map(p => p.id));
+  ok(!PL.some(p => p.id === 'ABC1D99') && PL.some(p => p.id === 'ABC1D98'), 'Placas: placa ligada ao CPF 000 não é gravada (não liga a placa a um nome)', PL.map(p => p.id));
+  c = await post({ action: 'tfConsultar', key: K, doc: '000.000.000-00', placa: 'ABC1D99' });
+  ok(c.ok && c.pessoa === null && c.placa === null, 'tfConsultar com 000.000.000-00: sem nome nem placa ligada', [c.pessoa, c.placa]);
   console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.');
   process.exitCode = falhas ? 1 : 0;
 })().catch(e => { console.error(e); process.exitCode = 1; });

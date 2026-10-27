@@ -57,3 +57,27 @@ function exigirModulo_(usuario, modulo) {
 function autenticar_(key) {
   return usuarioDoApp_(key);
 }
+
+/* ---------- Registro de leitura de dados pessoais (LGPD) ---------- */
+
+// actions que devolvem dados pessoais (CPF, nome, endereço, coordenada do produtor/fiscalizado ou a lista de servidores)
+const ACOES_COM_DADOS_PESSOAIS_ = ['painelDados', 'pceConsultar', 'pceBaixarMunicipio', 'pceMapaGeral', 'admDados', 'usuariosListar', 'sessoesListar'];
+const LEITURA_INTERVALO_S_ = 3600;   // no máximo uma linha por usuário + action por hora (o painel ao vivo chama painelDados a cada minuto)
+const RESUMO_LEITURA_ = ['de', 'ate', 'aoVivo', 'municipio', 'municipios', 'ano', 'aba'];   // filtros que podem ir para o registro (nunca CPF/nome)
+
+/** Devolve r; se a action lê dados pessoais e deu certo, registra quem leu em AcessosADados. Melhor esforço: falha aqui não derruba a leitura. */
+function lido_(req, r) {
+  try {
+    const u = USUARIO_ATUAL_, acao = String(req.action || '');
+    if (!u || !r || !r.ok || ACOES_COM_DADOS_PESSOAIS_.indexOf(acao) < 0) return r;
+    const chave = 'leitura_' + u.id + '_' + acao;
+    if (cacheLer_(chave)) return r;
+    const resumo = {};
+    RESUMO_LEITURA_.forEach(function (k) { if (req[k] !== undefined && req[k] !== null && req[k] !== '') resumo[k] = String(req[k]).slice(0, 60); });
+    comLock_(function () {
+      inserir_('AcessosADados', [{ id: uuid_(), em: Date.now(), usuarioId: u.id, nome: u.nome, acao: acao, resumo: Object.keys(resumo).length ? JSON.stringify(resumo) : '' }]);
+    });
+    cacheGravar_(chave, 1, LEITURA_INTERVALO_S_);
+  } catch (e) { /* melhor esforço */ }
+  return r;
+}

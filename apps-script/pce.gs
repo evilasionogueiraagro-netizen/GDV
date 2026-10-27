@@ -50,6 +50,7 @@ function pceEmitir_(req, usuario) {
                ultimo: u.ultimo, proximo: u.ultimo + 1 };
     }
     const agora = Date.now(), antes = todos.filter(function (r) { return r.id === c.id; })[0];
+    if (antes && !mesmoDono_(antes.usuario, usuario)) throw new Error(MSG_REGISTRO_ALHEIO_);   // mesmo id de termo de outro login (IDOR)
     c.emitidoEm = (antes && antes.emitidoEm) || agora;                            // reenvio do mesmo termo não muda a data de emissão
     gravar_('Colheitas', [c], agora, usuario);
     if (req.pessoa) gravar_('Pessoas', [req.pessoa], agora, usuario);
@@ -129,6 +130,7 @@ function pceDocRegistrar_(req, usuario) {
                ultimo: u.ultimo, proximo: u.ultimo + 1 };
     }
     const agora = Date.now(), antes = todos.filter(function (x) { return x.id === r.id; })[0];
+    if (antes && ABAS_COM_DONO_.indexOf(D.aba) >= 0 && !mesmoDono_(antes.usuario, usuario)) throw new Error(MSG_REGISTRO_ALHEIO_);   // IDOR
     r.emitidoEm = (antes && antes.emitidoEm) || agora;
     gravar_(D.aba, [r], agora, usuario);
     if (req.pessoa) gravar_('Pessoas', [req.pessoa], agora, usuario);

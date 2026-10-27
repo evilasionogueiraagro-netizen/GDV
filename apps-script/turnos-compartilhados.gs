@@ -145,3 +145,37 @@ function letrasDosTurnos_(recebidos) {
     u[letra] = true; r.letra = letra; r.numeroTF = 'TF-' + m[1] + '-' + letra + '-' + m[3];
   });
 }
+
+/* ---------- Corrigir o nº do TF do turno ----------
+ * O fiscal (quem abriu o turno ou colega que entrou nele) corrige o nº digitado errado; a letra é refeita pela ordem do nº novo
+ * (a primeira livre: A, B, C…). Vale só onde a gerência liberou: BVA e data mínima em NUMERO_TURNO_EDITAVEL_. Fica registrado em
+ * HistoricoDeAlteracoes (quem, quando, antes e depois).
+ */
+const NUMERO_TURNO_EDITAVEL_ = [{ local: 'BVA - JUNDIÁ', desde: '2026-10-24' }];
+function numeroTurnoEditavel_(t) {
+  const k = normPub_(t.local).replace(/ /g, '');
+  return NUMERO_TURNO_EDITAVEL_.some(function (r) { return normPub_(r.local).replace(/ /g, '') === k && String(t.data) >= r.desde; });
+}
+function turnoNumero_(req, usuario) {
+  const id = String(req.turnoId || '').trim(), n = Math.floor(Number(req.numero));
+  if (!id || id.length > 64) throw new Error('Turno não informado.');
+  if (!(n >= 1 && n <= 99999)) throw new Error('Informe o nº do Termo de Fiscalização (só números).');
+  return comLock_(function () {
+    const linhas = lerLinhas_('Turnos'), t = linhas.filter(function (x) { return x.id === id; })[0];
+    if (!t) throw new Error('O turno ainda não chegou ao servidor. Aguarde sincronizar (com internet) e tente de novo.');
+    const colega = lerJSONSeguro_(t.colegas, []).some(function (x) { return nomeChave_(x) === nomeChave_(usuario); });
+    if (t.usuario !== usuario && !colega) throw new Error('Só quem trabalhou no turno pode corrigir o nº.');
+    if (!numeroTurnoEditavel_(t)) throw new Error('A correção do nº não está liberada para este turno (BVA ou data).');
+    const m = RE_NUMERO_TURNO_.exec(String(t.numeroTF || '').trim()), ano = m ? m[3] : String(t.data).slice(0, 4);
+    if (m && Number(m[1]) === n) return { ok: true, turno: { id: id, numeroTF: t.numeroTF, letra: t.letra }, igual: true };
+    const novo = { numeroTF: 'TF-' + String(n).padStart(3, '0') + '-A-' + ano, local: t.local };
+    const usadas = {};
+    lerLeitura_('Turnos').forEach(function (x) { if (x.id !== id && x.excluido !== 1 && chaveNumeroTurno_(x) === chaveNumeroTurno_(novo)) usadas[x.letra] = true; });
+    let i = 0; while (usadas[String.fromCharCode(65 + i)] && i < 25) i++;
+    const letra = String.fromCharCode(65 + i), numeroTF = 'TF-' + String(n).padStart(3, '0') + '-' + letra + '-' + ano, agora = Date.now();
+    atualizar_('Turnos', t._linha, { numeroTF: numeroTF, letra: letra, srv_ts: agora });
+    inserir_('HistoricoDeAlteracoes', [{ id: uuid_(), em: agora, usuarioId: (USUARIO_ATUAL_ && USUARIO_ATUAL_.id) || usuario, acao: 'corrigir nº do turno',
+      tabela: 'Turnos', registroId: id, antes: JSON.stringify({ numeroTF: t.numeroTF }), depois: JSON.stringify({ numeroTF: numeroTF }) }]);
+    return { ok: true, turno: { id: id, numeroTF: numeroTF, letra: letra } };
+  });
+}

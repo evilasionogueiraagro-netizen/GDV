@@ -196,8 +196,9 @@ function resumoTFs_(rows) {
 function consultar_(req, usuario) {
   const doc = digitos_(req.doc), placa = placaNorm_(req.placa);
   if (doc.length !== 11 && doc.length !== 14 && placa.length < 7) throw new Error('Informe um CPF/CNPJ completo ou uma placa.');
-  const pessoa = doc ? lerLeitura_('Pessoas').filter(function (p) { return p.id === doc; })[0] : null;
-  const pl = placa ? lerLeitura_('Placas').filter(function (p) { return p.id === placa; })[0] : null;
+  // documento padrão/inválido (000.000.000-00…): nenhum cadastro ligado a ele (registros antigos na planilha também não voltam)
+  const pessoa = docValido_(doc) ? lerLeitura_('Pessoas').filter(function (p) { return p.id === doc; })[0] : null;
+  const pl = placa ? lerLeitura_('Placas').filter(function (p) { return p.id === placa && docValido_(p.doc); })[0] : null;
   const tfs = lerLeitura_('TFs').filter(function (t) { return t.cancelado !== 1; });
   // reincidência só por CPF/CNPJ válido e placa válida (000.000.000-00, "XXX"… não identificam ninguém): sem histórico para os outros
   const porDoc = docValido_(doc) ? resumoTFs_(tfs.filter(function (t) { return digitos_(t.doc) === doc; })) : null;

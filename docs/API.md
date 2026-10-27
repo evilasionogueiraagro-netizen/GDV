@@ -35,6 +35,7 @@ Contrato das actions: ao criar, mudar ou remover uma, atualize esta tabela. Regr
 | `turnoConvidar` | veiculos (dono) | `turnoId` | `codigo`, `expiraEm` |
 | `turnoParear` | veiculos | `codigo` | `turno`, `veiculos`, `dono` |
 | `turnoSair` | veiculos | `turnoId` | `saiu` |
+| `turnoPapelRegistrar` | veiculos + antigo | `turno`, `veiculos`, `pessoas` | `turno`, `veiculos` |
 | `pceProximoNumero` | pce | `unidade`, `ano` | `ultimo`, `proximo` |
 | `pceEmitir` | pce | `colheita`, `pessoa`, `propriedade` | como `tfEmitir`, + `numeroTxt` |
 | `pceConsultar` | pce | `doc` | `pessoa`, `propriedades` (`cnpj`, `empresa`, `endereco`, `uf`, `viaAcesso`, `comercial`, `tipoPropriedade`), contagens, `cadastrosPce` |

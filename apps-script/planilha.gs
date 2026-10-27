@@ -79,15 +79,50 @@ function paraObjeto_(cols, linha) {
   cols.forEach(function (c, i) {
     let v = linha[i];
     if (v instanceof Date) v = Utilities.formatDate(v, 'America/Manaus', 'yyyy-MM-dd');
-    o[c] = CAMPOS_NUMERICOS.indexOf(c) >= 0 ? (Number(v) || 0) : String(v === null || v === undefined ? '' : v);
+    o[c] = CAMPOS_NUMERICOS.indexOf(c) >= 0 ? (Number(v) || 0) : semApostrofo_(String(v === null || v === undefined ? '' : v));
   });
   return o;
 }
 
+/**
+ * Texto que vai para a planilha nunca vira fórmula (injeção de fórmula: =IMPORTXML(...) mandaria os dados para fora ao abrir a planilha):
+ * começando com = + - @ ganha o apóstrofo do Sheets na frente. Número com sinal ("-3.1" de latitude, "+5592...") fica como está.
+ * A leitura (paraObjeto_) tira o apóstrofo: o app e o painel recebem o texto como foi digitado.
+ */
+function textoPlanilha_(v) {
+  if (typeof v !== 'string' || !/^[=+\-@]/.test(v)) return v;
+  if (/^[+\-]/.test(v) && v.length > 1 && isFinite(Number(v))) return v;
+  return "'" + v;
+}
+function semApostrofo_(v) { return /^'[=+\-@]/.test(v) ? v.slice(1) : v; }
+
+/** Abas em que o registro tem dono: quem não gravou não altera (IDOR). Pessoas, Placas, Propriedades e CadastrosPCE são cadastros comuns. */
+const ABAS_COM_DONO_ = ['TFs', 'Veiculos', 'Levantamentos', 'Colheitas', 'TermosPCE'];
+const MSG_REGISTRO_ALHEIO_ = 'Este registro foi gravado por outro servidor e não pode ser alterado por você.';
+/** Mesmo autor? (nome do login; sem diferença de maiúscula/espaço). Linha sem autor (antiga) não tem dono. */
+function mesmoDono_(dono, usuario) { return !dono || nomeChave_(dono) === nomeChave_(usuario); }
+
+/**
+ * Veículos: em que turnos este login pode lançar. Turno de outro login só para quem entrou nele pelo código (pareamento, mesmo que já
+ * tenha saído: o que lançou enquanto estava continua chegando). Turno que a planilha não tem (ainda não chegou ou arquivado) não é conferido.
+ */
+function podeLancarNoTurno_(usuario) {
+  const dono = {}, colega = {};
+  lerLeitura_('Turnos').forEach(function (t) { if (t.id) dono[t.id] = t.usuario; });
+  lerLeitura_('Pareamentos').forEach(function (p) { if (p.id && p.colega && p.entrouEm && nomeChave_(p.colega) === nomeChave_(usuario)) colega[p.turnoId] = true; });
+  return function (turnoId) { return !(turnoId in dono) || mesmoDono_(dono[turnoId], usuario) || !!colega[turnoId]; };
+}
+
 const CAMPOS_ENCERRAMENTO_ = ['encerrado', 'fim', 'latFim', 'lngFim', 'precFim', 'encerradoPor', 'encerradoEm'];
+/**
+ * Grava os registros do app (a última edição vence). Devolve os ids NÃO gravados porque o registro é de outro login (ABAS_COM_DONO_;
+ * veículo em turno alheio sem pareamento): o sync os devolve em "recusados" e o app os mantém pendentes.
+ */
 function gravar_(nome, recebidos, ts, usuario) {
-  if (!recebidos.length) return;
+  const recusados = [];
+  if (!recebidos.length) return recusados;
   const t = lerTudo_(nome), cols = t.cols, idx = {};
+  const comDono = ABAS_COM_DONO_.indexOf(nome) >= 0, podeTurno = nome === 'Veiculos' ? podeLancarNoTurno_(usuario) : null;
   t.valores.forEach(function (l, i) { idx[String(l[0])] = i; });
 
   const porId = {}, brutos = {};             // dedup no lote: vale o mais recente
@@ -105,11 +140,18 @@ function gravar_(nome, recebidos, ts, usuario) {
     const o = porId[id], r = brutos[id];
     o.srv_ts = ts;
     o.usuario = usuario;                       // quem sincronizou (definido pelo servidor, não pelo app)
+    // turno novo: quem entrou pelo código (colegas) e o encerramento fora do aparelho só o servidor grava
+    if (nome === 'Turnos' && idx[id] === undefined) { o.colegas = ''; o.encerradoPor = ''; o.encerradoEm = 0; }
     const linha = cols.map(function (c) { return o[c]; });
-    if (idx[id] === undefined) {
+    const atual = idx[id] === undefined ? null : paraObjeto_(cols, t.valores[idx[id]]);
+    if (podeTurno) {   // veículo: o próprio (sem mudar de turno) ou num turno em que pode lançar
+      const ok = atual && mesmoDono_(atual.usuario, usuario) && (!('turnoId' in r) || o.turnoId === atual.turnoId)
+        || (!atual || podeTurno(atual.turnoId)) && podeTurno('turnoId' in r || !atual ? o.turnoId : atual.turnoId);
+      if (!ok) { recusados.push(id); return; }
+    } else if (comDono && atual && !mesmoDono_(atual.usuario, usuario)) { recusados.push(id); return; }
+    if (!atual) {
       novas.push(linha);
     } else {
-      const atual = paraObjeto_(cols, t.valores[idx[id]]);
       // turno de outro login (turno compartilhado: o colega tem o turno do dono no aparelho): só o dono grava o turno
       if (nome === 'Turnos' && atual.usuario && atual.usuario !== usuario) return;
       if (o.atualizadoEm >= atual.atualizadoEm) {   // última edição vence
@@ -145,6 +187,7 @@ function gravar_(nome, recebidos, ts, usuario) {
   if (novas.length) {
     t.sh.getRange(t.sh.getLastRow() + 1, 1, novas.length, cols.length).setValues(novas);
   }
+  return recusados;
 }
 
 function lerMudancas_(nome, since, usuario) {
@@ -155,12 +198,12 @@ function lerMudancas_(nome, since, usuario) {
 }
 
 function limpar_(cols, r) {
-  if (!r || !r.id || String(r.id).length > 64) return null;
+  if (!r || typeof r !== 'object' || !r.id || typeof r.id === 'object' || String(r.id).length > 64 || /^['=+\-@]/.test(String(r.id))) return null;
   const o = {};
   cols.forEach(function (c) {
     let v = r[c];
     if (v === undefined || v === null) v = '';
-    o[c] = CAMPOS_NUMERICOS.indexOf(c) >= 0 ? (Number(v) || 0) : String(v).slice(0, LIMITES_TEXTO[c] || 500);
+    o[c] = CAMPOS_NUMERICOS.indexOf(c) >= 0 ? (Number(v) || 0) : textoPlanilha_(String(v).slice(0, LIMITES_TEXTO[c] || 500));
   });
   return o;
 }

@@ -169,6 +169,11 @@ function permissoesValidas_(lista) {
   return PERMISSOES_USUARIO_.filter(function (p) { return v.indexOf(p) >= 0; });
 }
 
+function msgNomeRepetido_(u) {
+  return 'Já existe uma conta com o nome ' + u.nome + ' (matrícula ' + u.matricula + (u.ativo === 1 ? '' : ', desativada') +
+    '). Diferencie o nome (por exemplo, com o sobrenome completo): cada registro é ligado ao nome de quem fez.';
+}
+
 /** Quantos usuários ativos, fora `menosId`, têm a permissão gerencia (linhas lidas dentro do lock). */
 function outrosGerentesAtivos_(menosId, usuarios, permissoes) {
   const por = permissoesAtivasPorUsuario_(permissoes);
@@ -406,6 +411,9 @@ function criarUsuario_(d, autor) {
     const todos = lerLinhas_('Usuarios').filter(function (x) { return x.id; });
     const matricula = matriculaPedida || proximaMatricula_(todos);
     if (todos.some(function (x) { return chaveMatricula_(x.matricula) === chaveMatricula_(matricula); })) throw new Error('Já existe um usuário com a matrícula ' + matricula + '.');
+    // nome único (também entre as contas desativadas): os registros são ligados ao nome, e um homônimo receberia os do outro
+    const xara = todos.filter(function (x) { return nomeChave_(x.nome) === nomeChave_(nome); })[0];
+    if (xara) throw new Error(msgNomeRepetido_(xara));
     const agora = Date.now(), id = uuid_();
     inserir_('Usuarios', [{ id: id, matricula: matricula, nome: nome, senhaHash: hash, senhaSal: '', senhaProvisoria: 1, senhaAlteradaEm: agora, ativo: 1,
                             criadoEm: agora, criadoPor: autor.quem, atualizadoEm: agora, atualizadoPor: autor.quem }]);
@@ -479,6 +487,8 @@ function usuarioAtivar_(req) {
     const usuarios = lerLinhas_('Usuarios').filter(function (x) { return x.id; }), u = usuarios.filter(function (x) { return x.id === usuarioId; })[0];
     if (!u) throw new Error('Usuário não encontrado.');
     if (u.ativo === ativo) return { ok: true };
+    const xara = ativo && usuarios.filter(function (x) { return x.id !== u.id && x.ativo === 1 && nomeChave_(x.nome) === nomeChave_(u.nome); })[0];
+    if (xara) throw new Error(msgNomeRepetido_(xara));
     const perms = lerLinhas_('PermissoesDosUsuarios');
     if (!ativo && (permissoesAtivasPorUsuario_(perms)[u.id] || []).indexOf('gerencia') >= 0 && !outrosGerentesAtivos_(u.id, usuarios, perms)) {
       throw new Error('Não é possível desativar o último gerente ativo.');

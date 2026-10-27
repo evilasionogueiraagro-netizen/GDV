@@ -143,7 +143,7 @@ function pceDocRegistrar_(req, usuario) {
 function pceConsultar_(req, usuario) {
   const doc = digitos_(req.doc);
   if (doc.length !== 11 && doc.length !== 14) throw new Error('Informe um CPF/CNPJ completo.');
-  const pessoa = lerLeitura_('Pessoas').filter(function (p) { return p.id === doc; })[0];
+  const pessoa = docValido_(doc) ? lerLeitura_('Pessoas').filter(function (p) { return p.id === doc; })[0] : null;   // documento padrão: sem cadastro
   const propriedades = lerLeitura_('Propriedades').filter(function (p) { return digitos_(p.doc) === doc; })
     .map(function (p) { return { id: p.id, codigo: p.codigo, nome: p.nome, doc: p.doc, municipio: p.municipio, situacaoFundiaria: p.situacaoFundiaria, lat: p.lat, lon: p.lon,
                                  cnpj: p.cnpj, empresa: p.empresa, endereco: p.endereco, uf: p.uf, viaAcesso: p.viaAcesso, comercial: p.comercial, tipoPropriedade: p.tipoPropriedade }; });
@@ -238,7 +238,7 @@ function pceBaixarMunicipio_(req, usuario) {
     porMun[alvo[k]] = porMun[alvo[k]] || { props: 0, docs: {} };
     porMun[alvo[k]].props++; if (d) porMun[alvo[k]].docs[d] = 1;
   });
-  const pessoas = lerTodasColunas_('Pessoas').filter(function (x) { return x.id && docs[digitos_(x.id)]; })
+  const pessoas = lerTodasColunas_('Pessoas').filter(function (x) { return x.id && docValido_(x.id) && docs[digitos_(x.id)]; })
     .map(function (x) { x.campoMun = Object.keys(docs[digitos_(x.id)]); return x; });
   // Cadastros de imóvel do PCE dessas propriedades (para o mapa e para preencher o Termo) e o último Termo de Fiscalização de cada uma
   const porProp = {}; props.forEach(function (p) { porProp[p.id] = p; });

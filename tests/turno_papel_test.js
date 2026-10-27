@@ -20,7 +20,7 @@ const ontem = diaM(Date.now() - 864e5), ANO = ontem.slice(0, 4);
     const c = await b.newContext({ viewport: { width: 400, height: 860 }, timezoneId: 'America/Manaus' });
     await c.route(u => !/^https?:\/\/(localhost|127\.0\.0\.1)[:/]/.test(String(u)), r => r.abort());
     await c.addInitScript(i => { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); Object.entries(i).forEach(([k, v]) => localStorage.setItem(k, v)); } }, F.ls);
-    const p = await c.newPage(), err = []; p.on('pageerror', e => err.push(e.message)); p.on('dialog', d => d.accept());
+    const p = await c.newPage(), err = []; p.on('pageerror', e => err.push(e.message)); p.on('dialog', d => d.type() === 'prompt' ? d.accept('35') : d.accept());
     await p.goto(APP); await p.waitForSelector('.modulo'); await p.evaluate(() => Sync.sincronizar());
     await p.click('.modulo[data-v=home]'); await p.waitForSelector('[data-go=turnopapel]');
     const preencher = async (n, veic, pes) => {
@@ -51,6 +51,13 @@ const ontem = diaM(Date.now() - 864e5), ANO = ontem.slice(0, 4);
     const PD = await post({ action: 'painelDados', key: adm.token, de: ontem, ate: ontem });
     const tp = (PD.turnos || []).find(x => x.id === ta.id);
     ok(tp && tp.nVeiculos === 3 && tp.nPessoas === 12, 'painel: o turno do papel conta 3 veículos e 12 pessoas', tp && [tp.nVeiculos, tp.nPessoas]);
+
+    console.log('1b) Histórico: corrigir o nº do turno (Jundiá, desde 24/10)');
+    await p.click('[data-go=home]').catch(() => {}); await p.click('nav [data-v=historico]'); await p.waitForSelector(`[data-numturno="${ta.id}"]`, { timeout: 10000 });
+    await p.click(`[data-numturno="${ta.id}"]`);
+    await p.waitForFunction(() => /Nº corrigido: TF-035-A/.test(document.querySelector('#toast').textContent), null, { timeout: 15000 }).catch(() => {});
+    const tc = (await aba('Turnos')).find(t => t.id === ta.id);
+    ok(tc.numeroTF === `TF-035-A-${ANO}` && /TF-035-A/.test(await p.textContent('main')), 'botão "Corrigir nº" no Histórico: TF-031-A vira TF-035-A (planilha e tela)', tc.numeroTF);
 
     console.log('2) regras do servidor');
     const base = { id: '11111111-2222-4333-8444-555555555555', numero: 40, data: ontem, posto: 'Fixa', local: 'BVA - JUNDIÁ', fiscal: 'Fulano Ficticio Teste', inicio: '00:00', fim: '12:00' };

@@ -1,4 +1,4 @@
-/* Painel gerencial do GDV — aba "Usuários" (só quem tem a permissão gerência): matrícula e senha para o app de campo, o painel e o portal.
+/* Painel gerencial do GDV — aba "Usuários" (só quem tem a permissão gerência): matrícula e senha para o app de campo, o painel gerencial e o portal.
    O gerente cria o usuário (matrícula opcional: vazia, o sistema gera GDV0001…; nome; permissões) e o sistema mostra a senha provisória
    uma única vez (copiar a mensagem ou enviar pelo WhatsApp). Depois: editar permissões, nova senha provisória (encerra as sessões da
    pessoa), desativar/reativar e ver e encerrar as sessões (aparelhos). A TV da sala é um usuário só com a permissão Painel.
@@ -15,10 +15,10 @@
   const NOME_MAX = 80, RE_MATRICULA = /^[A-Za-z0-9.-]{3,20}$/;
   // permissão (valor gravado no servidor) → rótulo; dois grupos de caixas
   const ROTULOS = { campo: 'App de campo', fiscalizacaoDeTransito: 'Fiscalização de trânsito', termoDeBarreira: 'TF de Barreira', pce: 'PCE',
-    digitarDoPapel: 'Digitar do papel', painel: 'Painel (ver)', administracao: 'Portal do Administrativo', gerencia: 'Gerência' };
+    digitarDoPapel: 'Digitar do papel', painel: 'Painel gerencial: só consulta', administracao: 'Portal do Administrativo', gerencia: 'Gerência: tudo + cadastrar usuários' };
   const GRUPOS = [['App de campo e módulos', ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce', 'digitarDoPapel']],
-    ['Painel e portal', ['painel', 'administracao', 'gerencia']]];
-  const APLICATIVOS = { campo: 'App de campo', painel: 'Painel', administracao: 'Portal do Administrativo' };
+    ['Painel gerencial e portal', ['painel', 'administracao', 'gerencia']]];
+  const APLICATIVOS = { campo: 'App de campo', painel: 'Painel gerencial', administracao: 'Portal do Administrativo' };
   const rotulo = p => ROTULOS[p] || p;
 
   /* ---------- estado (sobrevive às atualizações automáticas do painel, que redesenham a aba) ---------- */
@@ -48,7 +48,7 @@
   function mensagem(g) {
     const p = g.permissoes || [], tudo = p.indexOf('gerencia') >= 0;
     const campo = tudo || p.some(x => ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce', 'digitarDoPapel'].indexOf(x) >= 0);
-    const links = [campo && `App de campo: ${APP_URL}`, (tudo || p.indexOf('painel') >= 0) && `Painel: ${APP_URL}painel/`,
+    const links = [campo && `App de campo: ${APP_URL}`, (tudo || p.indexOf('painel') >= 0) && `Painel gerencial${tudo ? '' : ' (consulta)'}: ${APP_URL}painel/`,
       (tudo || p.indexOf('administracao') >= 0) && `Portal do Administrativo: ${APP_URL}administrativo/`].filter(Boolean);
     return `Olá, ${primeiroNome(g.nome)}! Seu acesso ao e-GDV (ADAF):\n\n` +
       `Matrícula: *${g.matricula}*\nSenha provisória: *${g.senha}*\n\n` +
@@ -262,8 +262,8 @@
     const r = P.el('section', 'pn-secao pn-us'); r.id = 'pn-us';
     r.innerHTML = `
       <h2>${icone('pessoa')} Usuários (matrícula e senha)</h2>
-      <p class="pn-sub">Uma conta por pessoa, com matrícula e senha, para o app de campo, o painel e o portal. Você escolhe o que cada uma pode usar; a senha provisória
-        é entregue por você e trocada pela própria pessoa no primeiro acesso. A TV da sala usa um usuário só com "Painel (ver)".</p>
+      <p class="pn-sub">Uma conta por pessoa, com matrícula e senha, para o app de campo, o painel gerencial e o portal. Você escolhe o que cada uma pode usar; a senha provisória
+        é entregue por você e trocada pela própria pessoa no primeiro acesso. A TV da sala usa um usuário só com "Painel gerencial: só consulta".</p>
       <div class="pn-ac-grade">
         <form class="pn-cartao pn-conv-form" id="pn-us-form" autocomplete="off" novalidate>
           <h3 id="pn-us-form-tit" class="pn-conv-largo">Novo usuário</h3>

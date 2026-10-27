@@ -16,9 +16,9 @@ const INICIO = ORIGEM + '/inicio/';
   await p.goto(INICIO);
 
   const cartoes = await p.$$eval('.in-cartao', as => as.map(a => ({ titulo: a.querySelector('h2').textContent.trim(), href: a.href, entrar: a.querySelector('.in-entrar').textContent.trim() })));
-  ok(cartoes.map(x => x.titulo).join() === 'Painel da gerência,App de campo,Portal do Administrativo,Dashboard público', 'quatro destinos, na ordem', cartoes.map(x => x.titulo));
+  ok(cartoes.map(x => x.titulo).join() === 'Painel gerencial,App de campo,Portal do Administrativo,Dashboard público', 'quatro destinos, na ordem', cartoes.map(x => x.titulo));
   ok(cartoes.every(x => /^Como entrar:/.test(x.entrar)), 'cada destino diz como entrar');
-  const esperado = { 'Painel da gerência': '/painel/', 'App de campo': '/', 'Portal do Administrativo': '/administrativo/', 'Dashboard público': '/dashboard/' };
+  const esperado = { 'Painel gerencial': '/painel/', 'App de campo': '/', 'Portal do Administrativo': '/administrativo/', 'Dashboard público': '/dashboard/' };
   ok(cartoes.every(x => new URL(x.href).pathname === esperado[x.titulo]), 'links relativos levam a cada parte', cartoes.map(x => new URL(x.href).pathname));
   const links = await p.$$eval('a[href]', as => as.map(a => a.href));
   const st = await Promise.all(links.map(u => fetch(u).then(r => r.status)));

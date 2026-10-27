@@ -367,8 +367,8 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     if (!culturas.length) corpo.innerHTML = '<tr><td colspan="10" class="vazio">Nenhuma cultura informada.</td></tr>';
     else corpo.innerHTML = culturas.map((c, k) => {
       const amostra = c.coleta === 'Sim';
-      const td = v => `<td>${esc(v)}</td>`;
-      return `<tr><td class="n">${k + 1}</td>${td(c.cultura)}${td(c.area)}${td(c.espLinha)}${td(c.espPlanta)}<td class="res ${esc(c.resultado)}">${esc(RES_PCE[c.resultado])}</td>${td(c.coleta)}`
+      const td = v => `<td>${esc(v)}</td>`, esp = (v, x) => (v && x.espUnidade ? `${v} ${x.espUnidade}` : v);
+      return `<tr><td class="n">${k + 1}</td>${td(c.cultura)}${td(c.area)}${td(esp(c.espLinha, c))}${td(esp(c.espPlanta, c))}<td class="res ${esc(c.resultado)}">${esc(RES_PCE[c.resultado])}</td>${td(c.coleta)}`
         + `${td(amostra ? c.tipoMaterial : '–')}${td(amostra ? c.codigoAmostra : '–')}${td(amostra ? c.destinoAmostra : '–')}</tr>`;
     }).join('');
     if (!String(reg.obs || '').trim()) d.getElementById('quadroObs').remove();

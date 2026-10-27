@@ -163,7 +163,7 @@ const uuid = () => require('crypto').randomUUID();
   await erro({ ...A1, id: uuid() }, '', /vazio/, 'arquivo vazio');
   await erro({ ...A1, id: uuid() }, '@@@@', /base64|corrompido/, 'base64 inválido');
   await erro({ ...A1, id: 'nao-e-uuid' }, jpg, /Identificador/, 'id que não é uuid');
-  await erro({ ...A1, id: uuid(), dono: 'turnos' }, jpg, /origem/, 'dono inválido');
+  await erro({ ...A1, id: uuid(), dono: 'outra-coisa' }, jpg, /origem/, 'dono inválido');
   await erro({ ...A1, id: uuid(), tipo: 'video' }, jpg, /Tipo/, 'tipo inválido');
   await erro({ ...A1, id: uuid(), papel: 'chefe' }, jpg, /Papel/, 'papel inválido');
   const z = await post({ action: 'arquivoEnviar', key: 'token-ruim', arquivo: { ...A1, id: uuid() }, base64: jpg }); ok(!z.ok, 'sem credencial não envia');

@@ -89,7 +89,7 @@ const NAVS = {
   tf: [['modulos', 'inicio', 'Módulos'], ['tf', 'documento', 'Meus TFs'], ['tfnovo', 'mais', 'Novo TF']],
   pce: [['modulos', 'inicio', 'Módulos'], ['pce', 'broto', 'Levantamentos'], ['pcelev', 'mais', 'Novo levantamento'], ['pcemapa', 'mapa', 'Perto de mim'], ['pcetermos', 'amostra', 'Termos de colheita'], ['pcetermo', 'formulario', 'Novo termo']]
 };
-const VIEWS_VEICULOS = ['home', 'registrar', 'editar', 'lista', 'resumo', 'fechado', 'historico'];
+const VIEWS_VEICULOS = ['home', 'registrar', 'editar', 'lista', 'resumo', 'fechado', 'historico', 'turnopapel'];
 /** Módulo (permissão) de cada tela: veiculos, tf ou pce; '' = livre (módulos, status). */
 const moduloDaView = v => VIEWS_VEICULOS.includes(v) ? 'veiculos' : /^tf/.test(v) ? 'tf' : /^pce/.test(v) ? 'pce' : '';
 const SEM_AUT = 'Sem autorização — fale com a gerência';
@@ -119,7 +119,7 @@ function go(view, arg) {
   else if (/^pce/.test(view)) MODULO = 'pce';
   else if (/^tf/.test(view) && MODULO === 'hub') MODULO = 'tf';          // TF aberto a partir do veículo continua no módulo de veículos (embutido)
   renderNav(view); GER++;
-  ({ modulos, home, registrar, editar: registrar, lista, resumo, fechado, historico, config, tf: () => TFUI.lista(), tfnovo: () => TFUI.novo(EDIT), tfpronto: () => TFUI.pronto(EDIT),
+  ({ modulos, home, registrar, editar: registrar, lista, resumo, fechado, historico, config, turnopapel, tf: () => TFUI.lista(), tfnovo: () => TFUI.novo(EDIT), tfpronto: () => TFUI.pronto(EDIT),
     pce: () => PCEUI.lista(), pcelev: () => PCEUI.levantamento(EDIT), pcetermos: () => PCEUI.termos(), pcetermo: () => PCEUI.termo(EDIT),
     pcepronto: () => PCEUI.pronto(EDIT), pcelevpronto: () => PCEUI.levPronto(EDIT), pceservidor: () => PCEUI.servidor(EDIT),
     pcecampo: () => Campo.telaBaixar(), pcemapa: () => Campo.telaMapa(), pcerota: () => Campo.telaRota(),
@@ -357,6 +357,7 @@ function novoTurno() {
       <p class="dica">O colega que abriu o turno toca em "Convidar colega" e te passa o código. Você lança com o seu login no turno dele.</p>
       <label>Código de 6 números<input id="pCodigo" inputmode="numeric" autocomplete="off" maxlength="7" placeholder="000 000"></label>
       <button class="botao sec" type="submit">${icone('pessoa')} Entrar no turno</button></form></details>
+    ${Sync.pode('antigo') ? `<button class="botao sec" data-go="turnopapel">${icone('documento')} Turno antigo (digitar o Termo do papel)</button>` : ''}
     <form class="card" id="fTurno"><h3>Iniciar turno</h3>
     <label>Nº do Termo de Fiscalização <small>(a letra do turno vem sozinha: o 1º turno com este nº é A, o 2º B, o 3º C)</small><input id="nTF" type="number" min="1" inputmode="numeric" required placeholder="ex.: 12"></label>
     <label>Tipo de posto<select id="nPosto">${CONFIG.postos.map(p => `<option value="${p}" ${localStorage.getItem('gdv.posto') === p ? 'selected' : ''}>${p === 'Móvel' ? 'Volante (móvel)' : p}</option>`).join('')}</select></label>
@@ -443,6 +444,70 @@ function novoTurno() {
     await Store.setMeta('turnoAtual', t.id);
     try { localStorage.removeItem(LS_AVISO_ENC); } catch (e2) { /* sem armazenamento */ }
     Sync.sincronizar(); go('home');
+  };
+}
+
+/* ---------- Turno antigo (digitar o Termo do papel) ----------
+   Termo de Fiscalização do turno feito no papel: nº, data, local, fiscais, horário e os totais (veículos fiscalizados e pessoas
+   orientadas), com o PDF escaneado. Só com internet e com "Digitar do papel"; o servidor grava o turno encerrado (turnoPapelRegistrar). */
+let PAPEL_PDFS = [];
+function turnopapel() {
+  if (!Sync.pode('antigo')) { toast('Sem autorização para digitar registros antigos (do papel). Fale com a gerência.', true); return go('home'); }
+  PAPEL_PDFS = []; const id = Store.novoId(), hoje = hojeISO();
+  view(`<form class="card" id="fPapel"><h3>${icone('documento')} Turno antigo (Termo do papel)</h3>
+    <p class="dica">Digite os dados do Termo de Fiscalização do turno e anexe o PDF escaneado. Precisa de internet.</p>
+    <label>Nº do Termo de Fiscalização <small>(a letra vem sozinha: 1º turno com este nº = A, 2º = B, 3º = C)</small><input id="pN" type="number" min="1" inputmode="numeric" required></label>
+    <label>Data do turno<input id="pData" type="date" max="${hoje}" required></label>
+    <label>Tipo de posto<select id="pPosto"><option value="Fixa">Fixa</option><option value="Móvel">Volante (móvel)</option></select></label>
+    <div id="pLocalBox"></div>
+    <label>Fiscal(is) — nome completo <small>(mais de um: separe com " e ")</small><input id="pFiscal" required autocomplete="off" value="${esc(Sync.nome())}" placeholder="Nome Sobrenome e Nome Sobrenome"></label>
+    <div class="duas"><label>Início<input id="pIni" type="time" required></label><label>Fim<input id="pFim" type="time" required></label></div>
+    <div class="duas"><label>Veículos fiscalizados<input id="pVeic" type="number" min="0" max="2000" inputmode="numeric" required></label>
+      <label>Pessoas orientadas<input id="pPes" type="number" min="0" inputmode="numeric" required></label></div>
+    <label class="pce-arquivo">${icone('anexo')} Anexar o Termo escaneado (PDF)<input type="file" id="pPdfs" accept="application/pdf" multiple></label>
+    <div id="pPdfLista"><div class="dica">Nenhum PDF anexado.</div></div>
+    <button class="botao" type="submit">${icone('salvar')} Gravar o turno do papel</button>
+    <button class="botao sec" type="button" data-go="home">Cancelar</button></form>`);
+  const montar = () => {
+    const fixa = $('#pPosto').value === 'Fixa';
+    $('#pLocalBox').innerHTML = fixa ? `<label>Local / Posto (BVA)<select id="pLocal">${CONFIG.bvas.map(b => `<option>${esc(b.nome)}</option>`).join('')}</select></label>`
+      : `<label>Local / Posto (volante)<input id="pLocal" required autocomplete="off"></label><label>Unidade (município)<input id="pUnidade" required autocomplete="off"></label>`;
+  };
+  $('#pPosto').onchange = montar; montar();
+  $('#pPdfs').onchange = async e => {
+    const files = [...(e.target.files || [])]; e.target.value = '';
+    for (const f of files) {
+      if (PAPEL_PDFS.length >= 10) { toast('Limite de 10 PDFs.', true); break; }
+      if (f.size > 10 * 1024 * 1024) { toast(`"${f.name}" passa do limite de 10 MB.`, true); continue; }
+      const ini = new Uint8Array(await f.slice(0, 5).arrayBuffer());
+      if (String.fromCharCode(...ini) !== '%PDF-') { toast(`"${f.name}" não é um PDF válido.`, true); continue; }
+      const dados = await new Promise((ok, no) => { const r = new FileReader(); r.onload = () => ok(r.result); r.onerror = no; r.readAsDataURL(f); });
+      const a = { ...Anexos.novoArquivo('turnos', id, 'documento', '', 'application/pdf', 'data:application/pdf;base64,' + String(dados).replace(/^data:[^,]*,/, '')), nomeOriginal: String(f.name || 'termo.pdf').slice(0, 120) };
+      PAPEL_PDFS.push(a);
+    }
+    $('#pPdfLista').innerHTML = PAPEL_PDFS.length ? PAPEL_PDFS.map(a => `<div class="pce-doc"><span>${icone('documento')} ${esc(a.nomeOriginal)}</span></div>`).join('') : '<div class="dica">Nenhum PDF anexado.</div>';
+  };
+  $('#fPapel').onsubmit = async e => {
+    e.preventDefault();
+    if (!navigator.onLine) return toast('Sem internet: o turno do papel só é gravado com conexão.', true);
+    const fiscal = $('#pFiscal').value.trim().replace(/\s+/g, ' ');
+    if (fiscal.split(/\s+e\s+|,|;|\//).some(n => n.trim().split(' ').length < 2)) return toast('Informe o nome completo de cada fiscal (nome e sobrenome).', true);
+    if ($('#pData').value > hoje) return toast('A data do turno não pode ser no futuro.', true);
+    if (!PAPEL_PDFS.length && !confirm('Nenhum PDF do Termo anexado. Gravar mesmo assim?')) return;
+    const fixa = $('#pPosto').value === 'Fixa', local = $('#pLocal').value.trim();
+    const turno = { id, numero: parseInt($('#pN').value, 10), data: $('#pData').value, posto: $('#pPosto').value, local, unidade: fixa ? local : $('#pUnidade').value.trim(),
+      fiscal, inicio: $('#pIni').value, fim: $('#pFim').value, pdfs: PAPEL_PDFS.map(a => a.id) };
+    const btn = $('#fPapel button[type=submit]'); btn.disabled = true; btn.textContent = 'Gravando…';
+    try {
+      const r = await Sync.turnoPapel(turno, parseInt($('#pVeic').value, 10) || 0, parseInt($('#pPes').value, 10) || 0);
+      await Store.gravarVarios('arquivos', PAPEL_PDFS);                   // PDFs sobem ao Drive na sincronização (ligados ao turno)
+      await Store.gravar('turnos', { ...r.turno, pendente: 0 });
+      Sync.sincronizar();
+      view(`<div class="card"><h3>${icone('ok')} Turno do papel gravado</h3><p><b>${esc(r.turno.numeroTF)}</b> · ${dBR(r.turno.data)} · ${esc(r.turno.local)}</p>
+        <p>${esc(String(r.veiculos != null ? r.veiculos : ''))} veículo(s) · ${esc(String(r.turno.pessoasEducacao || 0))} pessoa(s) orientada(s) · ${PAPEL_PDFS.length} PDF(s)</p>
+        <p class="dica">Ele já conta no painel, no VIGIFITO e no convênio. ${r.existente ? 'Este turno já estava gravado.' : ''}</p></div>
+        <button class="botao" data-go="turnopapel">${icone('mais')} Digitar outro turno do papel</button><button class="botao sec" data-go="home">Voltar</button>`);
+    } catch (err) { btn.disabled = false; btn.innerHTML = `${icone('salvar')} Gravar o turno do papel`; toast(err.message || 'Não foi possível gravar.', true); }
   };
 }
 

@@ -21,7 +21,8 @@ const NOME_MODULO = { veiculos: 'Educação Sanitária/Fiscalização de Trânsi
 const MODULO_DA_ACAO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf', tfIndiceReincidencia: 'tf',
                          pceProximoNumero: 'pce', pceEmitir: 'pce', pceConsultar: 'pce', pceBaixarMunicipio: 'pce', pceMapaGeral: 'pce', arquivoEnviar: 'pce',
                          pceDocNumero: 'pce', pceDocRegistrar: 'pce',
-                         turnoConvidar: 'veiculos', turnoParear: 'veiculos', turnoSair: 'veiculos' };
+                         turnoConvidar: 'veiculos', turnoParear: 'veiculos', turnoSair: 'veiculos',
+                         turnoPapelRegistrar: 'veiculos' };
 const MSG_SEM_ANTIGO = 'Sem autorização para digitar registros antigos (do papel). Fale com a gerência.';
 
 /**

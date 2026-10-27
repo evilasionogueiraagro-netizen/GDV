@@ -14,7 +14,7 @@ App do gestor (`web/painel/`), separado do app de campo. Acesso: [acessos](../mo
 
 ## Modo TV
 - Tela cheia, TV de 50" 24 h. Telas: Ao vivo, Alertas, Barreiras 7 dias, TF 30 dias, PCE 30 dias.
-- Usuário próprio da TV, só com a permissão Painel (ver); fica conectada até sair ou a conta ser desativada.
+- Usuário próprio da TV, só com a permissão "Painel gerencial: só consulta"; fica conectada até sair ou a conta ser desativada.
 - Abrir: `chrome --kiosk "https://evilasionogueiraagro-netizen.github.io/GDV/painel/?tv=1"` (ou F11). Parâmetros: `rotacao`, `rotacaoAoVivo`, `tema`, `telas`.
 - Sem internet, mantém os últimos dados (aviso após 3 min).
 

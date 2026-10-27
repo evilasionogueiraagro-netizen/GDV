@@ -17,7 +17,8 @@ const TABELAS = {
            'importacao',                     // turno criado pela importação do relatório de plantão do papel (portal): id da importação
            'pessoasEducacao', 'soPessoas',   // turno que não conta veículos (soPessoas = 1; ex.: volante de Tabatinga, educação sanitária da monilíase):
                                              // pessoas orientadas contadas no próprio turno
-           'colegas'],                       // fiscais que entraram no turno com o próprio login pelo código do dono (JSON [nomes]); só o servidor grava
+           'colegas',                        // fiscais que entraram no turno com o próprio login pelo código do dono (JSON [nomes]); só o servidor grava
+           'registroAntigo', 'pdfs'],        // turno digitado do papel (turnos-do-papel.gs): registroAntigo = 1, pdfs = JSON [ids] do Termo escaneado
   Veiculos: ['id', 'turnoId', 'hora', 'placa', 'tipo', 'pessoas', 'obs',
              'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
              // ufOrigem/ufDestino: "Origem e destino (opcional)" do formulário do veículo (sigla de CONFIG.ufs ou "Exterior"; vazio = não
@@ -170,7 +171,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-27c';
+const VERSAO_CODIGO = '2026-10-27d';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -208,7 +209,8 @@ function doPost(e) {
     if (acaoUsuarios) return json_(acaoUsuarios(req));
     const usuario = autenticar_(req.key);
     // TF/PCE: o servidor confere a autorização do módulo (foto/assinatura de TF = módulo TF; as demais, PCE)
-    const modulo = req.action === 'arquivoEnviar' && req.arquivo && req.arquivo.dono === 'tfs' ? 'tf' : MODULO_DA_ACAO[req.action];
+    const dono = req.action === 'arquivoEnviar' && req.arquivo ? req.arquivo.dono : '';
+    const modulo = dono === 'tfs' ? 'tf' : dono === 'turnos' ? 'veiculos' : MODULO_DA_ACAO[req.action];
     if (modulo) exigirModulo_(usuario, modulo);
     if (req.action === 'ping') return json_(ping_(req, usuario));
     if (req.action === 'sync') return json_(sincronizar_(req, usuario));
@@ -228,6 +230,7 @@ function doPost(e) {
     if (req.action === 'turnoConvidar') return json_(turnoConvidar_(req, usuario));
     if (req.action === 'turnoParear') return json_(turnoParear_(req, usuario));
     if (req.action === 'turnoSair') return json_(turnoSair_(req, usuario));
+    if (req.action === 'turnoPapelRegistrar') return json_(turnoPapelRegistrar_(req, usuario));
     throw new Error('Ação inválida.');
   } catch (err) {
     const r = { ok: false, erro: String(err.message || err) };

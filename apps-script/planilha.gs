@@ -94,6 +94,9 @@ function gravar_(nome, recebidos, ts, usuario) {
   recebidos.forEach(function (r) {
     const o = limpar_(cols, r);
     if (!o) return;
+    // documento padrão/inválido (000.000.000-00…) não identifica ninguém: não vira cadastro nem liga uma placa a um nome
+    if (nome === 'Pessoas' && !docValido_(o.id)) return;
+    if (nome === 'Placas' && !docValido_(o.doc)) return;
     if (!porId[o.id] || o.atualizadoEm >= porId[o.id].atualizadoEm) { porId[o.id] = o; brutos[o.id] = r; }
   });
 

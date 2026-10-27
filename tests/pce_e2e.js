@@ -176,6 +176,7 @@ const ANO = new Date().getFullYear();
   ok(/3°07'/.test(pr.texto) && /-3\.12345/.test(pr.texto) && pr.texto.includes('Ana Paula Lima') && pr.texto.includes('Plantas com sintomas de murcha.'), 'PDF 1: coordenadas (decimal e GMS), servidor, observações');
   ok(pr.imgs === 2 && pr.semFoto === 0 && /Cultura 1: Banana · Detectada · 1 foto\(s\)/.test(pr.texto) && /Banana – foto 1/.test(pr.texto), 'PDF 1: só a foto da Banana (agrupada por cultura, com legenda) + assinatura (' + pr.imgs + ' imagens)');
   ok(/^Levantamento_JOSE_DA_SILVA_Fusarium_R4T_\d\d-\d\d-\d{4}$/.test(pr.titulo), 'nome sugerido do PDF 1: ' + pr.titulo);
+  ok(/Espaç\. linha Espaç\. planta/.test(pr.texto) && /\b3 m 2,50 m\b/.test(pr.texto) && /300 cm 300 cm/.test(pr.texto), 'PDF 1: espaçamento com a unidade junto do valor (m e cm)');
   await salvarPdf(A, pr, 'pce_lev_pdf_fusarium');
   pr = await imprimir(A, '.item.pce-lev [data-pce=imprimirlev][data-g="1"]');
   ok(/Praga\/doença avaliada Mosca-negra-dos-citros/.test(pr.texto) && /2 de 2/.test(pr.texto) && pr.texto.includes('Banana') && /Suspeita/.test(pr.texto) && pr.texto.includes('AM-001') && !pr.texto.includes('Cacau') && !pr.texto.includes('Fusarium') && !pr.texto.includes('AM-002'),

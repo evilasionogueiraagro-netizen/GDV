@@ -84,7 +84,9 @@ const Envio = (() => {
     if (perm && perm.pce === 0) regs = [];
     if (perm && perm.tf === 0) tfs = [];
     if (perm && !podeAntigo(perm)) { regs = regs.filter(r => !ehAntigo(r)).map(r => ({ ...r, documentos: '[]' })); tfs = tfs.filter(r => !ehAntigo(r)).map(r => ({ ...r, pdfs: '[]' })); }
-    const ref = idsReferenciados([...regs, ...tfs]);
+    // turno digitado do papel: o PDF do Termo (só com Educação Sanitária/Fiscalização de Trânsito e "Digitar do papel")
+    const turnos = perm && (perm.veiculos === 0 || !podeAntigo(perm)) ? [] : (await Store.todos('turnos')).filter(ehAntigo);
+    const ref = idsReferenciados([...regs, ...tfs, ...turnos]);
     return (await Store.chaves('arquivos', 'enviado', 0)).filter(id => ref.has(id));
   }
   /** Ids dos arquivos não enviados que pertencem a TFs (o resto é do PCE). */

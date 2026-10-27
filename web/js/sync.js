@@ -299,6 +299,8 @@ const Sync = (() => {
     return r;
   }
   const sairDoTurno = turnoId => chamar({ action: 'turnoSair', turnoId }, 20000);
+  /** Turno antigo (Termo do papel): grava o turno encerrado e os totais; os PDFs (aba arquivos, dono "turnos") sobem na sincronização. */
+  const turnoPapel = (turno, veiculos, pessoas) => chamar({ action: 'turnoPapelRegistrar', turno, veiculos, pessoas }, 30000);
 
   /* ---------- Índice de reincidência (consulta do TF sem internet) ----------
      Resumo de TODOS os TFs não cancelados (todas as barreiras) por hash do CPF/CNPJ e da placa: {h: {n, ap, re, au, li, ad, ult}}, sem dados
@@ -500,7 +502,7 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, sairDoTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
+  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, sairDoTurno, turnoPapel, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
     pceProximoNumero, pceEmitir, pceConsultar, pceBaixarMunicipio, pceMapaGeral, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

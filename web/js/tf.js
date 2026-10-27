@@ -396,8 +396,8 @@ const TFUI = (() => {
     if (navigator.onLine && Sync.ativado()) {
       try {
         const r = await Sync.consultar(doc, placa);                                    // histórico completo (todas as barreiras)
-        if (r.pessoa) await Store.gravar('pessoas', { ...r.pessoa, criadoEm: Date.now(), atualizadoEm: Date.now(), pendente: 0 });
-        if (r.placa) await Store.gravar('placas', { ...r.placa, criadoEm: Date.now(), atualizadoEm: Date.now(), pendente: 0 });
+        if (r.pessoa && docOk(digitos(r.pessoa.id))) await Store.gravar('pessoas', { ...r.pessoa, criadoEm: Date.now(), atualizadoEm: Date.now(), pendente: 0 });
+        if (r.placa && docOk(digitos(r.placa.doc))) await Store.gravar('placas', { ...r.placa, criadoEm: Date.now(), atualizadoEm: Date.now(), pendente: 0 });
         return { ...r, parcial: false };
       } catch (e) { if (e.semPermissao || /revogado|inv[aá]lido/i.test(e.message)) throw e; }
     }
@@ -413,7 +413,8 @@ const TFUI = (() => {
       r.ultimos = resumoLocal(locais).ultimos; r.reincidente = r.apreensoes + r.rechacos + r.autos >= 1;
       return r;
     };
-    return { pessoa: doc ? await Store.obter('pessoas', doc) || null : null, placa: placa ? await Store.obter('placas', placa) || null : null, parcial: true, indiceEm: temIdx ? idx.agora : 0,
+    const pl = placa ? await Store.obter('placas', placa) || null : null;
+    return { pessoa: docOk(doc) ? await Store.obter('pessoas', doc) || null : null, placa: pl && docOk(digitos(pl.doc)) ? pl : null, parcial: true, indiceEm: temIdx ? idx.agora : 0,
       historicoDoc: doc ? await hist('doc:' + doc, meus.filter(t => digitos(t.doc) === doc)) : null,
       historicoPlaca: placa ? await hist('placa:' + placa, meus.filter(t => placaNorm(t.placa) === placa)) : null };
   }
@@ -443,12 +444,14 @@ const TFUI = (() => {
     let r; try { r = await buscar(d, ''); } catch (e) { st.textContent = ''; return; }
     if (!S || !$('#tf-doc')) return;
     S.hist.doc = docOk(d) ? r.historicoDoc : null;                              // documento inválido/padrão (000…): fora da reincidência
-    let html = docOk(d) ? '' : `<div class="tf-alerta">${icone('alerta')} ${d.length === 11 ? 'CPF' : 'CNPJ'} com dígitos inválidos: confira a digitação.</div>`;
-    if (r.pessoa) {
+    const padrao = /^(\d)\1+$/.test(d);                                       // 000.000.000-00: fiscalizado não identificado
+    let html = docOk(d) || padrao ? '' : `<div class="tf-alerta">${icone('alerta')} ${d.length === 11 ? 'CPF' : 'CNPJ'} com dígitos inválidos: confira a digitação.</div>`;
+    if (!docOk(d)) html += `<div class="tf-novo">${padrao ? 'Documento padrão (fiscalizado não identificado)' : 'Documento inválido'}: não liga a nenhum nome — os dados não são preenchidos nem guardados no cadastro, e não entra na reincidência.</div>`;
+    else if (r.pessoa) {
       ['nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone'].forEach(k => { const el = $('#tf-' + k); if (el) el.value = r.pessoa[k] || ''; });
       html += '<div class="tf-ok">✓ Cadastro encontrado — dados preenchidos automaticamente.</div>';
     } else html += '<div class="tf-novo">Novo cadastro — os dados serão salvos na planilha ao gerar o TF.</div>';
-    st.innerHTML = html + (docOk(d) ? histHTML(r.historicoDoc, 'para este documento', r) : '<div class="tf-novo">Documento não identifica o fiscalizado (inválido ou padrão 000.000.000-00): não entra na reincidência.</div>'); salvarRascunho();
+    st.innerHTML = html + (docOk(d) ? histHTML(r.historicoDoc, 'para este documento', r) : '');
   }
   async function consultarPlaca() {
     if (!S || !$('#tf-placa')) return;
@@ -459,7 +462,7 @@ const TFUI = (() => {
     if (!S || !$('#tf-placa')) return;
     S.hist.placa = r.historicoPlaca;
     let html = histHTML(r.historicoPlaca, 'para esta placa', r);
-    if (r.placa && r.placa.doc && !digitos($('#tf-doc').value)) html += `<div class="tf-novo">Último fiscalizado com esta placa: <b>${esc(r.placa.nome)}</b> (${esc(fmtDoc(r.placa.doc))}) <button type="button" class="mini" data-tf="usardoc" data-doc="${esc(r.placa.doc)}">Usar</button></div>`;
+    if (r.placa && docOk(digitos(r.placa.doc)) && !digitos($('#tf-doc').value)) html += `<div class="tf-novo">Último fiscalizado com esta placa: <b>${esc(r.placa.nome)}</b> (${esc(fmtDoc(r.placa.doc))}) <button type="button" class="mini" data-tf="usardoc" data-doc="${esc(r.placa.doc)}">Usar</button></div>`;
     st.innerHTML = html;
   }
 
@@ -506,7 +509,8 @@ const TFUI = (() => {
     const prods = D.produtos.filter(p => p.p && p.q).map(p => `${p.p} - ${p.q} ${p.u}`);
     const nome = D.nome.trim().toUpperCase();
     const pessoa = { id: doc, tipo: doc.length === 14 ? 'PJ' : 'PF', nome, rg: D.rg.trim(), endereco: D.endereco.trim(), municipio: D.municipio.trim(), uf: D.uf.trim().toUpperCase(), telefone: D.telefone.trim(), criadoEm: t0, atualizadoEm: t0 };
-    const placa = D.placa.length >= 7 ? { id: D.placa, doc, nome, criadoEm: t0, atualizadoEm: t0 } : null;
+    // documento padrão/inválido (000.000.000-00…) não identifica ninguém: não vira cadastro nem liga a placa a um nome
+    const placa = docOk(doc) && D.placa.length >= 7 ? { id: D.placa, doc, nome, criadoEm: t0, atualizadoEm: t0 } : null;
 
     // número digitado no formulário (ex.: o primeiro, seguindo o talão) vale no lugar do sugerido; o popup confirma
     let numero = S.numEditado && S.numEditado.b === bar.id ? S.numEditado.n : sug.numero, aviso = '';
@@ -528,7 +532,7 @@ const TFUI = (() => {
       let emitido = null;
       if (sug.origem === 'servidor') {                                               // a planilha confirma que o número ainda está livre
         try {
-          const r = await Sync.emitirTF(rec, pessoa, placa);
+          const r = await Sync.emitirTF(rec, docOk(doc) ? pessoa : null, placa);
           if (r.emitido === false) {                                                 // outro fiscal usou este número nesse intervalo: ainda dá tempo de trocar
             sug = { ...sug, numero: r.proximo, ultimo: r.ultimo, ultimoTF: { ...r.ocupadoPor } }; numero = r.proximo;
             aviso = `O nº ${num4(n)}/${a} acabou de ser usado por ${r.ocupadoPor.usuario} (${dBR(r.ocupadoPor.data)} ${r.ocupadoPor.hora}). Nova sugestão: ${num4(r.proximo)}.`;
@@ -540,7 +544,7 @@ const TFUI = (() => {
       const est = emitido ? { pendente: 0, emitidoEm: emitido.emitidoEm } : { pendente: 1, provisorio: sug.origem !== 'servidor' ? 1 : 0 };
       await Store.gravarVarios('arquivos', assArqs);                                 // fotos já estão no aparelho; sobem ao Drive na sincronização
       await Store.gravar('tfs', { ...rec, ...est });
-      await Store.gravar('pessoas', { ...pessoa, pendente: est.pendente });
+      if (docOk(doc)) await Store.gravar('pessoas', { ...pessoa, pendente: est.pendente });
       if (placa) await Store.gravar('placas', { ...placa, pendente: est.pendente });
       await Sync.lembrarUltimos({ [chave(bar.id, a)]: n });
       clearTimeout(tRasc); await Store.setMeta('tfRascunho', null); localStorage.setItem('gdv.barreira', bar.id);
@@ -578,7 +582,7 @@ const TFUI = (() => {
     const t0 = Date.now(), nome = (D.nome.trim() || 'NÃO IDENTIFICADO').toUpperCase(), hist = reincDe(st.hist);
     const prods = D.produtos.filter(p => p.p && p.q).map(p => `${p.p} - ${p.q} ${p.u}`);
     const pessoa = doc ? { id: doc, tipo: doc.length === 14 ? 'PJ' : 'PF', nome, rg: D.rg.trim(), endereco: D.endereco.trim(), municipio: D.municipio.trim(), uf: D.uf.trim().toUpperCase(), telefone: D.telefone.trim(), criadoEm: t0, atualizadoEm: t0 } : null;
-    const placa = doc && D.placa.length >= 7 ? { id: D.placa, doc, nome, criadoEm: t0, atualizadoEm: t0 } : null;
+    const placa = docOk(doc) && D.placa.length >= 7 ? { id: D.placa, doc, nome, criadoEm: t0, atualizadoEm: t0 } : null;   // documento padrão: sem vínculo
     const rec = {
       id: st.id, criadoEm: t0, atualizadoEm: t0, barreira: bar.id, ano: a, numero: n, numeroTxt: `${num4(n)}/${a} - ${bar.sufixo}`, turnoId: '', veiculoId: '',
       data: D.data, hora: D.hora, fiscal: servidor, local: D.local.trim(), placa: D.placa, origem: D.origem.trim(), destino: D.destino.trim(),
@@ -590,10 +594,10 @@ const TFUI = (() => {
       numeroSugerido: sug.proximo, numeroOrigem: 'papel', fotos: '[]', assinaturas: '{}', recusaAssinatura: 0, registroAntigo: 1, pdfs: JSON.stringify(st.pdfs)
     };
     btn.textContent = 'Gravando…';
-    let r; try { r = await Sync.emitirTF(rec, pessoa, placa); } catch (e) { fim(); return toast((e.semPermissao ? '' : 'Não gravou: ') + e.message, true); }
+    let r; try { r = await Sync.emitirTF(rec, docOk(doc) ? pessoa : null, placa); } catch (e) { fim(); return toast((e.semPermissao ? '' : 'Não gravou: ') + e.message, true); }
     if (r.emitido === false) { fim(); return toast(`O nº ${num4(n)}/${a} já está na planilha: ${r.ocupadoPor.numeroTxt} (${r.ocupadoPor.usuario}, ${dBR(r.ocupadoPor.data)} ${r.ocupadoPor.hora}). Confira o número do papel.`, true); }
     await Store.gravar('tfs', { ...rec, pendente: 0, emitidoEm: r.emitidoEm });     // os PDFs sobem ao Drive na sincronização
-    if (pessoa) await Store.gravar('pessoas', { ...pessoa, pendente: 0 });
+    if (pessoa && docOk(doc)) await Store.gravar('pessoas', { ...pessoa, pendente: 0 });
     if (placa) await Store.gravar('placas', { ...placa, pendente: 0 });
     await Sync.lembrarUltimos({ [chave(bar.id, a)]: Math.max(n, sug.ultimo) });
     clearTimeout(tRasc); await Store.setMeta(chaveRasc(true), null); localStorage.setItem('gdv.barreira', bar.id); lembrarServidor(servidor);

@@ -562,7 +562,7 @@ const PCEUI = (() => {
   const SEM_PRAGA = 'Sem praga informada', OUTRA = '__outra';
   const RES = Object.fromEntries(P.resultados || [['detectada', 'Detectada'], ['nao_detectada', 'Não detectada'], ['suspeita', 'Suspeita']]);
   const novoUid = () => 'c' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-3);
-  const culturaVazia = () => ({ uid: novoUid(), cultura: '', area: '', espLinha: '', espPlanta: '', resultado: '', coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '', fotos: [] });
+  const culturaVazia = () => ({ uid: novoUid(), cultura: '', area: '', espLinha: '', espPlanta: '', espUnidade: 'm', resultado: '', coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '', fotos: [] });
   const pragaVazia = () => ({ praga: '', legado: false, outra: false, culturas: [culturaVazia()] });
   const levVazio = s => ({ doc: '', nome: '', telefone: '', email: '', empresa: '', cnpj: '', propriedade: '', codigoPropriedade: '', situacaoFundiaria: '',
     municipio: s.lotacao || '', endereco: '', uf: 'AM', lat: '', lon: '', precisao: '', data: hojeISO(), hora: agoraHM(), obs: '', tipoLocal: '', origemVisita: '',
@@ -611,7 +611,8 @@ const PCEUI = (() => {
         legado: card.dataset.legado === '1',
         culturas: [...card.querySelectorAll('.pce-cult')].map(b => {
           const q = c => b.querySelector('.c-' + c).value, uid = b.dataset.uid, r = b.querySelector('.c-res:checked');
-          return { uid, cultura: q('cultura'), area: q('area'), espLinha: q('espLinha'), espPlanta: q('espPlanta'), resultado: r ? r.value : '', coleta: q('coleta'),
+          return { uid, cultura: q('cultura'), area: q('area'), espLinha: q('espLinha'), espPlanta: q('espPlanta'),
+            espUnidade: (b.querySelector('.c-espUnidade:checked') || {}).value || '', resultado: r ? r.value : '', coleta: q('coleta'),
             tipoMaterial: q('tipoMaterial'), codigoAmostra: q('codigoAmostra'), destinoAmostra: q('destinoAmostra'), fotos: ((L && L.fotosC[uid]) || []).slice() };
         }) })) };
   }
@@ -629,6 +630,10 @@ const PCEUI = (() => {
     const t = (($('#pce-' + id + '-outro') || {}).value || '').trim().replace(/\s+/g, ' ');
     return t || OUTRO;
   }
+  /** Espaçamento entre linhas e entre plantas: só número (vírgula ou ponto decimal) e a unidade escolhida no seletor, gravada em espUnidade.
+   *  Registro anterior sem unidade: o texto antigo aparece como estava e o seletor fica sem escolha até a pessoa marcar. */
+  const UNIDADES_ESP = ['m', 'cm'], ESP_NUM = 'inputmode="decimal" maxlength="8" autocomplete="off"';
+  const espNumero = v => /^\d+([.,]\d+)?$/.test(v) && Number(v.replace(',', '.')) > 0;
   function blocoCultura(c, k) {
     const amostra = c.coleta === 'Sim' ? '' : 'disabled', u = esc(c.uid);
     const inp = (cls, rot, extra = '') => `<label>${rot}<input class="c-${cls}" value="${esc(c[cls])}" maxlength="60" ${extra}></label>`;
@@ -638,7 +643,9 @@ const PCEUI = (() => {
       <fieldset class="pce-res"><legend>Resultado *</legend><div class="pce-res-op">${Object.keys(RES).map(v => `<label class="pce-res-${v}"><input type="radio" class="c-res"
         name="res-${u}" value="${v}" ${c.resultado === v ? 'checked' : ''}><span>${esc(RES[v])}</span></label>`).join('')}</div></fieldset>
       <div class="duas">${inp('area', 'Área (ha)', 'inputmode="decimal"')}<label>Coleta de amostra<select class="c-coleta">${opts(['Não', 'Sim'], c.coleta === 'Sim' ? 'Sim' : 'Não')}</select></label></div>
-      <div class="duas">${inp('espLinha', 'Espaçamento entre linhas')}${inp('espPlanta', 'Espaçamento entre plantas')}</div>
+      <fieldset class="pce-esp"><legend>Espaçamento</legend><div class="pce-esp-un" role="radiogroup" aria-label="Unidade do espaçamento">${UNIDADES_ESP.map(x =>
+        `<label><input type="radio" class="c-espUnidade" name="esp-${u}" value="${x}" ${c.espUnidade === x ? 'checked' : ''}><span>${x}</span></label>`).join('')}</div>
+        <div class="duas">${inp('espLinha', 'Entre linhas', ESP_NUM)}${inp('espPlanta', 'Entre plantas', ESP_NUM)}</div></fieldset>
       <div class="pce-amostra">${inp('tipoMaterial', 'Tipo de material', amostra)}<div class="duas">${inp('codigoAmostra', 'Código da amostra', amostra)}${inp('destinoAmostra', 'Destino da amostra', amostra)}</div></div>
       <label class="pce-arquivo pce-arquivo-cult">${icone('camera')} Fotos desta cultura<input type="file" class="c-fotos" data-uid="${u}" accept="image/*" multiple></label>
       <div id="pce-fotos-${u}" class="pce-fotos pce-fotos-cult"></div></div>`;
@@ -777,6 +784,11 @@ const PCEUI = (() => {
       if (e.target.id === 'pce-busca-prop') { clearTimeout(tm.busca); tm.busca = setTimeout(() => buscarPropForm().catch(() => {}), 250); return; }
       if (e.target.id === 'pce-doc') aoDigitarDoc('pce-', e.target); if (e.target.id === 'pce-coord') mostrarCoord('pce-');
       if (e.target.classList.contains('p-outra')) atualizarCitros();
+      if (e.target.matches('.c-espLinha, .c-espPlanta')) {             // só número: tira letras e deixa um separador decimal
+        const v = e.target.value; let n = v.replace(/[^\d.,]/g, ''); const i = n.search(/[.,]/);
+        if (i >= 0) n = n.slice(0, i + 1) + n.slice(i + 1).replace(/[.,]/g, '');
+        if (n !== v) e.target.value = n;
+      }
       agendarRascunho(); });
     // botão sim/não tocado de novo desmarca (moniliase.js, sem evento "change"): recalcula as partes dependentes do card de citros
     f.addEventListener('click', e => { if (e.target.matches && e.target.matches('#pce-citros .mon-op input')) setTimeout(() => { PCECitros.ligar(); agendarRascunho(); }); });
@@ -826,6 +838,10 @@ const PCEUI = (() => {
       if (g.outra && !g.praga) { toast(`Digite o nome da praga/doença ${i + 1} (opção “Outra”).`, true); return null; }
       if (!g.praga && !g.legado) { toast(`Escolha a praga/doença avaliada no card ${i + 1}.`, true); return null; }
       if (!g.praga && cults.some(c => c.resultado && c.resultado !== 'nao_detectada')) { toast(`Card ${i + 1}: escolha a praga/doença detectada ou suspeita.`, true); return null; }
+      const espRuim = cults.find(c => [c.espLinha, c.espPlanta].some(v => v.trim() && !espNumero(v.trim())));
+      if (espRuim) { toast(`Espaçamento de ${espRuim.cultura} em ${nomePraga(g.praga)}: só números (ex.: 3 ou 2,5).`, true); return null; }
+      const semUn = cults.find(c => (c.espLinha.trim() || c.espPlanta.trim()) && !UNIDADES_ESP.includes(c.espUnidade));
+      if (semUn) { toast(`Escolha a unidade do espaçamento (m ou cm) de ${semUn.cultura} em ${nomePraga(g.praga)}.`, true); return null; }
       const semRes = cults.find(c => !c.resultado);
       if (semRes) { toast(`Informe o resultado de ${semRes.cultura} em ${nomePraga(g.praga)} (detectada, não detectada ou suspeita).`, true); return null; }
       const nomes = cults.map(c => c.cultura), dup = nomes.find((c, k) => nomes.indexOf(c) !== k);
@@ -834,7 +850,7 @@ const PCEUI = (() => {
       if (vistas.has(k)) { toast(`${nomePraga(g.praga)} está em dois cards. Junte as culturas num só card.`, true); return null; }
       vistas.set(k, 1);
       out.push({ praga: g.praga, culturas: cults.map(c => ({ cultura: c.cultura, area: c.area.trim(), espLinha: c.espLinha.trim(), espPlanta: c.espPlanta.trim(),
-        resultado: c.resultado, coleta: c.coleta === 'Sim' ? 'Sim' : 'Não', tipoMaterial: c.coleta === 'Sim' ? c.tipoMaterial.trim() : '',
+        espUnidade: c.espLinha.trim() || c.espPlanta.trim() ? c.espUnidade : '', resultado: c.resultado, coleta: c.coleta === 'Sim' ? 'Sim' : 'Não', tipoMaterial: c.coleta === 'Sim' ? c.tipoMaterial.trim() : '',
         codigoAmostra: c.coleta === 'Sim' ? c.codigoAmostra.trim() : '', destinoAmostra: c.coleta === 'Sim' ? c.destinoAmostra.trim() : '', fotos: c.fotos.slice() })) });
     }
     if (!out.length) { toast('Informe pelo menos uma praga/doença com uma cultura avaliada.', true); return null; }
@@ -842,7 +858,7 @@ const PCEUI = (() => {
     return out;
   }
   /** Compatibilidade: uma cultura por cultura × praga (praga = nome só se detectada/suspeita), para o painel, relatórios e versões anteriores. */
-  const culturasDerivadas = pragas => pragas.flatMap(g => g.culturas.map(c => ({ cultura: c.cultura, area: c.area, espLinha: c.espLinha, espPlanta: c.espPlanta,
+  const culturasDerivadas = pragas => pragas.flatMap(g => g.culturas.map(c => ({ cultura: c.cultura, area: c.area, espLinha: c.espLinha, espPlanta: c.espPlanta, espUnidade: c.espUnidade || '',
     praga: c.resultado === 'nao_detectada' ? '' : g.praga, pragaAvaliada: g.praga, resultado: c.resultado, coleta: c.coleta, tipoMaterial: c.tipoMaterial,
     codigoAmostra: c.codigoAmostra, destinoAmostra: c.destinoAmostra })));
 

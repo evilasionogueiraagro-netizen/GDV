@@ -402,7 +402,7 @@ function arquivoEnviar_(req, usuario) {
 }
 
 /* ---------- PCE: levantamento por praga/doença ----------
- * Coluna "pragas" (JSON [{praga, culturas:[{cultura, area, espLinha, espPlanta, resultado, coleta, tipoMaterial, codigoAmostra, destinoAmostra, fotos}]}]),
+ * Coluna "pragas" (JSON [{praga, culturas:[{cultura, area, espLinha, espPlanta, espUnidade (m | cm; vazio = registro anterior), resultado, coleta, tipoMaterial, codigoAmostra, destinoAmostra, fotos}]}]),
  * resultado = detectada | nao_detectada | suspeita. Registro anterior (sem "pragas"): cada cultura da coluna "culturas" vira um item da praga
  * dela (resultado "detectada") ou da praga '' = "Sem praga informada" (resultado "nao_detectada"). Detectada e suspeita contam como detecção. */
 const RESULTADOS_PCE = ['detectada', 'nao_detectada', 'suspeita'];
@@ -468,6 +468,7 @@ function identLev_(r) {
 }
 function culturaPce_(c, resultado) {
   return { cultura: String(c.cultura).trim(), area: numOuNulo_(c.area), espLinha: String(c.espLinha || ''), espPlanta: String(c.espPlanta || ''),
+           espUnidade: ['m', 'cm'].indexOf(c.espUnidade) >= 0 ? c.espUnidade : '',
            resultado: resultado, coleta: c.coleta === 'Sim' ? 'Sim' : 'Não', tipoMaterial: String(c.tipoMaterial || ''),
            codigoAmostra: String(c.codigoAmostra || ''), destinoAmostra: String(c.destinoAmostra || ''),
            nFotos: Array.isArray(c.fotos) ? c.fotos.filter(Boolean).length : 0 };
@@ -496,7 +497,7 @@ function culturasLev_(r) {
   const out = [];
   pragasLev_(r).forEach(function (g) {
     g.culturas.forEach(function (c) {
-      out.push({ cultura: c.cultura, area: c.area, espLinha: c.espLinha, espPlanta: c.espPlanta, praga: c.resultado === 'nao_detectada' ? '' : g.praga,
+      out.push({ cultura: c.cultura, area: c.area, espLinha: c.espLinha, espPlanta: c.espPlanta, espUnidade: c.espUnidade, praga: c.resultado === 'nao_detectada' ? '' : g.praga,
                  avaliada: g.praga, resultado: c.resultado, coleta: c.coleta, tipoMaterial: c.tipoMaterial, codigoAmostra: c.codigoAmostra, destinoAmostra: c.destinoAmostra });
     });
   });

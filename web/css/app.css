@@ -101,6 +101,13 @@ nav button span { font-size:9.5px; } nav button.on { color:var(--link); font-wei
 .pce-res-op .pce-res-detectada:has(input:checked) { background:var(--critico); border-color:var(--critico); color:#fff; }
 .pce-res-op .pce-res-suspeita:has(input:checked) { background:var(--atencao); border-color:var(--atencao); color:#0b0b0b; }
 .pce-res-op .pce-res-nao_detectada:has(input:checked) { background:var(--sucesso); border-color:var(--sucesso); color:#fff; }
+/* espaçamento: seletor da unidade (m | cm) acima dos dois campos */
+.pce-esp { border:0; padding:0; margin:6px 0 0; min-width:0; } .pce-esp legend { padding:0; font-size:13px; color:var(--mut); margin-bottom:4px; }
+.pce-esp-un { display:inline-grid; grid-template-columns:repeat(2,64px); gap:6px; margin-bottom:6px; }
+.pce-esp-un label { position:relative; flex-direction:row; justify-content:center; margin:0; padding:7px 4px; border:1.5px solid var(--grade); border-radius:8px; background:var(--sf); font-weight:600; color:var(--ink); cursor:pointer; }
+.pce-esp-un input { position:absolute; opacity:0; width:1px; height:1px; }
+.pce-esp-un label:has(input:focus-visible) { outline:2px solid var(--marca2); outline-offset:2px; }
+.pce-esp-un label:has(input:checked) { background:var(--marca2); border-color:var(--marca2); color:#fff; }
 .pce-arquivo-cult { margin-top:8px; padding:9px; font-size:14px; }
 .pce-fotos-cult { margin-top:6px; }
 .pce-selo-res { display:inline-block; padding:1px 7px; border-radius:9px; font-size:12px; font-weight:700; white-space:nowrap; }

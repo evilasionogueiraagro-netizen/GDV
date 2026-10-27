@@ -150,7 +150,9 @@ const TABELAS = {
   HistoricoDeAlteracoes: ['id', 'em', 'usuarioId', 'acao', 'tabela', 'registroId', 'antes', 'depois'],
   // Turno compartilhado (turnos-compartilhados.gs): o dono do turno gera um código (válido por 15 min); o colega, com o próprio login,
   // entra com ele (colega/entrouEm) e sai quando quiser (saiuEm). Cada convite é uma linha; nada é apagado.
-  Pareamentos: ['id', 'turnoId', 'dono', 'codigo', 'criadoEm', 'expiraEm', 'colega', 'entrouEm', 'saiuEm']
+  Pareamentos: ['id', 'turnoId', 'dono', 'codigo', 'criadoEm', 'expiraEm', 'colega', 'entrouEm', 'saiuEm'],
+  // Quem leu dados pessoais (LGPD): uma linha por usuário + action a cada 1 h (acessos.gs lido_). resumo = filtros, sem dado pessoal.
+  AcessosADados: ['id', 'em', 'usuarioId', 'nome', 'acao', 'resumo']
 };
 const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
                           'expiraEm', 'ativo', 'ativadoEm', 'oculto', 'ocultoEm',
@@ -171,7 +173,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-27d';
+const VERSAO_CODIGO = '2026-10-27e';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -180,9 +182,11 @@ function doGet() {
 function doPost(e) {
   USUARIO_ATUAL_ = null;   // quem está chamando: preenchido por autenticar_/adminDoToken_/admSessao_/gerenciaDe_; vale só para esta requisição
   try {
-    const req = JSON.parse(e.postData.contents);
+    let req = null;
+    try { req = JSON.parse(e.postData.contents); } catch (x) { req = null; }
+    if (!req || typeof req !== 'object' || Array.isArray(req)) throw new Error('Requisição inválida.');   // sem detalhe do JavaScript na resposta
     if (req.action === 'painelSair') return json_(sair_(req));                                 // = sair (nome usado pela tela atual do painel)
-    if (req.action === 'painelDados') return json_(painelDados(req.key, { de: req.de, ate: req.ate, aoVivo: req.aoVivo, ids: req.ids }));
+    if (req.action === 'painelDados') return json_(lido_(req, painelDados(req.key, { de: req.de, ate: req.ate, aoVivo: req.aoVivo, ids: req.ids })));
     if (req.action === 'painelEncerrarTurno') return json_(painelEncerrarTurno(req.key, req.turnoId, req.fim));
     if (req.action === 'tfVerificar') return json_(tfVerificar_(req));                      // página pública verificar.html: sem credencial
     if (req.action === 'publicoDados') return json_(publicoDados_(req));                    // dashboard público (web/dashboard/): sem credencial, só agregados
@@ -203,14 +207,15 @@ function doPost(e) {
     if (req.action === 'painelRelGdvApuracao') return json_(painelRelGdvApuracao(req.key, req));
     if (req.action === 'painelVigDados') return json_(painelVigDados(req.key, req));
     if (req.action === 'painelVigConfigSalvar') return json_(painelVigConfigSalvar(req.key, req));
-    if (/^adm[A-Z]/.test(String(req.action || ''))) return json_(admAcao_(req));   // Portal do Administrativo (token em `sessao`)
+    if (/^adm[A-Z]/.test(String(req.action || ''))) return json_(lido_(req, admAcao_(req)));   // Portal do Administrativo (token em `sessao`)
     // Login com matrícula e senha (usuarios.gs): entrar, trocarSenha, sair, minhaSessao e as actions de gerência
     const acaoUsuarios = usuariosAcao_(req.action);
-    if (acaoUsuarios) return json_(acaoUsuarios(req));
+    if (acaoUsuarios) return json_(lido_(req, acaoUsuarios(req)));
     const usuario = autenticar_(req.key);
     // TF/PCE: o servidor confere a autorização do módulo (foto/assinatura de TF = módulo TF; as demais, PCE)
     const dono = req.action === 'arquivoEnviar' && req.arquivo ? req.arquivo.dono : '';
-    const modulo = dono === 'tfs' ? 'tf' : dono === 'turnos' ? 'veiculos' : MODULO_DA_ACAO[req.action];
+    const modulo = dono === 'tfs' ? 'tf' : dono === 'turnos' ? 'veiculos'
+      : Object.prototype.hasOwnProperty.call(MODULO_DA_ACAO, req.action) ? MODULO_DA_ACAO[req.action] : '';   // "toString"/"__proto__" não são módulos
     if (modulo) exigirModulo_(usuario, modulo);
     if (req.action === 'ping') return json_(ping_(req, usuario));
     if (req.action === 'sync') return json_(sincronizar_(req, usuario));
@@ -219,11 +224,11 @@ function doPost(e) {
     if (req.action === 'tfEmitir') return json_(emitir_(req, usuario));
     if (req.action === 'pceProximoNumero') return json_(pceProximoNumero_(req));
     if (req.action === 'pceEmitir') return json_(pceEmitir_(req, usuario));
-    if (req.action === 'pceConsultar') return json_(pceConsultar_(req, usuario));
+    if (req.action === 'pceConsultar') return json_(lido_(req, pceConsultar_(req, usuario)));
     if (req.action === 'pceDocNumero') return json_(pceDocNumero_(req));
     if (req.action === 'pceDocRegistrar') return json_(pceDocRegistrar_(req, usuario));
-    if (req.action === 'pceBaixarMunicipio') return json_(pceBaixarMunicipio_(req, usuario));
-    if (req.action === 'pceMapaGeral') return json_(pceMapaGeral_(req, usuario));
+    if (req.action === 'pceBaixarMunicipio') return json_(lido_(req, pceBaixarMunicipio_(req, usuario)));
+    if (req.action === 'pceMapaGeral') return json_(lido_(req, pceMapaGeral_(req, usuario)));
     if (req.action === 'arquivoEnviar') return json_(arquivoEnviar_(req, usuario));
     if (req.action === 'tfAndamento') return json_(tfAndamento_(req, usuario));
     if (req.action === 'tfIndiceReincidencia') return json_(tfIndiceReincidencia_(req));
@@ -239,6 +244,12 @@ function doPost(e) {
     if (err && err.entrar) r.entrar = 1;                                                                 // sem sessão válida: a tela volta ao login
     return json_(r);
   }
+}
+
+/** Registros do lote menos os recusados (ids). */
+function gravados_(regs, recusados) {
+  if (!recusados || !recusados.length) return regs;
+  return regs.filter(function (r) { return !(r && recusados.indexOf(String(r.id).slice(0, 64)) >= 0); });
 }
 
 function sincronizar_(req, usuario) {
@@ -288,15 +299,17 @@ function sincronizar_(req, usuario) {
   lock.waitLock(30000);
   try {
     const agora = Date.now();
+    // registro de outro login (mesmo id) não é gravado: volta em recusados (planilha.gs gravar_)
+    const alheios = function (campo, ids) { if (ids && ids.length) recusados[campo] = (recusados[campo] || []).concat(ids.map(function (x) { return String(x).slice(0, 64); })); };
     letrasDosTurnos_(T.turnos);                                                        // A, B, C… pela ordem do nº do turno (turnos-compartilhados.gs)
     gravar_('Turnos', T.turnos, agora, usuario);
-    gravar_('Veiculos', T.veiculos, agora, usuario);
+    alheios('veiculos', gravar_('Veiculos', T.veiculos, agora, usuario));
     T.tfs.forEach(function (t) { if (t && !t.emitidoEm) t.emitidoEm = agora; });            // momento em que a planilha recebeu o TF
-    gravar_('TFs', T.tfs, agora, usuario);
-    if (T.tfs.length) marcarConflitosTFs_(T.tfs, agora);
+    alheios('tfs', gravar_('TFs', T.tfs, agora, usuario));
+    if (T.tfs.length) marcarConflitosTFs_(gravados_(T.tfs, recusados.tfs), agora);
     gravar_('Pessoas', T.pessoas, agora, usuario);
     gravar_('Placas', T.placas, agora, usuario);
-    gravar_('Levantamentos', T.levantamentos, agora, usuario);
+    alheios('levantamentos', gravar_('Levantamentos', T.levantamentos, agora, usuario));
     const jaGravadas = {};                                                            // termos que a planilha já tem: mantêm o emitidoEm gravado
     if (T.colheitas.length) lerLeitura_('Colheitas').forEach(function (l) { jaGravadas[l.id] = true; });
     T.colheitas.forEach(function (c) {
@@ -309,8 +322,8 @@ function sincronizar_(req, usuario) {
         else c.emitidoEm = agora;                                                       // momento em que a planilha recebeu o termo
       }
     });
-    gravar_('Colheitas', T.colheitas, agora, usuario);
-    if (T.colheitas.length) marcarConflitos_('PCE', T.colheitas, agora);
+    alheios('colheitas', gravar_('Colheitas', T.colheitas, agora, usuario));
+    if (T.colheitas.length) marcarConflitos_('PCE', gravados_(T.colheitas, recusados.colheitas), agora);
     gravar_('Propriedades', T.propriedades, agora, usuario);
     // Cadastro de imóvel e Termo de Fiscalização do PCE: nº em texto no formato do papel; número repetido = conflito (o mais antigo vale)
     [['cadastro', 'cadastrosPce'], ['termo', 'termosPce']].forEach(function (x) {
@@ -322,8 +335,8 @@ function sincronizar_(req, usuario) {
         normalizarDocPce_(x[0], r);
         if (!r.emitidoEm) { if (ja[r.id]) delete r.emitidoEm; else r.emitidoEm = agora; }
       });
-      gravar_(D.aba, regs, agora, usuario);
-      marcarConflitos_(D.seq, regs, agora);
+      alheios(x[1], gravar_(D.aba, regs, agora, usuario));
+      marcarConflitos_(D.seq, gravados_(regs, recusados[x[1]]), agora);
     });
     // sinal do aparelho (melhor esforço: nunca derruba o envio). Desconta o que acabou de chegar.
     const encerrados = {};

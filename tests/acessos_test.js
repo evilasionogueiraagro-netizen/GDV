@@ -101,7 +101,7 @@ const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR
   let R = await linhas(p);
   ok(['fis.acessos', 'rev.acessos', 'ver.acessos', 'novo.acessos'].every(m => R.some(l => l.includes(m))), 'lista: matrícula, nome, permissões, situação, último acesso e sessões', R.map(l => l.slice(0, 70)));
   ok(/Senha provisória/.test(R.find(l => l.includes('novo.acessos')) || '') && !/Senha provisória/.test(R.find(l => l.includes('fis.acessos')) || ''), 'senha provisória marcada só em quem ainda não criou a própria');
-  ok(/App de campo/.test(R.find(l => l.includes('fis.acessos')) || '') && /Painel \(ver\)/.test(R.find(l => l.includes('ver.acessos')) || ''), 'permissões com rótulo legível');
+  ok(/App de campo/.test(R.find(l => l.includes('fis.acessos')) || '') && /Painel gerencial: só consulta/.test(R.find(l => l.includes('ver.acessos')) || ''), 'permissões com rótulo legível');
 
   await p.click(trDe('fis.acessos') + ' [data-us=sessoes]');
   await p.waitForSelector('#pn-us-sessoes-cartao tbody tr', { timeout: 15000 });

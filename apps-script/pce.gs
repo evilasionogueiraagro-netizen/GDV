@@ -340,7 +340,7 @@ function arquivoEnviar_(req, usuario) {
   // foto do levantamento por praga: "praga – cultura" a que a foto pertence (texto livre, só informativo: aba Arquivos e nome no Drive)
   const rotulo = tipo === 'foto' ? String(a.rotulo || '').replace(/\s+/g, ' ').trim().slice(0, 120) : '';
   if (!ARQ_RE_UUID.test(id)) throw new Error('Identificador de arquivo inválido.');
-  if (['levantamentos', 'colheitas', 'tfs', 'cadastrosPce', 'termosPce'].indexOf(dono) < 0) throw new Error('Arquivo sem registro de origem válido.');
+  if (['levantamentos', 'colheitas', 'tfs', 'turnos', 'cadastrosPce', 'termosPce'].indexOf(dono) < 0) throw new Error('Arquivo sem registro de origem válido.');
   if (!donoId || donoId.length > 64) throw new Error('Arquivo sem registro de origem válido.');
   if (tipo !== 'foto' && tipo !== 'assinatura' && tipo !== 'documento') throw new Error('Tipo de arquivo inválido.');
   if (['', 'servidor', 'produtor', 'testemunha1', 'testemunha2', 'fiscalizado'].indexOf(papel) < 0) throw new Error('Papel da assinatura inválido.');
@@ -373,6 +373,7 @@ function arquivoEnviar_(req, usuario) {
   lock.waitLock(30000);
   try {                                                                     // pastas e numeração do nome sob lock (sem duplicar pastas)
     pasta = dono === 'tfs' ? subpasta_(subpasta_(pastaArquivos_(), 'TF'), ano)          // TF: GDV - Arquivos/TF/<ano>
+      : dono === 'turnos' ? subpasta_(subpasta_(pastaArquivos_(), 'Turnos'), ano)        // Termo do turno do papel: GDV - Arquivos/Turnos/<ano>
       : subpasta_(subpasta_(subpasta_(pastaArquivos_(), 'PCE'), ano), dono);
     n = lerLeitura_('Arquivos').filter(function (r) { return r.dono === dono && r.donoId === donoId && r.tipo === tipo; }).length + 1;
   } finally { lock.releaseLock(); }

@@ -13,7 +13,7 @@ let USUARIO_ATUAL_ = null;
 
 const PERMISSOES_USUARIO_ = ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce', 'digitarDoPapel', 'painel', 'administracao', 'gerencia'];
 const APLICATIVOS_USUARIO_ = ['campo', 'painel', 'administracao'];
-const NOME_APLICATIVO_USUARIO_ = { campo: 'o app de campo', painel: 'o painel', administracao: 'o Portal do Administrativo' };
+const NOME_APLICATIVO_USUARIO_ = { campo: 'o app de campo', painel: 'o painel gerencial', administracao: 'o Portal do Administrativo' };
 const RE_MATRICULA_ = /^[A-Za-z0-9.\-]{3,20}$/;
 const RE_TOKEN_USUARIO_ = /^u\.[0-9a-f]{64}$/;
 const SENHA_MIN_ = 8;

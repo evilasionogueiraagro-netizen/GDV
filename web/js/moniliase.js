@@ -395,7 +395,7 @@ const PCEMon = (() => {
         <p class="mon-sub">Hospedeiro suspeito</p>${cks(p, 'suspeitos', HOSP, D.suspeitos)}
         ${sn(p, 'amostra', 'Colheita de amostra?', D.amostra)}
         ${sn(p, 'diagnostico', 'Diagnóstico', D.diagnostico, [['positivo', 'Positivo p/ M. roreri'], ['negativo', 'Negativo p/ M. roreri']])}</div>
-      ${A ? pdfHTML(p) : `<div class="card"><h3>Assinaturas (opcional)</h3>${assHTML('servidor', 'Servidor da ADAF')}${assHTML('produtor', 'Produtor/proprietário')}</div>`}
+      ${A ? pdfHTML(p) : !CONFIG.assinaturaNaTela ? '' : `<div class="card"><h3>Assinaturas (opcional)</h3>${assHTML('servidor', 'Servidor da ADAF')}${assHTML('produtor', 'Produtor/proprietário')}</div>`}
       <button class="botao" type="submit" id="${p}salvar">${icone('salvar')} Salvar cadastro</button>
       ${A && st.novo ? `<button class="botao" type="button" data-mon="salvaroutro" id="${p}salvar-outro">${icone('salvar')} Salvar e digitar outro</button>` : ''}
       <button class="botao sec" type="button" data-mon="descartar">Descartar</button></form>`;
@@ -605,7 +605,7 @@ const PCEMon = (() => {
         ${A && st.novo ? `${inp(p, 'numpapel', 'Nº do cadastro (como está no papel) *', D.numPapel, 'placeholder="ex.: 001-2026-AUTAZES ou 1" autocomplete="off"')}<div id="${p}numpapel-st" class="tf-status" aria-live="polite"></div>`
           : `<div class="tf-num">${st.rec ? `<b>${esc(st.rec.numeroTxt)}</b>` : '<small>Nº definido ao salvar (sequência dos cadastros de citros da unidade; sem internet, provisório).</small>'}</div>`}</div>
       ${resumoCadCiHTML(b, st.dados)}
-      ${A ? pdfHTML(p) : `<div class="card"><h3>Assinaturas (opcional)</h3><p class="dica" style="text-align:left">O PDF sempre traz as linhas para assinar no papel.</p>${assHTML('servidor', 'Servidor da ADAF')}${assHTML('produtor', 'Produtor/proprietário')}</div>`}
+      ${A ? pdfHTML(p) : !CONFIG.assinaturaNaTela ? '' : `<div class="card"><h3>Assinaturas (opcional)</h3><p class="dica" style="text-align:left">O PDF sempre traz as linhas para assinar no papel.</p>${assHTML('servidor', 'Servidor da ADAF')}${assHTML('produtor', 'Produtor/proprietário')}</div>`}
       <button class="botao" type="submit" id="${p}salvar">${icone('salvar')} Salvar cadastro de citros</button>
       <button class="botao sec" type="button" data-mon="descartar">Descartar</button></form>`;
   }
@@ -746,7 +746,7 @@ const PCEMon = (() => {
       <div class="card mon-extras"><h3>${icone('resumo')} Para o relatório de atividades</h3><p class="dica" style="text-align:left">Não aparece no papel. Plantas: total do cadastro (pode editar).</p>
         ${inp(p, 'plantas', 'Plantas inspecionadas', D.plantas, 'inputmode="numeric" autocomplete="off"')}
         ${sn(p, 'amostra', 'Amostra coletada?', D.amostra)}${sn(p, 'sintomas', 'Presença de sintomas?', D.sintomas)}</div>
-      ${A ? pdfHTML(p) : `<div class="card"><h3>Assinaturas (opcional)</h3>${assHTML('produtor', 'Interessado (recebi a 2ª via)')}${assHTML('servidor', 'Servidor da ADAF')}
+      ${A ? pdfHTML(p) : !CONFIG.assinaturaNaTela ? '' : `<div class="card"><h3>Assinaturas (opcional)</h3>${assHTML('produtor', 'Interessado (recebi a 2ª via)')}${assHTML('servidor', 'Servidor da ADAF')}
         ${assHTML('testemunha1', 'Testemunha 1')}${assHTML('testemunha2', 'Testemunha 2')}</div>`}
       <button class="botao" type="submit" id="${p}salvar">${icone('salvar')} Salvar termo</button>
       ${A && st.novo ? `<button class="botao" type="button" data-mon="salvaroutro" id="${p}salvar-outro">${icone('salvar')} Salvar e digitar outro</button>` : ''}

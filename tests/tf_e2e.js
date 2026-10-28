@@ -51,6 +51,8 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   { const P = await aparelho(fA); const tit = await P.locator('.modulo b').allTextContents(); ok(tit.length === 3 && /Educação Sanitária\/Fiscalização de Trânsito/.test(tit[0]) && /Termo de Fiscalização/.test(tit[1]) && tit[2] === 'PCE', 'após entrar: três módulos (veículos, TF, PCE) — ' + tit.join(' | ')); ok(/Olá, Ana/.test(await P.textContent('#view')), 'saudação com o nome vinculado'); await P.ctx.close(); }
   console.log('A) Ana: o número vem da planilha na hora de gerar, num popup editável, antes do PDF');
   const A = await aparelho(fA); await irTF(A); await novoTF(A);
+  ok(!(await A.locator('[data-tf=assinar], canvas.pce-canvas').count()) && await A.locator('#tf-recusa').count() === 1 && /assinaturas são feitas no papel/.test(await A.textContent('#tf-ass-card')),
+    'assinatura na tela desligada (CONFIG.assinaturaNaTela): sem "Assinar na tela"; fica a marcação da recusa');
   ok((await A.inputValue('#tf-num')) === '1' && /Próximo nº pela planilha/.test(await numeroTela(A)) && /Nenhum TF desta barreira/.test(await numeroTela(A)), 'no formulário o nº já aparece (1, pela planilha) e é editável: "' + await numeroTela(A) + '"');
   ok((await A.inputValue('#tf-local')) === 'BR-319 PORTO DA CEASA', 'local sugerido pela barreira');
   await A.screenshot({ path: amb.saida('tf_form_topo.png') });

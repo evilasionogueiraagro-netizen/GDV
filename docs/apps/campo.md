@@ -15,6 +15,7 @@ App do fiscal (`web/`). Veja: [TF](../modulos/tf.md), [barreiras](../modulos/bar
 - Origem e destino opcionais, só UF (`Veiculos.ufOrigem`/`ufDestino`).
 - Volante de educação sanitária: `Turnos.soPessoas = 1`, contador `Turnos.pessoasEducacao`, sem veículos; marcado em `CONFIG.volantesSoPessoas` (hoje TABATINGA). Conta em VIGIFITO, painel, relatório, dashboard e convênio (1.9).
 - Excluir é lógico. "Limpar histórico" só remove turnos encerrados e enviados.
+- Cancelar turno: só o dono, sem TF. Fica na planilha (`cancelado = 1`, veículos excluídos), fora de tudo (`lerLeitura_`); não volta.
 - Ficha: 50 veículos por folha (`CONFIG.linhasFicha`); o Termo conta todos.
 
 ## Acesso

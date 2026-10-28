@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <!-- Ícone do e-GDV: escudo (defesa agropecuária) com folha (vigilância vegetal) e o nome, no azul do sistema (--marca).
+       Fundo cheio (sem cantos transparentes) e desenho dentro da área segura dos ícones adaptáveis (círculo de 80% do lado). -->
+  <defs>
+    <linearGradient id="fundo" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0E4AA3"/><stop offset="1" stop-color="#0B3A82"/></linearGradient>
+  </defs>
+  <rect width="512" height="512" fill="url(#fundo)"/>
+  <!-- escudo -->
+  <path d="M256 92 L360 128 V214 C360 280 318 324 256 350 C194 324 152 280 152 214 V128 Z" fill="#FFFFFF"/>
+  <!-- folha -->
+  <path d="M206 284 C204 214 246 168 316 160 C320 232 284 282 214 290 Z" fill="#1F9D4C"/>
+  <path d="M212 286 C236 248 262 222 296 192" fill="none" stroke="#FFFFFF" stroke-width="9" stroke-linecap="round"/>
+  <!-- nome -->
+  <text x="256" y="430" text-anchor="middle" font-family="'DejaVu Sans', Arial, Helvetica, sans-serif" font-weight="700" font-size="74" letter-spacing="1" fill="#FFFFFF">e-GDV</text>
+</svg>

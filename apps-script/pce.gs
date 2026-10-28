@@ -628,7 +628,8 @@ function dadosPainel_(admin, filtro) {
   });
 
   const agoraMs = Date.now(), tfsAndamento = tfsAndamento_(agoraMs);                 // TF em preenchimento: vem sempre (normal e ao vivo)
-  if (aoVivo) return { ok: true, agora: agoraMs, admin: admin, aoVivo: true, periodo: p, turnos: turnos, veiculos: veiculos, tfsAndamento: tfsAndamento };
+  const alertasCuidado = alertasCuidado_(agoraMs);                                    // alerta de cuidado marcado no campo: idem
+  if (aoVivo) return { ok: true, agora: agoraMs, admin: admin, aoVivo: true, periodo: p, turnos: turnos, veiculos: veiculos, tfsAndamento: tfsAndamento, alertasCuidado: alertasCuidado };
 
   // TF de Barreira
   const todosTFs = lerLeitura_('TFs').filter(function (r) { return r.id; });
@@ -728,6 +729,7 @@ function dadosPainel_(admin, filtro) {
     turnos: turnos,
     veiculos: veiculos,
     tfsAndamento: tfsAndamento,
+    alertasCuidado: alertasCuidado,
     tfs: tfs,
     levantamentos: levantamentos,
     colheitas: colheitas,

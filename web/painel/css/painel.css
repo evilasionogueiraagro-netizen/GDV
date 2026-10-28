@@ -222,6 +222,12 @@ a.pn-btn-topo { text-decoration: none; font-size: 14px; }   /* link "Manual" com
 .pn-tfaviso-txt small { font-size: 13px; opacity: .95; overflow-wrap: anywhere; }
 .pn-tfaviso-x { background: rgba(255,255,255,.16); color: #fff; border: 1px solid rgba(255,255,255,.7); border-radius: 8px; padding: 5px 9px; font-size: 12.5px; cursor: pointer; white-space: nowrap; }
 .pn-tfaviso-x:hover, .pn-tfaviso-x:focus-visible { background: rgba(255,255,255,.3); }
+/* Alerta de cuidado marcado no campo: amarelo, no canto esquerdo, até "Ciente" */
+.pn-cuidaviso { right: auto; left: 16px; }
+.pn-cuid-item { background: #fab219; color: #1d1a10; box-shadow: 0 8px 24px rgba(0,0,0,.28), 0 0 0 2px #fff inset; }
+.pn-cuid-item .pn-tfaviso-ic { color: #8a5a00; }
+.pn-cuid-item .pn-tfaviso-x { background: rgba(0,0,0,.08); color: #1d1a10; border-color: rgba(0,0,0,.45); }
+.pn-cuid-item .pn-tfaviso-x:hover, .pn-cuid-item .pn-tfaviso-x:focus-visible { background: rgba(0,0,0,.16); }
 @keyframes pn-tfaviso-entra { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes pn-tfaviso-pulso { 50% { box-shadow: 0 8px 24px rgba(0,0,0,.28), 0 0 0 2px #fff inset, 0 0 0 6px rgba(208,59,59,.45); } }
 @media (prefers-reduced-motion: reduce) { .pn-tfaviso-item.novo { animation: none; } }

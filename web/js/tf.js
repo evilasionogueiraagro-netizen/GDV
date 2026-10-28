@@ -441,6 +441,29 @@ const TFUI = (() => {
     });
     return r;
   }
+  /**
+   * Alerta de cuidado da placa (registros de veículo marcados por fiscais, em qualquer BVA ou volante): índice do aparelho + registros deste
+   * aparelho ainda não enviados (menos o que está sendo editado). Devolve {n, ult, cu: [motivos], ob: [{d, t}] (observações, mais novas antes)}.
+   */
+  async function cuidadoPlaca(placa, exceto) {
+    const p = placaNorm(placa), r = { n: 0, ult: '', cu: [], ob: [] };
+    if (!/^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(p)) return r;
+    const idx = await Store.meta('tfIndice');
+    const temIdx = !!(idx && idx.itens && idx.agora && idx.v >= 3) && !!(window.crypto && crypto.subtle);
+    if (temIdx) {
+      const e = idx.itens[await hashIndice('cuidado:' + p)];
+      if (e) { r.n += e.n || 0; r.ult = e.ult || ''; r.cu = String(e.cu || '').split(',').filter(Boolean); r.ob = Array.isArray(e.ob) ? e.ob.slice() : []; }
+    }
+    (await Store.todos('veiculos')).forEach(v => {
+      if (v.id === exceto || Number(v.cuidado) !== 1 || placaNorm(v.placa) !== p) return;                    // excluído continua valendo
+      if (!v.pendente && temIdx && Number(v.srv_ts) > 0 && Number(v.srv_ts) <= idx.agora) return;           // já está no índice
+      r.n++; if (v.cuidadoMotivo && !r.cu.includes(v.cuidadoMotivo)) r.cu.push(v.cuidadoMotivo);
+      const dia = new Date(Number(v.criadoEm) || Date.now() - 4 * 3600e3).toISOString().slice(0, 10);
+      if (String(v.obs || '').trim()) r.ob.unshift({ d: dia, t: String(v.obs).trim().slice(0, 300) });
+    });
+    r.ob = r.ob.slice(0, 3);
+    return r;
+  }
   /** SHA-256 (hex, 16 primeiros caracteres), igual ao do servidor (índice de reincidência). */
   async function hashIndice(txt) {
     const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
@@ -734,5 +757,5 @@ const TFUI = (() => {
   /** O fiscal saiu do formulário sem gerar (app.js → go): o rascunho continua salvo, mas o painel deixa de mostrar o TF em preenchimento. */
   const saiu = () => encerrarAndamento();
 
-  return { lista, novo, pronto, saiu, placaNaBva };
+  return { lista, novo, pronto, saiu, placaNaBva, cuidadoPlaca };
 })();

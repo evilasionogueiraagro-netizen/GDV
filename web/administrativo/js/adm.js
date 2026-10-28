@@ -246,7 +246,7 @@ const Adm = (() => {
   }
 
   /* ---------------- aba Histórico ---------------- */
-  const ABAS_HIST = { ConvFinanceiro: 'Desembolso', ConvLancamentos: 'Físico do convênio', RelGdvLancamentos: 'Linhas dos relatórios', VigLancamentos: 'VIGIFITO' };
+  const ABAS_HIST = { ConvFinanceiro: 'Desembolso', ConvLancamentos: 'Físico do convênio', RelGdvLancamentos: 'Linhas dos relatórios', VigLancamentos: 'VIGIFITO', EscalaPcdp: 'Diárias das escalas' };
   const H = { aba: '', lista: null, erro: '' };
   async function carregarHist(c) {
     H.erro = ''; H.lista = null; desenharHist(c);

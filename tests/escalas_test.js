@@ -1,5 +1,6 @@
 const amb = require('./lib/amb');
 const U = require('./lib/usuarios');
+const PORTAL = require('./lib/portal');
 // Escalas de plantão (escalas.gs): a coordenação de barreira e trânsito (permissão coordenacaoBarreiras) monta no app a equipe de cada
 // BVA por período (início e fim variáveis por BVA); a gerência vê e edita no painel. Rascunho → publicada (só a publicada chega ao
 // fiscal, no sync: minhasEscalas). Avisos de fiscal em duas BVAs e de período sobreposto; excluir é lógico; tudo em
@@ -119,6 +120,41 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
   ok(JSON.parse(jx.fiscais).some(f => f.nome === 'Bruno Escalado Teste') && jx.atualizadoPor === 'Gerente Escalas Teste', 'gerente edita a escala pelo painel', jx);
   ok(/Bruno Escalado Teste também está na BVA - CEASA/.test(await G.textContent('#pn-conteudo')), 'painel: avisos depois de gravar');
   await cg.close();
+
+  console.log('4) Portal do Administrativo: diárias das escalas (pendente → PCDP concluída)');
+  const SA = await PORTAL.sessao('', '', 'Vera Diarias Administrativa');
+  r = await post({ action: 'admEscalaPcdp', key: f1.token, escalaId: jundia, usuarioId: id('Ana Escalada Teste'), concluida: true });
+  ok(!r.ok, 'fiscal sem o portal não marca PCDP', r.erro);
+  let AE = await post({ action: 'admEscalas', sessao: SA.sessao });
+  const ej = AE.escalas.find(e => e.id === jundia);
+  ok(AE.ok && ej && ej.dias === 10 && ej.fiscais.length === 3 && ej.fiscais.every(f => !f.concluida && f.naEscala) && !AE.escalas.some(e => e.id === sobra), 'publicadas (coordenação e gerência) chegam ao portal: cada fiscal pendente; rascunho/excluída fora', ej);
+  r = await post({ action: 'admEscalaPcdp', sessao: SA.sessao, escalaId: sobra, usuarioId: id('Bruno Escalado Teste'), concluida: true });
+  ok(!r.ok && /não está publicada/.test(r.erro), 'escala excluída: recusa', r.erro);
+  const pp = await PORTAL.abrir(b, SA, { aba: 'escalas' });
+  await pp.waitForSelector(`#adm-esc [data-escala="${jundia}"] [data-pcdp=concluir]`, { timeout: 20000 });
+  ok(/Pendente de solicitação de diárias/.test(await pp.textContent(`[data-escala="${jundia}"]`)) && Number(await pp.textContent('#adm-esc-npend .pn-kpi-val')) >= 3, 'portal: escala com os fiscais "Pendente de solicitação de diárias"');
+  await pp.screenshot({ path: amb.saida('escala_portal.png'), fullPage: true });
+  const linha = `[data-escala="${jundia}"] tr[data-fiscal="${id('Ana Escalada Teste')}"]`;
+  await pp.fill(`${linha} .adm-esc-pcdp`, '1234/2026'); await pp.click(`${linha} [data-pcdp=concluir]`);
+  await pp.waitForSelector(`${linha} [data-pcdp=desfazer]`, { timeout: 15000 });
+  ok(/PCDP concluída/.test(await pp.textContent(linha)) && /1234\/2026/.test(await pp.textContent(linha)) && /Vera Diarias Administrativa/.test(await pp.textContent(linha)), 'marcar PCDP concluída (nº, quem e quando)');
+  let P = (await linhas('EscalaPcdp')).find(x => x.id === jundia + '|' + id('Ana Escalada Teste'));
+  ok(P && P.situacao === 'concluida' && P.pcdp === '1234/2026' && P.atualizadoPor === 'Vera Diarias Administrativa', 'aba EscalaPcdp gravada', P);
+  ok((await linhas('AdmHistorico')).some(h => h.aba === 'EscalaPcdp' && h.acao === 'PCDP concluída'), 'histórico do portal');
+  // a gerência altera a escala depois da PCDP: a linha fica marcada para conferir
+  await new Promise(res => setTimeout(res, 20));
+  r = await post({ action: 'painelEscalaSalvar', key: g.token, escala: { id: jundia, bva: 'BVA - JUNDIÁ', inicio: dia(-2), fim: dia(8), fiscais: [id('Ana Escalada Teste'), id('Bruno Escalado Teste')], situacao: 'publicada' } });
+  AE = await post({ action: 'admEscalas', sessao: SA.sessao });
+  const ej2 = AE.escalas.find(e => e.id === jundia), ana = ej2.fiscais.find(f => f.nome === 'Ana Escalada Teste');
+  ok(r.ok && ana.concluida && ana.alterada && ej2.fiscais.some(f => f.nome === 'Diego Duplo Teste' && !f.naEscala) === false, 'escala alterada depois da PCDP: "confira"; quem saiu sem PCDP some', ej2.fiscais);
+  // desfazer
+  await pp.click('#adm-esc-atualizar'); await pp.waitForSelector(`${linha} [data-pcdp=desfazer]`, { timeout: 15000 });
+  ok(/escala alterada depois: confira/.test(await pp.textContent(linha)), 'portal: aviso "escala alterada depois: confira"');
+  await pp.click(`${linha} [data-pcdp=desfazer]`); await pp.waitForSelector(`${linha} [data-pcdp=concluir]`, { timeout: 15000 });
+  P = (await linhas('EscalaPcdp')).find(x => x.id === jundia + '|' + id('Ana Escalada Teste'));
+  ok(P.situacao === 'pendente' && P.pcdp === '', 'desfazer: volta a pendente', P);
+  ok(!pp.errosPag.length, 'portal sem erros', pp.errosPag);
+  await pp.context().close();
   ok(!err.length, 'sem erros de página', err);
   await b.close();
   console.log(falhas ? `FALHOU=${falhas}` : 'OK');

@@ -265,6 +265,7 @@ classDiagram
 
 ## Quem fez cada registro
 
-Hoje todo registro guarda `usuario` = o **nome** digitado, e `gravar_` sobrescreve com quem sincronizou por último.
+Hoje todo registro guarda `usuario` = o **nome** do login (único). Nas abas com dono, só quem gravou altera; nos
+cadastros comuns (pessoas, placas, propriedades), `gravar_` ainda sobrescreve com quem sincronizou por último.
 Com o acesso novo, cada aba de dados ganha `usuarioId` (coluna no fim) ligado a `Usuario.id`, e o autor fica separado
 de quem editou por último (regra de rastreabilidade e LGPD).

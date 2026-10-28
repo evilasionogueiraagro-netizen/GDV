@@ -88,11 +88,12 @@ const NAVS = {
   hub: [['modulos', 'inicio', 'Módulos'], ['config', 'status', 'Status']],
   veiculos: [['modulos', 'inicio', 'Módulos'], ['home', 'caminhao-bau', 'Turno'], ['registrar', 'mais', 'Registrar'], ['lista', 'lista', 'Lista'], ['resumo', 'resumo', 'Resumo'], ['historico', 'historico', 'Histórico']],
   tf: [['modulos', 'inicio', 'Módulos'], ['tf', 'documento', 'Meus TFs'], ['tfnovo', 'mais', 'Novo TF']],
+  escala: [['modulos', 'inicio', 'Módulos'], ['escalas', 'calendario', 'Escalas']],
   pce: [['modulos', 'inicio', 'Módulos'], ['pce', 'broto', 'Levantamentos'], ['pcelev', 'mais', 'Novo levantamento'], ['pcemapa', 'mapa', 'Perto de mim'], ['pcetermos', 'amostra', 'Termos de colheita'], ['pcetermo', 'formulario', 'Novo termo']]
 };
 const VIEWS_VEICULOS = ['home', 'registrar', 'editar', 'lista', 'resumo', 'fechado', 'historico', 'turnopapel'];
 /** Módulo (permissão) de cada tela: veiculos, tf ou pce; '' = livre (módulos, status). */
-const moduloDaView = v => VIEWS_VEICULOS.includes(v) ? 'veiculos' : /^tf/.test(v) ? 'tf' : /^pce/.test(v) ? 'pce' : '';
+const moduloDaView = v => VIEWS_VEICULOS.includes(v) ? 'veiculos' : /^tf/.test(v) ? 'tf' : /^pce/.test(v) ? 'pce' : /^escala/.test(v) ? 'escala' : '';
 const SEM_AUT = 'Sem autorização — fale com a gerência';
 const MODS_LIBERADOS = () => ['veiculos', 'tf', 'pce'].some(m => Sync.pode(m));
 /** A gerência tirou o módulo (painel → Servidores): a tela não abre e volta para a tela de módulos. Os dados do aparelho ficam guardados. */
@@ -105,7 +106,7 @@ function semPermissaoPara(view) {
 function renderNav(view) {
   const ativo = ({ editar: 'lista', fechado: 'home', tfpronto: MODULO === 'tf' ? 'tf' : 'lista', tfnovo: MODULO === 'tf' ? 'tfnovo' : 'lista',
     pcepronto: 'pcetermos', pcelevpronto: 'pce', pceservidor: 'pce', pcecampo: 'pce', pcerota: 'pcemapa',
-    pcecads: 'pce', pcecad: 'pce', pcecadpronto: 'pce', pcetfs: 'pce', pcetf: 'pce', pcetfpronto: 'pce', pcerel: 'pce' })[view] || view;
+    pcecads: 'pce', pcecad: 'pce', pcecadpronto: 'pce', pcetfs: 'pce', pcetf: 'pce', pcetfpronto: 'pce', pcerel: 'pce', escala: 'escalas' })[view] || view;
   $('#nav').innerHTML = NAVS[MODULO].map(([v, i, t]) => `<button data-v="${v}" class="${v === ativo ? 'on' : ''}">${icone(i)}<span>${t}</span></button>`).join('');
 }
 function go(view, arg) {
@@ -118,6 +119,7 @@ function go(view, arg) {
   else if (view === 'tf') MODULO = 'tf';
   else if (VIEWS_VEICULOS.includes(view)) MODULO = 'veiculos';
   else if (/^pce/.test(view)) MODULO = 'pce';
+  else if (/^escala/.test(view)) MODULO = 'escala';
   else if (/^tf/.test(view) && MODULO === 'hub') MODULO = 'tf';          // TF aberto a partir do veículo continua no módulo de veículos (embutido)
   renderNav(view); GER++;
   ({ modulos, home, registrar, editar: registrar, lista, resumo, fechado, historico, config, turnopapel, tf: () => TFUI.lista(), tfnovo: () => TFUI.novo(EDIT), tfpronto: () => TFUI.pronto(EDIT),
@@ -126,7 +128,8 @@ function go(view, arg) {
     pcecampo: () => Campo.telaBaixar(), pcemapa: () => Campo.telaMapa(), pcerota: () => Campo.telaRota(),
     // PCE monilíase: Cadastro de imóvel, Termo de Fiscalização do PCE e Relatório de atividades (moniliase.js)
     pcecads: () => PCEMon.lista('cadastro'), pcecad: () => PCEMon.cadastro(EDIT), pcecadpronto: () => PCEMon.pronto('cadastro', EDIT),
-    pcetfs: () => PCEMon.lista('termo'), pcetf: () => PCEMon.termo(EDIT), pcetfpronto: () => PCEMon.pronto('termo', EDIT), pcerel: () => PCEMon.relatorio() }[view])();
+    pcetfs: () => PCEMon.lista('termo'), pcetf: () => PCEMon.termo(EDIT), pcetfpronto: () => PCEMon.pronto('termo', EDIT), pcerel: () => PCEMon.relatorio(),
+    escalas: () => EscalaUI.lista(), escala: () => EscalaUI.form(EDIT) }[view])();
   window.scrollTo(0, 0);
 }
 
@@ -147,9 +150,11 @@ async function modulos() {
     ${MODS_LIBERADOS() ? '' : '<div class="card aviso" id="semModulos"><h3>Nenhum módulo liberado</h3><p>O seu acesso não libera nenhum módulo do app de campo. Fale com a gerência. Os registros que estão neste aparelho continuam guardados.</p></div>'}
     <div class="modulos">${cartao('veiculos', 'home', 'caminhao-bau', 'Educação Sanitária/Fiscalização de Trânsito', `<small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)` : 'Registro das informações, por ação'}</small>`)}
     ${cartao('tf', 'tf', 'documento', 'Termo de Fiscalização de Barreira', `<small>${tfs.length} TF(s) neste aparelho${pend ? ` · ${icone('pendente')} ${pend} aguardando envio` : ''}</small>`)}
-    ${cartao('pce', 'pce', 'broto', 'PCE', `<small>Programa de Controle e Erradicação — levantamento fitossanitário e Termo de Colheita de Amostras</small><small class="pce-status">${esc(stPce)}</small>`)}</div>
+    ${cartao('pce', 'pce', 'broto', 'PCE', `<small>Programa de Controle e Erradicação — levantamento fitossanitário e Termo de Colheita de Amostras</small><small class="pce-status">${esc(stPce)}</small>`)}
+    ${cartao('escala', 'escalas', 'calendario', 'Escalas de plantão', '<small>Coordenação de barreira e trânsito: quem fica em cada BVA em cada período</small>')}</div>
     ${Sync.pode('veiculos') && Sync.pode('tf') ? '<p class="dica">Dentro da Educação Sanitária/Fiscalização de Trânsito também dá para lavrar o TF de um veículo (botão “Lavrar TF”).</p>' : ''}
     <a class="botao sec" href="manual.html">${icone('manual')} Manual do fiscal</a>`);
+  EscalaUI.aviso().catch(() => {});                                   // escala de plantão nova ou alterada: aviso uma vez na tela inicial
 }
 const view = html => { $('#view').innerHTML = bannerInstalar() + html; };
 
@@ -435,6 +440,12 @@ function novoTurno() {
   $('#nUnidade').addEventListener('input', e => { e.target.dataset.editado = '1'; soPessoasDoMunicipio(); });
   $('#fTurno').addEventListener('change', e => { if (e.target && e.target.id === 'nSoPessoas') e.target.dataset.mexeu = '1'; });
   $('#nPosto').onchange = montarLocal; montarLocal();
+  // escala de plantão publicada (o aviso "Sua escala" aparece na tela inicial): a BVA já vem escolhida; o fiscal ainda pode trocar
+  EscalaUI.minha().then(es => {
+    if (!es || !$('#fTurno') || es.inicio > hojeISO() || !CONFIG.bvas.some(b => b.nome === es.bva)) return;
+    if ($('#nPosto').value !== 'Fixa' && CONFIG.postos.includes('Fixa')) { $('#nPosto').value = 'Fixa'; montarLocal(); }
+    const sel = $('#nLocal'); if (sel && sel.tagName === 'SELECT' && sel.value !== es.bva) { sel.value = es.bva; avisoPlaca(); unidadeDoLocal(); }
+  }).catch(() => {});
   $('#fTurno').onsubmit = async e => {
     e.preventDefault();
     // um fiscal por login: o colega entra no turno com o próprio login ("Convidar colega"), não digitado aqui

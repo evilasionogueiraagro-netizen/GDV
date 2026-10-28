@@ -25,14 +25,14 @@ const MODS = m => JSON.stringify(m);
   const ANA = A.usuario.id;
   ok(!!GT && !!ANA, 'conta de gerência e conta de fiscal (campo, fiscalização, TF e PCE)');
   let d = await post({ action: 'sync', key: A.token, since: 0 });
-  ok(d.ok && MODS(d.permissoes) === '{"veiculos":1,"tf":1,"pce":1,"antigo":0}' && MODS(d.recusados) === '{}', 'conta com os três módulos: liberados no sync, nada recusado', d.permissoes);
+  ok(d.ok && MODS(d.permissoes) === '{"veiculos":1,"tf":1,"pce":1,"antigo":0,"escala":0}' && MODS(d.recusados) === '{}', 'conta com os três módulos: liberados no sync, nada recusado', d.permissoes);
   const C0 = await U.fiscal('Carla Campo Sem Modulos', { permissoes: ['campo'] });
   d = await post({ action: 'sync', key: C0.token, since: 0 });
-  ok(d.ok && MODS(d.permissoes) === '{"veiculos":0,"tf":0,"pce":0,"antigo":0}', 'conta só com "App de campo": nenhum módulo liberado', d.permissoes);
+  ok(d.ok && MODS(d.permissoes) === '{"veiculos":0,"tf":0,"pce":0,"antigo":0,"escala":0}', 'conta só com "App de campo": nenhum módulo liberado', d.permissoes);
   d = await post({ action: 'sync', key: 'segredo', since: 0 });
   ok(!d.ok, 'a antiga chave mestra (ACCESS_KEY) não vale mais', d.erro);
   d = await post({ action: 'sync', key: GT, since: 0 });
-  ok(MODS(d.permissoes) === '{"veiculos":1,"tf":1,"pce":1,"antigo":1}', 'gerência: tudo liberado (inclusive Digitar do papel)', d.permissoes);
+  ok(MODS(d.permissoes) === '{"veiculos":1,"tf":1,"pce":1,"antigo":1,"escala":0}', 'gerência: tudo liberado (inclusive Digitar do papel)', d.permissoes);
   d = await post({ action: 'usuariosListar', key: GT });
   const acA = d.usuarios.find(u => u.id === ANA);
   ok(acA && acA.permissoes.join() === 'campo,fiscalizacaoDeTransito,termoDeBarreira,pce', 'usuariosListar devolve as permissões de cada conta', acA && acA.permissoes);
@@ -55,7 +55,7 @@ const MODS = m => JSON.stringify(m);
   ok(await permAtivas(ANA) === 'campo,pce' && rows.some(p => p.usuarioId === ANA && p.permissao === 'termoDeBarreira' && p.revogadaEm) && rows.some(p => p.usuarioId === ANA && p.permissao === 'fiscalizacaoDeTransito' && p.revogadaEm),
     'planilha: só as permissões ativas valem; as retiradas ficam como histórico (revogadaEm)');
   d = await post({ action: 'sync', key: A.token, since: 0 });
-  ok(MODS(d.permissoes) === '{"veiculos":0,"tf":0,"pce":1,"antigo":0}', 'sync devolve os módulos novos (sem novo login)', d.permissoes);
+  ok(MODS(d.permissoes) === '{"veiculos":0,"tf":0,"pce":1,"antigo":0,"escala":0}', 'sync devolve os módulos novos (sem novo login)', d.permissoes);
 
   // sync ignora módulos não permitidos e sinaliza
   const turno = { id: 'pt-t1', numeroTF: 'TF-001-A-' + ANO, data: hoje, letra: 'A', inicio: '06:00', fim: '', fiscal: 'Ana Permissao Lima', local: 'X', unidade: 'MANAUS', posto: 'Fixa', encerrado: 0, criadoEm: ag, atualizadoEm: ag };
@@ -68,7 +68,7 @@ const MODS = m => JSON.stringify(m);
   const prop = { id: 'pt-r1', codigo: 'P1', nome: 'SITIO', doc: '52998224725', municipio: 'MANAUS', criadoEm: ag, atualizadoEm: ag };
   const tudo = { turnos: [turno], veiculos: [veic], tfs: [tf], placas: [placa], pessoas: [pessoa], levantamentos: [lev], colheitas: [col], propriedades: [prop] };
   d = await post({ action: 'sync', key: A.token, since: 0, ...tudo });
-  ok(d.ok && MODS(d.permissoes) === '{"veiculos":0,"tf":0,"pce":1,"antigo":0}', 'sync devolve as permissões do servidor', d.permissoes);
+  ok(d.ok && MODS(d.permissoes) === '{"veiculos":0,"tf":0,"pce":1,"antigo":0,"escala":0}', 'sync devolve as permissões do servidor', d.permissoes);
   ok(MODS(d.recusados) === MODS({ turnos: ['pt-t1'], veiculos: ['pt-v1'], tfs: ['pt-f1'], placas: ['ABC1D23'] }), 'recusados: turnos/veículos (sem fiscalização), TF/placas (sem TF)', d.recusados);
   ok(!(await tabela('Turnos')).some(r => r.id === 'pt-t1') && !(await tabela('Veiculos')).some(r => r.id === 'pt-v1') && !(await tabela('TFs')).some(r => r.id === 'pt-f1') && !(await tabela('Placas')).some(r => r.id === 'ABC1D23'), 'nada desses módulos foi gravado na planilha');
   const tem = async (aba, id) => (await tabela(aba)).some(r => r.id === id);
@@ -114,7 +114,7 @@ const MODS = m => JSON.stringify(m);
   // conta nova: os módulos saem já no login (o app recebe no entrar)
   const B = await U.fiscal('Bruno Modulo Costa', { permissoes: U.lista({ veiculos: 1 }) });
   d = await post({ action: 'sync', key: B.token, since: 0 });
-  ok(MODS(d.permissoes) === '{"veiculos":1,"tf":0,"pce":0,"antigo":0}' && MODS(B.modulos) === '{"veiculos":1,"tf":0,"pce":0,"antigo":0}', 'conta criada só com fiscalização: entrar e sync trazem só esse módulo', d.permissoes);
+  ok(MODS(d.permissoes) === '{"veiculos":1,"tf":0,"pce":0,"antigo":0,"escala":0}' && MODS(B.modulos) === '{"veiculos":1,"tf":0,"pce":0,"antigo":0,"escala":0}', 'conta criada só com fiscalização: entrar e sync trazem só esse módulo', d.permissoes);
   d = await post({ action: 'usuarioCriar', key: GT, nome: 'Sem Permissao Ficticio', permissoes: [] });
   ok(!d.ok && /pelo menos uma permissão/.test(d.erro) && (await tabela('Usuarios')).every(u => u.nome !== 'Sem Permissao Ficticio'), 'criar conta sem nenhuma permissão: recusado e nada criado', d.erro);
 
@@ -135,7 +135,7 @@ const MODS = m => JSON.stringify(m);
   ok(!d.ok && /PCE/.test(d.erro) && await permAtivas(ANA).then(s => s.includes('pce')), 'tirar o PCE com "Digitar do papel" marcada: recusado (a tela desmarca as duas juntas)', d.erro);
   d = await U.permissoes(ANA, ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira']);
   d = await post({ action: 'sync', key: A.token, since: 0 });
-  ok(MODS(d.permissoes) === '{"veiculos":1,"tf":1,"pce":0,"antigo":0}' && await permAtivas(ANA) === 'campo,fiscalizacaoDeTransito,termoDeBarreira', 'PCE tirado: "Digitar do papel" sai junto (sem linha ativa)', d.permissoes);
+  ok(MODS(d.permissoes) === '{"veiculos":1,"tf":1,"pce":0,"antigo":0,"escala":0}' && await permAtivas(ANA) === 'campo,fiscalizacaoDeTransito,termoDeBarreira', 'PCE tirado: "Digitar do papel" sai junto (sem linha ativa)', d.permissoes);
   await U.permissoes(ANA, ['campo', 'pce', 'fiscalizacaoDeTransito', 'termoDeBarreira']);
   d = await post({ action: 'sync', key: A.token, since: 0 }); ok(d.permissoes.antigo === 0 && d.permissoes.pce === 1, 'sem Digitar do papel: antigo = 0', d.permissoes);
   const lv = { id: 'pt-ant1', data: hoje, hora: '08:00', doc: '52998224725', nome: 'PAPEL', municipio: 'Manaus', culturas: '[]', fotos: '[]', assinaturas: '{}', excluido: 0, criadoEm: ag, atualizadoEm: ag, registroAntigo: 1 };
@@ -152,7 +152,7 @@ const MODS = m => JSON.stringify(m);
   d = await post({ action: 'usuarioCriar', key: GT, nome: 'Estagiario Papel Silva', permissoes: ['digitarDoPapel'] });
   ok(!d.ok && /só vale com o módulo PCE/.test(d.erro) && (await tabela('Usuarios')).every(u => u.nome !== 'Estagiario Papel Silva'), 'criar conta só com "Digitar do papel": recusado e nada criado', d.erro);
   const E = await U.fiscal('Estagiario Papel Silva', { permissoes: ['campo', 'pce', 'digitarDoPapel'] });
-  ok(MODS(E.modulos) === '{"veiculos":0,"tf":0,"pce":1,"antigo":1}', 'conta com PCE + Digitar do papel: módulos no login', E.modulos);
+  ok(MODS(E.modulos) === '{"veiculos":0,"tf":0,"pce":1,"antigo":1,"escala":0}', 'conta com PCE + Digitar do papel: módulos no login', E.modulos);
   // a aba Permissoes (planilha antiga) não é mais gravada
   ok(!(await get('/__aba?nome=Permissoes')), 'nada gravado na aba Permissoes (histórico): a permissão está em PermissoesDosUsuarios');
 

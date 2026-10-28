@@ -19,6 +19,7 @@ Ache a linha do assunto e leia só aquele arquivo. Mapa geral e regras curtas: [
 | Convênio MAPA/ADAF | [modulos/convenio.md](modulos/convenio.md) |
 | Relatório GDV e motor de indicadores | [modulos/relatorios.md](modulos/relatorios.md) |
 | VIGIFITO por posto | [modulos/vigifito.md](modulos/vigifito.md) |
+| Escalas de plantão (coordenação) | [modulos/escalas.md](modulos/escalas.md) |
 | Rotinas automáticas e arquivamento anual | [modulos/rotinas.md](modulos/rotinas.md) |
 | Actions da API | [API.md](API.md) |
 | Publicação do back (clasp) | [PUBLICACAO-BACK.md](PUBLICACAO-BACK.md) |

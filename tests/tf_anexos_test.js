@@ -18,6 +18,7 @@ const h16 = t => crypto.createHash('sha256').update(t, 'utf8').digest('hex').sli
   const aparelho = async ({ token, nome }) => {
     const c = await b.newContext({ viewport: { width: 400, height: 900 } });
     await c.addInitScript(([t, n]) => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } } catch (e) {} }, [token, nome]);
+    await c.addInitScript(() => document.addEventListener('DOMContentLoaded', () => { if (window === window.top && typeof CONFIG !== 'undefined') CONFIG.assinaturaNaTela = true; }));   // assinatura na tela está desligada no app (CONFIG.assinaturaNaTela); o teste liga para seguir conferindo esse código
     // impressão: guarda o HTML do documento e um resumo (o PDF de verdade é gerado à parte, com page.pdf)
     await c.addInitScript(() => { if (window !== window.top) window.print = () => { const d = document; window.top.__prints = window.top.__prints || [];
       window.top.__prints.push({ html: d.documentElement.outerHTML, texto: d.body.innerText.replace(/\s+/g, ' '), paginas: d.querySelectorAll('.a4').length, vias: [...d.querySelectorAll('.via')].map(v => v.textContent),

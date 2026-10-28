@@ -17,6 +17,9 @@ const CONFIG = {
   ],
   // Volante que não conta veículos, por município (unidade do turno, em maiúsculas): o turno conta só as pessoas orientadas na educação
   // sanitária (tema = assunto da orientação, no app e no Termo); local = texto sugerido para o "Local / Posto (volante)".
+  // assinatura com o dedo na tela (TF de Barreira e PCE). Desligada por enquanto (decisão da gerência, 28/10/2026): os documentos saem com as
+  // linhas em branco para assinar no papel. Para voltar, troque para true (o código das assinaturas continua todo no app).
+  assinaturaNaTela: false,
   // onde o fiscal pode corrigir o nº do TF do turno (o servidor confere a mesma regra: NUMERO_TURNO_EDITAVEL_)
   turnoNumeroEditavel: [{ local: 'BVA - JUNDIÁ', desde: '2026-10-24' }],
   volantesSoPessoas: {

@@ -29,7 +29,10 @@ const TABELAS = {
              // município de origem/destino: cidade digitada no registro do veículo (app) ou do relatório de plantão do papel importado
              // no portal (admPlantaoImportar). Só do papel (o app não grava): transportador, carga (JSON [{p, q, u}], como os produtos do TF), medida (liberacao | apreensao), nº do TF do papel,
              // documento apresentado e o id da importação. Carga com nº do TF conta no VIGIFITO como o TF de barreira (motorBarreira_).
-             'origemMun', 'destinoMun', 'transportador', 'cargaPapel', 'medidaPapel', 'tfPapel', 'docPapel', 'importacao'],
+             'origemMun', 'destinoMun', 'transportador', 'cargaPapel', 'medidaPapel', 'tfPapel', 'docPapel', 'importacao',
+             // alerta de cuidado (app): cuidado = 1 → outros fiscais veem "Cuidado ao abordar este veículo" ao digitar a placa (índice
+             // tfIndiceReincidencia); cuidadoMotivo = alteracao | resistencia | ameaca | outro (detalhes nas observações)
+             'cuidado', 'cuidadoMotivo'],
   // HISTÓRICO (não vale mais como credencial): códigos de ativação e credenciais antigas dos fiscais e administradores.
   // Os nomes ainda servem à lista de servidores das diárias do portal (admServidores_).
   Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm', 'perfil',
@@ -154,7 +157,7 @@ const TABELAS = {
   // Quem leu dados pessoais (LGPD): uma linha por usuário + action a cada 1 h (acessos.gs lido_). resumo = filtros, sem dado pessoal.
   AcessosADados: ['id', 'em', 'usuarioId', 'nome', 'acao', 'resumo']
 };
-const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'semPlaca', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
+const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'cuidado', 'semPlaca', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
                           'expiraEm', 'ativo', 'ativadoEm', 'oculto', 'ocultoEm',
                           'ano', 'numero', 'ultimo', 'de', 'ate', 'em', 'numeroSugerido', 'emitidoEm', 'amostras', 'inspecao', 'coleta', 'fiel', 'auto',
                           'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito', 'tamanho',
@@ -173,7 +176,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-28c';
+const VERSAO_CODIGO = '2026-10-28e';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -216,7 +219,8 @@ function doPost(e) {
     const dono = req.action === 'arquivoEnviar' && req.arquivo ? req.arquivo.dono : '';
     const modulo = dono === 'tfs' ? 'tf' : dono === 'turnos' ? 'veiculos'
       : Object.prototype.hasOwnProperty.call(MODULO_DA_ACAO, req.action) ? MODULO_DA_ACAO[req.action] : '';   // "toString"/"__proto__" não são módulos
-    if (modulo) exigirModulo_(usuario, modulo);
+    // índice de reincidência e do alerta de cuidado: também para quem só registra veículos (só hashes e contagens)
+    if (modulo && !(req.action === 'tfIndiceReincidencia' && permissoesDe_(usuario).veiculos)) exigirModulo_(usuario, modulo);
     if (req.action === 'ping') return json_(ping_(req, usuario));
     if (req.action === 'sync') return json_(sincronizar_(req, usuario));
     if (req.action === 'tfConsultar') return json_(consultar_(req, usuario));

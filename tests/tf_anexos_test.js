@@ -202,7 +202,10 @@ print(json.dumps([[('Testemunha' in pg.extract_text()), ('Anexo fotogr' in pg.ex
   const arq = dono => post({ action: 'arquivoEnviar', key: fB.token, arquivo: { id: crypto.randomUUID(), dono, donoId: 'x1', tipo: 'foto', papel: '', mime: 'image/jpeg' }, base64: foto });
   let r1 = await arq('tfs'), r2 = await arq('levantamentos');
   ok(!r1.ok && r1.semPermissao === 'tf' && r2.ok, 'arquivoEnviar: foto de TF exige o módulo TF (a do PCE continua pelo PCE)');
-  r1 = await post({ action: 'tfIndiceReincidencia', key: fB.token }); ok(!r1.ok && r1.semPermissao === 'tf', 'tfIndiceReincidencia exige o módulo TF');
+  r1 = await post({ action: 'tfIndiceReincidencia', key: fB.token }); ok(r1.ok, 'tfIndiceReincidencia: quem tem o módulo de veículos (sem TF) também baixa (alerta de cuidado)', r1.erro);
+  await U.permissoes(fB.uid, U.lista({ veiculos: 0, tf: 0, pce: 1 }));
+  r1 = await post({ action: 'tfIndiceReincidencia', key: fB.token }); ok(!r1.ok && r1.semPermissao === 'tf', 'tfIndiceReincidencia: sem TF e sem veículos, recusado');
+  await U.permissoes(fB.uid, U.lista({ veiculos: 1, tf: 0, pce: 1 }));
   r1 = await post({ action: 'arquivoEnviar', key: fA.token, arquivo: { id: crypto.randomUUID(), dono: 'tfs', donoId: 'x1', tipo: 'documento', papel: '', mime: 'application/pdf' }, base64: Buffer.from('%PDF-1.4 x').toString('base64') });
   ok(!r1.ok && r1.semPermissao === 'antigo', 'PDF de TF só com "Digitar do papel" (TF do papel): ' + r1.erro);
   let bloqueou = 0;

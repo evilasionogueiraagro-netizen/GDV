@@ -283,29 +283,50 @@ function chavesTF_(t, filtro, locais) {
 }
 /** Motivos do alerta de cuidado do veículo (Veiculos.cuidadoMotivo; o app mostra os rótulos). */
 const CUIDADO_MOTIVOS_ = ['alteracao', 'resistencia', 'ameaca', 'outro'];
+/** Dia (AAAA-MM-DD) do registro do veículo: o do turno, senão o de criação em Manaus. */
+function diaVeiculo_(v, turnos) {
+  const t = turnos[v.turnoId] || {};
+  return String(t.data || '').slice(0, 10) || (v.criadoEm ? Utilities.formatDate(new Date(Number(v.criadoEm)), 'America/Manaus', 'yyyy-MM-dd') : '');
+}
 /**
- * Alerta de cuidado por placa (veículos não excluídos com cuidado = 1, de qualquer BVA ou volante): {h: hash de "cuidado:<placa>", n
- * (registros marcados), ult (data do último), cu (motivos, separados por vírgula)}. Sem texto livre (as observações ficam só no registro).
+ * Alerta de cuidado por placa (veículos com cuidado = 1, de qualquer BVA ou volante; o registro excluído continua valendo: o alerta não
+ * se desfaz pelo app): {h: hash de "cuidado:<placa>", n (registros marcados), ult (data do último), cu (motivos, separados por vírgula),
+ * ob: [{d, t}] (as 3 observações mais recentes desses registros, para o fiscal ler ao digitar a placa)}.
  * Com placas ({placa: true}), só essas, e as que não têm mais alerta voltam com n = 0 (apagar no aparelho).
  */
 function cuidadoIndice_(veics, turnos, placas) {
   const m = {};
   veics.forEach(function (v) {
     const p = placaNorm_(v.placa);
-    if (!placaValida_(p) || (placas && !placas[p]) || v.excluido === 1 || Number(v.cuidado) !== 1) return;
-    const a = m[p] = m[p] || { h: hashIndice_('cuidado:' + p), n: 0, ult: '', cu: [] }, t = turnos[v.turnoId] || {};
-    const dia = String(t.data || '').slice(0, 10) || (v.criadoEm ? Utilities.formatDate(new Date(Number(v.criadoEm)), 'America/Manaus', 'yyyy-MM-dd') : '');
+    if (!placaValida_(p) || (placas && !placas[p]) || Number(v.cuidado) !== 1) return;
+    const a = m[p] = m[p] || { h: hashIndice_('cuidado:' + p), n: 0, ult: '', cu: [], ob: [] }, dia = diaVeiculo_(v, turnos);
     a.n++; if (dia > a.ult) a.ult = dia;
     const mot = CUIDADO_MOTIVOS_.indexOf(v.cuidadoMotivo) >= 0 ? v.cuidadoMotivo : 'outro'; if (a.cu.indexOf(mot) < 0) a.cu.push(mot);
+    const ob = String(v.obs || '').trim(); if (ob) a.ob.push({ d: dia, t: ob.slice(0, 300) });
   });
-  if (placas) Object.keys(placas).forEach(function (p) { if (placaValida_(p) && !m[p]) m[p] = { h: hashIndice_('cuidado:' + p), n: 0, ult: '', cu: [] }; });
-  return Object.keys(m).map(function (p) { const a = m[p]; a.cu = a.cu.join(','); return a; });
+  if (placas) Object.keys(placas).forEach(function (p) { if (placaValida_(p) && !m[p]) m[p] = { h: hashIndice_('cuidado:' + p), n: 0, ult: '', cu: [], ob: [] }; });
+  return Object.keys(m).map(function (p) {
+    const a = m[p]; a.cu = a.cu.join(','); a.ob = a.ob.sort(function (x, y) { return y.d.localeCompare(x.d); }).slice(0, 3); return a;
+  });
+}
+/**
+ * Alertas de cuidado marcados nos últimos 7 dias (painelDados, normal e ao vivo): o painel avisa a gerência (som e notificação) uma vez
+ * por alerta. [{id, placa, motivo, obs, local, fiscal, data, hora, criadoEm}], do mais novo ao mais velho.
+ */
+function alertasCuidado_(agora) {
+  const turnos = {}; lerLeitura_('Turnos').forEach(function (t) { if (t.id) turnos[t.id] = t; });
+  return lerLeitura_('Veiculos').filter(function (v) { return v.id && Number(v.cuidado) === 1 && Number(v.criadoEm) > agora - 7 * 864e5; })
+    .sort(function (a, b) { return b.criadoEm - a.criadoEm; }).slice(0, 50).map(function (v) {
+      const t = turnos[v.turnoId] || {};
+      return { id: v.id, placa: placaNorm_(v.placa), motivo: CUIDADO_MOTIVOS_.indexOf(v.cuidadoMotivo) >= 0 ? v.cuidadoMotivo : 'outro', obs: String(v.obs || '').slice(0, 300),
+               local: t.local || '', fiscal: t.fiscal || v.usuario || '', data: diaVeiculo_(v, turnos), hora: v.hora || '', criadoEm: Number(v.criadoEm) || 0 };
+    });
 }
 /**
  * tfIndiceReincidencia {key, desde}: histórico de TODOS os TFs (todas as barreiras) resumido por hash do CPF/CNPJ, da placa e da placa + BVA, sem dados
  * pessoais em claro. Com desde (ms do índice anterior): só as chaves com TF gravado/alterado depois, recalculadas por inteiro (n = 0 =
  * apagar). Sem desde: índice completo (guardado 10 min no CacheService e completado com o que mudou desde então).
- * Inclui o alerta de cuidado por placa (cuidadoIndice_). Devolve {ok, agora, completo, itens: [{h, n, ap, re, au, li, ad, ult} | {h, n, ult, cu}]}.
+ * Inclui o alerta de cuidado por placa (cuidadoIndice_). Devolve {ok, agora, completo, itens: [{h, n, ap, re, au, li, ad, ult} | {h, n, ult, cu, ob}]}.
  */
 function tfIndiceReincidencia_(req) {
   const desde = Number(req.desde) || 0, cache = CacheService.getScriptCache(), agora = Date.now();

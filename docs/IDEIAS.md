@@ -24,9 +24,8 @@ Falta, nesta ordem:
 
 Com o login por matrícula e senha (22/10/2026), o QR deixa de identificar a pessoa e passa a provar só a **presença**:
 - **Identidade:** quem é a pessoa vem do login do celular. O QR prova que ela está na BVA, junto com o GPS. O check-in grava o `usuarioId`, e não um nome digitado.
-- **PC da BVA:** cada BVA tem um usuário próprio, como a TV, com uma permissão nova da página da barreira. Ele só mostra o QR e os TFs daquela BVA, e o gerente revoga quando quiser.
-- **QR:** é assinado pelo servidor e muda a cada ~30 s. Sem internet no celular, o app guarda a leitura com hora e GPS e o servidor valida no envio, pela janela de validade do QR.
-- **Fiscais do turno:** cada fiscal lê o QR com o próprio login e entra em `FiscaisDosTurnos`, o que acaba com o "Fiscal 2" digitado.
+- **PC da BVA:** usuário próprio, só com o QR e os TFs daquela BVA.
+- **QR:** assinado pelo servidor, muda a cada ~30 s; sem internet, o servidor valida a leitura no envio.
 - **Aba nova prevista:** `CheckinsNasBarreiras` (usuarioId, barreiraId, turnoId, em, lat, lon).
 
 ---
@@ -69,7 +68,6 @@ Falta:
 - Educação sanitária no app (ações, público atingido). Hoje: tabela da Seção V no painel. A linha de veículos orientados já é automática.
 - Importação de CFO/CFOC, PTV e UP/UC (CSV dos sistemas de certificação). Hoje: tabelas das Seções III e IV no painel.
 - Armadilhas (mosca-da-carambola e Diaphorina citri). Hoje: coluna "Monitoramento de armadilhas" e linha "Armadilhas para Diaphorina citri" (Seção VI).
-- Madeira (m³) na carga, hoje manual (ver item 6).
 - Avisos de consistência: coordenadas fora do município informado (exige a malha no servidor); importação dos relatórios dos meses anteriores ao e-GDV.
 
 ---
@@ -93,10 +91,8 @@ Decisões: [VIGIFITO e Portal do Administrativo](decisoes/anteriores.md#vigifito
 
 Falta:
 - Carga: madeira em m³ no próprio registro (hoje manual); "auto de destruição" como campo do TF (hoje, TF de apreensão: "apreensão p/ destruição" no e-GDV); conversão de caixas e sacos para t por produto (tabela de pesos médios), hoje listados à parte.
-- Planilha VIGIFITO antiga (secundária): só o histórico de 2025, antes do e-GDV.
-- Histórico do Jundiá por período de 10 dias: a importação já lê a aba "JUNDIÁ" da planilha de controle. Falta o modelo do gestor com o histórico completo dos anos anteriores.
+- Histórico do Jundiá por período de 10 dias: falta o modelo do gestor com os anos anteriores.
 - Metas SUASA: aguardando o plano de metas SUASA. Quando chegar, configurar no motor de metas do convênio (etapas, apuração pelos indicadores ou lançamento no portal, esperado pelo tempo, físico × financeiro).
-- Client ID do Google: criar no Google Cloud Console e colar em `CONFIG.adm.googleClientId` e na propriedade `GOOGLE_CLIENT_ID` (passo a passo em [apps/administrativo.md](apps/administrativo.md)). Até lá, o portal entra por código de ativação.
 
 ## 7. Assinatura na tela (desligada temporariamente)
 

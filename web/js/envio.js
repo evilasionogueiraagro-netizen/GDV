@@ -13,9 +13,10 @@ const Envio = (() => {
   /** Permissões por módulo (padrão: tudo liberado — aparelho que nunca sincronizou ou servidor antigo que não manda permissões).
    *  "antigo" (Digitar do papel: registros antigos e PDFs escaneados) é o contrário: só vale se o servidor mandar antigo=1. */
   const normPerm = o => {
-    const r = { veiculos: 1, tf: 1, pce: 1, antigo: 0 };
+    const r = { veiculos: 1, tf: 1, pce: 1, antigo: 0, escala: 0 };
     if (o && typeof o === 'object') ['veiculos', 'tf', 'pce'].forEach(k => { if (k in o) r[k] = Number(o[k]) === 0 || o[k] === false ? 0 : 1; });
     r.antigo = o && (o.antigo === true || Number(o.antigo) === 1) && r.pce ? 1 : 0;
+    r.escala = o && Number(o.escala) === 1 ? 1 : 0;                 // escalas de plantão (coordenação): desligado até o servidor mandar 1
     return r;
   };
   const storePermitido = (n, perm) => MODULO_DO_STORE[n].some(m => (perm || {})[m] !== 0);

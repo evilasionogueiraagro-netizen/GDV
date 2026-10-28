@@ -177,11 +177,11 @@ const Sync = (() => {
      O servidor devolve {veiculos, tf, pce, antigo} a cada sync; guardamos a última (meta "permissoes") para usar sem internet.
      Padrão: módulos liberados (aparelho que nunca sincronizou, ou versão antiga do servidor que não manda permissões);
      "antigo" (Digitar do papel: registro/termo antigo e PDF escaneado) é o contrário: desligado até o servidor mandar antigo=1. */
-  const MODULOS = { veiculos: 'Educação Sanitária/Fiscalização de Trânsito', tf: 'TF de Barreira', pce: 'PCE', antigo: 'Digitar do papel' };
+  const MODULOS = { veiculos: 'Educação Sanitária/Fiscalização de Trânsito', tf: 'TF de Barreira', pce: 'PCE', antigo: 'Digitar do papel', escala: 'Escalas de plantão' };
   const { MODULO_DO_STORE, normPerm } = Envio;
   let PERM = normPerm(null);
   const permissoes = () => ({ ...PERM });
-  const pode = m => (m === 'antigo' ? Envio.podeAntigo(PERM) : PERM[m] !== 0);
+  const pode = m => (m === 'antigo' ? Envio.podeAntigo(PERM) : m === 'escala' ? PERM.escala === 1 : PERM[m] !== 0);
   const storePermitido = n => Envio.storePermitido(n, PERM);
   async function carregarPermissoes() { try { PERM = normPerm(await Store.meta('permissoes')); } catch (e) { /* sem banco: tudo liberado */ } return permissoes(); }
   /** Novas permissões vindas do servidor: guarda e avisa a tela (gdv-permissoes) se algo mudou. */
@@ -303,6 +303,11 @@ const Sync = (() => {
   /** Corrige o nº do TF do turno (a letra é refeita pelo servidor pela ordem do nº novo). */
   const corrigirNumeroTurno = (turnoId, numero) => chamar({ action: 'turnoNumero', turnoId, numero }, 20000);
   const turnoPapel = (turno, veiculos, pessoas) => chamar({ action: 'turnoPapelRegistrar', turno, veiculos, pessoas }, 30000);
+  /* escalas de plantão (só a coordenação; precisa de internet) e as do próprio fiscal (guardadas no sync) */
+  const escalaDados = () => chamar({ action: 'escalaDados' }, 30000);
+  const escalaSalvar = escala => chamar({ action: 'escalaSalvar', escala }, 30000);
+  const escalaExcluir = id => chamar({ action: 'escalaExcluir', id }, 30000);
+  const minhasEscalas = async () => { try { return (await Store.meta('minhasEscalas')) || []; } catch (e) { return []; } };
 
   /* ---------- Índice de reincidência (consulta do TF sem internet) ----------
      Resumo de TODOS os TFs não cancelados (todas as barreiras) por hash do CPF/CNPJ, da placa e da placa + BVA: {h: {n, ap, re, au, li, ad, ult}}, sem dados
@@ -405,6 +410,7 @@ const Sync = (() => {
         await aplicar('termosPce', r.termosPce || []);
         await lembrarUltimosDocPce(r.ultimosDocPce);
         if (r.barreiras) await Store.setMeta('barreiras', r.barreiras);
+        if (Array.isArray(r.minhasEscalas)) await Store.setMeta('minhasEscalas', r.minhasEscalas);   // escalas de plantão publicadas do fiscal
         await lembrarUltimos(r.ultimos);
         await lembrarUltimosPce(r.ultimosPce);
         await Store.setMeta('lastSync', r.agora);
@@ -504,7 +510,7 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, sairDoTurno, turnoPapel, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
+  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, sairDoTurno, turnoPapel, escalaDados, escalaSalvar, escalaExcluir, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
     pceProximoNumero, pceEmitir, pceConsultar, pceBaixarMunicipio, pceMapaGeral, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

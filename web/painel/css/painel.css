@@ -646,7 +646,7 @@ body.tv .pn-erro { font-size: 2.1vh; padding: 1.4vh; }
 .pn-rg-tab th { color: var(--ink2); font-weight: 600; background: var(--sf2); white-space: nowrap; }
 .pn-rg-tab td.num, .pn-rg-tab th.num { text-align: right; font-variant-numeric: tabular-nums; }
 .pn-rg-tab tr.pn-rg-total td { border-top: 2px solid var(--base); }
-.pn-rg-quadro td:first-child { min-width: 220px; }
+.pn-rg-quadro td.ind { min-width: 220px; vertical-align: middle; }
 .pn-rg-in { width: 72px; max-width: 100%; padding: 4px 6px; border-radius: 6px; text-align: right; }
 .pn-rg-lista input, .pn-rg-lista select { width: 100%; min-width: 80px; padding: 4px 6px; border-radius: 6px; }
 .pn-rg-lista input[data-campo="descricao"] { min-width: 180px; }

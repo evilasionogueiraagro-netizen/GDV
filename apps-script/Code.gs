@@ -155,6 +155,8 @@ const TABELAS = {
   // Turno compartilhado (turnos-compartilhados.gs): o dono do turno gera um código (válido por 15 min); o colega, com o próprio login,
   // entra com ele (colega/entrouEm) e sai quando quiser (saiuEm). Cada convite é uma linha; nada é apagado.
   Pareamentos: ['id', 'turnoId', 'dono', 'codigo', 'criadoEm', 'expiraEm', 'colega', 'entrouEm', 'saiuEm'],
+  // escala de plantão por BVA e período (escalas.gs): fiscais = JSON [{id, nome}]; situacao = rascunho | publicada; excluir é lógico
+  Escalas: ['id', 'bva', 'inicio', 'fim', 'fiscais', 'situacao', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor', 'publicadaEm', 'publicadaPor', 'excluido'],
   // Quem leu dados pessoais (LGPD): uma linha por usuário + action a cada 1 h (acessos.gs lido_). resumo = filtros, sem dado pessoal.
   AcessosADados: ['id', 'em', 'usuarioId', 'nome', 'acao', 'resumo']
 };
@@ -177,7 +179,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-28f';
+const VERSAO_CODIGO = '2026-10-29a';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -211,6 +213,9 @@ function doPost(e) {
     if (req.action === 'painelRelGdvApuracao') return json_(painelRelGdvApuracao(req.key, req));
     if (req.action === 'painelVigDados') return json_(painelVigDados(req.key, req));
     if (req.action === 'painelVigConfigSalvar') return json_(painelVigConfigSalvar(req.key, req));
+    if (req.action === 'painelEscalas') return json_(painelEscalas(req.key, req));
+    if (req.action === 'painelEscalaSalvar') return json_(painelEscalaSalvar(req.key, req));
+    if (req.action === 'painelEscalaExcluir') return json_(painelEscalaExcluir(req.key, req));
     if (/^adm[A-Z]/.test(String(req.action || ''))) return json_(lido_(req, admAcao_(req)));   // Portal do Administrativo (token em `sessao`)
     // Login com matrícula e senha (usuarios.gs): entrar, trocarSenha, sair, minhaSessao e as actions de gerência
     const acaoUsuarios = usuariosAcao_(req.action);
@@ -242,6 +247,7 @@ function doPost(e) {
     if (req.action === 'turnoSair') return json_(turnoSair_(req, usuario));
     if (req.action === 'turnoPapelRegistrar') return json_(turnoPapelRegistrar_(req, usuario));
     if (req.action === 'turnoNumero') return json_(turnoNumero_(req, usuario));
+    if (/^escala(Dados|Salvar|Excluir)$/.test(String(req.action))) return json_(escalaAcao_(req, usuario));
     throw new Error('Ação inválida.');
   } catch (err) {
     const r = { ok: false, erro: String(err.message || err) };
@@ -373,6 +379,7 @@ function sincronizar_(req, usuario) {
       termosPce: lerMudancas_('TermosPCE', since, usuario),
       ultimosDocPce: ultimosDocPce_(),                  // último nº de Termo de Fiscalização ("T|UNIDADE|ano") e de Cadastro ("C|PROGRAMA|UNIDADE|ano")
       permissoes: perm,                                 // módulos liberados para este servidor (o app guarda e esconde o que não pode)
+      minhasEscalas: minhasEscalas_(),                  // escalas de plantão publicadas do fiscal que ainda não acabaram (escalas.gs)
       recusados: recusados                              // ids NÃO gravados por falta de autorização no módulo ou para registro antigo (ficam pendentes no aparelho)
     };
   } finally {

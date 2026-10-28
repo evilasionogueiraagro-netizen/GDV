@@ -280,3 +280,7 @@ nav button .ico { width:24px; height:24px; margin-bottom:2px; }
 #pCodigo { font-size:22px; letter-spacing:4px; text-align:center; }
 .parear summary { cursor:pointer; font-weight:600; display:flex; align-items:center; gap:6px; }
 .parear[open] summary { margin-bottom:8px; }
+/* Registro do veículo: placa que já tem TF de barreira lavrado nesta BVA (borda vermelha + aviso escrito) */
+#placa.placa-com-tf, #placa.placa-com-tf:focus { border: 2px solid var(--critico); box-shadow: 0 0 0 3px color-mix(in srgb, var(--critico) 25%, transparent); }
+#placa.placa-com-tf:focus-visible { outline-color: var(--critico); }
+.placa-tf { display: flex; gap: 6px; align-items: flex-start; margin: 4px 0 10px; } .placa-tf[hidden] { display: none; }

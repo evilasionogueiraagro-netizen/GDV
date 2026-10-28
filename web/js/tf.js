@@ -422,6 +422,25 @@ const TFUI = (() => {
       historicoDoc: doc ? await hist('doc:' + doc, meus.filter(t => digitos(t.doc) === doc)) : null,
       historicoPlaca: placa ? await hist('placa:' + placa, meus.filter(t => placaNorm(t.placa) === placa)) : null };
   }
+  /** BVA como no índice do servidor (normPub_): sem acento, minúsculas, só letras e números. */
+  const bvaIdx = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  /**
+   * TFs (não cancelados) já lavrados para a placa na BVA — aviso no registro do veículo. Sem internet também: índice de reincidência
+   * (chave placa + BVA; v ≥ 2) + TFs deste aparelho que ainda não estavam nele. Devolve {n, ult (AAAA-MM-DD)}.
+   */
+  async function placaNaBva(placa, local) {
+    const p = placaNorm(placa), b = bvaIdx(local), r = { n: 0, ult: '' };
+    if (!/^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(p) || !b) return r;
+    const idx = await Store.meta('tfIndice'), temIdx = !!(idx && idx.itens && idx.agora && idx.v >= 2) && !!(window.crypto && crypto.subtle);
+    if (temIdx) { const e = idx.itens[await hashIndice('placabva:' + p + '|' + b)]; if (e) { r.n += e.n || 0; r.ult = e.ult || ''; } }
+    const turnos = {}; (await Store.todos('turnos')).forEach(t => { turnos[t.id] = t.local; });
+    (await Store.todos('tfs')).forEach(t => {
+      if (t.cancelado || placaNorm(t.placa) !== p || bvaIdx((t.turnoId && turnos[t.turnoId]) || t.local) !== b) return;
+      if (temIdx && Number(t.emitidoEm) > 0 && Number(t.emitidoEm) <= idx.agora) return;              // já está no índice
+      r.n++; if (String(t.data) > r.ult) r.ult = String(t.data);
+    });
+    return r;
+  }
   /** SHA-256 (hex, 16 primeiros caracteres), igual ao do servidor (índice de reincidência). */
   async function hashIndice(txt) {
     const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(txt));
@@ -715,5 +734,5 @@ const TFUI = (() => {
   /** O fiscal saiu do formulário sem gerar (app.js → go): o rascunho continua salvo, mas o painel deixa de mostrar o TF em preenchimento. */
   const saiu = () => encerrarAndamento();
 
-  return { lista, novo, pronto, saiu };
+  return { lista, novo, pronto, saiu, placaNaBva };
 })();

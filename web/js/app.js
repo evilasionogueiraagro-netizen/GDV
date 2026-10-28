@@ -545,7 +545,8 @@ async function registrar() {
   const v = EDIT ? await Store.obter('veiculos', EDIT) : null;
   const tipo = v ? v.tipo : 'PA', semPlaca = !!Number(t.semPlaca);    // turno com placa opcional (ex.: Jundiá)
   view(`<form class="card" id="fVeic"><h3>${v ? 'Editar veículo' : 'Registrar veículo'}</h3>
-    <label>Placa${semPlaca ? ' <small>(opcional)</small>' : ''}<input id="placa" maxlength="8" autocapitalize="characters" autocomplete="off" ${semPlaca ? '' : 'required'} placeholder="ABC1D23" value="${esc(v ? v.placa : '')}"></label>
+    <label>Placa${semPlaca ? ' <small>(opcional)</small>' : ''}<input id="placa" maxlength="8" autocapitalize="characters" autocomplete="off" ${semPlaca ? '' : 'required'} placeholder="ABC1D23" value="${esc(v ? v.placa : '')}" aria-describedby="placa-tf"></label>
+    <p id="placa-tf" class="aviso-erro placa-tf" role="status" hidden></p>
     <label>Tipo do veículo</label>
     <div class="tipos">${Object.entries(CONFIG.tipos).map(([c, x]) => `
       <label class="tipo-card"><input type="radio" name="tipo" value="${c}" ${c === tipo ? 'checked' : ''}>${icone(x.icone)}<span>${x.nome}</span></label>`).join('')}</div>
@@ -558,7 +559,17 @@ async function registrar() {
     <label>Observações<textarea id="obs" rows="3">${esc(v ? v.obs : '')}</textarea></label>
     <button class="botao">${icone('salvar')} Salvar</button></form>`);
   const placa = $('#placa');
-  placa.oninput = () => placa.value = placa.value.toUpperCase().replace(/[^A-Z0-9]/g, '');
+  // placa que já tem TF de barreira lavrado nesta BVA: borda vermelha e aviso (também sem internet: índice de reincidência do aparelho)
+  const avisoTF = $('#placa-tf');
+  const conferirTF = async () => {
+    const p = placa.value, r = await TFUI.placaNaBva(p, t.local).catch(() => ({ n: 0 }));
+    if (placa.value !== p) return;                                         // o fiscal continuou digitando
+    placa.classList.toggle('placa-com-tf', r.n > 0); placa.setAttribute('aria-invalid', r.n > 0 ? 'true' : 'false');
+    avisoTF.hidden = !(r.n > 0);
+    if (r.n > 0) avisoTF.innerHTML = `${icone('alerta')} ${r.n === 1 ? 'Já há 1 TF de barreira lavrado' : `Já há ${r.n} TFs de barreira lavrados`} para esta placa em ${esc(t.local)}${r.ult ? ` (último em ${dBR(r.ult)})` : ''}.`;
+  };
+  placa.oninput = () => { placa.value = placa.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); conferirTF(); };
+  if (placa.value) conferirTF();
   document.querySelectorAll('input[name=tipo]').forEach(r => r.onchange = () => {
     if (!v) $('#pessoas').value = CONFIG.tipos[r.value].pessoas;
   });

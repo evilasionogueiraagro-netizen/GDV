@@ -129,7 +129,11 @@ const TFUI = (() => {
     return (a && a.dados) || '';
   }
   /** Cartão das assinaturas: no formulário (st = S) e na tela do TF gerado (st = estado do TF salvo). */
-  const assCardHTML = st => `<div class="card" id="tf-ass-card"><h3>${icone('assinatura')} Assinaturas (opcional)</h3>
+  // assinatura na tela desligada (CONFIG.assinaturaNaTela): fica só a marcação da recusa, que o TF impresso registra
+  const assCardHTML = st => !CONFIG.assinaturaNaTela ? `<div class="card" id="tf-ass-card"><h3>${icone('assinatura')} Assinaturas</h3>
+      <p class="dica" style="text-align:left">As assinaturas são feitas no papel: o TF sai com as linhas em branco.</p>
+      <label class="chk"><input type="checkbox" id="tf-recusa" ${st.recusa ? 'checked' : ''}> Fiscalizado se recusou a assinar</label></div>`
+    : `<div class="card" id="tf-ass-card"><h3>${icone('assinatura')} Assinaturas (opcional)</h3>
       <p class="dica" style="text-align:left">Assine na tela, se quiser. Sem assinatura na tela, o TF sai com a linha em branco para assinar no papel.</p>
       ${Object.keys(PAPEIS).map(p => `<div class="tf-ass" id="tf-ass-${p}"></div>`).join('')}
       <label class="chk"><input type="checkbox" id="tf-recusa" ${st.recusa ? 'checked' : ''}> Fiscalizado se recusou a assinar</label></div>`;

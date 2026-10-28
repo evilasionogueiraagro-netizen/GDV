@@ -55,7 +55,7 @@ for (let i = 0; i < args.length; i++) {
   else pedidos.push(path.basename(a).replace(/\.js$/, ''));
 }
 
-const todos = fs.readdirSync(DIR).filter(f => f.endsWith('.js') && !['fakegas.js', 'run.js'].includes(f)).map(f => f.slice(0, -3)).sort();
+const todos = fs.readdirSync(DIR).filter(f => f.endsWith('.js') && !['fakegas.js', 'run.js', 'local.js'].includes(f)).map(f => f.slice(0, -3)).sort();
 let testes = todos;
 if (pedidos.length) {
   const faltando = pedidos.filter(p => !todos.includes(p));

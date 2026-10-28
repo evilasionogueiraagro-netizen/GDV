@@ -9,6 +9,7 @@ Roda `apps-script/Code.gs` **real** numa VM do Node, com `SpreadsheetApp`, `Lock
 - Rotas úteis: `/__aba?nome=` (linhas cruas), `/__planilhas`, `/__tudo` (todas as abas), `/__tokeninfo` e `/__fetches` (login Google simulado). As demais, no fim do arquivo.
 - Serviço Google novo no `Code.gs` precisa existir aqui ([PORTABILIDADE.md](../docs/PORTABILIDADE.md)).
 - À mão: `node fakegas.js` num terminal e `node tv_test.js` em outro (só um fakegas por vez nas mesmas portas).
+- Ver as telas sem tocar na produção: `node local.js [painel|administrativo|dashboard|inicio]` sobe o fakegas com contas e dados fictícios e abre o Chromium apontado para ele (sem isso, o app em localhost usa o endereço oficial).
 
 ## Rodar
 Node 20+ e `python3` com `pypdf` (`pip install pypdf`); sem ele falham `tf_paginas`, `convenio_test`, `convfin_test`, `relgdv_test` e `vigifito_test`. `convenio_test` usa `python-docx` e, se houver, `soffice`. Para não mexer no Python do sistema, use um venv e ponha o `bin/` dele no `PATH`.

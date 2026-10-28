@@ -367,7 +367,7 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     if (!culturas.length) corpo.innerHTML = '<tr><td colspan="10" class="vazio">Nenhuma cultura informada.</td></tr>';
     else corpo.innerHTML = culturas.map((c, k) => {
       const amostra = c.coleta === 'Sim';
-      const td = v => `<td>${esc(v)}</td>`, esp = (v, x) => (v && x.espUnidade ? `${v} ${x.espUnidade}` : v);
+      const td = v => `<td>${esc(v)}</td>`, esp = (v, x) => (!v ? v : x.espUnidade ? `${v} ${x.espUnidade}` : /^\d+([.,]\d+)?$/.test(v) ? `${v} m` : v);   // unidade junto do valor; registro anterior: o cabeçalho dizia m
       return `<tr><td class="n">${k + 1}</td>${td(c.cultura)}${td(c.area)}${td(esp(c.espLinha, c))}${td(esp(c.espPlanta, c))}<td class="res ${esc(c.resultado)}">${esc(RES_PCE[c.resultado])}</td>${td(c.coleta)}`
         + `${td(amostra ? c.tipoMaterial : '–')}${td(amostra ? c.codigoAmostra : '–')}${td(amostra ? c.destinoAmostra : '–')}</tr>`;
     }).join('');

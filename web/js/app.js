@@ -546,6 +546,7 @@ async function registrar() {
   if (soPessoas(t)) { toast('Neste turno não se registram veículos: conte as pessoas orientadas na tela do turno.'); return go('home'); }
   const v = EDIT ? await Store.obter('veiculos', EDIT) : null;
   const tipo = v ? v.tipo : 'PA', semPlaca = !!Number(t.semPlaca);    // turno com placa opcional (ex.: Jundiá)
+  const cuidadoFixo = !!(v && Number(v.cuidado) === 1);                // alerta de cuidado já salvo: não se desmarca no app
   view(`<form class="card" id="fVeic"><h3>${v ? 'Editar veículo' : 'Registrar veículo'}</h3>
     <label>Placa${semPlaca ? ' <small>(opcional)</small>' : ''}<input id="placa" maxlength="8" autocapitalize="characters" autocomplete="off" ${semPlaca ? '' : 'required'} placeholder="ABC1D23" value="${esc(v ? v.placa : '')}" aria-describedby="placa-tf"></label>
     <p id="placa-cuidado" class="aviso placa-tf" role="alert" hidden></p><p id="placa-tf" class="aviso-erro placa-tf" role="status" hidden></p>
@@ -559,9 +560,10 @@ async function registrar() {
       <label>Cidade de destino<input id="vMunDes" maxlength="60" autocomplete="off" autocapitalize="words" placeholder="ex.: Manaus" value="${esc(v && v.destinoMun || '')}"></label>
       <label>UF<select id="vUfDes" aria-label="UF de destino">${opcoesUF(v && v.ufDestino)}</select></label></div>
     <label>Observações<textarea id="obs" rows="3">${esc(v ? v.obs : '')}</textarea></label>
-    <div class="veic-cuidado"><label class="chk"><input type="checkbox" id="vCuidado" ${v && Number(v.cuidado) === 1 ? 'checked' : ''}> Marcar alerta de cuidado neste veículo</label>
-      <label id="vCuidadoBox" ${v && Number(v.cuidado) === 1 ? '' : 'hidden'}>Motivo<select id="vCuidadoMot"><option value="">— escolha —</option>${Object.entries(CUIDADO_MOTIVOS).map(([k, n]) => `<option value="${k}" ${v && v.cuidadoMotivo === k ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
-      <p class="dica">Alteração, resistência ou ameaça na abordagem: outros fiscais, em qualquer BVA, verão "Cuidado ao abordar este veículo" ao digitar esta placa. Descreva o ocorrido nas observações.</p></div>
+    <div class="veic-cuidado"><label class="chk"><input type="checkbox" id="vCuidado" ${cuidadoFixo ? 'checked disabled' : ''}> Marcar alerta de cuidado neste veículo</label>
+      <label id="vCuidadoBox" ${cuidadoFixo ? '' : 'hidden'}>Motivo<select id="vCuidadoMot" ${cuidadoFixo ? 'disabled' : ''}><option value="">— escolha —</option>${Object.entries(CUIDADO_MOTIVOS).map(([k, n]) => `<option value="${k}" ${v && v.cuidadoMotivo === k ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+      <p class="dica">${cuidadoFixo ? 'Alerta de cuidado gravado: não pode ser desmarcado no app (a gerência foi avisada no painel).'
+        : 'Alteração, resistência ou ameaça na abordagem: outros fiscais, em qualquer BVA, verão "Cuidado ao abordar este veículo" e as observações ao digitar esta placa, e a gerência é avisada no painel. Depois de salvo, não pode ser desmarcado. Descreva o ocorrido nas observações.'}</p></div>
     <button class="botao">${icone('salvar')} Salvar</button></form>`);
   const placa = $('#placa');
   // placa que já tem TF de barreira lavrado nesta BVA: borda vermelha e aviso (também sem internet: índice de reincidência do aparelho)
@@ -574,7 +576,8 @@ async function registrar() {
     placa.classList.toggle('placa-cuidado', c.n > 0); placa.classList.toggle('placa-com-tf', r.n > 0 && !(c.n > 0));
     placa.setAttribute('aria-invalid', r.n > 0 || c.n > 0 ? 'true' : 'false');
     avisoCuid.hidden = !(c.n > 0);
-    if (c.n > 0) avisoCuid.innerHTML = `${icone('alerta')} <span><b>Cuidado ao abordar este veículo.</b> ${esc(c.cu.map(k => CUIDADO_MOTIVOS[k] || CUIDADO_MOTIVOS.outro).join(', '))}${c.ult ? ` · marcado em ${dBR(c.ult)}` : ''}${c.n > 1 ? ` · ${c.n} registros` : ''}</span>`;
+    if (c.n > 0) avisoCuid.innerHTML = `${icone('alerta')} <span><b>Cuidado ao abordar este veículo.</b> ${esc(c.cu.map(k => CUIDADO_MOTIVOS[k] || CUIDADO_MOTIVOS.outro).join(', '))}${c.ult ? ` · marcado em ${dBR(c.ult)}` : ''}${c.n > 1 ? ` · ${c.n} registros` : ''}` +
+      (c.ob.length ? `<span class="placa-obs">${c.ob.map(o => `<span>${o.d ? `<b>${esc(dBR(o.d))}:</b> ` : ''}${esc(o.t)}</span>`).join('')}</span>` : '') + '</span>';
     avisoTF.hidden = !(r.n > 0);
     if (r.n > 0) avisoTF.innerHTML = `${icone('alerta')} ${r.n === 1 ? 'Já há 1 TF de barreira lavrado' : `Já há ${r.n} TFs de barreira lavrados`} para esta placa em ${esc(t.local)}${r.ult ? ` (último em ${dBR(r.ult)})` : ''}.`;
   };
@@ -590,7 +593,7 @@ async function registrar() {
     const p = placa.value.trim();
     if (!p && !semPlaca) { toast('Informe a placa.', true); placa.focus(); return; }
     if (p && !/^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(p) && !confirm(`A placa "${p}" está fora do padrão. Salvar mesmo assim?`)) return;
-    const cuid = $('#vCuidado').checked, cuidMot = $('#vCuidadoMot').value;
+    const cuid = cuidadoFixo || $('#vCuidado').checked, cuidMot = cuidadoFixo ? v.cuidadoMotivo || 'outro' : $('#vCuidadoMot').value;
     if (cuid && !p) { toast('O alerta de cuidado precisa da placa.', true); placa.focus(); return; }
     if (cuid && !cuidMot) { toast('Escolha o motivo do alerta de cuidado.', true); $('#vCuidadoMot').focus(); return; }
     const existentes = await veiculosDe(t.id);

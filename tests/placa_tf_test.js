@@ -28,7 +28,7 @@ const TF = (n, turnoId, local, placa, extra = {}) => ({ id: 'pt' + n, barreira: 
   ok(ix.ok && m[h('placabva:ABC1D23|bva jundia')] && m[h('placabva:ABC1D23|bva jundia')].n === 1 && m[h('placabva:QWE4R56|bva ceasa')] && !m[h('placabva:ZZZ9Z99|bva jundia')] && !m[h('placabva:QWE4R56|bva jundia')],
     'chave placa + BVA: pelo local do turno, pelo apelido da BVA no TF sem turno; cancelado e outra BVA fora', Object.keys(m).length);
   const cu = m[h('cuidado:CDE2F34')];
-  ok(cu && cu.n === 1 && cu.cu === 'ameaca' && cu.ult === hoje && !m[h('cuidado:FGH3I45')] && !JSON.stringify(ix).includes('exaltado'), 'alerta de cuidado no índice: só placa (hash), motivo e data; excluído fora; sem as observações', cu);
+  ok(cu && cu.n === 1 && cu.cu === 'ameaca' && cu.ult === hoje && cu.ob.length === 1 && cu.ob[0].t === 'motorista exaltado (fictício)' && m[h('cuidado:FGH3I45')], 'alerta de cuidado no índice: placa (hash), motivo, data e observações; registro excluído continua valendo', cu);
   const fV = await U.fiscal('Fiscal So Veiculos', { permissoes: ['campo', 'fiscalizacaoDeTransito'] });
   const ixV = await post({ action: 'tfIndiceReincidencia', key: fV.token });
   ok(ixV.ok && ixV.itens.some(i => i.h === h('cuidado:CDE2F34')), 'quem só registra veículos também baixa o índice (alerta de cuidado)', ixV.erro);
@@ -64,13 +64,13 @@ const TF = (n, turnoId, local, placa, extra = {}) => ({ id: 'pt' + n, barreira: 
   await p.click('#fVeic > button.botao'); await p.waitForTimeout(500);
   ok((await p.evaluate(async () => (await Store.todos('veiculos')).some(v => v.placa === 'ABC1D23'))), 'o alerta não impede registrar o veículo');
 
-  console.log('3) alerta de cuidado: borda amarela e "Cuidado ao abordar este veículo"; marcar e desmarcar');
+  console.log('3) alerta de cuidado: borda amarela, "Cuidado ao abordar este veículo" e as observações; marcar; não desmarca');
   await p.waitForSelector('#fVeic');                                     // depois de salvar, volta ao formulário de registro
   e = await estado('CDE2F34');
   const amarelo = await p.evaluate(() => document.querySelector('#placa').classList.contains('placa-cuidado'));
-  ok(amarelo && /Cuidado ao abordar este veículo\. Ameaça · marcado em/.test(await p.textContent('#placa-cuidado')), 'placa marcada por outro fiscal (outra BVA não importa): borda amarela + aviso', await p.textContent('#placa-cuidado'));
+  ok(amarelo && /Cuidado ao abordar este veículo\. Ameaça · marcado em/.test(await p.textContent('#placa-cuidado')) && /motorista exaltado \(fictício\)/.test(await p.textContent('#placa-cuidado .placa-obs')), 'placa marcada por outro fiscal (outra BVA não importa): borda amarela + aviso + observações salvas', await p.textContent('#placa-cuidado'));
   await p.screenshot({ path: amb.saida('placa_cuidado_alerta.png') });
-  e = await estado('FGH3I45'); ok(!(await p.evaluate(() => document.querySelector('#placa').classList.contains('placa-cuidado'))), 'registro excluído: sem alerta');
+  e = await estado('FGH3I45'); ok(await p.evaluate(() => document.querySelector('#placa').classList.contains('placa-cuidado')), 'registro excluído: o alerta continua (não se desfaz pelo app)');
   // marcar um veículo novo
   await estado('JKL4M56'); await p.check('#vCuidado'); await p.click('#fVeic > button.botao'); await p.waitForTimeout(300);
   ok(await p.isVisible('#vCuidadoMot') && (await p.evaluate(async () => (await Store.todos('veiculos')).filter(v => v.placa === 'JKL4M56').length)) === 0, 'marcar sem motivo: pede o motivo');
@@ -82,12 +82,36 @@ const TF = (n, turnoId, local, placa, extra = {}) => ({ id: 'pt' + n, barreira: 
   await p.evaluate(() => Sync.sincronizar()); await semPendentes();
   let ix2 = await post({ action: 'tfIndiceReincidencia', key: fA.token, desde: ix.agora });
   ok(ix2.itens.some(i => i.h === h('cuidado:JKL4M56') && i.n === 1 && i.cu === 'resistencia'), 'servidor: alerta novo no índice incremental (vale para os outros aparelhos)', ix2.itens.filter(i => i.cu != null));
-  // desmarcar (editar o próprio registro)
+  // não se desmarca no app: no formulário a caixa fica travada; um envio com cuidado = 0 (app antigo) não muda a planilha
   await p.waitForFunction(() => !Sync.emAndamento(), null, { timeout: 15000 });
-  await p.evaluate(async id => { const v = await Store.obter('veiculos', id); await Store.salvar('veiculos', { ...v, cuidado: 0, cuidadoMotivo: '' }); Sync.sincronizar(); }, novo.id);
+  await p.evaluate(id => go('registrar', id), novo.id); await p.waitForSelector('#fVeic #vCuidado');
+  ok(await p.$eval('#vCuidado', x => x.checked && x.disabled) && await p.$eval('#vCuidadoMot', x => x.disabled) && /não pode ser desmarcado/.test(await p.textContent('.veic-cuidado')), 'editar o registro: alerta travado (sem desmarcar)');
+  await p.fill('#obs', 'recusou parar e acelerou (fictício)'); await p.click('#fVeic > button.botao'); await p.waitForTimeout(400);
+  ok((await p.evaluate(async id => Store.obter('veiculos', id), novo.id)).cuidado === 1, 'salvar a edição mantém o alerta');
+  await p.evaluate(async id => { const v = await Store.obter('veiculos', id); await Store.salvar('veiculos', { ...v, cuidado: 0, cuidadoMotivo: '', excluido: 1 }); Sync.sincronizar(); }, novo.id);
   await semPendentes();
   ix2 = await post({ action: 'tfIndiceReincidencia', key: fA.token, desde: ix.agora });
-  ok(ix2.itens.some(i => i.h === h('cuidado:JKL4M56') && i.n === 0), 'desmarcado: o índice incremental manda apagar (n = 0)', ix2.itens.filter(i => i.cu != null));
+  const cj = ix2.itens.find(i => i.h === h('cuidado:JKL4M56'));
+  ok(cj && cj.n === 1 && cj.cu === 'resistencia' && cj.ob[0].t === 'recusou parar e acelerou (fictício)', 'servidor: envio com cuidado = 0 e excluído não desfaz o alerta (as observações atualizam)', cj);
+
+  console.log('4) painel gerencial: aviso amarelo, som e notificação do alerta; "Ciente" some e não volta');
+  const g = await amb.gerente('Gerente Cuidado');
+  const cg = await b.newContext({ viewport: { width: 1366, height: 900 }, timezoneId: 'America/Manaus', locale: 'pt-BR', serviceWorkers: 'block', permissions: ['notifications'] });
+  await cg.addInitScript(i => { if (!sessionStorage.getItem('__init')) { sessionStorage.setItem('__init', 1); localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.painel.token', i.t); localStorage.setItem('gdv.painel.nome', i.n); }
+    window.__notifs = []; window.Notification = class { constructor(t, o) { window.__notifs.push({ t, b: o && o.body }); } static get permission() { return 'granted'; } static requestPermission() { return Promise.resolve('granted'); } }; }, { t: g.token, n: g.nome });
+  const G = await cg.newPage(); G.on('pageerror', x => err.push('painel: ' + x.message));
+  await G.goto(amb.PAINEL); await G.waitForSelector('#pn-cuidaviso [data-cuidado]', { timeout: 30000 });
+  const av = (await G.textContent('#pn-cuidaviso')).replace(/\s+/g, ' ');
+  ok(/Alerta de cuidado/.test(av) && /Resistência à fiscalização · Placa JKL4M56 · BVA - JUNDIÁ/.test(av) && /Ameaça · Placa CDE2F34/.test(av) && /recusou parar e acelerou/.test(av), 'painel: aviso amarelo com motivo, placa, BVA e observações', av);
+  const ns = await G.evaluate(() => window.__notifs);
+  ok(ns.some(n => /Alerta de cuidado — BVA - JUNDIÁ/.test(n.t) && /JKL4M56/.test(n.b)), 'painel: notificação do sistema', ns);
+  await G.screenshot({ path: amb.saida('placa_cuidado_painel.png') });
+  const nAv = (await G.$$('#pn-cuidaviso [data-ciente]')).length;
+  await G.click(`#pn-cuidaviso [data-ciente="${novo.id}"]`);
+  ok((await G.$$('#pn-cuidaviso [data-ciente]')).length === nAv - 1, '"Ciente" tira o alerta do aviso');
+  await G.reload(); await G.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 30000 }); await G.waitForTimeout(500);
+  ok(!(await G.$(`#pn-cuidaviso [data-cuidado="${novo.id}"]`)), 'recarregar: o alerta já visto não volta neste navegador');
+  await cg.close();
   ok(!err.length, 'sem erros de página', err);
   await b.close();
   console.log(falhas ? `FALHOU=${falhas}` : 'OK');

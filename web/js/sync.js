@@ -307,7 +307,7 @@ const Sync = (() => {
   /* ---------- Índice de reincidência (consulta do TF sem internet) ----------
      Resumo de TODOS os TFs não cancelados (todas as barreiras) por hash do CPF/CNPJ, da placa e da placa + BVA: {h: {n, ap, re, au, li, ad, ult}}, sem dados
      pessoais em claro. Guardado na meta "tfIndice" {agora (hora do servidor), baixadoEm, itens}; atualizado (incremental) no máximo 1x a cada
-     30 min, com internet e com o módulo TF ou o de veículos liberado. Inclui o alerta de cuidado por placa ({n, ult, cu}). Melhor esforço: falha não aparece para o fiscal. */
+     30 min, com internet e com o módulo TF ou o de veículos liberado. Inclui o alerta de cuidado por placa ({n, ult, cu, ob: observações}). Melhor esforço: falha não aparece para o fiscal. */
   const INDICE_INTERVALO_MS = 30 * 60 * 1000;
   let indiceTentado = 0;                                                     // falhou (ex.: servidor antigo): espera 5 min para tentar de novo
   async function atualizarIndice(forcar) {
@@ -319,7 +319,7 @@ const Sync = (() => {
     const incr = !!(atual && atual.itens && atual.agora && atual.v >= 3);           // v 2: chave placa + BVA; v 3: alerta de cuidado (índice antigo: baixa inteiro)
     const r = await chamar({ action: 'tfIndiceReincidencia', desde: incr ? atual.agora : 0 }, 30000);
     const itens = r.completo || !incr ? {} : { ...atual.itens };
-    (r.itens || []).forEach(a => { if (!a || !a.h) return; if (Number(a.n) > 0) itens[a.h] = a.cu != null ? { n: a.n, ult: a.ult, cu: a.cu } : { n: a.n, ap: a.ap, re: a.re, au: a.au, li: a.li, ad: a.ad, ult: a.ult }; else delete itens[a.h]; });
+    (r.itens || []).forEach(a => { if (!a || !a.h) return; if (Number(a.n) > 0) itens[a.h] = a.cu != null ? { n: a.n, ult: a.ult, cu: a.cu, ob: Array.isArray(a.ob) ? a.ob : [] } : { n: a.n, ap: a.ap, re: a.re, au: a.au, li: a.li, ad: a.ad, ult: a.ult }; else delete itens[a.h]; });
     await Store.setMeta('tfIndice', { v: 3, agora: Number(r.agora) || Date.now(), baixadoEm: Date.now(), itens });
     return true;
   }

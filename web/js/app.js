@@ -248,7 +248,7 @@ async function home() {
   if (soPessoas(t)) return homePessoas(t, mostrar);
   mostrar(`${avisoAtivacao()}
     <div class="card"><h3>Turno atual</h3>
-      <p><b>${esc(t.numeroTF)}</b></p>
+      <p><b>${esc(t.numeroTF)}</b> ${botaoNumero(t)}</p>
       <p><b>Fiscal:</b> ${esc(Docs.fiscaisDoTurno(t))}</p><p><b>Local:</b> ${esc(t.local)}</p>
       <p><b>Data:</b> ${dBR(t.data)} &nbsp; <b>Posto:</b> ${esc(t.posto || '')}</p>
       <p><b>Início do turno:</b> ${esc(t.inicio)}</p>
@@ -324,6 +324,25 @@ function homePessoas(t, mostrar) {
   });
   $('#encerrar').onclick = () => encerrarTurno(t);
 }
+/* ---------- corrigir o nº do TF do turno (onde a gerência liberou: CONFIG.turnoNumeroEditavel) ---------- */
+const nlLocal = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+const numeroEditavel = t => !!t && (CONFIG.turnoNumeroEditavel || []).some(r => nlLocal(r.local) === nlLocal(t.local) && String(t.data) >= r.desde);
+const botaoNumero = t => numeroEditavel(t) ? `<button class="mini" type="button" data-numturno="${esc(t.id)}">${icone('editar')} Corrigir nº</button>` : '';
+async function corrigirNumero(id) {
+  const t = await Store.obter('turnos', id); if (!t) return;
+  if (!navigator.onLine) return toast('Sem internet: a correção do nº precisa de conexão.', true);
+  const atual = (/^TF-(\d+)-/.exec(t.numeroTF || '') || [])[1] || '';
+  const r = prompt(`Nº correto do Termo de Fiscalização de ${t.numeroTF} (${dBR(t.data)}):`, String(Number(atual) || '')); if (r == null) return;
+  const n = parseInt(String(r).replace(/\D/g, ''), 10); if (!(n >= 1)) return toast('Digite só o número do Termo (ex.: 12).', true);
+  try {
+    await Sync.sincronizar();                                                   // o turno precisa estar no servidor
+    const res = await Sync.corrigirNumeroTurno(id, n);
+    const t2 = (await Store.obter('turnos', id)) || t;
+    await Store.gravar('turnos', { ...t2, numeroTF: res.turno.numeroTF, letra: res.turno.letra });
+    toast(res.igual ? 'O nº já era esse.' : `Nº corrigido: ${res.turno.numeroTF}.`); go(VIEW, EDIT);
+  } catch (e) { toast(e.message || 'Não foi possível corrigir o nº.', true); }
+}
+
 /* ---------- turno aberto em outro aparelho (o PC e o celular da BVA com o mesmo login) ---------- */
 // O aparelho recebe na sincronização os turnos e veículos do próprio login. Um turno ainda aberto que não é o deste aparelho é o de
 // outro aparelho: vira o turno deste também (turnoAtual), e os veículos lançados nos dois vão para o mesmo turno (e o mesmo Termo).
@@ -638,7 +657,7 @@ async function fechado() {
   if (!t) return go('home');
   const v = await veiculosDe(t.id);
   if (!mostrar.viva()) return;
-  view(`<div class="card"><h3>Turno encerrado</h3><p><b>${esc(t.numeroTF)}</b></p>
+  view(`<div class="card"><h3>Turno encerrado</h3><p><b>${esc(t.numeroTF)}</b> ${botaoNumero(t)}</p>
     <p>${dBR(t.data)} · das <b>${esc(t.inicio)}</b> às <b>${esc(t.fim)}</b></p>
     <p>${soPessoas(t) ? '' : v.length + ' veículos · '}${pessoasDoTurno(t, v)} pessoas${soPessoas(t) ? ' orientadas' : ''}</p>
     ${htmlStatusEnc(t)}</div>
@@ -729,7 +748,7 @@ async function historico() {
       <div class="card"><h3>Veículos por dia</h3>${barras(Object.entries(porDia).sort().map(([k, n]) => [dBR(k).slice(0, 5), n]))}</div>
       <div class="card"><h3>Turnos</h3>${turnos.length ? turnos.map(t => `
         <div class="turno-linha"><div><b>${esc(t.numeroTF)}</b><br><small>${dBR(t.data)} · ${esc(t.inicio)}${t.fim ? '–' + esc(t.fim) : ''} · ${esc(t.fiscal)} · ${porTurno[t.id] || 0} veíc.${t.encerrado ? '' : ' · em andamento'}${t.encerradoPor ? (encerradoAuto(t.encerradoPor) ? ' · encerrado automaticamente (12 h)' : ' · encerrado pela gerência') : ''}${t.pendente ? ` · ${icone('pendente')} aguardando envio` : ''}</small></div>
-        <div>${t.encerrado ? `<button class="mini" data-doc="termo" data-id="${t.id}">Termo</button>` : ''}${temFicha(t) ? `<button class="mini" data-doc="ficha" data-id="${t.id}">Ficha</button>` : ''}</div></div>`).join('') : '<div class="vazio">Sem turnos no período.</div>'}</div>
+        <div>${botaoNumero(t)}${t.encerrado ? `<button class="mini" data-doc="termo" data-id="${t.id}">Termo</button>` : ''}${temFicha(t) ? `<button class="mini" data-doc="ficha" data-id="${t.id}">Ficha</button>` : ''}</div></div>`).join('') : '<div class="vazio">Sem turnos no período.</div>'}</div>
       <button class="botao vermelho" id="limpar">${icone('lixeira')} Limpar histórico deste aparelho</button>
       <p class="dica">Remove só os turnos já encerrados <b>deste celular</b>. Os dados continuam salvos na planilha.</p>`;
     $('#limpar').onclick = limparHistorico;
@@ -793,9 +812,10 @@ async function config() {
 
 /* ---------- eventos globais ---------- */
 document.addEventListener('click', async e => {
-  const el = e.target.closest('[data-v],[data-go],[data-edit],[data-del],[data-doc],[data-instalar],[data-tfveic],[data-avisook],[data-reenviar]');
+  const el = e.target.closest('[data-v],[data-go],[data-edit],[data-del],[data-doc],[data-instalar],[data-tfveic],[data-avisook],[data-reenviar],[data-numturno]');
   if (!el) return;
   const d = el.dataset;
+  if (d.numturno) return corrigirNumero(d.numturno);
   if (d.reenviar) tentarEnviarAgora(d.reenviar, el);
   else if (d.avisook) { try { localStorage.removeItem(LS_AVISO_ENC); } catch (e2) { /* idem */ } const a = $('#avisoEncerrado'); if (a) a.remove(); }
   else if (d.instalar) acaoInstalar(d.instalar);

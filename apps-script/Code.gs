@@ -236,6 +236,7 @@ function doPost(e) {
     if (req.action === 'turnoParear') return json_(turnoParear_(req, usuario));
     if (req.action === 'turnoSair') return json_(turnoSair_(req, usuario));
     if (req.action === 'turnoPapelRegistrar') return json_(turnoPapelRegistrar_(req, usuario));
+    if (req.action === 'turnoNumero') return json_(turnoNumero_(req, usuario));
     throw new Error('Ação inválida.');
   } catch (err) {
     const r = { ok: false, erro: String(err.message || err) };

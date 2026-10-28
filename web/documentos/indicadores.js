@@ -40,6 +40,8 @@ const Indicadores = (() => {
     { k: 'autoDestT', rotulo: 'Auto de destruição', rotuloPlanilha: null, unid: 't', fonte: 'auto', regra: 'Produtos desses TFs em kg (÷ 1.000) ou t.' }
   ].map(d => ({ ...d, id: 'vigifito.' + d.k, rotuloPlanilha: d.rotuloPlanilha === null ? null : d.rotulo }));
   const PORK = {}; VIGIFITO.forEach(d => { PORK[d.k] = d; });
+  // Como na planilha de controle, o rótulo do indicador com 2 linhas (nº e t) ocupa as duas: 2 = abre a célula, 0 = linha coberta, 1 = normal.
+  const SPAN = VIGIFITO.map((d, i) => d.rotuloPlanilha === null ? 0 : VIGIFITO[i + 1] && VIGIFITO[i + 1].rotuloPlanilha === null ? 2 : 1);
 
   // Catálogo geral: os do VIGIFITO + PCE (quadro do Relatório GDV, apurados no servidor por relGdvApurar_) + convênio (etapas
   // automáticas, que leem as MESMAS regras: veículos da 1.10 = vigifito.veiculos das BVAs da etapa; ações da 1.9 = vigifito.abordagem).
@@ -71,7 +73,7 @@ const Indicadores = (() => {
     return { v: auto, origem: auto == null ? null : 'auto', auto };
   }
   const soma = (a, b) => (a == null && b == null ? null : (a || 0) + (b || 0));
-  return { VIGIFITO, PORK, CATALOGO, valorVig, soma, def: id => CATALOGO[id] || null };
+  return { VIGIFITO, PORK, CATALOGO, valorVig, soma, rotuloSpan: i => SPAN[i], def: id => CATALOGO[id] || null };
 })();
 if (typeof window !== 'undefined') window.Indicadores = Indicadores;
 if (typeof module !== 'undefined' && module.exports) module.exports = Indicadores;

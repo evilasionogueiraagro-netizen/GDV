@@ -9,13 +9,14 @@ const VIG_IND = {   // indicador → [unidade, fonte] (rótulos e ordem no naveg
 const VIG_OUTRAS = { fixa: { id: '_outras-fixas', nome: 'OUTRAS BVA FIXAS (não mapeadas)', municipio: '', tipo: 'fixa' },
                      volante: { id: '_outras-volantes', nome: 'OUTRAS AÇÕES VOLANTES (não mapeadas)', municipio: '', tipo: 'volante' } };
 const VIG_RE_MES = /^\d{4}-(0[1-9]|1[0-2])$/, VIG_RE_PER = /^P\d{4}-\d{2}-\d{2}$/;
-/** Semente: os 11 postos da planilha de controle VIGIFITO 2025 e a escala de 10 dias do Jundiá (05/01/2025, ciclo de 9 dias). */
+/** Semente: os 11 postos da planilha de controle VIGIFITO 2025 + a BVA - CEASA e a escala de 10 dias do Jundiá (05/01/2025, ciclo de 9 dias). */
 function vigSemente_() {
   const P = function (id, nome, municipio, tipo, locais) { return { id: id, nome: nome, municipio: municipio, tipo: tipo, locais: locais || [] }; };
   return { ancora: '2025-01-05', ciclo: 9, versao: 0, atualizadoEm: 0, atualizadoPor: '', postos: [
     P('pf-jundia', 'PRESIDENTE FIGUEIREDO - BVA JUNDIÁ', 'Presidente Figueiredo', 'fixa', ['BVA - JUNDIÁ']),
     P('pf-volante', 'PRESIDENTE FIGUEIREDO - VOLANTE', 'Presidente Figueiredo', 'volante'),
     P('manaus-aeroporto', 'MANAUS - BVA AEROPORTO', 'Manaus', 'fixa', ['BVA - AEROPORTO']),
+    VIG_CEASA_(),
     P('manaus-volante', 'MANAUS - VOLANTE', 'Manaus', 'volante'),
     P('parintins-porto', 'PARINTINS - BVA PORTO', 'Parintins', 'fixa', ['BVA - PARINTINS', 'BVA - PORTO DE PARINTINS']),
     P('parintins-volante', 'PARINTINS - BVA VOLANTE', 'Parintins', 'volante'),
@@ -28,8 +29,16 @@ function vigSemente_() {
 function vigConfig_() {
   const r = lerLeitura_('VigConfig').filter(function (x) { return x.id === 'vigifito'; })[0];
   const c = r ? lerJSONSeguro_(r.config, null) : null;
-  return c && Array.isArray(c.postos) && c.postos.length ? c : vigSemente_();
+  if (!(c && Array.isArray(c.postos) && c.postos.length)) return vigSemente_();
+  // lista salva antes de existir o posto da BVA - CEASA: entra depois do último posto de Manaus (salvar a lista no painel grava a escolha)
+  const ceasa = normPub_('BVA - CEASA');
+  if (!c.ceasa && !c.postos.some(function (p) { return (p.locais || []).some(function (l) { return normPub_(localCanon_(l)) === ceasa; }); })) {
+    let i = -1; c.postos.forEach(function (p, j) { if (normPub_(p.municipio) === 'manaus') i = j; });
+    c.postos.splice(i < 0 ? c.postos.length : i + 1, 0, VIG_CEASA_());
+  }
+  return c;
 }
+function VIG_CEASA_() { return { id: 'manaus-ceasa', nome: 'MANAUS - BVA CEASA', municipio: 'Manaus', tipo: 'fixa', locais: ['BVA - CEASA'] }; }
 /** Início (AAAA-MM-DD) do período de 10 dias da escala que contém o dia: âncora + k × ciclo (o dia da troca abre o período seguinte). */
 function vigPeriodo_(cfg, dia) {
   const d0 = Date.UTC(+cfg.ancora.slice(0, 4), +cfg.ancora.slice(5, 7) - 1, +cfg.ancora.slice(8, 10)), d = Date.UTC(+dia.slice(0, 4), +dia.slice(5, 7) - 1, +dia.slice(8, 10));
@@ -241,7 +250,7 @@ function painelVigConfigSalvar(token, req) {
     const locais = (Array.isArray(p.locais) ? p.locais : String(p.locais || '').split(/[\n;]/)).map(function (x) { return convTexto_(x, 80, 'Local'); }).filter(Boolean).slice(0, 10);
     return { id: id, nome: nome, municipio: convTexto_(p.municipio, 60, 'Município'), tipo: p.tipo, locais: locais };
   });
-  const atual = vigConfig_(), o = { ancora: ancora, ciclo: ciclo, postos: postos, versao: (Number(atual.versao) || 0) + 1, atualizadoEm: Date.now(), atualizadoPor: admin };
+  const atual = vigConfig_(), o = { ancora: ancora, ciclo: ciclo, postos: postos, ceasa: 1, versao: (Number(atual.versao) || 0) + 1, atualizadoEm: Date.now(), atualizadoPor: admin };
   const lock = LockService.getScriptLock(); lock.waitLock(20000);
   try { convGravar_('VigConfig', { id: 'vigifito', config: JSON.stringify(o), atualizadoEm: o.atualizadoEm, atualizadoPor: admin }); }
   finally { lock.releaseLock(); }

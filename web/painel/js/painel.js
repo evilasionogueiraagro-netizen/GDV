@@ -574,6 +574,7 @@ const Painel = (() => {
       B.turnos = (B.turnos || []).filter(t => !tocados.has(t.id)).concat(j.turnos || []);
       B.veiculos = (B.veiculos || []).filter(v => !tocados.has(v.turnoId)).concat(j.veiculos || []);
       B.tfsAndamento = j.tfsAndamento || [];
+      if (j.alertasCuidado) B.alertasCuidado = j.alertasCuidado;
       S.todos = normalizar(B); S.ultimaCarga = Date.now(); S.erro = ''; S.falhas = 0;
       preencherOpcoes(); recalcular(true); processarTF();
       status(`Atualizado às ${fmt.hora(Date.now())} · barreiras ao vivo a cada 15 s; demais dados às ${fmt.hora(S.ultimaCompleta)} (a cada ${filtrosAtuais().dias <= DIAS_COMPLETA_SEMPRE ? 'minuto' : '10 min'})`);
@@ -669,7 +670,7 @@ const Painel = (() => {
       if (emTV() && S.tv.novoTF) S.tv.novoTF(novos);
     }
     const eraRapido = !!S.tfRapido; S.tfRapido = lista.length > 0;
-    desenharAvisoTF();
+    desenharAvisoTF(); processarCuidado();
     if (S.token && !S.falhas) {
       if (S.tfRapido && S.proxima - Date.now() > TF_RAPIDO_MS + 1000) agendar(TF_RAPIDO_MS);
       else if (!S.tfRapido && eraRapido) agendar(Math.max(1000, ATUALIZAR_MS - (Date.now() - (S.ultimaRegular || 0))));   // TF terminou: volta ao ritmo normal
@@ -694,6 +695,41 @@ const Painel = (() => {
     if (box.dataset.html !== html) {                                   // só troca o conteúdo se mudou (texto, itens ou apreensão)
       box.innerHTML = html; box.dataset.html = html;
     }
+    box.hidden = false;
+  }
+  /* ---------------- Alerta de cuidado marcado no campo: aviso amarelo, som e notificação ---------------- */
+  // vem do servidor (alertasCuidado: os dos últimos 7 dias); avisa uma vez por alerta nesta sessão e fica no canto até "Ciente"
+  // (guardado neste navegador: quem já viu não é avisado de novo ao recarregar)
+  const CUID_MOTIVOS = { alteracao: 'Alteração / discussão', resistencia: 'Resistência à fiscalização', ameaca: 'Ameaça', outro: 'Outro' };
+  const CUID_CHAVE = 'gdv.painel.cuidadoCientes', CUID = { avisados: new Set() };
+  const cientesCuidado = () => { try { return new Set(JSON.parse(localStorage.getItem(CUID_CHAVE) || '[]')); } catch (e) { return new Set(); } };
+  function cienteCuidado(id) { const c = cientesCuidado(); c.add(id); try { localStorage.setItem(CUID_CHAVE, JSON.stringify([...c].slice(-300))); } catch (e) { /* sem armazenamento: some só nesta sessão */ } CUID.avisados.add(id); }
+  const textoCuidado = a => [CUID_MOTIVOS[a.motivo] || CUID_MOTIVOS.outro, a.placa && 'Placa ' + a.placa, a.local, a.fiscal && 'Fiscal: ' + a.fiscal, a.data && fmt.data(a.data) + (a.hora ? ' ' + a.hora : '')].filter(Boolean).join(' · ');
+  function processarCuidado() {
+    if (emTV()) return;
+    const ci = cientesCuidado(), abertos = ((S.token && S.bruto && S.bruto.alertasCuidado) || []).filter(a => a && a.id && !ci.has(a.id));
+    const novos = abertos.filter(a => !CUID.avisados.has(a.id));
+    novos.forEach(a => CUID.avisados.add(a.id));
+    if (novos.length) {
+      tocarSom();
+      if (typeof Notification !== 'undefined' && Notification.permission === 'granted') novos.forEach(a => {
+        const tit = 'Alerta de cuidado — ' + (a.local || 'campo'), op = { body: textoCuidado(a) + (a.obs ? '\n' + a.obs : ''), tag: 'gdv-cuidado-' + a.id, requireInteraction: true, icon: 'img/icon-192.png' };
+        const direto = () => { try { new Notification(tit, op); } catch (e) { /* ex.: Android exige o service worker */ } };
+        try { if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) navigator.serviceWorker.getRegistration().then(r => r ? r.showNotification(tit, op) : direto()).catch(direto); else direto(); }
+        catch (e) { direto(); }
+      });
+    }
+    let box = $('#pn-cuidaviso');
+    if (!abertos.length) { if (box) { box.hidden = true; box.innerHTML = ''; } return; }
+    if (!box) {
+      box = el('div', 'pn-tfaviso pn-cuidaviso'); box.id = 'pn-cuidaviso'; box.setAttribute('role', 'alert'); document.body.appendChild(box);
+      box.addEventListener('click', e => { const b = e.target.closest('[data-ciente]'); if (b) { cienteCuidado(b.dataset.ciente); processarCuidado(); } });
+    }
+    const html = abertos.map(a => `<div class="pn-tfaviso-item pn-cuid-item" data-cuidado="${esc(a.id)}">
+      <span class="pn-tfaviso-ic" aria-hidden="true">!</span>
+      <div class="pn-tfaviso-txt"><b>Alerta de cuidado</b><span class="pn-tfaviso-onde">${esc(textoCuidado(a))}</span>${a.obs ? `<small>${esc(a.obs)}</small>` : ''}</div>
+      <button type="button" class="pn-tfaviso-x" data-ciente="${esc(a.id)}" aria-label="Ciente do alerta de cuidado da placa ${esc(a.placa)}">Ciente</button></div>`).join('');
+    if (box.dataset.html !== html) { box.innerHTML = html; box.dataset.html = html; }
     box.hidden = false;
   }
   /** Botão discreto "Ativar notificações" (só no painel normal, só enquanto o navegador ainda não perguntou). */

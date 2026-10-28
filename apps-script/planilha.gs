@@ -158,6 +158,8 @@ function gravar_(nome, recebidos, ts, usuario) {
         // campo que o app NÃO enviou (ex.: TF não conhece o e-mail da pessoa, versão antiga do app) mantém o valor da planilha
         cols.forEach(function (c, i) { if (c !== 'srv_ts' && c !== 'usuario' && !(c in r)) linha[i] = t.valores[idx[id]][i]; });
         if (nome === 'Turnos') { const ic = cols.indexOf('colegas'); linha[ic] = t.valores[idx[id]][ic]; }   // colegas: só o pareamento grava
+        // turno cancelado não volta: um envio antigo do aparelho (sem o cancelamento) mantém cancelado e o encerramento
+        if (nome === 'Turnos' && Number(atual.cancelado) === 1) ['cancelado', 'canceladoEm'].concat(CAMPOS_ENCERRAMENTO_).forEach(function (c) { const i = cols.indexOf(c); if (i >= 0) linha[i] = t.valores[idx[id]][i]; });
         // alerta de cuidado do veículo: uma vez gravado, o app não desmarca nem troca o motivo
         if (nome === 'Veiculos' && Number(atual.cuidado) === 1) ['cuidado', 'cuidadoMotivo'].forEach(function (c) { const i = cols.indexOf(c); linha[i] = t.valores[idx[id]][i]; });
         // turno já encerrado na planilha não reabre: um envio do aparelho com encerrado = 0 (edição local feita antes de saber do

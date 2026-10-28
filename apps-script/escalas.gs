@@ -115,3 +115,48 @@ function painelEscalas(token, req) { adminDoToken_(token); return escalaDados_(r
 function painelEscalaSalvar(token, req) { return escalaSalvar_(req && req.escala, adminDoToken_(token, true)); }
 function painelEscalaExcluir(token, req) { return escalaExcluir_(req && req.id, adminDoToken_(token, true)); }
 
+
+/* ---------- Portal do Administrativo: diárias das escalas (PCDP) ----------
+ * Cada fiscal de cada escala publicada é uma solicitação de diárias: "pendente" até o Administrativo marcar a PCDP concluída (nº
+ * opcional). Uma linha da aba EscalaPcdp por escala × fiscal (id = escalaId|usuarioId), com quem e quando; desfazer volta a pendente.
+ * Escala alterada depois da PCDP concluída aparece marcada para conferir; fiscal tirado da escala depois da PCDP também aparece. */
+const ESCALA_PCDP_DIAS_ = 120;                  // escalas que acabaram há até 120 dias (e as futuras)
+function admEscalas_(s) {
+  const hoje = hojeManaus_(), de = somarDias_(hoje, -ESCALA_PCDP_DIAS_), pc = {};
+  lerLeitura_('EscalaPcdp').forEach(function (r) { if (r.id) pc[r.id] = r; });
+  const escalas = escalasVivas_().filter(function (e) { return e.situacao === 'publicada' && e.fim >= de; })
+    .sort(function (a, b) { return b.inicio.localeCompare(a.inicio) || a.bva.localeCompare(b.bva, 'pt-BR'); })
+    .map(function (e) {
+      const dias = Math.round((Date.parse(e.fim + 'T12:00:00Z') - Date.parse(e.inicio + 'T12:00:00Z')) / 864e5) + 1;
+      const linha = function (id, nome, naEscala) {
+        const r = pc[e.id + '|' + id], ok = !!r && r.situacao === 'concluida';
+        return { usuarioId: id, nome: nome, naEscala: naEscala, concluida: ok, pcdp: ok ? String(r.pcdp || '') : '', em: r ? Number(r.atualizadoEm) || 0 : 0,
+                 por: r ? String(r.atualizadoPor || '') : '', alterada: ok && e.atualizadoEm > (Number(r.atualizadoEm) || 0) };
+      };
+      const fiscais = e.fiscais.map(function (f) { return linha(f.id, f.nome, true); });
+      Object.keys(pc).forEach(function (k) {                    // PCDP concluída de quem saiu da escala depois
+        const r = pc[k]; if (r.escalaId !== e.id || r.situacao !== 'concluida' || e.fiscais.some(function (f) { return f.id === r.usuarioId; })) return;
+        fiscais.push(linha(r.usuarioId, r.nome, false));
+      });
+      return { id: e.id, bva: e.bva, inicio: e.inicio, fim: e.fim, dias: dias, publicadaPor: e.publicadaPor, atualizadoPor: e.atualizadoPor, atualizadoEm: e.atualizadoEm, fiscais: fiscais };
+    });
+  return { ok: true, hoje: hoje, escalas: escalas };
+}
+/** Marca (ou desfaz) a PCDP concluída de um fiscal numa escala publicada. req = {escalaId, usuarioId, concluida, pcdp}. */
+function admEscalaPcdp_(s, req) {
+  const escalaId = String(req.escalaId || '').trim(), usuarioId = String(req.usuarioId || '').trim(), concluida = req.concluida === true || req.concluida === 1;
+  if (!escalaId || !usuarioId || escalaId.length > 64 || usuarioId.length > 64) throw new Error('Escala ou fiscal não informado.');
+  const pcdp = String(req.pcdp || '').trim().replace(/\s+/g, ' ').slice(0, 60);
+  return comLock_(function () {
+    const e = escalasVivas_().filter(function (x) { return x.id === escalaId; })[0];
+    if (!e || e.situacao !== 'publicada') throw new Error('Esta escala não está publicada (ou foi excluída). Atualize a tela.');
+    const linhas = lerLinhas_('EscalaPcdp'), id = escalaId + '|' + usuarioId, atual = linhas.filter(function (r) { return r.id === id; })[0];
+    const f = e.fiscais.filter(function (x) { return x.id === usuarioId; })[0];
+    if (!f && !atual) throw new Error('Este fiscal não está na escala.');
+    const agora = Date.now(), reg = { situacao: concluida ? 'concluida' : 'pendente', pcdp: concluida ? pcdp : '', atualizadoEm: agora, atualizadoPor: textoAutor_(s.nome), admId: s.admId };
+    if (atual) atualizar_('EscalaPcdp', atual._linha, reg);
+    else inserir_('EscalaPcdp', [Object.assign({ id: id, escalaId: escalaId, usuarioId: usuarioId, nome: f.nome }, reg)]);
+    admHistLote_(s, concluida ? 'PCDP concluída' : 'PCDP desfeita', 'EscalaPcdp', [[id, atual ? { situacao: atual.situacao, pcdp: atual.pcdp } : '', { bva: e.bva, inicio: e.inicio, fim: e.fim, fiscal: (f || atual).nome, situacao: reg.situacao, pcdp: reg.pcdp }]]);
+    return { ok: true, id: id, situacao: reg.situacao, pcdp: reg.pcdp, em: agora, por: reg.atualizadoPor };
+  });
+}

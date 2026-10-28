@@ -119,7 +119,7 @@ function admAcoes_() {
   admSair: sair_, admDados: admDados_, admConvLancar: admConvLancar_, admConvExcluir: admConvExcluir_, admConvFinLancar: admConvFinLancar_,
   admConvFinExcluir: admConvFinExcluir_, admConvFinImportar: admConvFinImportar_, admRelDados: admRelDados_, admRelLancar: admRelLancar_,
   admHistorico: admHistorico_, admVigDados: admVigDados_, admVigLancar: admVigLancar_, admVigImportar: admVigImportar_,
-  admPlantaoImportar: admPlantaoImportar_
+  admPlantaoImportar: admPlantaoImportar_, admEscalas: admEscalas_, admEscalaPcdp: admEscalaPcdp_
   };
 }
 /** Roteador das actions do portal: sessão com `administracao` obrigatória. */

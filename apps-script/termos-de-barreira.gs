@@ -269,26 +269,32 @@ function agregarIndice_(tfs) {
   tfs.forEach(function (t) { t._h.forEach(function (h) { somar(h, t); }); });
   return Object.keys(m).map(function (k) { return m[k]; });
 }
-/** Hashes das chaves do TF (documento e placa); com filtro {docs, placas}, só as chaves que estão nele. */
-function chavesTF_(t, filtro) {
-  const h = [], d = digitos_(t.doc), p = placaNorm_(t.placa);
+/** BVA do TF para o índice: o local do turno (ou o do TF), com os apelidos juntados (localCanon_), sem acento/caixa. */
+function bvaIndice_(t, locais) { return normPub_(localCanon_((t.turnoId && locais[t.turnoId]) || t.local)); }
+/**
+ * Hashes das chaves do TF (documento, placa e placa + BVA: o app avisa no registro do veículo que a placa já tem TF naquela BVA);
+ * com filtro {docs, placas}, só as chaves que estão nele. locais = {turnoId: local do turno}.
+ */
+function chavesTF_(t, filtro, locais) {
+  const h = [], d = digitos_(t.doc), p = placaNorm_(t.placa), b = bvaIndice_(t, locais || {});
   if (docValido_(d) && (!filtro || filtro.docs[d])) h.push(hashIndice_('doc:' + d));            // só documento e placa que identificam alguém
-  if (placaValida_(p) && (!filtro || filtro.placas[p])) h.push(hashIndice_('placa:' + p));
+  if (placaValida_(p) && (!filtro || filtro.placas[p])) { h.push(hashIndice_('placa:' + p)); if (b) h.push(hashIndice_('placabva:' + p + '|' + b)); }
   return h;
 }
 /**
- * tfIndiceReincidencia {key, desde}: histórico de TODOS os TFs (todas as barreiras) resumido por hash do CPF/CNPJ e da placa, sem dados
+ * tfIndiceReincidencia {key, desde}: histórico de TODOS os TFs (todas as barreiras) resumido por hash do CPF/CNPJ, da placa e da placa + BVA, sem dados
  * pessoais em claro. Com desde (ms do índice anterior): só as chaves com TF gravado/alterado depois, recalculadas por inteiro (n = 0 =
  * apagar). Sem desde: índice completo (guardado 10 min no CacheService e completado com o que mudou desde então).
  * Devolve {ok, agora, completo, itens: [{h, n, ap, re, au, li, ad, ult}]}.
  */
 function tfIndiceReincidencia_(req) {
   const desde = Number(req.desde) || 0, cache = CacheService.getScriptCache(), agora = Date.now();
-  const tfs = lerLeitura_('TFs').filter(function (t) { return t.id; });
+  const tfs = lerLeitura_('TFs').filter(function (t) { return t.id; }), locais = {};
+  lerLeitura_('Turnos').forEach(function (t) { if (t.id) locais[t.id] = t.local; });
   let base = null;
   if (!desde) { try { base = JSON.parse(cache.get('indice_reinc') || 'null'); } catch (e) { base = null; } }
   if (!desde && !base) {
-    tfs.forEach(function (t) { t._h = chavesTF_(t, null); });
+    tfs.forEach(function (t) { t._h = chavesTF_(t, null, locais); });
     const r = { agora: agora, completo: true, itens: agregarIndice_(tfs).filter(function (a) { return a.n > 0; }) };
     const txt = JSON.stringify(r);
     if (txt.length < 90000) { try { cache.put('indice_reinc', txt, INDICE_CACHE_S); } catch (e) { /* grande demais para o cache */ } }
@@ -302,7 +308,7 @@ function tfIndiceReincidencia_(req) {
     filtro.docs[digitos_(t.doc)] = true; filtro.placas[placaNorm_(t.placa)] = true;
   });
   const sel = tfs.filter(function (t) { return filtro.docs[digitos_(t.doc)] || filtro.placas[placaNorm_(t.placa)]; });
-  sel.forEach(function (t) { t._h = chavesTF_(t, filtro); });
+  sel.forEach(function (t) { t._h = chavesTF_(t, filtro, locais); });
   const itens = agregarIndice_(sel);
   if (!base) return { ok: true, agora: agora, completo: false, itens: itens };
   const m = {};

@@ -11,7 +11,8 @@
 /** Quem está chamando nesta requisição: {id, matricula, nome, permissoes, modulos}. O doPost zera a cada chamada; toda action autenticada o preenche. */
 let USUARIO_ATUAL_ = null;
 
-const PERMISSOES_USUARIO_ = ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce', 'digitarDoPapel', 'painel', 'administracao', 'gerencia'];
+// coordenacaoBarreiras: Coordenação de barreira e trânsito — monta as escalas de plantão no app de campo (escalas.gs); nova sempre no fim
+const PERMISSOES_USUARIO_ = ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce', 'digitarDoPapel', 'painel', 'administracao', 'gerencia', 'coordenacaoBarreiras'];
 const APLICATIVOS_USUARIO_ = ['campo', 'painel', 'administracao'];
 const NOME_APLICATIVO_USUARIO_ = { campo: 'o app de campo', painel: 'o painel gerencial', administracao: 'o Portal do Administrativo' };
 const RE_MATRICULA_ = /^[A-Za-z0-9.\-]{3,20}$/;
@@ -146,11 +147,12 @@ function permissoesEfetivas_(lista) {
   return PERMISSOES_USUARIO_.filter(function (p) { return lista.indexOf(p) >= 0 || APPS_DA_GERENCIA_.indexOf(p) >= 0; });
 }
 
-/** Permissões → módulos do campo no formato que o app e o sync usam: veiculos = fiscalizacaoDeTransito, tf = termoDeBarreira, pce, antigo = digitarDoPapel (exige pce). */
+/** Permissões → módulos do campo no formato que o app e o sync usam: veiculos = fiscalizacaoDeTransito, tf = termoDeBarreira, pce, antigo = digitarDoPapel (exige pce), escala = coordenacaoBarreiras. */
 function modulosDasPermissoes_(lista) {
   const ef = permissoesEfetivas_(lista), tem = function (p) { return ef.indexOf(p) >= 0; };
   const pce = tem('pce') ? 1 : 0;
-  return { veiculos: tem('fiscalizacaoDeTransito') ? 1 : 0, tf: tem('termoDeBarreira') ? 1 : 0, pce: pce, antigo: pce && tem('digitarDoPapel') ? 1 : 0 };
+  return { veiculos: tem('fiscalizacaoDeTransito') ? 1 : 0, tf: tem('termoDeBarreira') ? 1 : 0, pce: pce, antigo: pce && tem('digitarDoPapel') ? 1 : 0,
+           escala: tem('coordenacaoBarreiras') ? 1 : 0 };
 }
 
 /** Lista de permissões recebida → lista sem repetição, na ordem fixa; recusa permissão desconhecida, lista vazia e digitarDoPapel sem pce. */
@@ -548,12 +550,13 @@ function gerentesAtivos_() {
 }
 
 /**
- * e-GDV → Criar o primeiro gerente: todas as permissões e senha provisória. Só quando não há gerente ativo (os demais o gerente cria
+ * e-GDV → Criar o primeiro gerente: todas as permissões (menos a coordenação de barreira e trânsito) e senha provisória. Só quando não há gerente ativo (os demais o gerente cria
  * no painel). Matrícula vazia = gerada (GDV0001...). Devolve {usuario, senhaProvisoria}.
  */
 function criarGerente_(matricula, nome) {
   if (gerentesAtivos_().length) throw new Error('Já existe gerente ativo. As outras contas são criadas pela gerência no painel.');
-  return criarUsuario_({ matricula: matricula, nome: nome, permissoes: PERMISSOES_USUARIO_.slice() }, AUTOR_PLANILHA_);
+  // a coordenação de barreira e trânsito (escalas) é de quem o gerente designa: não vem no pacote do primeiro gerente
+  return criarUsuario_({ matricula: matricula, nome: nome, permissoes: PERMISSOES_USUARIO_.filter(function (p) { return p !== 'coordenacaoBarreiras'; }) }, AUTOR_PLANILHA_);
 }
 
 /** e-GDV → Redefinir senha de gerente: nova senha provisória (troca obrigatória no acesso seguinte) e fim das sessões. Só para gerente ativo. */

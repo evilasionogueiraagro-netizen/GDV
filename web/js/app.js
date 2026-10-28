@@ -76,7 +76,8 @@ const soPessoas = t => !!(t && Number(t.soPessoas) === 1);
 /** Turno compartilhado: o turno é de outro login (o colega entrou pelo código do dono). Só o dono encerra; o colega sai. */
 const souColega = t => !!(t && t.usuario && Sync.nome() && t.usuario !== Sync.nome());
 const botaoFim = t => souColega(t) ? `<button class="botao vermelho" id="encerrar">${icone('voltar')} Sair do turno</button>`
-  : `<button class="botao vermelho" id="encerrar">${icone('parar')} Encerrar turno</button>`;
+  : `<button class="botao vermelho" id="encerrar">${icone('parar')} Encerrar turno</button>
+     <button class="botao sec" id="cancelarTurno" type="button">${icone('fechar')} Cancelar turno (aberto por engano)</button>`;
 const cfgSoPessoas = unidade => ((CONFIG.volantesSoPessoas || {})[String(unidade || '').trim().toUpperCase()]) || null;
 const pessoasDoTurno = (t, v) => (v || []).reduce((s, x) => s + (Number(x.pessoas) || 0), 0) + (Number(t && t.pessoasEducacao) || 0);
 /* ---------- módulos e navegação ---------- */
@@ -261,7 +262,7 @@ async function home() {
     <button class="botao" data-go="resumo">${icone('resumo')} Resumo e documentos</button>
     ${souColega(t) ? '' : `<button class="botao sec" id="convidar">${icone('pessoa')} Convidar colega para este turno</button>`}
     ${botaoFim(t)}`);
-  $('#encerrar').onclick = () => encerrarTurno(t);
+  $('#encerrar').onclick = () => encerrarTurno(t); ligarCancelar(t);
   if ($('#convidar')) $('#convidar').onclick = () => convidarColega(t);
 }
 /** Dono do turno: código de 6 números (15 min) para um colega entrar com o próprio login. Precisa de internet. */
@@ -322,7 +323,7 @@ function homePessoas(t, mostrar) {
     const s = await Store.salvar('turnos', { ...atual, pessoasEducacao: total });
     $('#pesCont h1').textContent = total; toast(`${total} pessoa(s) orientada(s).`); Sync.sincronizar(); t = s;
   });
-  $('#encerrar').onclick = () => encerrarTurno(t);
+  $('#encerrar').onclick = () => encerrarTurno(t); ligarCancelar(t);
 }
 /* ---------- corrigir o nº do TF do turno (onde a gerência liberou: CONFIG.turnoNumeroEditavel) ---------- */
 const nlLocal = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '');
@@ -364,7 +365,7 @@ window.addEventListener('gdv-sync-fim', async () => {
  */
 async function letraProposta(n, local, ano) {
   const nl = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '');
-  const usadas = new Set((await Store.todos('turnos')).filter(t => !Number(t.excluido) && nl(t.local) === nl(local))
+  const usadas = new Set((await Store.todos('turnos')).filter(t => !Number(t.excluido) && !Number(t.cancelado) && nl(t.local) === nl(local))
     .map(t => /^TF-(\d+)-([A-Z])-(\d{4})$/.exec(String(t.numeroTF || ''))).filter(m => m && Number(m[1]) === n && m[3] === ano).map(m => m[2]));
   let i = 0; while (usadas.has(String.fromCharCode(65 + i)) && i < 25) i++;
   return String.fromCharCode(65 + i);
@@ -652,7 +653,7 @@ async function resumo() {
     view(`<div class="card"><h3>${esc(t.numeroTF)}</h3><div class="total">PESSOAS ORIENTADAS<br>${pessoasDoTurno(t, v)}<small>educação sanitária (sem contagem de veículos neste turno)</small></div></div>
       ${botaoFim(t)}
       <p class="dica">Início do turno: ${esc(t.inicio)}. Ao encerrar, o horário final é registrado e o Termo de Fiscalização fica disponível.<br>Na janela de impressão, escolha “Salvar como PDF”.</p>`);
-    $('#encerrar').onclick = () => encerrarTurno(t); return;
+    $('#encerrar').onclick = () => encerrarTurno(t); ligarCancelar(t); return;
   }
   view(`<div class="card"><h3>${esc(t.numeroTF)} — total por tipo</h3>
     ${Object.entries(CONFIG.tipos).map(([c, x]) => `<div class="resumo-item"><span>${icone(x.icone)} ${x.nome}</span><strong>${por[c] || 0}</strong></div>`).join('')}
@@ -660,7 +661,24 @@ async function resumo() {
     ${temFicha(t) ? `<button class="botao" data-doc="ficha" data-id="${t.id}">${icone('formulario')} Ficha de Campo (PDF)</button>` : ''}
     ${botaoFim(t)}
     <p class="dica">Início do turno: ${esc(t.inicio)}. Ao encerrar, o horário final é registrado e o Termo de Fiscalização fica disponível.<br>Na janela de impressão, escolha “Salvar como PDF”.</p>`);
-  $('#encerrar').onclick = () => encerrarTurno(t);
+  $('#encerrar').onclick = () => encerrarTurno(t); ligarCancelar(t);
+}
+/**
+ * Cancela o turno aberto por engano (só quem abriu; sem TF lavrado nele). Não apaga nada: o turno fica na planilha com cancelado = 1
+ * (fora de painel, relatórios e histórico) e os veículos dele ficam excluídos. Funciona sem internet (sobe na sincronização).
+ */
+const ligarCancelar = t => { const b = $('#cancelarTurno'); if (b) b.onclick = () => cancelarTurno(t); };
+async function cancelarTurno(t) {
+  const tfs = (await Store.todos('tfs')).filter(x => x.turnoId === t.id && !Number(x.cancelado));
+  if (tfs.length) return toast(`Este turno tem ${tfs.length} TF lavrado: não pode ser cancelado. Encerre o turno (ou cancele o TF antes).`, true);
+  const v = await veiculosDe(t.id);
+  if (!confirm(`Cancelar o turno ${t.numeroTF}?\n\nUse só para turno aberto por engano. Ele não conta no painel nem nos relatórios${v.length ? ` e os ${v.length} veículo(s) registrados nele saem junto` : ''}. Não é possível desfazer.`)) return;
+  const atual = (await Store.obter('turnos', t.id)) || t;
+  for (const x of v) await Store.salvar('veiculos', { ...x, excluido: 1 });
+  await Store.salvar('turnos', { ...atual, cancelado: 1, canceladoEm: Date.now(), encerrado: 1, fim: atual.fim || agoraHM() });
+  await Store.setMeta('turnoAtual', '');
+  Sync.sincronizar();
+  toast('Turno cancelado.'); go('home');
 }
 /** Encerra o turno (botão na tela do turno e no Resumo). */
 async function encerrarTurno(t) {
@@ -760,7 +778,7 @@ async function historico() {
     <label>Até<input type="date" id="hAte" value="${fim}"></label></div></div><div id="hOut"></div>`);
   const desenhar = async () => {
     const de = $('#hDe').value, ate = $('#hAte').value;
-    const turnos = (await Store.todos('turnos')).filter(t => (!de || t.data >= de) && (!ate || t.data <= ate))
+    const turnos = (await Store.todos('turnos')).filter(t => !Number(t.cancelado) && (!de || t.data >= de) && (!ate || t.data <= ate))
       .sort((a, b) => b.data.localeCompare(a.data) || b.criadoEm - a.criadoEm);
     const ids = new Set(turnos.map(t => t.id));
     const veic = (await Store.todos('veiculos')).filter(v => ids.has(v.turnoId) && !v.excluido);

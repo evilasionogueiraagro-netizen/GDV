@@ -139,6 +139,10 @@ function planilhaVig() {
   await get('/__editar?aba=VigConfig&col=config&onde=id:vigifito&valor=' + encodeURIComponent(JSON.stringify(JSON.stringify(cfgVelha))));
   cm = (await get('/__fn?nome=vigConfig_&args=[]')).r;
   ok(cm.postos.length === 12 && cm.postos.map(p => p.id).indexOf('manaus-ceasa') === cm.postos.map(p => p.id).indexOf('manaus-volante') + 1, 'lista salva antes do posto da CEASA: ele entra depois do último de Manaus', cm.postos.map(p => p.id));
+  const cfgJunta = { ...cfgVelha, postos: semCeasa.map(p => p.id === 'manaus-aeroporto' ? { ...p, locais: ['BVA - AEROPORTO', 'Barreira Porto da CEASA'] } : p) };
+  await get('/__editar?aba=VigConfig&col=config&onde=id:vigifito&valor=' + encodeURIComponent(JSON.stringify(JSON.stringify(cfgJunta))));
+  cm = (await get('/__fn?nome=vigConfig_&args=[]')).r;
+  ok(cm.postos.length === 12 && cm.postos.find(p => p.id === 'manaus-aeroporto').locais.join() === 'BVA - AEROPORTO' && cm.postos.some(p => p.id === 'manaus-ceasa'), 'CEASA salva dentro de outro posto (Aeroporto): sai dele para a coluna própria', cm.postos);
   r = await post({ action: 'painelVigConfigSalvar', key: TOK, config: VDp.cfg }); ok(r.ok && (await get('/__fn?nome=vigConfig_&args=[]')).r.postos.length === 12, 'lista com a CEASA de volta');
   ok(!/PRODUTOR SECRETO|52998224725|Joana Fiscal/.test(JSON.stringify(VDp)), 'apuração do VIGIFITO sem dados pessoais');
   // um motor só: convênio 1.10 e Relatório GDV batem com o VIGIFITO

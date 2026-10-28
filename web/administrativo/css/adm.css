@@ -16,4 +16,4 @@
 .adm-vig-grade small.pn-erro-txt { color: var(--critico); font-weight: 600; }
 .adm-vig-grade small.pn-aviso-txt { color: var(--atencao-txt); }
 .adm-vig-grade th { min-width: 96px; }
-.adm-vig-grade td:first-child { min-width: 220px; }
+.adm-vig-grade td.ind { min-width: 220px; vertical-align: middle; }

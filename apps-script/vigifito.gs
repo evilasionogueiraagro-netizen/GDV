@@ -30,9 +30,11 @@ function vigConfig_() {
   const r = lerLeitura_('VigConfig').filter(function (x) { return x.id === 'vigifito'; })[0];
   const c = r ? lerJSONSeguro_(r.config, null) : null;
   if (!(c && Array.isArray(c.postos) && c.postos.length)) return vigSemente_();
-  // lista salva antes de existir o posto da BVA - CEASA: entra depois do último posto de Manaus (salvar a lista no painel grava a escolha)
-  const ceasa = normPub_('BVA - CEASA');
-  if (!c.ceasa && !c.postos.some(function (p) { return (p.locais || []).some(function (l) { return normPub_(localCanon_(l)) === ceasa; }); })) {
+  // lista salva antes de existir o posto da BVA - CEASA: entra depois do último posto de Manaus; se a CEASA estava dentro de outro posto
+  // (ex.: no do Aeroporto), sai dele para a coluna própria. Salvar a lista no painel grava a escolha (ceasa: 1).
+  const ceasa = normPub_('BVA - CEASA'), eCeasa = function (l) { return normPub_(localCanon_(l)) === ceasa; };
+  if (!c.ceasa && !c.postos.some(function (p) { return /ceasa/.test(normPub_(p.nome)) && (p.locais || []).some(eCeasa); })) {
+    c.postos.forEach(function (p) { if (p.tipo === 'fixa') p.locais = (p.locais || []).filter(function (l) { return !eCeasa(l); }); });
     let i = -1; c.postos.forEach(function (p, j) { if (normPub_(p.municipio) === 'manaus') i = j; });
     c.postos.splice(i < 0 ? c.postos.length : i + 1, 0, VIG_CEASA_());
   }

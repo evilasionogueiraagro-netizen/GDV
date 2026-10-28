@@ -118,6 +118,7 @@ function emitir_(req, usuario) {
                ultimo: u.ultimo, proximo: u.ultimo + 1 };
     }
     const agora = Date.now(), antes = todos.filter(function (r) { return r.id === tf.id; })[0];
+    if (antes && !mesmoDono_(antes.usuario, usuario)) throw new Error(MSG_REGISTRO_ALHEIO_);   // mesmo id de TF de outro login (IDOR)
     tf.emitidoEm = (antes && antes.emitidoEm) || agora;                          // reenvio do mesmo TF não muda a data de emissão
     gravar_('TFs', [tf], agora, usuario);
     if (req.pessoa) gravar_('Pessoas', [req.pessoa], agora, usuario);
@@ -324,7 +325,7 @@ function tfAndamento_(req, usuario) {
   const estado = String(req.estado || ''), rid = String(req.rascunhoId || '');
   if (estado !== 'preenchendo' && estado !== 'fim') throw new Error('Estado inválido.');
   if (!/^[\w-]{1,64}$/.test(rid)) throw new Error('Rascunho inválido.');
-  const id = (usuario + '|' + rid).slice(0, 160), txt = function (v, n) { return String(v === null || v === undefined ? '' : v).trim().slice(0, n || 120); };
+  const id = (usuario + '|' + rid).slice(0, 160), txt = function (v, n) { return textoPlanilha_(String(v === null || v === undefined ? '' : v).trim().slice(0, n || 120)); };
   const coord = function (v, lim) { const n = numOuNulo_(v); return n !== null && Math.abs(n) <= lim ? String(n) : ''; };
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);

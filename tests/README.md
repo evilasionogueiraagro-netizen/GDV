@@ -49,6 +49,7 @@ Principais (a lista completa é `node run.js --lista`):
 - `relgdv_test`: Relatório GDV (`painelRelGdv*`).
 - `vigifito_test`: VIGIFITO, central de relatórios e app de campo.
 - `adm_test`: Portal do Administrativo (`adm*`, `painelAdm*`).
+- `invasao_test` e `invasao_xss_test`: testes de invasão pelo OWASP Top 10:2025 (acesso, injeção, autenticação, XSS); falha aberta conhecida fica em `CONHECIDAS` e imprime `! ABERTA`.
 - `lib/portal.js`: libera uma pessoa no portal e abre a sessão (usado pelos testes do portal).
 - `lib/usuarios.js`: cria contas (`fiscal`, `criar`), troca permissões, revoga sessões e semeia o navegador com o login (substitui os códigos de ativação).
 

@@ -281,21 +281,42 @@ function chavesTF_(t, filtro, locais) {
   if (placaValida_(p) && (!filtro || filtro.placas[p])) { h.push(hashIndice_('placa:' + p)); if (b) h.push(hashIndice_('placabva:' + p + '|' + b)); }
   return h;
 }
+/** Motivos do alerta de cuidado do veículo (Veiculos.cuidadoMotivo; o app mostra os rótulos). */
+const CUIDADO_MOTIVOS_ = ['alteracao', 'resistencia', 'ameaca', 'outro'];
+/**
+ * Alerta de cuidado por placa (veículos não excluídos com cuidado = 1, de qualquer BVA ou volante): {h: hash de "cuidado:<placa>", n
+ * (registros marcados), ult (data do último), cu (motivos, separados por vírgula)}. Sem texto livre (as observações ficam só no registro).
+ * Com placas ({placa: true}), só essas, e as que não têm mais alerta voltam com n = 0 (apagar no aparelho).
+ */
+function cuidadoIndice_(veics, turnos, placas) {
+  const m = {};
+  veics.forEach(function (v) {
+    const p = placaNorm_(v.placa);
+    if (!placaValida_(p) || (placas && !placas[p]) || v.excluido === 1 || Number(v.cuidado) !== 1) return;
+    const a = m[p] = m[p] || { h: hashIndice_('cuidado:' + p), n: 0, ult: '', cu: [] }, t = turnos[v.turnoId] || {};
+    const dia = String(t.data || '').slice(0, 10) || (v.criadoEm ? Utilities.formatDate(new Date(Number(v.criadoEm)), 'America/Manaus', 'yyyy-MM-dd') : '');
+    a.n++; if (dia > a.ult) a.ult = dia;
+    const mot = CUIDADO_MOTIVOS_.indexOf(v.cuidadoMotivo) >= 0 ? v.cuidadoMotivo : 'outro'; if (a.cu.indexOf(mot) < 0) a.cu.push(mot);
+  });
+  if (placas) Object.keys(placas).forEach(function (p) { if (placaValida_(p) && !m[p]) m[p] = { h: hashIndice_('cuidado:' + p), n: 0, ult: '', cu: [] }; });
+  return Object.keys(m).map(function (p) { const a = m[p]; a.cu = a.cu.join(','); return a; });
+}
 /**
  * tfIndiceReincidencia {key, desde}: histórico de TODOS os TFs (todas as barreiras) resumido por hash do CPF/CNPJ, da placa e da placa + BVA, sem dados
  * pessoais em claro. Com desde (ms do índice anterior): só as chaves com TF gravado/alterado depois, recalculadas por inteiro (n = 0 =
  * apagar). Sem desde: índice completo (guardado 10 min no CacheService e completado com o que mudou desde então).
- * Devolve {ok, agora, completo, itens: [{h, n, ap, re, au, li, ad, ult}]}.
+ * Inclui o alerta de cuidado por placa (cuidadoIndice_). Devolve {ok, agora, completo, itens: [{h, n, ap, re, au, li, ad, ult} | {h, n, ult, cu}]}.
  */
 function tfIndiceReincidencia_(req) {
   const desde = Number(req.desde) || 0, cache = CacheService.getScriptCache(), agora = Date.now();
   const tfs = lerLeitura_('TFs').filter(function (t) { return t.id; }), locais = {};
-  lerLeitura_('Turnos').forEach(function (t) { if (t.id) locais[t.id] = t.local; });
+  const turnos = {}, veics = lerLeitura_('Veiculos').filter(function (v) { return v.id; });
+  lerLeitura_('Turnos').forEach(function (t) { if (t.id) { locais[t.id] = t.local; turnos[t.id] = t; } });
   let base = null;
   if (!desde) { try { base = JSON.parse(cache.get('indice_reinc') || 'null'); } catch (e) { base = null; } }
   if (!desde && !base) {
     tfs.forEach(function (t) { t._h = chavesTF_(t, null, locais); });
-    const r = { agora: agora, completo: true, itens: agregarIndice_(tfs).filter(function (a) { return a.n > 0; }) };
+    const r = { agora: agora, completo: true, itens: agregarIndice_(tfs).concat(cuidadoIndice_(veics, turnos, null)).filter(function (a) { return a.n > 0; }) };
     const txt = JSON.stringify(r);
     if (txt.length < 90000) { try { cache.put('indice_reinc', txt, INDICE_CACHE_S); } catch (e) { /* grande demais para o cache */ } }
     r.ok = true;
@@ -307,9 +328,11 @@ function tfIndiceReincidencia_(req) {
     if (t.srv_ts < ref - 1000) return;
     filtro.docs[digitos_(t.doc)] = true; filtro.placas[placaNorm_(t.placa)] = true;
   });
+  const cuid = {};
+  veics.forEach(function (v) { if (v.srv_ts >= ref - 1000) cuid[placaNorm_(v.placa)] = true; });
   const sel = tfs.filter(function (t) { return filtro.docs[digitos_(t.doc)] || filtro.placas[placaNorm_(t.placa)]; });
   sel.forEach(function (t) { t._h = chavesTF_(t, filtro, locais); });
-  const itens = agregarIndice_(sel);
+  const itens = agregarIndice_(sel).concat(cuidadoIndice_(veics, turnos, cuid));
   if (!base) return { ok: true, agora: agora, completo: false, itens: itens };
   const m = {};
   base.itens.forEach(function (a) { m[a.h] = a; });

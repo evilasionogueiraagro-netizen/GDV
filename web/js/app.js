@@ -536,6 +536,8 @@ function cargaProdutos(v) {
   let l = []; try { l = JSON.parse((v && v.produtos) || '[]'); } catch (e) { l = []; }
   return (Array.isArray(l) ? l : []).map(t => { const m = /^(.*?)\s+-\s+([\d.,]+)\s*(.*)$/.exec(String(t)); return m ? { p: m[1], q: m[2], u: m[3] } : { p: String(t), q: '', u: '' }; });
 }
+// motivos do alerta de cuidado do veículo (servidor: CUIDADO_MOTIVOS_)
+const CUIDADO_MOTIVOS = { alteracao: 'Alteração / discussão', resistencia: 'Resistência à fiscalização', ameaca: 'Ameaça', outro: 'Outro' };
 const lugar = (cidade, uf) => [cidade, uf].filter(Boolean).join('/') || '?';      // "Boa Vista/RR", "RR", "Boa Vista" ou "?"
 const opcoesUF = atual => `<option value="">—</option>${CONFIG.ufs.map(u => `<option ${atual === u ? 'selected' : ''}>${u}</option>`).join('')}`;
 async function registrar() {
@@ -546,7 +548,7 @@ async function registrar() {
   const tipo = v ? v.tipo : 'PA', semPlaca = !!Number(t.semPlaca);    // turno com placa opcional (ex.: Jundiá)
   view(`<form class="card" id="fVeic"><h3>${v ? 'Editar veículo' : 'Registrar veículo'}</h3>
     <label>Placa${semPlaca ? ' <small>(opcional)</small>' : ''}<input id="placa" maxlength="8" autocapitalize="characters" autocomplete="off" ${semPlaca ? '' : 'required'} placeholder="ABC1D23" value="${esc(v ? v.placa : '')}" aria-describedby="placa-tf"></label>
-    <p id="placa-tf" class="aviso-erro placa-tf" role="status" hidden></p>
+    <p id="placa-cuidado" class="aviso placa-tf" role="alert" hidden></p><p id="placa-tf" class="aviso-erro placa-tf" role="status" hidden></p>
     <label>Tipo do veículo</label>
     <div class="tipos">${Object.entries(CONFIG.tipos).map(([c, x]) => `
       <label class="tipo-card"><input type="radio" name="tipo" value="${c}" ${c === tipo ? 'checked' : ''}>${icone(x.icone)}<span>${x.nome}</span></label>`).join('')}</div>
@@ -557,18 +559,27 @@ async function registrar() {
       <label>Cidade de destino<input id="vMunDes" maxlength="60" autocomplete="off" autocapitalize="words" placeholder="ex.: Manaus" value="${esc(v && v.destinoMun || '')}"></label>
       <label>UF<select id="vUfDes" aria-label="UF de destino">${opcoesUF(v && v.ufDestino)}</select></label></div>
     <label>Observações<textarea id="obs" rows="3">${esc(v ? v.obs : '')}</textarea></label>
+    <div class="veic-cuidado"><label class="chk"><input type="checkbox" id="vCuidado" ${v && Number(v.cuidado) === 1 ? 'checked' : ''}> Marcar alerta de cuidado neste veículo</label>
+      <label id="vCuidadoBox" ${v && Number(v.cuidado) === 1 ? '' : 'hidden'}>Motivo<select id="vCuidadoMot"><option value="">— escolha —</option>${Object.entries(CUIDADO_MOTIVOS).map(([k, n]) => `<option value="${k}" ${v && v.cuidadoMotivo === k ? 'selected' : ''}>${n}</option>`).join('')}</select></label>
+      <p class="dica">Alteração, resistência ou ameaça na abordagem: outros fiscais, em qualquer BVA, verão "Cuidado ao abordar este veículo" ao digitar esta placa. Descreva o ocorrido nas observações.</p></div>
     <button class="botao">${icone('salvar')} Salvar</button></form>`);
   const placa = $('#placa');
   // placa que já tem TF de barreira lavrado nesta BVA: borda vermelha e aviso (também sem internet: índice de reincidência do aparelho)
   const avisoTF = $('#placa-tf');
+  const avisoCuid = $('#placa-cuidado');
   const conferirTF = async () => {
-    const p = placa.value, r = await TFUI.placaNaBva(p, t.local).catch(() => ({ n: 0 }));
+    const p = placa.value, r = await TFUI.placaNaBva(p, t.local).catch(() => ({ n: 0 })), c = await TFUI.cuidadoPlaca(p, v && v.id).catch(() => ({ n: 0, cu: [] }));
     if (placa.value !== p) return;                                         // o fiscal continuou digitando
-    placa.classList.toggle('placa-com-tf', r.n > 0); placa.setAttribute('aria-invalid', r.n > 0 ? 'true' : 'false');
+    // alerta de cuidado (amarelo) vem antes: é a segurança de quem aborda; o aviso de TF continua escrito embaixo
+    placa.classList.toggle('placa-cuidado', c.n > 0); placa.classList.toggle('placa-com-tf', r.n > 0 && !(c.n > 0));
+    placa.setAttribute('aria-invalid', r.n > 0 || c.n > 0 ? 'true' : 'false');
+    avisoCuid.hidden = !(c.n > 0);
+    if (c.n > 0) avisoCuid.innerHTML = `${icone('alerta')} <span><b>Cuidado ao abordar este veículo.</b> ${esc(c.cu.map(k => CUIDADO_MOTIVOS[k] || CUIDADO_MOTIVOS.outro).join(', '))}${c.ult ? ` · marcado em ${dBR(c.ult)}` : ''}${c.n > 1 ? ` · ${c.n} registros` : ''}</span>`;
     avisoTF.hidden = !(r.n > 0);
     if (r.n > 0) avisoTF.innerHTML = `${icone('alerta')} ${r.n === 1 ? 'Já há 1 TF de barreira lavrado' : `Já há ${r.n} TFs de barreira lavrados`} para esta placa em ${esc(t.local)}${r.ult ? ` (último em ${dBR(r.ult)})` : ''}.`;
   };
   placa.oninput = () => { placa.value = placa.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); conferirTF(); };
+  $('#vCuidado').onchange = e => { $('#vCuidadoBox').hidden = !e.target.checked; if (e.target.checked) $('#vCuidadoMot').focus(); };
   if (placa.value) conferirTF();
   document.querySelectorAll('input[name=tipo]').forEach(r => r.onchange = () => {
     if (!v) $('#pessoas').value = CONFIG.tipos[r.value].pessoas;
@@ -579,6 +590,9 @@ async function registrar() {
     const p = placa.value.trim();
     if (!p && !semPlaca) { toast('Informe a placa.', true); placa.focus(); return; }
     if (p && !/^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(p) && !confirm(`A placa "${p}" está fora do padrão. Salvar mesmo assim?`)) return;
+    const cuid = $('#vCuidado').checked, cuidMot = $('#vCuidadoMot').value;
+    if (cuid && !p) { toast('O alerta de cuidado precisa da placa.', true); placa.focus(); return; }
+    if (cuid && !cuidMot) { toast('Escolha o motivo do alerta de cuidado.', true); $('#vCuidadoMot').focus(); return; }
     const existentes = await veiculosDe(t.id);
     if (p && existentes.some(x => x.placa === p && x.id !== (v && v.id)) && !confirm(`A placa ${p} já foi registrada neste turno. Registrar de novo?`)) return;
     const tp = document.querySelector('input[name=tipo]:checked').value;
@@ -586,7 +600,8 @@ async function registrar() {
     // registro antigo, os campos de fiscalização que ele já tinha ficam como estavam ({ ...v, ...dados })
     const dados = { turnoId: t.id, placa: p, tipo: tp, pessoas: Math.max(0, parseInt($('#pessoas').value, 10) || 0), obs: $('#obs').value.trim(), excluido: 0,
       ufOrigem: $('#vUfOri').value, ufDestino: $('#vUfDes').value,
-      origemMun: $('#vMunOri').value.trim().replace(/\s+/g, ' '), destinoMun: $('#vMunDes').value.trim().replace(/\s+/g, ' ') };
+      origemMun: $('#vMunOri').value.trim().replace(/\s+/g, ' '), destinoMun: $('#vMunDes').value.trim().replace(/\s+/g, ' '),
+      cuidado: cuid ? 1 : 0, cuidadoMotivo: cuid ? cuidMot : '' };
     if (v) { await Store.salvar('veiculos', { ...v, ...dados }); toast('Registro atualizado.'); Sync.sincronizar(); go('lista'); }
     else { await Store.salvar('veiculos', { ...dados, hora: agoraHM() }); toast(p ? `${p} registrado.` : 'Veículo registrado (sem placa).'); Sync.sincronizar(); go('registrar'); }
   };

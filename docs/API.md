@@ -18,7 +18,7 @@ Contrato das actions: ao criar, mudar ou remover uma, atualize esta tabela. Regr
 - `ACCESS_KEY` (chave mestra, propriedade do script) vale como `key` de fiscal e de administrador.
 - Aba `Fiscais` (`perfil`: vazio = fiscal, `admin` = administrador); sessões em `AdmSessoes` (só hash). Credenciais não se trocam entre tipos.
 - Aba `Permissoes` (`veiculos`, `tf`, `pce`, `antigo` = digitar do papel): sem linha = tudo liberado, exceto `antigo` (só `1`, `sim`, `true`, `s`). `MODULO_DA_ACAO`: action → módulo; `arquivoEnviar` vale `tf` se `arquivo.dono = 'tfs'`.
-- Registro sem módulo liberado (ou `registroAntigo = 1` sem `antigo`) não é gravado no `sync`: volta em `recusados`.
+- O `sync` não grava (devolve em `recusados`) registro sem módulo, `registroAntigo = 1` sem `antigo` ou id de outro login.
 
 ## App do fiscal (`key` de fiscal)
 

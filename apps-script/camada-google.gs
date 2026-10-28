@@ -22,7 +22,7 @@ function atualizar_(nome, linha, campos) {
     const i = cols.indexOf(c);
     if (i < 0) throw new Error('Coluna desconhecida em ' + nome + ': ' + c);
     const v = campos[c];
-    sh.getRange(linha, i + 1).setValue(v === null || v === undefined ? '' : v);
+    sh.getRange(linha, i + 1).setValue(v === null || v === undefined ? '' : textoPlanilha_(v));   // texto nunca vira fórmula (planilha.gs)
   });
 }
 
@@ -30,7 +30,7 @@ function atualizar_(nome, linha, campos) {
 function inserir_(nome, objs) {
   if (!objs || !objs.length) return;
   const sh = aba_(nome), cols = TABELAS[nome];
-  const linhas = objs.map(function (o) { return cols.map(function (c) { const v = o[c]; return v === null || v === undefined ? '' : v; }); });
+  const linhas = objs.map(function (o) { return cols.map(function (c) { const v = o[c]; return v === null || v === undefined ? '' : textoPlanilha_(v); }); });
   sh.getRange(sh.getLastRow() + 1, 1, linhas.length, cols.length).setValues(linhas);
 }
 
@@ -40,7 +40,7 @@ function atualizarColuna_(nome, coluna, linhas, valor) {
   const sh = aba_(nome), j = TABELAS[nome].indexOf(coluna);
   if (j < 0) throw new Error('Coluna desconhecida em ' + nome + ': ' + coluna);
   const de = Math.min.apply(null, linhas), ate = Math.max.apply(null, linhas), r = sh.getRange(de, j + 1, ate - de + 1, 1), v = r.getValues();
-  linhas.forEach(function (l) { v[l - de][0] = valor; });
+  linhas.forEach(function (l) { v[l - de][0] = textoPlanilha_(valor); });
   r.setValues(v);
 }
 

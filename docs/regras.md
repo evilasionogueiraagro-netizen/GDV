@@ -47,6 +47,18 @@ Valem para todo código, teste, doc e commit. Resumo de uma linha de cada no [AG
 - Nada público expõe CPF, nome completo, placa inteira ou coordenada exata (dashboard e `verificar.html` mascaram).
   Os testes conferem; não afrouxe.
 - Toda ação que muda dado ou acesso registra quem fez (rastreabilidade, LGPD art. 37).
+- Leitura de dado pessoal (`painelDados`, `pce*` de consulta, `admDados`, listas de usuários) passa por `lido_` e vai
+  para `AcessosADados` (uma linha por usuário e action por hora, sem o dado lido).
+
+## Segurança (testes de invasão: `invasao_test`, `invasao_xss_test`)
+
+- Registro com dono (`ABAS_COM_DONO_`: TFs, veículos, levantamentos, colheitas, termos do PCE) só é alterado por quem o
+  gravou; o `sync` devolve os outros em `recusados`. Veículo entra no turno de outro login só para quem entrou nele
+  pelo código. Pessoas, placas, propriedades e cadastros do PCE são comuns.
+- Nome de usuário é único (também entre desativados): os registros se ligam ao nome.
+- Texto que vai à planilha passa por `textoPlanilha_` (início `= + - @` ganha `'`; a leitura tira). Grave por
+  `inserir_`/`atualizar_`/`gravar_`. No front, todo dado vai por `esc()` antes de `innerHTML`.
+- Turno novo: `colegas` e `encerradoPor` só o servidor grava. Erro devolvido nunca traz detalhe do JavaScript.
 
 ## Publicação
 

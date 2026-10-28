@@ -48,7 +48,7 @@ const MSG_ENTRE = 'Entre com sua matrícula e senha.';
   await zerarTentativas('GDV0001', 'naoexiste');
   const E1 = await entrar('  gdv0001 ', G1.senhaProvisoria, 'painel', { aparelhoId: 'aparelho-gerente-1' });
   ok(E1.ok && /^u\.[0-9a-f]{64}$/.test(E1.token) && E1.trocarSenha === 1, 'entra com a provisória (matrícula sem diferenciar maiúscula nem espaços): trocarSenha = 1', E1);
-  ok(E1.usuario.id && E1.usuario.matricula === 'GDV0001' && E1.usuario.nome === 'Gerente Ficticio Teste' && E1.permissoes.length === 8 && JSON.stringify(E1.modulos) === '{"veiculos":1,"tf":1,"pce":1,"antigo":1}',
+  ok(E1.usuario.id && E1.usuario.matricula === 'GDV0001' && E1.usuario.nome === 'Gerente Ficticio Teste' && E1.permissoes.length === 8 && JSON.stringify(E1.modulos) === '{"veiculos":1,"tf":1,"pce":1,"antigo":1,"escala":0}',
     'resposta: usuario, permissões (lista) e módulos {veiculos,tf,pce,antigo}', E1);
   // a troca é obrigatória: o servidor recusa qualquer outra action com esta sessão
   for (const [acao, corpo] of [['sync', { since: 0 }], ['ping', {}], ['painelDados', {}], ['usuariosListar', {}], ['usuarioCriar', { nome: 'Outro Ficticio Teste', permissoes: ['campo'] }]]) {
@@ -133,11 +133,11 @@ const MSG_ENTRE = 'Entre com sua matrícula e senha.';
   };
   const eF = await pronta(PF, 'campo'), eM = await pronta(PM, 'campo'), e3 = await pronta(P3, 'campo'), eP = await pronta(PP, 'painel'), eA = await pronta(PA, 'administracao');
   const eG = await pronta(PG, 'campo'), eS = await pronta(PS, 'painel'), eFA = await pronta(FA, 'campo');
-  ok(JSON.stringify(eF.modulos) === '{"veiculos":1,"tf":1,"pce":1,"antigo":1}' && eF.permissoes.join() === 'campo,fiscalizacaoDeTransito,termoDeBarreira,pce,digitarDoPapel',
+  ok(JSON.stringify(eF.modulos) === '{"veiculos":1,"tf":1,"pce":1,"antigo":1,"escala":0}' && eF.permissoes.join() === 'campo,fiscalizacaoDeTransito,termoDeBarreira,pce,digitarDoPapel',
     'mapeamento: veiculos = fiscalizacaoDeTransito, tf = termoDeBarreira, pce, antigo = digitarDoPapel', eF);
-  ok(JSON.stringify(eM.modulos) === '{"veiculos":1,"tf":0,"pce":0,"antigo":0}', 'só fiscalizacaoDeTransito: {veiculos:1, tf:0, pce:0, antigo:0}', eM.modulos);
-  ok(JSON.stringify(e3.modulos) === '{"veiculos":0,"tf":1,"pce":1,"antigo":0}', 'termoDeBarreira + pce sem digitarDoPapel: antigo = 0', e3.modulos);
-  ok(JSON.stringify(eG.modulos) === '{"veiculos":0,"tf":0,"pce":0,"antigo":0}' && eG.permissoes.join() === 'campo,painel,administracao,gerencia',
+  ok(JSON.stringify(eM.modulos) === '{"veiculos":1,"tf":0,"pce":0,"antigo":0,"escala":0}', 'só fiscalizacaoDeTransito: {veiculos:1, tf:0, pce:0, antigo:0}', eM.modulos);
+  ok(JSON.stringify(e3.modulos) === '{"veiculos":0,"tf":1,"pce":1,"antigo":0,"escala":0}', 'termoDeBarreira + pce sem digitarDoPapel: antigo = 0', e3.modulos);
+  ok(JSON.stringify(eG.modulos) === '{"veiculos":0,"tf":0,"pce":0,"antigo":0,"escala":0}' && eG.permissoes.join() === 'campo,painel,administracao,gerencia',
     'só gerencia: abre os três aplicativos, mas nenhum módulo do campo (módulo vale só marcado, também para o gerente)', eG);
   r = await entrar('portal1', SENHA, 'campo'); ok(!r.ok && /não inclui o app de campo/.test(r.erro), 'conta só do portal não entra no campo', r.erro);
   r = await entrar('campo1', SENHA, 'painel'); ok(!r.ok && /não inclui o painel/.test(r.erro), 'conta de campo não entra no painel', r.erro);
@@ -263,9 +263,9 @@ const MSG_ENTRE = 'Entre com sua matrícula e senha.';
   const LEV = id => ({ id, data: hoje, hora: '08:00', servidor: 'Fulano', doc: '52998224725', nome: 'FULANO FICTICIO TESTE', municipio: 'MANAUS', culturas: '[]', fotos: '[]', assinaturas: '{}', excluido: 0, criadoEm: agora, atualizadoEm: agora });
   r = await post({ action: 'sync', key: tokF, since: 0, turnos: [turno('lg-t1')], veiculos: [veic('lg-v1', 'lg-t1')], tfs: [TF('lg-f1', 1)], levantamentos: [LEV('lg-l1')],
     aparelho: { id: 'aparelho-campo-001', versao: 'teste', plataforma: 'android', online: true, standalone: true } });
-  ok(r.ok && JSON.stringify(r.permissoes) === '{"veiculos":1,"tf":1,"pce":1,"antigo":1}' && JSON.stringify(r.recusados) === '{}' && r.turnos.length === 1 && r.turnos[0].usuario === 'Fulano Ficticio Campo', 'sync com todos os módulos: grava tudo, devolve as permissões no formato do app e registra o usuário', { p: r.permissoes, rec: r.recusados });
+  ok(r.ok && JSON.stringify(r.permissoes) === '{"veiculos":1,"tf":1,"pce":1,"antigo":1,"escala":0}' && JSON.stringify(r.recusados) === '{}' && r.turnos.length === 1 && r.turnos[0].usuario === 'Fulano Ficticio Campo', 'sync com todos os módulos: grava tudo, devolve as permissões no formato do app e registra o usuário', { p: r.permissoes, rec: r.recusados });
   r = await post({ action: 'sync', key: tokM, since: 0, turnos: [turno('lg-t2')], veiculos: [veic('lg-v2', 'lg-t2')], tfs: [TF('lg-f2', 2)], levantamentos: [LEV('lg-l2')] });
-  ok(r.ok && JSON.stringify(r.permissoes) === '{"veiculos":1,"tf":0,"pce":0,"antigo":0}' && r.recusados.tfs[0] === 'lg-f2' && r.recusados.levantamentos[0] === 'lg-l2' && !r.recusados.turnos && r.turnos.length === 1 && r.turnos[0].id === 'lg-t2',
+  ok(r.ok && JSON.stringify(r.permissoes) === '{"veiculos":1,"tf":0,"pce":0,"antigo":0,"escala":0}' && r.recusados.tfs[0] === 'lg-f2' && r.recusados.levantamentos[0] === 'lg-l2' && !r.recusados.turnos && r.turnos.length === 1 && r.turnos[0].id === 'lg-t2',
     'sync de quem só tem fiscalizacaoDeTransito: turno e veículo entram; TF e levantamento voltam em recusados; só recebe os próprios', { p: r.permissoes, rec: r.recusados });
   ok(!(await fn('lerLeitura_', 'TFs')).r.some(t => t.id === 'lg-f2') && !(await fn('lerLeitura_', 'Levantamentos')).r.some(t => t.id === 'lg-l2'), 'os registros recusados não foram gravados na planilha');
   r = await post({ action: 'tfEmitir', key: tokM, tf: TF('lg-f3', 3) }); ok(!r.ok && r.semPermissao === 'tf' && r.permissoes.tf === 0 && /Sem autorização para o módulo/.test(r.erro), 'tfEmitir sem termoDeBarreira: semPermissao = tf', r);
@@ -280,7 +280,7 @@ const MSG_ENTRE = 'Entre com sua matrícula e senha.';
   r = await post({ action: 'tfEmitir', key: eS.token, tf: TF('lg-f7', 7) }); ok(!r.ok && /não inclui o app de campo/.test(r.erro), 'nem emite TF', r.erro);
   // o caso do gerente que desmarcou o PCE no próprio perfil: os outros módulos continuam, o PCE some (e o sync recusa levantamento)
   const PG4 = await cria('Gerencia Sem Pce Ficticia', ['gerencia', 'fiscalizacaoDeTransito', 'termoDeBarreira'], { matricula: 'gerencia4' }), eG4 = await pronta(PG4, 'campo');
-  ok(JSON.stringify(eG4.modulos) === '{"veiculos":1,"tf":1,"pce":0,"antigo":0}', 'gerente com o PCE desmarcado: PCE fora dos módulos', eG4.modulos);
+  ok(JSON.stringify(eG4.modulos) === '{"veiculos":1,"tf":1,"pce":0,"antigo":0,"escala":0}', 'gerente com o PCE desmarcado: PCE fora dos módulos', eG4.modulos);
   r = await post({ action: 'sync', key: eG4.token, since: 0, levantamentos: [{ id: 'lev-ger-sem-pce', data: '2026-10-25', criadoEm: 1, atualizadoEm: 1 }] });
   ok(r.ok && r.permissoes.pce === 0 && (r.recusados.levantamentos || []).includes('lev-ger-sem-pce'), 'gerente sem PCE: levantamento volta em recusados', r.recusados);
   r = await post({ action: 'pceConsultar', key: eG4.token, doc: '52998224725' }); ok(!r.ok && r.semPermissao === 'pce', 'gerente sem PCE: action do PCE recusada', r.erro);

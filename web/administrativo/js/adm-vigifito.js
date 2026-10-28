@@ -68,7 +68,7 @@
     const s = A.secao(c, 'Valores por posto', `${postos.length} postos (lista configurada no painel → Relatórios → Postos do VIGIFITO).`);
     const k = A.el('div', 'pn-cartao');
     const cab = `<tr><th scope="col">Indicador</th><th scope="col">Unid.</th>${postos.map(p => `<th scope="col" class="num">${esc(p.nome)}</th>`).join('')}</tr>`;
-    const linhas = IND.VIGIFITO.map(dd => `<tr><td>${esc(dd.rotuloPlanilha === null ? `(${dd.unid})` : dd.rotulo)}</td><td>${esc(dd.unid)}</td>${postos.map(p => {
+    const linhas = IND.VIGIFITO.map((dd, i) => `<tr>${IND.rotuloSpan(i) ? `<td class="ind" rowspan="${IND.rotuloSpan(i)}">${esc(dd.rotulo)}</td>` : ''}<td>${esc(dd.unid)}</td>${postos.map(p => {
       const l = lancDe(per, p.id, dd.k), ch = `${per}|${p.id}|${dd.k}`, ed = E.edit[ch];
       const val = ed != null ? ed : l ? vt(Number(l.valor), dd.unid) : '';
       const auto = dd.fonte === 'auto', erro = erroCel(dd, val), fora = !erro && val !== '' ? foraDoPadrao(dd, p.id, per, numSimples(val)) : '';

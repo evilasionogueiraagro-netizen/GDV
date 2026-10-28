@@ -217,7 +217,9 @@
 
   /* ---------------- PCE / consolidado ---------------- */
   const tabela = (cab, linhas, extra) => `<div class="pn-tab pn-rg-tab ${extra || ''}"><div class="pn-tab-rolo"><table><thead><tr>${cab.map(h => `<th scope="col" class="${h.num ? 'num' : ''}">${esc(h.r)}</th>`).join('')}</tr></thead>` +
-    `<tbody>${linhas.map(l => `<tr class="${l.cls || ''}">${l.c.map((x, i) => `<td class="${cab[i] && cab[i].num ? 'num' : ''}">${x}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+    `<tbody>${linhas.map(l => `<tr class="${l.cls || ''}">${l.c.map((x, i) => x === null ? '' : x && x.rs ? `<td class="ind" rowspan="${x.rs}">${x.h}</td>` : `<td class="${cab[i] && cab[i].num ? 'num' : ''}">${x}</td>`).join('')}</tr>`).join('')}</tbody></table></div></div>`;
+  /** Célula do rótulo do VIGIFITO: o indicador com linha em t ocupa as duas linhas (null = linha coberta pela de cima). */
+  const rotVig = (d, i) => { const n = IND.rotuloSpan(i); return n === 0 ? null : { h: esc(d.rotulo), rs: n }; };
   /** Número lançado no Portal do Administrativo (só leitura no painel), com quem lançou e quando. */
   const quem = (m, chave) => { const x = E.meta[m + '|' + chave]; return x ? `lançado pelo Administrativo em ${P.fmt.data(P.diaManaus(x.em))} ${P.horaManaus(x.em)} por ${x.usuario}` : 'sem lançamento (lance no Portal do Administrativo)'; };
   const inp = (m, chave, rot) => { const v = ((E.L[m] || {})[chave]); return `<span class="pn-rg-val${v == null || v === '' ? ' vazio' : ''}" data-mes="${m}" data-chave="${esc(chave)}" aria-label="${esc(rot)}" title="${esc(quem(m, chave))}">${esc(v == null || v === '' ? '—' : v)}</span>`; };
@@ -340,13 +342,13 @@
     const s = P.secao(c, `Quadro por posto — ${R.rotulo}`, 'Sem marca: e-GDV. † lançado pelo Administrativo. ‡ lançado no lugar do e-GDV. "—" sem lançamento.');
     const cab = [{ r: 'Indicador' }, { r: 'Unid.' }].concat(R.grupos.map(g => ({ r: g.rotulo, num: true })));
     const k = P.el('div', 'pn-cartao'); k.id = 'pn-vig-quadro';
-    k.innerHTML = tabela(cab, IND.VIGIFITO.map(d => ({ c: [esc(d.rotuloPlanilha === null ? `(${d.unid})` : d.rotulo), esc(d.unid)].concat(R.grupos.map(g => { const x = R.tot(g.ids, d.k);
+    k.innerHTML = tabela(cab, IND.VIGIFITO.map((d, i) => ({ c: [rotVig(d, i), esc(d.unid)].concat(R.grupos.map(g => { const x = R.tot(g.ids, d.k);
       return `<span data-vig="${esc(g.id)}|${d.k}"${g.tipo !== 'posto' ? ' class="pn-rg-tot"' : ''}>${esc(VD.valorTxt(x.v, d.unid) + MARCA(x.origens))}</span>`; })) })), 'pn-rg-quadro');
     s.appendChild(k);
     if (R.tipo === 'anual' || R.tipo === 'semestral') {
       const k2 = P.el('div', 'pn-cartao');
       k2.innerHTML = '<h3>Total consolidado mês a mês</h3>' + tabela([{ r: 'Indicador' }, { r: 'Unid.' }].concat(R.colunas.map(m => ({ r: VD.CURTOS[+m.slice(5, 7) - 1], num: true }))).concat([{ r: 'Total', num: true }]),
-        IND.VIGIFITO.map(d => ({ c: [esc(d.rotuloPlanilha === null ? `(${d.unid})` : d.rotulo), esc(d.unid)].concat(R.colunas.map(m => esc(R.futuro(m) ? '' : VD.valorTxt(R.tot(R.todos, d.k, [m]).v, d.unid)))).concat([`<b>${esc(VD.valorTxt(R.tot(R.todos, d.k).v, d.unid))}</b>`]) })), 'pn-rg-quadro');
+        IND.VIGIFITO.map((d, i) => ({ c: [rotVig(d, i), esc(d.unid)].concat(R.colunas.map(m => esc(R.futuro(m) ? '' : VD.valorTxt(R.tot(R.todos, d.k, [m]).v, d.unid)))).concat([`<b>${esc(VD.valorTxt(R.tot(R.todos, d.k).v, d.unid))}</b>`]) })), 'pn-rg-quadro');
       s.appendChild(k2);
     }
     const st = P.secao(c, 'Textos do relatório VIGIFITO', E.txtInfo.salvo ? 'Textos salvos deste relatório.' : E.txtInfo.origem === 'anterior' ? 'Pré-preenchidos com os do último relatório VIGIFITO salvo.' : 'Texto-padrão. Marcador: {periodo}.');

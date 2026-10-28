@@ -75,7 +75,7 @@ function planilhaVig() {
   ok(P2 === d(1, 14) && P1 < P2, `escala: ${d(1, 14)} (dia da troca) abre um período; ${d(1, 13)} fica no anterior`, [P1, P2]);
   let r = await post({ action: 'sync', key: (await U.fiscal('Fiscal Vigifito Sync')).token, since: 0,
     turnos: [T('j1', d(1, 14), 'BVA - JUNDIÁ', 'Fixa', 'BVA - JUNDIÁ'), T('j2', d(1, 13), 'BVA - JUNDIÁ', 'Fixa', 'BVA - JUNDIÁ'), T('j3', d(3, 10), 'BVA - JUNDIÁ', 'Fixa', 'BVA - JUNDIÁ'),
-      T('v1', d(2, 5), 'Porto de Tabatinga', 'Móvel', 'TABATINGA'), T('v2', d(8, 20), 'Porto Público', 'Móvel', 'TABATINGA'), T('c1', d(3, 5), 'BVA - CEASA', 'Fixa', 'BVA - CEASA')],
+      T('v1', d(2, 5), 'Porto de Tabatinga', 'Móvel', 'TABATINGA'), T('v2', d(8, 20), 'Porto Público', 'Móvel', 'TABATINGA'), T('c1', d(3, 5), 'BVA - FICTÍCIA DO TESTE', 'Fixa', 'BVA - FICTÍCIA DO TESTE'), T('c2', d(4, 6), 'BVA - CEASA', 'Fixa', 'BVA - CEASA')],
     // veículos: pessoas a bordo (educação sanitária) e UF opcional. a1 RR→AM tem o TF f1 ligado (conta só pelo TF); a2 AM→PA sem TF (carga para
     // outro estado, sem toneladas) e com os campos ANTIGOS de fiscalização marcados (não contam mais); a3 antigo "sem orientação" (conta pelas
     // pessoas); a4 RR→AM sem TF (internalização sem toneladas); a6 PA→AM com TF cancelado ligado (o cancelado não tira o veículo); a7
@@ -84,7 +84,7 @@ function planilhaVig() {
       V('a2', 'j1', 5, { ufOrigem: 'AM', ufDestino: 'PA', carga: 1, produtos: JSON.stringify(['MANGA - 2 Ton']), partida: 1, medidaFito: 1, inspecaoFito: 1, docConferido: 1 }), V('a3', 'j1', 1, { semEducacao: 1 }),
       V('a4', 'j2', 2, { ufOrigem: 'RR', ufDestino: 'AM' }), V('a5', 'j2', 2), V('a6', 'j3', 1, { ufOrigem: 'PA', ufDestino: 'AM' }),
       V('a7', 'v1', 40, { ufOrigem: 'Exterior', ufDestino: 'AM' }), V('a8', 'v1', 2), V('a9', 'v2', 5),
-      V('a10', 'c1', 1), V('a11', 'c1', 1), V('a12', 'j1', 9, { excluido: 1, ufOrigem: 'RR', ufDestino: 'AM' })],
+      V('a10', 'c1', 1), V('a11', 'c1', 1), V('a13', 'c2', 3), V('a12', 'j1', 9, { excluido: 1, ufOrigem: 'RR', ufDestino: 'AM' })],
     // TFs: f1 RR→AM (1.500 kg + 2 t + 20 caixas; PTV; inspeção) ligado ao a1; f2 AM→PA (250 kg + 10 caixas; apreensão); f3 ANTIGO só com o texto
     // "BOA VISTA/RR" → "MANAUS - AM" (UF extraída; NF; inspeção; coleta); f4 sem UF; f5 sem UF ligado ao a7 (Exterior→AM; 0,5 t); f6 cancelado
     tfs: [TF('f1', 'j1', d(1, 14), 'liberacao', ['LARANJA - 1.500 Kg', 'MANGA - 2 Ton', 'BANANA - 20 Caixas'], { documentos: '{"ptv":"1"}', veiculoId: 'a1', ufOrigem: 'RR', ufDestino: 'AM', origem: 'BOA VISTA', destino: 'MANAUS', inspecao: 1 }),
@@ -102,7 +102,7 @@ function planilhaVig() {
   r = await post({ action: 'painelVigDados', key: TOKF, ano: A }); ok(!r.ok && /não inclui o painel/.test(r.erro), 'fiscal recusado em painelVigDados', r.erro);
   const VDp = await post({ action: 'painelVigDados', key: TOK, ano: A });
   const ap = VDp.apuracao, pm = (p, m) => (ap.porMes[p] || {})[`${A}-${String(m).padStart(2, '0')}`] || {};
-  ok(VDp.ok && VDp.cfg.postos.length === 11 && VDp.cfg.ancora === '2025-01-05' && VDp.cfg.ciclo === 9, 'configuração semente: 11 postos da planilha, escala 05/01/2025 a cada 9 dias', VDp.cfg && VDp.cfg.postos.map(p => p.id));
+  ok(VDp.ok && VDp.cfg.postos.length === 12 && VDp.cfg.postos[3].id === 'manaus-ceasa' && VDp.cfg.ancora === '2025-01-05' && VDp.cfg.ciclo === 9, 'configuração semente: 11 postos da planilha + BVA - CEASA (depois do Aeroporto), escala 05/01/2025 a cada 9 dias', VDp.cfg && VDp.cfg.postos.map(p => p.id));
   ok(pm('pf-jundia', 1).veiculos === 5 && pm('pf-jundia', 1).tfs === 3 && pm('pf-jundia', 1).coleta === 1 && pm('pf-jundia', 1).amostras === 2,
     'Jundiá/janeiro: 5 veículos (excluído fora), 3 TFs, 1 coleta com 2 amostras', pm('pf-jundia', 1));
   const J1 = pm('pf-jundia', 1);
@@ -130,7 +130,16 @@ function planilhaVig() {
     'Tabatinga volante: abordagem itinerante = turnos volantes; apreensão 0,5 t; fiel e infração', pm('tabatinga-volante', 2));
   ok(ap.porPeriodo['pf-jundia'][P1].veiculos === 2 && ap.porPeriodo['pf-jundia'][P2].veiculos === 3 && ap.porPeriodo['pf-jundia'][P1].internN === 2 && ap.porPeriodo['pf-jundia'][P2].partidas === 2,
     `períodos de 10 dias pela data de início do turno: ${P1} → 2 veículos (2 internalizações); ${P2} (dia da troca) → 3 (2 partidas = 2 TFs)`, ap.porPeriodo['pf-jundia']);
-  ok(pm('_outras-fixas', 3).veiculos === 2 && ap.naoMapeados.some(n => n.local === 'BVA - CEASA' && n.turnos === 1), 'BVA sem posto do VIGIFITO (CEASA): "OUTRAS BVA FIXAS (não mapeadas)" + aviso', ap.naoMapeados);
+  ok(pm('_outras-fixas', 3).veiculos === 2 && ap.naoMapeados.some(n => n.local === 'BVA - FICTÍCIA DO TESTE' && n.turnos === 1), 'BVA sem posto do VIGIFITO: "OUTRAS BVA FIXAS (não mapeadas)" + aviso', ap.naoMapeados);
+  ok(pm('manaus-ceasa', 4).veiculos === 1 && pm('manaus-ceasa', 4).educacao === 3 && !ap.naoMapeados.some(n => /CEASA/.test(n.local)), 'BVA - CEASA tem posto próprio no VIGIFITO', [pm('manaus-ceasa', 4), ap.naoMapeados]);
+  // lista de postos salva antes do posto da CEASA: entra depois do último de Manaus; depois de salva no painel (ceasa: 1), a escolha vale
+  const semCeasa = VDp.cfg.postos.filter(p => p.id !== 'manaus-ceasa'), cfgVelha = { ancora: '2025-01-05', ciclo: 9, versao: 3, postos: semCeasa };
+  r = await post({ action: 'painelVigConfigSalvar', key: TOK, config: cfgVelha }); let cm = (await get('/__fn?nome=vigConfig_&args=[]')).r;
+  ok(r.ok && cm.postos.length === 11, 'quem tira a CEASA da lista e salva: ela não volta', cm.postos.map(p => p.id));
+  await get('/__editar?aba=VigConfig&col=config&onde=id:vigifito&valor=' + encodeURIComponent(JSON.stringify(JSON.stringify(cfgVelha))));
+  cm = (await get('/__fn?nome=vigConfig_&args=[]')).r;
+  ok(cm.postos.length === 12 && cm.postos.map(p => p.id).indexOf('manaus-ceasa') === cm.postos.map(p => p.id).indexOf('manaus-volante') + 1, 'lista salva antes do posto da CEASA: ele entra depois do último de Manaus', cm.postos.map(p => p.id));
+  r = await post({ action: 'painelVigConfigSalvar', key: TOK, config: VDp.cfg }); ok(r.ok && (await get('/__fn?nome=vigConfig_&args=[]')).r.postos.length === 12, 'lista com a CEASA de volta');
   ok(!/PRODUTOR SECRETO|52998224725|Joana Fiscal/.test(JSON.stringify(VDp)), 'apuração do VIGIFITO sem dados pessoais');
   // um motor só: convênio 1.10 e Relatório GDV batem com o VIGIFITO
   const CA = await post({ action: 'painelConvApuracao', key: TOK, convenio: '991272-2025', de: d(1, 1), ate: d(12, 31) });
@@ -182,6 +191,7 @@ function planilhaVig() {
     /e-GDV: 3/.test(await pa.textContent(`#adm-vig-grade tr:has([data-vig="${A}-01|pf-jundia|partidas"]) td:nth-child(3)`)), 'portal: grade posto × indicador com o lançado e o apurado pelo e-GDV (partidas = 3, dos TFs)');
   await pa.fill(`[data-vig="${A}-01|pf-jundia|capacitacao"]`, '1,5'); await pa.dispatchEvent(`[data-vig="${A}-01|pf-jundia|capacitacao"]`, 'change');
   ok(/contagem com decimal/.test(await pa.textContent('#adm-vig-grade [data-erro]')), 'validação na tela: contagem com decimal');
+  ok((await pa.$$('#adm-vig-grade td.ind[rowspan="2"]')).length === 4 && !(await pa.$$eval('#adm-vig-grade tbody td', tds => tds.some(t => t.textContent.trim() === '(t)'))), 'portal: rótulo nº + t mesclado como na planilha');
   await pa.fill(`[data-vig="${A}-01|pf-jundia|capacitacao"]`, '2'); await pa.dispatchEvent(`[data-vig="${A}-01|pf-jundia|capacitacao"]`, 'change');
   await pa.fill(`[data-vig="${A}-01|tabatinga-volante|madeira"]`, '3');
   await pa.click('#adm-vig-salvar'); await pa.waitForFunction(() => /Gravado|Não|Nada|Corrija|exige/.test(document.querySelector('[data-msg=vig]').textContent), null, { timeout: 15000 });
@@ -223,6 +233,8 @@ function planilhaVig() {
   let c = await cel('pf-jundia', 'veiculos');
   ok(c.v === 5 && c.o === 'auto', 'mensal (janeiro): Jundiá 5 veículos (e-GDV)', c);
   c = await cel('pf-jundia', 'partidas'); ok(c.v === 3 && c.o === 'auto', 'mensal: partidas do Jundiá calculadas dos TFs (e-GDV)', c);
+  const qd = await p.$$eval('#pn-vig-quadro tbody tr', trs => ({ n: trs.length, rs: trs.filter(t => t.querySelector('td.ind[rowspan="2"]')).length, t: trs.filter(t => t.cells[0].textContent.trim() === '(t)').length, cab: [...document.querySelectorAll('#pn-vig-quadro thead th')].map(h => h.textContent) }));
+  ok(qd.n === 28 && qd.rs === 4 && qd.t === 0 && qd.cab.includes('MANAUS - BVA CEASA'), 'quadro como a planilha: rótulo dos indicadores nº + t ocupa as 2 linhas (sem "(t)" solto); coluna da BVA - CEASA', qd);
   const cj = {}; for (const k of ['documentos', 'internN', 'internT', 'importT', 'exportT', 'cargasEstados', 'educacao', 'medidaFito', 'inspecaoFito', 'autoDestN', 'capacitacao']) cj[k] = (await cel('pf-jundia', k)).v;
   ok(cj.documentos === 2 && cj.internN === 3 && quase(cj.internT, 3.5) && quase(cj.importT, 3.5) && quase(cj.exportT, 0.25) && cj.cargasEstados === 2 && cj.educacao === 15 && cj.medidaFito === 3 && cj.inspecaoFito === 2 && cj.autoDestN === 1 && cj.capacitacao === 2,
     'mensal: indicadores de fiscalização calculados pelo sistema (pessoas e TFs); capacitação (manual) lançada no portal', cj);
@@ -259,7 +271,7 @@ function planilhaVig() {
   ok(!S.cont.length, 'anual: nenhum negativo nem decimal em contagem em nenhum posto/total', S.cont);
   ok(S.av.some(a => /não mapeado|sem posto/.test(a)) && S.av.some(a => /fora do padrão/.test(a)) && S.av.some(a => /substituem/.test(a)) && S.av.some(a => /não são de massa/.test(a)), 'avisos: turnos sem posto, valor fora do padrão, substituições, outras unidades', S.av);
   const tg = await cel('total', 'veiculos'), tfx = await cel('fixas', 'veiculos'), tvo = await cel('volantes', 'veiculos');
-  ok(tg.v === tfx.v + tvo.v && tvo.v === 3 && tfx.v === 506 + 100 + 2, 'anual: fixas 608 (Jundiá 506 + Humaitá 100 + não mapeadas 2), volantes 3, total 611', [tfx, tvo, tg]);
+  ok(tg.v === tfx.v + tvo.v && tvo.v === 3 && tfx.v === 506 + 100 + 1 + 2, 'anual: fixas 609 (Jundiá 506 + Humaitá 100 + CEASA 1 + não mapeadas 2), volantes 3, total 612', [tfx, tvo, tg]);
   await shot(p, 'central_vigifito_anual');
   await p.evaluate(() => { window.__prints = []; }); await p.click('#pn-rg-imprimir');
   await p.waitForFunction(() => window.__prints && window.__prints.length, null, { timeout: 30000 });
@@ -293,7 +305,7 @@ print(json.dumps({'tabelas':x.count('<w:tbl>'),'paisagem':x.count('w:orient="lan
     'aba VIGIFITO: posto × J..D, 1º semestre e total por posto (Jundiá: jan 5, 1º sem 6, total 506)', [aoa[0].slice(0, 3), aoa[2].slice(0, 17)]);
   const an = X.utils.sheet_to_json(wbx.Sheets.Anual, { header: 1, raw: true, defval: null });
   const ci = n => an[0].indexOf(n);
-  ok(ci('TOTAL FIXAS') > 0 && an[1][ci('TOTAL FIXAS')] === 608 && an[1][ci('TOTAL VOLANTES')] === 3 && an[1][ci('TOTAL')] === 611 && ci('PRESIDENTE FIGUEIREDO - TOTAL') > 0 && an.length === 29,
+  ok(ci('TOTAL FIXAS') > 0 && an[1][ci('TOTAL FIXAS')] === 609 && an[1][ci('TOTAL VOLANTES')] === 3 && an[1][ci('TOTAL')] === 612 && ci('PRESIDENTE FIGUEIREDO - TOTAL') > 0 && an.length === 29,
     'aba Anual: postos, totais por município, TOTAL FIXAS, TOTAL VOLANTES e TOTAL (28 linhas de indicadores)', an[0]);
   const ju = X.utils.sheet_to_json(wbx.Sheets['JUNDIÁ'], { header: 1, raw: true, defval: null });
   ok(/^\d{2}\/\d{2} A \d{2}\/\d{2}\/\d{4}$/.test(ju[1][2]) && ju[0][2] === 'PERÍODO 1' && ju.length === 30, 'aba JUNDIÁ: períodos de 10 dias com rótulos "05/01 A 14/01/2025"', ju[1].slice(0, 4));
@@ -301,7 +313,7 @@ print(json.dumps({'tabelas':x.count('<w:tbl>'),'paisagem':x.count('w:orient="lan
   await p.selectOption('#pn-rg-rel', 'consolidado'); await esperar('s.rel === "consolidado" && s.R');
   await p.selectOption('#pn-rg-tipo', 'anual'); await esperar('s.R && s.R.tipo === "anual"');
   const vcons = await p.evaluate(() => Painel.aba('relatorios').estado().R.vig.total.find(x => x.chave === 'veiculos').total);
-  ok(vcons === 611, 'consolidado anual: VIGIFITO total de veículos = relatório VIGIFITO (611)', vcons);
+  ok(vcons === 612, 'consolidado anual: VIGIFITO total de veículos = relatório VIGIFITO (612)', vcons);
   // PCE
   await p.selectOption('#pn-rg-rel', 'pce'); await esperar('s.rel === "pce" && s.R');
   ok(/Relatório PCE/.test(await p.textContent('#pn-rg-titulo')) && !(await p.textContent('#pn-rg-corpo')).includes('Seção II — VIGIFITO'), 'PCE: só as partes de PCE (sem VIGIFITO)');
@@ -330,17 +342,17 @@ print(json.dumps({'tabelas':x.count('<w:tbl>'),'paisagem':x.count('w:orient="lan
   const cvc = await baixar('#pn-rg-docx');
   ok(cvc.buf.slice(0, 2).toString() === 'PK' && /Relatorio_Convenio_991272-2025_Consolidado_ate_\d{4}-\d{2}-\d{2}\.docx/.test(cvc.nome), 'consolidado em Word', cvc.nome);
   await shot(p, 'central_convenio_consolidado');
-  // postos do VIGIFITO (configuração editável): mapear a CEASA num posto novo
+  // postos do VIGIFITO (configuração editável): mapear a BVA não mapeada num posto novo
   await p.selectOption('#pn-rg-rel', 'vigifito'); await esperar('s.rel === "vigifito" && s.VR');
   await p.click('#pn-vig-postos'); await p.waitForSelector('#pn-vig-cfg[open]');
   await p.click('#pn-vig-cfg [data-add]');
   const novo = p.locator('#pn-vig-cfg .pn-conv-sub').last();
-  await novo.locator('[data-k=id]').fill('manaus-ceasa'); await novo.locator('[data-k=nome]').fill('MANAUS - BVA CEASA'); await novo.locator('[data-k=municipio]').fill('Manaus');
-  await novo.locator('[data-k=tipo]').selectOption('fixa'); await novo.locator('[data-k=locais]').fill('BVA - CEASA');
+  await novo.locator('[data-k=id]').fill('manaus-ficticia'); await novo.locator('[data-k=nome]').fill('MANAUS - BVA FICTÍCIA'); await novo.locator('[data-k=municipio]').fill('Manaus');
+  await novo.locator('[data-k=tipo]').selectOption('fixa'); await novo.locator('[data-k=locais]').fill('BVA - FICTÍCIA DO TESTE');
   await p.click('#pn-vig-cfg-salvar'); await p.waitForSelector('#pn-vig-cfg', { state: 'detached', timeout: 15000 });
-  await esperar('s.VR && s.VR.postos.some(x => x.id === "manaus-ceasa")');
-  c = await cel('manaus-ceasa', 'veiculos'); const mm = await cel('mun:manaus', 'veiculos');
-  ok(c.v === 2 && mm.v === 2 && !(await p.evaluate(() => Painel.aba('relatorios').estado().VR.postos.some(x => x.id === '_outras-fixas'))), 'postos editáveis: CEASA mapeada para um posto novo (sai de "não mapeadas"; total de Manaus)', [c, mm]);
+  await esperar('s.VR && s.VR.postos.some(x => x.id === "manaus-ficticia")');
+  c = await cel('manaus-ficticia', 'veiculos'); const mm = await cel('mun:manaus', 'veiculos'), mc = await cel('manaus-ceasa', 'veiculos');
+  ok(c.v === 2 && mm.v === 2 + mc.v && !(await p.evaluate(() => Painel.aba('relatorios').estado().VR.postos.some(x => x.id === '_outras-fixas'))), 'postos editáveis: BVA mapeada para um posto novo (sai de "não mapeadas"; total de Manaus)', [c, mm, mc]);
   for (const [tema, esq] of [['claro', 'light'], ['escuro', 'dark']]) {
     const pc = await (await b.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, colorScheme: esq, timezoneId: 'America/Manaus', locale: 'pt-BR', serviceWorkers: 'block' })).newPage();
     await pc.addInitScript(([tok, url, ano]) => { localStorage.setItem('gdv.url', url); localStorage.setItem('gdv.painel.token', tok); localStorage.setItem('gdv.painel.nome', 'G'); localStorage.setItem('gdv.painel.relgdv', JSON.stringify({ rel: 'vigifito', vmodo: 'mensal', ano, mes: 1 })); }, [TOK, amb.API_URL, A]);

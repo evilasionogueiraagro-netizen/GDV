@@ -97,3 +97,8 @@ Falta:
 - Histórico do Jundiá por período de 10 dias: a importação já lê a aba "JUNDIÁ" da planilha de controle. Falta o modelo do gestor com o histórico completo dos anos anteriores.
 - Metas SUASA: aguardando o plano de metas SUASA. Quando chegar, configurar no motor de metas do convênio (etapas, apuração pelos indicadores ou lançamento no portal, esperado pelo tempo, físico × financeiro).
 - Client ID do Google: criar no Google Cloud Console e colar em `CONFIG.adm.googleClientId` e na propriedade `GOOGLE_CLIENT_ID` (passo a passo em [apps/administrativo.md](apps/administrativo.md)). Até lá, o portal entra por código de ativação.
+
+## 7. Assinatura na tela (desligada temporariamente)
+
+- **Situação:** desde 28/10/2026 a assinatura com o dedo na tela (TF de Barreira e PCE) está desligada por decisão da gerência; os documentos saem com as linhas em branco para assinar no papel. No TF fica só a marcação "Fiscalizado se recusou a assinar".
+- **Para retomar:** `assinaturaNaTela: true` em `web/js/config.js`. O código e os testes continuam (os testes ligam a chave para conferir).

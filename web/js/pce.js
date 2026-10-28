@@ -715,7 +715,7 @@ const PCEUI = (() => {
       <button type="button" class="botao sec" data-pce="addpraga" id="pce-addpraga">+ Adicionar praga/doença</button></div>
     ${F.gerais.length ? fotosGeraisHTML() : ''}
     ${A ? pdfHTML('pce-') : ''}
-    ${A ? '' : `<div class="card"><h3>Assinaturas (opcional)</h3>
+    ${A || !CONFIG.assinaturaNaTela ? '' : `<div class="card"><h3>Assinaturas (opcional)</h3>
       <p class="dica" style="text-align:left">Assine com o dedo, se quiser. As fichas impressas sempre trazem as linhas para assinar no papel.</p>
       ${assHTML('servidor', 'Servidor')}${assHTML('produtor', 'Produtor')}${naoAssinaHTML(F)}</div>`}
     <div class="card"><h3>Observações</h3><label><textarea id="pce-obs" rows="3" aria-label="Observações">${esc(D.obs)}</textarea></label></div>
@@ -777,7 +777,7 @@ const PCEUI = (() => {
     if (F.antigo) { mostrarCoord('pce-'); await renderDocs(F, '#pce-pdfs-lista'); }
     else {
       await ligarAssinatura(F, 'servidor'); await ligarAssinatura(F, 'produtor');
-      if (F.naoAssina) { $('#pce-ass-produtor').closest('.pce-ass').hidden = true; await renderDocProdutor(F); }
+      if (F.naoAssina && $('#pce-ass-produtor')) { $('#pce-ass-produtor').closest('.pce-ass').hidden = true; await renderDocProdutor(F); }
     }
     const f = $('#pceLevForm');
     f.addEventListener('input', e => {
@@ -882,7 +882,7 @@ const PCEUI = (() => {
       citros = ci.valor;
     }
     if (F.antigo ? !dataHoraPassadaOk(D) : !dataHoraOk(D)) return;
-    if (!F.antigo && F.naoAssina && !F.ass.produtorDoc) { toast('Produtor não assina: tire a foto dele segurando o documento de identificação (ou desmarque a opção).', true); return $('#pce-docprod-btn').scrollIntoView({ block: 'center' }); }
+    if (!F.antigo && CONFIG.assinaturaNaTela && F.naoAssina && !F.ass.produtorDoc) { toast('Produtor não assina: tire a foto dele segurando o documento de identificação (ou desmarque a opção).', true); return $('#pce-docprod-btn').scrollIntoView({ block: 'center' }); }
     if (F.antigo) { if (!coordOk(D.coordTxt)) return; mostrarCoord('pce-'); Object.assign(D, { lat: $('#pce-lat').value, lon: $('#pce-lon').value, precisao: '' }); }
     const btn = $('#pce-salvar'), btn2 = $('#pce-salvar-outro'); btn.disabled = true; if (btn2) btn2.disabled = true; F.salvando = true;
     try {
@@ -1147,7 +1147,7 @@ const PCEUI = (() => {
     <div class="card"><h3>4. Testemunhas</h3>
       <div class="duas">${c('t1nome', 'Testemunha 1 – nome', D.testemunha1Nome)}${c('t1doc', 'Testemunha 1 – CPF/RG', D.testemunha1Doc)}</div>
       <div class="duas">${c('t2nome', 'Testemunha 2 – nome', D.testemunha2Nome)}${c('t2doc', 'Testemunha 2 – CPF/RG', D.testemunha2Doc)}</div></div>
-    ${A ? '' : `<div class="card"><h3>Assinaturas (opcional)</h3>
+    ${A || !CONFIG.assinaturaNaTela ? '' : `<div class="card"><h3>Assinaturas (opcional)</h3>
       <p class="dica" style="text-align:left">Assine com o dedo, se quiser. O termo impresso sempre traz as linhas para assinar no papel.</p>
       ${assHTML('testemunha1', 'Testemunha 1')}${assHTML('testemunha2', 'Testemunha 2')}${assHTML('produtor', 'Produtor')}${assHTML('servidor', 'Servidor')}</div>`}
     <div class="card">${c('local', 'Local', D.local, 'placeholder="ex.: Manaus/AM"')}</div>

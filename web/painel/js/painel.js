@@ -16,7 +16,7 @@ const Painel = (() => {
   // TF em preenchimento (apreensão em andamento): enquanto houver um, as barreiras ao vivo são consultadas a cada 25 s;
   // sem batimento do aparelho há mais de 10 min o TF é considerado encerrado (o servidor já filtra; aqui vale também sem conexão)
   const TF_RAPIDO_MS = 15 * 1000, TF_VALIDADE_MS = 10 * 60 * 1000;
-  const ORDEM_ABAS = ['geral', 'barreiras', 'tf', 'pce', 'convenios', 'relatorios', 'usuarios'];
+  const ORDEM_ABAS = ['geral', 'barreiras', 'escalas', 'tf', 'pce', 'convenios', 'relatorios', 'usuarios'];
 
   /* ---------------- utilidades ---------------- */
   const $ = s => document.querySelector(s);
@@ -1738,6 +1738,8 @@ const Painel = (() => {
     usarTV: h => { S.tv = h; },
     /** API com a credencial do painel ({action, ...} → resposta; erro de sessão volta ao login) e o nome do administrador logado. */
     chamar, get usuario() { return S.nome; }, aoSair: fn => { aoSairFns.push(fn); },
+    /** Aba aberta, redesenho da aba atual (sem perder o campo em foco) e o aviso curto do rodapé: abas que carregam dados próprios (Escalas). */
+    abaAtual: () => S.aba, redesenhar: () => renderAba(true), toast: avisar,
     /** pode(perm): a sessão tem a permissão (gerência vale todas); gerencia: pode criar e alterar (sem ela o painel é só de leitura). */
     pode, get gerencia() { return pode('gerencia'); },
     /** Botão "Encerrar turno" (gerência) para um turno em andamento; null no modo TV. */

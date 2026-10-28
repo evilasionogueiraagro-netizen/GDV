@@ -10,7 +10,7 @@ Indicadores VIGIFITO por posto (BVA fixas e volantes): totais por município, fi
 - Substituição: lançado que troca o e-GDV do posto e mês (justificativa); relatório marca ‡.
 - Colunas antigas de `Veiculos` não contam desde 2026-10-19e.
 - Turno fixo → posto do local; volante → posto volante do município; sem posto: "OUTRAS BVA FIXAS / AÇÕES VOLANTES (não mapeadas)".
-- Postos: os 11 da planilha de controle + `manaus-ceasa` (BVA - CEASA). Lista salva antes dele ganha o posto ao ler, até ser salva de novo (`ceasa: 1`).
+- Postos: os 11 da planilha de controle + `manaus-ceasa` (BVA - CEASA). Lista salva antes dele ganha o posto ao ler (a CEASA sai de outro posto onde estivesse), até ser salva de novo (`ceasa: 1`).
 - Quadros (tela, Word, PDF, Excel): o rótulo do indicador com linha em t ocupa as duas linhas, como na planilha.
 - Período de 10 dias: âncora 05/01/2025, ciclo 9; conta pela data de início do turno.
 - Avisos: turnos sem posto, t/m³ fora do padrão, substituições. Negativos e decimais são recusados.

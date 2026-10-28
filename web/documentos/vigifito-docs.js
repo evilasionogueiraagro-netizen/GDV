@@ -113,12 +113,11 @@ const VigDocs = (() => {
   };
   const paras = (txt, M) => String(txt || '').replace(/\{(\w+)\}/g, (m, k) => (k in M ? M[k] : m)).split(/\n\s*\n/).map(s => s.trim()).filter(Boolean).map(t => ({ t: 'p', texto: t }));
   const celTxt = (x, u) => valorTxt(x.v, u) + (x.v != null && x.origens ? (x.origens.substituido ? ' ‡' : x.origens.lancado && !x.origens.auto ? ' †' : '') : (MARCA[x.origem] || ''));
-  const linhaLabel = d => (d.rotuloPlanilha === null ? `   (${d.unid})` : d.rotulo);
   /** Quadro indicadores × colunas (cols = [{rotulo, f(d) → {v, origens}}]). */
   function quadro(R, titulo, cols, mini) {
     const larg = Math.max(3.4, Math.min(12, (100 - 26) / cols.length));
     return { t: 'tabela', titulo, mini: mini !== false, pequena: mini === false, colunas: [{ rotulo: 'Indicador', largura: 22 }, { rotulo: 'Unid.', largura: 4 }].concat(cols.map(c => ({ rotulo: c.rotulo, largura: larg }))),
-      linhas: IND.VIGIFITO.map(d => [{ texto: linhaLabel(d) }, { texto: d.unid, alinhar: 'c' }].concat(cols.map(c => ({ texto: celTxt(c.f(d), d.unid), alinhar: 'd', negrito: !!c.negrito })))) };
+      linhas: IND.VIGIFITO.map((d, i) => [IND.rotuloSpan(i) ? { texto: d.rotulo, rowspan: IND.rotuloSpan(i) } : null, { texto: d.unid, alinhar: 'c' }].concat(cols.map(c => ({ texto: celTxt(c.f(d), d.unid), alinhar: 'd', negrito: !!c.negrito })))) };
   }
   const colGrupos = R => R.grupos.map(g => ({ rotulo: g.rotulo, negrito: g.tipo !== 'posto', f: d => R.tot(g.ids, d.k) }));
   const colMeses = (R, ids, ms) => ms.map(m => ({ rotulo: INI[+m.slice(5, 7) - 1], f: d => R.tot(ids, d.k, [m]) }));
@@ -176,9 +175,17 @@ const VigDocs = (() => {
   const num = x => (x.v == null ? null : x.v);
   /** Linhas dos indicadores: [rótulo (null na 2ª linha do mesmo indicador), unidade, ...valores]. */
   const linhasInd = f => IND.VIGIFITO.map(d => [d.rotuloPlanilha === null ? null : d.rotulo, d.unid].concat(f(d)));
+  const DUPLOS = new Set(IND.VIGIFITO.filter((d, i) => IND.rotuloSpan(i) === 2).map(d => d.rotulo));
+  /** Aba a partir das linhas, com o rótulo dos indicadores de 2 linhas (nº e t) mesclado nas duas, como na planilha de controle. */
+  function folha(X, aoa, merges) {
+    const ws = X.utils.aoa_to_sheet(aoa), m = (merges || []).slice();
+    aoa.forEach((l, r) => { if (r && l && l.length && l[0] == null && aoa[r - 1] && DUPLOS.has(aoa[r - 1][0])) m.push({ s: { r: r - 1, c: 0 }, e: { r, c: 0 } }); });
+    if (m.length) ws['!merges'] = m;
+    return ws;
+  }
   function folhaCols(X, titulo, cols) {
     const aoa = [[titulo, 'Unid.'].concat(cols.map(c => c.rotulo))].concat(linhasInd(d => cols.map(c => num(c.f(d)))));
-    const ws = X.utils.aoa_to_sheet(aoa);
+    const ws = folha(X, aoa);
     ws['!cols'] = [{ wch: 48 }, { wch: 6 }].concat(cols.map(() => ({ wch: 14 })));
     return ws;
   }
@@ -203,7 +210,7 @@ const VigDocs = (() => {
       const postosG = R.grupos.filter(g => g.tipo === 'posto'), munG = R.grupos.filter(g => g.tipo === 'mun');
       let aoa = montar(postosG, 'VIGIFITO CONSOLIDADO', 0);
       if (munG.length) { const l0 = aoa.length + 1; merges.push({ s: { r: l0, c: 0 }, e: { r: l0 + 1, c: 0 } }, { s: { r: l0, c: 1 }, e: { r: l0 + 1, c: 1 } }); aoa = aoa.concat([[]], montar(munG, 'VIGIFITO CONSOLIDADO', l0)); }
-      const ws = X.utils.aoa_to_sheet(aoa); ws['!merges'] = merges; ws['!cols'] = [{ wch: 48 }, { wch: 6 }];
+      const ws = folha(X, aoa, merges); ws['!cols'] = [{ wch: 48 }, { wch: 6 }];
       X.utils.book_append_sheet(wb, ws, 'VIGIFITO');
       // abas de períodos de 10 dias (como "JUNDIÁ"): uma por BVA fixa com dado em algum período (no mínimo a primeira fixa)
       const pers = periodosDoAno(R.cfg.ancora, R.cfg.ciclo, R.ano);
@@ -213,7 +220,7 @@ const VigDocs = (() => {
         const curto = (String(p.nome).split(/\s+-\s+/).pop() || p.nome).replace(/^BVA\s+/i, '').trim().toUpperCase();
         const aoaP = [[curto, 'Unid.'].concat(pers.map((pp, i) => `PERÍODO ${i + 1}`)), [null, null].concat(pers.map(pp => pp.rotulo))]
           .concat(linhasInd(d => pers.map(pp => num(R.cel(p.id, d.k, 'P' + pp.inicio)))));
-        const wsP = X.utils.aoa_to_sheet(aoaP); wsP['!merges'] = [{ s: { r: 0, c: 0 }, e: { r: 1, c: 0 } }, { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } }]; wsP['!cols'] = [{ wch: 48 }, { wch: 6 }];
+        const wsP = folha(X, aoaP, [{ s: { r: 0, c: 0 }, e: { r: 1, c: 0 } }, { s: { r: 0, c: 1 }, e: { r: 1, c: 1 } }]); wsP['!cols'] = [{ wch: 48 }, { wch: 6 }];
         let nome = curto.replace(/[\\/?*\[\]:]/g, ' ').slice(0, 31); while (wb.SheetNames.includes(nome)) nome = nome.slice(0, 28) + ' ' + (wb.SheetNames.length);
         X.utils.book_append_sheet(wb, wsP, nome);
       });
@@ -222,7 +229,7 @@ const VigDocs = (() => {
       // ANUAL-MES: total consolidado por mês e os blocos de fixas e volantes
       const blocoMes = (titulo, ids) => [[titulo, 'Unid.'].concat(INI).concat(['TOTAL'])].concat(linhasInd(d => R.meses.map(m => num(R.tot(ids, d.k, [m]))).concat([num(R.tot(ids, d.k, R.meses))])));
       const am = blocoMes('VIGIFITO TOTAL CONSOLIDADO', R.todos).concat([['PNEMC', 'nº']]).concat([[]], blocoMes('VIGIFITO BVA FIXAS - CONSOLIDADO', R.fixas), [[]], blocoMes('VIGIFITO BVAS VOLANTES - CONSOLIDADO', R.volantes));
-      X.utils.book_append_sheet(wb, X.utils.aoa_to_sheet(am), 'ANUAL-MES');
+      X.utils.book_append_sheet(wb, folha(X, am), 'ANUAL-MES');
     } else {
       const nome = R.tipo === 'mensal' ? `VIGIFITO ${CURTOS[R.mes - 1].toUpperCase()} ${R.ano}` : R.tipo === 'semestral' ? `${R.semestre} semestre` : `PERÍODO ${R.colunas[0].slice(6, 11).replace('-', '.')}`;
       X.utils.book_append_sheet(wb, folhaCols(X, 'VIGIFITO CONSOLIDADO', R.grupos.map(g => ({ rotulo: g.rotulo, f: d => R.tot(g.ids, d.k) }))), nome.slice(0, 31));

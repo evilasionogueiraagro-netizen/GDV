@@ -81,7 +81,7 @@ Decisões: [Relatório GDV](decisoes/anteriores.md#relatório-gdv)
 
 Falta:
 - Confirmar e cadastrar: Humaitá, Guajará, Parintins, Porto de Tabatinga, Porto de Benjamin Constant, AM-070 (volante) e os portos volantes.
-- Enquanto isso, a correspondência posto do VIGIFITO → BVA fica em "Postos do VIGIFITO" (painel → Relatórios). Turnos sem posto (ex.: BVA - CEASA) aparecem como "não mapeados".
+- Enquanto isso, a correspondência posto do VIGIFITO → BVA fica em "Postos do VIGIFITO" (painel → Relatórios). Turnos sem posto aparecem como "não mapeados" (a BVA - CEASA tem posto próprio desde 28/10/2026).
 
 ---
 

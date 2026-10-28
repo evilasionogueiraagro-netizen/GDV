@@ -17,7 +17,6 @@ Falta, nesta ordem:
    - Constatação e enquadramento sugeridos por produto × procedimento (liberação, apreensão, rechaço), abas V, A e I da planilha.
    - Dados do fiel depositário no TF e no PDF: nome, RG, CPF, endereço, telefone.
    - Importar cadastros de transportadores (placa, nome, CPF, endereço, município, UF, telefone) da planilha maior do gestor.
-   - Numeração central do e-GDV, com auditoria de lacunas e duplicidades (a planilha só soma 1 no próprio arquivo).
 2. Página da BVA: QR dinâmico, check-in (quem, onde, hora, GPS), início do turno e pareamento. Lista dos TFs da BVA, com impressão de 2 vias ou PDF.
    - Check-out opcional pelo QR.
 3. Salvar cada PDF automaticamente na pasta TERMOS_EMITIDOS do PC.

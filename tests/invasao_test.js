@@ -42,10 +42,10 @@ const uuid = () => crypto.randomUUID();
 // todas as actions do doPost, por quem pode chamá-las
 const CAMPO = ['ping', 'sync', 'tfConsultar', 'tfProximoNumero', 'tfEmitir', 'pceProximoNumero', 'pceEmitir', 'pceConsultar', 'pceDocNumero',
   'pceDocRegistrar', 'pceBaixarMunicipio', 'pceMapaGeral', 'arquivoEnviar', 'tfAndamento', 'tfIndiceReincidencia', 'turnoConvidar', 'turnoParear',
-  'turnoSair', 'turnoPapelRegistrar'];
+  'turnoSair', 'turnoPapelRegistrar', 'turnoNumero'];
 const MODULO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf', tfIndiceReincidencia: 'tf', pceProximoNumero: 'pce',
   pceEmitir: 'pce', pceConsultar: 'pce', pceBaixarMunicipio: 'pce', pceMapaGeral: 'pce', arquivoEnviar: 'pce', pceDocNumero: 'pce', pceDocRegistrar: 'pce',
-  turnoConvidar: 'veiculos', turnoParear: 'veiculos', turnoSair: 'veiculos', turnoPapelRegistrar: 'veiculos' };
+  turnoConvidar: 'veiculos', turnoParear: 'veiculos', turnoSair: 'veiculos', turnoPapelRegistrar: 'veiculos', turnoNumero: 'veiculos' };
 const PAINEL_LER = ['painelDados', 'painelPublicoConfig', 'painelConvenios', 'painelConvApuracao', 'painelRelGdv', 'painelRelGdvApuracao', 'painelVigDados'];
 const PAINEL_GRAVAR = ['painelEncerrarTurno', 'painelPublicoSalvar', 'painelConvSalvar', 'painelConvRelSalvar', 'painelPceLaudo', 'painelRelGdvSalvar',
   'painelVigConfigSalvar', 'painelConvLancar', 'painelConvFinLancar', 'painelConvFinImportar', 'painelConvExcluir', 'painelConvFinExcluir'];

@@ -482,7 +482,7 @@ const Sync = (() => {
   async function testar() { return chamar({ action: 'ping' }); }
   /** Turnos encerrados neste aparelho que ainda não chegaram à planilha (mais recente primeiro). */
   async function encerramentosPendentes() {
-    return (await Store.todos('turnos')).filter(t => t.pendente && Number(t.encerrado) === 1).sort((a, b) => (b.atualizadoEm || 0) - (a.atualizadoEm || 0));
+    return (await Store.todos('turnos')).filter(t => t.pendente && Number(t.encerrado) === 1 && !Number(t.cancelado)).sort((a, b) => (b.atualizadoEm || 0) - (a.atualizadoEm || 0));
   }
 
   function iniciar() {

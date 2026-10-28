@@ -78,8 +78,10 @@ function painelEncerrarTurno(token, turnoId, fim) {
 function lerLeitura_(nome) {                       // leitura pura: não cria abas nem colunas
   const sh = planilha_().getSheetByName(nome), cols = TABELAS[nome];
   if (!sh || sh.getLastRow() < 2) return [];
-  const linhas = sh.getRange(2, 1, sh.getLastRow() - 1, cols.length).getValues()
+  let linhas = sh.getRange(2, 1, sh.getLastRow() - 1, cols.length).getValues()
     .map(function (l) { return paraObjeto_(cols, l); });
+  // turno cancelado no app (aberto por engano): fica na planilha, mas fora de painel, relatórios, VIGIFITO, convênio e letras do nº
+  if (nome === 'Turnos') linhas = linhas.filter(function (t) { return Number(t.cancelado) !== 1; });
   // painel e relatórios: a mesma BVA fixa com um nome só (no volante o local é o endereço e fica como está)
   if (nome === 'Turnos') linhas.forEach(function (t) { const p = normPub_(t.posto); if (p.indexOf('mov') < 0 && p.indexOf('volante') < 0) t.local = localCanon_(t.local); });
   // turno compartilhado: os colegas que entraram pelo código contam como fiscais do turno (painel, relatórios, produtividade)

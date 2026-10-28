@@ -18,7 +18,8 @@ const TABELAS = {
            'pessoasEducacao', 'soPessoas',   // turno que não conta veículos (soPessoas = 1; ex.: volante de Tabatinga, educação sanitária da monilíase):
                                              // pessoas orientadas contadas no próprio turno
            'colegas',                        // fiscais que entraram no turno com o próprio login pelo código do dono (JSON [nomes]); só o servidor grava
-           'registroAntigo', 'pdfs'],        // turno digitado do papel (turnos-do-papel.gs): registroAntigo = 1, pdfs = JSON [ids] do Termo escaneado
+           'registroAntigo', 'pdfs',         // turno digitado do papel (turnos-do-papel.gs): registroAntigo = 1, pdfs = JSON [ids] do Termo escaneado
+           'cancelado', 'canceladoEm'],      // turno aberto por engano e cancelado no app (sem TF): fica na planilha, fora de painel e relatórios
   Veiculos: ['id', 'turnoId', 'hora', 'placa', 'tipo', 'pessoas', 'obs',
              'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
              // ufOrigem/ufDestino: "Origem e destino (opcional)" do formulário do veículo (sigla de CONFIG.ufs ou "Exterior"; vazio = não
@@ -161,7 +162,7 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'cuidado', 'semPlaca', 'exclui
                           'expiraEm', 'ativo', 'ativadoEm', 'oculto', 'ocultoEm',
                           'ano', 'numero', 'ultimo', 'de', 'ate', 'em', 'numeroSugerido', 'emitidoEm', 'amostras', 'inspecao', 'coleta', 'fiel', 'auto',
                           'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito', 'tamanho',
-                          'inicioTs', 'atualizadoTs', 'registroAntigo', 'encerradoEm',
+                          'inicioTs', 'atualizadoTs', 'registroAntigo', 'encerradoEm', 'canceladoEm',
                           'standalone', 'online', 'ultimoSinal', 'ultimoErroEm', 'primeiroSinal', 'recusaAssinatura',
                           'totalPlantas', 'plantasInspecionadas', 'importadoEm',
                           'ultimoAcesso', 'codigoExpira', 'ultimoUso', 'revogado', 'substitui',
@@ -176,7 +177,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-28e';
+const VERSAO_CODIGO = '2026-10-28f';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -306,6 +307,11 @@ function sincronizar_(req, usuario) {
     const agora = Date.now();
     // registro de outro login (mesmo id) não é gravado: volta em recusados (planilha.gs gravar_)
     const alheios = function (campo, ids) { if (ids && ids.length) recusados[campo] = (recusados[campo] || []).concat(ids.map(function (x) { return String(x).slice(0, 64); })); };
+    // turno cancelado no app só se não tem TF válido (o de um colega, por exemplo): com TF, fica só encerrado
+    if (T.turnos.some(function (t) { return t && Number(t.cancelado) === 1; })) {
+      const comTF = {}; lerLeitura_('TFs').concat(T.tfs).forEach(function (f) { if (f && f.turnoId && Number(f.cancelado) !== 1) comTF[f.turnoId] = true; });
+      T.turnos.forEach(function (t) { if (t && Number(t.cancelado) === 1 && comTF[t.id]) { t.cancelado = 0; t.canceladoEm = 0; } });
+    }
     letrasDosTurnos_(T.turnos);                                                        // A, B, C… pela ordem do nº do turno (turnos-compartilhados.gs)
     gravar_('Turnos', T.turnos, agora, usuario);
     alheios('veiculos', gravar_('Veiculos', T.veiculos, agora, usuario));

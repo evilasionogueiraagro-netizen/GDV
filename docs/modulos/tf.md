@@ -9,6 +9,7 @@ TF do app de campo (isolado ou no turno), impresso em 2 vias. Veja também: [app
 - Sem internet: número provisório (último + 1). Se já usado, vale o mais antigo; o outro fica `conflito = 1`.
 - Reincidente: TF anterior não cancelado, em qualquer barreira, do mesmo CPF/CNPJ ou placa válidos, com apreensão, rechaço ou auto. Não contam documento com dígito verificador errado ou todo igual (o 000.000.000-00 do talão) nem placa fora do padrão antigo ou Mercosul. O painel recalcula a reincidência de todos os TFs (`reincidenciaTFs_`). Não sai impresso. Sem internet: índice `tfIndiceReincidencia` (baixado no máx. a cada 30 min).
 - Registro do veículo: placa com TF não cancelado na mesma BVA fica com borda vermelha e aviso (não bloqueia). Índice do aparelho com chave placa + BVA (BVA do turno do TF, senão o local do TF, com apelidos) + TFs do aparelho; vale sem internet. Índice antigo (sem `v: 2`) é baixado inteiro de novo.
+- Alerta de cuidado: o fiscal marca o veículo (`Veiculos.cuidado`, `cuidadoMotivo`: alteração, resistência, ameaça, outro; detalhes nas observações). Em qualquer BVA, a placa fica com borda amarela e "Cuidado ao abordar este veículo". Índice (também para quem só tem veículos): hash da placa, motivo e data (`v: 3`). Desmarcar retira.
 - Duas vias, uma por folha A4.
 - UF de origem/destino opcionais (`CONFIG.ufs`, inclui "Exterior"); TF de veículo herda a UF do veículo.
 - Fotos e assinaturas (fiscalizado e servidor) no Drive via `Arquivos`; `recusaAssinatura = 1` se o fiscalizado se recusa. O painel recebe só `nFotos` e `assinado`.

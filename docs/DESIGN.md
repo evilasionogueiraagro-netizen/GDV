@@ -77,8 +77,8 @@ icone('carro', { tamanho: 28 })         // tamanho em px (padrão 1.25em, acompa
 `icones.js`): administrativo, alerta, amostra, anexo, assinatura, baixar, bloqueio, broto, busca, camera, caminhao,
 caminhao-bau, carro, celular, check, chave, citros, compartilhar, dica, documento, editar, enviar, externo, fechar,
 formulario, historico, imprimir, info, inicio, lista, lixeira, local, manual, mapa, mais, moto, offline, ok, online,
-onibus, parar, pausa, pendente, pessoa, praga, proibido, propriedade, publico, resumo, rota, salvar, seta-baixo,
-seta-cima, sincronizar, status, sugerir, telefone, utilitario, voltar.
+onibus, parar, pausa, pendente, pessoa, praga, proibido, propriedade, publico, resumo, rota, sair-tela-cheia, salvar,
+seta-baixo, seta-cima, sincronizar, status, sugerir, tela-cheia, telefone, utilitario, voltar.
 
 **Ícone novo:** escolha em <https://lucide.dev/icons>, copie os elementos do SVG da **mesma versão** para
 `web/js/icones.js` (ordem alfabética, nome em português, nome da Lucide no comentário) e acrescente o nome acima. Trocar de

@@ -3,7 +3,7 @@
 Lançamentos fora do campo (`web/administrativo/`); o painel só lê. Manual: `web/administrativo/manual.html` (não cita os outros módulos). Veja: [convênio](../modulos/convenio.md), [relatórios](../modulos/relatorios.md), [painel](painel.md).
 
 ## Regras
-- Abas: Desembolso do convênio, Físico do convênio, Linhas dos relatórios, VIGIFITO, Histórico.
+- Abas: Desembolso do convênio, Físico do convênio, Linhas dos relatórios, VIGIFITO, Diárias das escalas, Histórico.
 - Lançamentos guardam quem e quando (`admId`); histórico em `AdmHistorico`. Excluir é lógico.
 - Diária = valor ÷ valor unitário (editável); avisa memorando repetido, diária acima do previsto e data fora da vigência.
 - Importações: mesma chave atualiza; linha que sumiu da planilha só sai se o gerente marcar; plantão repetido é recusado (salvo substituição).

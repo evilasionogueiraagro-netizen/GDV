@@ -11,10 +11,15 @@ const CONFIG = {
   // Posto volante (móvel): local preenchido pelo endereço da coordenada (editável) e placa opcional.
   bvas: [
     // endereco/municipio: identificação do posto no Termo de Fiscalização do turno (vazio = linha em branco para preencher à mão)
-    { nome: 'BVA - CEASA', placa: true, ficha: true, endereco: 'Av. Ministro Mário Andreazza, 913, Vila Buriti (próximo ao Mauazinho), CEP 69075-390', municipio: 'Manaus' },
-    { nome: 'BVA - JUNDIÁ', placa: false, ficha: false, endereco: 'BR-174, km 75', municipio: 'Presidente Figueiredo' },
-    { nome: 'BVA - AEROPORTO', placa: false, ficha: false, endereco: 'Av. Santos Dumont, 1350 – Tarumã', municipio: 'Manaus' }
+    // escala: regime da escala de plantão (REGIMES_ESCALA abaixo); a tela de escalas sugere o fim do período pelo início
+    { nome: 'BVA - CEASA', placa: true, ficha: true, endereco: 'Av. Ministro Mário Andreazza, 913, Vila Buriti (próximo ao Mauazinho), CEP 69075-390', municipio: 'Manaus', escala: { regime: 'dias', dias: 8 } },
+    { nome: 'BVA - JUNDIÁ', placa: false, ficha: false, endereco: 'BR-174, km 75', municipio: 'Presidente Figueiredo', escala: { regime: 'dias', dias: 10 } },
+    { nome: 'BVA - AEROPORTO', placa: false, ficha: false, endereco: 'Av. Santos Dumont, 1350 – Tarumã', municipio: 'Manaus', escala: { regime: '12x36' } }
   ],
+  // Regimes da escala de plantão por BVA. dias: período de N dias (fim = início + N − 1; o próximo começa no dia seguinte); 12x36:
+  // plantão de 12 h com 36 h de descanso (um dia por escala; o próximo, 2 dias depois); 8h: turno diário de 8 h (um dia por escala);
+  // ajustavel: o coordenador escolhe o fim.
+  REGIMES_ESCALA: { dias: 'Período de N dias', '12x36': 'Plantão de 12 h × 36 h de descanso', '8h': 'Turno diário de 8 h', ajustavel: 'Período ajustável' },
   // Volante que não conta veículos, por município (unidade do turno, em maiúsculas): o turno conta só as pessoas orientadas na educação
   // sanitária (tema = assunto da orientação, no app e no Termo); local = texto sugerido para o "Local / Posto (volante)".
   // assinatura com o dedo na tela (TF de Barreira e PCE). Desligada por enquanto (decisão da gerência, 28/10/2026): os documentos saem com as
@@ -185,3 +190,49 @@ const CONFIG = {
   }
 };
 
+
+// BVAs cadastradas pela gerência no painel (aba BVAs da planilha; chegam no sync e no painelDados): somam-se às de CONFIG.bvas acima
+// e mudam (município, endereço, placa obrigatória, Ficha de Campo) ou desativam as de lá pelo nome. A lista CONFIG.bvas é trocada no
+// lugar, então todas as telas usam a mesma.
+CONFIG.bvasBase = CONFIG.bvas.map(b => ({ ...b }));
+CONFIG.aplicarBvas = function (cadastro) {
+  if (!Array.isArray(cadastro)) return CONFIG.bvas;
+  const k = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const lista = CONFIG.bvasBase.map(b => ({ ...b })), novas = [];
+  cadastro.forEach(c => {
+    if (!c || !c.nome) return;
+    const i = lista.findIndex(b => k(b.nome) === k(c.nome));
+    const esc = c.escalaRegime ? { regime: c.escalaRegime, dias: Number(c.escalaDias) || 0 } : i >= 0 ? lista[i].escala : null;
+    const b = { nome: i >= 0 ? lista[i].nome : c.nome, placa: !!Number(c.placa), ficha: !!Number(c.ficha), endereco: c.endereco || '', municipio: c.municipio || '', escala: esc || { regime: 'ajustavel' } };
+    if (Number(c.ativo) === 0) { if (i >= 0) lista.splice(i, 1); return; }
+    if (i >= 0) lista[i] = b; else novas.push(b);
+  });
+  novas.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  CONFIG.bvas.length = 0; lista.concat(novas).forEach(b => CONFIG.bvas.push(b));
+  return CONFIG.bvas;
+};
+
+/** Regime da escala de plantão da BVA ({regime, dias}); sem cadastro: período ajustável. */
+CONFIG.regimeEscala = function (bva) {
+  const k = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const b = CONFIG.bvas.find(x => k(x.nome) === k(bva)), e = (b && b.escala) || {};
+  return CONFIG.REGIMES_ESCALA[e.regime] ? { regime: e.regime, dias: Number(e.dias) || 0 } : { regime: 'ajustavel', dias: 0 };
+};
+/** Fim sugerido para um período que começa em `inicio` (AAAA-MM-DD) na BVA; '' = o coordenador escolhe (período ajustável). */
+CONFIG.fimEscala = function (bva, inicio) {
+  const r = CONFIG.regimeEscala(bva), d = (x, n) => new Date(Date.parse(x + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(String(inicio || ''))) return '';
+  if (r.regime === 'dias' && r.dias > 0) return d(inicio, r.dias - 1);
+  if (r.regime === '12x36' || r.regime === '8h') return inicio;
+  return '';
+};
+/** Início sugerido do próximo período depois de `ultima` ({inicio, fim}) na BVA: 12×36 = 2 dias depois do início; os demais, o dia seguinte ao fim. */
+CONFIG.proximoInicioEscala = function (bva, ultima) {
+  const d = (x, n) => new Date(Date.parse(x + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
+  return CONFIG.regimeEscala(bva).regime === '12x36' ? d(ultima.inicio, 2) : d(ultima.fim, 1);
+};
+/** Texto do regime para as telas ("Período de 10 dias", "Plantão de 12 h × 36 h de descanso"…). */
+CONFIG.textoRegimeEscala = function (bva) {
+  const r = CONFIG.regimeEscala(bva);
+  return r.regime === 'dias' ? `Período de ${r.dias} dias` : CONFIG.REGIMES_ESCALA[r.regime];
+};

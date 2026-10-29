@@ -547,6 +547,7 @@ const Painel = (() => {
       if (S.token !== tok) return;                                     // saiu no meio
       if (num(j.agora)) relogio = num(j.agora) - Math.round((t0 + Date.now()) / 2);
       j.de = (j.periodo && j.periodo.de) || j.de || p.de; j.ate = (j.periodo && j.periodo.ate) || j.ate || p.ate;
+      if (Array.isArray(j.bvasCadastro) && typeof CONFIG !== 'undefined' && CONFIG.aplicarBvas) { S.bvasCadastro = j.bvasCadastro; CONFIG.aplicarBvas(j.bvasCadastro); }   // BVAs cadastradas
       S.bruto = j; S.todos = normalizar(j); S.ultimaCarga = S.ultimaCompleta = S.ultimaRegular = Date.now(); S.erro = ''; S.falhas = 0;
       preencherOpcoes(); recalcular(auto); processarTF(); rodapeBackup(j.rotinas); avisoArquivo(j);
       status(`Atualizado às ${fmt.hora(Date.now())} · barreiras ao vivo a cada 15 s`);
@@ -1740,6 +1741,7 @@ const Painel = (() => {
     chamar, get usuario() { return S.nome; }, aoSair: fn => { aoSairFns.push(fn); },
     /** Aba aberta, redesenho da aba atual (sem perder o campo em foco) e o aviso curto do rodapé: abas que carregam dados próprios (Escalas). */
     abaAtual: () => S.aba, redesenhar: () => renderAba(true), toast: avisar,
+    get bvasCadastro() { return S.bvasCadastro || []; }, definirBvasCadastro: l => { S.bvasCadastro = l; },
     /** pode(perm): a sessão tem a permissão (gerência vale todas); gerencia: pode criar e alterar (sem ela o painel é só de leitura). */
     pode, get gerencia() { return pode('gerencia'); },
     /** Botão "Encerrar turno" (gerência) para um turno em andamento; null no modo TV. */

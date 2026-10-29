@@ -92,13 +92,17 @@
   function dialogo(e) {
     const velho = document.getElementById('pn-esc-dlg'); if (velho) velho.remove();
     const D = E.dados, b0 = e ? e.bva : bvas()[0];
+    // como no app: início depois da última da BVA; fim pelo regime da BVA (ajustável: a mesma duração da última)
     const sugerir = b => { const ult = D.escalas.filter(x => nl(x.bva) === nl(b)).sort((x, y) => x.fim.localeCompare(y.fim)).pop();
-      const ini = ult && ult.fim >= hoje() ? somar(ult.fim, 1) : hoje(); return { inicio: ini, fim: somar(ini, ult ? dias(ult.inicio, ult.fim) : 9) }; };
+      const ini = ult && ult.fim >= hoje() ? CONFIG.proximoInicioEscala(b, ult) : hoje();
+      return { inicio: ini, fim: CONFIG.fimEscala(b, ini) || (ult ? somar(ini, dias(ult.inicio, ult.fim)) : ini) }; };
+    const textoRegime = b => CONFIG.regimeEscala(b).regime === 'ajustavel' ? 'Período ajustável: escolha o fim.' : `${CONFIG.textoRegimeEscala(b)}: o fim vem sugerido pelo início.`;
     const p0 = e || sugerir(b0), marc = new Set(e ? e.fiscais.map(f => f.id) : []);
     const dlg = P.el('dialog', 'pn-dlg pn-esc-dlg'); dlg.id = 'pn-esc-dlg';
     dlg.innerHTML = `<form method="dialog" class="pn-dlg-form" novalidate><h3>${e ? 'Editar escala' : 'Nova escala'}</h3>
       <label class="pn-conv-campo">BVA<select id="pn-esc-bva" ${e ? 'disabled' : ''}>${bvas().map(b => `<option ${b === b0 ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select></label>
       <div class="pn-conv-cfg-grade"><label class="pn-conv-campo">Início<input type="date" id="pn-esc-ini" value="${esc(p0.inicio)}"></label><label class="pn-conv-campo">Fim<input type="date" id="pn-esc-fim" value="${esc(p0.fim)}"></label></div>
+      <p class="pn-sub" id="pn-esc-regime">${esc(textoRegime(b0))}</p>
       <div class="pn-esc-fiscais" id="pn-esc-fiscais">${D.fiscais.map(f => `<label class="pn-rg-chk"><input type="checkbox" data-fiscal="${esc(f.id)}" ${marc.has(f.id) ? 'checked' : ''}> ${esc(f.nome)} <small data-st="${esc(f.id)}"></small></label>`).join('')}</div>
       ${e ? `<p class="pn-sub">Última alteração: ${esc(e.atualizadoPor || '—')}${e.publicadaPor ? ` · publicada por ${esc(e.publicadaPor)}` : ''}</p>` : ''}
       <p class="pn-dlg-erro" id="pn-esc-erro" role="alert"></p>
@@ -112,8 +116,9 @@
       D.fiscais.forEach(f => { const em = outras.filter(x => x.fiscais.some(y => y.id === f.id)), st = q(`[data-st="${f.id}"]`);
         if (st) { st.textContent = em.length ? '· também na ' + em.map(x => x.bva).join(', ') : ''; st.className = em.length ? 'pn-esc-ocupado' : ''; } });
     };
-    if (!e) q('#pn-esc-bva').onchange = () => { const s = sugerir(q('#pn-esc-bva').value); q('#pn-esc-ini').value = s.inicio; q('#pn-esc-fim').value = s.fim; situar(); };
-    q('#pn-esc-ini').onchange = q('#pn-esc-fim').onchange = situar; situar();
+    if (!e) q('#pn-esc-bva').onchange = () => { const s = sugerir(q('#pn-esc-bva').value); q('#pn-esc-ini').value = s.inicio; q('#pn-esc-fim').value = s.fim; q('#pn-esc-regime').textContent = textoRegime(q('#pn-esc-bva').value); situar(); };
+    q('#pn-esc-ini').onchange = () => { const f = CONFIG.fimEscala(bva(), q('#pn-esc-ini').value); if (f) q('#pn-esc-fim').value = f; situar(); };
+    q('#pn-esc-fim').onchange = situar; situar();
     q('#pn-esc-cancelar').onclick = () => dlg.close();
     dlg.addEventListener('close', () => dlg.remove());
     const gravar = async situacao => {

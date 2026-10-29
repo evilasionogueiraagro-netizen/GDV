@@ -308,3 +308,7 @@ nav button .ico { width:24px; height:24px; margin-bottom:2px; }
 .esc-chip { display: inline-flex; align-items: center; gap: 4px; background: var(--sel); border-radius: 999px; padding: 4px 4px 4px 10px; font-size: 13px; }
 .esc-chip small { color: var(--atencao-txt); } .esc-chip button { border: 0; background: transparent; width: 28px; height: 28px; padding: 0; color: inherit; }
 .esc-previa { margin: 6px 0 10px; padding-left: 18px; font-size: 14px; } .esc-previa li.pula { color: var(--mut); text-decoration: line-through; }
+/* auto de infração (cartão no formulário do TF) */
+#tf-ai-card h4 { margin:12px 0 4px; font-size:15px; }
+.tf-ai-test { border:1px solid var(--borda); border-radius:10px; padding:6px 10px 2px; margin:10px 0 0; }
+.tf-ai-test legend { font-weight:700; font-size:14px; padding:0 4px; } .tf-ai-test legend small { font-weight:400; color:var(--mut); }

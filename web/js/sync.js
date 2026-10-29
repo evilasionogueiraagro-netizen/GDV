@@ -311,6 +311,7 @@ const Sync = (() => {
   const escalaDados = () => chamar({ action: 'escalaDados' }, 30000);
   const escalaSalvar = escala => chamar({ action: 'escalaSalvar', escala }, 30000);
   const escalaExcluir = id => chamar({ action: 'escalaExcluir', id }, 30000);
+  const escalaGerar = (bva, periodos) => chamar({ action: 'escalaGerar', bva, periodos }, 60000);
   const minhasEscalas = async () => { try { return (await Store.meta('minhasEscalas')) || []; } catch (e) { return []; } };
 
   /* ---------- Índice de reincidência (consulta do TF sem internet) ----------
@@ -515,7 +516,7 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, sairDoTurno, turnoPapel, escalaDados, escalaSalvar, escalaExcluir, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
+  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, sairDoTurno, turnoPapel, escalaDados, escalaSalvar, escalaExcluir, escalaGerar, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
     pceProximoNumero, pceEmitir, pceConsultar, pceBaixarMunicipio, pceMapaGeral, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

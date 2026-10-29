@@ -8,7 +8,7 @@ function bvasCadastro_() {
   return lerLeitura_('BVAs').filter(function (b) { return b.id && b.nome; }).map(function (b) {
     return { id: b.id, nome: b.nome, municipio: b.municipio || '', endereco: b.endereco || '', placa: Number(b.placa) === 1 ? 1 : 0, ficha: Number(b.ficha) === 1 ? 1 : 0,
              ativo: Number(b.ativo) === 0 ? 0 : 1, atualizadoEm: Number(b.atualizadoEm) || 0, atualizadoPor: b.atualizadoPor || '',
-             escalaRegime: REGIMES_ESCALA_.indexOf(b.escalaRegime) >= 0 ? b.escalaRegime : '', escalaDias: Number(b.escalaDias) || 0 };
+             escalaRegime: REGIMES_ESCALA_.indexOf(b.escalaRegime) >= 0 ? b.escalaRegime : '', escalaDias: Number(b.escalaDias) || 0, escalaTroca: Number(b.escalaTroca) === 1 ? 1 : 0 };
   });
 }
 // regime da escala de plantão (web/js/config.js → REGIMES_ESCALA): período de N dias, 12 h × 36 h, turno diário de 8 h, ajustável
@@ -28,7 +28,7 @@ function painelBvaSalvar(token, req) {
     const rg = String(b.escalaRegime || ''), dias = Number(b.escalaDias) || 0;
     if (rg && REGIMES_ESCALA_.indexOf(rg) < 0) throw new Error('Regime da escala inválido.');
     if (rg === 'dias' && !(dias >= 1 && dias <= ESCALA_MAX_DIAS_ && Math.round(dias) === dias)) throw new Error('Período da escala: de 1 a ' + ESCALA_MAX_DIAS_ + ' dias.');
-    reg.escalaRegime = rg; reg.escalaDias = rg === 'dias' ? dias : '';
+    reg.escalaRegime = rg; reg.escalaDias = rg === 'dias' ? dias : ''; reg.escalaTroca = rg === 'dias' && b.escalaTroca ? 1 : 0;
   }
   return comLock_(function () {
     const linhas = lerLinhas_('BVAs'), id = String(b.id || '').trim(), atual = id ? linhas.filter(function (x) { return x.id === id; })[0] : null;

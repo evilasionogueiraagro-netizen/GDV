@@ -74,7 +74,7 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
   ok(r.ok && r.criados === 2 && r.pulados === 1, 'gerar períodos: 2 rascunhos; o que se sobrepõe a uma escala existente é pulado', r);
   r = await post({ action: 'escalaGerar', key: f1.token, bva: 'BVA - JUNDIÁ', periodos: [{ inicio: '2027-03-01', fim: '2027-03-10' }] });
   ok(!r.ok && /Sem autorização/.test(r.erro), 'gerar: só a coordenação (ou a gerência no painel)');
-  const DG = await post({ action: 'escalaDados', key: coord.token, de: '2027-01-01', ate: '2027-03-01' });
+  const DG = await post({ action: 'escalaDados', key: coord.token, de: '2027-01-01', ate: '2027-03-01', convenio: 1 });
   ok(DG.ok && DG.escalas.filter(e => e.bva === 'BVA - JUNDIÁ' && e.inicio >= '2027-01-22').every(e => e.situacao === 'rascunho' && !e.fiscais.length) && DG.fimConvenio === '2027-04-01', 'gerados: rascunho sem fiscais; fim do convênio vem nos dados', DG.fimConvenio);
 
   console.log('2) app de campo: módulo só para a coordenação; montar a escala; o fiscal vê a escala ao iniciar o turno');
@@ -104,6 +104,8 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
   await pc.click('.modulo[data-v=escalas]'); await pc.waitForSelector('#escLista [data-esc]', { timeout: 15000 });
   const lista = await pc.textContent('#escLista');
   ok(/BVA - JUNDIÁ/.test(lista) && /Ana Escalada Teste/.test(lista) && /BVA - CEASA/.test(lista), 'lista das escalas por BVA e período', lista.slice(0, 300));
+  const cache = await pc.evaluate(async () => { const d = await Store.meta('escalaDados'); return d && d.escalas.length && !('fimConvenio' in d); });
+  ok(cache, 'lista: a última leitura fica guardada (abre na hora da próxima vez) e sem ler o convênio');
   await pc.screenshot({ path: amb.saida('escala_lista.png'), fullPage: true });
   // fim sugerido pelo regime da BVA: Jundiá 10 dias, CEASA 8, Aeroporto (12 h × 36 h) o mesmo dia; ajustável: o coordenador escolhe
   await pc.click('[data-escnova="BVA - JUNDIÁ"]'); await pc.waitForSelector('#fEscala');

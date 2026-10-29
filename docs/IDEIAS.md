@@ -73,12 +73,8 @@ Falta:
 
 ## 5. BVAs e portos a confirmar
 
-*Aguardando o gestor confirmar os nomes antes de cadastrar em `CONFIG.bvas`.*
-Decisões: [Relatório GDV](decisoes/anteriores.md#relatório-gdv)
-
-Falta:
-- Confirmar e cadastrar: Humaitá, Guajará, Parintins, Porto de Tabatinga, Porto de Benjamin Constant, AM-070 (volante) e os portos volantes.
-- Enquanto isso, a correspondência posto do VIGIFITO → BVA fica em "Postos do VIGIFITO" (painel → Relatórios). Turnos sem posto: "não mapeados".
+- A gerência cadastra no painel (Barreiras → Cadastro de BVAs): Humaitá, Guajará, Parintins, portos de Tabatinga e Benjamin Constant, AM-070.
+- Depois, ligar cada BVA nova a um posto em "Postos do VIGIFITO" (painel → Relatórios).
 
 ---
 

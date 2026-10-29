@@ -114,6 +114,7 @@
 
     const cab = P.el('p', 'pn-sub pn-bar-periodo', `Período: ${esc(f.rotuloPeriodo)}${f.fiscal ? ' · Fiscal: ' + esc(f.fiscal) : ''}${f.local ? ` · ${f.local.tipo === 'barreira' ? 'Barreira' : 'Município'}: ${esc(f.local.valor)}` : ''}`);
     cab.style.marginTop = '4px'; c.appendChild(cab);
+    if (P.pode('gerencia') && window.PainelBvas) { const lb = P.el('div', 'pn-bva-linha'); lb.appendChild(PainelBvas.botao()); c.appendChild(lb); }   // gerência: cadastro de BVAs
 
     /* ---------- indicadores ---------- */
     P.kpis(P.secao(c, 'Indicadores de Educação Sanitária/Fiscalização de Trânsito'), indicadores(d));

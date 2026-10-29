@@ -687,3 +687,5 @@ body.tv .pn-erro { font-size: 2.1vh; padding: 1.4vh; }
 .pn-esc-avisos { border-color: var(--atencao); background: color-mix(in srgb, var(--atencao) 12%, var(--sf)); }
 .pn-esc-fiscais { display: flex; flex-direction: column; gap: 4px; max-height: 300px; overflow-y: auto; border: 1px solid var(--borda); border-radius: 10px; padding: 8px 10px; }
 .pn-esc-ocupado { color: var(--atencao-txt); }
+.pn-bva-linha { display: flex; justify-content: flex-end; margin: 4px 0 8px; }
+.pn-bva-dlg { width: min(760px, calc(100vw - 32px)); }

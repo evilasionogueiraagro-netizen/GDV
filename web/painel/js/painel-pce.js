@@ -253,6 +253,7 @@
         ordem: l => l.deteccoes },
       { chave: 'nAmostras', rotulo: 'Amostras', num: true, fmt: fmt.int },
       { chave: 'tipoLocal', rotulo: 'Tipo de local', fmt: v => v || 'não informado' },
+      { chave: 'comercial', rotulo: 'Comercial', fmt: v => v === 'sim' ? 'Sim' : v === 'nao' ? 'Não' : 'não informado' },
       { chave: 'origemVisita', rotulo: 'Origem da visita', fmt: v => v || 'não informada' },
       { chave: 'servidor', rotulo: 'Servidor' },
       { chave: 'coord', rotulo: 'GPS', fmt: (v, l) => temCoord(l) ? 'Sim' : 'Não', html: (v, l) => temCoord(l) ? 'Sim' : selo('atencao', 'Não'), ordem: l => temCoord(l) ? 1 : 0 },

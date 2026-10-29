@@ -361,7 +361,8 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
       praga: nomePraga(grupo.praga), fichaN: total > 1 ? `${i + 1} de ${total} (uma ficha por praga/doença avaliada na visita)` : '1 de 1',
       resumoPraga: culturas.length ? `${culturas.length} cultura(s) avaliada(s): ${resumoResultados(culturas)}.` : 'Nenhuma cultura informada.',
       nFotos: nFotos ? `(${nFotos})` : '',
-      localOrigem: `Local: ${String(reg.tipoLocal || '').trim() || 'não informado'} · Origem: ${String(reg.origemVisita || '').trim() || 'não informada'}`
+      localOrigem: `Local: ${String(reg.tipoLocal || '').trim() || 'não informado'}${reg.comercial === 'sim' ? ' · Comercial: sim' : reg.comercial === 'nao' ? ' · Comercial: não' : ''}`
+        + ` · Origem: ${String(reg.origemVisita || '').trim() || 'não informada'}`
     }));
     const corpo = d.getElementById('culturasCorpo');
     if (!culturas.length) corpo.innerHTML = '<tr><td colspan="10" class="vazio">Nenhuma cultura informada.</td></tr>';

@@ -119,9 +119,10 @@ const CONFIG = {
         'Lima ácida', 'Pomelo'],                     // só sugestão (texto livre)
       maxCulturas: 20                                // linhas da tabela "Cultura do citros" (o servidor também corta em 20)
     },
-    // dados gerais da visita (opcionais): tipo de local e origem da visita. "Outro" abre um campo para digitar.
-    tiposLocal: ['Propriedade comercial', 'Quintal / área urbana', 'Viveiro', 'Plantio abandonado / não comercial', 'Feira / ponto de venda', 'Floricultura',
-      'Unidade de Produção (UP)', 'Unidade de Consolidação (UC)', 'Outro'],
+    // dados gerais da visita (opcionais): comercial (sim/não), tipo de local e origem da visita. "Outro" abre um campo para digitar.
+    // Comercial é pergunta à parte: o tipo de local não diz se é comercial (quintal pode ser comercial). Registros antigos guardam o texto da lista anterior.
+    tiposLocal: ['Propriedade rural', 'Quintal', 'Área urbana', 'Sítio', 'Residência', 'Plantio abandonado', 'Vegetação espontânea', 'Área pública',
+      'Viveiro', 'Feira / ponto de venda', 'Floricultura', 'Unidade de Produção (UP)', 'Unidade de Consolidação (UC)', 'Outro'],
     origensVisita: ['Levantamento de rotina', 'Notificação voluntária do produtor', 'Delimitação de foco', 'Verificação / retorno', 'Outro'],
     // resultado laboratorial do Termo de Colheita (registrado depois, no app ou no painel; não muda o número nem o PDF do termo)
     laboratorio: {

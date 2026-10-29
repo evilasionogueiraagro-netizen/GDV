@@ -92,6 +92,9 @@ const guardar = nome => { if (COPIA) { fs.mkdirSync(COPIA, { recursive: true });
   await p.click('#pce-addpraga'); await p.selectOption(card(1) + ' >> .p-praga', 'HLB / Greening');
   await p.selectOption(cult(1, 0) + ' >> .c-cultura', 'Laranja'); await p.click(cult(1, 0) + ' >> .pce-res-nao_detectada');
   ok(await visivel(), 'praga de citros (HLB / Greening): bloco "Cultura do citros" aparece');
+  ok(!(await marcado('comercial', 'sim')) && !(await marcado('comercial', 'nao')), 'visita sem "Plantio comercial?": a pergunta do citros fica em branco');
+  await p.selectOption('#pce-comercial', 'sim');
+  ok(await marcado('comercial', 'sim'), '"Plantio comercial?" da visita preenche a mesma pergunta do bloco de citros (o fiscal responde uma vez só)');
   ok(await p.$eval('#pce-citros', el => !!el.closest('#pce-pragas-card') && !el.closest('.pce-praga')), 'o bloco fica dentro do card "Pragas e doenças" (não é um card solto)');
   await p.click('#pce-addpraga'); await p.selectOption(card(2) + ' >> .p-praga', 'Cancro Cítrico');
   await p.selectOption(cult(2, 0) + ' >> .c-cultura', 'Limão');
@@ -110,7 +113,7 @@ const guardar = nome => { if (COPIA) { fs.mkdirSync(COPIA, { recursive: true });
   await op('det-acaro-tem', 'nao'); await p.fill('#pce-ci-det-cancro-tempo', '3 semanas');
 
   console.log('5. Particularidades do cadastro (dados fictícios)');
-  await op('comercial', 'sim');
+  ok(await marcado('comercial', 'sim'), 'propriedade comercial já veio marcada da visita');
   for (const x of ['frutos', 'outros']) await p.check(`input[name="pce-ci-atividades"][value="${x}"]`);
   await p.fill('#pce-ci-atividadeOutros', 'Pomar experimental');
   await op('situacao', 'proprietario');
@@ -142,7 +145,7 @@ const guardar = nome => { if (COPIA) { fs.mkdirSync(COPIA, { recursive: true });
   const lev = await p.evaluate(id => Store.obter('levantamentos', id), lid);
   await sync();
   const cab = (await get('/__aba?nome=Levantamentos'))[0];
-  ok(cab.slice(-5).join() === 'citros,cnpj,empresa,endereco,uf', 'aba Levantamentos: colunas novas no fim (cnpj, empresa, endereco, uf)', cab.slice(-6));
+  ok(cab.slice(-6).join() === 'citros,cnpj,empresa,endereco,uf,comercial', 'aba Levantamentos: colunas novas no fim (cnpj, empresa, endereco, uf, comercial)', cab.slice(-7));
   let L = await linhaDe('Levantamentos', lid), J = json(L && L.citros);
   ok(L && L.cnpj === '11222333000181' && L.empresa === 'Citros Ficticio Ltda' && L.endereco === 'Ramal Ficticio, km 3' && L.uf === 'AM', 'planilha: CNPJ (só dígitos), empresa, endereço e UF do levantamento', L && [L.cnpj, L.empresa, L.endereco, L.uf]);
   ok(J && J.deteccao.hlb.tem === 'nao' && J.deteccao.acaro.tem === 'nao' && J.deteccao.cancro.tem === 'sim' && J.deteccao.cancro.tempo === '3 semanas' && J.deteccao.hlb.tempo === '',

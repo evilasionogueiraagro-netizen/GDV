@@ -43,7 +43,7 @@ Levantamento, termos, citros, monilíase, laudo e campo sem internet; usado por 
 - Termo antigo: número do papel (`007/2026/MANAUS`); aceita número livre, recusa usado; sugestão = maior + 1.
 
 ## Dados
-- `Levantamentos`: `pragas` (JSON: praga → culturas), `citros`, `tipoLocal` e `origemVisita` (opcionais), `cnpj` (14 dígitos ou vazio), `empresa`, `endereco`, `uf`, `registroAntigo`, `documentos`.
+- `Levantamentos`: `pragas` (JSON: praga → culturas), `citros`, `tipoLocal`, `origemVisita` e `comercial` (opcionais; `comercial` = `sim`/`nao`, independente do tipo de local, e preenche a pergunta do citros e a propriedade), `cnpj` (14 dígitos ou vazio), `empresa`, `endereco`, `uf`, `registroAntigo`, `documentos`.
 - `Colheitas`: `laboratorio` (JSON; `atualizadoEm`, `por`), `registroAntigo`, `documentos`.
 - `Propriedades`: `cnpj`, `viaAcesso`, `comercial`, `tipoPropriedade`, `endereco`, `uf`, `empresa`.
 - `CadastrosPCE` (`programa`, `dados`); `TermosPCE` (`cadastroId`, `propriedadeId`, `acoes`, `sintomas`).

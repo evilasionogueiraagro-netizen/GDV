@@ -147,6 +147,19 @@ a.pn-btn-topo { text-decoration: none; font-size: 14px; }   /* link "Manual" com
 .pn-mapa-dica { margin: 6px 0 0; font-size: 12px; }
 .pn-lg-gra { width: 70px; height: 10px; border-radius: 2px; display: inline-block; }
 .pn-semcoord { font-size: 12.5px; color: var(--mut); }
+/* TFs de barreira, termos e cadastros do PCE; tracejado = sem GPS, no município (posição aproximada) */
+.pn-tfpto { min-width: 22px; height: 16px; padding: 0 3px; border-radius: 4px; background: var(--s8); color: #fff; font: 800 9.5px/14px system-ui, sans-serif; text-align: center; border: 1px solid var(--sf); box-shadow: 0 0 0 1px rgba(0,0,0,.4); }
+.pn-tfpto.apre { background: var(--critico); outline: 2px solid var(--ink); outline-offset: 0; }
+.pn-quad { width: 12px; height: 12px; border-radius: 2px; border: 2px solid var(--sf); box-shadow: 0 0 0 1px rgba(0,0,0,.35); }
+.pn-quad.termo { background: var(--s4); } .pn-quad.cad { background: var(--s5); border-radius: 50% 50% 2px 2px; }
+.pn-pin.aprox, .pn-tfpto.aprox, .pn-quad.aprox, .pn-losango.aprox { opacity: .7; outline: 2px dashed var(--ink); outline-offset: 2px; }
+.pn-lg-aprox { background: transparent; border: 2px dashed var(--ink); box-shadow: none; }
+.pn-mapa-cheia-bt { margin-left: auto; align-self: center; }
+/* mapa em tela cheia: o cartão ocupa a tela; o mapa cresce no espaço que sobra */
+.pn-mapa:fullscreen, .pn-mapa.pn-mapa-cheia { display: flex; flex-direction: column; width: 100%; height: 100%; margin: 0; border-radius: 0; overflow: auto; background: var(--sf); padding: 12px 16px; box-sizing: border-box; }
+.pn-mapa.pn-mapa-cheia { position: fixed; inset: 0; z-index: 2000; }
+.pn-mapa:fullscreen .pn-mapa-div, .pn-mapa.pn-mapa-cheia .pn-mapa-div { flex: 1 1 auto; height: auto; min-height: 320px; }
+body.pn-mapa-cheia-aberto { overflow: hidden; }
 
 /* Marcadores do mapa */
 .pn-pin { width: 18px; height: 18px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.35); position: relative; }

@@ -21,11 +21,9 @@ Falta, nesta ordem:
    - Check-out opcional pelo QR.
 3. Salvar cada PDF automaticamente na pasta TERMOS_EMITIDOS do PC.
 
-Com o login por matrícula e senha (22/10/2026), o QR deixa de identificar a pessoa e passa a provar só a **presença**:
-- **Identidade:** quem é a pessoa vem do login do celular. O QR prova que ela está na BVA, junto com o GPS. O check-in grava o `usuarioId`, e não um nome digitado.
-- **PC da BVA:** usuário próprio, só com o QR e os TFs daquela BVA.
-- **QR:** assinado pelo servidor, muda a cada ~30 s; sem internet, o servidor valida a leitura no envio.
-- **Aba nova prevista:** `CheckinsNasBarreiras` (usuarioId, barreiraId, turnoId, em, lat, lon).
+Com o login (22/10/2026), o QR prova só a **presença** (identidade vem do login; check-in grava o `usuarioId` e o GPS):
+- **PC da BVA:** usuário próprio, só com o QR e os TFs da BVA. **QR:** assinado pelo servidor, muda a cada ~30 s.
+- **Aba prevista:** `CheckinsNasBarreiras` (usuarioId, barreiraId, turnoId, em, lat, lon).
 
 ---
 

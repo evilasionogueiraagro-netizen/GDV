@@ -165,7 +165,7 @@
     /* Mapa */
     const sm = P.secao(c, 'Mapa do Amazonas', 'Levantamentos (laranja com anel = praga detectada ou suspeita, azul = negativo), calor das detecções (detectada + suspeita), termos de colheita e indicador por município. Use os filtros de praga e cultura do calor.');
     sm.parentNode.classList.add('pn-pce-mapa');
-    P.mapa(sm, { id: 'pce', titulo: 'PCE no estado', camadas: ['levantamentos', 'colheitas', 'calor', 'coropletico'], ativas: ['levantamentos', 'colheitas', 'calor'], indicador: 'deteccoes' });
+    P.mapa(sm, { id: 'pce', titulo: 'PCE no estado', camadas: ['levantamentos', 'colheitas', 'pceDocs', 'calor', 'coropletico'], ativas: ['levantamentos', 'colheitas', 'pceDocs', 'calor'], indicador: 'deteccoes' });
 
     /* Atividade e detecção */
     const g = P.grade(P.secao(c, 'Levantamentos e detecções', 'Cores fixas em todo o módulo, inclusive no mapa: azul = negativo (sem praga), laranja = com praga detectada ou suspeita, amarelo = suspeita, verde = termo de colheita.'));

@@ -241,7 +241,7 @@
 
     /* Mapa */
     const sm = P.secao(c, 'Mapa do Amazonas', 'TFs por local da barreira, barreiras em andamento e indicador por município (padrão: TFs por município de origem da carga).');
-    const m = P.mapa(sm, { id: 'tf', titulo: 'TFs no estado', camadas: ['andamento', 'realizadas', 'coropletico'], ativas: ['andamento', 'coropletico'], indicador: 'tfsOrigem' });
+    const m = P.mapa(sm, { id: 'tf', titulo: 'TFs no estado', camadas: ['andamento', 'realizadas', 'tfs', 'coropletico'], ativas: ['andamento', 'tfs', 'coropletico'], indicador: 'tfsOrigem' });
     camadaTFs(m, d, p);
 
     /* Desempenho por barreira */

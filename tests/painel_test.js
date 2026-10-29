@@ -213,14 +213,34 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   const pop = (await p.textContent(mp + ' .leaflet-popup-content')).replace(/\s+/g, ' ');
   ok(/Barreira BR-230 Humaitá/.test(pop) && /Duração até agora/.test(pop) && /Veículos\s*2/.test(pop) && /Último veículo/.test(pop), 'popup da barreira em andamento', pop.slice(0, 140));
   await p.keyboard.press('Escape'); await p.click(mp + ' .leaflet-popup-close-button').catch(() => {});
-  ok(/registro\(s\) sem coordenada/.test(await p.textContent(mp + ' .pn-semcoord')), 'mapa: aviso de registros sem coordenada', (await p.textContent(mp + ' .pn-semcoord')).trim());
+  const semc = (await p.textContent(mp + ' .pn-semcoord')).trim();
+  ok(/sem GPS marcado\(s\) no município \(tracejado, posição aproximada\)/.test(semc), 'mapa: aviso dos sem GPS (marcados no município, aproximado)', semc);
+  ok(await p.locator(mp + ' .leaflet-marker-pane .pn-tfpto').count() >= 3 && await p.locator(mp + ' .leaflet-overlay-pane path[stroke-dasharray]').count() >= 1,
+    'mapa: TFs de barreira no local do turno; registro sem GPS tracejado no município');
+  // mapa que nasce sem tamanho (aba em segundo plano): ao aparecer, enquadra o Amazonas e desenha os municípios
+  const oculto = await p.evaluate(async () => {
+    const c = document.createElement('div'); c.style.display = 'none'; c.style.width = '800px'; document.body.appendChild(c);
+    const m = Painel.mapa(c, { id: 'oculto', camadas: ['andamento'] }).map, z0 = m.getZoom();
+    c.style.display = 'block'; await new Promise(r => setTimeout(r, 400));
+    const n = c.querySelectorAll('.leaflet-pn-mun-pane path').length, ok = [...c.querySelectorAll('.leaflet-pn-mun-pane path')].some(x => (x.getAttribute('d') || '').length > 20);
+    const z = m.getZoom(); c.remove(); return { z0, z, n, ok };
+  });
+  ok(oculto.z !== oculto.z0 && oculto.z >= 5 && oculto.z <= 7 && oculto.n === 62 && oculto.ok, 'mapa criado escondido: ao aparecer, enquadra o AM e desenha os 62 municípios', oculto);
+  // tela cheia (no Chromium sem tela, o pedido de fullscreen pode falhar: cai no cartão que ocupa a janela)
+  await p.click(mp + ' .pn-mapa-cheia-bt'); await p.waitForTimeout(400);
+  const ch = await p.evaluate(m => { const c = document.querySelector(m), d = c.querySelector('.pn-mapa-div').getBoundingClientRect();
+    return { cheia: document.fullscreenElement === c || c.classList.contains('pn-mapa-cheia'), alt: Math.round(d.height), bt: c.querySelector('.pn-mapa-cheia-bt').textContent.trim() }; }, mp);
+  ok(ch.cheia && ch.alt > 560 && /Sair da tela cheia/.test(ch.bt), 'mapa: Tela cheia (o mapa cresce; botão vira "Sair da tela cheia")', ch);
+  await p.screenshot({ path: amb.saida('painel_mapa_cheio.png') });
+  await p.click(mp + ' .pn-mapa-cheia-bt'); await p.waitForTimeout(400);
+  ok(await p.evaluate(m => { const c = document.querySelector(m); return !document.fullscreenElement && !c.classList.contains('pn-mapa-cheia') && /^Tela cheia/.test(c.querySelector('.pn-mapa-cheia-bt').textContent.trim()); }, mp), 'mapa: sair da tela cheia');
   // legenda desenha o mesmo marcador do mapa (pinos com glifo para barreiras; levantamentos com outra cor)
   ok(await p.locator(mp + ' .pn-legenda .pn-lg-pino .pn-pin.longa').count() === 1 && await p.locator(mp + ' .pn-legenda .pn-lg-pino .pn-pin.semsinal').count() === 1 && await p.locator(mp + ' .pn-legenda .pn-lg-pino .pn-pin.ok').count() === 1,
     'legenda: pinos de barreira iguais aos do mapa (anel, ?, !)');
   const coresLev = await p.evaluate(m => { const cs = getComputedStyle(document.documentElement), v = n => cs.getPropertyValue(n).trim().toLowerCase();
     const fills = [...document.querySelectorAll(m + ' .leaflet-overlay-pane path.leaflet-interactive')].map(x => (x.getAttribute('fill') || '').toLowerCase());
     return { praga: fills.filter(f => f === v('--s2')).length, sem: fills.filter(f => f === v('--s1')).length, critico: fills.filter(f => f === v('--critico') || f === v('--bom')).length, realiz: fills.filter(f => f === v('--s7')).length }; }, mp);
-  ok(coresLev.praga === 3 && coresLev.sem === 2 && coresLev.critico === 0, 'mapa: levantamentos com as cores dos gráficos do PCE (laranja = praga, azul = sem), sem vermelho/verde de status', coresLev);
+  ok(coresLev.praga === 4 && coresLev.sem === 2 && coresLev.critico === 0, 'mapa: levantamentos com as cores dos gráficos do PCE (laranja = praga, azul = sem), sem vermelho/verde de status', coresLev);
   ok(coresLev.realiz >= 3, 'mapa: barreiras realizadas em violeta (fora da rampa azul do coroplético)', coresLev.realiz);
   ok(await p.evaluate(() => !document.querySelector('.pn-duo-mapa .pn-mapa-dica') ? false : /roda do mouse/.test(document.querySelector('.pn-duo-mapa .pn-mapa-dica').textContent)), 'mapa: roda do mouse não dá zoom sem clicar (dica visível)');
   ok(await p.locator(mp + ' .leaflet-heatmap-layer').count() === 0, 'calor desligado por padrão na Visão geral');

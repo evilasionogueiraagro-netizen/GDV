@@ -111,6 +111,20 @@ const Painel = (() => {
     }
     return null;
   }
+  /** Ponto dentro do município (registro sem GPS no mapa): o da grade mais longe da borda no maior polígono; guardado. */
+  const PONTO_MUN = {};
+  function pontoDoMunicipio(nome) {
+    const m = nome && MUN_POR_CHAVE[norm(nome)]; if (!m) return null;
+    if (PONTO_MUN[m.chave]) return PONTO_MUN[m.chave];
+    const anel = m.polys.slice().sort((a, b) => b[0].length - a[0].length)[0][0], [x0, y0, x1, y1] = m.bbox;
+    const passo = Math.max(1, Math.floor(anel.length / 60)), amostra = anel.filter((_, i) => i % passo === 0);
+    let melhor = [(y0 + y1) / 2, (x0 + x1) / 2], md = -1;
+    for (let i = 1; i < 16; i++) for (let j = 1; j < 16; j++) {
+      const x = x0 + (x1 - x0) * i / 16, y = y0 + (y1 - y0) * j / 16; if (!dentroAnel(x, y, anel)) continue;
+      const dmin = Math.min(...amostra.map(([a, b]) => (a - x) ** 2 + (b - y) ** 2)); if (dmin > md) { md = dmin; melhor = [y, x]; }
+    }
+    return (PONTO_MUN[m.chave] = melhor);
+  }
   /** Nome canônico do município (casa por nome sem acento; aceita "Manaus/AM", "MANAUS - AM"). */
   function municipioNome(txt) {
     if (!txt) return null;
@@ -370,7 +384,7 @@ const Painel = (() => {
       // local que casa com o turno (o TF herda o local do turno no app); sem turno (TF do papel), a barreira escolhida e só depois o
       // local digitado ("BR 174 km75", "BR 174, KM 75, PVA JUNDIÁ"…, que variam de TF para TF)
       t.localBarreira = (tr && tr.local) || t.barreiraNome || t.local || '';
-      t.municipio = (tr && tr.municipio) || null;
+      t.municipio = (tr && tr.municipio) || null; t.lat = tr ? tr.lat : null; t.lon = tr ? tr.lon : null;
       t.municipioOrigem = municipioNome(t.origem); t.municipioDestino = municipioNome(t.destino);
       return t;
     });
@@ -1105,7 +1119,7 @@ const Painel = (() => {
   /* ---------------- mapa do Amazonas ---------------- */
   const CAMADAS = {
     andamento: 'Barreiras em andamento', realizadas: 'Barreiras realizadas', levantamentos: 'Levantamentos PCE',
-    colheitas: 'Termos de colheita', calor: 'Calor de pragas/doenças', coropletico: 'Coroplético municipal'
+    colheitas: 'Termos de colheita', tfs: 'TFs de barreira', pceDocs: 'Termos e cadastros PCE', calor: 'Calor de pragas/doenças', coropletico: 'Coroplético municipal'
   };
   const INDICADORES = { deteccoes: 'Detecções de pragas', levantamentos: 'Levantamentos PCE', veiculos: 'Veículos abordados (barreira)',
                         turnos: 'Turnos de barreira', tfs: 'TFs (local da barreira)', tfsOrigem: 'TFs por município de origem', colheitas: 'Termos de colheita' };
@@ -1118,7 +1132,10 @@ const Painel = (() => {
 
   /**
    * Painel.mapa(container, {id, titulo, subtitulo, camadas, ativas, indicador, altura, dados})
-   * camadas: subconjunto de ['andamento','realizadas','levantamentos','colheitas','calor','coropletico'] (contornos sempre).
+   * camadas: subconjunto de ['andamento','realizadas','levantamentos','colheitas','tfs','pceDocs','calor','coropletico'] (contornos sempre).
+   * Registro sem GPS vai para um ponto do município dele (marcador tracejado, "posição aproximada"); sem município, só no aviso.
+   * "Tela cheia" (Fullscreen API; sem ela, o cartão ocupa a janela). O mapa que nasce sem tamanho (aba em segundo plano) se refaz
+   * e enquadra o Amazonas quando ganha tamanho (ResizeObserver).
    */
   function mapa(container, o) {
     o = o || {};
@@ -1131,7 +1148,8 @@ const Painel = (() => {
     const st = { praga: memo.praga || '', cultura: memo.cultura || '', indicador: memo.indicador || o.indicador || (camadas.includes('levantamentos') ? 'deteccoes' : 'veiculos') };
     const cab = el('div', 'pn-mapa-cab'); const tt = el('div');
     tt.appendChild(el('h3', null, esc(o.titulo || 'Mapa do Amazonas'))); if (o.subtitulo) tt.appendChild(el('p', 'pn-sub', esc(o.subtitulo)));
-    const semc = el('div', 'pn-semcoord'); cab.appendChild(tt); cab.appendChild(semc); card.appendChild(cab);
+    const semc = el('div', 'pn-semcoord'); cab.appendChild(tt); cab.appendChild(semc);
+    const btCheia = el('button', 'pn-btn pn-btn-mini pn-mapa-cheia-bt'); btCheia.type = 'button'; cab.appendChild(btCheia); card.appendChild(cab);
     const ctl = el('div', 'pn-mapa-ctl'); card.appendChild(ctl);
     const div = el('div', 'pn-mapa-div pn-tiles-escuro'); if (o.altura) div.style.height = o.altura + 'px'; card.appendChild(div);
     const leg = el('div', 'pn-legenda'); card.appendChild(leg);
@@ -1184,21 +1202,32 @@ const Painel = (() => {
       lay.on('mouseover', () => lay.setStyle({ weight: 2.5, opacity: 1 })); lay.on('mouseout', () => munLayer.resetStyle(lay));
     } }).addTo(map);
 
-    const semCoord = {};
+    const semCoord = {}, aproxN = {}, aproxMun = {};
+    const munBva = nome => { const b = nome && (typeof CONFIG !== 'undefined' && CONFIG.bvas || []).find(x => norm(x.nome) === norm(nome)); return b ? municipioNome(b.municipio) : null; };
+    // posição no mapa: o GPS do registro; sem GPS, um ponto do município (espalhados em espiral, para não empilhar); sem município: null
+    const onde = (x, k, mun) => {
+      if (x.lat != null && x.lon != null) return { ll: [x.lat, x.lon], aprox: false };
+      const m = mun !== undefined ? mun : x.municipio, pt = pontoDoMunicipio(m);
+      if (!pt) { semCoord[k] = (semCoord[k] || 0) + 1; return null; }
+      aproxN[k] = (aproxN[k] || 0) + 1;
+      const n = aproxMun[k + '|' + m] = (aproxMun[k + '|' + m] || 0) + 1, ang = n * 2.4, r = n > 1 ? 0.035 * Math.sqrt(n - 1) : 0;
+      return { ll: [pt[0] + r * Math.sin(ang), pt[1] + r * Math.cos(ang)], aprox: true, municipio: m };
+    };
+    const linhaAprox = w => w.aprox ? ['Posição', `aproximada: sem GPS, marcado no município (${w.municipio})`] : null;
     // 1. barreiras em andamento
     if (camadas.includes('andamento')) {
-      const g = grupos.andamento = L.layerGroup(); let s = 0;
+      const g = grupos.andamento = L.layerGroup();
       const linhasTF = lst => (lst || []).flatMap(a => [['TF em preenchimento', `${a.procedimentoNome}${a.placa ? ' · placa ' + a.placa : ''}`], ['Fiscal do TF', a.fiscal], ['TF iniciado', a.inicioMs ? `${fmt.hora(a.inicioMs)} (${fmt.rel(a.inicioMs)})` : '—']]);
       d.emAndamento.forEach(t => {
-        if (t.lat == null || t.lon == null) { s++; return; }
+        const w = onde(t, 'andamento', t.municipio || munBva(t.local)); if (!w) return;
         const pin = pinoDe(t), tam = pin === 'tf' ? 26 : 18;
-        const ic = L.divIcon({ className: '', html: `<div class="pn-pin ${pin}" aria-label="${esc((t.local || 'Barreira') + (t.tfAndamento ? ' — ' + rotuloTF(t) : ''))}"></div>`, iconSize: [tam, tam], iconAnchor: [tam / 2, tam / 2], popupAnchor: [0, -tam / 2 - 1] });
-        L.marker([t.lat, t.lon], { icon: ic, zIndexOffset: t.tfAndamento ? 2000 : 1000, title: (t.local || 'Barreira em andamento') + (t.tfAndamento ? ' — ' + rotuloTF(t) : ''), keyboard: true })
+        const ic = L.divIcon({ className: '', html: `<div class="pn-pin ${pin}${w.aprox ? ' aprox' : ''}" aria-label="${esc((t.local || 'Barreira') + (t.tfAndamento ? ' — ' + rotuloTF(t) : ''))}"></div>`, iconSize: [tam, tam], iconAnchor: [tam / 2, tam / 2], popupAnchor: [0, -tam / 2 - 1] });
+        L.marker(w.ll, { icon: ic, zIndexOffset: t.tfAndamento ? 2000 : 1000, title: (t.local || 'Barreira em andamento') + (t.tfAndamento ? ' — ' + rotuloTF(t) : ''), keyboard: true })
           .bindPopup(() => popup(t.local || 'Barreira', linhasTF(t.tfAndamento).concat([['Posto', t.posto], ['Unidade', t.unidade], ['Município', t.municipio], ['Fiscais', t.fiscal], ['Início', `${fmt.data(t.data)} ${t.inicio || ''}`],
             ['Duração até agora', fmt.duracao(t.duracaoMin)], ['Veículos', fmt.int(t.nVeiculos)], ['Pessoas', fmt.int(t.nPessoas)],
             ['Último veículo', t.ultimoVeiculo ? `${t.ultimoVeiculo.hora} (${t.ultimoVeiculo.placa || 's/ placa'})` : 'nenhum ainda'], ['Último sinal', t.ultimoSinal ? `${fmt.dataHora(t.ultimoSinal)} (${fmt.rel(t.ultimoSinal)})` : '—'],
             t.situacao === 'aguardando' ? ['Celular', `encerrado${t.fimNoCelular ? ' às ' + t.fimNoCelular : ''}, aguardando envio`] : t.semSinal ? ['Celular', textoSemSinal(t)] : null,
-            t.aparelho && t.aparelho.erroAtual && t.aparelho.ultimoErro ? ['Erro ao enviar', t.aparelho.ultimoErro] : null]),
+            t.aparelho && t.aparelho.erroAtual && t.aparelho.ultimoErro ? ['Erro ao enviar', t.aparelho.ultimoErro] : null, linhaAprox(w)]),
             seloSituacao(t))).addTo(g);
       });
       // TF em preenchimento sem turno aberto: marcador próprio na coordenada do aparelho (sem coordenada: só no aviso e nos alertas)
@@ -1208,43 +1237,68 @@ const Painel = (() => {
         L.marker([a.lat, a.lon], { icon: ic, zIndexOffset: 2000, title: a.titulo + ' — ' + a.onde, keyboard: true })
           .bindPopup(() => popup(a.onde, linhasTF([a]).concat([['Município', a.municipio], ['Turno', 'nenhum turno aberto ligado a este TF']]), `<span class="pn-selo tf">${esc(a.titulo)}</span>`)).addTo(g);
       });
-      semCoord.andamento = s;
     }
     // 2. barreiras realizadas (encerradas) no período
     if (camadas.includes('realizadas')) {
-      const g = grupos.realizadas = L.layerGroup(); let s = 0; const maxV = Math.max(1, ...d.turnos.map(t => t.nVeiculos));
+      const g = grupos.realizadas = L.layerGroup(); const maxV = Math.max(1, ...d.turnos.map(t => t.nVeiculos));
       d.turnos.filter(t => t.encerrado).sort((a, b) => b.nVeiculos - a.nVeiculos).forEach(t => {
-        if (t.lat == null || t.lon == null) { s++; return; }
+        const w = onde(t, 'realizadas', t.municipio || munBva(t.local)); if (!w) return;
         // violeta com contorno na cor do texto: não some sobre o coroplético (rampa azul) nem se confunde com os levantamentos
-        L.circleMarker([t.lat, t.lon], { radius: 5 + 17 * Math.sqrt(t.nVeiculos / maxV), color: p.ink, weight: 1.5, fillColor: p.serie[6], fillOpacity: 0.55 })
+        L.circleMarker(w.ll, { radius: 5 + 17 * Math.sqrt(t.nVeiculos / maxV), color: p.ink, weight: 1.5, fillColor: p.serie[6], fillOpacity: w.aprox ? 0.3 : 0.55, dashArray: w.aprox ? '3 3' : null })
           .bindPopup(popup(t.local || 'Barreira', [['Data', fmt.data(t.data)], ['Horário', `${t.inicio || '?'} – ${t.fim || '?'}`], ['Duração', fmt.duracao(t.duracaoMin)],
-            ['Posto', t.posto], ['Município', t.municipio], ['Fiscais', t.fiscal], ['Veículos', fmt.int(t.nVeiculos)], ['Pessoas', fmt.int(t.nPessoas)]])).addTo(g);
+            ['Posto', t.posto], ['Município', t.municipio], ['Fiscais', t.fiscal], ['Veículos', fmt.int(t.nVeiculos)], ['Pessoas', fmt.int(t.nPessoas)], linhaAprox(w)])).addTo(g);
       });
-      semCoord.realizadas = s;
     }
     // 3. levantamentos PCE
     if (camadas.includes('levantamentos')) {
-      const g = grupos.levantamentos = L.layerGroup(); let s = 0;
+      const g = grupos.levantamentos = L.layerGroup();
       d.levantamentos.slice().sort((a, b) => a.detectou - b.detectou).forEach(l => {
-        if (l.lat == null || l.lon == null) { s++; return; }
+        const w = onde(l, 'levantamentos'); if (!w) return;
         // mesmas cores dos gráficos do PCE (azul = sem praga, laranja = com praga); com praga ganha anel escuro (não depende só da cor)
-        L.circleMarker([l.lat, l.lon], l.detectou ? { radius: 7, color: p.ink, weight: 2.5, fillColor: p.serie[1], fillOpacity: 1 } : { radius: 5, color: p.sf, weight: 2, fillColor: p.serie[0], fillOpacity: 1 })
+        L.circleMarker(w.ll, Object.assign(l.detectou ? { radius: 7, color: p.ink, weight: 2.5, fillColor: p.serie[1], fillOpacity: 1 } : { radius: 5, color: p.sf, weight: 2, fillColor: p.serie[0], fillOpacity: 1 },
+          w.aprox ? { color: p.ink, weight: 1.5, dashArray: '3 2', fillOpacity: 0.55 } : {}))
           .bindPopup(popup(l.propriedade || 'Levantamento', [['Data', fmt.data(l.data)], ['Município', l.municipio], ['Produtor', l.nome], ['Culturas', l.culturasUnicas.join(', ')],
-            ['Pragas', pragasTexto(l) || 'nenhuma detectada'], ['Avaliadas', l.pragasAvaliadas.join(', ') || '—'], ['Amostras', fmt.int(l.nAmostras)], ['Servidor', l.servidor]],
+            ['Pragas', pragasTexto(l) || 'nenhuma detectada'], ['Avaliadas', l.pragasAvaliadas.join(', ') || '—'], ['Amostras', fmt.int(l.nAmostras)], ['Servidor', l.servidor], linhaAprox(w)],
             l.detectou ? `<span class="pn-selo praga">${l.suspeitas === l.deteccoes ? 'Suspeita de praga' : 'Praga detectada'}</span>` : '<span class="pn-selo sempraga">Negativo (sem detecção)</span>')).addTo(g);
       });
-      semCoord.levantamentos = s;
     }
     // 4. termos de colheita
     if (camadas.includes('colheitas')) {
-      const g = grupos.colheitas = L.layerGroup(); let s = 0;
-      const ic = L.divIcon({ className: '', html: '<div class="pn-losango"></div>', iconSize: [14, 14], iconAnchor: [7, 7], popupAnchor: [0, -8] });
+      const g = grupos.colheitas = L.layerGroup();
+      const ic = ap => L.divIcon({ className: '', html: `<div class="pn-losango${ap ? ' aprox' : ''}"></div>`, iconSize: [14, 14], iconAnchor: [7, 7], popupAnchor: [0, -8] });
       d.colheitas.forEach(c => {
-        if (c.lat == null || c.lon == null) { s++; return; }
-        L.marker([c.lat, c.lon], { icon: ic, title: 'Termo ' + (c.numeroTxt || '') }).bindPopup(popup('Termo de colheita ' + (c.numeroTxt || ''), [['Data', fmt.data(c.data)],
-          ['Município', c.municipio], ['Cultura', c.cultura], ['Quantidade', c.quantidade], ['Análise', c.analise], ['Partes', c.partes], ['Servidor', c.servidor]])).addTo(g);
+        const w = onde(c, 'colheitas'); if (!w) return;
+        L.marker(w.ll, { icon: ic(w.aprox), title: 'Termo ' + (c.numeroTxt || '') }).bindPopup(popup('Termo de colheita ' + (c.numeroTxt || ''), [['Data', fmt.data(c.data)],
+          ['Município', c.municipio], ['Cultura', c.cultura], ['Quantidade', c.quantidade], ['Análise', c.analise], ['Partes', c.partes], ['Servidor', c.servidor], linhaAprox(w)])).addTo(g);
       });
-      semCoord.colheitas = s;
+    }
+    // 4b. TFs de barreira do período: no local do turno; TF do papel (sem turno): no município da BVA, aproximado
+    if (camadas.includes('tfs')) {
+      const g = grupos.tfs = L.layerGroup();
+      d.tfs.forEach(t => {
+        const w = onde(t, 'tfs', t.municipio || munBva(t.barreiraNome) || munBva(t.localBarreira)); if (!w) return;
+        const apre = t.procedimento === 'apreensao';
+        const ic = L.divIcon({ className: '', html: `<div class="pn-tfpto${apre ? ' apre' : ''}${w.aprox ? ' aprox' : ''}">TF</div>`, iconSize: [22, 16], iconAnchor: [11, 8], popupAnchor: [0, -9] });
+        L.marker(w.ll, { icon: ic, zIndexOffset: 500, title: 'TF ' + (t.numeroTxt || ''), keyboard: true })
+          .bindPopup(() => popup('TF ' + (t.numeroTxt || ''), [['Data', `${fmt.data(t.data)} ${t.hora || ''}`], ['Procedimento', t.procedimentoNome], ['Barreira', t.localBarreira], ['Município', t.municipio || w.municipio],
+            ['Fiscal', t.fiscal], ['Placa', t.placa], ['Origem → destino', [t.origem, t.destino].filter(Boolean).join(' → ')], t.reincidente ? ['Reincidente', 'sim'] : null, linhaAprox(w)],
+            apre ? '<span class="pn-selo critico">Apreensão</span>' : '')).addTo(g);
+      });
+    }
+    // 4c. Termos de fiscalização e cadastros de imóvel do PCE (monilíase, citros) do período
+    if (camadas.includes('pceDocs')) {
+      const g = grupos.pceDocs = L.layerGroup(), noPer = x => (!d.de || x.data >= d.de) && (!d.ate || x.data <= d.ate);
+      const ic = (cls, ap) => L.divIcon({ className: '', html: `<div class="pn-quad ${cls}${ap ? ' aprox' : ''}"></div>`, iconSize: [13, 13], iconAnchor: [7, 7], popupAnchor: [0, -8] });
+      (d.termosPce || []).forEach(t => {
+        const w = onde(t, 'pceDocs'); if (!w) return;
+        L.marker(w.ll, { icon: ic('termo', w.aprox), title: 'Termo de fiscalização ' + (t.numeroTxt || '') }).bindPopup(() => popup('Termo de fiscalização (PCE) ' + (t.numeroTxt || ''),
+          [['Data', fmt.data(t.data)], ['Município', t.municipio], ['Programa', t.programa], ['Plantas inspecionadas', fmt.int(t.plantasInspecionadas)], ['Servidor', t.servidor], linhaAprox(w)])).addTo(g);
+      });
+      (d.cadastrosPce || []).filter(noPer).forEach(c => {
+        const w = onde(c, 'pceDocs'); if (!w) return;
+        L.marker(w.ll, { icon: ic('cad', w.aprox), title: 'Cadastro de imóvel ' + (c.numeroTxt || '') }).bindPopup(() => popup('Cadastro de imóvel (PCE) ' + (c.numeroTxt || ''),
+          [['Data', fmt.data(c.data)], ['Propriedade', c.propriedade], ['Município', c.municipio], ['Programa', c.programa], ['Plantas', fmt.int(c.totalPlantas)], ['Servidor', c.servidor], linhaAprox(w)])).addTo(g);
+      });
     }
     // 5. mapa de calor de detecções
     const pontosCalor = () => { const pts = [];
@@ -1255,13 +1309,14 @@ const Painel = (() => {
       grupos.calor = L.heatLayer(pontosCalor(), { radius: 26, blur: 20, maxZoom: 9, minOpacity: 0.35, gradient: p.calor });
       semCoord.calor = d.levantamentos.filter(l => l.detectou && (l.lat == null || l.lon == null)).length;
     }
-    const ordemAdd = ['calor', 'realizadas', 'colheitas', 'levantamentos', 'andamento'];
+    const ordemAdd = ['calor', 'realizadas', 'colheitas', 'pceDocs', 'levantamentos', 'tfs', 'andamento'];
     const aplicar = () => {
       ordemAdd.forEach(k => { const g = grupos[k]; if (!g) return; if (ativas.has(k)) { if (!map.hasLayer(g)) g.addTo(map); } else if (map.hasLayer(g)) map.removeLayer(g); });
       munLayer.setStyle(estiloMun);
       ctl.querySelectorAll('[data-de]').forEach(x => { x.hidden = !ativas.has(x.dataset.de); });
-      const tot = camadas.filter(k => ativas.has(k)).reduce((s, k) => s + (semCoord[k] || 0), 0);
-      semc.textContent = tot ? `${fmt.int(tot)} registro(s) sem coordenada (contam nos números, não aparecem no mapa)` : '';
+      const soma = o => camadas.filter(k => ativas.has(k)).reduce((s, k) => s + (o[k] || 0), 0), tot = soma(semCoord), ap = soma(aproxN);
+      semc.textContent = [ap ? `${fmt.int(ap)} sem GPS marcado(s) no município (tracejado, posição aproximada)` : '',
+        tot ? `${fmt.int(tot)} registro(s) sem coordenada (contam nos números, não aparecem no mapa)` : ''].filter(Boolean).join(' · ');
       legenda();
     };
     function legenda() {
@@ -1276,6 +1331,9 @@ const Painel = (() => {
       if (ativas.has('realizadas')) it.push(`<span><i class="pn-lg-pto" style="background:${p.alfa(p.serie[6], .55)};border-color:${p.ink};border-width:1.5px;box-shadow:none"></i>Barreira realizada (tamanho = nº de veículos)</span>`);
       if (ativas.has('levantamentos')) it.push(`<span><i class="pn-lg-pto" style="width:14px;height:14px;background:${p.serie[1]};border-color:${p.ink}"></i>Levantamento com praga</span>`, `<span><i class="pn-lg-pto" style="background:${p.serie[0]}"></i>Levantamento sem praga</span>`);
       if (ativas.has('colheitas')) it.push(`<span><i class="pn-lg-los" style="background:${p.serie[2]}"></i>Termo de colheita</span>`);
+      if (ativas.has('tfs')) it.push(`<span><i class="pn-lg-pino"><span class="pn-tfpto">TF</span></i>TF de barreira (${fmt.int(d.tfs.length)})</span>`, `<span><i class="pn-lg-pino"><span class="pn-tfpto apre">TF</span></i>TF com apreensão</span>`);
+      if (ativas.has('pceDocs')) it.push(`<span><i class="pn-lg-pino"><span class="pn-quad termo"></span></i>Termo de fiscalização PCE</span>`, `<span><i class="pn-lg-pino"><span class="pn-quad cad"></span></i>Cadastro de imóvel PCE</span>`);
+      if (Object.values(aproxN).some(Boolean)) it.push('<span><i class="pn-lg-pto pn-lg-aprox"></i>Tracejado: sem GPS, no município (aproximado)</span>');
       if (ativas.has('calor')) it.push(`<span>Detecções: <i class="pn-lg-gra" style="background:linear-gradient(90deg, ${Object.values(p.calor).join(',')})"></i> menos → mais</span>`);
       if (ativas.has('coropletico')) {
         const lims = faixasClasses(maxInd, classe);
@@ -1291,10 +1349,35 @@ const Painel = (() => {
       aplicar();
     });
     const reg = S.mapas[id] = { map, vivo: true, memo: Object.assign(memo, { ativas: [...ativas], praga: st.praga, cultura: st.cultura, indicador: st.indicador }),
-      salvarVista() { try { reg.memo.centro = map.getCenter(); reg.memo.zoom = map.getZoom(); } catch (e) { /* mapa removido */ } } };
+      salvarVista() { if (!div.clientWidth) return; try { reg.memo.centro = map.getCenter(); reg.memo.zoom = map.getZoom(); } catch (e) { /* mapa removido */ } } };
     map.on('moveend', () => reg.salvarVista());
     aplicar();
     setTimeout(() => map.invalidateSize(), 0);
+    // nasceu sem tamanho (aba em segundo plano, painel montando): ao ganhar tamanho, refaz e enquadra o Amazonas
+    let semTamanho = !div.clientWidth; const vistaGuardada = !!memo.centro;   // o invalidateSize abaixo já guarda a vista (moveend)
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(() => {
+        if (!div.isConnected) return ro.disconnect();
+        if (!div.clientWidth) return;
+        map.invalidateSize();
+        if (semTamanho) { semTamanho = false; if (!vistaGuardada) map.fitBounds(AM_LIMITES, { padding: [4, 4] }); }
+      });
+      ro.observe(div);
+    }
+    // tela cheia: o cartão inteiro (filtros, mapa, legenda); a roda do mouse e o arraste ficam livres
+    let estavaCheia = false;
+    const cheia = () => document.fullscreenElement === card || card.classList.contains('pn-mapa-cheia');
+    const rotuloCheia = () => { const c = cheia(); btCheia.innerHTML = `${icone(c ? 'sair-tela-cheia' : 'tela-cheia')} ${c ? 'Sair da tela cheia' : 'Tela cheia'}`;
+      if (c) { map.scrollWheelZoom.enable(); map.dragging.enable(); } else if (toque) map.dragging.disable();
+      if (c !== estavaCheia) { estavaCheia = c; setTimeout(() => { map.invalidateSize(); map.fitBounds(AM_LIMITES, { padding: [4, 4] }); }, 200); } };
+    btCheia.onclick = () => {
+      if (cheia()) { if (document.fullscreenElement === card) document.exitFullscreen().catch(() => {}); card.classList.remove('pn-mapa-cheia'); document.body.classList.remove('pn-mapa-cheia-aberto'); rotuloCheia(); return; }
+      const fallback = () => { card.classList.add('pn-mapa-cheia'); document.body.classList.add('pn-mapa-cheia-aberto'); rotuloCheia(); };
+      if (card.requestFullscreen) card.requestFullscreen().then(rotuloCheia, fallback); else fallback();
+    };
+    card.addEventListener('fullscreenchange', rotuloCheia);
+    card.addEventListener('keydown', e => { if (e.key === 'Escape' && card.classList.contains('pn-mapa-cheia')) btCheia.click(); });
+    rotuloCheia();
     return { map, camadas: grupos, atualizar: () => renderAba(true) };
   }
 
@@ -1511,7 +1594,7 @@ const Painel = (() => {
     sa.parentNode.classList.add('pn-duo-alertas');
     const sm = secao(duo, 'Mapa do Amazonas', 'Barreiras em tempo real, levantamentos, termos de colheita, calor de detecções e indicadores por município. Toque nos pontos para detalhes.');
     sm.parentNode.classList.add('pn-duo-mapa');
-    mapa(sm, { id: 'geral', titulo: 'Situação no estado', camadas: ['andamento', 'realizadas', 'levantamentos', 'colheitas', 'calor', 'coropletico'], ativas: ['andamento', 'realizadas', 'levantamentos', 'colheitas', 'coropletico'] });
+    mapa(sm, { id: 'geral', titulo: 'Situação no estado', camadas: ['andamento', 'realizadas', 'tfs', 'levantamentos', 'colheitas', 'pceDocs', 'calor', 'coropletico'], ativas: ['andamento', 'realizadas', 'tfs', 'levantamentos', 'colheitas', 'pceDocs', 'coropletico'] });
 
     if (!celular) secaoAoVivo(c, vivos, d.tfsSemTurno);
 

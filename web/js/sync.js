@@ -82,7 +82,10 @@ const Sync = (() => {
     }
     desativar();
   }
-  function desativar() { ['gdv.key', 'gdv.nome', 'gdv.revogado'].forEach(k => localStorage.removeItem(k)); espelharCred(); }
+  function desativar() {
+    ['gdv.key', 'gdv.nome', 'gdv.revogado'].forEach(k => localStorage.removeItem(k)); espelharCred();
+    Store.setMeta('escalaDados', null).catch(() => {});                 // última leitura das escalas (coordenação): não fica para o próximo
+  }
   /** Credencial de versões anteriores (código de ativação, sem token de sessão): apaga e deixa o aparelho em "entrar". Os registros pendentes não são tocados. */
   function limparCredencialAntiga() {
     const k = localStorage.getItem('gdv.key');
@@ -308,7 +311,7 @@ const Sync = (() => {
   const corrigirNumeroTurno = (turnoId, numero) => chamar({ action: 'turnoNumero', turnoId, numero }, 20000);
   const turnoPapel = (turno, veiculos, pessoas) => chamar({ action: 'turnoPapelRegistrar', turno, veiculos, pessoas }, 30000);
   /* escalas de plantão (só a coordenação; precisa de internet) e as do próprio fiscal (guardadas no sync) */
-  const escalaDados = () => chamar({ action: 'escalaDados' }, 30000);
+  const escalaDados = (convenio) => chamar({ action: 'escalaDados', convenio: convenio ? 1 : 0 }, 30000);
   const escalaSalvar = escala => chamar({ action: 'escalaSalvar', escala }, 30000);
   const escalaExcluir = id => chamar({ action: 'escalaExcluir', id }, 30000);
   const escalaGerar = (bva, periodos) => chamar({ action: 'escalaGerar', bva, periodos }, 60000);

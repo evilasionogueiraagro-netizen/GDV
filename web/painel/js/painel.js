@@ -1827,6 +1827,8 @@ const Painel = (() => {
     get bvasCadastro() { return S.bvasCadastro || []; }, definirBvasCadastro: l => { S.bvasCadastro = l; },
     /** pode(perm): a sessão tem a permissão (gerência vale todas); gerencia: pode criar e alterar (sem ela o painel é só de leitura). */
     pode, get gerencia() { return pode('gerencia'); },
+    /** temPermissao(perm): a sessão tem exatamente esta permissão (módulo do campo, ex.: pce; a gerência não vale por ele, como no servidor). */
+    temPermissao: perm => !!S.token && S.perm.indexOf(perm) >= 0,
     /** Botão "Encerrar turno" (gerência) para um turno em andamento; null no modo TV. */
     botaoEncerrar,
     trocarModo

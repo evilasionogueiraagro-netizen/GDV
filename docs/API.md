@@ -11,22 +11,16 @@ Contrato das actions: ao criar, mudar ou remover uma, atualize esta tabela. Regr
 
 ## Autenticação
 
-- Fiscal (`key`): `ativar` (código de 6 dígitos, uso único) → `autenticar_` (TF/PCE: também `exigirModulo_`).
-- Administrador (`key`, painel/TV): `painelAtivar` (código de administrador) → `adminDoToken_`.
-- Portal (`sessao`): `admLogin` ou `admCodigo` → `admSessao_` (expira após 30 dias sem uso).
-
-- `ACCESS_KEY` (chave mestra, propriedade do script) vale como `key` de fiscal e de administrador.
-- Aba `Fiscais` (`perfil`: vazio = fiscal, `admin` = administrador); sessões em `AdmSessoes` (só hash). Credenciais não se trocam entre tipos.
-- Aba `Permissoes` (`veiculos`, `tf`, `pce`, `antigo` = digitar do papel): sem linha = tudo liberado, exceto `antigo` (só `1`, `sim`, `true`, `s`). `MODULO_DA_ACAO`: action → módulo; `arquivoEnviar` vale `tf` se `arquivo.dono = 'tfs'`.
+- Login por matrícula e senha (`usuarios.gs`, [modulos/acessos.md](modulos/acessos.md)): `entrar` → token em `key` (app e painel) ou em `sessao` (portal). Sem códigos nem chave mestra.
+- App: `autenticar_` (permissão `campo`); TF/PCE também `exigirModulo_` (`MODULO_DA_ACAO`: action → módulo; `arquivoEnviar` vale `tf` se `arquivo.dono = 'tfs'`). Painel: `adminDoToken_` (`painel`; gravar exige `gerencia`). Portal: `admSessao_` (`administracao`).
 - O `sync` não grava (devolve em `recusados`) registro sem módulo, `registroAntigo = 1` sem `antigo` ou id de outro login.
 
 ## App do fiscal (`key` de fiscal)
 
 | action | credencial (módulo) | parâmetros | resposta |
 |---|---|---|---|
-| `ativar` | nenhuma | `codigo` | `nome`, `token` |
 | `ping` | fiscal | `aparelho` | `nome`, `agora` |
-| `sync` | por registro | `since`, `aparelho`; listas `turnos`, `veiculos`, `tfs`, `pessoas`, `placas`, `levantamentos`, `colheitas`, `propriedades`, `cadastrosPce`, `termosPce` (máx. 2.000 cada) | `agora`; mudanças desde `since` (do fiscal e dos turnos compartilhados); `barreiras`, `ultimos`, `ultimosPce`, `ultimosDocPce`, `permissoes`, `recusados` |
+| `sync` | por registro | `since`, `aparelho`; listas `turnos`, `veiculos`, `tfs`, `pessoas`, `placas`, `levantamentos`, `colheitas`, `propriedades`, `cadastrosPce`, `termosPce` (máx. 2.000 cada) | `agora`; mudanças desde `since` (do fiscal e dos turnos compartilhados); `barreiras`, `ultimos`, `ultimosPce`, `ultimosDocPce`, `permissoes`, `recusados`, `catalogoPce` (só com `pce`) |
 | `tfConsultar` | tf | `doc` (CPF/CNPJ) e/ou `placa` | `pessoa`, `placa`, `historicoDoc`, `historicoPlaca` |
 | `tfProximoNumero` | tf | `barreira`, `ano` | `ultimo`, `proximo` |
 | `tfEmitir` | tf | `tf`, `pessoa`, `placa` (opc.); do papel: `tf.registroAntigo = 1` (data não futura; ano = `tf.ano`), `tf.pdfs`, `tf.numeroOrigem = 'papel'` | `emitido: true, numero, emitidoEm, srv_ts`; ou `emitido: false, ocupadoPor` |
@@ -56,18 +50,12 @@ Contrato das actions: ao criar, mudar ou remover uma, atualize esta tabela. Regr
 
 ## Painel do administrador
 
-Todas com `key` de administrador, exceto `painelAtivar`.
+Todas com `key` do painel (contas e sessões: `usuariosListar`, `usuarioCriar` etc., em `usuarios.gs`).
 
 | action | parâmetros | resposta |
 |---|---|---|
-| `painelAtivar` | `codigo` (de administrador) | `nome`, `token` |
 | `painelSair` | — | — |
 | `painelDados` | `de`, `ate`, `aoVivo` (modo TV), `ids` | `periodo`, `turnos`, `veiculos`, `tfs`, `tfsAndamento`, `levantamentos`, `colheitas`, `historicoPce`, `termosPce`, `cadastrosPce`, `barreiras`, `auditoria`; sem `aoVivo`: `rotinas`, `avisoArquivo` |
-| `painelGerarCodigo` | `nome`, `modulos` | `nome`, `codigo`, `expiraEm` |
-| `painelAcessos` | `ocultos` (`true` inclui os removidos) | `acessos`, `agora`, `ocultarAdmin` |
-| `painelOcultarAcesso` / `painelRestaurarAcesso` | `nome`, `perfil` (`admin`; vazio = fiscal) | `ocultos` / `restaurados` |
-| `painelRevogar` / `painelRevogarAdmin` | `nome` | `nome`, `revogados` |
-| `painelPermissoes` | `nome`, `modulos` | `nome`, `permissoes`, `atualizadoEm` |
 | `painelEncerrarTurno` | `turnoId`, `fim` (HH:MM) | `turno` |
 | `painelPceLaudo` | `id`, `laboratorio` | `numeroTxt`, `laboratorio` |
 | `painelPublicoConfig` / `painelPublicoSalvar` | `config` (no salvar) | `config`, `url`, `padrao`, `periodos` |
@@ -78,6 +66,8 @@ Todas com `key` de administrador, exceto `painelAtivar`.
 | `painelRelGdv` | `ano` | `ano`, `hoje`, `textos`, `lancamentos` |
 | `painelRelGdvSalvar` | `tipo` (`mensal`/`anual`/`vigifito`), `ano`, `mes`, `textos` | `ano`, `gravados`, `usuario`, `atualizadoEm` |
 | `painelRelGdvApuracao` | `de`, `ate` (máx. 1 ano), `grupos` | `apuradoEm`, `meses`, `resumo`, `laboratorio` |
+| `painelPceCatalogo` | — (exige o módulo `pce`) | `catalogo` (`familias`, `culturas`, `pragas`, `pragasDasFamilias`, `pragasDasCulturas`, `modelosCadastro`), `podeEditar` |
+| `painelPceCatalogoSalvar` | `tipo` (`familia`/`cultura`/`praga`), `item` (praga: `familias`, `culturas`; cultura: `pragas` = ids ligados) — gerência + `pce` | `item`, `catalogo` |
 | `painelVigDados` | `ano` | `ano`, `cfg`, `indicadores`, `lancamentos`, `apuracao` |
 | `painelVigConfigSalvar` | `config` | `config` |
 | `painelAdmLista` | `ocultos` | `max`, `google`, `url`, `ocultar`, `liberados` |
@@ -89,7 +79,7 @@ Legado (`MSG_PORTAL`, podem sair): `painelConvLancar`, `painelConvExcluir`, `pai
 
 ## Portal do Administrativo (`sessao`)
 
-- Login: `admLogin` (`idToken` do Google; `GOOGLE_CLIENT_ID`) ou `admCodigo` (`codigo` do painel). Ambos devolvem `sessao`, `nome`, `email`, `expiraEm`, `origem`.
+- Login: `entrar` com `aplicativo: 'administracao'` devolve a `sessao`.
 - `adm` + maiúscula exige `sessao`; token do painel ou do app não vale. Toda gravação vai a `AdmHistorico`.
 
 | action | parâmetros | resposta |

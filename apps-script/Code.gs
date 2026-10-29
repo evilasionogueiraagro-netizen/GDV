@@ -164,7 +164,14 @@ const TABELAS = {
   BVAs: ['id', 'nome', 'municipio', 'endereco', 'placa', 'ficha', 'ativo', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor',
          'escalaRegime', 'escalaDias', 'escalaTroca'],   // regime da escala de plantão (dias | 12x36 | 8h | ajustavel; vazio = o do config.js) e dias do período
   // Quem leu dados pessoais (LGPD): uma linha por usuário + action a cada 1 h (acessos.gs lido_). resumo = filtros, sem dado pessoal.
-  AcessosADados: ['id', 'em', 'usuarioId', 'nome', 'acao', 'resumo']
+  AcessosADados: ['id', 'em', 'usuarioId', 'nome', 'acao', 'resumo'],
+  // Catálogo do PCE (pce-catalogo.gs): a gerência edita no painel; vazio = vale a base do código. A praga é o programa (1:1); a família define o
+  // modelo de cadastro; ligações praga × família e praga × cultura (id = pragaId|alvo; ativo 0 = desfeita, nada se apaga)
+  FamiliasDeCulturas: ['id', 'nome', 'modeloCadastro', 'ativo', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor'],
+  Culturas: ['id', 'nome', 'nomeCientifico', 'familiaId', 'cultivares', 'ativo', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor'],
+  Pragas: ['id', 'nomePopular', 'nomeCientifico', 'tipo', 'enquadramentoLegal', 'nomeNoTF', 'ativo', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor'],
+  PragasDasFamilias: ['id', 'pragaId', 'familiaId', 'ativo', 'atualizadoEm', 'atualizadoPor'],
+  PragasDasCulturas: ['id', 'pragaId', 'culturaId', 'ativo', 'atualizadoEm', 'atualizadoPor']
 };
 const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'cuidado', 'semPlaca', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
                           'expiraEm', 'ativo', 'ativadoEm', 'oculto', 'ocultoEm',
@@ -185,7 +192,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-29g';
+const VERSAO_CODIGO = '2026-10-29h';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -220,6 +227,8 @@ function doPost(e) {
     if (req.action === 'painelVigDados') return json_(painelVigDados(req.key, req));
     if (req.action === 'painelVigConfigSalvar') return json_(painelVigConfigSalvar(req.key, req));
     if (req.action === 'painelBvaSalvar') return json_(painelBvaSalvar(req.key, req));
+    if (req.action === 'painelPceCatalogo') return json_(painelPceCatalogo(req.key));                 // catálogo do PCE (pce-catalogo.gs)
+    if (req.action === 'painelPceCatalogoSalvar') return json_(painelPceCatalogoSalvar(req.key, req));
     if (req.action === 'painelEscalas') return json_(painelEscalas(req.key, req));
     if (req.action === 'painelEscalaGerar') return json_(painelEscalaGerar(req.key, req));
     if (req.action === 'painelEscalaSalvar') return json_(painelEscalaSalvar(req.key, req));
@@ -388,6 +397,7 @@ function sincronizar_(req, usuario) {
       ultimosDocPce: ultimosDocPce_(),                  // último nº de Termo de Fiscalização ("T|UNIDADE|ano") e de Cadastro ("C|PROGRAMA|UNIDADE|ano")
       permissoes: perm,                                 // módulos liberados para este servidor (o app guarda e esconde o que não pode)
       bvas: bvasCadastro_(),                            // BVAs cadastradas no painel (o app junta com CONFIG.bvas)
+      catalogoPce: perm.pce ? catalogoPce_() : null,    // culturas, famílias e pragas do PCE (pce-catalogo.gs); sem o módulo, nada
       minhasEscalas: minhasEscalas_(),                  // escalas de plantão publicadas do fiscal que ainda não acabaram (escalas.gs)
       recusados: recusados                              // ids NÃO gravados por falta de autorização no módulo ou para registro antigo (ficam pendentes no aparelho)
     };

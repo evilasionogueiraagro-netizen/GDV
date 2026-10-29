@@ -10,8 +10,9 @@ const EscalaUI = (() => {
   const dias = (a, b) => Math.round((Date.parse(b + 'T12:00:00Z') - Date.parse(a + 'T12:00:00Z')) / 864e5);
   const nl = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const bvas = () => { const l = CONFIG.bvas.map(b => b.nome); ((D && D.escalas) || []).forEach(e => { if (!l.some(x => nl(x) === nl(e.bva))) l.push(e.bva); }); return l; };
-  const sobrepoe = (a, b) => a.inicio <= b.fim && b.inicio <= a.fim;
+  const sobrepoe = (a, b) => CONFIG.sobrepoeEscala(a, b);               // encostar só no dia da troca não conta
   const periodo = e => `${dBR(e.inicio)} a ${dBR(e.fim)}`;
+  const nomeF = f => f.nome + (f.id ? '' : ' (sem login)');                  // fiscal sem login: nome digitado pela coordenação
   const semNet = () => `<div class="card aviso"><h3>${icone('offline')} Sem internet</h3><p>As escalas são lidas e gravadas direto na planilha: conecte-se e tente de novo.</p>
     <button class="botao sec" data-go="escalas">${icone('sincronizar')} Tentar de novo</button></div>`;
 
@@ -34,9 +35,10 @@ const EscalaUI = (() => {
         ${mostrarEs.length ? mostrarEs.map(e => `<button type="button" class="esc-item${e.fim < h ? ' passada' : ''}" data-esc="${esc(e.id)}">
           <span class="esc-per"><b>${periodo(e)}</b>${e.inicio <= h && e.fim >= h ? ' <span class="esc-selo atual">Atual</span>' : e.fim < h ? ' <span class="esc-selo">Anterior</span>' : ''}
             <span class="esc-selo ${e.situacao === 'publicada' ? 'ok' : 'rasc'}">${e.situacao === 'publicada' ? 'Publicada' : 'Rascunho'}</span></span>
-          <small>${e.fiscais.length ? esc(e.fiscais.map(f => f.nome).join(', ')) : 'Nenhum fiscal escolhido'}</small></button>`).join('')
+          <small>${e.fiscais.length ? esc(e.fiscais.map(nomeF).join(', ')) : 'Nenhum fiscal escolhido'}</small></button>`).join('')
         : '<p class="dica">Nenhuma escala ainda.</p>'}
-        <button type="button" class="botao sec mini" data-escnova="${esc(b)}">${icone('mais')} Nova escala da ${esc(b)}</button></div>`;
+        <button type="button" class="botao sec mini" data-escnova="${esc(b)}">${icone('mais')} Nova escala da ${esc(b)}</button>
+        ${CONFIG.regimeEscala(b).regime === 'ajustavel' ? '' : `<button type="button" class="botao sec mini" data-escgerar="${esc(b)}">${icone('calendario')} Gerar períodos da ${esc(b)}</button>`}</div>`;
     }).join('');
     mostrar(`<div class="card"><h3>${icone('calendario')} Escalas de plantão</h3>
         <p class="dica" style="text-align:left">Quem fica em cada BVA em cada período. Só a escala <b>publicada</b> aparece para os fiscais e para a gerência.</p>
@@ -71,6 +73,10 @@ const EscalaUI = (() => {
       <label>Buscar fiscal<input type="search" id="escBusca" autocomplete="off" placeholder="Nome ou matrícula"></label>
       <div class="esc-fiscais" id="escFiscais">${D.fiscais.map(f => `<label class="chk esc-fiscal" data-nome="${esc(nl(f.nome + ' ' + (f.matricula || '')))}">
         <input type="checkbox" data-fiscal="${esc(f.id)}" ${marcados.has(f.id) ? 'checked' : ''}><span><b>${esc(f.nome)}</b><small data-st="${esc(f.id)}"></small></span></label>`).join('') || '<p class="dica">Nenhum fiscal com acesso ao app de campo.</p>'}</div>
+      <div class="esc-semlogin"><label>Fiscal que ainda não tem login<input id="escSemNome" maxlength="80" autocomplete="off" placeholder="Nome do fiscal"></label>
+        <button type="button" class="botao sec mini" id="escSemAdd">${icone('mais')} Incluir sem login</button>
+        <div id="escSemLista" class="esc-chips">${(e ? e.fiscais.filter(f => !f.id) : []).map(f => chipSem(f.nome)).join('')}</div>
+        <p class="dica" style="text-align:left">Quando ele ganhar login, tire o nome daqui e marque a conta na lista acima.</p></div>
       <p class="dica" id="escConta" style="text-align:left"></p>
       <div class="duas"><button type="button" class="botao sec" id="escRascunho">${icone('salvar')} Salvar rascunho</button>
         <button type="button" class="botao" id="escPublicar">${icone('ok')} Publicar</button></div>
@@ -88,17 +94,24 @@ const EscalaUI = (() => {
         st.textContent = em.length ? 'Também na ' + em.map(x => `${x.bva} (${dBR(x.inicio).slice(0, 5)} a ${dBR(x.fim).slice(0, 5)})`).join('; ') : 'Livre neste período';
         st.className = em.length ? 'esc-ocupado' : 'esc-livre';
       });
-      const n = document.querySelectorAll('#escFiscais input:checked').length;
+      const n = document.querySelectorAll('#escFiscais input:checked').length + document.querySelectorAll('#escSemLista [data-sem]').length;
       $('#escConta').textContent = `${n} fiscal(is) escolhido(s) para a ${bvaAtual()}.`;
     };
     if (!e) $('#escBva').onchange = () => { const s = sugerir($('#escBva').value); $('#escIni').value = s.inicio; $('#escFim').value = s.fim; $('#escRegime').textContent = textoRegime($('#escBva').value); situar(); };
     $('#escIni').onchange = () => { const f = CONFIG.fimEscala(bvaAtual(), $('#escIni').value); if (f) $('#escFim').value = f; situar(); };
     $('#escFim').onchange = situar;
     $('#escFiscais').onchange = situar;
+    $('#escSemAdd').onclick = () => {
+      const n = $('#escSemNome').value.trim().replace(/\s+/g, ' '); if (n.length < 3) return toast('Digite o nome do fiscal.', true);
+      if ([...document.querySelectorAll('#escSemLista [data-sem]')].some(x => nl(x.dataset.sem) === nl(n))) return toast('Esse nome já está na escala.', true);
+      $('#escSemLista').insertAdjacentHTML('beforeend', chipSem(n)); $('#escSemNome').value = ''; situar();
+    };
+    $('#escSemLista').onclick = ev => { const b = ev.target.closest('[data-semrm]'); if (b) { b.closest('[data-sem]').remove(); situar(); } };
     $('#escBusca').oninput = ev => { const q = nl(ev.target.value); document.querySelectorAll('.esc-fiscal').forEach(l => { l.hidden = !!q && !l.dataset.nome.includes(q); }); };
     situar();
     const salvar = async situacao => {
-      const fiscais = [...document.querySelectorAll('#escFiscais input:checked')].map(i => i.dataset.fiscal);
+      const fiscais = [...document.querySelectorAll('#escFiscais input:checked')].map(i => i.dataset.fiscal)
+        .concat([...document.querySelectorAll('#escSemLista [data-sem]')].map(x => ({ nome: x.dataset.sem })));
       if (situacao === 'publicada' && !fiscais.length) return toast('Escolha pelo menos um fiscal para publicar.', true);
       const bts = document.querySelectorAll('#fEscala button'); bts.forEach(b => { b.disabled = true; });
       try {
@@ -112,6 +125,44 @@ const EscalaUI = (() => {
     if (e) $('#escExcluir').onclick = async () => {
       if (!confirm(`Excluir a escala da ${e.bva} (${periodo(e)})?\n\nEla sai das telas dos fiscais e do painel; fica registrada no histórico.`)) return;
       try { await Sync.escalaExcluir(e.id); toast('Escala excluída.'); go('escalas'); } catch (err) { toast(err.message || 'Não foi possível excluir.', true); }
+    };
+  }
+
+  const chipSem = n => `<span class="esc-chip" data-sem="${esc(n)}">${esc(n)} <small>sem login</small><button type="button" data-semrm aria-label="Tirar ${esc(n)}">${icone('fechar')}</button></span>`;
+
+  /**
+   * Gerar períodos: os períodos da BVA pelo regime dela (CONFIG.gerarPeriodosEscala), do início escolhido até a data final (padrão:
+   * fim do convênio), como rascunhos sem fiscais. Os que se sobrepõem a uma escala que a BVA já tem são pulados.
+   */
+  async function gerar(bva) {
+    const mostrar = tela();
+    if (!navigator.onLine) return mostrar(semNet());
+    if (!D) { try { await carregar(); } catch (e) { if (mostrar.viva()) mostrar(`<div class="card aviso">${icone('alerta')} ${esc(e.message)}</div>`); return; } }
+    if (!mostrar.viva()) return;
+    const es = D.escalas.filter(x => nl(x.bva) === nl(bva)).sort((x, y) => x.fim.localeCompare(y.fim)), ult = es[es.length - 1];
+    const ini0 = ult ? CONFIG.proximoInicioEscala(bva, ult) : hoje(), ate0 = D.fimConvenio && D.fimConvenio > ini0 ? D.fimConvenio : somar(ini0, 90);
+    mostrar(`<form class="card" id="fGerar"><h3>Gerar períodos da ${esc(bva)}</h3>
+      <p class="dica" style="text-align:left">${esc(CONFIG.textoRegimeEscala(bva))}. Os períodos entram como <b>rascunho, sem fiscais</b>: depois, abra cada um, escolha a equipe e publique.</p>
+      <div class="duas"><label>Primeiro período começa em<input type="date" id="gerIni" value="${esc(ini0)}"></label><label>Até<input type="date" id="gerAte" value="${esc(ate0)}"></label></div>
+      ${D.fimConvenio ? `<p class="dica" style="text-align:left">Fim do convênio: ${dBR(D.fimConvenio)}.</p>` : ''}
+      <div id="gerPrevia"></div>
+      <button type="button" class="botao" id="gerOk">${icone('calendario')} Gerar</button>
+      <button type="button" class="botao sec" data-go="escalas">${icone('voltar')} Voltar</button></form>`);
+    let lista = [];
+    const previa = () => {
+      lista = CONFIG.gerarPeriodosEscala(bva, $('#gerIni').value, $('#gerAte').value).map(p => ({ ...p, pula: es.some(x => sobrepoe(x, p)) }));
+      const novos = lista.filter(p => !p.pula);
+      $('#gerPrevia').innerHTML = lista.length ? `<p><b>${novos.length} período(s) novo(s)</b>${lista.length > novos.length ? ` · ${lista.length - novos.length} já têm escala (pulados)` : ''}</p>
+        <ul class="esc-previa">${lista.map(p => `<li class="${p.pula ? 'pula' : ''}">${periodo(p)}${p.pula ? ' — já tem escala' : ''}</li>`).join('')}</ul>` : '<p class="dica">Nenhum período nesse intervalo.</p>';
+      $('#gerOk').disabled = !novos.length; $('#gerOk').innerHTML = `${icone('calendario')} Gerar ${novos.length} período(s)`;
+    };
+    $('#gerIni').onchange = $('#gerAte').onchange = previa; previa();
+    $('#gerOk').onclick = async () => {
+      const novos = lista.filter(p => !p.pula); if (!novos.length) return;
+      $('#gerOk').disabled = true;
+      try { const r = await Sync.escalaGerar(bva, novos.map(p => ({ inicio: p.inicio, fim: p.fim })));
+        toast(`${r.criados} período(s) criado(s) como rascunho${r.pulados ? `; ${r.pulados} pulado(s)` : ''}.`); go('escalas'); }
+      catch (err) { $('#gerOk').disabled = false; toast(err.message || 'Não foi possível gerar.', true); }
     };
   }
 
@@ -149,7 +200,8 @@ const EscalaUI = (() => {
   }
   document.addEventListener('click', ev => {
     const n = ev.target.closest('[data-escnova]'); if (n) return go('escala', '+' + n.dataset.escnova);
+    const gg = ev.target.closest('[data-escgerar]'); if (gg) return go('escalagerar', gg.dataset.escgerar);
     const i = ev.target.closest('[data-esc]'); if (i) go('escala', i.dataset.esc);
   });
-  return { lista, form, minha, cartaoMinha, aviso };
+  return { lista, form, gerar, minha, cartaoMinha, aviso };
 })();

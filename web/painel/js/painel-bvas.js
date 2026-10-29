@@ -10,7 +10,7 @@
   /** Todas as BVAs: as da base (config.js) e as cadastradas, com a situação; cada uma com a linha do cadastro, se tiver. */
   function lista() {
     const cad = P.bvasCadastro, base = (CONFIG.bvasBase || []), out = [];
-    const escalaDe = (c, b) => c && c.escalaRegime ? { regime: c.escalaRegime, dias: Number(c.escalaDias) || 0 } : (b && b.escala) || { regime: 'ajustavel', dias: 0 };
+    const escalaDe = (c, b) => c && c.escalaRegime ? { regime: c.escalaRegime, dias: Number(c.escalaDias) || 0, troca: !!Number(c.escalaTroca) } : (b && b.escala) || { regime: 'ajustavel', dias: 0 };
     base.forEach(b => { const c = cad.find(x => k(x.nome) === k(b.nome)); out.push({ ...b, ...(c ? { municipio: c.municipio, endereco: c.endereco, placa: !!c.placa, ficha: !!c.ficha } : {}), escala: escalaDe(c, b), cad: c || null, ativo: c ? !!c.ativo : true, base: true }); });
     cad.filter(c => !base.some(b => k(b.nome) === k(c.nome))).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
       .forEach(c => out.push({ nome: c.nome, municipio: c.municipio, endereco: c.endereco, placa: !!c.placa, ficha: !!c.ficha, escala: escalaDe(c, null), ativo: !!c.ativo, cad: c, base: false }));
@@ -18,7 +18,7 @@
   }
 
   const REG = () => (CONFIG.REGIMES_ESCALA || {});
-  const textoReg = e => e.regime === 'dias' ? `${e.dias} dias` : (REG()[e.regime] || 'Período ajustável');
+  const textoReg = e => e.regime === 'dias' ? `${e.dias} dias${e.troca ? ' (troca no último dia)' : ''}` : (REG()[e.regime] || 'Período ajustável');
   function abrir() {
     const velho = document.getElementById('pn-bva-dlg'); if (velho) velho.remove();
     const dlg = P.el('dialog', 'pn-dlg pn-bva-dlg'); dlg.id = 'pn-bva-dlg';
@@ -38,6 +38,7 @@
           <label class="pn-rg-chk"><input type="checkbox" id="pn-bva-ficha" ${e.ficha ? 'checked' : ''}> Gera a Ficha de Campo</label>
           <div class="pn-conv-cfg-grade"><label class="pn-conv-campo">Escala de plantão<select id="pn-bva-reg">${Object.entries(REG()).map(([v, t]) => `<option value="${v}" ${e.escala.regime === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
             <label class="pn-conv-campo" id="pn-bva-dias-box" ${e.escala.regime === 'dias' ? '' : 'hidden'}>Dias do período<input id="pn-bva-dias" inputmode="numeric" maxlength="2" value="${esc(e.escala.dias || '')}"></label></div>
+          <label class="pn-rg-chk" id="pn-bva-troca-box" ${e.escala.regime === 'dias' ? '' : 'hidden'}><input type="checkbox" id="pn-bva-troca" ${e.escala.troca ? 'checked' : ''}> A equipe troca no último dia (o próximo período começa no mesmo dia)</label>
           <p class="pn-sub">Na escala, o coordenador escolhe o início e o fim vem sugerido por este regime (período ajustável: ele escolhe o fim).</p>
           <label class="pn-rg-chk"><input type="checkbox" id="pn-bva-ativo" ${e.ativo ? 'checked' : ''}> Ativa (aparece no app)</label>
           <div class="pn-dlg-botoes"><button type="button" class="pn-btn" id="pn-bva-cancelar-ed">Cancelar</button><button type="button" class="pn-btn pn-btn-prim" id="pn-bva-salvar">Salvar</button></div></fieldset>`
@@ -50,11 +51,12 @@
       dlg.querySelectorAll('[data-bva-ed]').forEach(b => { b.onclick = () => desenhar(L[+b.dataset.bvaEd]); });
       if (!e) return;
       q('#pn-bva-cancelar-ed').onclick = () => desenhar(null);
-      q('#pn-bva-reg').onchange = ev => { q('#pn-bva-dias-box').hidden = ev.target.value !== 'dias'; };
+      q('#pn-bva-reg').onchange = ev => { q('#pn-bva-dias-box').hidden = q('#pn-bva-troca-box').hidden = ev.target.value !== 'dias'; };
       q('#pn-bva-salvar').onclick = async () => {
         const bva = { id: e.cad ? e.cad.id : '', nome: e.novo ? q('#pn-bva-nome').value : e.nome, municipio: q('#pn-bva-mun').value, endereco: q('#pn-bva-end').value,
                       placa: q('#pn-bva-placa').checked, ficha: q('#pn-bva-ficha').checked, ativo: q('#pn-bva-ativo').checked,
-                      escalaRegime: q('#pn-bva-reg').value, escalaDias: q('#pn-bva-reg').value === 'dias' ? Number(q('#pn-bva-dias').value) || 0 : 0 };
+                      escalaRegime: q('#pn-bva-reg').value, escalaDias: q('#pn-bva-reg').value === 'dias' ? Number(q('#pn-bva-dias').value) || 0 : 0,
+                      escalaTroca: q('#pn-bva-reg').value === 'dias' && q('#pn-bva-troca').checked };
         q('#pn-bva-salvar').disabled = true;
         try {
           const r = await P.chamar({ action: 'painelBvaSalvar', bva });

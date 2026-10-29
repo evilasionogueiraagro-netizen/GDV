@@ -35,26 +35,35 @@ const linhaDe = async (aba, id) => { const t = await get('/__aba?nome=' + aba); 
   const tipos = await opcoes('#pce-tipolocal'), origens = await opcoes('#pce-origem');
   ok(tipos.includes('Viveiro') && tipos.includes('Unidade de Consolidação (UC)') && tipos.includes('Outro') && origens.includes('Notificação voluntária do produtor') && origens.includes('Delimitação de foco'),
     'campos "Tipo de local" e "Origem da visita" com as listas (opcionais: "Não informado")', [tipos.length, origens.length]);
+  ok(tipos.includes('Quintal') && tipos.includes('Área urbana') && tipos.includes('Plantio abandonado') && !tipos.some(t => /\/ (área urbana|não comercial)/i.test(t)),
+    'tipo de local sem "comercial/não comercial" misturado: Quintal, Área urbana e Plantio abandonado são opções separadas', tipos);
+  ok((await opcoes('#pce-comercial')).join() === 'Não informado,Sim,Não', '"Plantio comercial?" é pergunta à parte (opcional)');
   await p.fill('#pce-doc', '52998224725'); await p.fill('#pce-nome', 'Raimundo Nonato'); await p.fill('#pce-propriedade', 'Sítio Esperança'); await p.fill('#pce-codigo', 'PRP-90');
   await p.selectOption('.pce-praga >> nth=0 >> .p-praga', 'Monilíase do Cacaueiro'); await p.selectOption('.pce-praga >> nth=0 >> .pce-cult >> nth=0 >> .c-cultura', 'Cacau');
   await p.click('.pce-praga >> nth=0 >> .pce-cult >> nth=0 >> .pce-res-suspeita');
   ok(await p.isHidden('#pce-tipolocal-outro-l'), '"Qual?" escondido até escolher "Outro"');
   await p.selectOption('#pce-tipolocal', 'Outro'); ok(await p.isVisible('#pce-tipolocal-outro'), '"Outro" mostra o campo para digitar');
-  await p.fill('#pce-tipolocal-outro', 'Escola agrícola'); await p.selectOption('#pce-origem', 'Delimitação de foco');
+  await p.fill('#pce-tipolocal-outro', 'Escola agrícola'); await p.selectOption('#pce-origem', 'Delimitação de foco'); await p.selectOption('#pce-comercial', 'sim');
   await p.click('#pce-salvar'); await p.waitForSelector('#pce-lev-pronto');
-  ok(/Local: Escola agrícola · Origem: Delimitação de foco/.test(await p.textContent('#pce-pronto-local')), 'tela "Levantamento salvo" mostra local e origem');
+  ok(/Local: Escola agrícola · Comercial: sim · Origem: Delimitação de foco/.test(await p.textContent('#pce-pronto-local')), 'tela "Levantamento salvo" mostra local, comercial e origem');
   await p.evaluate(() => { window.__prints = []; }); await p.click('.pce-pdf >> nth=0');
   await p.waitForFunction(() => window.__prints && window.__prints.length, null, { timeout: 15000 });
-  ok(/Local: Escola agrícola · Origem: Delimitação de foco/.test((await p.evaluate(() => window.__prints[0])).texto), 'ficha (PDF): linha "Local: … · Origem: …"');
+  ok(/Local: Escola agrícola · Comercial: sim · Origem: Delimitação de foco/.test((await p.evaluate(() => window.__prints[0])).texto), 'ficha (PDF): linha "Local: … · Comercial: … · Origem: …"');
   await sync(); await p.waitForTimeout(800);
   const lid = await p.evaluate(async () => (await Store.todos('levantamentos'))[0].id);
   let L = await linhaDe('Levantamentos', lid);
-  ok(L && L.tipoLocal === 'Escola agrícola' && L.origemVisita === 'Delimitação de foco', 'planilha: colunas tipoLocal e origemVisita (Outro = texto digitado)', L && [L.tipoLocal, L.origemVisita]);
-  // volta da planilha: outro aparelho / reabrir
-  await post({ action: 'sync', key: TOKF, since: 0, levantamentos: [{ ...L, tipoLocal: 'Viveiro', atualizadoEm: Date.now() + 1000, srv_ts: undefined }] });
+  ok(L && L.tipoLocal === 'Escola agrícola' && L.origemVisita === 'Delimitação de foco' && L.comercial === 'sim', 'planilha: colunas tipoLocal, origemVisita (Outro = texto digitado) e comercial',
+    L && [L.tipoLocal, L.origemVisita, L.comercial]);
+  const P0 = await p.evaluate(async () => (await Store.todos('propriedades')).find(x => x.codigo === 'PRP-90'));
+  ok(P0 && P0.comercial === 'sim', 'a resposta "comercial" da visita vai também para a propriedade', P0 && P0.comercial);
+  // volta da planilha: outro aparelho / reabrir (valor de "comercial" fora de sim/não vira vazio no servidor)
+  await post({ action: 'sync', key: TOKF, since: 0, levantamentos: [{ ...L, tipoLocal: 'Viveiro', comercial: 'talvez', atualizadoEm: Date.now() + 1000, srv_ts: undefined }] });
+  L = await linhaDe('Levantamentos', lid);
+  ok(L && L.comercial === '', 'servidor: "comercial" só aceita sim, nao ou vazio', L && L.comercial);
   await sync(); await p.waitForTimeout(800);
   await p.evaluate(id => go('pcelev', id), lid); await p.waitForSelector('#pceLevForm');
-  ok(await p.inputValue('#pce-tipolocal') === 'Viveiro' && await p.inputValue('#pce-origem') === 'Delimitação de foco', 'sincronização de volta: o valor da planilha chega ao aparelho e reabre no formulário', [await p.inputValue('#pce-tipolocal'), await p.inputValue('#pce-origem')]);
+  ok(await p.inputValue('#pce-tipolocal') === 'Viveiro' && await p.inputValue('#pce-origem') === 'Delimitação de foco' && await p.inputValue('#pce-comercial') === '',
+    'sincronização de volta: o valor da planilha chega ao aparelho e reabre no formulário', [await p.inputValue('#pce-tipolocal'), await p.inputValue('#pce-origem'), await p.inputValue('#pce-comercial')]);
   await p.selectOption('#pce-tipolocal', 'Outro'); await p.fill('#pce-tipolocal-outro', 'Escola agrícola'); await p.click('#pce-salvar'); await p.waitForSelector('#pce-lev-pronto');
   await p.evaluate(id => go('pcelev', id), lid); await p.waitForSelector('#pceLevForm');
   ok(await p.inputValue('#pce-tipolocal') === 'Outro' && await p.inputValue('#pce-tipolocal-outro') === 'Escola agrícola', 'reabrir: valor fora da lista volta como "Outro" + texto');
@@ -94,7 +103,7 @@ const linhaDe = async (aba, id) => { const t = await get('/__aba?nome=' + aba); 
   ok(/Tipo de local/.test(txtPce) && /Origem da visita/.test(txtPce) && /Escola agrícola/.test(txtPce) && /Delimitação de foco/.test(txtPce), 'tabela de levantamentos com "Tipo de local" e "Origem da visita"');
   const [dl] = await Promise.all([P.waitForEvent('download'), P.click('.pn-tab:has(th:text("Tipo de local")) .pn-tab-acoes button')]);
   const csv = fs.readFileSync(await dl.path(), 'utf8');
-  ok(/Tipo de local;Origem da visita/.test(csv) && /Escola agrícola;Delimitação de foco/.test(csv), 'CSV dos levantamentos com as duas colunas', csv.split('\n')[0]);
+  ok(/Tipo de local;Comercial;Origem da visita/.test(csv) && /Escola agrícola;(Sim|Não|não informado);Delimitação de foco/.test(csv), 'CSV dos levantamentos com tipo de local, comercial e origem', csv.split('\n')[0]);
   ok(/Aguardando · LFDA-GO/.test(txtPce), 'termos de colheita: coluna "Resultado" (aguardando, laboratório)');
   ok(/1 amostra\(s\) sem resultado há mais de 30 dias do envio/.test(txtPce), 'alerta "atenção": amostra sem resultado há mais de 30 dias do envio');
   // o aparelho edita o termo SEM internet (com o resultado antigo) enquanto o painel registra o laudo

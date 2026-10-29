@@ -461,6 +461,13 @@ const PCEUI = (() => {
   function propNoForm(p, set) {
     set('propriedade', p.nome); set('codigo', p.codigo); set('situacao', p.situacaoFundiaria); set('municipio', p.municipio);
     set('cnpj', digitos(p.cnpj).length === 14 ? fmtDoc(digitos(p.cnpj)) : ''); set('empresa', p.empresa); set('endereco', p.endereco); set('uf', p.uf);
+    set('comercial', p.comercial); copiarComercial();
+  }
+  /** "Plantio comercial?" da visita → mesma pergunta do bloco de citros, se ela ainda não foi respondida (o fiscal responde uma vez só). */
+  function copiarComercial() {
+    const v = ($('#pce-comercial') || {}).value, r = v && document.querySelector(`input[name="pce-ci-comercial"][value="${v}"]`);
+    if (!r || document.querySelector('input[name="pce-ci-comercial"]:checked')) return;
+    r.checked = true; r.dataset.on = '1'; PCECitros.ligar();
   }
   /** Campos do produtor liberados (depois da consulta do CPF/CNPJ, da busca por nome ou ao abrir um registro já salvo). */
   function liberarProdutor() {
@@ -528,7 +535,7 @@ const PCEUI = (() => {
       municipio: o.municipio || base.municipio || '', situacaoFundiaria: o.situacaoFundiaria || base.situacaoFundiaria || '',
       lat: o.lat !== '' && o.lat != null ? o.lat : (base.lat != null ? base.lat : ''), lon: o.lon !== '' && o.lon != null ? o.lon : (base.lon != null ? base.lon : ''),
       cnpj: o.cnpj || base.cnpj || '', empresa: o.empresa || base.empresa || '', endereco: o.endereco || base.endereco || '', uf: o.uf || base.uf || '',
-      criadoEm: base.criadoEm || t, atualizadoEm: t };
+      comercial: o.comercial || base.comercial || '', criadoEm: base.criadoEm || t, atualizadoEm: t };
   }
 
   /* ---------- rascunho automático (mesma proteção de corrida do TF) ---------- */
@@ -565,7 +572,7 @@ const PCEUI = (() => {
   const culturaVazia = () => ({ uid: novoUid(), cultura: '', area: '', espLinha: '', espPlanta: '', espUnidade: 'm', resultado: '', coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '', fotos: [] });
   const pragaVazia = () => ({ praga: '', legado: false, outra: false, culturas: [culturaVazia()] });
   const levVazio = s => ({ doc: '', nome: '', telefone: '', email: '', empresa: '', cnpj: '', propriedade: '', codigoPropriedade: '', situacaoFundiaria: '',
-    municipio: s.lotacao || '', endereco: '', uf: 'AM', lat: '', lon: '', precisao: '', data: hojeISO(), hora: agoraHM(), obs: '', tipoLocal: '', origemVisita: '',
+    municipio: s.lotacao || '', endereco: '', uf: 'AM', lat: '', lon: '', precisao: '', data: hojeISO(), hora: agoraHM(), obs: '', tipoLocal: '', origemVisita: '', comercial: '',
     pragas: [pragaVazia()], citros: null });
   /** Registro antigo: nada pré-preenchido com "agora" nem com o perfil de quem digita ("Salvar e digitar outro" mantém servidor/município/data). */
   const levVazioAntigo = (s, m = {}) => ({ ...levVazio(s), municipio: m.municipio || '', data: m.data || '', hora: '', coordTxt: '',
@@ -576,7 +583,7 @@ const PCEUI = (() => {
     codigoPropriedade: r.codigoPropriedade || '', situacaoFundiaria: r.situacaoFundiaria || '', municipio: r.municipio || '', lat: r.lat == null ? '' : r.lat,
     lon: r.lon == null ? '' : r.lon, precisao: r.precisao == null ? '' : r.precisao, data: r.data || '', hora: r.hora || '', obs: r.obs || '',
     coordTxt: coordTxtDe(r), sNome: r.servidor || '', sCargo: r.cargo || '', sMatricula: r.matricula || '', sLotacao: r.lotacao || '',
-    tipoLocal: r.tipoLocal || '', origemVisita: r.origemVisita || '', citros: r.citros || '' }; };
+    tipoLocal: r.tipoLocal || '', origemVisita: r.origemVisita || '', comercial: r.comercial || '', citros: r.citros || '' }; };
   const nomePraga = p => String(p || '').trim() || SEM_PRAGA;
 
   /**
@@ -606,7 +613,7 @@ const PCEUI = (() => {
     return { doc: g('doc'), nome: g('nome'), telefone: g('telefone'), email: g('email'), empresa: g('empresa'), cnpj: g('cnpj'), propriedade: g('propriedade'),
       codigoPropriedade: g('codigo'), situacaoFundiaria: g('situacao'), municipio: g('municipio'), endereco: g('endereco'), uf: g('uf'), lat: g('lat'), lon: g('lon'), precisao: g('precisao'), data: g('data'), hora: g('hora'), obs: g('obs'),
       coordTxt: g('coord'), sNome: g('snome'), sCargo: cargoValor('pce-scargo'), sMatricula: g('smatricula'), sLotacao: g('slotacao'),
-      tipoLocal: listaOutroValor('tipolocal'), origemVisita: listaOutroValor('origem'), citros: PCECitros.coletar(),
+      tipoLocal: listaOutroValor('tipolocal'), origemVisita: listaOutroValor('origem'), comercial: g('comercial'), citros: PCECitros.coletar(),
       pragas: [...document.querySelectorAll('#pce-pragas .pce-praga')].map(card => ({ praga: nomePragaCard(card), outra: card.querySelector('.p-praga').value === OUTRA,
         legado: card.dataset.legado === '1',
         culturas: [...card.querySelectorAll('.pce-cult')].map(b => {
@@ -707,6 +714,8 @@ const PCEUI = (() => {
       : `${gpsHTML('pce-', D)}
       <div class="duas">${campo('data', 'Data da vistoria', D.data, 'type="date"')}${campo('hora', 'Hora', D.hora, 'type="time"')}</div>`}</div>
     <div class="card" id="pce-visita-card"><h3>Local e origem da visita <small>(opcional)</small></h3>
+      <label>Plantio comercial?<select id="pce-comercial">${[['', 'Não informado'], ['sim', 'Sim'], ['nao', 'Não']].map(([v, t]) =>
+        `<option value="${v}" ${D.comercial === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
       <div class="duas">${listaOutroHTML('tipolocal', 'Tipo de local', P.tiposLocal || [], D.tipoLocal)}${listaOutroHTML('origem', 'Origem da visita', P.origensVisita || [], D.origemVisita)}</div></div>
     <div class="card pce-pragas-card" id="pce-pragas-card"><h3>Pragas e doenças avaliadas</h3>
       <p class="dica" style="text-align:left">Um card para cada praga/doença avaliada na visita; dentro dele, as culturas avaliadas, com o resultado e as fotos de cada uma. A mesma cultura pode aparecer em pragas diferentes. Cada praga sai num PDF próprio. Com praga de citros, aparece o bloco “${icone('citros')} Cultura do citros” (um só para o levantamento).</p>
@@ -806,7 +815,8 @@ const PCEUI = (() => {
         const l = t.closest('.pce-praga').querySelector('.p-outra-l'); l.hidden = t.value !== OUTRA;
         if (t.value === OUTRA) l.querySelector('input').focus();
       }
-      if (t.classList.contains('p-praga') || t.classList.contains('c-res') || t.classList.contains('p-outra')) atualizarCitros();
+      if (t.classList.contains('p-praga') || t.classList.contains('c-res') || t.classList.contains('p-outra')) { atualizarCitros(); copiarComercial(); }
+      if (t.id === 'pce-comercial') copiarComercial();
       if (t.closest('#pce-citros')) PCECitros.ligar();
       if (t.id === 'pce-cnpj') avisoCnpj(t);
       if (t.id === 'pce-uf') t.value = t.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
@@ -898,7 +908,7 @@ const PCEUI = (() => {
         email: D.email.trim(), propriedade: D.propriedade.trim(), codigoPropriedade: D.codigoPropriedade.trim(), situacaoFundiaria: D.situacaoFundiaria,
         municipio: D.municipio, lat: numOuVazio(D.lat), lon: numOuVazio(D.lon), precisao: numOuVazio(D.precisao), culturas: JSON.stringify(culturasDerivadas(pragas)),
         pragas: JSON.stringify(pragas), fotos: JSON.stringify(fotos), assinaturas: JSON.stringify(mapa), obs: D.obs.trim(), excluido: 0,
-        tipoLocal: D.tipoLocal.slice(0, 80), origemVisita: D.origemVisita.slice(0, 80), citros,
+        tipoLocal: D.tipoLocal.slice(0, 80), origemVisita: D.origemVisita.slice(0, 80), comercial: D.comercial === 'sim' || D.comercial === 'nao' ? D.comercial : '', citros,
         cnpj, empresa: D.empresa.trim().replace(/\s+/g, ' ').slice(0, 120), endereco: D.endereco.trim().replace(/\s+/g, ' ').slice(0, 200),
         uf: D.uf.trim().toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2) };
       if (F.antigo || F.docs.length) Object.assign(rec, { registroAntigo: F.antigo ? 1 : 0, documentos: JSON.stringify(F.docs) });   // campos técnicos (não aparecem no painel nem na ficha)
@@ -907,7 +917,7 @@ const PCEUI = (() => {
       await apagarSeNaoEnviado([...antes].filter(id => !depois.has(id)));               // removidos antes do envio somem do aparelho
       await Store.salvar('pessoas', await montarPessoa(doc, { nome: rec.nome, telefone: rec.telefone, email: rec.email, endereco: rec.endereco, uf: rec.uf }));
       const prop = await montarPropriedade({ codigo: rec.codigoPropriedade, nome: rec.propriedade, doc, municipio: rec.municipio, situacaoFundiaria: rec.situacaoFundiaria, lat: rec.lat, lon: rec.lon,
-        cnpj: rec.cnpj, empresa: rec.empresa, endereco: rec.endereco, uf: rec.uf });
+        cnpj: rec.cnpj, empresa: rec.empresa, endereco: rec.endereco, uf: rec.uf, comercial: rec.comercial });
       if (prop) await Store.salvar('propriedades', prop);
       fechar(F); L = null; await Store.setMeta('pceLevRascunho', null);
       toast(F.novo ? (outro ? 'Levantamento salvo. Digite o próximo.' : 'Levantamento salvo.') : 'Levantamento atualizado.');
@@ -958,7 +968,7 @@ const PCEUI = (() => {
     const G = Docs.pceGrupos(r), amostras = amostrasDe(G), visita = await docsDaVisita(r);
     view(`<div class="card" id="pce-lev-pronto"><h3>${icone('ok')} Levantamento salvo</h3>
       <p><b>${esc(r.nome)}</b> · ${esc(r.propriedade || 'Propriedade não informada')}</p><p>${esc(dBR(r.data))} ${esc(r.hora)} · ${esc(r.municipio)}</p>
-      ${r.tipoLocal || r.origemVisita ? `<p class="dica" style="text-align:left" id="pce-pronto-local">Local: ${esc(r.tipoLocal || 'não informado')} · Origem: ${esc(r.origemVisita || 'não informada')}</p>` : ''}
+      ${r.tipoLocal || r.origemVisita || r.comercial ? `<p class="dica" style="text-align:left" id="pce-pronto-local">Local: ${esc(r.tipoLocal || 'não informado')}${r.comercial ? ` · Comercial: ${r.comercial === 'sim' ? 'sim' : 'não'}` : ''} · Origem: ${esc(r.origemVisita || 'não informada')}</p>` : ''}
       <ul class="pce-res-lista">${G.pragas.map(g => `<li><b>${esc(nomePraga(g.praga))}</b> ${seloRes(resultadoPraga(g))}<br><small>${g.culturas.map(c => `${esc(c.cultura)} (${esc(RES[c.resultado])}${c.fotos.length ? `, ${c.fotos.length} foto(s)` : ''})`).join(' · ')}</small></li>`).join('')}</ul>
       ${G.gerais.length ? `<p class="dica" style="text-align:left">${G.gerais.length} foto(s) gerais (registro anterior) saem em todos os PDFs.</p>` : ''}</div>
       ${botoesVisita(r, visita, true) ? `<div class="card pce-visita"><h3>Próximo passo da visita</h3>

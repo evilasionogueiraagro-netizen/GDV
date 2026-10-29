@@ -460,7 +460,7 @@ function citrosTexto_(v) {
 }
 /**
  * Identificação do produtor/propriedade no levantamento (colunas cnpj, empresa, endereco, uf): CNPJ só com 14 dígitos (senão vazio), UF com 2 letras,
- * empresa até 120 e endereço até 200 caracteres. Campo não enviado (app antigo) continua não enviado.
+ * empresa até 120 e endereço até 200 caracteres; comercial só 'sim', 'nao' ou ''. Campo não enviado (app antigo) continua não enviado.
  */
 function identLev_(r) {
   if (!r || typeof r !== 'object') return;
@@ -468,6 +468,7 @@ function identLev_(r) {
   if ('uf' in r) r.uf = String(r.uf || '').toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
   if ('empresa' in r) r.empresa = textoCurto_(r.empresa, 120);
   if ('endereco' in r) r.endereco = textoCurto_(r.endereco, 200);
+  if ('comercial' in r) r.comercial = r.comercial === 'sim' || r.comercial === 'nao' ? r.comercial : '';
 }
 function culturaPce_(c, resultado) {
   return { cultura: String(c.cultura).trim(), area: numOuNulo_(c.area), espLinha: String(c.espLinha || ''), espPlanta: String(c.espPlanta || ''),
@@ -660,7 +661,7 @@ function dadosPainel_(admin, filtro) {
                          codigoPropriedade: r.codigoPropriedade, situacaoFundiaria: r.situacaoFundiaria, municipio: r.municipio,
                          lat: numOuNulo_(r.lat), lon: numOuNulo_(r.lon), precisao: numOuNulo_(r.precisao),
                          culturas: cult, pragas: pragasDe_(cult), pragasLev: pragasPainel_(r), nFotos: contarFotos_(r.fotos), nAssinaturas: contarAssinaturas_(r.assinaturas),
-                         nDocumentos: contarFotos_(r.documentos), tipoLocal: r.tipoLocal, origemVisita: r.origemVisita,
+                         nDocumentos: contarFotos_(r.documentos), tipoLocal: r.tipoLocal, origemVisita: r.origemVisita, comercial: r.comercial,
                          criadoEm: r.criadoEm, srv_ts: r.srv_ts, usuario: r.usuario });
   });
   const todasColheitas = lerLeitura_('Colheitas').filter(function (r) { return r.id && r.excluido !== 1; });

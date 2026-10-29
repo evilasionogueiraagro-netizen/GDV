@@ -109,7 +109,8 @@ function renderNav(view) {
     pcecads: 'pce', pcecad: 'pce', pcecadpronto: 'pce', pcetfs: 'pce', pcetf: 'pce', pcetfpronto: 'pce', pcerel: 'pce', escala: 'escalas', escalagerar: 'escalas' })[view] || view;
   $('#nav').innerHTML = NAVS[MODULO].map(([v, i, t]) => `<button data-v="${v}" class="${v === ativo ? 'on' : ''}">${icone(i)}<span>${t}</span></button>`).join('');
 }
-function go(view, arg) {
+/** Abre a tela. o.manterRolagem: redesenho da mesma tela (sincronização), sem voltar ao topo. Devolve a promessa do desenho. */
+function go(view, arg, o) {
   if (VIEW === 'fechado' && view !== 'fechado' && EDIT) avisarSaidaPendente(EDIT);   // aviso não bloqueante: encerramento ainda não chegou
   const bloq = semPermissaoPara(view);
   if (bloq) { toast(`${SEM_AUT}: ${Sync.MODULOS[bloq]}.`, true); view = 'modulos'; arg = null; }
@@ -122,7 +123,7 @@ function go(view, arg) {
   else if (/^escala/.test(view)) MODULO = 'escala';
   else if (/^tf/.test(view) && MODULO === 'hub') MODULO = 'tf';          // TF aberto a partir do veículo continua no módulo de veículos (embutido)
   renderNav(view); GER++;
-  ({ modulos, home, registrar, editar: registrar, lista, resumo, fechado, historico, config, turnopapel, tf: () => TFUI.lista(), tfnovo: () => TFUI.novo(EDIT), tfpronto: () => TFUI.pronto(EDIT),
+  const r = ({ modulos, home, registrar, editar: registrar, lista, resumo, fechado, historico, config, turnopapel, tf: () => TFUI.lista(), tfnovo: () => TFUI.novo(EDIT), tfpronto: () => TFUI.pronto(EDIT),
     pce: () => PCEUI.lista(), pcelev: () => PCEUI.levantamento(EDIT), pcetermos: () => PCEUI.termos(), pcetermo: () => PCEUI.termo(EDIT),
     pcepronto: () => PCEUI.pronto(EDIT), pcelevpronto: () => PCEUI.levPronto(EDIT), pceservidor: () => PCEUI.servidor(EDIT),
     pcecampo: () => Campo.telaBaixar(), pcemapa: () => Campo.telaMapa(), pcerota: () => Campo.telaRota(),
@@ -130,7 +131,18 @@ function go(view, arg) {
     pcecads: () => PCEMon.lista('cadastro'), pcecad: () => PCEMon.cadastro(EDIT), pcecadpronto: () => PCEMon.pronto('cadastro', EDIT),
     pcetfs: () => PCEMon.lista('termo'), pcetf: () => PCEMon.termo(EDIT), pcetfpronto: () => PCEMon.pronto('termo', EDIT), pcerel: () => PCEMon.relatorio(),
     escalas: () => EscalaUI.lista(), escala: () => EscalaUI.form(EDIT), escalagerar: () => EscalaUI.gerar(EDIT) }[view])();
-  window.scrollTo(0, 0);
+  if (!(o && o.manterRolagem)) window.scrollTo(0, 0);
+  return r;
+}
+/**
+ * Redesenho pedido pela sincronização automática (a cada 20 s a 1 min): a mesma tela, na mesma posição da rolagem. Com o fiscal
+ * digitando num campo da tela, não redesenha (o próximo redesenho pega os dados novos).
+ */
+function redesenhar() {
+  const ae = document.activeElement;
+  if (ae && $('#view').contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+  const y = window.scrollY;
+  Promise.resolve(go(VIEW, EDIT, { manterRolagem: true })).then(() => { if (y && Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y); }).catch(() => {});
 }
 
 async function modulos() {
@@ -901,13 +913,13 @@ Sync.onEstado(e => {
   b.innerHTML = icone(ic) + ' ' + esc(txt + (e.tipo === 'sync' ? '' : pend));
   atualizarStatusEnc().catch(() => {});
 });
-window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'resumo', 'historico', 'tf', 'pce', 'pcetermos', 'pcecads', 'pcetfs', 'fechado'].includes(VIEW)) go(VIEW, EDIT); });
+window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'resumo', 'historico', 'tf', 'pce', 'pcetermos', 'pcecads', 'pcetfs', 'fechado'].includes(VIEW)) redesenhar(); });
 // permissões mudaram no sync: se a tela aberta é de um módulo que deixou de ser autorizado, volta para os módulos (nada é apagado);
 // na tela de módulos (ou em telas livres) só redesenha
 window.addEventListener('gdv-permissoes', () => {
   if (semPermissaoPara(VIEW)) go(VIEW);                                   // go() avisa e leva para a tela de módulos
   else if (VIEW === 'modulos') go('modulos');
-  else if (['home', 'lista', 'pce', 'pcetermos', 'pcepronto', 'pcelevpronto'].includes(VIEW)) go(VIEW, EDIT);   // botões "Lavrar TF" / "do papel" aparecem/somem
+  else if (['home', 'lista', 'pce', 'pcetermos', 'pcepronto', 'pcelevpronto'].includes(VIEW)) redesenhar();   // botões "Lavrar TF" / "do papel" aparecem/somem
 });
 window.addEventListener('online', () => Sync.atualizarContagem());
 window.addEventListener('gdv-sync-fim', () => { atualizarStatusEnc().catch(() => {}); });

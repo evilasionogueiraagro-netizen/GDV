@@ -60,6 +60,23 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
   const H = (await linhas('HistoricoDeAlteracoes')).filter(x => x.tabela === 'Escalas');
   ok(H.filter(x => x.acao === 'criar escala').length === 3 && H.some(x => x.acao === 'alterar escala') && H.some(x => x.acao === 'excluir escala'), 'histórico: criar, alterar e excluir', H.map(x => x.acao));
 
+  console.log('1b) troca no último dia, fiscal sem login e "gerar períodos"');
+  // Jundiá: a equipe troca no último dia (15/10 a 24/10, 24/10 a 02/11): encostar no dia da troca não é sobreposição
+  r = await post({ action: 'escalaSalvar', key: coord.token, escala: { bva: 'BVA - JUNDIÁ', inicio: '2027-01-04', fim: '2027-01-13', fiscais: [], situacao: 'rascunho' } });
+  const j1 = r.escala.id;
+  r = await post({ action: 'escalaSalvar', key: coord.token, escala: { bva: 'BVA - JUNDIÁ', inicio: '2027-01-13', fim: '2027-01-22', fiscais: [{ nome: 'Fulano Sem Login Teste' }, id('Ana Escalada Teste')], situacao: 'publicada' } });
+  const j2 = r.escala.id;
+  ok(r.ok && !r.avisos.some(a => /sobrepõe/.test(a)), 'troca no último dia: o período seguinte começa no fim do anterior, sem aviso de sobreposição', r.avisos);
+  ok(r.escala.fiscais.some(f => f.nome === 'Fulano Sem Login Teste' && !f.id && f.semLogin === 1), 'fiscal sem login: nome digitado, marcado "sem login"', r.escala.fiscais);
+  r = await post({ action: 'escalaSalvar', key: coord.token, escala: { bva: 'BVA - JUNDIÁ', inicio: '2027-01-20', fim: '2027-01-29', fiscais: [{ nome: 'ab' }] } });
+  ok(!r.ok && /curto demais/.test(r.erro), 'nome sem login curto: recusa', r.erro);
+  r = await post({ action: 'escalaGerar', key: coord.token, bva: 'BVA - JUNDIÁ', periodos: [{ inicio: '2027-01-22', fim: '2027-01-31' }, { inicio: '2027-01-31', fim: '2027-02-09' }, { inicio: '2027-01-10', fim: '2027-01-19' }] });
+  ok(r.ok && r.criados === 2 && r.pulados === 1, 'gerar períodos: 2 rascunhos; o que se sobrepõe a uma escala existente é pulado', r);
+  r = await post({ action: 'escalaGerar', key: f1.token, bva: 'BVA - JUNDIÁ', periodos: [{ inicio: '2027-03-01', fim: '2027-03-10' }] });
+  ok(!r.ok && /Sem autorização/.test(r.erro), 'gerar: só a coordenação (ou a gerência no painel)');
+  const DG = await post({ action: 'escalaDados', key: coord.token, de: '2027-01-01', ate: '2027-03-01' });
+  ok(DG.ok && DG.escalas.filter(e => e.bva === 'BVA - JUNDIÁ' && e.inicio >= '2027-01-22').every(e => e.situacao === 'rascunho' && !e.fiscais.length) && DG.fimConvenio === '2027-04-01', 'gerados: rascunho sem fiscais; fim do convênio vem nos dados', DG.fimConvenio);
+
   console.log('2) app de campo: módulo só para a coordenação; montar a escala; o fiscal vê a escala ao iniciar o turno');
   const b = await amb.lancar(), err = [];
   const aparelho = async (sess, nome) => {
@@ -90,7 +107,7 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
   await pc.screenshot({ path: amb.saida('escala_lista.png'), fullPage: true });
   // fim sugerido pelo regime da BVA: Jundiá 10 dias, CEASA 8, Aeroporto (12 h × 36 h) o mesmo dia; ajustável: o coordenador escolhe
   await pc.click('[data-escnova="BVA - JUNDIÁ"]'); await pc.waitForSelector('#fEscala');
-  ok(/Período de 10 dias: o fim vem sugerido/.test(await pc.textContent('#escRegime')), 'nova escala do Jundiá: mostra o regime (10 dias)');
+  ok(/Período de 10 dias \(troca no último dia\): o fim vem sugerido/.test(await pc.textContent('#escRegime')), 'nova escala do Jundiá: mostra o regime (10 dias)');
   await pc.fill('#escIni', '2026-12-01'); await pc.dispatchEvent('#escIni', 'change');
   const fimJ = await pc.inputValue('#escFim');
   await pc.selectOption('#escBva', 'BVA - CEASA'); await pc.fill('#escIni', '2026-12-01'); await pc.dispatchEvent('#escIni', 'change');
@@ -100,7 +117,20 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
   ok(fimJ === '2026-12-10' && fimC === '2026-12-08' && fimA === '2026-12-01' && /12 h × 36 h/.test(regA), 'só o início: o fim vem pelo regime (Jundiá +9, CEASA +7, Aeroporto o mesmo dia)', [fimJ, fimC, fimA, regA]);
   ok(await pc.evaluate(() => { CONFIG.bvas.push({ nome: 'BVA - TABATINGA', escala: { regime: 'ajustavel' } }); const r = [CONFIG.fimEscala('BVA - TABATINGA', '2026-12-01'), CONFIG.proximoInicioEscala('BVA - AEROPORTO', { inicio: '2026-12-01', fim: '2026-12-01' })]; CONFIG.bvas.pop(); return r.join(); }) === ',2026-12-03',
     'ajustável (Tabatinga): sem fim sugerido; 12×36: o próximo plantão 2 dias depois');
-  await pc.click('[data-go=escalas]'); await pc.waitForSelector('#escLista [data-esc]', { timeout: 15000 });
+  // gerar períodos do Jundiá a partir de 15/10 até o fim do ano: os mesmos da escala do papel (15/10 a 24/10 … 26/12 a 04/01)
+  const gerados = await pc.evaluate(() => CONFIG.gerarPeriodosEscala('BVA - JUNDIÁ', '2026-10-15', '2026-12-31').map(p => p.inicio.slice(5) + '>' + p.fim.slice(5)).join(' '));
+  ok(gerados === '10-15>10-24 10-24>11-02 11-02>11-11 11-11>11-20 11-20>11-29 11-29>12-08 12-08>12-17 12-17>12-26 12-26>01-04', 'Jundiá: períodos de 10 dias com troca no último dia, iguais aos do papel', gerados);
+  const geradosC = await pc.evaluate(() => CONFIG.gerarPeriodosEscala('BVA - CEASA', '2026-10-04', '2026-11-28').map(p => p.inicio.slice(5) + '>' + p.fim.slice(5)).join(' '));
+  ok(geradosC === '10-04>10-11 10-11>10-18 10-18>10-25 10-25>11-01 11-01>11-08 11-08>11-15 11-15>11-22 11-22>11-29', 'CEASA: períodos de 8 dias com troca no último dia, iguais aos do papel', geradosC);
+  await pc.click('[data-go=escalas]'); await pc.waitForSelector('#escLista [data-escgerar="BVA - CEASA"]', { timeout: 15000 });
+  ok(!(await pc.$('[data-escgerar="BVA - TABATINGA"]')), 'ajustável: sem "Gerar períodos"');
+  await pc.click('[data-escgerar="BVA - CEASA"]'); await pc.waitForSelector('#fGerar #gerPrevia li');
+  await pc.fill('#gerIni', '2027-02-01'); await pc.fill('#gerAte', '2027-02-28'); await pc.dispatchEvent('#gerAte', 'change');
+  const prev = await pc.textContent('#gerPrevia');
+  ok(/4 período\(s\) novo/.test(prev) && /01\/02\/2027 a 08\/02\/2027/.test(prev), 'app: prévia dos períodos da CEASA (8 dias)', prev);
+  await pc.screenshot({ path: amb.saida('escala_gerar.png'), fullPage: true });
+  await pc.click('#gerOk'); await pc.waitForSelector('#escLista [data-esc]', { timeout: 15000 });
+  ok((await linhas('Escalas')).filter(x => x.bva === 'BVA - CEASA' && x.inicio >= '2027-02-01' && x.situacao === 'rascunho').length === 4, 'app: 4 rascunhos da CEASA criados');
   await pc.click('[data-escnova]'); await pc.waitForSelector('#fEscala');
   await pc.selectOption('#escBva', 'BVA - AEROPORTO'); await pc.fill('#escIni', dia(1)); await pc.fill('#escFim', dia(5));
   await pc.check(`#fEscala input[data-fiscal="${id('Ana Escalada Teste')}"]`);
@@ -166,6 +196,11 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
   await pp.click(`${linha} [data-pcdp=desfazer]`); await pp.waitForSelector(`${linha} [data-pcdp=concluir]`, { timeout: 15000 });
   P = (await linhas('EscalaPcdp')).find(x => x.id === jundia + '|' + id('Ana Escalada Teste'));
   ok(P.situacao === 'pendente' && P.pcdp === '', 'desfazer: volta a pendente', P);
+  AE = await post({ action: 'admEscalas', sessao: SA.sessao });
+  const esem = AE.escalas.find(e => e.id === j2), fsem = esem && esem.fiscais.find(f => f.semLogin);
+  ok(fsem && fsem.nome === 'Fulano Sem Login Teste', 'portal: fiscal sem login também fica pendente de diárias', esem && esem.fiscais);
+  r = await post({ action: 'admEscalaPcdp', sessao: SA.sessao, escalaId: j2, usuarioId: fsem.usuarioId, concluida: true, pcdp: '9/2027' });
+  ok(r.ok && r.situacao === 'concluida', 'portal: PCDP do fiscal sem login', r);
   ok(!pp.errosPag.length, 'portal sem erros', pp.errosPag);
   await pp.context().close();
   ok(!err.length, 'sem erros de página', err);

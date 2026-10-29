@@ -12,7 +12,8 @@
   const nl = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const somar = (d, n) => new Date(Date.parse(d + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
   const dias = (a, b) => Math.round((Date.parse(b + 'T12:00:00Z') - Date.parse(a + 'T12:00:00Z')) / 864e5);
-  const sobrepoe = (a, b) => a.inicio <= b.fim && b.inicio <= a.fim;
+  const sobrepoe = (a, b) => CONFIG.sobrepoeEscala(a, b);                 // encostar só no dia da troca não conta
+  const nomeF = f => f.nome + (f.id ? '' : ' (sem login)');
   const bvas = () => { const l = ((typeof CONFIG !== 'undefined' && CONFIG.bvas) || []).map(b => b.nome);
     ((E.dados && E.dados.escalas) || []).forEach(e => { if (!l.some(x => nl(x) === nl(e.bva))) l.push(e.bva); }); return l; };
   const hoje = () => (E.dados && E.dados.hoje) || P.diaManaus(Date.now());
@@ -46,7 +47,7 @@
   const celula = (e, cls) => !e ? `<td class="${cls || ''}"><span class="pn-sub">—</span></td>`
     : `<td class="${cls || ''}"><button type="button" class="pn-esc-cel" data-esc="${esc(e.id)}" ${P.pode('gerencia') ? '' : 'disabled'}>
         <b>${dBR(e.inicio).slice(0, 5)} a ${dBR(e.fim)}</b> <span class="pn-selo ${e.situacao === 'publicada' ? 'bom' : 'atencao'}">${e.situacao === 'publicada' ? 'publicada' : 'rascunho'}</span>
-        <span>${e.fiscais.length ? esc(e.fiscais.map(f => f.nome).join(', ')) : '<i>sem fiscais</i>'}</span></button></td>`;
+        <span>${e.fiscais.length ? esc(e.fiscais.map(nomeF).join(', ')) : '<i>sem fiscais</i>'}</span></button></td>`;
 
   function render(c, D) {
     if (!E.dados || Date.now() - E.lidoEm > RECARREGAR_MS) { if (!E.carregando) carregar(); }
@@ -55,7 +56,7 @@
     const topo = P.el('div', 'pn-cartao pn-esc-topo');
     topo.innerHTML = `<div><h2 class="pn-conv-nome">Escalas de plantão</h2>
         <p class="pn-sub">Montadas pela coordenação de barreira e trânsito no app de campo${P.pode('gerencia') ? '; a gerência também edita aqui (toque numa escala)' : ''}. Só a publicada vale para os fiscais.</p></div>
-      ${P.pode('gerencia') ? '<button type="button" class="pn-btn pn-btn-prim" id="pn-esc-nova">Nova escala</button>' : ''}`;
+      ${P.pode('gerencia') ? '<div class="pn-esc-botoes"><button type="button" class="pn-btn" id="pn-esc-gerar">Gerar períodos</button><button type="button" class="pn-btn pn-btn-prim" id="pn-esc-nova">Nova escala</button></div>' : ''}`;
     c.appendChild(topo);
     if (E.avisos.length) c.appendChild(P.el('div', 'pn-cartao pn-esc-avisos', `<b>Atenção</b><ul>${E.avisos.map(a => `<li>${esc(a)}</li>`).join('')}</ul>`));
     P.kpis(c, [
@@ -84,6 +85,7 @@
     E.avisos = [];
     c.onclick = ev => {
       if (ev.target.closest('#pn-esc-nova')) return dialogo(null);
+      if (ev.target.closest('#pn-esc-gerar')) return dialogoGerar();
       const b = ev.target.closest('[data-esc]'); if (b && P.pode('gerencia')) dialogo(E.dados.escalas.find(e => e.id === b.dataset.esc));
     };
   }
@@ -103,6 +105,8 @@
       <label class="pn-conv-campo">BVA<select id="pn-esc-bva" ${e ? 'disabled' : ''}>${bvas().map(b => `<option ${b === b0 ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select></label>
       <div class="pn-conv-cfg-grade"><label class="pn-conv-campo">Início<input type="date" id="pn-esc-ini" value="${esc(p0.inicio)}"></label><label class="pn-conv-campo">Fim<input type="date" id="pn-esc-fim" value="${esc(p0.fim)}"></label></div>
       <p class="pn-sub" id="pn-esc-regime">${esc(textoRegime(b0))}</p>
+      <div class="pn-conv-cfg-grade"><label class="pn-conv-campo">Fiscal que ainda não tem login<input id="pn-esc-semnome" maxlength="80" autocomplete="off"></label><button type="button" class="pn-btn pn-btn-mini" id="pn-esc-semadd">Incluir sem login</button></div>
+      <div class="pn-esc-sem" id="pn-esc-semlista">${(e ? e.fiscais.filter(f => !f.id) : []).map(f => chipSem(f.nome)).join('')}</div>
       <div class="pn-esc-fiscais" id="pn-esc-fiscais">${D.fiscais.map(f => `<label class="pn-rg-chk"><input type="checkbox" data-fiscal="${esc(f.id)}" ${marc.has(f.id) ? 'checked' : ''}> ${esc(f.nome)} <small data-st="${esc(f.id)}"></small></label>`).join('')}</div>
       ${e ? `<p class="pn-sub">Última alteração: ${esc(e.atualizadoPor || '—')}${e.publicadaPor ? ` · publicada por ${esc(e.publicadaPor)}` : ''}</p>` : ''}
       <p class="pn-dlg-erro" id="pn-esc-erro" role="alert"></p>
@@ -119,10 +123,14 @@
     if (!e) q('#pn-esc-bva').onchange = () => { const s = sugerir(q('#pn-esc-bva').value); q('#pn-esc-ini').value = s.inicio; q('#pn-esc-fim').value = s.fim; q('#pn-esc-regime').textContent = textoRegime(q('#pn-esc-bva').value); situar(); };
     q('#pn-esc-ini').onchange = () => { const f = CONFIG.fimEscala(bva(), q('#pn-esc-ini').value); if (f) q('#pn-esc-fim').value = f; situar(); };
     q('#pn-esc-fim').onchange = situar; situar();
+    q('#pn-esc-semadd').onclick = () => { const n = q('#pn-esc-semnome').value.trim().replace(/\s+/g, ' '); if (n.length < 3) return;
+      q('#pn-esc-semlista').insertAdjacentHTML('beforeend', chipSem(n)); q('#pn-esc-semnome').value = ''; };
+    q('#pn-esc-semlista').onclick = ev => { const b = ev.target.closest('[data-semrm]'); if (b) b.closest('[data-sem]').remove(); };
     q('#pn-esc-cancelar').onclick = () => dlg.close();
     dlg.addEventListener('close', () => dlg.remove());
     const gravar = async situacao => {
-      const fiscais = [...dlg.querySelectorAll('#pn-esc-fiscais input:checked')].map(i => i.dataset.fiscal);
+      const fiscais = [...dlg.querySelectorAll('#pn-esc-fiscais input:checked')].map(i => i.dataset.fiscal)
+        .concat([...dlg.querySelectorAll('#pn-esc-semlista [data-sem]')].map(x => ({ nome: x.dataset.sem })));
       dlg.querySelectorAll('button').forEach(b => { b.disabled = true; });
       try {
         const r = await P.chamar({ action: 'painelEscalaSalvar', escala: { id: e ? e.id : '', bva: bva(), inicio: q('#pn-esc-ini').value, fim: q('#pn-esc-fim').value, fiscais, situacao } });
@@ -135,6 +143,39 @@
       if (!confirm(`Excluir a escala da ${e.bva} (${dBR(e.inicio)} a ${dBR(e.fim)})? Fica registrada no histórico.`)) return;
       try { await P.chamar({ action: 'painelEscalaExcluir', id: e.id }); dlg.close(); P.toast('Escala excluída.'); E.lidoEm = 0; await carregar(); }
       catch (err) { q('#pn-esc-erro').textContent = err.message; }
+    };
+    dlg.showModal();
+  }
+
+  const chipSem = n => `<span class="pn-esc-chip" data-sem="${esc(n)}">${esc(n)} <small>sem login</small> <button type="button" class="pn-btn pn-btn-mini" data-semrm aria-label="Tirar ${esc(n)}">×</button></span>`;
+
+  /** Gerência: gerar os períodos de uma BVA pelo regime dela, até a data final (padrão: fim do convênio), como rascunhos sem fiscais. */
+  function dialogoGerar() {
+    const velho = document.getElementById('pn-esc-ger'); if (velho) velho.remove();
+    const D = E.dados, fixos = bvas().filter(b => CONFIG.regimeEscala(b).regime !== 'ajustavel');
+    if (!fixos.length) return P.toast('Nenhuma BVA com regime fixo (cadastro de BVAs).');
+    const dlg = P.el('dialog', 'pn-dlg'); dlg.id = 'pn-esc-ger';
+    dlg.innerHTML = `<form method="dialog" class="pn-dlg-form" novalidate><h3>Gerar períodos</h3>
+      <p class="pn-sub">Pelo regime da BVA, como rascunhos sem fiscais; os que já têm escala são pulados.</p>
+      <label class="pn-conv-campo">BVA<select id="pn-ger-bva">${fixos.map(b => `<option>${esc(b)}</option>`).join('')}</select></label>
+      <div class="pn-conv-cfg-grade"><label class="pn-conv-campo">Primeiro começa em<input type="date" id="pn-ger-ini"></label><label class="pn-conv-campo">Até<input type="date" id="pn-ger-ate"></label></div>
+      <p class="pn-sub" id="pn-ger-previa"></p><p class="pn-dlg-erro" id="pn-ger-erro" role="alert"></p>
+      <div class="pn-dlg-botoes"><button type="button" class="pn-btn" id="pn-ger-cancelar">Cancelar</button><button type="button" class="pn-btn pn-btn-prim" id="pn-ger-ok">Gerar</button></div></form>`;
+    document.body.appendChild(dlg);
+    const q = s => dlg.querySelector(s); let lista = [];
+    const inicial = () => { const b = q('#pn-ger-bva').value, ult = D.escalas.filter(x => nl(x.bva) === nl(b)).sort((x, y) => x.fim.localeCompare(y.fim)).pop();
+      q('#pn-ger-ini').value = ult ? CONFIG.proximoInicioEscala(b, ult) : hoje(); q('#pn-ger-ate').value = D.fimConvenio && D.fimConvenio > q('#pn-ger-ini').value ? D.fimConvenio : somar(q('#pn-ger-ini').value, 90); previa(); };
+    const previa = () => { const b = q('#pn-ger-bva').value, es = D.escalas.filter(x => nl(x.bva) === nl(b));
+      lista = CONFIG.gerarPeriodosEscala(b, q('#pn-ger-ini').value, q('#pn-ger-ate').value).filter(p => !es.some(x => sobrepoe(x, p)));
+      q('#pn-ger-previa').textContent = lista.length ? `${lista.length} período(s): ${dBR(lista[0].inicio)} a ${dBR(lista[lista.length - 1].fim)} (${CONFIG.textoRegimeEscala(b)}).` : 'Nenhum período novo nesse intervalo.';
+      q('#pn-ger-ok').disabled = !lista.length; };
+    q('#pn-ger-bva').onchange = inicial; q('#pn-ger-ini').onchange = q('#pn-ger-ate').onchange = previa; inicial();
+    q('#pn-ger-cancelar').onclick = () => dlg.close(); dlg.addEventListener('close', () => dlg.remove());
+    q('#pn-ger-ok').onclick = async () => {
+      q('#pn-ger-ok').disabled = true;
+      try { const r = await P.chamar({ action: 'painelEscalaGerar', bva: q('#pn-ger-bva').value, periodos: lista });
+        dlg.close(); P.toast(`${r.criados} período(s) criado(s) como rascunho.`); E.lidoEm = 0; await carregar(); }
+      catch (err) { q('#pn-ger-erro').textContent = err.message; q('#pn-ger-ok').disabled = false; }
     };
     dlg.showModal();
   }

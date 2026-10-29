@@ -183,7 +183,11 @@ const Sync = (() => {
   const permissoes = () => ({ ...PERM });
   const pode = m => (m === 'antigo' ? Envio.podeAntigo(PERM) : m === 'escala' ? PERM.escala === 1 : PERM[m] !== 0);
   const storePermitido = n => Envio.storePermitido(n, PERM);
-  async function carregarPermissoes() { try { PERM = normPerm(await Store.meta('permissoes')); } catch (e) { /* sem banco: tudo liberado */ } return permissoes(); }
+  async function carregarPermissoes() {
+    try { PERM = normPerm(await Store.meta('permissoes')); } catch (e) { /* sem banco: tudo liberado */ }
+    try { const b = await Store.meta('bvas'); if (Array.isArray(b)) CONFIG.aplicarBvas(b); } catch (e) { /* sem banco: só as BVAs do config.js */ }
+    return permissoes();
+  }
   /** Novas permissões vindas do servidor: guarda e avisa a tela (gdv-permissoes) se algo mudou. */
   async function guardarPermissoes(o) {
     if (!o) return false;
@@ -411,6 +415,7 @@ const Sync = (() => {
         await lembrarUltimosDocPce(r.ultimosDocPce);
         if (r.barreiras) await Store.setMeta('barreiras', r.barreiras);
         if (Array.isArray(r.minhasEscalas)) await Store.setMeta('minhasEscalas', r.minhasEscalas);   // escalas de plantão publicadas do fiscal
+        if (Array.isArray(r.bvas)) { await Store.setMeta('bvas', r.bvas); CONFIG.aplicarBvas(r.bvas); }   // BVAs cadastradas no painel
         await lembrarUltimos(r.ultimos);
         await lembrarUltimosPce(r.ultimosPce);
         await Store.setMeta('lastSync', r.agora);

@@ -140,7 +140,24 @@
   }
 
   /* ---------- render ---------- */
+  // Seletor da aba: uma visão por vez. Culturas e Doenças e pragas = catálogo (painel-pce-catalogo.js), só com o módulo PCE.
+  const VISOES = [['indicadores', 'Indicadores e mapa'], ['culturas', 'Culturas'], ['pragas', 'Doenças e pragas']];
+  const LS_VISAO = 'pn.pce.visao';
+  const lerVisao = () => { try { return localStorage.getItem(LS_VISAO) || ''; } catch (e) { return ''; } };
+  function seletor(c) {
+    const vs = VISOES.filter(([v]) => v === 'indicadores' || (P.temPermissao('pce') && window.PainelPceCatalogo));
+    let atual = lerVisao(); if (!vs.some(([v]) => v === atual)) atual = 'indicadores';
+    if (vs.length > 1) {
+      const s = P.el('div', 'pn-pce-sub'); s.setAttribute('role', 'tablist'); s.setAttribute('aria-label', 'Visões do PCE');
+      s.innerHTML = vs.map(([v, t]) => `<button type="button" role="tab" data-pce-visao="${v}" aria-selected="${v === atual}" class="${v === atual ? 'on' : ''}">${esc(t)}</button>`).join('');
+      s.onclick = e => { const b = e.target.closest('[data-pce-visao]'); if (!b) return; try { localStorage.setItem(LS_VISAO, b.dataset.pceVisao); } catch (x) { /* sem armazenamento */ } P.redesenhar(); };
+      c.appendChild(s);
+    }
+    return atual;
+  }
   function render(c, d, f) {
+    const visao = seletor(c);
+    if (visao !== 'indicadores') { const corpo = P.el('div', 'pn-cat'); c.appendChild(corpo); window.PainelPceCatalogo.render(corpo, visao); return; }
     const p = P.paleta;
     const levs = d.levantamentos, termos = d.colheitas;
     const K = calculos(d, f), itens = K.itens, cob = K.cobertura, nMun = cob.linhas.length;

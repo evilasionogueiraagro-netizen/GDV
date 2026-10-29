@@ -2,6 +2,11 @@
 
 Levantamento, termos, citros, monilíase, laudo e campo sem internet; usado por fiscais e painel. Veja também: [acessos](acessos.md), [API](../API.md).
 
+## Catálogo (pce-catalogo.gs, painel → PCE → Culturas / Doenças e pragas)
+- Modelo em [arquitetura](../arquitetura.md): a praga é o programa; a família agrupa culturas e define o modelo de cadastro; pragas da cultura = as da família + as ligadas só a ela.
+- Fonte única: abas `FamiliasDeCulturas`, `Culturas`, `Pragas`, `PragasDasFamilias`, `PragasDasCulturas`; vazias = base do código (`CATALOGO_PCE_BASE_`), copiada na 1ª gravação. Ids nascem do nome e não mudam.
+- Lê quem tem `pce` (painel e app pelo sync); grava gerência + `pce`; ligação desfeita = `ativo` 0; tudo em `HistoricoDeAlteracoes`.
+
 ## Levantamento e Termo
 - Dados gerais uma vez por visita; card por praga (`CONFIG.PCE.pragas` ou "Outra") com culturas (área, resultado, coleta, fotos).
 - Limites: 20 pragas, 40 culturas, 60 fotos por levantamento; fotos e assinaturas até 4 MB (JPEG/PNG).

@@ -1,6 +1,6 @@
 /* Escalas de plantão (só a coordenação de barreira e trânsito: permissão coordenacaoBarreiras → módulo "escala").
-   Lista as escalas por BVA e período e monta/edita a equipe de cada uma. O período varia por BVA (início e fim livres; a próxima
-   começa, por padrão, no dia seguinte ao fim da última da mesma BVA, com a mesma duração). Rascunho → publicada: só a publicada
+   Lista as escalas por BVA e período e monta/edita a equipe de cada uma. O período varia por BVA: ao escolher o início, o fim vem
+   sugerido pelo regime da BVA (cadastro de BVAs: N dias, 12 h × 36 h, turno de 8 h; ajustável: o coordenador escolhe). Rascunho → publicada: só a publicada
    chega aos fiscais. Precisa de internet (lê e grava direto no servidor: escalaDados / escalaSalvar / escalaExcluir). */
 const EscalaUI = (() => {
   'use strict';
@@ -54,17 +54,20 @@ const EscalaUI = (() => {
     if (!mostrar.viva()) return;
     const e = id && id.charAt(0) !== '+' ? D.escalas.find(x => x.id === id) : null;
     if (id && id.charAt(0) !== '+' && !e) { toast('Esta escala não existe mais.', true); return go('escalas'); }
-    const sugerir = b => {                                         // nova: começa no dia seguinte ao fim da última da BVA, com a mesma duração
+    // nova: começa depois da última da BVA (CONFIG.proximoInicioEscala) e o fim vem do regime da BVA (CONFIG.fimEscala: 10 dias no
+    // Jundiá, 8 na CEASA, o mesmo dia no 12×36/8 h); período ajustável: a mesma duração da última
+    const sugerir = b => {
       const ult = D.escalas.filter(x => nl(x.bva) === nl(b)).sort((x, y) => x.fim.localeCompare(y.fim)).pop();
-      const ini = ult && ult.fim >= hoje() ? somar(ult.fim, 1) : hoje();
-      return { inicio: ini, fim: somar(ini, ult ? Math.max(0, dias(ult.inicio, ult.fim)) : 9) };
+      const ini = ult && ult.fim >= hoje() ? CONFIG.proximoInicioEscala(b, ult) : hoje();
+      return { inicio: ini, fim: CONFIG.fimEscala(b, ini) || (ult ? somar(ini, Math.max(0, dias(ult.inicio, ult.fim))) : ini) };
     };
+    const textoRegime = b => CONFIG.regimeEscala(b).regime === 'ajustavel' ? 'Período ajustável: escolha o fim.' : `${CONFIG.textoRegimeEscala(b)}: o fim vem sugerido pelo início (pode mudar).`;
     const bvaIni = e ? e.bva : (id && id.slice(1)) || bvas()[0], sug = e ? e : sugerir(bvaIni);
     const marcados = new Set(e ? e.fiscais.map(f => f.id) : []);
     mostrar(`<form class="card" id="fEscala"><h3>${e ? 'Editar escala' : 'Nova escala'}</h3>
       <label>BVA<select id="escBva" ${e ? 'disabled' : ''}>${bvas().map(b => `<option ${b === bvaIni ? 'selected' : ''}>${esc(b)}</option>`).join('')}</select></label>
       <div class="duas"><label>Início<input type="date" id="escIni" required value="${esc(sug.inicio)}"></label><label>Fim<input type="date" id="escFim" required value="${esc(sug.fim)}"></label></div>
-      <p class="dica" id="escDias" style="text-align:left"></p>
+      <p class="dica" id="escRegime" style="text-align:left">${esc(textoRegime(bvaIni))}</p><p class="dica" id="escDias" style="text-align:left"></p>
       <label>Buscar fiscal<input type="search" id="escBusca" autocomplete="off" placeholder="Nome ou matrícula"></label>
       <div class="esc-fiscais" id="escFiscais">${D.fiscais.map(f => `<label class="chk esc-fiscal" data-nome="${esc(nl(f.nome + ' ' + (f.matricula || '')))}">
         <input type="checkbox" data-fiscal="${esc(f.id)}" ${marcados.has(f.id) ? 'checked' : ''}><span><b>${esc(f.nome)}</b><small data-st="${esc(f.id)}"></small></span></label>`).join('') || '<p class="dica">Nenhum fiscal com acesso ao app de campo.</p>'}</div>
@@ -88,8 +91,9 @@ const EscalaUI = (() => {
       const n = document.querySelectorAll('#escFiscais input:checked').length;
       $('#escConta').textContent = `${n} fiscal(is) escolhido(s) para a ${bvaAtual()}.`;
     };
-    if (!e) $('#escBva').onchange = () => { const s = sugerir($('#escBva').value); $('#escIni').value = s.inicio; $('#escFim').value = s.fim; situar(); };
-    $('#escIni').onchange = $('#escFim').onchange = situar;
+    if (!e) $('#escBva').onchange = () => { const s = sugerir($('#escBva').value); $('#escIni').value = s.inicio; $('#escFim').value = s.fim; $('#escRegime').textContent = textoRegime($('#escBva').value); situar(); };
+    $('#escIni').onchange = () => { const f = CONFIG.fimEscala(bvaAtual(), $('#escIni').value); if (f) $('#escFim').value = f; situar(); };
+    $('#escFim').onchange = situar;
     $('#escFiscais').onchange = situar;
     $('#escBusca').oninput = ev => { const q = nl(ev.target.value); document.querySelectorAll('.esc-fiscal').forEach(l => { l.hidden = !!q && !l.dataset.nome.includes(q); }); };
     situar();

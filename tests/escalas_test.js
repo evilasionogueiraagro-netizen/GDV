@@ -88,6 +88,19 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
   const lista = await pc.textContent('#escLista');
   ok(/BVA - JUNDIÁ/.test(lista) && /Ana Escalada Teste/.test(lista) && /BVA - CEASA/.test(lista), 'lista das escalas por BVA e período', lista.slice(0, 300));
   await pc.screenshot({ path: amb.saida('escala_lista.png'), fullPage: true });
+  // fim sugerido pelo regime da BVA: Jundiá 10 dias, CEASA 8, Aeroporto (12 h × 36 h) o mesmo dia; ajustável: o coordenador escolhe
+  await pc.click('[data-escnova="BVA - JUNDIÁ"]'); await pc.waitForSelector('#fEscala');
+  ok(/Período de 10 dias: o fim vem sugerido/.test(await pc.textContent('#escRegime')), 'nova escala do Jundiá: mostra o regime (10 dias)');
+  await pc.fill('#escIni', '2026-12-01'); await pc.dispatchEvent('#escIni', 'change');
+  const fimJ = await pc.inputValue('#escFim');
+  await pc.selectOption('#escBva', 'BVA - CEASA'); await pc.fill('#escIni', '2026-12-01'); await pc.dispatchEvent('#escIni', 'change');
+  const fimC = await pc.inputValue('#escFim');
+  await pc.selectOption('#escBva', 'BVA - AEROPORTO'); await pc.fill('#escIni', '2026-12-01'); await pc.dispatchEvent('#escIni', 'change');
+  const fimA = await pc.inputValue('#escFim'), regA = await pc.textContent('#escRegime');
+  ok(fimJ === '2026-12-10' && fimC === '2026-12-08' && fimA === '2026-12-01' && /12 h × 36 h/.test(regA), 'só o início: o fim vem pelo regime (Jundiá +9, CEASA +7, Aeroporto o mesmo dia)', [fimJ, fimC, fimA, regA]);
+  ok(await pc.evaluate(() => { CONFIG.bvas.push({ nome: 'BVA - TABATINGA', escala: { regime: 'ajustavel' } }); const r = [CONFIG.fimEscala('BVA - TABATINGA', '2026-12-01'), CONFIG.proximoInicioEscala('BVA - AEROPORTO', { inicio: '2026-12-01', fim: '2026-12-01' })]; CONFIG.bvas.pop(); return r.join(); }) === ',2026-12-03',
+    'ajustável (Tabatinga): sem fim sugerido; 12×36: o próximo plantão 2 dias depois');
+  await pc.click('[data-go=escalas]'); await pc.waitForSelector('#escLista [data-esc]', { timeout: 15000 });
   await pc.click('[data-escnova]'); await pc.waitForSelector('#fEscala');
   await pc.selectOption('#escBva', 'BVA - AEROPORTO'); await pc.fill('#escIni', dia(1)); await pc.fill('#escFim', dia(5));
   await pc.check(`#fEscala input[data-fiscal="${id('Ana Escalada Teste')}"]`);

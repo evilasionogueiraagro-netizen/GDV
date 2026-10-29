@@ -160,7 +160,8 @@ const TABELAS = {
   // diárias das escalas no Portal do Administrativo: escala × fiscal (id = escalaId|usuarioId); situacao = pendente | concluida (PCDP)
   EscalaPcdp: ['id', 'escalaId', 'usuarioId', 'nome', 'situacao', 'pcdp', 'atualizadoEm', 'atualizadoPor', 'admId'],
   // BVAs cadastradas pela gerência no painel (bvas.gs): somam-se às de CONFIG.bvas e mudam/desativam as de lá pelo nome
-  BVAs: ['id', 'nome', 'municipio', 'endereco', 'placa', 'ficha', 'ativo', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor'],
+  BVAs: ['id', 'nome', 'municipio', 'endereco', 'placa', 'ficha', 'ativo', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor',
+         'escalaRegime', 'escalaDias'],   // regime da escala de plantão (dias | 12x36 | 8h | ajustavel; vazio = o do config.js) e dias do período
   // Quem leu dados pessoais (LGPD): uma linha por usuário + action a cada 1 h (acessos.gs lido_). resumo = filtros, sem dado pessoal.
   AcessosADados: ['id', 'em', 'usuarioId', 'nome', 'acao', 'resumo']
 };
@@ -183,7 +184,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-29c';
+const VERSAO_CODIGO = '2026-10-29d';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado

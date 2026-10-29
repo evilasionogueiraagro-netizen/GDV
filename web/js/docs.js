@@ -247,6 +247,40 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     imprimir(f, nomeArq);
   }
 
+  /**
+   * Auto de Infração do TF (modelo ADAF, documentos/auto.html): dados do autuado, placa, origem e destino vêm do TF; os do auto
+   * (ocorrência, condutor, RENAVAM, CEP, fatos, enquadramento, ciência, testemunhas, coordenadas) de autoDados. 3 vias, folhas separadas.
+   */
+  async function auto(id) {
+    const t = await Store.obter('tfs', id);
+    if (!t) throw new Error('TF não encontrado.');
+    if (!(Number(t.auto) === 1 && Number(t.autoNumero) > 0)) throw new Error('Este TF não tem auto de infração.');
+    const ai = jsonPce(t.autoDados, {}), f = await abrirModelo('auto.html'), d = f.contentDocument;
+    const v = {}, comUF = (x, uf) => [String(x || '').trim(), String(uf || '').trim()].filter(Boolean).join('/');
+    const [seq, ano, ...un] = String(t.autoNumeroTxt || '').split('-');
+    Object.assign(v, { num_seq: seq, num_ano: ano, num_unidade: un.join('-'), tf_ref: `Lavrado com o TF nº ${t.numeroTxt}`,
+      nome: t.nome, doc: fmtDoc(t.doc), nome_comercial: ai.nomeComercial, cadastro: ai.cadastro, condutor: ai.condutor, condutor_cpf: fmtDoc(ai.condutorCpf),
+      endereco: t.endereco, municipio: t.municipio, uf: t.uf, cep: ai.cep, renavam: ai.renavam, placa: t.placa,
+      procedencia: comUF(t.origem, t.ufOrigem), destino: comUF(t.destino, t.ufDestino), fatos: ai.fatos, enquadramento: ai.enquadramento,
+      ciente_nome: ai.condutor || t.nome, ciente_cpf: fmtDoc(ai.condutor ? ai.condutorCpf : t.doc), ciente_ass: ai.ciencia === 'recusou' ? 'Recusou-se a assinar' : ai.ciencia === 'naoSabe' ? 'Não sabe ler e escrever' : '',
+      local_data: `${t.local || ''}, ${t.data ? dataBR(t.data) : ''} ${t.hora || ''}`, autuante: t.fiscal });
+    const la = parseFloat(ai.lat), lo = parseFloat(ai.lon);
+    v.coordenadas = isNaN(la) || isNaN(lo) ? '' : `${gmsTermo(la, 'N', 'S')} / ${gmsTermo(lo, 'E', 'W')} (${la.toFixed(5)}, ${lo.toFixed(5)})`;
+    ['t1', 't2'].forEach(k => { const x = ai[k] || {}; v[k + '_nome'] = x.nome; v[k + '_cpf'] = fmtDoc(x.cpf); v[k + '_endereco'] = x.endereco; v[k + '_telefone'] = x.telefone; });
+    preencherCampos(d, v);
+    const marcas = { oc_unidade: ai.ocorrencia === 'unidade', oc_barreira: (ai.ocorrencia || 'barreira') === 'barreira', oc_estabelecimento: ai.ocorrencia === 'estabelecimento',
+      ci_autuado: ai.ciencia === 'autuado', ci_naosabe: ai.ciencia === 'naoSabe', ci_recusou: ai.ciencia === 'recusou' };
+    d.querySelectorAll('[data-marca]').forEach(e => { e.textContent = marcas[e.getAttribute('data-marca')] ? '☑' : '☐'; });
+    const pg = d.querySelector('.a4');
+    await caberEmUmaPagina(d, pg, { campos: ['fatos', 'enquadramento'], primeiro: ['sem ajuste', () => {}] });
+    if (t.cancelado) { const b = d.createElement('div'); b.className = 'cancelado-faixa'; b.textContent = 'TF CANCELADO' + (t.motivoCancel ? ' – ' + t.motivoCancel : ''); pg.insertBefore(b, pg.children[1] || null); }
+    const paginas = [pg];
+    [1, 2].forEach(() => { const c = pg.cloneNode(true); paginas[paginas.length - 1].after(c); paginas.push(c); });
+    paginas.forEach((p, i) => p.querySelectorAll('[data-via]').forEach(e => e.classList.toggle('atual', Number(e.getAttribute('data-via')) === i)));
+    await Promise.all([...d.images].map(im => (im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; }))));
+    imprimir(f, `Auto de Infracao ${String(t.autoNumeroTxt).replace(/\//g, '-')}`);
+  }
+
   /* ---------- PCE: Ficha de Levantamento Fitossanitário e Termo de Colheita de Amostras ---------- */
   // Campos JSON chegam como string (ou já como objeto); parse defensivo.
   const jsonPce = (v, pad) => { if (v && typeof v === 'object') return v; const r = json(v, pad); return r && typeof r === 'object' ? r : pad; };
@@ -449,5 +483,5 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     return f.contentDocument.querySelectorAll('.a4').length;
   }
 
-  return { ficha, termo, tf, fiscaisDoTurno, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, nomePdfMon, ordenar, esc };
+  return { ficha, termo, tf, auto, fiscaisDoTurno, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, nomePdfMon, ordenar, esc };
 })();

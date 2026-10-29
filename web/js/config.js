@@ -185,3 +185,23 @@ const CONFIG = {
   }
 };
 
+
+// BVAs cadastradas pela gerência no painel (aba BVAs da planilha; chegam no sync e no painelDados): somam-se às de CONFIG.bvas acima
+// e mudam (município, endereço, placa obrigatória, Ficha de Campo) ou desativam as de lá pelo nome. A lista CONFIG.bvas é trocada no
+// lugar, então todas as telas usam a mesma.
+CONFIG.bvasBase = CONFIG.bvas.map(b => ({ ...b }));
+CONFIG.aplicarBvas = function (cadastro) {
+  if (!Array.isArray(cadastro)) return CONFIG.bvas;
+  const k = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const lista = CONFIG.bvasBase.map(b => ({ ...b })), novas = [];
+  cadastro.forEach(c => {
+    if (!c || !c.nome) return;
+    const i = lista.findIndex(b => k(b.nome) === k(c.nome));
+    const b = { nome: i >= 0 ? lista[i].nome : c.nome, placa: !!Number(c.placa), ficha: !!Number(c.ficha), endereco: c.endereco || '', municipio: c.municipio || '' };
+    if (Number(c.ativo) === 0) { if (i >= 0) lista.splice(i, 1); return; }
+    if (i >= 0) lista[i] = b; else novas.push(b);
+  });
+  novas.sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'));
+  CONFIG.bvas.length = 0; lista.concat(novas).forEach(b => CONFIG.bvas.push(b));
+  return CONFIG.bvas;
+};

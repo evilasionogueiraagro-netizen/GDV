@@ -730,6 +730,7 @@ function dadosPainel_(admin, filtro) {
     veiculos: veiculos,
     tfsAndamento: tfsAndamento,
     alertasCuidado: alertasCuidado,
+    bvasCadastro: bvasCadastro_(),                    // BVAs cadastradas no painel (bvas.gs)
     tfs: tfs,
     levantamentos: levantamentos,
     colheitas: colheitas,

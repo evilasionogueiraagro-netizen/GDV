@@ -17,7 +17,6 @@ Falta, nesta ordem:
    - Constatação e enquadramento sugeridos por produto × procedimento (liberação, apreensão, rechaço), abas V, A e I da planilha.
    - Dados do fiel depositário no TF e no PDF: nome, RG, CPF, endereço, telefone.
    - Importar cadastros de transportadores (placa, nome, CPF, endereço, município, UF, telefone) da planilha maior do gestor.
-   - Numeração central do e-GDV, com auditoria de lacunas e duplicidades (a planilha só soma 1 no próprio arquivo).
 2. Página da BVA: QR dinâmico, check-in (quem, onde, hora, GPS), início do turno e pareamento. Lista dos TFs da BVA, com impressão de 2 vias ou PDF.
    - Check-out opcional pelo QR.
 3. Salvar cada PDF automaticamente na pasta TERMOS_EMITIDOS do PC.
@@ -74,12 +73,8 @@ Falta:
 
 ## 5. BVAs e portos a confirmar
 
-*Aguardando o gestor confirmar os nomes antes de cadastrar em `CONFIG.bvas`.*
-Decisões: [Relatório GDV](decisoes/anteriores.md#relatório-gdv)
-
-Falta:
-- Confirmar e cadastrar: Humaitá, Guajará, Parintins, Porto de Tabatinga, Porto de Benjamin Constant, AM-070 (volante) e os portos volantes.
-- Enquanto isso, a correspondência posto do VIGIFITO → BVA fica em "Postos do VIGIFITO" (painel → Relatórios). Turnos sem posto: "não mapeados".
+- A gerência cadastra no painel (Barreiras → Cadastro de BVAs): Humaitá, Guajará, Parintins, portos de Tabatinga e Benjamin Constant, AM-070.
+- Depois, ligar cada BVA nova a um posto em "Postos do VIGIFITO" (painel → Relatórios).
 
 ---
 

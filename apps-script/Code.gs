@@ -157,6 +157,11 @@ const TABELAS = {
   Pareamentos: ['id', 'turnoId', 'dono', 'codigo', 'criadoEm', 'expiraEm', 'colega', 'entrouEm', 'saiuEm'],
   // escala de plantão por BVA e período (escalas.gs): fiscais = JSON [{id, nome}]; situacao = rascunho | publicada; excluir é lógico
   Escalas: ['id', 'bva', 'inicio', 'fim', 'fiscais', 'situacao', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor', 'publicadaEm', 'publicadaPor', 'excluido'],
+  // diárias das escalas no Portal do Administrativo: escala × fiscal (id = escalaId|usuarioId); situacao = pendente | concluida (PCDP)
+  EscalaPcdp: ['id', 'escalaId', 'usuarioId', 'nome', 'situacao', 'pcdp', 'atualizadoEm', 'atualizadoPor', 'admId'],
+  // BVAs cadastradas pela gerência no painel (bvas.gs): somam-se às de CONFIG.bvas e mudam/desativam as de lá pelo nome
+  BVAs: ['id', 'nome', 'municipio', 'endereco', 'placa', 'ficha', 'ativo', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor',
+         'escalaRegime', 'escalaDias'],   // regime da escala de plantão (dias | 12x36 | 8h | ajustavel; vazio = o do config.js) e dias do período
   // Quem leu dados pessoais (LGPD): uma linha por usuário + action a cada 1 h (acessos.gs lido_). resumo = filtros, sem dado pessoal.
   AcessosADados: ['id', 'em', 'usuarioId', 'nome', 'acao', 'resumo']
 };
@@ -179,7 +184,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-29a';
+const VERSAO_CODIGO = '2026-10-29d';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -213,6 +218,7 @@ function doPost(e) {
     if (req.action === 'painelRelGdvApuracao') return json_(painelRelGdvApuracao(req.key, req));
     if (req.action === 'painelVigDados') return json_(painelVigDados(req.key, req));
     if (req.action === 'painelVigConfigSalvar') return json_(painelVigConfigSalvar(req.key, req));
+    if (req.action === 'painelBvaSalvar') return json_(painelBvaSalvar(req.key, req));
     if (req.action === 'painelEscalas') return json_(painelEscalas(req.key, req));
     if (req.action === 'painelEscalaSalvar') return json_(painelEscalaSalvar(req.key, req));
     if (req.action === 'painelEscalaExcluir') return json_(painelEscalaExcluir(req.key, req));
@@ -379,6 +385,7 @@ function sincronizar_(req, usuario) {
       termosPce: lerMudancas_('TermosPCE', since, usuario),
       ultimosDocPce: ultimosDocPce_(),                  // último nº de Termo de Fiscalização ("T|UNIDADE|ano") e de Cadastro ("C|PROGRAMA|UNIDADE|ano")
       permissoes: perm,                                 // módulos liberados para este servidor (o app guarda e esconde o que não pode)
+      bvas: bvasCadastro_(),                            // BVAs cadastradas no painel (o app junta com CONFIG.bvas)
       minhasEscalas: minhasEscalas_(),                  // escalas de plantão publicadas do fiscal que ainda não acabaram (escalas.gs)
       recusados: recusados                              // ids NÃO gravados por falta de autorização no módulo ou para registro antigo (ficam pendentes no aparelho)
     };

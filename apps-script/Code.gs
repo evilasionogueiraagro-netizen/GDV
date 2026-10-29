@@ -47,7 +47,10 @@ const TABELAS = {
         'numeroSugerido', 'numeroOrigem', 'emitidoEm',   // auditoria da numeração (colunas novas ficam sempre no fim)
         'fotos', 'assinaturas', 'recusaAssinatura',    // fotos = JSON [ids]; assinaturas = JSON {fiscalizado, servidor} (ids na aba Arquivos); recusaAssinatura = 1: fiscalizado se recusou
         'ufOrigem', 'ufDestino',                      // UF de origem/destino da carga (sigla de UFS_ ou "Exterior"; vazio = não informada; TF antigo: ufDoTexto_ de origem/destino)
-        'registroAntigo', 'pdfs'],                    // TF digitado do papel (Digitar do papel): registroAntigo = 1, pdfs = JSON [ids] dos PDFs escaneados (aba Arquivos)
+        'registroAntigo', 'pdfs',                     // TF digitado do papel (Digitar do papel): registroAntigo = 1, pdfs = JSON [ids] dos PDFs escaneados (aba Arquivos)
+        // auto de infração do TF (auto = 1): sequência própria por barreira/ano (SEQUENCIAS.AI); autoDados = JSON com os campos do auto
+        // (ocorrência, condutor, RENAVAM, CEP, fatos, enquadramento, ciência, testemunhas, coordenadas); autoConflito = nº repetido
+        'autoNumero', 'autoNumeroTxt', 'autoNumeroOrigem', 'autoDados', 'autoConflito'],
   Pessoas: ['id', 'tipo', 'nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
             'email'],                                                                                                              // id = CPF/CNPJ (só dígitos)
   Placas: ['id', 'doc', 'nome', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],                                                    // id = placa
@@ -167,7 +170,7 @@ const TABELAS = {
 };
 const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'cuidado', 'semPlaca', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
                           'expiraEm', 'ativo', 'ativadoEm', 'oculto', 'ocultoEm',
-                          'ano', 'numero', 'ultimo', 'de', 'ate', 'em', 'numeroSugerido', 'emitidoEm', 'amostras', 'inspecao', 'coleta', 'fiel', 'auto',
+                          'ano', 'numero', 'ultimo', 'de', 'ate', 'em', 'numeroSugerido', 'emitidoEm', 'amostras', 'inspecao', 'coleta', 'fiel', 'auto', 'autoNumero', 'autoConflito',
                           'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito', 'tamanho',
                           'inicioTs', 'atualizadoTs', 'registroAntigo', 'encerradoEm', 'canceladoEm',
                           'standalone', 'online', 'ultimoSinal', 'ultimoErroEm', 'primeiroSinal', 'recusaAssinatura',
@@ -178,13 +181,13 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'cuidado', 'semPlaca', 'exclui
                           'entrouEm', 'saiuEm'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, pragas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000,
-                        dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000, citros: 20000, cargaPapel: 3000 };   // demais colunas: 500
+                        dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000, citros: 20000, cargaPapel: 3000, autoDados: 10000 };   // demais colunas: 500
 // culturas/fotos/assinaturas são JSON: cortar o texto invalidaria o JSON (e apagaria as referências no aparelho). Os limites acima
 // cabem numa célula (50.000 caracteres) e o app limita a quantidade de culturas/fotos e o tamanho dos campos para nunca chegar neles.
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-29f';
+const VERSAO_CODIGO = '2026-10-29g';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -330,7 +333,7 @@ function sincronizar_(req, usuario) {
     alheios('veiculos', gravar_('Veiculos', T.veiculos, agora, usuario));
     T.tfs.forEach(function (t) { if (t && !t.emitidoEm) t.emitidoEm = agora; });            // momento em que a planilha recebeu o TF
     alheios('tfs', gravar_('TFs', T.tfs, agora, usuario));
-    if (T.tfs.length) marcarConflitosTFs_(gravados_(T.tfs, recusados.tfs), agora);
+    if (T.tfs.length) { const g = gravados_(T.tfs, recusados.tfs); marcarConflitosTFs_(g, agora); marcarConflitos_('AI', g, agora); }   // auto de infração: nº repetido = autoConflito
     gravar_('Pessoas', T.pessoas, agora, usuario);
     gravar_('Placas', T.placas, agora, usuario);
     alheios('levantamentos', gravar_('Levantamentos', T.levantamentos, agora, usuario));

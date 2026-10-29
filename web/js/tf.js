@@ -1,6 +1,8 @@
 // Termo de Fiscalização de Barreira (TF): lista, formulário, numeração, cadastro/reincidência e impressão em 2 vias.
 // TF antigo (digitado do papel, permissão "Digitar do papel"): mesmo formulário com o nº, a data e a hora do papel, o servidor que
 // fiscalizou digitado, fiscalizado opcional ("NÃO IDENTIFICADO") e o PDF escaneado no lugar de fotos/assinaturas; precisa de internet.
+// Auto de infração (caixa "Auto de infração", em qualquer procedimento): cartão próprio no formulário, nº numa sequência própria por
+// barreira/ano (conferida pela planilha ao gerar; sem internet, provisório) e PDF em 3 vias (documentos/auto.html, Docs.auto).
 // Usa funções do app.js (view, go, toast, $, esc, dBR, hojeISO, agoraHM, turnoAtual, veiculosDe, avisoAtivacao) em tempo de execução.
 const TFUI = (() => {
   const T = CONFIG.TF;
@@ -37,24 +39,37 @@ const TFUI = (() => {
     const locais = (await Store.todos('tfs')).filter(t => t.barreira === b && t.ano === a).reduce((m, t) => Math.max(m, t.numero), 0);
     return Math.max(uv, locais);
   }
+  /** Último nº de auto de infração conhecido (planilha na última sincronização + autos deste aparelho). */
+  async function ultimoAutoConhecido(b, a) {
+    const uv = (((await Store.meta('ultimoVisto')) || {})['AI|' + chave(b, a)] || 0);
+    return (await Store.todos('tfs')).filter(t => t.barreira === b && t.ano === a).reduce((m, t) => Math.max(m, Number(t.autoNumero) || 0), uv);
+  }
   async function sugerirNumero(b, a) {
     if (navigator.onLine && Sync.ativado()) {
       try {
         const r = await Sync.proximoNumero(b, a);                                  // consulta rápida: último nº usado + 1
-        await Sync.lembrarUltimos({ [chave(b, a)]: r.ultimo });
-        return { numero: Math.max(r.proximo, (await ultimoConhecido(b, a)) + 1), origem: 'servidor', ultimo: r.ultimo, ultimoTF: r.ultimoTF };
+        await Sync.lembrarUltimos({ [chave(b, a)]: r.ultimo, ['AI|' + chave(b, a)]: r.autoUltimo || 0 });
+        return { numero: Math.max(r.proximo, (await ultimoConhecido(b, a)) + 1), origem: 'servidor', ultimo: r.ultimo, ultimoTF: r.ultimoTF,
+                 autoUltimo: Math.max(Number(r.autoUltimo) || 0, await ultimoAutoConhecido(b, a)) };
       } catch (e) { if (e.semPermissao || /revogado|inv[aá]lido|desconhecida/i.test(e.message)) throw e; }   // sem resposta: segue offline
     }
     const u = await ultimoConhecido(b, a);
-    return { numero: u + 1, origem: 'offline', ultimo: u, ultimoTF: null };
+    return { numero: u + 1, origem: 'offline', ultimo: u, ultimoTF: null, autoUltimo: await ultimoAutoConhecido(b, a) };
   }
+  const autoTxt = (n, a, sufixo) => `${num4(n)}-${a}-${sufixo}`;
 
   /* ---------- estado do formulário ---------- */
   // { hist:{doc,placa}, tpl, turnoId, veiculoId, rid, id (do TF, já na abertura: as fotos ficam ligadas a ele), fotos:[ids], ass, assNovas, recusa }
   let S = null;
   const vazio = () => ({ barreira: '', numero: '', data: hojeISO(), hora: agoraHM(), servidor: '', doc: '', nome: '', rg: '', endereco: '', municipio: '', uf: '', telefone: '', relacao: T.relacoes[0],
     inspecao: false, coleta: false, amostras: '', procedimento: '', fiel: false, auto: false, advertencia: false, local: '', placa: '', origem: '', destino: '', ufOrigem: '', ufDestino: '',
-    docs: { nf: '', ptv: '', gta: '', sif: '', sie: '', sim: '', lacre: '', outros: '' }, produtos: [{ p: '', q: '', u: T.unidades[0] }], constatacao: '', enquadramento: '' });
+    docs: { nf: '', ptv: '', gta: '', sif: '', sie: '', sim: '', lacre: '', outros: '' }, produtos: [{ p: '', q: '', u: T.unidades[0] }], constatacao: '', enquadramento: '', ai: aiVazio() });
+  const testVazia = () => ({ nome: '', cpf: '', endereco: '', telefone: '' });
+  /** Campos do auto de infração (os do fiscalizado, da placa e da origem/destino vêm do próprio TF). */
+  const aiVazio = () => ({ ocorrencia: 'barreira', nomeComercial: '', cadastro: '', condutor: '', condutorCpf: '', cep: '', renavam: '', fatos: '', enquadramento: '',
+    ciencia: '', t1: testVazia(), t2: testVazia() });
+  const OCORRENCIAS = { unidade: 'Unidade Local', barreira: 'Em Barreira Fitossanitária', estabelecimento: 'Em Estabelecimento ou Propriedade' };
+  const CIENCIAS = { autuado: 'Autuado ciente (assina)', naoSabe: 'Não sabe ler e escrever', recusou: 'Recusou-se a assinar' };
 
   function coletar() {
     const g = id => { const e = $('#tf-' + id); return e ? e.value : ''; }, c = id => !!($('#tf-' + id) && $('#tf-' + id).checked);
@@ -64,7 +79,13 @@ const TFUI = (() => {
       procedimento: proc ? proc.value : '', fiel: c('fiel'), auto: c('auto'), advertencia: c('advertencia'), local: g('local'), placa: placaNorm(g('placa')), origem: g('origem'), destino: g('destino'), ufOrigem: g('ufOrigem'), ufDestino: g('ufDestino'),
       docs: Object.fromEntries(['nf', 'ptv', 'gta', 'sif', 'sie', 'sim', 'lacre', 'outros'].map(k => [k, g('d-' + k)])),
       produtos: [...document.querySelectorAll('#tf-produtos .prod')].map(r => ({ p: r.querySelector('select').value, q: r.querySelector('input').value, u: r.querySelectorAll('select')[1].value })),
-      constatacao: g('constatacao'), enquadramento: g('enquadramento') };
+      constatacao: g('constatacao'), enquadramento: g('enquadramento'), ai: coletarAuto(g) };
+  }
+  function coletarAuto(g) {
+    const r = n => { const e = document.querySelector(`input[name=tf-ai-${n}]:checked`); return e ? e.value : ''; };
+    const t = k => ({ nome: g(`ai-${k}-nome`), cpf: g(`ai-${k}-cpf`), endereco: g(`ai-${k}-endereco`), telefone: g(`ai-${k}-telefone`) });
+    return { ocorrencia: r('ocorrencia') || 'barreira', nomeComercial: g('ai-nomeComercial'), cadastro: g('ai-cadastro'), condutor: g('ai-condutor'), condutorCpf: g('ai-condutorCpf'),
+      cep: g('ai-cep'), renavam: g('ai-renavam'), fatos: g('ai-fatos'), enquadramento: g('ai-enquadramento'), ciencia: r('ciencia'), t1: t('t1'), t2: t('t2') };
   }
   let tRasc = null;
   const chaveRasc = antigo => (antigo ? 'tfRascunhoPapel' : 'tfRascunho');                  // TF do papel tem rascunho próprio
@@ -266,6 +287,8 @@ const TFUI = (() => {
     <div class="card"><h3>Constatação</h3><label><textarea id="tf-constatacao" rows="5">${esc(D.constatacao)}</textarea></label>
       <h3>Enquadramento legal</h3><label><textarea id="tf-enquadramento" rows="5" placeholder="Leis, decretos, portarias, artigos, incisos e alíneas">${esc(D.enquadramento)}</textarea></label></div>
 
+    ${pap ? '' : autoCardHTML(D)}
+
     ${pap ? `<div class="card"><h3>${icone('documento')} PDF escaneado do TF</h3>
       <label class="pce-arquivo">${icone('anexo')} Anexar PDF<input type="file" id="tf-pdfs" accept="application/pdf,.pdf" multiple></label>
       <p class="dica" style="text-align:left">Até ${MAX_PDFS} PDFs, 10 MB cada. Vão para o Drive ao sincronizar; depois ficam só no Drive.</p>
@@ -277,6 +300,37 @@ const TFUI = (() => {
 
     <button class="botao" type="submit">${icone(pap ? 'salvar' : 'documento')} ${pap ? 'Gravar TF do papel' : 'Gerar TF'}</button>
     <button class="botao sec" type="button" data-tf="descartar">Descartar este TF</button></form>`;
+  }
+
+  /** Cartão do auto de infração: aparece com a caixa "Auto de infração" marcada. */
+  function autoCardHTML(D) {
+    const ai = { ...aiVazio(), ...(D.ai || {}) }, cid = id => `ai-${id}`;
+    const c = (id, rot, v, extra = '') => campo(cid(id), rot, v, 'maxlength="150" ' + extra);   // autoDados cabe na célula (LIMITES_TEXTO)
+    const radios = (nome, op, atual) => Object.entries(op).map(([k, t]) => `<label class="chk"><input type="radio" name="tf-ai-${nome}" value="${k}" ${atual === k ? 'checked' : ''}> ${t}</label>`).join('');
+    const test = (k, n) => { const t = { ...testVazia(), ...(ai[k] || {}) };
+      return `<fieldset class="tf-ai-test"><legend>Testemunha ${n} <small>(opcional)</small></legend>${c(k + '-nome', 'Nome', t.nome)}
+        <div class="duas">${c(k + '-cpf', 'CPF', t.cpf, 'inputmode="numeric"')}${c(k + '-telefone', 'Telefone', t.telefone, 'type="tel"')}</div>${c(k + '-endereco', 'Endereço', t.endereco)}</fieldset>`; };
+    return `<div class="card" id="tf-ai-card" ${D.auto ? '' : 'hidden'}><h3>${icone('documento')} Auto de infração</h3>
+      <p class="dica" style="text-align:left">O nº do auto segue a sequência própria de autos desta barreira (conferida na planilha ao gerar). Nome, CPF/CNPJ, endereço, placa, origem e destino vêm do TF.</p>
+      <h4>Ocorrência</h4>${radios('ocorrencia', OCORRENCIAS, ai.ocorrencia)}
+      <h4>Dados do autuado</h4>
+      <div class="duas">${c('nomeComercial', 'Nome comercial do estabelecimento', ai.nomeComercial)}${c('cadastro', 'Nº de cadastro na GDV/ADAF', ai.cadastro)}</div>
+      <div class="duas">${c('condutor', 'Nome do responsável ou condutor', ai.condutor)}${c('condutorCpf', 'CPF do responsável ou condutor', ai.condutorCpf, 'inputmode="numeric"')}</div>
+      <div class="duas">${c('cep', 'CEP', ai.cep, 'inputmode="numeric" maxlength="9"')}${c('renavam', 'RENAVAM / Insc. Capitania', ai.renavam)}</div>
+      <h4>Descrição resumida dos fatos / da infração</h4><label><textarea id="tf-ai-fatos" rows="5" maxlength="3000">${esc(ai.fatos)}</textarea></label>
+      <h4>Enquadramento legal</h4><label><textarea id="tf-ai-enquadramento" rows="4" maxlength="3000" placeholder="Leis, decretos, portarias, artigos, incisos e alíneas">${esc(ai.enquadramento)}</textarea></label>
+      <h4>Ciência</h4>${radios('ciencia', CIENCIAS, ai.ciencia)}
+      ${test('t1', 1)}${test('t2', 2)}</div>`;
+  }
+  /** Marcou "Auto de infração": mostra o cartão e começa com a constatação, o enquadramento e o condutor do TF (editáveis). */
+  function abrirAuto(ligado) {
+    const card = $('#tf-ai-card'); if (!card) return;
+    card.hidden = !ligado; if (!ligado) return;
+    const copia = (de, para) => { const a = $('#tf-' + de), b = $('#tf-' + para); if (a && b && !b.value.trim()) b.value = a.value; };
+    copia('constatacao', 'ai-fatos'); copia('enquadramento', 'ai-enquadramento');
+    if ($('#tf-relacao').value === 'Motorista') { copia('nome', 'ai-condutor'); copia('doc', 'ai-condutorCpf'); }
+    if (!document.querySelector('input[name=tf-ai-ciencia]:checked') && S && S.recusa) { const r = document.querySelector('input[name=tf-ai-ciencia][value=recusou]'); if (r) r.checked = true; }
+    toast('Preencha o auto de infração no fim do formulário.');
   }
 
   /* Nº do TF no formulário: já vem com o próximo da barreira (último usado + 1, na planilha ou neste aparelho) e é editável —
@@ -374,6 +428,7 @@ const TFUI = (() => {
       if (e.target.id === 'tf-doc') { e.target.value = fmtDoc(digitos(e.target.value)); }
       if (e.target.id === 'tf-fotos') return adicionarFotos(e.target);
       if (e.target.id === 'tf-recusa') { S.recusa = e.target.checked; if (S.recusa) delete S.assNovas.fiscalizado; await desenharAss(S); }
+      if (e.target.id === 'tf-auto' && S && !S.antigo) abrirAuto(e.target.checked);
       salvarRascunho();
     });
     f.onsubmit = ev => { ev.preventDefault(); if (S && S.antigo) gravarPapel(); else gerar(); };
@@ -542,6 +597,7 @@ const TFUI = (() => {
     if (!D.local.trim()) return toast('Informe o local.', true);
     if (!docOk(doc) && !confirm(`O ${doc.length === 11 ? 'CPF' : 'CNPJ'} informado tem dígitos inválidos. Gerar o TF mesmo assim?`)) return;
     if (!D.procedimento && !confirm('Nenhum procedimento (liberação, apreensão ou rechaço) foi marcado. Gerar o TF mesmo assim?')) return;
+    if (D.auto && !D.ai.fatos.trim()) { toast('Auto de infração: descreva os fatos / a infração.', true); const f = $('#tf-ai-fatos'); if (f) f.focus(); return; }
 
     const btn = document.querySelector('#tfForm button[type=submit]'), rot = btn.textContent;
     btn.disabled = true; btn.textContent = 'Consultando a planilha…';
@@ -549,6 +605,10 @@ const TFUI = (() => {
     btn.disabled = false; btn.textContent = rot;
 
     const turno = S.turnoId ? await Store.obter('turnos', S.turnoId) : null, hist = reincDe(S.hist), t0 = Date.now(), id = S.id;
+    // auto de infração: dados do auto (as coordenadas são as do aparelho ou do turno) e nº proposto (último conhecido + 1; a planilha confirma)
+    const gpsAuto = AND.gps || (turno && turno.latIni ? { lat: +turno.latIni, lng: +turno.lngIni } : null);
+    const autoDados = D.auto ? JSON.stringify({ ...D.ai, lat: gpsAuto ? gpsAuto.lat : '', lon: gpsAuto ? gpsAuto.lng : '' }) : '';
+    const autoN = D.auto ? (sug.autoUltimo || 0) + 1 : 0;
     // assinaturas desenhadas viram arquivos PNG (gravados só quando o TF for gravado); recusa: sem assinatura do fiscalizado
     const assS = { dono: 'tfs', id, ass: {}, assNovas: { ...S.assNovas } }; if (S.recusa) delete assS.assNovas.fiscalizado;
     const { mapa: assMapa, novos: assArqs } = Anexos.prepararAssinaturas(assS), fotos = S.fotos.slice(), recusa = S.recusa ? 1 : 0;
@@ -573,7 +633,8 @@ const TFUI = (() => {
         documentos: JSON.stringify(D.docs), produtos: JSON.stringify(prods), constatacao: D.constatacao, enquadramento: D.enquadramento,
         reincidente: hist.reincidente ? 1 : 0, tfsAnteriores: hist.total, cancelado: 0, motivoCancel: '', conflito: 0,
         numeroSugerido: sug.numero, numeroOrigem: sug.origem !== 'servidor' ? 'provisorio' : (n === sug.numero ? 'sistema' : 'editado'),
-        fotos: JSON.stringify(fotos), assinaturas: JSON.stringify(assMapa), recusaAssinatura: recusa
+        fotos: JSON.stringify(fotos), assinaturas: JSON.stringify(assMapa), recusaAssinatura: recusa,
+        autoNumero: autoN, autoNumeroTxt: autoN ? autoTxt(autoN, a, bar.sufixo) : '', autoNumeroOrigem: autoN ? (sug.origem === 'servidor' ? 'sistema' : 'provisorio') : '', autoDados, autoConflito: 0
       };
       let emitido = null;
       if (sug.origem === 'servidor') {                                               // a planilha confirma que o número ainda está livre
@@ -585,6 +646,7 @@ const TFUI = (() => {
             continue;
           }
           emitido = r;
+          if (rec.autoNumero) Object.assign(rec, { autoNumero: r.autoNumero || rec.autoNumero, autoNumeroTxt: r.autoNumeroTxt || rec.autoNumeroTxt, autoNumeroOrigem: r.autoNumeroOrigem || rec.autoNumeroOrigem });
         } catch (e) { if (e.semPermissao || /revogado|inv[aá]lido/i.test(e.message)) return toast(e.message, true); }   // sem resposta: guarda e envia ao sincronizar
       }
       const est = emitido ? { pendente: 0, emitidoEm: emitido.emitidoEm } : { pendente: 1, provisorio: sug.origem !== 'servidor' ? 1 : 0 };
@@ -592,7 +654,7 @@ const TFUI = (() => {
       await Store.gravar('tfs', { ...rec, ...est });
       if (docOk(doc)) await Store.gravar('pessoas', { ...pessoa, pendente: est.pendente });
       if (placa) await Store.gravar('placas', { ...placa, pendente: est.pendente });
-      await Sync.lembrarUltimos({ [chave(bar.id, a)]: n });
+      await Sync.lembrarUltimos({ [chave(bar.id, a)]: n, ...(rec.autoNumero ? { ['AI|' + chave(bar.id, a)]: rec.autoNumero } : {}) });
       clearTimeout(tRasc); await Store.setMeta('tfRascunho', null); localStorage.setItem('gdv.barreira', bar.id);
       encerrarAndamento();                                                        // painel: o TF deixou de estar em preenchimento (sem esperar resposta)
       S = null; Sync.sincronizar(); go('tfpronto', rec.id); return;
@@ -637,7 +699,8 @@ const TFUI = (() => {
       inspecao: D.inspecao ? 1 : 0, coleta: D.coleta ? 1 : 0, amostras: Number(D.amostras) || 0, procedimento: D.procedimento, fiel: D.fiel ? 1 : 0, auto: D.auto ? 1 : 0, advertencia: D.advertencia ? 1 : 0,
       documentos: JSON.stringify(D.docs), produtos: JSON.stringify(prods), constatacao: D.constatacao, enquadramento: D.enquadramento,
       reincidente: hist.reincidente ? 1 : 0, tfsAnteriores: hist.total, cancelado: 0, motivoCancel: '', conflito: 0,
-      numeroSugerido: sug.proximo, numeroOrigem: 'papel', fotos: '[]', assinaturas: '{}', recusaAssinatura: 0, registroAntigo: 1, pdfs: JSON.stringify(st.pdfs)
+      numeroSugerido: sug.proximo, numeroOrigem: 'papel', fotos: '[]', assinaturas: '{}', recusaAssinatura: 0, registroAntigo: 1, pdfs: JSON.stringify(st.pdfs),
+      autoNumero: 0, autoNumeroTxt: '', autoNumeroOrigem: '', autoDados: ''          // auto do papel: só a marcação "Auto de infração" (o auto fica no talão)
     };
     btn.textContent = 'Gravando…';
     let r; try { r = await Sync.emitirTF(rec, docOk(doc) ? pessoa : null, placa); } catch (e) { fim(); return toast((e.semPermissao ? '' : 'Não gravou: ') + e.message, true); }
@@ -651,6 +714,7 @@ const TFUI = (() => {
   }
 
   /* ---------- telas: pronto (detalhes do TF, antes de imprimir) e lista ---------- */
+  const temAuto = t => Number(t.auto) === 1 && Number(t.autoNumero) > 0 && Number(t.registroAntigo) !== 1;
   let PR = null;                                                                   // TF aberto na tela de detalhes: { id, ass, assNovas, recusa }
   async function pronto(id) {
     const t = await Store.obter('tfs', id); if (!t) return go('tf');
@@ -663,9 +727,11 @@ const TFUI = (() => {
       ${t.numeroOrigem === 'editado' ? `<div class="tf-novo">${icone('editar')} Número alterado manualmente (o sistema sugeriu ${num4(t.numeroSugerido)}). Registrado para auditoria.</div>` : ''}
       ${t.reincidente ? `<div class="tf-alerta">${icone('alerta')} Fiscalizado reincidente: ${t.tfsAnteriores} TF(s) anterior(es).</div>` : ''}
       ${t.cancelado ? `<div class="tf-alerta">${icone('proibido')} CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
-      ${nF ? `<p class="dica" style="text-align:left">${icone('camera')} ${nF} foto(s): saem no anexo fotográfico, no fim do PDF.</p>` : ''}</div>
+      ${nF ? `<p class="dica" style="text-align:left">${icone('camera')} ${nF} foto(s): saem no anexo fotográfico, no fim do PDF.</p>` : ''}
+      ${temAuto(t) ? `<div class="tf-novo" id="tf-auto-info">${icone('documento')} Auto de infração nº <b>${esc(t.autoNumeroTxt)}</b>${t.autoNumeroOrigem === 'provisorio' ? ' (provisório: conferido na planilha ao sincronizar)' : ''}${Number(t.autoConflito) === 1 ? ' · número repetido na planilha: confira com a coordenação' : ''}</div>` : ''}</div>
       ${pap ? `<div class="card"><h3>${icone('documento')} PDF escaneado</h3><div id="tf-pdfs-pronto"></div></div>` : t.cancelado ? '' : assCardHTML(PR)}
       <button class="botao" data-tf="imprimir" data-id="${esc(t.id)}">${icone('imprimir')} Imprimir / PDF (2 vias)</button>
+      ${temAuto(t) ? `<button class="botao" data-tf="imprimirauto" data-id="${esc(t.id)}">${icone('imprimir')} Imprimir auto de infração (3 vias)</button>` : ''}
       <button class="botao sec" data-tf="novo">${icone('mais')} Novo TF</button>
       ${MODULO === 'veiculos' ? '<button class="botao sec" data-go="lista">↩ Voltar à lista de veículos</button>' : '<button class="botao sec" data-go="tf">Ver lista de TFs</button>'}
       <p class="dica">Na janela de impressão, escolha “Salvar como PDF” ou imprima direto. As 2 vias saem em páginas separadas${nF ? '; o anexo fotográfico vai uma vez, no fim' : ''}.</p>`);
@@ -709,6 +775,7 @@ const TFUI = (() => {
         ${t.conflito ? '<div class="info pend">Número duplicado na planilha: confira com a coordenação.</div>' : ''}
         ${t.pendente ? `<div class="info pend">⏳ ${t.provisorio ? 'número provisório, será conferido ao sincronizar' : 'aguardando envio'}</div>` : ''}
         <div class="botoes"><button class="editar" data-tf="abrir" data-id="${esc(t.id)}">Abrir</button><button class="editar" data-tf="imprimir" data-id="${esc(t.id)}">Imprimir</button>
+        ${temAuto(t) ? `<button class="editar" data-tf="imprimirauto" data-id="${esc(t.id)}">Auto de infração</button>` : ''}
         ${t.cancelado ? '' : `<button class="excluir" data-tf="cancelar" data-id="${esc(t.id)}">Cancelar TF</button>`}
         ${t.cancelado && !t.pendente ? (removidos.has(t.id) ? `<button class="editar" data-tf="restaurar" data-id="${esc(t.id)}">Voltar para a lista</button>`
           : `<button class="excluir" data-tf="tirar" data-id="${esc(t.id)}">Excluir da lista</button>`) : ''}</div></div>`).join('') : '<div class="vazio">Nenhum TF neste aparelho.</div>';
@@ -736,6 +803,7 @@ const TFUI = (() => {
         else if (PR && $('#tf-ass-card')) await gravarAssinatura(PR, papel, img);
       }
       else if (a === 'imprimir') await Docs.tf(id);
+      else if (a === 'imprimirauto') await Docs.auto(id);
       else if (a === 'tirar' || a === 'restaurar') {
         const t = await Store.obter('tfs', id); if (!t) return;
         if (a === 'tirar' && (!t.cancelado || t.pendente)) return toast('Só TF cancelado e já enviado à planilha pode sair da lista.', true);

@@ -37,7 +37,7 @@
       <div class="adm-esc-cab"><div><h3>${esc(e.bva)} · ${F.data(e.inicio)} a ${F.data(e.fim)}</h3>
         <p class="pn-sub">${e.dias} dia(s)${e.inicio <= h && e.fim >= h ? ' · em andamento' : e.inicio > h ? ' · ainda vai começar' : ' · encerrada'} · publicada por ${esc(e.publicadaPor || '—')}${e.atualizadoPor && e.atualizadoPor !== e.publicadaPor ? ` · última alteração: ${esc(e.atualizadoPor)} em ${F.dataHora(e.atualizadoEm)}` : ''}</p></div></div>
       <div class="pn-tab"><div class="pn-tab-rolo"><table><thead><tr><th scope="col">Fiscal</th><th scope="col">Situação</th><th scope="col">Nº da PCDP</th><th scope="col">Ação</th></tr></thead><tbody>
-      ${e.fiscais.map(f => `<tr data-fiscal="${esc(f.usuarioId)}"><td>${esc(f.nome)}${f.naEscala ? '' : ' <span class="pn-selo atencao">saiu da escala depois</span>'}</td>
+      ${e.fiscais.map(f => `<tr data-fiscal="${esc(f.usuarioId)}"><td>${esc(f.nome)}${f.semLogin ? ' <small>(sem login)</small>' : ''}${f.naEscala ? '' : ' <span class="pn-selo atencao">saiu da escala depois</span>'}</td>
         <td>${f.concluida ? `<span class="pn-selo bom">PCDP concluída</span> <small>${esc(f.por)} · ${F.dataHora(f.em)}</small>${f.alterada ? ' <span class="pn-selo atencao">escala alterada depois: confira</span>' : ''}`
           : '<span class="pn-selo atencao">Pendente de solicitação de diárias</span>'}</td>
         <td>${f.concluida ? esc(f.pcdp || '—') : `<input class="adm-esc-pcdp" maxlength="60" placeholder="ex.: 1234/2026" aria-label="Nº da PCDP de ${esc(f.nome)}">`}</td>

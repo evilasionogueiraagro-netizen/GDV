@@ -12,11 +12,12 @@ const CONFIG = {
   bvas: [
     // endereco/municipio: identificação do posto no Termo de Fiscalização do turno (vazio = linha em branco para preencher à mão)
     // escala: regime da escala de plantão (REGIMES_ESCALA abaixo); a tela de escalas sugere o fim do período pelo início
-    { nome: 'BVA - CEASA', placa: true, ficha: true, endereco: 'Av. Ministro Mário Andreazza, 913, Vila Buriti (próximo ao Mauazinho), CEP 69075-390', municipio: 'Manaus', escala: { regime: 'dias', dias: 8 } },
-    { nome: 'BVA - JUNDIÁ', placa: false, ficha: false, endereco: 'BR-174, km 75', municipio: 'Presidente Figueiredo', escala: { regime: 'dias', dias: 10 } },
+    { nome: 'BVA - CEASA', placa: true, ficha: true, endereco: 'Av. Ministro Mário Andreazza, 913, Vila Buriti (próximo ao Mauazinho), CEP 69075-390', municipio: 'Manaus', escala: { regime: 'dias', dias: 8, troca: true } },
+    { nome: 'BVA - JUNDIÁ', placa: false, ficha: false, endereco: 'BR-174, km 75', municipio: 'Presidente Figueiredo', escala: { regime: 'dias', dias: 10, troca: true } },
     { nome: 'BVA - AEROPORTO', placa: false, ficha: false, endereco: 'Av. Santos Dumont, 1350 – Tarumã', municipio: 'Manaus', escala: { regime: '12x36' } }
   ],
-  // Regimes da escala de plantão por BVA. dias: período de N dias (fim = início + N − 1; o próximo começa no dia seguinte); 12x36:
+  // Regimes da escala de plantão por BVA. dias: período de N dias (fim = início + N − 1; o próximo começa no dia seguinte, ou no
+  // próprio fim com troca: true — a equipe troca no último dia, como no Jundiá: 15/10 a 24/10, 24/10 a 02/11…); 12x36:
   // plantão de 12 h com 36 h de descanso (um dia por escala; o próximo, 2 dias depois); 8h: turno diário de 8 h (um dia por escala);
   // ajustavel: o coordenador escolhe o fim.
   REGIMES_ESCALA: { dias: 'Período de N dias', '12x36': 'Plantão de 12 h × 36 h de descanso', '8h': 'Turno diário de 8 h', ajustavel: 'Período ajustável' },
@@ -202,7 +203,7 @@ CONFIG.aplicarBvas = function (cadastro) {
   cadastro.forEach(c => {
     if (!c || !c.nome) return;
     const i = lista.findIndex(b => k(b.nome) === k(c.nome));
-    const esc = c.escalaRegime ? { regime: c.escalaRegime, dias: Number(c.escalaDias) || 0 } : i >= 0 ? lista[i].escala : null;
+    const esc = c.escalaRegime ? { regime: c.escalaRegime, dias: Number(c.escalaDias) || 0, troca: !!Number(c.escalaTroca) } : i >= 0 ? lista[i].escala : null;
     const b = { nome: i >= 0 ? lista[i].nome : c.nome, placa: !!Number(c.placa), ficha: !!Number(c.ficha), endereco: c.endereco || '', municipio: c.municipio || '', escala: esc || { regime: 'ajustavel' } };
     if (Number(c.ativo) === 0) { if (i >= 0) lista.splice(i, 1); return; }
     if (i >= 0) lista[i] = b; else novas.push(b);
@@ -216,7 +217,7 @@ CONFIG.aplicarBvas = function (cadastro) {
 CONFIG.regimeEscala = function (bva) {
   const k = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const b = CONFIG.bvas.find(x => k(x.nome) === k(bva)), e = (b && b.escala) || {};
-  return CONFIG.REGIMES_ESCALA[e.regime] ? { regime: e.regime, dias: Number(e.dias) || 0 } : { regime: 'ajustavel', dias: 0 };
+  return CONFIG.REGIMES_ESCALA[e.regime] ? { regime: e.regime, dias: Number(e.dias) || 0, troca: e.regime === 'dias' && !!e.troca } : { regime: 'ajustavel', dias: 0, troca: false };
 };
 /** Fim sugerido para um período que começa em `inicio` (AAAA-MM-DD) na BVA; '' = o coordenador escolhe (período ajustável). */
 CONFIG.fimEscala = function (bva, inicio) {
@@ -226,13 +227,31 @@ CONFIG.fimEscala = function (bva, inicio) {
   if (r.regime === '12x36' || r.regime === '8h') return inicio;
   return '';
 };
-/** Início sugerido do próximo período depois de `ultima` ({inicio, fim}) na BVA: 12×36 = 2 dias depois do início; os demais, o dia seguinte ao fim. */
+/** Início sugerido do próximo período depois de `ultima` ({inicio, fim}) na BVA: 12×36 = 2 dias depois do início; troca no último
+ *  dia = o próprio fim; os demais, o dia seguinte ao fim. */
 CONFIG.proximoInicioEscala = function (bva, ultima) {
-  const d = (x, n) => new Date(Date.parse(x + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10);
-  return CONFIG.regimeEscala(bva).regime === '12x36' ? d(ultima.inicio, 2) : d(ultima.fim, 1);
+  const d = (x, n) => new Date(Date.parse(x + 'T12:00:00Z') + n * 864e5).toISOString().slice(0, 10), r = CONFIG.regimeEscala(bva);
+  return r.regime === '12x36' ? d(ultima.inicio, 2) : r.troca && ultima.fim > ultima.inicio ? ultima.fim : d(ultima.fim, 1);
+};
+/** Períodos de `inicio` até `ate` pelo regime da BVA (só "N dias", "12×36" e "8 h"; ajustável: nenhum). Até 120. */
+CONFIG.gerarPeriodosEscala = function (bva, inicio, ate) {
+  const out = []; let ini = inicio;
+  if (CONFIG.regimeEscala(bva).regime === 'ajustavel') return out;
+  while (ini && ini <= ate && out.length < 120) {
+    const fim = CONFIG.fimEscala(bva, ini); if (!fim) break;
+    out.push({ inicio: ini, fim }); const prox = CONFIG.proximoInicioEscala(bva, { inicio: ini, fim });
+    if (prox <= ini) break; ini = prox;
+  }
+  return out;
+};
+/** Dois períodos se sobrepõem? Encostar só no dia da troca (um acaba no dia em que o outro começa) não conta. */
+CONFIG.sobrepoeEscala = function (a, b) {
+  if (!(a.inicio <= b.fim && b.inicio <= a.fim)) return false;
+  const encosta = (x, y) => x.fim === y.inicio && x.inicio < x.fim && y.inicio < y.fim;
+  return !(encosta(a, b) || encosta(b, a));
 };
 /** Texto do regime para as telas ("Período de 10 dias", "Plantão de 12 h × 36 h de descanso"…). */
 CONFIG.textoRegimeEscala = function (bva) {
   const r = CONFIG.regimeEscala(bva);
-  return r.regime === 'dias' ? `Período de ${r.dias} dias` : CONFIG.REGIMES_ESCALA[r.regime];
+  return r.regime === 'dias' ? `Período de ${r.dias} dias${r.troca ? ' (troca no último dia)' : ''}` : CONFIG.REGIMES_ESCALA[r.regime];
 };

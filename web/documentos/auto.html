@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Auto de Infração</title>
+<!-- Auto de Infração lavrado no TF de Barreira (modelo ADAF): preenchido por Docs.auto (js/docs.js), 3 vias em folhas A4 separadas.
+     Campos [data-campo] recebem texto (textContent); [data-marca] recebem ☑/☐. -->
+<style>
+body { font-family: Arial, sans-serif; margin: 0; padding: 0; background: #fff; color: #000; }
+@page { size: A4 portrait; margin: 0; }
+.a4 { width: 196mm; min-height: 280mm; margin: 0 auto; padding: 4mm 0 0; box-sizing: border-box; position: relative; background: #fff; }
+.a4 + .a4 { page-break-before: always; break-before: page; }
+.logo-container { text-align: center; margin-bottom: 1mm; }
+.logo-amazonas { height: 62px; }
+.identificacao-orgao { text-align: center; line-height: 1.2; margin-bottom: 2mm; }
+.identificacao-orgao .governo { font-size: 11px; }
+.identificacao-orgao .agencia { font-size: 11px; }
+table { width: 100%; border-collapse: collapse; font-size: 11px; table-layout: fixed; }
+td { border: 1px solid #000; padding: 2px 4px; vertical-align: top; }
+.cab td { vertical-align: middle; }
+.cab-adaf { text-align: center; font-weight: bold; font-size: 11px; line-height: 1.2; }
+.cab-adaf b { font-size: 15px; display: block; }
+.cab-titulo { text-align: center; font-weight: bold; font-size: 17px; }
+.cab-num { font-weight: bold; font-size: 15px; text-align: center; }
+.cab-num .partes { display: flex; justify-content: center; gap: 3px; align-items: baseline; }
+.cab-num .parte { display: inline-block; min-width: 14mm; border-bottom: 1px solid #000; font-size: 13px; }
+.cab-num .rot { display: flex; justify-content: center; gap: 3px; font-size: 7.5px; font-weight: bold; }
+.cab-num .rot span { min-width: 14mm; }
+.fundamento { font-size: 9.5px; font-weight: bold; text-align: center; text-decoration: underline; line-height: 1.3; }
+.secao { font-weight: bold; font-size: 11px; border: none; padding: 4px 0 1px 2px; }
+.secao small { font-weight: normal; font-size: 7.5px; }
+.rot { font-size: 10.5px; }
+.val { font-size: 11.5px; font-weight: bold; white-space: pre-line; }
+.caixa { display: inline-block; width: 11px; font-size: 13px; }
+.texto-livre { height: 26mm; padding: 0 4px; font-size: 11.5px; line-height: 5.2mm; white-space: pre-line; background: repeating-linear-gradient(#fff 0, #fff calc(5.2mm - 1px), #000 calc(5.2mm - 1px), #000 5.2mm); }
+.texto-livre.menor { height: 20.8mm; }
+.ciencia-txt { font-size: 9px; font-weight: bold; text-align: justify; }
+.test-rot { writing-mode: vertical-rl; transform: rotate(180deg); text-align: center; font-size: 10px; font-weight: bold; width: 6mm; }
+.alto { height: 9mm; }
+.vias { display: flex; justify-content: space-around; font-size: 11px; margin-top: 3mm; border-top: 1px solid #000; padding-top: 1mm; }
+.vias span.atual { font-weight: bold; text-decoration: underline; }
+.rodape { display: flex; justify-content: space-between; align-items: flex-end; margin-top: 2mm; color: #002060; font-weight: 600; font-size: 9.5px; break-inside: avoid; }
+.rodape img { max-height: 42px; }
+.rodape-esquerda { width: 40%; line-height: 1.25; }
+.rodape-centro { width: 25%; text-align: center; }
+.rodape-direita { width: 35%; text-align: right; }
+.cancelado-faixa { border: 2px solid #b00020; color: #b00020; font-weight: bold; text-align: center; font-size: 13px; padding: 3px; margin-bottom: 3px; }
+.tf-ref { position: absolute; top: 2mm; left: 0; font-size: 8px; color: #333; }
+</style>
+</head>
+<body>
+<div class="a4">
+  <div class="tf-ref" data-campo="tf_ref"></div>
+  <div class="logo-container"><img src="../img/brasao.png" class="logo-amazonas" alt="Brasão do Amazonas"></div>
+  <div class="identificacao-orgao">
+    <div class="governo">GOVERNO DO ESTADO DO AMAZONAS</div>
+    <div class="agencia">Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM</div>
+  </div>
+
+  <table class="cab">
+    <colgroup><col style="width:30%"><col style="width:35%"><col style="width:35%"></colgroup>
+    <tr>
+      <td class="cab-adaf"><b>ADAF</b>Agência de Defesa Agropecuária e Florestal do Estado do Amazonas</td>
+      <td class="cab-titulo">AUTO DE INFRAÇÃO</td>
+      <td class="cab-num">
+        <div class="partes">Nº <span class="parte" data-campo="num_seq"></span>-<span class="parte" data-campo="num_ano"></span>-<span class="parte" data-campo="num_unidade"></span></div>
+        <div class="rot"><span></span><span>Nº sequencial</span><span>Ano</span><span>Unidade</span></div>
+      </td>
+    </tr>
+    <tr><td colspan="3" class="fundamento">O PRESENTE AUTO DE INFRAÇÃO É LAVRADO EM FUNDAMENTO AO ART.1 DO DECRETO FEDERAL N° 24.114 DE 12 DE ABRIL DE 1934, LEI ESTADUAL N° 4417 DE 29 DE DEZEMBRO DE 2016, LEI ESTADUAL N° 3.097 DE 27 DE NOVEMBRO DE 2006 E ART. 35 DO DECRETO ESTADUAL N° 36.108 DE 06 DE AGOSTO DE 2015</td></tr>
+  </table>
+
+  <table>
+    <colgroup><col style="width:33%"><col style="width:34%"><col style="width:33%"></colgroup>
+    <tr><td colspan="3" class="secao">1. OCORRÊNCIA:</td></tr>
+    <tr>
+      <td><span class="caixa" data-marca="oc_unidade"></span> Unidade Local</td>
+      <td><span class="caixa" data-marca="oc_barreira"></span> Em Barreira Fitossanitária</td>
+      <td><span class="caixa" data-marca="oc_estabelecimento"></span> Em Estabelecimento ou Propriedade</td>
+    </tr>
+  </table>
+
+  <table>
+    <colgroup><col style="width:34%"><col style="width:22%"><col style="width:14%"><col style="width:30%"></colgroup>
+    <tr><td colspan="4" class="secao">2. DADOS DO AUTUADO:</td></tr>
+    <tr class="alto"><td colspan="3"><span class="rot">Nome da Pessoa Física ou Jurídica Proprietária:</span><br><span class="val" data-campo="nome"></span></td>
+      <td><span class="rot">CPF/CNPJ:</span><br><span class="val" data-campo="doc"></span></td></tr>
+    <tr class="alto"><td colspan="3"><span class="rot">Nome Comercial do Estabelecimento:</span><br><span class="val" data-campo="nome_comercial"></span></td>
+      <td><span class="rot">Nº de Cadastro na GDV/ADAF:</span><br><span class="val" data-campo="cadastro"></span></td></tr>
+    <tr class="alto"><td colspan="3"><span class="rot">Nome do Responsável ou Condutor:</span><br><span class="val" data-campo="condutor"></span></td>
+      <td><span class="rot">CPF:</span><br><span class="val" data-campo="condutor_cpf"></span></td></tr>
+    <tr><td colspan="4"><span class="rot">Endereço:</span> <span class="val" data-campo="endereco"></span></td></tr>
+    <tr><td colspan="2"><span class="rot">Município:</span> <span class="val" data-campo="municipio"></span></td>
+      <td><span class="rot">UF:</span> <span class="val" data-campo="uf"></span></td>
+      <td><span class="rot">CEP:</span> <span class="val" data-campo="cep"></span></td></tr>
+    <tr><td colspan="4"><span class="rot">Coordenadas Geográficas:</span> <span class="val" data-campo="coordenadas"></span></td></tr>
+  </table>
+
+  <table>
+    <colgroup><col style="width:50%"><col style="width:50%"></colgroup>
+    <tr><td colspan="2" class="secao">3. IDENTIFICAÇÃO DO TRANSPORTE:</td></tr>
+    <tr class="alto"><td><span class="rot">RENAVAM/Insc. Capitania:</span><br><span class="val" data-campo="renavam"></span></td>
+      <td><span class="rot">Placa/Nome da Embarcação:</span><br><span class="val" data-campo="placa"></span></td></tr>
+    <tr class="alto"><td><span class="rot">Procedência (Município/UF):</span><br><span class="val" data-campo="procedencia"></span></td>
+      <td><span class="rot">Destino (Município/UF):</span><br><span class="val" data-campo="destino"></span></td></tr>
+  </table>
+
+  <table>
+    <tr><td class="secao">4. DESCRIÇÃO RESUMIDA DOS FATOS/DA INFRAÇÃO:</td></tr>
+    <tr><td class="texto-livre" data-campo="fatos" id="fatos"></td></tr>
+    <tr><td class="secao">5. ENQUADRAMENTO LEGAL <small>(Leis, Decretos, Portarias, Instruções Normativas, Resoluções, Capítulos, Seção, Artigos, Parágrafos, Incisos, Alíneas):</small></td></tr>
+    <tr><td class="texto-livre menor" data-campo="enquadramento" id="enquadramento"></td></tr>
+  </table>
+
+  <table>
+    <colgroup><col style="width:6%"><col style="width:4%"><col style="width:42%"><col style="width:28%"><col style="width:20%"></colgroup>
+    <tr><td colspan="5" class="secao">6. CIÊNCIA:</td></tr>
+    <tr><td colspan="5"><span class="caixa" data-marca="ci_autuado"></span> AUTUADO &nbsp;&nbsp;&nbsp; <span class="caixa" data-marca="ci_naosabe"></span> NÃO SABE LER E ESCREVER &nbsp;&nbsp;&nbsp; <span class="caixa" data-marca="ci_recusou"></span> RECUSOU-SE A ASSINAR</td></tr>
+    <tr><td colspan="5" class="ciencia-txt">ESTOU CIENTE DE QUE PODEREI APRESENTAR DEFESA, POR ESCRITO, NO PRAZO DE 15 (QUINZE) DIAS, A CONTAR DESTA DATA, NOS TERMOS DO ARTIGO 42 DO DECRETO Nº 36.108/2015. O RECURSO DEVERÁ SER ENCAMINHADO AO DIRETOR PRESIDENTE DA ADAF.</td></tr>
+    <tr class="alto"><td colspan="3"><span class="rot">Autuado/Responsável:</span><br><span class="val" data-campo="ciente_nome"></span></td>
+      <td><span class="rot">CPF:</span><br><span class="val" data-campo="ciente_cpf"></span></td>
+      <td><span class="rot">Assinatura:</span><br><span class="val" data-campo="ciente_ass"></span></td></tr>
+    <tr><td rowspan="4" class="test-rot">TESTEMUNHAS</td>
+      <td rowspan="2" style="text-align:center;vertical-align:middle">1</td>
+      <td><span class="rot">Nome:</span> <span class="val" data-campo="t1_nome"></span></td>
+      <td><span class="rot">CPF:</span> <span class="val" data-campo="t1_cpf"></span></td>
+      <td rowspan="2"><span class="rot">Assinatura:</span></td></tr>
+    <tr><td><span class="rot">Endereço:</span> <span class="val" data-campo="t1_endereco"></span></td>
+      <td><span class="rot">Telefone:</span> <span class="val" data-campo="t1_telefone"></span></td></tr>
+    <tr><td rowspan="2" style="text-align:center;vertical-align:middle">2</td>
+      <td><span class="rot">Nome:</span> <span class="val" data-campo="t2_nome"></span></td>
+      <td><span class="rot">CPF:</span> <span class="val" data-campo="t2_cpf"></span></td>
+      <td rowspan="2"><span class="rot">Assinatura:</span></td></tr>
+    <tr><td><span class="rot">Endereço:</span> <span class="val" data-campo="t2_endereco"></span></td>
+      <td><span class="rot">Telefone:</span> <span class="val" data-campo="t2_telefone"></span></td></tr>
+  </table>
+
+  <table>
+    <colgroup><col style="width:50%"><col style="width:50%"></colgroup>
+    <tr><td colspan="2" class="secao">7. AUTORIDADE AUTUANTE:</td></tr>
+    <tr style="height:16mm"><td><span class="rot">Local e data/hora:</span><br><span class="val" data-campo="local_data"></span></td>
+      <td><span class="rot">Carimbo e Assinatura:</span><br><br><span class="val" data-campo="autuante"></span></td></tr>
+  </table>
+
+  <div class="vias"><span data-via="0">1ª via: Interessado</span><span data-via="1">2ª via: ADAF Central</span><span data-via="2">3ª via: Unidade Local</span></div>
+  <div class="rodape">
+    <div class="rodape-esquerda">Avenida Carlos Drummond de Andrade, 1460 Japiim<br>Conj. Atílio Andreazza. ULBRA, Bloco G, 1º andar<br>Fone: (92) 99192-3067 / 99983-1176<br>Manaus-AM-CEP 69077-730</div>
+    <div class="rodape-centro"><img src="../img/logo-adaf.png" alt="ADAF"></div>
+    <div class="rodape-direita"><img src="../img/sepror.png" alt="SEPROR"></div>
+  </div>
+</div>
+</body>
+</html>

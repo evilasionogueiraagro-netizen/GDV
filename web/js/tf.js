@@ -402,13 +402,13 @@ const TFUI = (() => {
     }
     if (!bars.some(b => b.id === D.barreira)) D.barreira = bars[0].id;
     view(formHTML(D, bars));
+    ligarForm();                                                                  // já: o fiscal pode marcar o procedimento antes da planilha responder o nº
     if (antigo) { await renderPDFs(); const dl = $('#tf-servidores'); if (dl) dl.innerHTML = servidoresPapel().map(n => `<option value="${esc(n)}">`).join(''); }
     else { await renderFotos(); await desenharAss(S); }
     $('#tf-uf').oninput = e => { e.target.value = e.target.value.toUpperCase().replace(/[^A-Z]/g, ''); };
     await mostrarInfoNumero();
     if (digitos(D.doc).length >= 11) consultarDoc();
     if (placaNorm(D.placa).length >= 7) consultarPlaca();
-    ligarForm();
     if (!antigo) iniciarAndamento(S.rid);                                         // TF do papel não acende "TF em preenchimento" no painel
   }
 
@@ -589,7 +589,16 @@ const TFUI = (() => {
     });
   }
 
+  /** Procedimento marcado com a constatação ou o enquadramento vazios: entram os textos padrão do procedimento (o fiscal pode editar). */
+  function completarTextos() {
+    const r = document.querySelector('input[name=tf-proc]:checked'); if (!r || !S) return;
+    [['constatacao', T.constatacao[r.value]], ['enquadramento', r.value === 'liberacao' ? '' : T.textoLegal]].forEach(([id, novo]) => {
+      const el = $('#tf-' + id); if (el && !el.value.trim() && novo) { el.value = novo; S.tpl[id] = novo; }
+    });
+  }
+
   async function gerar() {
+    completarTextos();
     const D = coletar(), a = anoAtual(), bar = (await barreiras()).find(x => x.id === D.barreira), doc = digitos(D.doc);
     if (!bar || !S) return toast('Escolha a barreira.', true);
     if (!D.nome.trim()) return toast('Informe o nome / razão social do fiscalizado.', true);

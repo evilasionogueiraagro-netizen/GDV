@@ -1,6 +1,6 @@
 /* Portal do Administrativo — "Diárias das escalas": cada fiscal de cada escala de plantão publicada (pela coordenação de barreira e
    trânsito no app, ou editada pela gerência no painel) é uma solicitação de diárias: "Pendente de solicitação de diárias" até o
-   Administrativo marcar a PCDP concluída (nº opcional). Desfazer volta a pendente. Quem e quando ficam na aba EscalaPcdp e no
+   Administrativo marcar a PCDP concluída (MEMO ou nº do processo, opcional; coluna pcdp). Desfazer volta a pendente. Quem e quando ficam na aba EscalaPcdp e no
    Histórico. Escala alterada depois da PCDP concluída e fiscal tirado da escala depois aparecem marcados para conferir.
    Actions admEscalas / admEscalaPcdp (escalas.gs). */
 (() => {
@@ -36,11 +36,11 @@
     L.innerHTML = vis.map(e => `<div class="pn-cartao adm-esc" data-escala="${esc(e.id)}">
       <div class="adm-esc-cab"><div><h3>${esc(e.bva)} · ${F.data(e.inicio)} a ${F.data(e.fim)}</h3>
         <p class="pn-sub">${e.dias} dia(s)${e.inicio <= h && e.fim >= h ? ' · em andamento' : e.inicio > h ? ' · ainda vai começar' : ' · encerrada'} · publicada por ${esc(e.publicadaPor || '—')}${e.atualizadoPor && e.atualizadoPor !== e.publicadaPor ? ` · última alteração: ${esc(e.atualizadoPor)} em ${F.dataHora(e.atualizadoEm)}` : ''}</p></div></div>
-      <div class="pn-tab"><div class="pn-tab-rolo"><table><thead><tr><th scope="col">Fiscal</th><th scope="col">Situação</th><th scope="col">Nº da PCDP</th><th scope="col">Ação</th></tr></thead><tbody>
+      <div class="pn-tab"><div class="pn-tab-rolo"><table><thead><tr><th scope="col">Fiscal</th><th scope="col">Situação</th><th scope="col">MEMO ou nº do processo</th><th scope="col">Ação</th></tr></thead><tbody>
       ${e.fiscais.map(f => `<tr data-fiscal="${esc(f.usuarioId)}"><td>${esc(f.nome)}${f.semLogin ? ' <small>(sem login)</small>' : ''}${f.naEscala ? '' : ' <span class="pn-selo atencao">saiu da escala depois</span>'}</td>
         <td>${f.concluida ? `<span class="pn-selo bom">PCDP concluída</span> <small>${esc(f.por)} · ${F.dataHora(f.em)}</small>${f.alterada ? ' <span class="pn-selo atencao">escala alterada depois: confira</span>' : ''}`
           : '<span class="pn-selo atencao">Pendente de solicitação de diárias</span>'}</td>
-        <td>${f.concluida ? esc(f.pcdp || '—') : `<input class="adm-esc-pcdp" maxlength="60" placeholder="ex.: 1234/2026" aria-label="Nº da PCDP de ${esc(f.nome)}">`}</td>
+        <td>${f.concluida ? esc(f.pcdp || '—') : `<input class="adm-esc-pcdp" maxlength="60" placeholder="ex.: MEMO 123/2026" aria-label="MEMO ou nº do processo de ${esc(f.nome)}">`}</td>
         <td>${f.concluida ? `<button type="button" class="pn-btn pn-btn-mini" data-pcdp="desfazer">Desfazer</button>`
           : `<button type="button" class="pn-btn pn-btn-prim pn-btn-mini" data-pcdp="concluir" ${f.naEscala ? '' : 'disabled'}>Marcar PCDP concluída</button>`}</td></tr>`).join('')}
       </tbody></table></div></div></div>`).join('');

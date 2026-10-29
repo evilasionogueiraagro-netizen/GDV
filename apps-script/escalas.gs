@@ -37,9 +37,11 @@ function escalaDados_(req) {
   const hoje = hojeManaus_(), de = diaValido_(req && req.de) ? req.de : somarDias_(hoje, -60), ate = diaValido_(req && req.ate) ? req.ate : somarDias_(hoje, 90);
   const escalas = escalasVivas_().filter(function (e) { return sobrepoe_(e, { inicio: de, fim: ate }); })
     .sort(function (a, b) { return a.bva.localeCompare(b.bva, 'pt-BR') || a.inicio.localeCompare(b.inicio); });
-  let fimConvenio = '';                                   // "Gerar períodos" vai, por padrão, até o fim da vigência do convênio
-  try { convListar_().forEach(function (c) { const f = c && c.vigencia && c.vigencia.fim; if (f && f > fimConvenio) fimConvenio = String(f); }); } catch (e) { /* sem convênio */ }
-  return { ok: true, hoje: hoje, de: de, ate: ate, escalas: escalas, fiscais: fiscaisEscalaveis_(), fimConvenio: fimConvenio };
+  let fimConvenio = '';                                   // "Gerar períodos" vai, por padrão, até o fim da vigência do convênio (só com req.convenio)
+  if (req && req.convenio) try { convListar_().forEach(function (c) { const f = c && c.vigencia && c.vigencia.fim; if (f && f > fimConvenio) fimConvenio = String(f); }); } catch (e) { /* sem convênio */ }
+  const out = { ok: true, hoje: hoje, de: de, ate: ate, escalas: escalas, fiscais: fiscaisEscalaveis_() };
+  if (req && req.convenio) out.fimConvenio = fimConvenio;
+  return out;
 }
 
 /**

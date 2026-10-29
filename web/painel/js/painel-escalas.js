@@ -20,7 +20,7 @@
 
   async function carregar() {
     if (E.carregando) return; E.carregando = true;
-    try { E.dados = await P.chamar({ action: 'painelEscalas' }); E.erro = ''; E.lidoEm = Date.now(); }
+    try { E.dados = await P.chamar({ action: 'painelEscalas', convenio: 1 }); E.erro = ''; E.lidoEm = Date.now(); }
     catch (e) { E.erro = e.message; }
     finally { E.carregando = false; if (P.logado && P.abaAtual && P.abaAtual() === 'escalas') P.redesenhar(); }
   }

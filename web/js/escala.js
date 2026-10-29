@@ -1,7 +1,8 @@
 /* Escalas de plantão (só a coordenação de barreira e trânsito: permissão coordenacaoBarreiras → módulo "escala").
    Lista as escalas por BVA e período e monta/edita a equipe de cada uma. O período varia por BVA: ao escolher o início, o fim vem
    sugerido pelo regime da BVA (cadastro de BVAs: N dias, 12 h × 36 h, turno de 8 h; ajustável: o coordenador escolhe). Rascunho → publicada: só a publicada
-   chega aos fiscais. Precisa de internet (lê e grava direto no servidor: escalaDados / escalaSalvar / escalaExcluir). */
+   chega aos fiscais. Precisa de internet (lê e grava direto no servidor: escalaDados / escalaSalvar / escalaExcluir); a lista abre na hora com a
+   última leitura (memória ou meta "escalaDados") e se atualiza por trás. */
 const EscalaUI = (() => {
   'use strict';
   let D = null, AVISOS = [];                                   // dados da última leitura; avisos da última gravação
@@ -16,15 +17,30 @@ const EscalaUI = (() => {
   const semNet = () => `<div class="card aviso"><h3>${icone('offline')} Sem internet</h3><p>As escalas são lidas e gravadas direto na planilha: conecte-se e tente de novo.</p>
     <button class="botao sec" data-go="escalas">${icone('sincronizar')} Tentar de novo</button></div>`;
 
-  async function carregar() { D = await Sync.escalaDados(); return D; }
+  async function carregar(convenio) {
+    const n = await Sync.escalaDados(convenio);
+    if (!convenio && D && 'fimConvenio' in D) n.fimConvenio = D.fimConvenio;     // o fim do convênio só vem quando pedido (Gerar períodos)
+    D = n; try { await Store.setMeta('escalaDados', D); } catch (e) { /* sem cache */ }
+    return D;
+  }
+  const mexer = f => { if (D) { D = { ...D, escalas: f(D.escalas) }; Store.setMeta('escalaDados', D).catch(() => {}); } };
+  async function guardado() { if (!D) try { D = (await Store.meta('escalaDados')) || null; } catch (e) { /* sem cache */ } return D; }
 
   /** Lista: por BVA, as escalas que ainda não acabaram (e a última que acabou), com a situação e a equipe. */
   async function lista() {
     const mostrar = tela();
     if (!navigator.onLine) return mostrar(semNet());
-    mostrar('<div class="card"><p>Carregando as escalas…</p></div>');
-    try { await carregar(); } catch (e) { if (mostrar.viva()) mostrar(`<div class="card aviso">${icone('alerta')} ${esc(e.message || 'Não foi possível ler as escalas.')}</div>`); return; }
-    if (!mostrar.viva()) return;
+    const antes = await guardado(), velho = antes && JSON.stringify(antes.escalas);
+    if (antes) desenhar(mostrar); else mostrar('<div class="card"><p>Carregando as escalas…</p></div>');
+    try { await carregar(); } catch (e) {
+      if (!mostrar.viva()) return;
+      if (antes) return toast(e.message || 'Não foi possível atualizar as escalas.', true);
+      return mostrar(`<div class="card aviso">${icone('alerta')} ${esc(e.message || 'Não foi possível ler as escalas.')}</div>`);
+    }
+    if (mostrar.viva() && (!antes || JSON.stringify(D.escalas) !== velho)) desenhar(mostrar);
+    AVISOS = [];
+  }
+  function desenhar(mostrar) {
     const h = hoje();
     const blocos = bvas().map(b => {
       const es = D.escalas.filter(e => nl(e.bva) === nl(b)).sort((x, y) => x.inicio.localeCompare(y.inicio));
@@ -45,14 +61,13 @@ const EscalaUI = (() => {
         <button type="button" class="botao" data-escnova="">${icone('mais')} Nova escala</button></div>
       ${AVISOS.length ? `<div class="card aviso" id="escAvisos">${icone('alerta')} <b>Atenção</b><ul>${AVISOS.map(a => `<li>${esc(a)}</li>`).join('')}</ul></div>` : ''}
       <div id="escLista">${blocos}</div>`);
-    AVISOS = [];
   }
 
   /** Formulário: BVA, início e fim do período e os fiscais (cada um com as outras escalas em que está no mesmo período). */
   async function form(id) {
     const mostrar = tela();
     if (!navigator.onLine) return mostrar(semNet());
-    if (!D) { try { await carregar(); } catch (e) { if (mostrar.viva()) mostrar(`<div class="card aviso">${icone('alerta')} ${esc(e.message)}</div>`); return; } }
+    if (!(await guardado())) { try { await carregar(); } catch (e) { if (mostrar.viva()) mostrar(`<div class="card aviso">${icone('alerta')} ${esc(e.message)}</div>`); return; } }
     if (!mostrar.viva()) return;
     const e = id && id.charAt(0) !== '+' ? D.escalas.find(x => x.id === id) : null;
     if (id && id.charAt(0) !== '+' && !e) { toast('Esta escala não existe mais.', true); return go('escalas'); }
@@ -116,7 +131,7 @@ const EscalaUI = (() => {
       const bts = document.querySelectorAll('#fEscala button'); bts.forEach(b => { b.disabled = true; });
       try {
         const r = await Sync.escalaSalvar({ id: e ? e.id : '', bva: bvaAtual(), inicio: $('#escIni').value, fim: $('#escFim').value, fiscais, situacao });
-        AVISOS = r.avisos || [];
+        AVISOS = r.avisos || []; mexer(l => l.filter(x => x.id !== r.escala.id).concat([r.escala]));
         toast(situacao === 'publicada' ? 'Escala publicada.' : 'Rascunho salvo.'); go('escalas');
       } catch (err) { bts.forEach(b => { b.disabled = false; }); toast(err.message || 'Não foi possível gravar.', true); }
     };
@@ -124,7 +139,7 @@ const EscalaUI = (() => {
     $('#escPublicar').onclick = () => salvar('publicada');
     if (e) $('#escExcluir').onclick = async () => {
       if (!confirm(`Excluir a escala da ${e.bva} (${periodo(e)})?\n\nEla sai das telas dos fiscais e do painel; fica registrada no histórico.`)) return;
-      try { await Sync.escalaExcluir(e.id); toast('Escala excluída.'); go('escalas'); } catch (err) { toast(err.message || 'Não foi possível excluir.', true); }
+      try { await Sync.escalaExcluir(e.id); mexer(l => l.filter(x => x.id !== e.id)); toast('Escala excluída.'); go('escalas'); } catch (err) { toast(err.message || 'Não foi possível excluir.', true); }
     };
   }
 
@@ -137,7 +152,7 @@ const EscalaUI = (() => {
   async function gerar(bva) {
     const mostrar = tela();
     if (!navigator.onLine) return mostrar(semNet());
-    if (!D) { try { await carregar(); } catch (e) { if (mostrar.viva()) mostrar(`<div class="card aviso">${icone('alerta')} ${esc(e.message)}</div>`); return; } }
+    if (!(await guardado()) || !('fimConvenio' in D)) try { mostrar('<div class="card"><p>Carregando…</p></div>'); await carregar(true); } catch (e) { if (mostrar.viva()) mostrar(`<div class="card aviso">${icone('alerta')} ${esc(e.message)}</div>`); return; }
     if (!mostrar.viva()) return;
     const es = D.escalas.filter(x => nl(x.bva) === nl(bva)).sort((x, y) => x.fim.localeCompare(y.fim)), ult = es[es.length - 1];
     const ini0 = ult ? CONFIG.proximoInicioEscala(bva, ult) : hoje(), ate0 = D.fimConvenio && D.fimConvenio > ini0 ? D.fimConvenio : somar(ini0, 90);
@@ -161,6 +176,7 @@ const EscalaUI = (() => {
       const novos = lista.filter(p => !p.pula); if (!novos.length) return;
       $('#gerOk').disabled = true;
       try { const r = await Sync.escalaGerar(bva, novos.map(p => ({ inicio: p.inicio, fim: p.fim })));
+        D = null; try { await Store.setMeta('escalaDados', null); } catch (e) { /* sem cache */ }  // os novos só vêm na próxima leitura
         toast(`${r.criados} período(s) criado(s) como rascunho${r.pulados ? `; ${r.pulados} pulado(s)` : ''}.`); go('escalas'); }
       catch (err) { $('#gerOk').disabled = false; toast(err.message || 'Não foi possível gerar.', true); }
     };

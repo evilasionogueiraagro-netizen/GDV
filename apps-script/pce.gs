@@ -539,18 +539,19 @@ function periodoPainel_(filtro) {
 function auditarRegs_(tipo, grupo, ano, todos, numeracao) {
   const s = SEQUENCIAS[tipo];
   ano = Number(ano);
-  const regs = todos.filter(function (r) { return grupoSeq_(tipo, r) === grupo && r.ano === ano && (tipo === 'TF' || r.numero > 0) && r.excluido !== 1; });
+  const regs = todos.filter(function (r) { return grupoSeq_(tipo, r) === grupo && r.ano === ano && (tipo === 'TF' || numSeq_(tipo, r) > 0) && r.excluido !== 1 && (tipo !== 'AI' || Number(r.auto) === 1); });
   const usos = {};
-  regs.forEach(function (r) { (usos[r.numero] = usos[r.numero] || []).push(r); });
+  regs.forEach(function (r) { const n = numSeq_(tipo, r); (usos[n] = usos[n] || []).push(r); });
   const nums = Object.keys(usos).map(Number).sort(function (a, b) { return a - b; });
   const base = numeracao.filter(function (r) { return r.id === chaveSeq_(tipo, grupo, ano); })[0];
   const inicio = base ? base.ultimo + 1 : 1, lacunas = [], duplicados = [];
   const maior = nums.length ? nums[nums.length - 1] : inicio - 1;
   for (let n = inicio; n <= maior; n++) if (!usos[n]) lacunas.push(n);
   nums.forEach(function (n) { if (usos[n].length > 1) duplicados.push({ numero: n, ids: usos[n].map(function (r) { return r.usuario + ' ' + r.data + ' ' + r.hora; }) }); });
-  const editados = regs.filter(function (r) { return r.numeroOrigem === 'editado' || r.numeroOrigem === 'provisorio' || r.numeroOrigem === 'papel'; }).map(function (r) { return { numero: r.numero, origem: r.numeroOrigem, sugerido: r.numeroSugerido, usuario: r.usuario }; });
+  const orig = function (r) { return tipo === 'AI' ? r.autoNumeroOrigem : r.numeroOrigem; };
+  const editados = regs.filter(function (r) { return orig(r) === 'editado' || orig(r) === 'provisorio' || orig(r) === 'papel'; }).map(function (r) { return { numero: numSeq_(tipo, r), origem: orig(r), sugerido: r.numeroSugerido, usuario: r.usuario }; });
   return { total: regs.length, primeiro: nums[0] || null, ultimo: maior || null, inicioEsperado: inicio, lacunas: lacunas, duplicados: duplicados, editados: editados,
-           conflitos: regs.filter(function (r) { return r.conflito === 1; }).length, cancelados: regs.filter(function (r) { return r.cancelado === 1; }).length };
+           conflitos: regs.filter(function (r) { return Number(r[SEQUENCIAS[tipo].conflito || 'conflito']) === 1; }).length, cancelados: regs.filter(function (r) { return r.cancelado === 1; }).length };
 }
 
 /**

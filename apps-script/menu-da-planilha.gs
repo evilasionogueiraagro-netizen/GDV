@@ -4,6 +4,7 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('e-GDV')
     .addItem('Definir último nº de TF usado (barreira)', 'menuDefinirSequencia')
     .addItem('Auditar numeração de TF (lacunas e duplicidades)', 'menuAuditarNumeracao')
+    .addItem('Definir último nº de Auto de infração usado (barreira)', 'menuDefinirSequenciaAuto')
     .addItem('Definir último nº de Termo de Colheita (PCE)', 'menuDefinirSequenciaPce')
     .addItem('Auditar numeração de Termo de Colheita (PCE)', 'menuAuditarNumeracaoPce')
     .addItem('Definir último nº de Termo de Fiscalização (PCE)', 'menuDefinirSequenciaTermoPce')
@@ -95,6 +96,18 @@ function menuDefinirSequencia() {
   const u = ui.prompt('Último número usado', 'Último nº de TF JÁ usado nessa barreira/ano (o próximo será este + 1). Use 0 para começar do 0001.', ui.ButtonSet.OK_CANCEL);
   if (u.getSelectedButton() !== ui.Button.OK) return;
   try { const n = definirSequencia_(b.getResponseText().trim(), Number(a.getResponseText()), Number(u.getResponseText())); ui.alert('Pronto', 'O próximo TF será o nº ' + (n + 1) + '.', ui.ButtonSet.OK); }
+  catch (e) { ui.alert('Não foi possível definir', String(e.message || e), ui.ButtonSet.OK); }
+}
+
+function menuDefinirSequenciaAuto() {
+  const ui = SpreadsheetApp.getUi();
+  const b = ui.prompt('Barreira', 'Código da barreira (coluna id da aba Barreiras), ex.: BVA-CEASA', ui.ButtonSet.OK_CANCEL);
+  if (b.getSelectedButton() !== ui.Button.OK) return;
+  const a = ui.prompt('Ano', 'Ano da numeração (ex.: ' + new Date().getFullYear() + ')', ui.ButtonSet.OK_CANCEL);
+  if (a.getSelectedButton() !== ui.Button.OK) return;
+  const u = ui.prompt('Último número usado', 'Último nº de Auto de infração JÁ usado nessa barreira/ano (o próximo será este + 1). Use 0 para começar do 0001.', ui.ButtonSet.OK_CANCEL);
+  if (u.getSelectedButton() !== ui.Button.OK) return;
+  try { const n = definirSequencia_(b.getResponseText().trim(), Number(a.getResponseText()), Number(u.getResponseText()), 'AI'); ui.alert('Pronto', 'O próximo Auto de infração será o nº ' + (n + 1) + '.', ui.ButtonSet.OK); }
   catch (e) { ui.alert('Não foi possível definir', String(e.message || e), ui.ButtonSet.OK); }
 }
 

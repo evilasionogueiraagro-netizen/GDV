@@ -52,6 +52,8 @@ function listarBarreiras_() {
  */
 const SEQUENCIAS = {
   TF: { aba: 'TFs', grupo: 'barreira', prefixo: '', nome: 'TF' },
+  // auto de infração lavrado no TF: sequência própria por barreira/ano, na mesma aba (coluna autoNumero; nº repetido = autoConflito)
+  AI: { aba: 'TFs', grupo: 'barreira', prefixo: 'AI|', nome: 'Auto de infração', campo: 'autoNumero', conflito: 'autoConflito' },
   PCE: { aba: 'Colheitas', grupo: 'unidade', prefixo: 'PCE|', nome: 'Termo de Colheita' },
   // PCE: Termo de Fiscalização (uma sequência por unidade/ano) e Cadastro de imóvel (por programa + unidade + ano: grupo "MONILIASE|AUTAZES")
   TPCE: { aba: 'TermosPCE', grupo: 'unidade', prefixo: 'TPCE|', nome: 'Termo de Fiscalização (PCE)' },
@@ -59,6 +61,10 @@ const SEQUENCIAS = {
           grupoDe: function (r) { return String(r.programa || 'moniliase').toUpperCase() + '|' + r.unidade; } }
 };
 function chaveSeq_(tipo, grupo, ano) { return SEQUENCIAS[tipo].prefixo + grupo + '|' + ano; }
+/** Número do registro na sequência (TF e PCE: "numero"; auto de infração: "autoNumero"). */
+function numSeq_(tipo, r) { return Number(r[SEQUENCIAS[tipo].campo || 'numero']) || 0; }
+/** Sequência por barreira (TF e auto de infração; as do PCE são por unidade). */
+const seqDeBarreira_ = function (tipo) { return tipo === 'TF' || tipo === 'AI'; };
 /** Grupo da sequência de um registro (barreira, unidade ou "PROGRAMA|UNIDADE"). */
 function grupoSeq_(tipo, r) { const s = SEQUENCIAS[tipo]; return s.grupoDe ? s.grupoDe(r) : r[s.grupo]; }
 
@@ -71,7 +77,7 @@ function ultimoSeq_(tipo, grupo, ano, regs) {
   let ultimo = 0, ref = null;
   const base = lerLeitura_('Numeracao').filter(function (r) { return r.id === chaveSeq_(tipo, grupo, ano); })[0];
   if (base) ultimo = base.ultimo;
-  (regs || lerLeitura_(s.aba)).forEach(function (r) { if (grupoSeq_(tipo, r) === grupo && r.ano === ano && r.numero > ultimo) { ultimo = r.numero; ref = r; } });
+  (regs || lerLeitura_(s.aba)).forEach(function (r) { const n = numSeq_(tipo, r); if (grupoSeq_(tipo, r) === grupo && r.ano === ano && n > ultimo) { ultimo = n; ref = r; } });
   return { ultimo: ultimo, ref: ref };
 }
 
@@ -79,7 +85,7 @@ function ultimoNumero_(barreira, ano, tfs) { return ultimoSeq_('TF', barreira, a
 
 function ultimosPorBarreira_() {
   const tfs = lerLeitura_('TFs'), ano = new Date().getFullYear(), o = {};
-  listarBarreiras_().forEach(function (b) { o[b.id + '|' + ano] = ultimoNumero_(b.id, ano, tfs).ultimo; });
+  listarBarreiras_().forEach(function (b) { o[b.id + '|' + ano] = ultimoNumero_(b.id, ano, tfs).ultimo; o['AI|' + b.id + '|' + ano] = ultimoSeq_('AI', b.id, ano, tfs).ultimo; });
   return o;
 }
 
@@ -87,8 +93,8 @@ function ultimosPorBarreira_() {
 function proximoNumero_(req) {
   const barreira = String(req.barreira || '').slice(0, 64), ano = Number(req.ano) || new Date().getFullYear();
   if (!listarBarreiras_().some(function (b) { return b.id === barreira; })) throw new Error('Barreira desconhecida: ' + barreira);
-  const u = ultimoNumero_(barreira, ano);
-  return { ok: true, barreira: barreira, ano: ano, ultimo: u.ultimo, proximo: u.ultimo + 1,
+  const tfs = lerLeitura_('TFs'), u = ultimoNumero_(barreira, ano, tfs);
+  return { ok: true, barreira: barreira, ano: ano, ultimo: u.ultimo, proximo: u.ultimo + 1, autoUltimo: ultimoSeq_('AI', barreira, ano, tfs).ultimo,
            ultimoTF: u.ref ? { numeroTxt: u.ref.numeroTxt, data: u.ref.data, hora: u.ref.hora, usuario: u.ref.usuario } : null };
 }
 
@@ -120,19 +126,40 @@ function emitir_(req, usuario) {
     const agora = Date.now(), antes = todos.filter(function (r) { return r.id === tf.id; })[0];
     if (antes && !mesmoDono_(antes.usuario, usuario)) throw new Error(MSG_REGISTRO_ALHEIO_);   // mesmo id de TF de outro login (IDOR)
     tf.emitidoEm = (antes && antes.emitidoEm) || agora;                          // reenvio do mesmo TF não muda a data de emissão
+    numerarAuto_(tf, todos, antes);
     gravar_('TFs', [tf], agora, usuario);
     if (req.pessoa) gravar_('Pessoas', [req.pessoa], agora, usuario);
     if (req.placa) gravar_('Placas', [req.placa], agora, usuario);
-    return { ok: true, emitido: true, numero: numero, emitidoEm: tf.emitidoEm, srv_ts: agora };
+    return { ok: true, emitido: true, numero: numero, emitidoEm: tf.emitidoEm, srv_ts: agora,
+             autoNumero: Number(tf.autoNumero) || 0, autoNumeroTxt: tf.autoNumeroTxt || '', autoNumeroOrigem: tf.autoNumeroOrigem || '' };
   } finally {
     lock.releaseLock();
   }
 }
 
+/**
+ * Nº do auto de infração do TF (sob o lock de emitir_): o que o aparelho propôs, se livre na barreira/ano; senão o próximo livre.
+ * TF já gravado mantém o nº do auto; sem auto (auto ≠ 1), sem número.
+ */
+function autoNumeroTxt_(n, ano, sufixo) { return ('000' + n).slice(-4) + '-' + ano + '-' + sufixo; }
+function numerarAuto_(tf, todos, antes) {
+  if (Number(tf.auto) !== 1) { tf.autoNumero = 0; tf.autoNumeroTxt = ''; tf.autoNumeroOrigem = ''; return; }
+  const b = String(tf.barreira), ano = Number(tf.ano), bar = listarBarreiras_().filter(function (x) { return x.id === b; })[0];
+  if (antes && Number(antes.autoNumero) > 0 && Number(antes.ano) === ano && antes.barreira === b) {
+    tf.autoNumero = Number(antes.autoNumero); tf.autoNumeroTxt = antes.autoNumeroTxt; tf.autoNumeroOrigem = antes.autoNumeroOrigem; return;
+  }
+  const quer = Number(tf.autoNumero) || 0;
+  const ocupado = function (n) { return todos.some(function (r) { return r.id !== tf.id && r.barreira === b && Number(r.ano) === ano && Number(r.autoNumero) === n; }); };
+  const prox = ultimoSeq_('AI', b, ano, todos).ultimo + 1;
+  const n = quer > 0 && !ocupado(quer) ? quer : prox;
+  tf.autoNumero = n; tf.autoNumeroTxt = autoNumeroTxt_(n, ano, bar ? bar.sufixo : b);
+  tf.autoNumeroOrigem = n === quer && tf.autoNumeroOrigem === 'editado' ? 'editado' : 'sistema';
+}
+
 /** Auditoria da sequência de uma barreira (TF) ou unidade (PCE) / ano: lacunas e números usados mais de uma vez. */
 function auditarSequencia_(barreira, ano, tipo) {
   tipo = tipo || 'TF';
-  if (tipo !== 'TF') barreira = unidadePce_(barreira);
+  if (!seqDeBarreira_(tipo)) barreira = unidadePce_(barreira);
   return auditarRegs_(tipo, barreira, ano, lerLeitura_(SEQUENCIAS[tipo].aba), lerLeitura_('Numeracao'));
 }
 
@@ -140,12 +167,13 @@ function auditarSequencia_(barreira, ano, tipo) {
 function marcarConflitos_(tipo, recebidos, agora) {
   const s = SEQUENCIAS[tipo], ids = {};
   recebidos.forEach(function (r) { if (r && r.id) ids[r.id] = true; });
-  const t = lerTudo_(s.aba), iC = t.cols.indexOf('conflito') + 1, iS = t.cols.indexOf('srv_ts') + 1, grupos = {};
+  const colC = s.conflito || 'conflito', t = lerTudo_(s.aba), iC = t.cols.indexOf(colC) + 1, iS = t.cols.indexOf('srv_ts') + 1, grupos = {};
   t.valores.forEach(function (l, i) {
     const o = paraObjeto_(t.cols, l);
-    if (tipo !== 'TF' && !(o.numero > 0)) return;                       // termo sem número não entra em conflito (TF: comportamento original)
+    if (tipo !== 'TF' && !(numSeq_(tipo, o) > 0)) return;               // termo/auto sem número não entra em conflito (TF: comportamento original)
+    if (tipo === 'AI' && (Number(o.auto) !== 1 || o.cancelado === 1)) return;   // auto desmarcado ou TF cancelado não disputa o número
     if ((tipo === 'TPCE' || tipo === 'CPCE') && o.excluido === 1) return;   // cadastro excluído não disputa o número
-    const k = grupoSeq_(tipo, o) + '|' + o.ano + '|' + o.numero;
+    const k = grupoSeq_(tipo, o) + '|' + o.ano + '|' + numSeq_(tipo, o);
     (grupos[k] = grupos[k] || []).push({ i: i, o: o });
   });
   Object.keys(grupos).forEach(function (k) {
@@ -154,7 +182,7 @@ function marcarConflitos_(tipo, recebidos, agora) {
     g.sort(function (a, b) { return a.o.criadoEm - b.o.criadoEm || String(a.o.id).localeCompare(String(b.o.id)); });
     g.forEach(function (x, n) {
       const quer = g.length > 1 && n > 0 ? 1 : 0;
-      if (x.o.conflito !== quer) { t.sh.getRange(x.i + 2, iC).setValue(quer); t.sh.getRange(x.i + 2, iS).setValue(agora); }
+      if ((Number(x.o[colC]) || 0) !== quer) { t.sh.getRange(x.i + 2, iC).setValue(quer); t.sh.getRange(x.i + 2, iS).setValue(agora); }
     });
   });
 }
@@ -164,11 +192,11 @@ function marcarConflitosTFs_(recebidos, agora) { marcarConflitos_('TF', recebido
 /** Define o ponto de partida (último nº já usado) de uma barreira (TF) ou unidade (PCE) / ano, ex.: ao começar no meio do ano. */
 function definirSequencia_(barreira, ano, ultimo, tipo) {
   tipo = tipo || 'TF';
-  if (tipo !== 'TF' && (!(Number(ano) > 2000) || !(Number(ultimo) >= 0))) throw new Error('Ano ou número inválido.');
+  if (!seqDeBarreira_(tipo) && (!(Number(ano) > 2000) || !(Number(ultimo) >= 0))) throw new Error('Ano ou número inválido.');
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
-    if (tipo !== 'TF') {
+    if (!seqDeBarreira_(tipo)) {
       barreira = unidadePce_(barreira);
       if (!barreira) throw new Error('Informe a unidade.');
     } else if (!listarBarreiras_().some(function (b) { return b.id === barreira; })) throw new Error('Barreira desconhecida: ' + barreira);

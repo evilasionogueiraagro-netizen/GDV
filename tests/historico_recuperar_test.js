@@ -16,10 +16,16 @@ const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).
   await p.click('.modulo[data-v=home]'); await p.waitForSelector('#fTurno');
   await p.fill('#nTF', '30'); await p.selectOption('#nPosto', 'Fixa').catch(() => {}); await p.selectOption('#nLocal', 'BVA - CEASA').catch(() => p.fill('#nLocal', 'BVA - CEASA')); await p.fill('#nUnidade', 'MANAUS').catch(() => {});
   await p.click('#fTurno button[type=submit]'); await p.waitForSelector('.contador');
-  for (const [i, pl] of ['AAA1A11', 'BBB2B22'].entries()) {                      // espera cada veículo entrar no turno (CI mais lento)
-    await p.click('nav [data-v=registrar]'); await p.waitForSelector('#fVeic'); await p.fill('#placa', pl); await p.click('#fVeic > button');
-    await p.waitForFunction(n => Store.todos('veiculos').then(v => v.filter(x => !x.excluido).length >= n), i + 1, { timeout: 10000, polling: 200 });
+  // registra um veículo por vez: depois de salvar, o app redesenha o formulário (limpo); só então a próxima placa
+  const nVeic = () => p.evaluate(async () => (await Store.todos('veiculos')).filter(x => !x.excluido).length);
+  for (const [i, pl] of ['AAA1A11', 'BBB2B22'].entries()) {
+    await p.click('nav [data-v=registrar]'); await p.waitForSelector('#fVeic'); await p.waitForTimeout(300);
+    await p.fill('#placa', pl); await p.click('#fVeic > button');
+    for (let k = 0; k < 50 && (await nVeic()) < i + 1; k++) await p.waitForTimeout(200);
+    await p.waitForFunction(pl => (document.querySelector('#toast') || {}).textContent.includes(pl), pl, { timeout: 10000 });
+    await p.waitForTimeout(400);
   }
+  ok(await nVeic() === 2, '2 veículos registrados no turno', await nVeic());
   await p.click('nav [data-v=home]'); await p.click('#encerrar'); await p.waitForSelector('[data-doc=termo]'); await sinc();
   const turnoId = (await p.evaluate(() => Store.todos('turnos')))[0].id;
   // só apaga do aparelho depois que o turno encerrado e os 2 veículos estão na planilha (o sinc pode voltar antes do envio começar)

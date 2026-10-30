@@ -87,13 +87,13 @@ const hoje = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10);
     await post({ action: 'tfEmitir', key: C.token, tf: { id: 'tf-outro-1', barreira: 'BVA-CEASA', ano, numero: 7, numeroTxt: `0007/${ano} - BVA - CEASA`, turnoId: '',
       data: hoje, hora: agoraHM, fiscal: C.nome, local: 'BVA - CEASA', placa: 'ABC1D23', doc: '52998224725', nome: 'FULANO FICTICIO TESTE', procedimento: 'apreensao', criadoEm: Date.now(), atualizadoEm: Date.now() } });
     r = await post({ action: 'turnoTFs', key: A.token, turnoId });
-    ok(r.ok && r.tfs.join('|') === `0005/${ano} - BVA - CEASA|0006/${ano} - BVA - CEASA`, 'turnoTFs: o do colega (ligado) e o do dono sem turno no horário; o de outro fiscal fica fora', r.tfs);
+    ok(r.ok && r.tfs.map(x => x.numeroTxt + ':' + x.procedimento).join('|') === `0005/${ano} - BVA - CEASA:rechaco|0006/${ano} - BVA - CEASA:apreensao` && !JSON.stringify(r.tfs).includes('52998224725'), 'turnoTFs: o do colega (ligado) e o do dono sem turno no horário; o de outro fiscal fica fora', r.tfs);
     await pa.click('nav [data-v=home]'); await pa.click('#encerrar'); await pa.waitForSelector('[data-doc=termo]');
     await pa.evaluate(() => { window.__prints = []; }); await pa.click('[data-doc=termo]');
     await pa.waitForFunction(() => window.__prints && window.__prints.length, null, { timeout: 8000 });
     const termo = await pa.evaluate(() => window.__prints[0]);
     ok(/Fulano Ficticio Teste e Beltrano Ficticio Teste/.test(termo) && /Foram fiscalizados 2 veículos/.test(termo), 'Termo do dono: os dois fiscais e os 2 veículos', termo.slice(0, 500));
-    ok(new RegExp(`Termos de Fiscalização de Barreira lavrados: 0005/${ano} - BVA - CEASA; 0006/${ano} - BVA - CEASA`).test(termo), 'Termo do dono: lista o TF lavrado pelo colega no turno', (termo.match(/Termos de Fiscalização de Barreira lavrados:[^.]*/) || [''])[0]);
+    ok(new RegExp(`Termos de Fiscalização de Barreira lavrados: 0005/${ano} - BVA - CEASA; 0006/${ano} - BVA - CEASA\\. Medidas tomadas: 1 apreensão, 1 rechaço\\.`).test(termo), 'Termo do dono: os nºs dos TFs do turno (também o do colega) e a soma das medidas', (termo.match(/Termos de Fiscalização de Barreira lavrados:.{0,160}/) || [''])[0]);
     await sinc(pa); await sinc(pb); await pb.click('nav [data-v=home]'); await pb.waitForSelector('#fTurno', { timeout: 8000 }).catch(() => {});
     ok(await pb.locator('#fTurno').count() === 1 && /encerrado fora deste aparelho/.test(await pb.textContent('main')), 'colega: o turno encerrado pelo dono sai do aparelho dele (aviso + novo turno)');
     // o turno do dono continua no Histórico do colega (com o Termo), mesmo depois de outras sincronizações

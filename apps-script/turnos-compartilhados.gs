@@ -203,7 +203,7 @@ function turnoRecuperar_(req, usuario) {
 }
 
 /**
- * turnoTFs {turnoId}: nºs dos TFs de barreira do turno para o Termo do turno, de quem participou dele (dono ou colega pelo código):
+ * turnoTFs {turnoId}: nºs e medidas (procedimento, auto, advertência, fiel depositário) dos TFs de barreira do turno para o Termo do turno, de quem participou dele (dono ou colega pelo código):
  * os ligados ao turno (turnoId) e os sem turno lavrados por um dos participantes no dia e no horário do turno, depois de aberto. Só o nº (sem dados
  * pessoais): o aparelho tem só os próprios TFs, e o TF do colega também entra no Termo. TF cancelado fica de fora.
  */
@@ -224,6 +224,8 @@ function turnoTFs_(req, usuario) {
   const tfs = lerLeitura_('TFs').filter(function (f) {
     // sem turno: só o criado depois da abertura do turno (o TF lavrado antes de abrir o turno, no mesmo minuto, não é dele)
     return f.id && f.cancelado !== 1 && (f.turnoId === id || (!f.turnoId && part[nomeChave_(f.usuario)] && noHorario(f) && Number(f.criadoEm) >= Number(t.criadoEm)));
-  }).sort(function (a, b) { return a.numero - b.numero; }).map(function (f) { return f.numeroTxt; });
+  }).sort(function (a, b) { return a.numero - b.numero; }).map(function (f) {
+    return { numeroTxt: f.numeroTxt, procedimento: f.procedimento, auto: f.auto, advertencia: f.advertencia, fiel: f.fiel };   // medidas do TF (sem dados pessoais)
+  });
   return { ok: true, tfs: tfs };
 }

@@ -140,7 +140,11 @@ const Docs = (() => {
     set('idCoordenadas', textoCoordenadas(turno));
     set('servidorNome', fiscaisDoTurno(turno));
     const pessoas = veiculos.reduce((s, v) => s + (Number(v.pessoas) || 0), 0) + (Number(turno.pessoasEducacao) || 0);
-    const lavrados = (await Store.todos('tfs')).filter(x => x.turnoId === turnoId && !x.cancelado).sort((a, b) => a.numero - b.numero).map(x => x.numeroTxt);
+    let lavrados = (await Store.todos('tfs')).filter(x => x.turnoId === turnoId && !x.cancelado).sort((a, b) => a.numero - b.numero).map(x => x.numeroTxt);
+    // com internet, também os da planilha: o TF lavrado no celular do colega e o TF do turno lavrado sem ligação com ele (turnoTFs)
+    if (navigator.onLine && typeof Sync !== 'undefined' && Sync.ativado()) {
+      try { const r = await Sync.tfsDoTurno(turnoId); lavrados = [...new Set(lavrados.concat(r.tfs || []))].sort(); } catch (e) { /* sem resposta: só os deste aparelho */ }
+    }
     const ini = turno.inicio || '__:__', fim = turno.fim || '__:__';
     // turno que só conta pessoas orientadas (volante de Tabatinga: educação sanitária da monilíase)
     const soPes = Number(turno.soPessoas) === 1, temaCfg = ((CONFIG.volantesSoPessoas || {})[String(turno.unidade || '').toUpperCase()] || {}).tema;

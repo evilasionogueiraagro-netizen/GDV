@@ -1358,9 +1358,11 @@ const Painel = (() => {
     if (typeof ResizeObserver !== 'undefined') {
       const ro = new ResizeObserver(() => {
         if (!div.isConnected) return ro.disconnect();
-        if (!div.clientWidth) return;
-        map.invalidateSize();
-        if (semTamanho) { semTamanho = false; if (!vistaGuardada) map.fitBounds(AM_LIMITES, { padding: [4, 4] }); }
+        if (!div.clientWidth || !reg.vivo || !map._loaded) return;
+        try {                                                               // mapa já trocado pelo redesenho do painel: nada a fazer
+          map.invalidateSize();
+          if (semTamanho) { semTamanho = false; if (!vistaGuardada) map.fitBounds(AM_LIMITES, { padding: [4, 4] }); }
+        } catch (e) { ro.disconnect(); }
       });
       ro.observe(div);
     }
@@ -1369,7 +1371,7 @@ const Painel = (() => {
     const cheia = () => document.fullscreenElement === card || card.classList.contains('pn-mapa-cheia');
     const rotuloCheia = () => { const c = cheia(); btCheia.innerHTML = `${icone(c ? 'sair-tela-cheia' : 'tela-cheia')} ${c ? 'Sair da tela cheia' : 'Tela cheia'}`;
       if (c) { map.scrollWheelZoom.enable(); map.dragging.enable(); } else if (toque) map.dragging.disable();
-      if (c !== estavaCheia) { estavaCheia = c; setTimeout(() => { map.invalidateSize(); map.fitBounds(AM_LIMITES, { padding: [4, 4] }); }, 200); } };
+      if (c !== estavaCheia) { estavaCheia = c; setTimeout(() => { try { if (div.isConnected) { map.invalidateSize(); map.fitBounds(AM_LIMITES, { padding: [4, 4] }); } } catch (e) { /* mapa removido */ } }, 200); } };
     btCheia.onclick = () => {
       if (cheia()) { if (document.fullscreenElement === card) document.exitFullscreen().catch(() => {}); card.classList.remove('pn-mapa-cheia'); document.body.classList.remove('pn-mapa-cheia-aberto'); rotuloCheia(); return; }
       const fallback = () => { card.classList.add('pn-mapa-cheia'); document.body.classList.add('pn-mapa-cheia-aberto'); rotuloCheia(); };

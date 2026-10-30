@@ -8,7 +8,7 @@ const ARQUIVOS = [
   '../documentos/pce-docs.js', 'js/painel.js', 'js/painel-barreiras.js', 'js/painel-bvas.js', 'js/painel-tf.js', 'js/painel-pce.js', 'js/painel-usuarios.js', 'js/painel-escalas.js', 'js/painel-publico.js', 'js/painel-tv.js',
   '../documentos/conv-docs.js', '../documentos/conv-relatorio.html', 'js/docx.js', 'js/painel-convenios.js', '../documentos/indicadores.js', '../documentos/relgdv-docs.js', '../documentos/vigifito-docs.js', '../documentos/relgdv-relatorio.html', 'js/painel-relatorios.js', '../img/brasao.png', '../img/sepror.png',
   'vendor/leaflet/leaflet.js', 'vendor/leaflet/leaflet.css', 'vendor/leaflet-heat.js', 'vendor/chart.umd.js',
-  'dados/am-municipios.json', '../img/logo-adaf.png', 'img/icon-192.png', 'img/icon-512.png'
+  'dados/am-municipios.json', '../img/logo-adaf.png', 'img/icone-egdv-192.png', 'img/icone-egdv-512.png'
 ];
 
 self.addEventListener('install', e => {

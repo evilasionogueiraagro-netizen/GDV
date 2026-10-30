@@ -421,12 +421,12 @@ const TFUI = (() => {
       salvarRascunho();
     });
     f.addEventListener('change', async e => {
+      // barreira, produto ou destino mudou: o texto sugerido pode ser outro (ex.: citros na BVA - HUMAITÁ com destino Manaus)
+      if (e.target.id === 'tf-barreira' || e.target.id === 'tf-destino' || e.target.closest('#tf-produtos')) aplicarModelo(procMarcado());
       if (e.target.id === 'tf-barreira') { localStorage.setItem('gdv.barreira', e.target.value); await mostrarInfoNumero(); }
       if (e.target.id === 'tf-data' && S && S.antigo) await mostrarInfoNumero();                  // papel: o ano do número é o da data
       if (e.target.id === 'tf-pdfs') return adicionarPDFs(e.target);
       if (e.target.name === 'tf-proc') { aplicarModelo(e.target.value); if (!S.antigo) mudouAndamento(); }
-      // barreira, produto ou destino mudou: o texto sugerido pode ser outro (ex.: citros na BVA - HUMAITÁ com destino Manaus)
-      if (e.target.id === 'tf-barreira' || e.target.id === 'tf-destino' || e.target.closest('#tf-produtos')) aplicarModelo(procMarcado());
       if (e.target.id === 'tf-doc') { e.target.value = fmtDoc(digitos(e.target.value)); }
       if (e.target.id === 'tf-fotos') return adicionarFotos(e.target);
       if (e.target.id === 'tf-recusa') { S.recusa = e.target.checked; if (S.recusa) delete S.assNovas.fiscalizado; await desenharAss(S); }
@@ -443,7 +443,7 @@ const TFUI = (() => {
   function textosDe(proc) {
     const sel = $('#tf-barreira'), bar = semAcento(sel && sel.selectedOptions && sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '');
     const prods = [...document.querySelectorAll('#tf-produtos .prod select:first-of-type')].map(x => semAcento(x.value)), dest = semAcento($('#tf-destino') ? $('#tf-destino').value : '');
-    const m = (T.modelos || []).find(x => bar.includes(semAcento(x.bva)) && x.produtos.some(p => prods.includes(semAcento(p))) && (!x.destino || dest.includes(semAcento(x.destino))));
+    const m = (T.modelos || []).find(x => bar.includes(semAcento(x.bva)) && (!x.produtos || x.produtos.some(p => prods.includes(semAcento(p)))) && (!x.destino || dest.includes(semAcento(x.destino))));
     return m ? { constatacao: m.constatacao[proc] || '', enquadramento: (m.enquadramento || {})[proc] || '' }
       : { constatacao: T.constatacao[proc] || '', enquadramento: proc === 'liberacao' ? '' : T.textoLegal };
   }

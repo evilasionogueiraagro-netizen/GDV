@@ -74,7 +74,8 @@ const CONFIG = {
       rechaco: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado SEM a devida documentação fitossanitária obrigatória (PTV); o produto é potencial hospedeiro da Mosca-da-Carambola. Após os procedimentos o veículo retornou à origem.'
     },
     // Textos por BVA, produto e destino (o 1º modelo que casa vale; nos demais TFs, constatacao/textoLegal acima). Casa quando a barreira
-    // do TF é a BVA, há um dos produtos na lista e o destino contém o texto. enquadramento '' = em branco (liberação).
+    // do TF é a BVA, há um dos produtos na lista (sem lista: qualquer produto) e o destino contém o texto (sem destino: qualquer um).
+    // enquadramento '' = em branco (liberação).
     modelos: [{
       bva: 'HUMAITÁ', produtos: ['LIMÃO', 'LARANJA', 'TANGERINA'], destino: 'MANAUS',     // entrada de citros pela BVA - HUMAITÁ
       constatacao: {
@@ -86,6 +87,18 @@ const CONFIG = {
         liberacao: '',
         apreensao: 'Lei Federal Nº 9.712 de 20/11/1998; Dec. Federal Nº 24.114 de 12/04/1934; Dec. Nº 5.741 de 30/03/2006; Lei Estadual Nº 3.097 de 27/11/2006; Dec. Estadual Nº 36.108 de 06/08/2015, Art 5º item I e II, Art 24, Art 28 item XVI e Art 35, grupo I alínea "a"; Art. 259 do Código Penal Brasileiro; IN Nº 38 de 01/10/2018; IN Nº 21 de 25/04/2018',
         rechaco: 'Lei Federal Nº 9.712 de 20/11/1998; Dec. Federal Nº 24.114 de 12/04/1934; Dec. Nº 5.741 de 30/03/2006; Lei Estadual Nº 3.097 de 27/11/2006; Dec. Estadual Nº 36.108 de 06/08/2015, Art 5º item I e II, Art 24, Art 28 item XVI e Art 35, grupo I alínea "a"; Art. 259 do Código Penal Brasileiro; IN Nº 38 de 01/10/2018; IN Nº 21 de 25/04/2018'
+      }
+    }, {
+      bva: 'HUMAITÁ',                                         // demais produtos e destinos em Humaitá: sem o texto da mosca (não é prioridade lá)
+      constatacao: {
+        liberacao: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado COM a devida documentação fitossanitária obrigatória (PTV). Após os procedimentos o veículo foi liberado.',
+        apreensao: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado SEM a devida documentação fitossanitária obrigatória (PTV). Após os procedimentos o produto foi apreendido.',
+        rechaco: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado SEM a devida documentação fitossanitária obrigatória (PTV). Após os procedimentos o veículo retornou à origem.'
+      },
+      enquadramento: {
+        liberacao: '',
+        apreensao: 'Lei Federal Nº 9.712 de 20/11/1998; Dec. Federal Nº 24.114 de 12/04/1934; Dec. Nº 5.741 de 30/03/2006; Lei Estadual Nº 3.097 de 27/11/2006; Dec. Estadual Nº 36.108 de 06/08/2015; Art. 259 do Código Penal Brasileiro; IN Nº 38 de 01/10/2018',
+        rechaco: 'Lei Federal Nº 9.712 de 20/11/1998; Dec. Federal Nº 24.114 de 12/04/1934; Dec. Nº 5.741 de 30/03/2006; Lei Estadual Nº 3.097 de 27/11/2006; Dec. Estadual Nº 36.108 de 06/08/2015; Art. 259 do Código Penal Brasileiro; IN Nº 38 de 01/10/2018'
       }
     }]
   },

@@ -421,6 +421,8 @@ const TFUI = (() => {
       salvarRascunho();
     });
     f.addEventListener('change', async e => {
+      // barreira, produto ou destino mudou: o texto sugerido pode ser outro (ex.: citros na BVA - HUMAITÁ com destino Manaus)
+      if (e.target.id === 'tf-barreira' || e.target.id === 'tf-destino' || e.target.closest('#tf-produtos')) aplicarModelo(procMarcado());
       if (e.target.id === 'tf-barreira') { localStorage.setItem('gdv.barreira', e.target.value); await mostrarInfoNumero(); }
       if (e.target.id === 'tf-data' && S && S.antigo) await mostrarInfoNumero();                  // papel: o ano do número é o da data
       if (e.target.id === 'tf-pdfs') return adicionarPDFs(e.target);
@@ -436,12 +438,24 @@ const TFUI = (() => {
   const tm = {};
   const agendar = qual => { clearTimeout(tm[qual]); tm[qual] = setTimeout(qual === 'doc' ? consultarDoc : consultarPlaca, 350); };
 
+  /** Textos sugeridos do procedimento: o modelo da BVA/produto/destino (CONFIG.TF.modelos, ex.: citros na BVA - HUMAITÁ) ou os gerais. */
+  const semAcento = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
+  function textosDe(proc) {
+    const sel = $('#tf-barreira'), bar = semAcento(sel && sel.selectedOptions && sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '');
+    const prods = [...document.querySelectorAll('#tf-produtos .prod select:first-of-type')].map(x => semAcento(x.value)), dest = semAcento($('#tf-destino') ? $('#tf-destino').value : '');
+    const m = (T.modelos || []).find(x => bar.includes(semAcento(x.bva)) && (!x.produtos || x.produtos.some(p => prods.includes(semAcento(p)))) && (!x.destino || dest.includes(semAcento(x.destino))));
+    return m ? { constatacao: m.constatacao[proc] || '', enquadramento: (m.enquadramento || {})[proc] || '' }
+      : { constatacao: T.constatacao[proc] || '', enquadramento: proc === 'liberacao' ? '' : T.textoLegal };
+  }
   function aplicarModelo(proc) {                                                     // sugere textos; não sobrescreve o que o fiscal editou
-    [['constatacao', T.constatacao[proc]], ['enquadramento', proc === 'liberacao' ? '' : T.textoLegal]].forEach(([id, novo]) => {
+    if (!proc || !S) return;
+    const t = textosDe(proc);
+    [['constatacao', t.constatacao], ['enquadramento', t.enquadramento]].forEach(([id, novo]) => {
       const el = $('#tf-' + id);
       if (!el.value.trim() || el.value === S.tpl[id]) { el.value = novo; S.tpl[id] = novo; }
     });
   }
+  const procMarcado = () => { const r = document.querySelector('input[name=tf-proc]:checked'); return r ? r.value : ''; };
 
   /* ---------- consulta: cadastro e reincidência ---------- */
   function resumoLocal(tfs) {
@@ -592,7 +606,8 @@ const TFUI = (() => {
   /** Procedimento marcado com a constatação ou o enquadramento vazios: entram os textos padrão do procedimento (o fiscal pode editar). */
   function completarTextos() {
     const r = document.querySelector('input[name=tf-proc]:checked'); if (!r || !S) return;
-    [['constatacao', T.constatacao[r.value]], ['enquadramento', r.value === 'liberacao' ? '' : T.textoLegal]].forEach(([id, novo]) => {
+    const t = textosDe(r.value);
+    [['constatacao', t.constatacao], ['enquadramento', t.enquadramento]].forEach(([id, novo]) => {
       const el = $('#tf-' + id); if (el && !el.value.trim() && novo) { el.value = novo; S.tpl[id] = novo; }
     });
   }

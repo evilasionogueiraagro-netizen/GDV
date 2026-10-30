@@ -309,6 +309,8 @@ const Sync = (() => {
     return r;
   }
   const sairDoTurno = turnoId => chamar({ action: 'turnoSair', turnoId }, 20000);
+  /** Nºs dos TFs de barreira do turno na planilha (os do colega também), para o Termo do turno. */
+  const tfsDoTurno = turnoId => chamar({ action: 'turnoTFs', turnoId }, 8000);
   /** Histórico → "Buscar meus turnos na planilha": turnos do período (os do login e os em que entrou pelo código), veículos e TFs do login.
    *  Guarda no aparelho como na sincronização (edição local pendente mais nova fica). Devolve quantos turnos vieram. */
   async function recuperarTurnos(de, ate) {
@@ -534,7 +536,7 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, sairDoTurno, turnoPapel, mesmoNome, recuperarTurnos, escalaDados, escalaSalvar, escalaExcluir, escalaGerar, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
+  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, sairDoTurno, turnoPapel, mesmoNome, recuperarTurnos, tfsDoTurno, escalaDados, escalaSalvar, escalaExcluir, escalaGerar, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
     pceProximoNumero, pceEmitir, pceConsultar, pceBaixarMunicipio, pceMapaGeral, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

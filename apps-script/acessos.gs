@@ -22,7 +22,7 @@ const MODULO_DA_ACAO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf
                          pceProximoNumero: 'pce', pceEmitir: 'pce', pceConsultar: 'pce', pceBaixarMunicipio: 'pce', pceMapaGeral: 'pce', arquivoEnviar: 'pce',
                          pceDocNumero: 'pce', pceDocRegistrar: 'pce',
                          turnoConvidar: 'veiculos', turnoParear: 'veiculos', turnoSair: 'veiculos',
-                         turnoPapelRegistrar: 'veiculos', turnoNumero: 'veiculos' };
+                         turnoPapelRegistrar: 'veiculos', turnoNumero: 'veiculos', turnoRecuperar: 'veiculos' };
 const MSG_SEM_ANTIGO = 'Sem autorização para digitar registros antigos (do papel). Fale com a gerência.';
 
 /**
@@ -61,7 +61,7 @@ function autenticar_(key) {
 /* ---------- Registro de leitura de dados pessoais (LGPD) ---------- */
 
 // actions que devolvem dados pessoais (CPF, nome, endereço, coordenada do produtor/fiscalizado ou a lista de servidores)
-const ACOES_COM_DADOS_PESSOAIS_ = ['painelDados', 'pceConsultar', 'pceBaixarMunicipio', 'pceMapaGeral', 'admDados', 'usuariosListar', 'sessoesListar'];
+const ACOES_COM_DADOS_PESSOAIS_ = ['painelDados', 'pceConsultar', 'pceBaixarMunicipio', 'pceMapaGeral', 'admDados', 'usuariosListar', 'sessoesListar', 'turnoRecuperar'];
 const LEITURA_INTERVALO_S_ = 3600;   // no máximo uma linha por usuário + action por hora (o painel ao vivo chama painelDados a cada minuto)
 const RESUMO_LEITURA_ = ['de', 'ate', 'aoVivo', 'municipio', 'municipios', 'ano', 'aba'];   // filtros que podem ir para o registro (nunca CPF/nome)
 

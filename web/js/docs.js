@@ -23,12 +23,47 @@ const Docs = (() => {
     });
   }
   // `nome` vira o título da página durante a impressão (sugestão de nome do arquivo PDF).
+  // Celular: o print() dentro do iframe imprime a tela do app (Chrome no Android) e o "afterprint" chega antes de o PDF ser gerado;
+  // lá o documento pronto é copiado para a própria página (imprimirNaPagina). No computador, imprime o iframe, como sempre.
+  const noCelular = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || localStorage.getItem('gdv.imprimirNaPagina') === '1';
   function imprimir(frame, nome) {
+    if (noCelular()) return imprimirNaPagina(frame, nome);
     const w = frame.contentWindow, tituloAntes = document.title;
     document.title = nome; frame.contentDocument.title = nome;
     w.addEventListener('afterprint', () => { document.title = tituloAntes; frame.remove(); });
     w.focus();
     w.print();
+  }
+  /**
+   * Impressão na própria página (celular): o documento preenchido vai para um shadow root (#gdv-impressao: os estilos do modelo não
+   * vazam para o app nem os do app para ele), com os endereços de imagens resolvidos a partir de documentos/. Na impressão só ele
+   * aparece (@media print). Fica na página até o próximo documento ou a próxima tela (o PDF do Android é gerado depois do print()).
+   */
+  function imprimirNaPagina(frame, nome) {
+    const d = frame.contentDocument;
+    limparImpressao();
+    d.querySelectorAll('[src]').forEach(e => { if (e.src) e.setAttribute('src', e.src); });   // ../img/… → endereço completo
+    const regra = r => {
+      if (r.selectorText) return r.cssText.replace(r.selectorText, r.selectorText.split(',').map(x => x.trim().replace(/^(html|body)\b/, ':host')).join(', '));
+      return /^@page/.test(r.cssText) ? '' : r.cssText;
+    };
+    let css = '';
+    [...d.styleSheets].forEach(sh => { try { css += [...sh.cssRules].map(regra).join('\n') + '\n'; } catch (e) { /* folha de outra origem */ } });
+    const host = document.createElement('div'); host.id = 'gdv-impressao';
+    const raiz = host.attachShadow({ mode: 'open' });
+    raiz.innerHTML = `<style>:host{all:initial;display:block;font-family:Arial,sans-serif;color:#000;background:#fff}\n${css}</style>${d.body.innerHTML}`;
+    const pg = document.createElement('style'); pg.id = 'gdv-impressao-pg';
+    pg.textContent = '#gdv-impressao{display:none}@page{size:A4 portrait;margin:0}' +
+      '@media print{body{margin:0!important;padding:0!important;background:#fff!important}body>*:not(#gdv-impressao){display:none!important}#gdv-impressao{display:block!important}}';
+    document.head.appendChild(pg); document.body.appendChild(host); frame.remove();
+    limparImpressao.titulo = limparImpressao.titulo || document.title; document.title = nome;
+    const imgs = [...raiz.querySelectorAll('img')].map(im => (im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; setTimeout(r, 4000); })));
+    return Promise.all(imgs).then(() => window.print());
+  }
+  /** Tira da página o documento da última impressão (celular) e volta o título. */
+  function limparImpressao() {
+    ['gdv-impressao', 'gdv-impressao-pg'].forEach(id => { const e = document.getElementById(id); if (e) e.remove(); });
+    if (limparImpressao.titulo) { document.title = limparImpressao.titulo; limparImpressao.titulo = ''; }
   }
 
   const ordenar = v => v.slice().sort((a, b) => (a.hora + a.criadoEm).localeCompare(b.hora + b.criadoEm) || a.criadoEm - b.criadoEm);
@@ -479,9 +514,10 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     await w.PCEDocs.montar(f.contentDocument, tipo, dados, opcoes || {});
     const nome = nomePdfMon(tipo, dados);
     if (modo === 'arquivo') return PDF.deFrame(f, nome);
+    const folhas = f.contentDocument.querySelectorAll('.a4').length;      // antes de imprimir: no celular o iframe sai da página
     imprimir(f, nome);
-    return f.contentDocument.querySelectorAll('.a4').length;
+    return folhas;
   }
 
-  return { ficha, termo, tf, auto, fiscaisDoTurno, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, nomePdfMon, ordenar, esc };
+  return { ficha, termo, tf, auto, limparImpressao, fiscaisDoTurno, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, nomePdfMon, ordenar, esc };
 })();

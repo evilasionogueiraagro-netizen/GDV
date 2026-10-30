@@ -309,6 +309,15 @@ const Sync = (() => {
     return r;
   }
   const sairDoTurno = turnoId => chamar({ action: 'turnoSair', turnoId }, 20000);
+  /** Histórico → "Buscar meus turnos na planilha": turnos do período (os do login e os em que entrou pelo código), veículos e TFs do login.
+   *  Guarda no aparelho como na sincronização (edição local pendente mais nova fica). Devolve quantos turnos vieram. */
+  async function recuperarTurnos(de, ate) {
+    const r = await chamar({ action: 'turnoRecuperar', de, ate }, 45000);
+    await aplicar('turnos', r.turnos || []); await aplicar('veiculos', r.veiculos || []); await aplicar('tfs', r.tfs || []);
+    const comp = (await Store.meta('turnosCompartilhados')) || [], novos = (r.compartilhados || []).filter(id => !comp.includes(id));
+    if (novos.length) await Store.setMeta('turnosCompartilhados', comp.concat(novos).slice(-200));   // a limpeza do aparelho não apaga
+    return (r.turnos || []).length;
+  }
   /** Turno antigo (Termo do papel): grava o turno encerrado e os totais; os PDFs (aba arquivos, dono "turnos") sobem na sincronização. */
   /** Corrige o nº do TF do turno (a letra é refeita pelo servidor pela ordem do nº novo). */
   const corrigirNumeroTurno = (turnoId, numero) => chamar({ action: 'turnoNumero', turnoId, numero }, 20000);
@@ -525,7 +534,7 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, sairDoTurno, turnoPapel, mesmoNome, escalaDados, escalaSalvar, escalaExcluir, escalaGerar, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
+  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, sairDoTurno, turnoPapel, mesmoNome, recuperarTurnos, escalaDados, escalaSalvar, escalaExcluir, escalaGerar, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
     pceProximoNumero, pceEmitir, pceConsultar, pceBaixarMunicipio, pceMapaGeral, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

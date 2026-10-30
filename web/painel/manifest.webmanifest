@@ -9,7 +9,7 @@
   "theme_color": "#0B3A82",
   "lang": "pt-BR",
   "icons": [
-    { "src": "img/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    { "src": "img/icone-egdv-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
+    { "src": "img/icone-egdv-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
   ]
 }

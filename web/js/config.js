@@ -72,7 +72,22 @@ const CONFIG = {
       liberacao: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado COM a devida documentação fitossanitária obrigatória (PTV); o produto é potencial hospedeiro da Mosca-da-Carambola. Após os procedimentos o veículo foi liberado.',
       apreensao: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado SEM a devida documentação fitossanitária obrigatória (PTV); o produto é potencial hospedeiro da Mosca-da-Carambola. Após os procedimentos o veículo foi liberado.',
       rechaco: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado SEM a devida documentação fitossanitária obrigatória (PTV); o produto é potencial hospedeiro da Mosca-da-Carambola. Após os procedimentos o veículo retornou à origem.'
-    }
+    },
+    // Textos por BVA, produto e destino (o 1º modelo que casa vale; nos demais TFs, constatacao/textoLegal acima). Casa quando a barreira
+    // do TF é a BVA, há um dos produtos na lista e o destino contém o texto. enquadramento '' = em branco (liberação).
+    modelos: [{
+      bva: 'HUMAITÁ', produtos: ['LIMÃO', 'LARANJA', 'TANGERINA'], destino: 'MANAUS',     // entrada de citros pela BVA - HUMAITÁ
+      constatacao: {
+        liberacao: 'Após a inspeção do veículo acima mencionado e da carga de citros, não foram constatadas irregularidades na carga nem na documentação fitossanitária apresentada (PTV). Após os procedimentos o veículo foi liberado.',
+        apreensao: 'Durante a fiscalização do veículo acima mencionado, os fiscais constataram a presença de restos vegetais na carga, incluindo folhas e ramos de plantas cítricas. Entretanto, na PTV apresentada, consta, nas declarações adicionais, que os frutos foram submetidos aos processos de escovação e beneficiamento, devendo estar totalmente isentos de folhas e ramos de plantas cítricas. Diante da não conformidade constatada entre as condições declaradas no documento e a situação encontrada na carga, o produto foi apreendido.',
+        rechaco: 'Durante a fiscalização do veículo acima mencionado, os fiscais constataram a presença de restos vegetais na carga, incluindo folhas e ramos de plantas cítricas. Entretanto, na PTV apresentada, consta, nas declarações adicionais, que os frutos foram submetidos aos processos de escovação e beneficiamento, devendo estar totalmente isentos de folhas e ramos de plantas cítricas. Diante da não conformidade constatada entre as condições declaradas no documento e a situação encontrada na carga, o veículo retornou à origem.'
+      },
+      enquadramento: {
+        liberacao: '',
+        apreensao: 'Lei Federal Nº 9.712 de 20/11/1998; Dec. Federal Nº 24.114 de 12/04/1934; Dec. Nº 5.741 de 30/03/2006; Lei Estadual Nº 3.097 de 27/11/2006; Dec. Estadual Nº 36.108 de 06/08/2015, Art 5º item I e II, Art 24, Art 28 item XVI e Art 35, grupo I alínea "a"; Art. 259 do Código Penal Brasileiro; IN Nº 38 de 01/10/2018; IN Nº 21 de 25/04/2018',
+        rechaco: 'Lei Federal Nº 9.712 de 20/11/1998; Dec. Federal Nº 24.114 de 12/04/1934; Dec. Nº 5.741 de 30/03/2006; Lei Estadual Nº 3.097 de 27/11/2006; Dec. Estadual Nº 36.108 de 06/08/2015, Art 5º item I e II, Art 24, Art 28 item XVI e Art 35, grupo I alínea "a"; Art. 259 do Código Penal Brasileiro; IN Nº 38 de 01/10/2018; IN Nº 21 de 25/04/2018'
+      }
+    }]
   },
 
   // Módulo PCE (Programa de Controle e Erradicação): Levantamento fitossanitário e Termo de Colheita de Amostras (listas copiadas do rascunho do sistema PCE)

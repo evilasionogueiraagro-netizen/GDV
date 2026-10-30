@@ -179,3 +179,25 @@ function turnoNumero_(req, usuario) {
     return { ok: true, turno: { id: id, numeroTF: numeroTF, letra: letra } };
   });
 }
+
+/**
+ * turnoRecuperar {de, ate}: devolve ao aparelho os turnos do período (até 62 dias) do próprio login (mesmo nome, sem diferença de
+ * maiúsculas e espaços) e os turnos em que ele entrou pelo código, com os veículos e os TFs do login ligados a eles: o fiscal
+ * refaz o Termo de um turno que sumiu do celular (aparelho novo, limpeza). Só leitura; turno cancelado fica de fora.
+ */
+function turnoRecuperar_(req, usuario) {
+  const de = String(req.de || ''), ate = String(req.ate || '');
+  if (!diaValido_(de) || !diaValido_(ate) || ate < de) throw new Error('Informe o período (de e até).');
+  if (somarDias_(de, 62) < ate) throw new Error('Período longo demais (até 62 dias).');
+  const eu = nomeChave_(usuario), colega = {};
+  lerLeitura_('Pareamentos').forEach(function (p) { if (p.id && p.colega && p.entrouEm && nomeChave_(p.colega) === eu) colega[p.turnoId] = true; });
+  const limpo = function (o) { delete o._linha; return o; }, ids = {};
+  const turnos = lerLinhas_('Turnos').filter(function (t) {
+    const d = String(t.data).slice(0, 10);
+    return t.id && d >= de && d <= ate && Number(t.cancelado) !== 1 && (nomeChave_(t.usuario) === eu || colega[t.id]);
+  }).map(function (t) { ids[t.id] = true; return limpo(t); });
+  return { ok: true, turnos: turnos,
+    veiculos: lerLinhas_('Veiculos').filter(function (v) { return ids[v.turnoId]; }).map(limpo),
+    tfs: lerLinhas_('TFs').filter(function (t) { return ids[t.turnoId] && nomeChave_(t.usuario) === eu; }).map(limpo),   // só os TFs do próprio login
+    compartilhados: turnos.filter(function (t) { return nomeChave_(t.usuario) !== eu; }).map(function (t) { return t.id; }) };
+}

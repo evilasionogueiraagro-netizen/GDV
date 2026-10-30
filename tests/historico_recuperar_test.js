@@ -16,7 +16,10 @@ const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).
   await p.click('.modulo[data-v=home]'); await p.waitForSelector('#fTurno');
   await p.fill('#nTF', '30'); await p.selectOption('#nPosto', 'Fixa').catch(() => {}); await p.selectOption('#nLocal', 'BVA - CEASA').catch(() => p.fill('#nLocal', 'BVA - CEASA')); await p.fill('#nUnidade', 'MANAUS').catch(() => {});
   await p.click('#fTurno button[type=submit]'); await p.waitForSelector('.contador');
-  for (const pl of ['AAA1A11', 'BBB2B22']) { await p.click('nav [data-v=registrar]'); await p.waitForSelector('#fVeic'); await p.fill('#placa', pl); await p.click('#fVeic > button'); await p.waitForTimeout(400); }
+  for (const [i, pl] of ['AAA1A11', 'BBB2B22'].entries()) {                      // espera cada veículo entrar no turno (CI mais lento)
+    await p.click('nav [data-v=registrar]'); await p.waitForSelector('#fVeic'); await p.fill('#placa', pl); await p.click('#fVeic > button');
+    await p.waitForFunction(n => Store.todos('veiculos').then(v => v.filter(x => !x.excluido).length >= n), i + 1, { timeout: 10000, polling: 200 });
+  }
   await p.click('nav [data-v=home]'); await p.click('#encerrar'); await p.waitForSelector('[data-doc=termo]'); await sinc();
   const turnoId = (await p.evaluate(() => Store.todos('turnos')))[0].id;
   // turno de outro fiscal no mesmo período: não pode vir

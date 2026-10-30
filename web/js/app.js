@@ -821,9 +821,17 @@ async function historico() {
       <div class="card"><h3>Turnos</h3>${turnos.length ? turnos.map(t => `
         <div class="turno-linha"><div><b>${esc(t.numeroTF)}</b><br><small>${dBR(t.data)} · ${esc(t.inicio)}${t.fim ? '–' + esc(t.fim) : ''} · ${esc(t.fiscal)} · ${porTurno[t.id] || 0} veíc.${t.encerrado ? '' : ' · em andamento'}${t.encerradoPor ? (encerradoAuto(t.encerradoPor) ? ' · encerrado automaticamente (12 h)' : ' · encerrado pela gerência') : ''}${t.pendente ? ` · ${icone('pendente')} aguardando envio` : ''}</small></div>
         <div>${botaoNumero(t)}${t.encerrado ? `<button class="mini" data-doc="termo" data-id="${t.id}">Termo</button>` : ''}${temFicha(t) ? `<button class="mini" data-doc="ficha" data-id="${t.id}">Ficha</button>` : ''}</div></div>`).join('') : '<div class="vazio">Sem turnos no período.</div>'}</div>
+      <button class="botao sec" id="recuperar">${icone('baixar')} Buscar meus turnos na planilha (período acima)</button>
+      <p class="dica">Traz de volta para este celular os seus turnos do período (e os de colegas em que você entrou pelo código), com os veículos: o Termo volta a sair por aqui.</p>
       <button class="botao vermelho" id="limpar">${icone('lixeira')} Limpar histórico deste aparelho</button>
       <p class="dica">Remove só os turnos já encerrados <b>deste celular</b>. Os dados continuam salvos na planilha.</p>`;
     $('#limpar').onclick = limparHistorico;
+    $('#recuperar').onclick = async () => {
+      if (!navigator.onLine) return toast('Sem internet: para buscar os turnos na planilha é preciso conexão.', true);
+      const b = $('#recuperar'); b.disabled = true; b.textContent = 'Buscando na planilha…';
+      try { const n = await Sync.recuperarTurnos($('#hDe').value, $('#hAte').value); toast(n ? `${n} turno(s) da planilha neste celular.` : 'Nenhum turno seu na planilha neste período.'); desenhar(); }
+      catch (e) { toast(e.message || 'Não foi possível buscar os turnos.', true); b.disabled = false; b.innerHTML = `${icone('baixar')} Buscar meus turnos na planilha (período acima)`; }
+    };
   };
   $('#hDe').onchange = $('#hAte').onchange = desenhar;
   desenhar();

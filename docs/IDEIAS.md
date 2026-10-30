@@ -85,7 +85,7 @@ Decisões: [VIGIFITO e Portal do Administrativo](decisoes/anteriores.md#vigifito
 Falta:
 - Carga: madeira em m³ no próprio registro (hoje manual); "auto de destruição" como campo do TF (hoje, TF de apreensão: "apreensão p/ destruição" no e-GDV); conversão de caixas e sacos para t por produto (tabela de pesos médios), hoje listados à parte.
 - Histórico do Jundiá por período de 10 dias: falta o modelo do gestor com os anos anteriores.
-- Metas SUASA: aguardando o plano. Quando chegar, configurar no motor de metas do convênio.
+- Metas SUASA: aguardando o plano (motor de metas do convênio).
 
 ## 7. Assinatura na tela (desligada temporariamente)
 

@@ -22,6 +22,12 @@ const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).
   }
   await p.click('nav [data-v=home]'); await p.click('#encerrar'); await p.waitForSelector('[data-doc=termo]'); await sinc();
   const turnoId = (await p.evaluate(() => Store.todos('turnos')))[0].id;
+  // só apaga do aparelho depois que o turno encerrado e os 2 veículos estão na planilha (o sinc pode voltar antes do envio começar)
+  const naPlanilha = async () => { const g = n => fetch(API + '/__fn?nome=lerLeitura_&args=' + encodeURIComponent(JSON.stringify([n]))).then(r => r.json()).then(j => j.r || []);
+    const t = (await g('Turnos')).find(x => x.id === turnoId), v = (await g('Veiculos')).filter(x => x.turnoId === turnoId);
+    return t && Number(t.encerrado) === 1 && v.length === 2; };
+  for (let i = 0; i < 40 && !(await naPlanilha()); i++) { await p.evaluate(() => Sync.sincronizar()); await p.waitForTimeout(500); }
+  ok(await naPlanilha(), 'turno encerrado e os 2 veículos na planilha');
   // turno de outro fiscal no mesmo período: não pode vir
   await post({ action: 'sync', key: B.token, since: 9e15, turnos: [{ id: 'turno-beltrano', numeroTF: '0099/2026', data: new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10), inicio: '07:00', fim: '19:00',
     fiscal: B.nome, local: 'BVA - CEASA', unidade: 'MANAUS', posto: 'Fixa', encerrado: 1, criadoEm: Date.now(), atualizadoEm: Date.now() }], veiculos: [] });

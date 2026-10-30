@@ -664,7 +664,7 @@ const Painel = (() => {
   function notificar(novos) {
     if (emTV() || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
     novos.forEach(a => {
-      const tit = `${a.titulo} — ${a.onde}`, op = { body: textoTF(a), tag: 'gdv-tf-' + a.id, renotify: true, requireInteraction: true, icon: 'img/icon-192.png' };
+      const tit = `${a.titulo} — ${a.onde}`, op = { body: textoTF(a), tag: 'gdv-tf-' + a.id, renotify: true, requireInteraction: true, icon: 'img/icone-egdv-192.png' };
       TFA.notificacoes++;
       const direto = () => { try { new Notification(tit, op); } catch (e) { /* ex.: Android exige o service worker */ } };
       try {
@@ -728,7 +728,7 @@ const Painel = (() => {
     if (novos.length) {
       tocarSom();
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') novos.forEach(a => {
-        const tit = 'Alerta de cuidado — ' + (a.local || 'campo'), op = { body: textoCuidado(a) + (a.obs ? '\n' + a.obs : ''), tag: 'gdv-cuidado-' + a.id, requireInteraction: true, icon: 'img/icon-192.png' };
+        const tit = 'Alerta de cuidado — ' + (a.local || 'campo'), op = { body: textoCuidado(a) + (a.obs ? '\n' + a.obs : ''), tag: 'gdv-cuidado-' + a.id, requireInteraction: true, icon: 'img/icone-egdv-192.png' };
         const direto = () => { try { new Notification(tit, op); } catch (e) { /* ex.: Android exige o service worker */ } };
         try { if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) navigator.serviceWorker.getRegistration().then(r => r ? r.showNotification(tit, op) : direto()).catch(direto); else direto(); }
         catch (e) { direto(); }

@@ -82,6 +82,13 @@ const hoje = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10);
     ok(/Fulano Ficticio Teste e Beltrano Ficticio Teste/.test(termo) && /Foram fiscalizados 2 veículos/.test(termo), 'Termo do dono: os dois fiscais e os 2 veículos', termo.slice(0, 500));
     await sinc(pa); await sinc(pb); await pb.click('nav [data-v=home]'); await pb.waitForSelector('#fTurno', { timeout: 8000 }).catch(() => {});
     ok(await pb.locator('#fTurno').count() === 1 && /encerrado fora deste aparelho/.test(await pb.textContent('main')), 'colega: o turno encerrado pelo dono sai do aparelho dele (aviso + novo turno)');
+    // o turno do dono continua no Histórico do colega (com o Termo), mesmo depois de outras sincronizações
+    await sinc(pb); await sinc(pb);
+    await pb.click('nav [data-v=historico]'); await pb.waitForSelector('#hOut .turno-linha', { timeout: 8000 }).catch(() => {});
+    ok(await pb.locator(`#hOut [data-doc=termo][data-id="${turnoId}"]`).count() === 1, 'colega: o turno encerrado fica no Histórico dele, com o botão do Termo');
+    await pb.click('nav [data-v=home]'); await pb.waitForSelector('#fTurno', { timeout: 8000 });
+    ok(await pa.evaluate(() => Sync.mesmoNome(' fulano  ficticio TESTE ', 'Fulano Ficticio Teste') && !Sync.mesmoNome('Fulano Ficticio', 'Fulano Ficticio Teste')),
+      'mesmo login com outra grafia (maiúsculas, espaços) conta como o próprio fiscal (não some do Histórico)');
 
     console.log('5) sair do turno e limite de tentativas');
     await pa.click('[data-go=home]'); await pa.waitForSelector('#fTurno'); await pa.fill('#nTF', '6'); await pa.selectOption('#nPosto', 'Fixa'); await pa.selectOption('#nLocal', 'BVA - CEASA');

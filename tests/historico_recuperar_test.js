@@ -35,7 +35,9 @@ const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).
   await p.evaluate(() => { window.__prints = []; }); await p.click(`[data-doc=termo][data-id="${turnoId}"]`);
   await p.waitForFunction(() => window.__prints && window.__prints.length, null, { timeout: 10000 });
   const termo = await p.evaluate(() => window.__prints[0]);
-  ok(/Fulano Ficticio Teste/.test(termo) && /Foram fiscalizados 2 veículos/.test(termo), 'o Termo sai de novo, com os 2 veículos', termo.slice(0, 200));
+  ok(/Fulano Ficticio Teste/.test(termo), 'o Termo sai de novo, com o fiscal', termo.slice(300, 700));
+  const nV = await p.evaluate(id => Store.todos('veiculos').then(v => v.filter(x => x.turnoId === id && !Number(x.excluido)).length), turnoId);
+  ok(/Foram fiscalizados 2 veículos/.test(termo), 'o Termo sai com os 2 veículos', { noAparelho: nV, termo: (termo.match(/Foram fiscalizados[^.]*/) || [termo.slice(0, 900)])[0] });
   await sinc(); await p.click('nav [data-v=historico]'); await p.waitForSelector('#hOut');
   ok(await p.locator(`[data-doc=termo][data-id="${turnoId}"]`).count() === 1, 'depois de sincronizar, o turno continua no Histórico');
   const r = await post({ action: 'turnoRecuperar', key: A.token, de: '2026-01-01', ate: '2026-12-31' });

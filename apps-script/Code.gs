@@ -187,7 +187,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-30a';
+const VERSAO_CODIGO = '2026-10-30b';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -255,6 +255,7 @@ function doPost(e) {
     if (req.action === 'turnoConvidar') return json_(turnoConvidar_(req, usuario));
     if (req.action === 'turnoParear') return json_(turnoParear_(req, usuario));
     if (req.action === 'turnoSair') return json_(turnoSair_(req, usuario));
+    if (req.action === 'turnoTFs') return json_(turnoTFs_(req, usuario));
     if (req.action === 'turnoRecuperar') return json_(lido_(req, turnoRecuperar_(req, usuario)));
     if (req.action === 'turnoPapelRegistrar') return json_(turnoPapelRegistrar_(req, usuario));
     if (req.action === 'turnoNumero') return json_(turnoNumero_(req, usuario));

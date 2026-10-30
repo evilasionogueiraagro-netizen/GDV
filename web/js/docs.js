@@ -140,7 +140,21 @@ const Docs = (() => {
     set('idCoordenadas', textoCoordenadas(turno));
     set('servidorNome', fiscaisDoTurno(turno));
     const pessoas = veiculos.reduce((s, v) => s + (Number(v.pessoas) || 0), 0) + (Number(turno.pessoasEducacao) || 0);
-    const lavrados = (await Store.todos('tfs')).filter(x => x.turnoId === turnoId && !x.cancelado).sort((a, b) => a.numero - b.numero).map(x => x.numeroTxt);
+    // TFs de barreira do turno (nº e medidas): os deste aparelho e, com internet, os da planilha (o do colega e o do turno lavrado sem
+    // ligação com ele: turnoTFs). O Termo traz os nºs e a soma das medidas tomadas.
+    const porNum = {};
+    (await Store.todos('tfs')).filter(x => x.turnoId === turnoId && !x.cancelado).forEach(x => { porNum[x.numeroTxt] = x; });
+    if (navigator.onLine && typeof Sync !== 'undefined' && Sync.ativado()) {
+      try { ((await Sync.tfsDoTurno(turnoId)).tfs || []).forEach(x => { if (x && x.numeroTxt && !porNum[x.numeroTxt]) porNum[x.numeroTxt] = x; }); } catch (e) { /* sem resposta: só os deste aparelho */ }
+    }
+    const lavrados = Object.keys(porNum).sort(), tfsTurno = lavrados.map(k => porNum[k]);
+    const conta = (n, um, varios) => n ? `${n} ${n === 1 ? um : varios}` : '';
+    const medidas = [conta(tfsTurno.filter(x => x.procedimento === 'liberacao').length, 'liberação', 'liberações'),
+      conta(tfsTurno.filter(x => x.procedimento === 'apreensao').length, 'apreensão', 'apreensões'),
+      conta(tfsTurno.filter(x => x.procedimento === 'rechaco').length, 'rechaço', 'rechaços'),
+      conta(tfsTurno.filter(x => Number(x.auto) === 1).length, 'auto de infração', 'autos de infração'),
+      conta(tfsTurno.filter(x => Number(x.advertencia) === 1).length, 'advertência', 'advertências'),
+      conta(tfsTurno.filter(x => Number(x.fiel) === 1).length, 'fiel depositário', 'fiéis depositários')].filter(Boolean);
     const ini = turno.inicio || '__:__', fim = turno.fim || '__:__';
     // turno que só conta pessoas orientadas (volante de Tabatinga: educação sanitária da monilíase)
     const soPes = Number(turno.soPessoas) === 1, temaCfg = ((CONFIG.volantesSoPessoas || {})[String(turno.unidade || '').toUpperCase()] || {}).tema;
@@ -151,7 +165,7 @@ const Docs = (() => {
 ${soPes ? `<p>Foram realizadas <strong>${pessoas}</strong> ações de educação sanitária (pessoas orientadas)${tema ? ` sobre a <strong>${tema}</strong>` : ''}.</p>`
   : `<p>Foram fiscalizados <strong>${veiculos.length}</strong> veículos e realizadas <strong>${pessoas}</strong> ações de educação sanitária (pessoas orientadas),
 com inspeção de veículos, cargas, bagagens, pessoas e demais materiais sujeitos ao controle da Defesa Agropecuária.</p>`}
-<p>Termos de Fiscalização de Barreira lavrados: ${lavrados.length ? `<strong>${esc(lavrados.join('; '))}</strong>` : '<strong>nenhum</strong>'}.</p>
+<p>Termos de Fiscalização de Barreira lavrados: ${lavrados.length ? `<strong>${esc(lavrados.join('; '))}</strong>.${medidas.length ? ` Medidas tomadas: <strong>${esc(medidas.join(', '))}</strong>.` : ''}` : '<strong>nenhum</strong>.'}</p>
 <p>Foram prestadas orientações aos usuários quanto às normas fitossanitárias vigentes, especialmente sobre os riscos de introdução e
 dispersão de pragas quarentenárias, com destaque para a <strong>${soPes && tema ? tema : 'Mosca-da-Carambola (<i>Bactrocera carambolae</i>)'}</strong>, e sobre
 a obrigatoriedade da apresentação da documentação fitossanitária quando exigida.</p>

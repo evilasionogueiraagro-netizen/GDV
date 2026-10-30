@@ -44,10 +44,26 @@ function painelBvaSalvar(token, req) {
     let novoId = id;
     if (atual) atualizar_('BVAs', atual._linha, reg);
     else { novoId = uuid_(); inserir_('BVAs', [Object.assign({ id: novoId, nome: nome, criadoEm: agora, criadoPor: textoAutor_(quem) }, reg)]); }
+    barreiraDaBva_(nome, reg);
     inserir_('HistoricoDeAlteracoes', [{ id: uuid_(), em: agora, usuarioId: (USUARIO_ATUAL_ && USUARIO_ATUAL_.id) || textoAutor_(quem), acao: atual ? 'alterar BVA' : 'cadastrar BVA',
       tabela: 'BVAs', registroId: novoId, antes: atual ? JSON.stringify({ municipio: atual.municipio, endereco: atual.endereco, placa: atual.placa, ficha: atual.ficha, ativo: atual.ativo,
         escalaRegime: atual.escalaRegime, escalaDias: atual.escalaDias }) : '',
       depois: JSON.stringify(Object.assign({ nome: nome }, reg)) }]);
     return { ok: true, bva: Object.assign({ id: novoId, nome: nome }, reg), bvas: bvasCadastro_() };
   });
+}
+
+/**
+ * A BVA cadastrada no painel também é barreira do TF de Barreira (aba Barreiras: id, nome, sufixo do nº, local, ativo), com a sua
+ * sequência de TFs: sem linha que case pelo nome, cria (id "BVA-HUMAITA", nome "BVA-HUMAITÁ", sufixo "BVA - HUMAITÁ", local = endereço);
+ * com linha, só acompanha a situação (ativa/desativada). Chamado dentro do lock de painelBvaSalvar.
+ */
+function barreiraDaBva_(nome, reg) {
+  const chave = normPub_(nome), linhas = lerLinhas_('Barreiras');
+  const b = linhas.filter(function (x) { return x.id && [x.id, x.nome, x.sufixo].some(function (v) { return normPub_(v) === chave; }); })[0];
+  if (b) { if (Number(b.ativo) !== reg.ativo) atualizar_('Barreiras', b._linha, { ativo: reg.ativo }); return; }
+  const semEspaco = nome.replace(/\s*-\s*/g, '-').replace(/\s+/g, ' ');
+  const id = semEspaco.normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase().replace(/[^A-Z0-9-]+/g, '-').replace(/-+/g, '-').slice(0, 40);
+  if (linhas.some(function (x) { return x.id === id; })) return;     // id já usado por outra barreira: fica como está (ajuste na planilha)
+  inserir_('Barreiras', [{ id: id, nome: semEspaco, sufixo: nome, local: reg.endereco || '', ativo: reg.ativo }]);
 }

@@ -25,7 +25,17 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
   const hum = (await linhas('BVAs')).find(x => x.nome === 'BVA - HUMAITÁ');
   r = await post({ action: 'painelBvaSalvar', key: g.token, bva: { id: hum.id, nome: 'OUTRO NOME', municipio: 'Humaitá', endereco: 'BR-319, km 1 (fictício)', placa: true, ficha: true, ativo: true } });
   ok(r.ok && r.bva.nome === 'BVA - HUMAITÁ' && r.bva.ficha === 1, 'editar: o nome não muda (os turnos guardam o nome)', r.bva);
-  ok((await linhas('HistoricoDeAlteracoes')).filter(h => h.tabela === 'BVAs').length === 3, 'histórico: cadastrar e alterar');
+  // a BVA cadastrada também é barreira do TF (aba Barreiras), com a sua numeração; desativar a BVA desativa a barreira
+  const bh = (await linhas('Barreiras')).find(x => x.id === 'BVA-HUMAITA');
+  ok(bh && bh.nome === 'BVA-HUMAITÁ' && bh.sufixo === 'BVA - HUMAITÁ' && Number(bh.ativo) === 1 && (await linhas('Barreiras')).filter(x => x.id === 'BVA-HUMAITA').length === 1,
+    'Cadastro de BVAs: a BVA nova vira barreira do TF (id, nome, sufixo do nº), uma linha só', bh);
+  const ANO = new Date(Date.now() - 4 * 3600e3).getUTCFullYear(), fis = await U.fiscal('Fulano Ficticio Teste');
+  r = await post({ action: 'tfProximoNumero', key: fis.token, barreira: 'BVA-HUMAITA', ano: ANO });
+  ok(r.ok && r.proximo === 1, 'TF na BVA - HUMAITÁ: numeração própria, começa no 1', r);
+  r = await post({ action: 'painelBvaSalvar', key: g.token, bva: { id: hum.id, municipio: 'Humaitá', endereco: 'BR-319, km 1 (fictício)', placa: true, ficha: true, ativo: false } });
+  ok(r.ok && Number((await linhas('Barreiras')).find(x => x.id === 'BVA-HUMAITA').ativo) === 0, 'BVA desativada: a barreira do TF também sai da lista');
+  r = await post({ action: 'painelBvaSalvar', key: g.token, bva: { id: hum.id, municipio: 'Humaitá', endereco: 'BR-319, km 1 (fictício)', placa: true, ficha: true, ativo: true } });
+  ok((await linhas('HistoricoDeAlteracoes')).filter(h => h.tabela === 'BVAs').length === 5, 'histórico: cadastrar e alterar (cada gravação)');
   const f = await U.fiscal('Fiscal Bvas Teste');
   const s = await post({ action: 'sync', key: f.token, since: 0 });
   ok(s.ok && s.bvas.some(b => b.nome === 'BVA - HUMAITÁ' && b.ativo === 1) && s.bvas.some(b => b.nome === 'BVA - AEROPORTO' && b.ativo === 0), 'sync leva o cadastro aos aparelhos', s.bvas);

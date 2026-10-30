@@ -27,7 +27,11 @@ const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).
     const t = (await g('Turnos')).find(x => x.id === turnoId), v = (await g('Veiculos')).filter(x => x.turnoId === turnoId);
     return t && Number(t.encerrado) === 1 && v.length === 2; };
   for (let i = 0; i < 40 && !(await naPlanilha()); i++) { await p.evaluate(() => Sync.sincronizar()); await p.waitForTimeout(500); }
-  ok(await naPlanilha(), 'turno encerrado e os 2 veículos na planilha');
+  const diag = async () => { const g = n => fetch(API + '/__fn?nome=lerLeitura_&args=' + encodeURIComponent(JSON.stringify([n]))).then(r => r.json()).then(j => j.r || []);
+    return { aparelho: await p.evaluate(() => Store.todos('veiculos').then(v => v.map(x => [x.placa, x.turnoId.slice(0, 6), x.pendente, x.excluido]))),
+      planilha: (await g('Veiculos')).map(x => [x.placa, String(x.turnoId).slice(0, 6), x.usuario]),
+      turnos: (await g('Turnos')).map(x => [String(x.id).slice(0, 6), x.encerrado, x.usuario]), estado: await p.evaluate(() => Sync.estado()) }; };
+  ok(await naPlanilha(), 'turno encerrado e os 2 veículos na planilha', await naPlanilha() ? undefined : await diag());
   // turno de outro fiscal no mesmo período: não pode vir
   await post({ action: 'sync', key: B.token, since: 9e15, turnos: [{ id: 'turno-beltrano', numeroTF: '0099/2026', data: new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10), inicio: '07:00', fim: '19:00',
     fiscal: B.nome, local: 'BVA - CEASA', unidade: 'MANAUS', posto: 'Fixa', encerrado: 1, criadoEm: Date.now(), atualizadoEm: Date.now() }], veiculos: [] });

@@ -115,6 +115,7 @@ function go(view, arg, o) {
   const bloq = semPermissaoPara(view);
   if (bloq) { toast(`${SEM_AUT}: ${Sync.MODULOS[bloq]}.`, true); view = 'modulos'; arg = null; }
   if (VIEW === 'tfnovo' && view !== 'tfnovo' && typeof TFUI !== 'undefined') TFUI.saiu();   // saiu do formulário de TF sem gerar
+  if (typeof Docs !== 'undefined' && !(o && o.manterRolagem)) Docs.limparImpressao();   // documento da última impressão (celular) sai da página
   VIEW = view; EDIT = arg || null;
   if (view === 'modulos' || view === 'config') MODULO = 'hub';
   else if (view === 'tf') MODULO = 'tf';

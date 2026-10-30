@@ -74,7 +74,7 @@ const temFicha = t => { const b = CONFIG.bvas.find(x => x.nome === t.local); ret
 /** Turno que não conta veículos (soPessoas = 1, ex.: volante de Tabatinga): conta só as pessoas orientadas (turno.pessoasEducacao). */
 const soPessoas = t => !!(t && Number(t.soPessoas) === 1);
 /** Turno compartilhado: o turno é de outro login (o colega entrou pelo código do dono). Só o dono encerra; o colega sai. */
-const souColega = t => !!(t && t.usuario && Sync.nome() && t.usuario !== Sync.nome());
+const souColega = t => !!(t && t.usuario && Sync.nome() && !Sync.mesmoNome(t.usuario, Sync.nome()));
 const botaoFim = t => souColega(t) ? `<button class="botao vermelho" id="encerrar">${icone('voltar')} Sair do turno</button>`
   : `<button class="botao vermelho" id="encerrar">${icone('parar')} Encerrar turno</button>
      <button class="botao sec" id="cancelarTurno" type="button">${icone('fechar')} Cancelar turno (aberto por engano)</button>`;
@@ -312,6 +312,8 @@ async function entrarComCodigo(codigo) {
   try {
     const r = await Sync.parearTurno(codigo);
     await Store.setMeta('turnoAtual', r.turno.id);
+    const comp = (await Store.meta('turnosCompartilhados')) || [];             // o turno do colega fica no Histórico (Termo) depois de encerrado
+    if (!comp.includes(r.turno.id)) await Store.setMeta('turnosCompartilhados', comp.concat([r.turno.id]).slice(-200));
     try { localStorage.removeItem(LS_AVISO_ENC); } catch (e) { /* sem armazenamento */ }
     toast(`Você entrou no turno de ${r.dono}.`); Sync.sincronizar(); go('home');
   } catch (e) { toast(e.message || 'Não foi possível entrar no turno.', true); const b2 = $('#fParear button[type=submit]'); if (b2) { b2.disabled = false; b2.innerHTML = `${icone('pessoa')} Entrar no turno`; } }
@@ -366,7 +368,7 @@ async function corrigirNumero(id) {
 // outro aparelho: vira o turno deste também (turnoAtual), e os veículos lançados nos dois vão para o mesmo turno (e o mesmo Termo).
 async function turnosAbertosOutros() {
   const eu = Sync.nome(), limite = Date.now() - 24 * 3600e3;
-  return (await Store.todos('turnos')).filter(t => !Number(t.encerrado) && !t.excluido && (!t.usuario || !eu || t.usuario === eu) &&
+  return (await Store.todos('turnos')).filter(t => !Number(t.encerrado) && !t.excluido && (!t.usuario || !eu || Sync.mesmoNome(t.usuario, eu)) &&
     (Number(t.criadoEm) || Date.parse(t.data + 'T' + (t.inicio || '00:00') + ':00-04:00') || 0) >= limite)
     .sort((a, b) => (Number(b.criadoEm) || 0) - (Number(a.criadoEm) || 0));
 }

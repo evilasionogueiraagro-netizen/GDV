@@ -19,6 +19,9 @@ const Sync = (() => {
   };
   const ativado = () => { const c = cfg(); return !!(c.url && c.key); };
   const nome = () => localStorage.getItem('gdv.nome') || '';
+  /** Mesmo nome de login, como o servidor compara (nomeChave_): sem diferença de maiúsculas e espaços. */
+  const chaveNome = s => String(s || '').trim().replace(/\s+/g, ' ').toLowerCase();
+  const mesmoNome = (a, b) => chaveNome(a) === chaveNome(b);
 
   /* ---------- Acesso: matrícula e senha (token de sessão 'u.…') ----------
      Guardado no aparelho: gdv.url, gdv.key (token), gdv.nome (nome do usuário, vira o Fiscal 1 do turno) e gdv.usuario
@@ -369,13 +372,16 @@ const Sync = (() => {
   }
 
   /** O aparelho guarda só os turnos/veículos do próprio fiscal. Versões antigas do servidor mandavam os de todos;
-   *  apaga do aparelho (nunca da planilha) os já enviados que são de outro fiscal. Pendentes e o turno atual ficam. */
+   *  apaga do aparelho (nunca da planilha) os já enviados que são de outro fiscal. Ficam os pendentes, o turno atual, os turnos em que
+   *  este login entrou pelo código (meta "turnosCompartilhados") ou lançou veículo: o Termo deles continua no Histórico. */
   async function limparDeOutros() {
     const eu = nome(); if (!eu) return;
-    const atual = await Store.meta('turnoAtual');
-    const turnos = (await Store.todos('turnos')).filter(t => t.usuario && t.usuario !== eu && !t.pendente && t.id !== atual);
+    const atual = await Store.meta('turnoAtual'), comp = new Set((await Store.meta('turnosCompartilhados')) || []);
+    const todosV = await Store.todos('veiculos');
+    todosV.forEach(v => { if (v.usuario && mesmoNome(v.usuario, eu)) comp.add(v.turnoId); });
+    const turnos = (await Store.todos('turnos')).filter(t => t.usuario && !mesmoNome(t.usuario, eu) && !t.pendente && t.id !== atual && !comp.has(t.id));
     const fora = new Set(turnos.map(t => t.id));
-    const veic = (await Store.todos('veiculos')).filter(v => !v.pendente && fora.has(v.turnoId));   // só os veículos dos turnos removidos
+    const veic = todosV.filter(v => !v.pendente && fora.has(v.turnoId));   // só os veículos dos turnos removidos
     await Store.apagar('turnos', [...fora]);
     await Store.apagar('veiculos', veic.map(v => v.id));
   }
@@ -519,7 +525,7 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, sairDoTurno, turnoPapel, escalaDados, escalaSalvar, escalaExcluir, escalaGerar, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
+  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, sairDoTurno, turnoPapel, mesmoNome, escalaDados, escalaSalvar, escalaExcluir, escalaGerar, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
     pceProximoNumero, pceEmitir, pceConsultar, pceBaixarMunicipio, pceMapaGeral, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

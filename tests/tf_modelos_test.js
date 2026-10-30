@@ -6,6 +6,7 @@ let falhas = 0;
 const ok = (c, m, extra) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (extra !== undefined ? ' -> ' + JSON.stringify(extra) : '')); if (!c) falhas++; };
 const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 (async () => {
+  await fetch(API + '/__fn?nome=listarBarreiras_&args=[]');                       // planilha nova: a barreira da CEASA (semente) antes da Humaitá
   const g = await amb.gerente('Gestora Ficticia Teste');
   let r = await post({ action: 'painelBvaSalvar', key: g.token, bva: { nome: 'HUMAITÁ', municipio: 'Humaitá', endereco: 'BR-319 (fictício)', placa: true, ficha: false, ativo: true } });
   ok(r.ok, 'BVA - HUMAITÁ cadastrada no painel', r.erro);
@@ -30,9 +31,13 @@ const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).
   ok(/não foram constatadas irregularidades/.test(t.c) && t.e === '', 'liberação: "sem irregularidades" e enquadramento em branco', t);
   await p.check('input[name=tf-proc][value=rechaco]');
   await p.selectOption('#tf-produtos .prod select >> nth=0', 'MANGA'); t = await textos();
-  ok(/Mosca-da-Carambola/.test(t.c) && /PORTARIA SDA\/MAPA/.test(t.e), 'trocou para manga: volta o texto geral (mosca)', t.c.slice(0, 80));
+  ok(!/Mosca/.test(t.c) && /SEM a devida documentação/.test(t.c) && /Dec. Nº 5.741/.test(t.e) && !/IN Nº 21/.test(t.e), 'Humaitá com manga: texto sem a mosca (e sem a IN de citros)', t);
   await p.selectOption('#tf-produtos .prod select >> nth=0', 'TANGERINA'); await p.fill('#tf-destino', 'PORTO VELHO'); await p.dispatchEvent('#tf-destino', 'change'); t = await textos();
-  ok(/Mosca-da-Carambola/.test(t.c), 'citros com destino fora de Manaus: texto geral');
+  ok(!/Mosca/.test(t.c) && !/plantas cítricas/.test(t.c), 'Humaitá, citros com destino fora de Manaus: texto sem a mosca', t.c.slice(0, 80));
+  // outra BVA: continua o texto geral (mosca)
+  await p.selectOption('#tf-barreira', 'BVA-CEASA'); t = await textos();
+  ok(/Mosca-da-Carambola/.test(t.c) && /PORTARIA SDA\/MAPA/.test(t.e), 'outra BVA (CEASA): texto geral, com a mosca', t.c.slice(0, 80));
+  await p.selectOption('#tf-barreira', 'BVA-HUMAITA');
   await p.fill('#tf-destino', 'Manaus/AM'); await p.dispatchEvent('#tf-destino', 'change');
   await p.fill('#tf-constatacao', 'Texto escrito pelo fiscal.'); await p.check('input[name=tf-proc][value=apreensao]'); t = await textos();
   ok(t.c === 'Texto escrito pelo fiscal.' && /IN Nº 21/.test(t.e), 'texto editado pelo fiscal não é trocado (o enquadramento sugerido entra)', t);

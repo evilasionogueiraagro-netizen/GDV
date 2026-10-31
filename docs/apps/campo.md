@@ -11,7 +11,7 @@ App do fiscal (`web/`). Veja: [TF](../modulos/tf.md), [barreiras](../modulos/bar
 - Localização: pedida ao entrar e depois só em turno (início/fim), posto volante e GPS do PCE; leitura de até 2 min é reaproveitada.
 - Posto fixo: `CONFIG.bvas`. Volante: endereço da coordenada (Nominatim).
 - Placa obrigatória só onde `placa: true` (hoje CEASA); senão `Turnos.semPlaca = 1`.
-- Pessoas por veículo: estimativa por tipo em `CONFIG`, editável.
+- Pessoas por veículo: digitadas pelo fiscal (educação sanitária), sem sugestão.
 - Origem e destino opcionais, só UF (`Veiculos.ufOrigem`/`ufDestino`).
 - Volante de educação sanitária: `Turnos.soPessoas = 1`, contador `Turnos.pessoasEducacao`, sem veículos; marcado em `CONFIG.volantesSoPessoas` (hoje TABATINGA). Conta em VIGIFITO, painel, relatório, dashboard e convênio (1.9).
 - Excluir é lógico. "Limpar histórico" só remove turnos encerrados e enviados.

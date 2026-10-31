@@ -379,11 +379,15 @@ print(json.dumps({'tabelas':x.count('<w:tbl>'),'paisagem':x.count('w:orient="lan
   await pg.fill('#nFiscal1', 'Carla Campo Teste'); await pg.click('#fTurno button[type=submit]'); await pg.waitForSelector('.contador', { timeout: 20000 });
   await pg.waitForTimeout(400); await pg.click('nav [data-v=registrar]'); await pg.waitForSelector('#fVeic');
   const form = await pg.textContent('#fVeic');
-  ok(!(await pg.$('.veic-extra, #vEduc, #vMedFito, #vCarga, #vPartida, #vInsp, #vDoc, #vProds')) && !/Fiscalização \(opcional\)|Transporta vegetais|educação sanitária/i.test(form),
+  ok(!(await pg.$('.veic-extra, #vEduc, #vMedFito, #vCarga, #vPartida, #vInsp, #vDoc, #vProds')) && !/Fiscalização \(opcional\)|Transporta vegetais/i.test(form),
     'formulário do veículo sem o bloco "Fiscalização (opcional)" (educação, medida, carga, partida, inspeção, documento)', form);
   ok(/Origem e destino/.test(form) && (await pg.inputValue('#vUfOri')) === '' && (await pg.inputValue('#vUfDes')) === '' && (await pg.$$eval('#vUfOri option', os => os.length)) === 29,
     'formulário: "Origem e destino (opcional)" com UF de origem e de destino vazias (27 UFs + Exterior)');
   await shot(pg, 'app_veiculo_uf');
+  await pg.click('.tipo-card:has(input[value=ON])');
+  ok(/Pessoas que receberam educação sanitária/.test(form) && (await pg.inputValue('#pessoas')) === '',
+    'pessoas do veículo: o fiscal digita quantas receberam educação sanitária (sem sugestão, nem ao trocar o tipo)');
+  await pg.click('.tipo-card:has(input[value=PA])');
   const salvarVeic = async (placa, pessoas, ori, des, munOri, munDes) => {
     await pg.fill('#placa', placa); await pg.fill('#pessoas', String(pessoas));
     if (munOri) await pg.fill('#vMunOri', munOri); if (munDes) await pg.fill('#vMunDes', munDes);

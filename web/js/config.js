@@ -38,14 +38,14 @@ const CONFIG = {
     A: { rotulo: '04h às 12h' },
     B: { rotulo: '12h às 20h' }
   },
-  // código → { nome, ícone (nome em web/js/icones.js), pessoas (estimativa padrão por veículo; pode ser alterada em cada registro) }
+  // código → { nome, ícone (nome em web/js/icones.js) }; as pessoas orientadas de cada veículo são digitadas pelo fiscal (sem sugestão por tipo)
   tipos: {
-    PA: { nome: 'Passeio',           icone: 'carro', pessoas: 5 },
-    UT: { nome: 'Utilitário',        icone: 'utilitario', pessoas: 5 },
-    CC: { nome: 'Caminhão/Carreta',  icone: 'caminhao', pessoas: 1 },
-    CB: { nome: 'Caminhão/Carreta Baú', icone: 'caminhao-bau', pessoas: 1 },
-    ON: { nome: 'Ônibus',            icone: 'onibus', pessoas: 40 },
-    MT: { nome: 'Moto',              icone: 'moto', pessoas: 2 }
+    PA: { nome: 'Passeio',           icone: 'carro' },
+    UT: { nome: 'Utilitário',        icone: 'utilitario' },
+    CC: { nome: 'Caminhão/Carreta',  icone: 'caminhao' },
+    CB: { nome: 'Caminhão/Carreta Baú', icone: 'caminhao-bau' },
+    ON: { nome: 'Ônibus',            icone: 'onibus' },
+    MT: { nome: 'Moto',              icone: 'moto' }
   },
   linhasFicha: 50,
   // UFs de origem/destino (opcionais no registro do veículo e no TF; mesma lista que UFS_ no Code.gs). Destino AM vindo de outra UF =

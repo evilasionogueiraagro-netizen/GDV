@@ -80,7 +80,7 @@
       { chave: 'turnos', rotulo: 'Turnos de barreira', valor: turnos.length, detalhe: `${fmt.int(encerrados.length)} encerrado(s) · ${fmt.int(turnos.length - encerrados.length)} aberto(s)` },
       { chave: 'horas', rotulo: 'Horas de barreira', valor: Math.round(min / 60), detalhe: turnos.length ? `média de ${fmt.duracao(min / turnos.length)} por turno${limitadosTxt(turnos)}` : null },
       { chave: 'veiculos', rotulo: 'Veículos abordados', valor: veiculos.length, detalhe: turnos.length ? `${fmt.num(veiculos.length / turnos.length, 1)} por turno` : null },
-      { chave: 'pessoas', rotulo: 'Pessoas impactadas', valor: pessoas, detalhe: veiculos.length ? `${fmt.num(pessoas / veiculos.length, 1)} por veículo (estimativa)` : 'estimativa por veículo' },
+      { chave: 'pessoas', rotulo: 'Pessoas impactadas', valor: pessoas, detalhe: veiculos.length ? `${fmt.num(pessoas / veiculos.length, 1)} por veículo` : 'informadas pelo fiscal' },
       { chave: 'vph', rotulo: 'Veículos por hora de barreira', valor: min ? fmt.num(veiculos.length / (min / 60), 1) : '—', detalhe: 'veículos ÷ horas de turno' + limitadosTxt(turnos) },
       { chave: 'andamento', rotulo: 'Em andamento agora', valor: abertos.length, status: longas ? 'critico' : ruins.length ? 'serio' : abertos.length ? 'bom' : null,
         detalhe: abertos.length ? (ruins.length ? `${ruins.length} com alerta (sem sinal ou > 12 h)` : 'todas com sinal') : 'nenhuma barreira aberta' }

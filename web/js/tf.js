@@ -443,7 +443,8 @@ const TFUI = (() => {
   function textosDe(proc) {
     const sel = $('#tf-barreira'), bar = semAcento(sel && sel.selectedOptions && sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '');
     const prods = [...document.querySelectorAll('#tf-produtos .prod select:first-of-type')].map(x => semAcento(x.value)), dest = semAcento($('#tf-destino') ? $('#tf-destino').value : '');
-    const m = (T.modelos || []).find(x => bar.includes(semAcento(x.bva)) && (!x.produtos || x.produtos.some(p => prods.includes(semAcento(p)))) && (!x.destino || dest.includes(semAcento(x.destino))));
+    const m = (T.modelos || []).find(x => [].concat(x.bva).some(b => bar.includes(semAcento(b))) && (!x.produtos || x.produtos.some(p => prods.includes(semAcento(p))))
+      && (!x.destino || dest.includes(semAcento(x.destino))) && (!x.sentido || x.sentido === sentidoDe(bar)));
     return { constatacao: (m ? m.constatacao[proc] : T.constatacao[proc]) || '', enquadramento: proc === 'liberacao' ? '' : enquadramentoDe(bar, prods) };
   }
   /** Sentido da rota pela origem/destino do TF: nas BVAs de Manaus, entra ou sai de Manaus; nas demais, do Amazonas. '' = não dá para saber. */

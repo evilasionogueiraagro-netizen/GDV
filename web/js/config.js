@@ -71,7 +71,7 @@ const CONFIG = {
       normas: {
         lei9712: 'Lei Federal nº 9.712 de 20/11/1998', dec24114: 'Dec. Federal nº 24.114 de 12/04/1934', cp259: 'Art. 259 do Código Penal Brasileiro',
         lei3097: 'Lei Estadual nº 3.097 de 27/11/2006', dec36108: 'Dec. Estadual nº 36.108 de 06/08/2015 (Seção VIII, Art. 35, Grupo II, Alínea "A")',
-        in28: 'IN nº 28 de 24/2016', in28_17: 'IN nº 28 de 20/07/2017', in38: 'IN nº 38 de 01/10/2018', in8: 'IN nº 8 de 17/04/2012',
+        in28: 'IN nº 28/2016', in28_17: 'IN nº 28 de 20/07/2017', in38: 'IN nº 38 de 01/10/2018', in8: 'IN nº 8 de 17/04/2012',
         in21: 'IN nº 21 de 25/04/2018', p780: 'Portaria nº 780 de 06/04/2023', p940: 'Portaria SDA/MAPA nº 940 de 17/11/2023',
         p1188: 'Portaria SDA nº 1.188 de 15/10/2024', p776: 'Portaria nº 776 de 12/03/2025', p1326: 'Portaria SDA/MAPA nº 1.326 de 04/07/2025 (HLB)',
         p1675: 'Portaria SDA/MAPA nº 1.675 de 26/08/2026'
@@ -104,7 +104,7 @@ const CONFIG = {
       rechaco: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado SEM a devida documentação fitossanitária obrigatória (PTV); o produto é potencial hospedeiro da Mosca-da-Carambola. Após os procedimentos o veículo retornou à origem.'
     },
     // Constatação por BVA, produto e destino (o 1º modelo que casa vale; nos demais TFs, a constatacao acima). Casa quando a barreira
-    // do TF é a BVA, há um dos produtos na lista (sem lista: qualquer produto) e o destino contém o texto (sem destino: qualquer um).
+    // do TF é a BVA (ou uma da lista), há um dos produtos (sem lista: qualquer um), o destino contém o texto e o sentido é o da rota (se houver).
     // O enquadramento vem da tabela acima (liberação: em branco).
     modelos: [{
       bva: 'HUMAITÁ', produtos: ['LIMÃO', 'LARANJA', 'TANGERINA'], destino: 'MANAUS',     // entrada de citros pela BVA - HUMAITÁ
@@ -112,6 +112,13 @@ const CONFIG = {
         liberacao: 'Após a inspeção do veículo acima mencionado e da carga de citros, não foram constatadas irregularidades na carga nem na documentação fitossanitária apresentada (PTV). Após os procedimentos o veículo foi liberado.',
         apreensao: 'Durante a fiscalização do veículo acima mencionado, os fiscais constataram a presença de restos vegetais na carga, incluindo folhas e ramos de plantas cítricas. Entretanto, na PTV apresentada, consta, nas declarações adicionais, que os frutos foram submetidos aos processos de escovação e beneficiamento, devendo estar totalmente isentos de folhas e ramos de plantas cítricas. Diante da não conformidade constatada entre as condições declaradas no documento e a situação encontrada na carga, o produto foi apreendido.',
         rechaco: 'Durante a fiscalização do veículo acima mencionado, os fiscais constataram a presença de restos vegetais na carga, incluindo folhas e ramos de plantas cítricas. Entretanto, na PTV apresentada, consta, nas declarações adicionais, que os frutos foram submetidos aos processos de escovação e beneficiamento, devendo estar totalmente isentos de folhas e ramos de plantas cítricas. Diante da não conformidade constatada entre as condições declaradas no documento e a situação encontrada na carga, o veículo retornou à origem.'
+      }
+    }, {
+      bva: ['CEASA', 'AEROPORTO', 'PARINTINS'], produtos: ['LARANJA', 'LIMÃO', 'TANGERINA', 'POMELO'], sentido: 'entrada',   // citros entrando: cancro/HLB, sem a mosca
+      constatacao: {
+        liberacao: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado COM a devida documentação fitossanitária obrigatória (PTV); o produto é potencial hospedeiro do Cancro Cítrico e do HLB (Greening). Após os procedimentos o veículo foi liberado.',
+        apreensao: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado SEM a devida documentação fitossanitária obrigatória (PTV); o produto é potencial hospedeiro do Cancro Cítrico e do HLB (Greening). Após os procedimentos o produto foi apreendido.',
+        rechaco: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado SEM a devida documentação fitossanitária obrigatória (PTV); o produto é potencial hospedeiro do Cancro Cítrico e do HLB (Greening). Após os procedimentos o veículo retornou à origem.'
       }
     }, {
       bva: 'HUMAITÁ',                                         // demais produtos e destinos em Humaitá: sem o texto da mosca (não é prioridade lá)

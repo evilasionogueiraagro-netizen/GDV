@@ -60,7 +60,7 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   ok((await A.inputValue('#tf-ufOrigem')) === '' && (await A.$$eval('#tf-ufDestino option', os => os.length)) === 29, 'UF de origem/destino: selects opcionais (vazio + 27 UFs + Exterior)');
   await A.selectOption('#tf-ufOrigem', 'AM'); await A.selectOption('#tf-ufDestino', 'AM');
   ok(/Novo cadastro/.test(await A.textContent('#tf-st-doc')) && /Sem TF anterior/.test(await A.textContent('#tf-st-doc')), 'CPF novo, sem histórico');
-  ok((await A.inputValue('#tf-constatacao')).includes('SEM a devida documentação') && (await A.inputValue('#tf-enquadramento')).includes('Lei Federal 9.712'), 'textos sugeridos para apreensão');
+  ok((await A.inputValue('#tf-constatacao')).includes('SEM a devida documentação') && (await A.inputValue('#tf-enquadramento')).includes('Lei Federal nº 9.712'), 'textos sugeridos para apreensão');
   await A.fill('#tf-doc', '123.456.789-00'); await A.waitForTimeout(700); ok(/dígitos inválidos/.test(await A.textContent('#tf-st-doc')), 'CPF com dígitos inválidos é sinalizado');
   await A.fill('#tf-doc', '529.982.247-25'); await A.waitForTimeout(700);
   await abrirPopup(A);

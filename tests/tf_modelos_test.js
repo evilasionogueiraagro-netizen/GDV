@@ -26,7 +26,7 @@ const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).
   await p.fill('#tf-destino', 'MANAUS'); await p.dispatchEvent('#tf-destino', 'change');
   const textos = async () => ({ c: await p.inputValue('#tf-constatacao'), e: await p.inputValue('#tf-enquadramento') });
   await p.check('input[name=tf-proc][value=rechaco]'); let t = await textos();
-  ok(/plantas cítricas/.test(t.c) && /retornou à origem/.test(t.c) && /Portaria SDA\/MAPA nº 1\.326 de 04\/07\/2025 \(HLB\)\.$/.test(t.e) && /IN nº 28 de 24\/2016/.test(t.e) && !/IN nº 21|5\.741|1\.503/.test(t.e) && !/Mosca/.test(t.c), 'citros + Humaitá + Manaus (entrada) + rechaço: constatação do modelo e enquadramento de cancro/HLB', t.c.slice(0, 80));
+  ok(/plantas cítricas/.test(t.c) && /retornou à origem/.test(t.c) && /Portaria SDA\/MAPA nº 1\.326 de 04\/07\/2025 \(HLB\)\.$/.test(t.e) && /IN nº 28\/2016;/.test(t.e) && !/IN nº 21|5\.741|1\.503/.test(t.e) && !/Mosca/.test(t.c), 'citros + Humaitá + Manaus (entrada) + rechaço: constatação do modelo e enquadramento de cancro/HLB', t.c.slice(0, 80));
   await p.check('input[name=tf-proc][value=apreensao]'); t = await textos();
   ok(/plantas cítricas/.test(t.c) && /foi apreendido/.test(t.c) && /1\.326/.test(t.e), 'apreensão: texto do modelo, com a apreensão e o mesmo enquadramento');
   await p.check('input[name=tf-proc][value=liberacao]'); t = await textos();
@@ -40,6 +40,7 @@ const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).
   await p.selectOption('#tf-barreira', 'BVA-CEASA');
   await p.fill('#tf-origem', 'Porto Velho'); await p.fill('#tf-destino', 'Manaus'); await p.dispatchEvent('#tf-destino', 'change'); t = await textos();
   ok(/1\.326/.test(t.e) && !/1\.675/.test(t.e), 'CEASA, tangerina entrando em Manaus: cancro/HLB', t.e);
+  ok(/Cancro Cítrico e do HLB/.test(t.c) && !/Mosca/.test(t.c) && /retornou à origem/.test(t.c), 'CEASA, tangerina entrando: constatação de cancro/HLB, sem a mosca', t.c);
   await p.fill('#tf-origem', 'Manaus'); await p.fill('#tf-destino', 'Parintins'); await p.dispatchEvent('#tf-destino', 'change');
   await p.selectOption('#tf-produtos .prod select >> nth=0', 'MANGA'); t = await textos();
   ok(/1\.188/.test(t.e) && /776/.test(t.e) && /1\.675/.test(t.e) && !/1\.326/.test(t.e), 'CEASA, manga saindo de Manaus: hospedeiros da mosca', t.e);

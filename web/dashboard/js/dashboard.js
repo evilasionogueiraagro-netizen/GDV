@@ -242,7 +242,7 @@
       kpis(s, [tem('acoes') && { chave: 'acoes', rotulo: 'Ações de barreira (turnos)', valor: N.acoes },
         tem('horas') && { chave: 'horas', rotulo: 'Horas de barreira', valor: N.horas },
         tem('veiculos') && { chave: 'veiculos', rotulo: 'Veículos abordados', valor: N.veiculos, detalhe: tem('horas') && N.horas ? `${fmt.num(N.veiculos / N.horas)} por hora de barreira` : null },
-        tem('pessoas') && { chave: 'pessoas', rotulo: 'Pessoas orientadas', valor: N.pessoas, detalhe: 'educação sanitária (estimativa por veículo)' }]);
+        tem('pessoas') && { chave: 'pessoas', rotulo: 'Pessoas orientadas', valor: N.pessoas, detalhe: 'educação sanitária, informadas pelo fiscal' }]);
       const g = el('div', 'db-grade'); s.appendChild(g);
       if (tem('porBarreira')) {
         const L = N.porBarreira, campo = L.some(b => b.veiculos != null) ? 'veiculos' : 'acoes';

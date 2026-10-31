@@ -12,7 +12,7 @@ TF do app de campo (isolado ou no turno), impresso em 2 vias. Veja também: [app
 - Registro do veículo: placa com TF não cancelado na mesma BVA fica com borda vermelha e aviso (não bloqueia). Índice do aparelho com chave placa + BVA (BVA do turno do TF, senão o local do TF, com apelidos) + TFs do aparelho; vale sem internet. Índice antigo (sem `v: 2`) é baixado inteiro de novo.
 - Alerta de cuidado (`Veiculos.cuidado`, `cuidadoMotivo`): placa com borda amarela e "Cuidado ao abordar este veículo" + 3 últimas observações, em qualquer BVA (índice `v: 3`, também com só o módulo de veículos). Não se desmarca no app (`gravar_`). Painel: `alertasCuidado` (7 dias), aviso, som e notificação até "Ciente".
 - Duas vias, uma por folha A4.
-- Textos sugeridos por BVA, produto e destino: `CONFIG.TF.modelos` (Humaitá: citros para Manaus; sem a mosca); nos demais, os gerais.
+- Textos: `CONFIG.TF.modelos` (constatação) e `CONFIG.TF.enquadramento` (BVA, sentido, produto).
 - Auto de infração (caixa no TF): nº próprio por barreira/ano (`SEQUENCIAS.AI`), conferido no `tfEmitir`; sem internet, provisório (`autoConflito` se repetir). PDF em 3 vias (`auto.html`).
 - UF de origem/destino opcionais (`CONFIG.ufs`, inclui "Exterior"); TF de veículo herda a UF do veículo.
 - Fotos e assinaturas (fiscalizado e servidor) no Drive via `Arquivos`; `recusaAssinatura = 1` se o fiscalizado se recusa. O painel recebe só `nFotos` e `assinado`.

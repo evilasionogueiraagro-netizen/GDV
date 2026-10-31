@@ -64,29 +64,54 @@ const CONFIG = {
                'MUDAS', 'MUDAS-BANANEIRA', 'MAMÃO', 'OUTROS'],
     procedimentos: { liberacao: 'Liberação', apreensao: 'Apreensão p/ destruição', rechaco: 'Rechaço (retorno à origem)' },
     maxFotos: 10,                                  // fotos por TF (reduzidas como no PCE: CONFIG.PCE.fotoLado / fotoQualidade); anexo fotográfico no fim do PDF
-    textoLegal: 'Lei Federal 9.712 de 20/11/1998; Dec. Federal nº 24.114 de 12/04/1934; Artigo 259 do Código Penal Brasileiro;\n' +
-      'Lei Estadual nº 3.097 de 27/11/2006; Dec. Estadual nº 36.108 de 06/08/2015; (Seção VIII, Art. 35, Grupo II, Alínea\n' +
-      '"A"); IN nº 38 de 01/10/2018; PORTARIA SDA/MAPA Nº 1.503, DE 19 DE DEZEMBRO DE 2025.',
+    // Enquadramento legal da apreensão e do rechaço (planilha ENQUADRAMENTOS x PRAGAS da GDV): por BVA, sentido da rota e grupo de produto.
+    // Sentido: nas BVAs de Manaus (manaus), pelo município Manaus na origem/destino; nas demais, pela UF AM (ou município do AM). Cada produto
+    // casa com a 1ª regra da BVA (do sentido, ou sem sentido) que o contém; carga mista junta as normas, sem repetir. Nada casa → comum.
+    enquadramento: {
+      normas: {
+        lei9712: 'Lei Federal nº 9.712 de 20/11/1998', dec24114: 'Dec. Federal nº 24.114 de 12/04/1934', cp259: 'Art. 259 do Código Penal Brasileiro',
+        lei3097: 'Lei Estadual nº 3.097 de 27/11/2006', dec36108: 'Dec. Estadual nº 36.108 de 06/08/2015 (Seção VIII, Art. 35, Grupo II, Alínea "A")',
+        in28: 'IN nº 28 de 24/2016', in28_17: 'IN nº 28 de 20/07/2017', in38: 'IN nº 38 de 01/10/2018', in8: 'IN nº 8 de 17/04/2012',
+        in21: 'IN nº 21 de 25/04/2018', p780: 'Portaria nº 780 de 06/04/2023', p940: 'Portaria SDA/MAPA nº 940 de 17/11/2023',
+        p1188: 'Portaria SDA nº 1.188 de 15/10/2024', p776: 'Portaria nº 776 de 12/03/2025', p1326: 'Portaria SDA/MAPA nº 1.326 de 04/07/2025 (HLB)',
+        p1675: 'Portaria SDA/MAPA nº 1.675 de 26/08/2026'
+      },
+      comum: ['lei9712', 'dec24114', 'cp259', 'lei3097', 'dec36108', 'in28', 'in38'],
+      grupos: {
+        // hospedeiros da mosca-da-carambola: os produtos do TF, menos mudas, coco e outros
+        mosca: ['ABIU', 'ACEROLA', 'AJURU', 'AMEIXA ROXA', 'ARAÇÁ BOI', 'BACUPARI', 'BIRIBÁ', 'CAJU', 'CARAMBOLA', 'CASTANHOLA', 'FRUTA-PÃO', 'GOIABA',
+          'GOMUTO', 'JACA', 'JAMBO', 'JUJUBA', 'LARANJA', 'LICANIA', 'LIMÃO', 'LIMÃO CAYENA', 'MANGA', 'MURUCI', 'PIMENTA DE CHEIRO', 'PIMENTA PICANTE',
+          'PITANGA', 'POMELO', 'SAPOTILHA', 'TANGERINA', 'TAPEREBÁ', 'TOMATE', 'MAMÃO'],
+        citros: ['LARANJA', 'LIMÃO', 'TANGERINA', 'POMELO'],             // cancro cítrico e HLB
+        citrosJundia: ['LARANJA', 'TANGERINA'], acaro: ['LIMÃO', 'COCO']  // Jundiá: citros (mosca, cancro, ácaro) e ácaro hindustânico
+      },
+      manaus: ['CEASA', 'AEROPORTO'],
+      regras: [
+        { bva: 'JUNDIÁ', grupo: 'acaro', normas: ['lei9712', 'dec24114', 'cp259', 'lei3097', 'dec36108', 'in38', 'in8', 'p1188'] },
+        { bva: 'JUNDIÁ', grupo: 'citrosJundia', normas: ['lei9712', 'dec24114', 'cp259', 'lei3097', 'dec36108', 'in28', 'in38', 'p780', 'in8', 'in21', 'p1188', 'p776'] },
+        { bva: 'JUNDIÁ', grupo: 'mosca', normas: ['lei9712', 'dec24114', 'cp259', 'lei3097', 'dec36108', 'in28', 'in38', 'p780', 'p1188', 'p776'] },
+        { bva: 'PARINTINS', sentido: 'entrada', grupo: 'citros', normas: ['lei9712', 'dec24114', 'cp259', 'lei3097', 'dec36108', 'in28', 'in38', 'p1326'] },
+        { bva: 'PARINTINS', sentido: 'entrada', grupo: 'mosca', normas: ['lei9712', 'dec24114', 'cp259', 'lei3097', 'dec36108', 'in28', 'in28_17', 'in38', 'p940'] },
+        { bva: ['CEASA', 'AEROPORTO', 'HUMAITÁ'], sentido: 'entrada', grupo: 'citros', normas: ['lei9712', 'dec24114', 'cp259', 'lei3097', 'dec36108', 'in28', 'in38', 'p1326'] },
+        { bva: ['CEASA', 'AEROPORTO', 'HUMAITÁ', 'PARINTINS'], sentido: 'saida', grupo: 'mosca',
+          normas: ['lei9712', 'dec24114', 'cp259', 'lei3097', 'dec36108', 'in28', 'in38', 'p1188', 'p776', 'p1675'] }
+      ]
+    },
     // Textos sugeridos (copiados do rascunho do sistema de TF); o fiscal pode editar no formulário.
     constatacao: {
       liberacao: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado COM a devida documentação fitossanitária obrigatória (PTV); o produto é potencial hospedeiro da Mosca-da-Carambola. Após os procedimentos o veículo foi liberado.',
-      apreensao: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado SEM a devida documentação fitossanitária obrigatória (PTV); o produto é potencial hospedeiro da Mosca-da-Carambola. Após os procedimentos o veículo foi liberado.',
+      apreensao: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado SEM a devida documentação fitossanitária obrigatória (PTV); o produto é potencial hospedeiro da Mosca-da-Carambola. Após os procedimentos o produto foi apreendido.',
       rechaco: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado SEM a devida documentação fitossanitária obrigatória (PTV); o produto é potencial hospedeiro da Mosca-da-Carambola. Após os procedimentos o veículo retornou à origem.'
     },
-    // Textos por BVA, produto e destino (o 1º modelo que casa vale; nos demais TFs, constatacao/textoLegal acima). Casa quando a barreira
+    // Constatação por BVA, produto e destino (o 1º modelo que casa vale; nos demais TFs, a constatacao acima). Casa quando a barreira
     // do TF é a BVA, há um dos produtos na lista (sem lista: qualquer produto) e o destino contém o texto (sem destino: qualquer um).
-    // enquadramento '' = em branco (liberação).
+    // O enquadramento vem da tabela acima (liberação: em branco).
     modelos: [{
       bva: 'HUMAITÁ', produtos: ['LIMÃO', 'LARANJA', 'TANGERINA'], destino: 'MANAUS',     // entrada de citros pela BVA - HUMAITÁ
       constatacao: {
         liberacao: 'Após a inspeção do veículo acima mencionado e da carga de citros, não foram constatadas irregularidades na carga nem na documentação fitossanitária apresentada (PTV). Após os procedimentos o veículo foi liberado.',
         apreensao: 'Durante a fiscalização do veículo acima mencionado, os fiscais constataram a presença de restos vegetais na carga, incluindo folhas e ramos de plantas cítricas. Entretanto, na PTV apresentada, consta, nas declarações adicionais, que os frutos foram submetidos aos processos de escovação e beneficiamento, devendo estar totalmente isentos de folhas e ramos de plantas cítricas. Diante da não conformidade constatada entre as condições declaradas no documento e a situação encontrada na carga, o produto foi apreendido.',
         rechaco: 'Durante a fiscalização do veículo acima mencionado, os fiscais constataram a presença de restos vegetais na carga, incluindo folhas e ramos de plantas cítricas. Entretanto, na PTV apresentada, consta, nas declarações adicionais, que os frutos foram submetidos aos processos de escovação e beneficiamento, devendo estar totalmente isentos de folhas e ramos de plantas cítricas. Diante da não conformidade constatada entre as condições declaradas no documento e a situação encontrada na carga, o veículo retornou à origem.'
-      },
-      enquadramento: {
-        liberacao: '',
-        apreensao: 'Lei Federal Nº 9.712 de 20/11/1998; Dec. Federal Nº 24.114 de 12/04/1934; Dec. Nº 5.741 de 30/03/2006; Lei Estadual Nº 3.097 de 27/11/2006; Dec. Estadual Nº 36.108 de 06/08/2015, Art 5º item I e II, Art 24, Art 28 item XVI e Art 35, grupo I alínea "a"; Art. 259 do Código Penal Brasileiro; IN Nº 38 de 01/10/2018; IN Nº 21 de 25/04/2018',
-        rechaco: 'Lei Federal Nº 9.712 de 20/11/1998; Dec. Federal Nº 24.114 de 12/04/1934; Dec. Nº 5.741 de 30/03/2006; Lei Estadual Nº 3.097 de 27/11/2006; Dec. Estadual Nº 36.108 de 06/08/2015, Art 5º item I e II, Art 24, Art 28 item XVI e Art 35, grupo I alínea "a"; Art. 259 do Código Penal Brasileiro; IN Nº 38 de 01/10/2018; IN Nº 21 de 25/04/2018'
       }
     }, {
       bva: 'HUMAITÁ',                                         // demais produtos e destinos em Humaitá: sem o texto da mosca (não é prioridade lá)
@@ -94,11 +119,6 @@ const CONFIG = {
         liberacao: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado COM a devida documentação fitossanitária obrigatória (PTV). Após os procedimentos o veículo foi liberado.',
         apreensao: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado SEM a devida documentação fitossanitária obrigatória (PTV). Após os procedimentos o produto foi apreendido.',
         rechaco: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado SEM a devida documentação fitossanitária obrigatória (PTV). Após os procedimentos o veículo retornou à origem.'
-      },
-      enquadramento: {
-        liberacao: '',
-        apreensao: 'Lei Federal Nº 9.712 de 20/11/1998; Dec. Federal Nº 24.114 de 12/04/1934; Dec. Nº 5.741 de 30/03/2006; Lei Estadual Nº 3.097 de 27/11/2006; Dec. Estadual Nº 36.108 de 06/08/2015; Art. 259 do Código Penal Brasileiro; IN Nº 38 de 01/10/2018',
-        rechaco: 'Lei Federal Nº 9.712 de 20/11/1998; Dec. Federal Nº 24.114 de 12/04/1934; Dec. Nº 5.741 de 30/03/2006; Lei Estadual Nº 3.097 de 27/11/2006; Dec. Estadual Nº 36.108 de 06/08/2015; Art. 259 do Código Penal Brasileiro; IN Nº 38 de 01/10/2018'
       }
     }]
   },

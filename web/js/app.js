@@ -580,7 +580,7 @@ async function registrar() {
     <label>Tipo do veículo</label>
     <div class="tipos">${Object.entries(CONFIG.tipos).map(([c, x]) => `
       <label class="tipo-card"><input type="radio" name="tipo" value="${c}" ${c === tipo ? 'checked' : ''}>${icone(x.icone)}<span>${x.nome}</span></label>`).join('')}</div>
-    <label>Pessoas a bordo (estimativa)<input id="pessoas" type="number" min="0" inputmode="numeric" value="${v ? v.pessoas : CONFIG.tipos[tipo].pessoas}"></label>
+    <label>Pessoas que receberam educação sanitária<input id="pessoas" type="number" min="0" inputmode="numeric" placeholder="0" value="${v ? esc(String(Number(v.pessoas) || 0)) : ''}"></label>
     <div class="veic-ufs" role="group" aria-label="Origem e destino (opcional)"><div class="veic-ufs-rot">Origem e destino <small>(opcional)</small></div>
       <label>Cidade de origem<input id="vMunOri" maxlength="60" autocomplete="off" autocapitalize="words" placeholder="ex.: Boa Vista" value="${esc(v && v.origemMun || '')}"></label>
       <label>UF<select id="vUfOri" aria-label="UF de origem">${opcoesUF(v && v.ufOrigem)}</select></label>
@@ -611,9 +611,6 @@ async function registrar() {
   placa.oninput = () => { placa.value = placa.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); conferirTF(); };
   $('#vCuidado').onchange = e => { $('#vCuidadoBox').hidden = !e.target.checked; if (e.target.checked) $('#vCuidadoMot').focus(); };
   if (placa.value) conferirTF();
-  document.querySelectorAll('input[name=tipo]').forEach(r => r.onchange = () => {
-    if (!v) $('#pessoas').value = CONFIG.tipos[r.value].pessoas;
-  });
   if (!v && !semPlaca) placa.focus();
   $('#fVeic').onsubmit = async e => {
     e.preventDefault();
@@ -626,7 +623,7 @@ async function registrar() {
     const existentes = await veiculosDe(t.id);
     if (p && existentes.some(x => x.placa === p && x.id !== (v && v.id)) && !confirm(`A placa ${p} já foi registrada neste turno. Registrar de novo?`)) return;
     const tp = document.querySelector('input[name=tipo]:checked').value;
-    // educação sanitária, medida fitossanitária, partidas, documentos e inspeção saem das pessoas a bordo e dos TFs (servidor); ao editar um
+    // educação sanitária, medida fitossanitária, partidas, documentos e inspeção saem das pessoas informadas pelo fiscal e dos TFs (servidor); ao editar um
     // registro antigo, os campos de fiscalização que ele já tinha ficam como estavam ({ ...v, ...dados })
     const dados = { turnoId: t.id, placa: p, tipo: tp, pessoas: Math.max(0, parseInt($('#pessoas').value, 10) || 0), obs: $('#obs').value.trim(), excluido: 0,
       ufOrigem: $('#vUfOri').value, ufDestino: $('#vUfDes').value,

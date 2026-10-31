@@ -421,8 +421,8 @@ const TFUI = (() => {
       salvarRascunho();
     });
     f.addEventListener('change', async e => {
-      // barreira, produto ou destino mudou: o texto sugerido pode ser outro (ex.: citros na BVA - HUMAITÁ com destino Manaus)
-      if (e.target.id === 'tf-barreira' || e.target.id === 'tf-destino' || e.target.closest('#tf-produtos')) aplicarModelo(procMarcado());
+      // barreira, produto, origem ou destino mudou: o texto sugerido pode ser outro (BVA, sentido da rota e produto)
+      if (['tf-barreira', 'tf-origem', 'tf-destino', 'tf-ufOrigem', 'tf-ufDestino'].includes(e.target.id) || e.target.closest('#tf-produtos')) aplicarModelo(procMarcado());
       if (e.target.id === 'tf-barreira') { localStorage.setItem('gdv.barreira', e.target.value); await mostrarInfoNumero(); }
       if (e.target.id === 'tf-data' && S && S.antigo) await mostrarInfoNumero();                  // papel: o ano do número é o da data
       if (e.target.id === 'tf-pdfs') return adicionarPDFs(e.target);
@@ -444,8 +444,36 @@ const TFUI = (() => {
     const sel = $('#tf-barreira'), bar = semAcento(sel && sel.selectedOptions && sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '');
     const prods = [...document.querySelectorAll('#tf-produtos .prod select:first-of-type')].map(x => semAcento(x.value)), dest = semAcento($('#tf-destino') ? $('#tf-destino').value : '');
     const m = (T.modelos || []).find(x => bar.includes(semAcento(x.bva)) && (!x.produtos || x.produtos.some(p => prods.includes(semAcento(p)))) && (!x.destino || dest.includes(semAcento(x.destino))));
-    return m ? { constatacao: m.constatacao[proc] || '', enquadramento: (m.enquadramento || {})[proc] || '' }
-      : { constatacao: T.constatacao[proc] || '', enquadramento: proc === 'liberacao' ? '' : T.textoLegal };
+    return { constatacao: (m ? m.constatacao[proc] : T.constatacao[proc]) || '', enquadramento: proc === 'liberacao' ? '' : enquadramentoDe(bar, prods) };
+  }
+  /** Sentido da rota pela origem/destino do TF: nas BVAs de Manaus, entra ou sai de Manaus; nas demais, do Amazonas. '' = não dá para saber. */
+  const municipiosAM = () => (CONFIG.PCE && CONFIG.PCE.municipios || []).map(semAcento);
+  function sentidoDe(bar) {
+    const v = id => semAcento($('#tf-' + id) ? $('#tf-' + id).value : '').trim();
+    const ori = v('origem'), des = v('destino'), E = T.enquadramento;
+    let dentro;
+    if (E.manaus.some(b => bar.includes(semAcento(b)))) dentro = (mun, uf) => mun ? /\bMANAUS\b/.test(mun) : uf && uf !== 'AM' ? false : null;
+    else {
+      const am = municipiosAM();
+      // a lista de municípios do AM é completa: município digitado fora dela (sem UF) conta como fora do Amazonas
+      dentro = (mun, uf) => uf ? uf === 'AM' : mun ? /[\s/-]AM$/.test(mun) || am.some(x => mun === x || /^[\s/-]/.test(mun.slice(x.length)) && mun.startsWith(x)) : null;
+    }
+    const o = dentro(ori, v('ufOrigem')), d = dentro(des, v('ufDestino'));
+    if (d === true && o !== true) return 'entrada';
+    if (o === true && d === false) return 'saida';
+    if (d === false) return 'saida';
+    if (o === false) return 'entrada';
+    return '';
+  }
+  /** Enquadramento da apreensão/rechaço (CONFIG.TF.enquadramento): normas da 1ª regra de cada produto; carga mista junta, sem repetir. */
+  function enquadramentoDe(bar, prods) {
+    const E = T.enquadramento, sentido = sentidoDe(bar), lista = [];
+    const regras = E.regras.filter(r => [].concat(r.bva).some(b => bar.includes(semAcento(b))) && (!r.sentido || r.sentido === sentido));
+    prods.filter(Boolean).forEach(p => {
+      const r = regras.find(x => (E.grupos[x.grupo] || []).some(g => semAcento(g) === p));
+      if (r) r.normas.forEach(n => { if (!lista.includes(n)) lista.push(n); });
+    });
+    return (lista.length ? lista : E.comum).map(n => E.normas[n]).join('; ') + '.';
   }
   function aplicarModelo(proc) {                                                     // sugere textos; não sobrescreve o que o fiscal editou
     if (!proc || !S) return;

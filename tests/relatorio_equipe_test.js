@@ -85,7 +85,8 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
   await c.addInitScript(i => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); Object.entries(i).forEach(([k, v]) => localStorage.setItem(k, v)); } } catch (e) {} }, A.ls);
   await c.addInitScript(() => { window.print = function () { const raiz = document.getElementById('gdv-impressao'), sr = raiz && raiz.shadowRoot;
     (window.top.__prints = window.top.__prints || []).push({ quem: window === window.top ? 'pagina' : 'iframe', titulo: document.title,
-      texto: (sr || document.body).textContent.replace(/\s+/g, ' '), imgs: [...(sr || document).querySelectorAll('img')].map(i => i.getAttribute('src')) }); }; });
+      texto: (sr || document.body).textContent.replace(/\s+/g, ' '), imgs: [...(sr || document).querySelectorAll('img')].map(i => i.getAttribute('src')),
+      folha2: [...(sr || document).querySelectorAll('.folha-assin .assin b')].map(b => b.textContent) }); }; });
   const p = await c.newPage(), err = []; p.on('pageerror', e => err.push(e.message)); p.on('dialog', d => d.accept());
   await p.goto(APP); await p.waitForSelector('.modulo', { timeout: 15000 });
   await p.waitForTimeout(800); if (await p.$('#escPopOk')) await p.click('#escPopOk');            // aviso "Sua escala de plantão"
@@ -110,7 +111,8 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
     && /Quantidade de Produtos Apreendidos: 650,5 quilogramas\./.test(pr.texto) && /Termos de Repasse emitidos: 1 termo\./.test(pr.texto)
     && /Rechaços realizados: 1 rechaço\./.test(pr.texto) && /Medidas de educação sanitária: 9 medidas\./.test(pr.texto), 'PDF: atividades (com extenso e kg corrigido)', pr.texto.slice(pr.texto.indexOf('ATIVIDADES'), pr.texto.indexOf('ATIVIDADES') + 500));
   ok(/Objetivo ficticio editado no app\./.test(pr.texto) && /Assinatura e carimbo do Servidor/.test(pr.texto) && /Assinatura e carimbo do Responsável da Equipe/.test(pr.texto), 'PDF: textos e assinaturas');
-  ok(['brasao.png', 'logo-adaf.png', 'sepror.png'].every(n => pr.imgs.some(s => s.includes(n))), 'PDF: brasão no cabeçalho e logos ADAF/SEPROR no rodapé', pr.imgs);
+  ok(pr.folha2.length === 2 && pr.folha2[pr.folha2.length - 1] === A.nome, 'assinaturas na 2ª folha (o responsável por último)', pr.folha2);
+  ok(['brasao.png', 'logo-adaf.png', 'sepror.png'].every(n => pr.imgs.some(s => s.includes(n))) && /gabinete@adaf\.am\.gov\.br/.test(pr.texto), 'PDF: cabeçalho e rodapé do Termo (brasão, endereço, logos ADAF e SEPROR)', pr.imgs);
   const ext = await p.evaluate(() => { const f = document.createElement('iframe'); f.src = 'documentos/rel-equipe.html'; document.body.appendChild(f);
     return new Promise(ok => { f.onload = () => { const X = f.contentWindow.RelEquipeDocs; ok([0, 1, 16, 21, 100, 101, 999, 1000, 1530, 2000].map(n => X.extenso(n)).concat([X.extenso(1, true), X.extenso(232, true)])); f.remove(); }; }); });
   ok(ext.join('|') === 'zero|um|dezesseis|vinte e um|cem|cento e um|novecentos e noventa e nove|mil|mil quinhentos e trinta|dois mil|uma|duzentas e trinta e duas', 'número por extenso', ext);

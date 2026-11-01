@@ -159,7 +159,10 @@ const TABELAS = {
   // entra com ele (colega/entrouEm) e sai quando quiser (saiuEm). Cada convite é uma linha; nada é apagado.
   Pareamentos: ['id', 'turnoId', 'dono', 'codigo', 'criadoEm', 'expiraEm', 'colega', 'entrouEm', 'saiuEm'],
   // escala de plantão por BVA e período (escalas.gs): fiscais = JSON [{id, nome}]; situacao = rascunho | publicada; excluir é lógico
-  Escalas: ['id', 'bva', 'inicio', 'fim', 'fiscais', 'situacao', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor', 'publicadaEm', 'publicadaPor', 'excluido'],
+  Escalas: ['id', 'bva', 'inicio', 'fim', 'fiscais', 'situacao', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor', 'publicadaEm', 'publicadaPor', 'excluido',
+            'equipeNumero', 'responsavel'],   // nº da equipe (relatório da equipe) e responsável (chave do fiscal: id ou "nome:…")
+  // relatório da equipe (relatorio-equipe.gs): id = id da escala; dados = JSON dos campos editáveis (local, objetivo, deslocamento, kg, repasse, obs)
+  RelatoriosEquipe: ['id', 'escalaId', 'dados', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor'],
   // diárias das escalas no Portal do Administrativo: escala × fiscal (id = escalaId|usuarioId); situacao = pendente | concluida (PCDP)
   EscalaPcdp: ['id', 'escalaId', 'usuarioId', 'nome', 'situacao', 'pcdp', 'atualizadoEm', 'atualizadoPor', 'admId'],
   // BVAs cadastradas pela gerência no painel (bvas.gs): somam-se às de CONFIG.bvas e mudam/desativam as de lá pelo nome
@@ -187,7 +190,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-30c';
+const VERSAO_CODIGO = '2026-11-01a';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -226,6 +229,7 @@ function doPost(e) {
     if (req.action === 'painelEscalaGerar') return json_(painelEscalaGerar(req.key, req));
     if (req.action === 'painelEscalaSalvar') return json_(painelEscalaSalvar(req.key, req));
     if (req.action === 'painelEscalaExcluir') return json_(painelEscalaExcluir(req.key, req));
+    if (/^painelRelEquipe(Lista|Salvar)?$/.test(String(req.action))) return json_(painelRelEquipe(req.key, req));
     if (/^adm[A-Z]/.test(String(req.action || ''))) return json_(lido_(req, admAcao_(req)));   // Portal do Administrativo (token em `sessao`)
     // Login com matrícula e senha (usuarios.gs): entrar, trocarSenha, sair, minhaSessao e as actions de gerência
     const acaoUsuarios = usuariosAcao_(req.action);
@@ -260,6 +264,7 @@ function doPost(e) {
     if (req.action === 'turnoPapelRegistrar') return json_(turnoPapelRegistrar_(req, usuario));
     if (req.action === 'turnoNumero') return json_(turnoNumero_(req, usuario));
     if (/^escala(Dados|Salvar|Excluir|Gerar)$/.test(String(req.action))) return json_(escalaAcao_(req, usuario));
+    if (/^relEquipe(Lista|Salvar)?$/.test(String(req.action))) return json_(relEquipeAcao_(req, usuario));
     throw new Error('Ação inválida.');
   } catch (err) {
     const r = { ok: false, erro: String(err.message || err) };

@@ -37,6 +37,25 @@ const ANDROID = 'Mozilla/5.0 (Linux; Android 13; SM-A145M) AppleWebKit/537.36 (K
   ok(await p.evaluate(() => getComputedStyle(document.getElementById('gdv-impressao')).display) === 'none', 'na tela o documento não aparece (o app continua igual)');
   await p.click('nav [data-v=historico]'); await p.waitForTimeout(400);
   ok(!(await p.evaluate(() => !!document.getElementById('gdv-impressao'))), 'trocar de tela tira o documento da página');
+  // planilha lenta (turnoTFs demorando 8 s): o Termo não espera por ela (o Chrome do Android ignora o print() longe do toque)
+  await p.route('**/*', async rt => { const b = rt.request().postData() || '';
+    if (/"action":"turnoTFs"/.test(b)) await new Promise(r => setTimeout(r, 8000)); return rt.continue().catch(() => {}); });
+  await p.waitForSelector('[data-doc=termo]');
+  await p.evaluate(() => { window.__prints = []; }); let t0 = Date.now(); await p.click('[data-doc=termo] >> nth=0');
+  await p.waitForFunction(() => window.__prints && window.__prints.length, null, { timeout: 15000 });
+  ok(Date.now() - t0 < 3500 && !(await p.$('#gdv-imprimir-barra')), 'planilha lenta: o Termo imprime em até ~2 s, sem esperar a resposta', Date.now() - t0);
+  await p.unroute('**/*');
+  // documento que ficou pronto muito depois do toque: barra com o botão "Imprimir" (o print() sai do novo toque)
+  await p.evaluate(() => { window.__prints = []; }); await p.waitForTimeout(3200);
+  const tid = await p.getAttribute('[data-doc=termo] >> nth=0', 'data-id');
+  await p.evaluate(id => Docs.termo(id), tid); await p.waitForSelector('#gdv-imprimir-barra');
+  ok(!(await p.evaluate(() => window.__prints.length)), 'pronto longe do toque: não chama o print() sozinho');
+  await p.click('#gdv-imprimir-ok'); await p.waitForFunction(() => window.__prints.length);
+  ok(/TERMO DE FISCALIZAÇÃO/.test(await p.evaluate(() => window.__prints[0].texto)), 'botão "Imprimir" da barra imprime o Termo');
+  await p.emulateMedia({ media: 'print' });
+  ok(await p.evaluate(() => getComputedStyle(document.getElementById('gdv-imprimir-barra')).display) === 'none', 'a barra não sai na impressão');
+  await p.emulateMedia({ media: 'screen' });
+  await p.click('#gdv-imprimir-fechar'); ok(!(await p.$('#gdv-imprimir-barra')) && !(await p.$('#gdv-impressao')), '"Fechar" tira a barra e o documento');
   ok(!err.length, 'sem erros de página', err);
   await b.close(); console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.'); process.exit(falhas ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

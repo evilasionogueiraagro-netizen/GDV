@@ -58,11 +58,24 @@ const Docs = (() => {
     document.head.appendChild(pg); document.body.appendChild(host); frame.remove();
     limparImpressao.titulo = limparImpressao.titulo || document.title; document.title = nome;
     const imgs = [...raiz.querySelectorAll('img')].map(im => (im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; setTimeout(r, 4000); })));
-    return Promise.all(imgs).then(() => window.print());
+    return Promise.all(imgs).then(() => (Date.now() - toque > 3000 ? botaoImprimir() : window.print()));
+  }
+  // O Chrome do Android ignora o print() que chega muito depois do toque (sem aviso: "não acontece nada"). Documento que demorou
+  // a ficar pronto: uma barra com o botão "Imprimir", e o print() sai do novo toque.
+  let toque = 0;
+  document.addEventListener('click', () => { toque = Date.now(); }, true);          // todo toque (Termo, TF, auto, PCE) marca a hora
+  function botaoImprimir() {
+    const barra = document.createElement('div'); barra.id = 'gdv-imprimir-barra'; barra.className = 'card'; barra.setAttribute('role', 'dialog');
+    barra.style.cssText = 'position:fixed;left:12px;right:12px;bottom:84px;z-index:9999;margin:0;box-shadow:0 4px 18px rgba(0,0,0,.25)';
+    barra.innerHTML = `<p style="margin:0 0 8px"><b>Documento pronto.</b> Toque em Imprimir e escolha “Salvar como PDF”.</p>
+      <button type="button" class="botao" id="gdv-imprimir-ok">Imprimir</button><button type="button" class="botao sec" id="gdv-imprimir-fechar">Fechar</button>`;
+    document.body.appendChild(barra);
+    barra.querySelector('#gdv-imprimir-ok').onclick = () => window.print();
+    barra.querySelector('#gdv-imprimir-fechar').onclick = () => limparImpressao();
   }
   /** Tira da página o documento da última impressão (celular) e volta o título. */
   function limparImpressao() {
-    ['gdv-impressao', 'gdv-impressao-pg'].forEach(id => { const e = document.getElementById(id); if (e) e.remove(); });
+    ['gdv-impressao', 'gdv-impressao-pg', 'gdv-imprimir-barra'].forEach(id => { const e = document.getElementById(id); if (e) e.remove(); });
     if (limparImpressao.titulo) { document.title = limparImpressao.titulo; limparImpressao.titulo = ''; }
   }
 
@@ -120,6 +133,19 @@ const Docs = (() => {
     return `${gmsTermo(c[0], 'N', 'S')} / ${gmsTermo(c[1], 'E', 'W')} (${c[0].toFixed(5)}, ${c[1].toFixed(5)})`;
   }
 
+  /** TFs do turno na planilha (turnoTFs) sem segurar a impressão: espera no máximo 1,5 s; depois disso vale a última resposta guardada
+   *  (meta tfsDoTurno, 30 turnos), e a resposta que chegar tarde fica guardada para o próximo Termo. */
+  async function tfsDaPlanilha(turnoId) {
+    const guardado = ((await Store.meta('tfsDoTurno')) || {})[turnoId], antes = guardado ? guardado.tfs : [];
+    if (!(navigator.onLine && typeof Sync !== 'undefined' && Sync.ativado())) return antes;
+    const busca = Sync.tfsDoTurno(turnoId).then(async r => {
+      const c = (await Store.meta('tfsDoTurno')) || {}; c[turnoId] = { tfs: r.tfs || [], em: Date.now() };
+      await Store.setMeta('tfsDoTurno', Object.fromEntries(Object.keys(c).sort((a, b) => c[b].em - c[a].em).slice(0, 30).map(k => [k, c[k]])));
+      return c[turnoId].tfs;
+    }).catch(() => null);
+    return (await Promise.race([busca, new Promise(ok => setTimeout(() => ok(null), 1500))])) || antes;
+  }
+
   /** Termo de Fiscalização do turno (modelo padrão ADAF 2026): identificação do posto, descrição da ação com os números do turno,
    *  enquadramento legal em branco (linhas para preencher à mão), testemunhas, recebimento da 2ª via e assinatura do servidor. */
   async function termo(turnoId) {
@@ -144,9 +170,7 @@ const Docs = (() => {
     // ligação com ele: turnoTFs). O Termo traz os nºs e a soma das medidas tomadas.
     const porNum = {};
     (await Store.todos('tfs')).filter(x => x.turnoId === turnoId && !x.cancelado).forEach(x => { porNum[x.numeroTxt] = x; });
-    if (navigator.onLine && typeof Sync !== 'undefined' && Sync.ativado()) {
-      try { ((await Sync.tfsDoTurno(turnoId)).tfs || []).forEach(x => { if (x && x.numeroTxt && !porNum[x.numeroTxt]) porNum[x.numeroTxt] = x; }); } catch (e) { /* sem resposta: só os deste aparelho */ }
-    }
+    (await tfsDaPlanilha(turnoId)).forEach(x => { if (x && x.numeroTxt && !porNum[x.numeroTxt]) porNum[x.numeroTxt] = x; });
     const lavrados = Object.keys(porNum).sort(), tfsTurno = lavrados.map(k => porNum[k]);
     const conta = (n, um, varios) => n ? `${n} ${n === 1 ? um : varios}` : '';
     const medidas = [conta(tfsTurno.filter(x => x.procedimento === 'liberacao').length, 'liberação', 'liberações'),

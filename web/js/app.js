@@ -131,7 +131,8 @@ function go(view, arg, o) {
     // PCE monilíase: Cadastro de imóvel, Termo de Fiscalização do PCE e Relatório de atividades (moniliase.js)
     pcecads: () => PCEMon.lista('cadastro'), pcecad: () => PCEMon.cadastro(EDIT), pcecadpronto: () => PCEMon.pronto('cadastro', EDIT),
     pcetfs: () => PCEMon.lista('termo'), pcetf: () => PCEMon.termo(EDIT), pcetfpronto: () => PCEMon.pronto('termo', EDIT), pcerel: () => PCEMon.relatorio(),
-    escalas: () => EscalaUI.lista(), escala: () => EscalaUI.form(EDIT), escalagerar: () => EscalaUI.gerar(EDIT) }[view])();
+    escalas: () => EscalaUI.lista(), escala: () => EscalaUI.form(EDIT), escalagerar: () => EscalaUI.gerar(EDIT),
+    relequipes: () => EscalaUI.relLista(), relequipe: () => EscalaUI.rel(EDIT) }[view])();
   if (!(o && o.manterRolagem)) window.scrollTo(0, 0);
   return r;
 }
@@ -819,6 +820,7 @@ async function historico() {
       <div class="card"><h3>Turnos</h3>${turnos.length ? turnos.map(t => `
         <div class="turno-linha"><div><b>${esc(t.numeroTF)}</b><br><small>${dBR(t.data)} · ${esc(t.inicio)}${t.fim ? '–' + esc(t.fim) : ''} · ${esc(t.fiscal)} · ${porTurno[t.id] || 0} veíc.${t.encerrado ? '' : ' · em andamento'}${t.encerradoPor ? (encerradoAuto(t.encerradoPor) ? ' · encerrado automaticamente (12 h)' : ' · encerrado pela gerência') : ''}${t.pendente ? ` · ${icone('pendente')} aguardando envio` : ''}</small></div>
         <div>${botaoNumero(t)}${t.encerrado ? `<button class="mini" data-doc="termo" data-id="${t.id}">Termo</button>` : ''}${temFicha(t) ? `<button class="mini" data-doc="ficha" data-id="${t.id}">Ficha</button>` : ''}</div></div>`).join('') : '<div class="vazio">Sem turnos no período.</div>'}</div>
+      <button class="botao sec" data-go="relequipes">${icone('documento')} Relatório da equipe (escala de plantão)</button>
       <button class="botao sec" id="recuperar">${icone('baixar')} Buscar meus turnos na planilha (período acima)</button>
       <p class="dica">Traz de volta para este celular os seus turnos do período (e os de colegas em que você entrou pelo código), com os veículos: o Termo volta a sair por aqui.</p>
       <button class="botao vermelho" id="limpar">${icone('lixeira')} Limpar histórico deste aparelho</button>

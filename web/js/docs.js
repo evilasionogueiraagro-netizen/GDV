@@ -557,5 +557,14 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     return folhas;
   }
 
-  return { ficha, termo, tf, auto, limparImpressao, fiscaisDoTurno, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, nomePdfMon, ordenar, esc };
+  /** Relatório da equipe (prestação de contas do convênio): modelo rel-equipe.html preenchido por documentos/rel-equipe-docs.js. */
+  async function relEquipe(R) {
+    const f = await abrirModelo('rel-equipe.html'), w = f.contentWindow;
+    for (let i = 0; i < 50 && !w.RelEquipeDocs; i++) await new Promise(r => setTimeout(r, 50));
+    w.RelEquipeDocs.montar(f.contentDocument, R);
+    const e = R.escala;
+    return imprimir(f, `Relatorio_Equipe${e.equipeNumero ? '_' + e.equipeNumero : ''}_${String(e.bva).replace(/[^\w]+/g, '_')}_${e.inicio}_a_${e.fim}`);
+  }
+
+  return { ficha, termo, tf, auto, limparImpressao, relEquipe, fiscaisDoTurno, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, nomePdfMon, ordenar, esc };
 })();

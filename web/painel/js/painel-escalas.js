@@ -82,10 +82,20 @@
         : `<p><b class="pn-esc-em">Em turno</b> ${b.em.length ? esc(b.em.join(', ')) : '—'}</p><p><b class="pn-esc-sem">Sem turno</b> ${b.sem.length ? esc(b.sem.join(', ')) : '—'}</p>`}</div>`).join('') +
       `<div class="pn-cartao${X.fora.length ? ' pn-esc-fora' : ''}"><h3>Fora da escala</h3>${X.fora.length ? X.fora.map(f => `<p><b>${esc(f.nome)}</b> abriu turno na <b>${esc(f.local)}</b>${f.inicio ? ' às ' + esc(f.inicio) : ''}; escalado na ${esc(f.escalado)}.</p>`).join('') : '<p class="pn-sub">Ninguém.</p>'}</div>`;
     s2.appendChild(g);
+    // relatório da equipe (prestação de contas do convênio): escalas publicadas que já começaram (até 120 dias depois do fim)
+    const lim = somar(h, -120), rels = E.dados.escalas.filter(e => e.situacao === 'publicada' && e.inicio <= h && e.fim >= lim)
+      .sort((x, y) => y.inicio.localeCompare(x.inicio) || x.bva.localeCompare(y.bva, 'pt-BR')).slice(0, 40);
+    const s3 = P.secao(c, 'Relatórios das equipes', 'Prestação de contas do convênio (etapa 1.10): números de todos os turnos da equipe no período; o responsável pela equipe edita os textos no app.');
+    const r3 = P.el('div', 'pn-cartao'); r3.id = 'pn-releq';
+    r3.innerHTML = rels.length ? `<div class="pn-tab"><div class="pn-tab-rolo"><table><thead><tr><th scope="col">BVA</th><th scope="col">Equipe</th><th scope="col">Período</th><th scope="col"></th></tr></thead><tbody>${rels.map(e =>
+      `<tr><td>${esc(e.bva)}</td><td>${e.equipeNumero ? esc(e.equipeNumero) : '—'}</td><td>${dBR(e.inicio)} a ${dBR(e.fim)}</td><td><button type="button" class="pn-btn pn-btn-mini" data-releq="${esc(e.id)}">Relatório</button></td></tr>`).join('')}</tbody></table></div></div>`
+      : '<p class="pn-sub">Nenhuma escala publicada nos últimos 120 dias.</p>';
+    s3.appendChild(r3);
     E.avisos = [];
     c.onclick = ev => {
       if (ev.target.closest('#pn-esc-nova')) return dialogo(null);
       if (ev.target.closest('#pn-esc-gerar')) return dialogoGerar();
+      const re = ev.target.closest('[data-releq]'); if (re) return relatorio(re.dataset.releq);
       const b = ev.target.closest('[data-esc]'); if (b && P.pode('gerencia')) dialogo(E.dados.escalas.find(e => e.id === b.dataset.esc));
     };
   }
@@ -108,6 +118,8 @@
       <div class="pn-conv-cfg-grade"><label class="pn-conv-campo">Fiscal que ainda não tem login<input id="pn-esc-semnome" maxlength="80" autocomplete="off"></label><button type="button" class="pn-btn pn-btn-mini" id="pn-esc-semadd">Incluir sem login</button></div>
       <div class="pn-esc-sem" id="pn-esc-semlista">${(e ? e.fiscais.filter(f => !f.id) : []).map(f => chipSem(f.nome)).join('')}</div>
       <div class="pn-esc-fiscais" id="pn-esc-fiscais">${D.fiscais.map(f => `<label class="pn-rg-chk"><input type="checkbox" data-fiscal="${esc(f.id)}" ${marc.has(f.id) ? 'checked' : ''}> ${esc(f.nome)} <small data-st="${esc(f.id)}"></small></label>`).join('')}</div>
+      <div class="pn-conv-cfg-grade"><label class="pn-conv-campo">Nº da equipe (relatório)<input id="pn-esc-equipe" inputmode="numeric" maxlength="4" autocomplete="off" value="${esc(e ? e.equipeNumero || '' : '')}"></label>
+        <label class="pn-conv-campo">Responsável pela equipe<select id="pn-esc-resp"></select></label></div>
       ${e ? `<p class="pn-sub">Última alteração: ${esc(e.atualizadoPor || '—')}${e.publicadaPor ? ` · publicada por ${esc(e.publicadaPor)}` : ''}</p>` : ''}
       <p class="pn-dlg-erro" id="pn-esc-erro" role="alert"></p>
       <div class="pn-dlg-botoes">${e ? '<button type="button" class="pn-btn" id="pn-esc-excluir">Excluir</button>' : ''}<button type="button" class="pn-btn" id="pn-esc-cancelar">Cancelar</button>
@@ -122,10 +134,16 @@
     };
     if (!e) q('#pn-esc-bva').onchange = () => { const s = sugerir(q('#pn-esc-bva').value); q('#pn-esc-ini').value = s.inicio; q('#pn-esc-fim').value = s.fim; q('#pn-esc-regime').textContent = textoRegime(q('#pn-esc-bva').value); situar(); };
     q('#pn-esc-ini').onchange = () => { const f = CONFIG.fimEscala(bva(), q('#pn-esc-ini').value); if (f) q('#pn-esc-fim').value = f; situar(); };
+    // responsável: um dos fiscais marcados (conta: id; sem login: "nome:<nome>")
+    const responsaveis = () => { const sel = q('#pn-esc-resp'), atual = sel.dataset.v ? sel.value : (e ? e.responsavel || '' : '');
+      const opc = [...dlg.querySelectorAll('#pn-esc-fiscais input:checked')].map(i => [i.dataset.fiscal, (D.fiscais.find(f => f.id === i.dataset.fiscal) || {}).nome || ''])
+        .concat([...dlg.querySelectorAll('#pn-esc-semlista [data-sem]')].map(x => ['nome:' + x.dataset.sem.trim().replace(/\s+/g, ' ').toLowerCase(), x.dataset.sem]));
+      sel.innerHTML = '<option value="">— escolha —</option>' + opc.map(([v, n]) => `<option value="${esc(v)}" ${v === atual ? 'selected' : ''}>${esc(n)}</option>`).join(''); sel.dataset.v = '1'; };
+    q('#pn-esc-fiscais').onchange = responsaveis; responsaveis();
     q('#pn-esc-fim').onchange = situar; situar();
     q('#pn-esc-semadd').onclick = () => { const n = q('#pn-esc-semnome').value.trim().replace(/\s+/g, ' '); if (n.length < 3) return;
-      q('#pn-esc-semlista').insertAdjacentHTML('beforeend', chipSem(n)); q('#pn-esc-semnome').value = ''; };
-    q('#pn-esc-semlista').onclick = ev => { const b = ev.target.closest('[data-semrm]'); if (b) b.closest('[data-sem]').remove(); };
+      q('#pn-esc-semlista').insertAdjacentHTML('beforeend', chipSem(n)); q('#pn-esc-semnome').value = ''; responsaveis(); };
+    q('#pn-esc-semlista').onclick = ev => { const b = ev.target.closest('[data-semrm]'); if (b) { b.closest('[data-sem]').remove(); responsaveis(); } };
     q('#pn-esc-cancelar').onclick = () => dlg.close();
     dlg.addEventListener('close', () => dlg.remove());
     const gravar = async situacao => {
@@ -133,7 +151,8 @@
         .concat([...dlg.querySelectorAll('#pn-esc-semlista [data-sem]')].map(x => ({ nome: x.dataset.sem })));
       dlg.querySelectorAll('button').forEach(b => { b.disabled = true; });
       try {
-        const r = await P.chamar({ action: 'painelEscalaSalvar', escala: { id: e ? e.id : '', bva: bva(), inicio: q('#pn-esc-ini').value, fim: q('#pn-esc-fim').value, fiscais, situacao } });
+        const r = await P.chamar({ action: 'painelEscalaSalvar', escala: { id: e ? e.id : '', bva: bva(), inicio: q('#pn-esc-ini').value, fim: q('#pn-esc-fim').value, fiscais, situacao,
+          equipeNumero: q('#pn-esc-equipe').value.trim(), responsavel: q('#pn-esc-resp').value } });
         E.avisos = r.avisos || []; dlg.close(); P.toast(situacao === 'publicada' ? 'Escala publicada.' : 'Rascunho salvo.'); E.lidoEm = 0; await carregar();
       } catch (err) { q('#pn-esc-erro').textContent = err.message; dlg.querySelectorAll('button').forEach(b => { b.disabled = false; }); }
     };
@@ -143,6 +162,46 @@
       if (!confirm(`Excluir a escala da ${e.bva} (${dBR(e.inicio)} a ${dBR(e.fim)})? Fica registrada no histórico.`)) return;
       try { await P.chamar({ action: 'painelEscalaExcluir', id: e.id }); dlg.close(); P.toast('Escala excluída.'); E.lidoEm = 0; await carregar(); }
       catch (err) { q('#pn-esc-erro').textContent = err.message; }
+    };
+    dlg.showModal();
+  }
+
+  /** Relatório da equipe: números (planilha), textos (gerência edita) e PDF (../documentos/rel-equipe.html, o mesmo do app). */
+  async function relatorio(id) {
+    const velho = document.getElementById('pn-releq-dlg'); if (velho) velho.remove();
+    let R; try { R = await P.chamar({ action: 'painelRelEquipe', escalaId: id }); } catch (err) { return P.toast(err.message); }
+    const e = R.escala, N = R.numeros, ed = !!R.editar && P.pode('gerencia');
+    const D0 = { ...CONFIG.textosRelEquipe(e.bva), ...Object.fromEntries(Object.entries(R.anterior || {}).filter(([, v]) => v)), kg: '', repasse: '0', ...(R.dados || {}) };
+    const CAMPOS = [['local', 'Local', 1], ['objetivo', 'Objetivo', 4], ['deslocamento', 'Deslocamento', 2], ['intro', 'Texto antes das atividades', 2], ['obs', 'OBS', 2]];
+    const dlg = P.el('dialog', 'pn-dlg'); dlg.id = 'pn-releq-dlg';
+    dlg.innerHTML = `<form method="dialog" class="pn-dlg-form" novalidate><h3>Relatório da equipe${e.equipeNumero ? ' ' + esc(e.equipeNumero) : ''} · ${esc(e.bva)}</h3>
+      <p class="pn-sub">${dBR(e.inicio)} a ${dBR(e.fim)} · ${esc(e.fiscais.map(f => f.nome).join(', '))}</p>
+      <p>${N.turnos} turno(s) · ${N.veiculos} veículo(s) · ${N.tfs} TF(s) · ${N.apreensoes} apreensão(ões) · ${String(N.kg).replace('.', ',')} kg · ${N.rechacos} rechaço(s) · ${N.educacao} educação sanitária</p>
+      ${CAMPOS.map(([k, rot, l]) => `<label class="pn-conv-campo">${rot}${l > 1 ? `<textarea id="pn-re-${k}" rows="${l}" maxlength="1500" ${ed ? '' : 'readonly'}>${esc(D0[k] || '')}</textarea>` : `<input id="pn-re-${k}" maxlength="200" value="${esc(D0[k] || '')}" ${ed ? '' : 'readonly'}>`}</label>`).join('')}
+      <div class="pn-conv-cfg-grade"><label class="pn-conv-campo">Quantidade apreendida (kg; vazio = ${String(N.kg).replace('.', ',')})<input id="pn-re-kg" inputmode="decimal" maxlength="20" value="${esc(D0.kg || '')}" ${ed ? '' : 'readonly'}></label>
+        <label class="pn-conv-campo">Termos de repasse<input id="pn-re-repasse" inputmode="numeric" maxlength="4" value="${esc(D0.repasse || '0')}" ${ed ? '' : 'readonly'}></label></div>
+      ${R.salvoEm ? `<p class="pn-sub">Última edição: ${esc(R.salvoPor)}</p>` : ''}
+      <p class="pn-dlg-erro" id="pn-re-erro" role="alert"></p>
+      <div class="pn-dlg-botoes"><button type="button" class="pn-btn" id="pn-re-fechar">Fechar</button>${ed ? '<button type="button" class="pn-btn" id="pn-re-salvar">Salvar</button>' : ''}
+        <button type="button" class="pn-btn pn-btn-prim" id="pn-re-pdf">Gerar PDF</button></div></form>`;
+    document.body.appendChild(dlg);
+    const q = x => dlg.querySelector(x), atuais = () => { const d = { ...D0 }; CAMPOS.concat([['kg'], ['repasse']]).forEach(([k]) => { d[k] = q('#pn-re-' + k).value.trim(); }); return d; };
+    q('#pn-re-fechar').onclick = () => dlg.close(); dlg.addEventListener('close', () => dlg.remove());
+    if (ed) q('#pn-re-salvar').onclick = async () => {
+      try { await P.chamar({ action: 'painelRelEquipeSalvar', escalaId: id, dados: atuais() }); P.toast('Relatório salvo.'); q('#pn-re-erro').textContent = ''; }
+      catch (err) { q('#pn-re-erro').textContent = err.message; }
+    };
+    q('#pn-re-pdf').onclick = async () => {
+      const fr = document.createElement('iframe');
+      fr.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:0';
+      await new Promise((ok, no) => { fr.onload = ok; fr.onerror = no; fr.src = '../documentos/rel-equipe.html'; document.body.appendChild(fr); });
+      const w = fr.contentWindow;
+      for (let i = 0; i < 50 && !w.RelEquipeDocs; i++) await new Promise(r => setTimeout(r, 50));
+      w.RelEquipeDocs.montar(fr.contentDocument, { ...R, dados: atuais() });
+      const titulo = document.title, nome = `Relatorio_Equipe${e.equipeNumero ? '_' + e.equipeNumero : ''}_${String(e.bva).replace(/[^\w]+/g, '_')}_${e.inicio}_a_${e.fim}`;
+      document.title = nome; fr.contentDocument.title = nome;
+      w.addEventListener('afterprint', () => { document.title = titulo; fr.remove(); });
+      w.focus(); w.print();
     };
     dlg.showModal();
   }

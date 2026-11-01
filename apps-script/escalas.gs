@@ -20,7 +20,8 @@ function fiscaisEscalaveis_() {
 function escalaOut_(e) {
   return { id: e.id, bva: e.bva, inicio: String(e.inicio).slice(0, 10), fim: String(e.fim).slice(0, 10), fiscais: lerJSONSeguro_(e.fiscais, []),
            situacao: e.situacao === 'publicada' ? 'publicada' : 'rascunho', atualizadoEm: Number(e.atualizadoEm) || 0, atualizadoPor: e.atualizadoPor || '',
-           publicadaEm: Number(e.publicadaEm) || 0, publicadaPor: e.publicadaPor || '' };
+           publicadaEm: Number(e.publicadaEm) || 0, publicadaPor: e.publicadaPor || '',
+           equipeNumero: String(e.equipeNumero == null ? '' : e.equipeNumero), responsavel: String(e.responsavel || '') };
 }
 const escalasVivas_ = function () { return lerLeitura_('Escalas').filter(function (e) { return e.id && Number(e.excluido) !== 1; }).map(escalaOut_); };
 // sobrepõem-se; encostar só no dia da troca (um acaba no dia em que o outro começa, como no Jundiá) não conta (= CONFIG.sobrepoeEscala)
@@ -64,6 +65,10 @@ function escalaSalvar_(e, quem) {
   if (ids.length > ESCALA_MAX_FISCAIS_) throw new Error('Fiscais demais na mesma escala.');
   ids.forEach(function (x) { if (typeof x !== 'string' && x.nome.length < 3) throw new Error('Nome do fiscal sem login curto demais.'); });
   const situacao = e.situacao === 'publicada' ? 'publicada' : 'rascunho';
+  // nº da equipe (relatório de prestação de contas; ex.: 33) e responsável (chave de um fiscal da escala: id ou "nome:…")
+  const equipeNumero = String(e.equipeNumero == null ? '' : e.equipeNumero).trim();
+  if (equipeNumero && !/^\d{1,4}$/.test(equipeNumero)) throw new Error('Nº da equipe: use só números (ex.: 33).');
+  const respPedido = String(e.responsavel || '').trim().slice(0, 120);
   return comLock_(function () {
     const porId = {}; fiscaisEscalaveis_().forEach(function (f) { porId[f.id] = f; });
     const fiscais = [], vistos = {};
@@ -82,7 +87,10 @@ function escalaSalvar_(e, quem) {
       outras.filter(function (x) { return normPub_(x.bva) !== normPub_(bva) && x.fiscais.some(function (y) { return chaveFiscal_(y) === chaveFiscal_(f); }); })
         .forEach(function (x) { avisos.push(f.nome + ' também está na ' + x.bva + ' (' + diaBR_(x.inicio) + ' a ' + diaBR_(x.fim) + ').'); });
     });
-    const reg = { bva: bva, inicio: inicio, fim: fim, fiscais: JSON.stringify(fiscais), situacao: situacao, atualizadoEm: agora, atualizadoPor: textoAutor_(quem) };
+    const responsavel = respPedido && fiscais.some(function (f) { return chaveFiscal_(f) === respPedido; }) ? respPedido : '';
+    if (respPedido && !responsavel) avisos.push('O responsável escolhido não está na equipe: ficou sem responsável.');
+    const reg = { bva: bva, inicio: inicio, fim: fim, fiscais: JSON.stringify(fiscais), situacao: situacao, atualizadoEm: agora, atualizadoPor: textoAutor_(quem),
+                  equipeNumero: equipeNumero, responsavel: responsavel };
     if (situacao === 'publicada' && (!atual || atual.situacao !== 'publicada')) { reg.publicadaEm = agora; reg.publicadaPor = textoAutor_(quem); }
     let novoId = id;
     if (atual) atualizar_('Escalas', atual._linha, reg);
@@ -140,7 +148,7 @@ function minhasEscalas_() {
   const hoje = hojeManaus_(), eu = USUARIO_ATUAL_.id;
   return escalasVivas_().filter(function (e) { return e.situacao === 'publicada' && e.fim >= hoje && e.fiscais.some(function (f) { return f.id === eu; }); })
     .sort(function (a, b) { return a.inicio.localeCompare(b.inicio); }).slice(0, 6)
-    .map(function (e) { return { id: e.id, bva: e.bva, inicio: e.inicio, fim: e.fim, equipe: e.fiscais.map(function (f) { return f.nome; }) }; });
+    .map(function (e) { return { id: e.id, bva: e.bva, inicio: e.inicio, fim: e.fim, equipe: e.fiscais.map(function (f) { return f.nome; }), equipeNumero: e.equipeNumero }; });
 }
 
 /* app de campo (key): só com a permissão coordenacaoBarreiras */

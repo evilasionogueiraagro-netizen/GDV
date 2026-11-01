@@ -310,3 +310,27 @@ CONFIG.textoRegimeEscala = function (bva) {
   const r = CONFIG.regimeEscala(bva);
   return r.regime === 'dias' ? `Período de ${r.dias} dias${r.troca ? ' (troca no último dia)' : ''}` : CONFIG.REGIMES_ESCALA[r.regime];
 };
+
+/* Relatório da equipe (prestação de contas do convênio, etapa 1.10): textos padrão por BVA (o responsável pela equipe edita; o próximo
+   relatório da mesma BVA começa com os do último salvo). Chave = nome da BVA sem "BVA" (sem acento, minúsculas). */
+CONFIG.RELEQUIPE = {
+  convenio: '00991272/2025',
+  etapa: '1.10 – FISCALIZAÇÃO DO TRÂNSITO INTERESTADUAL DE VEGETAIS EM POSTOS FIXOS',
+  obs: 'Anexo Termos de Fiscalização.',
+  porBva: {
+    jundia: {
+      local: 'Barreira de Vigilância Agropecuária – BVA/ Jundiá/RR',
+      objetivo: 'Executar Ações de Fiscalização do Trânsito na Barreira Conjunta entre ADAF/AM e ADERR/RR, visando coibir a entrada de Pragas Quarentenárias Ausentes no Estado do Amazonas.',
+      deslocamento: 'Manaus/AM x Presidente Figueiredo/AM x Rorainópolis/RR (BVA do Jundiá)',
+      intro: 'Foram realizadas as seguintes ações de fiscalização do trânsito na BVA conjunta entre ADAF/AM e ADERR/RR:'
+    }
+  }
+};
+/** Textos padrão do relatório da equipe da BVA ({local, objetivo, deslocamento, intro, obs}). */
+CONFIG.textosRelEquipe = function (bva) {
+  const k = String(bva || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '').replace(/^bva/, '');
+  const p = CONFIG.RELEQUIPE.porBva[k] || {}, nome = String(bva || '').trim();
+  return { local: p.local || `Barreira de Vigilância Agropecuária – ${nome}`,
+    objetivo: p.objetivo || `Executar Ações de Fiscalização do Trânsito na ${nome}, visando coibir a entrada de Pragas Quarentenárias Ausentes no Estado do Amazonas.`,
+    deslocamento: p.deslocamento || '', intro: p.intro || `Foram realizadas as seguintes ações de fiscalização do trânsito na ${nome}:`, obs: CONFIG.RELEQUIPE.obs };
+};

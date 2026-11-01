@@ -329,6 +329,10 @@ const Sync = (() => {
   const escalaSalvar = escala => chamar({ action: 'escalaSalvar', escala }, 30000);
   const escalaExcluir = id => chamar({ action: 'escalaExcluir', id }, 30000);
   const escalaGerar = (bva, periodos) => chamar({ action: 'escalaGerar', bva, periodos }, 60000);
+  /* relatório da equipe (escala publicada): lista, relatório (números da planilha) e gravação dos textos (responsável/coordenação) */
+  const relEquipeLista = () => chamar({ action: 'relEquipeLista' }, 30000);
+  const relEquipe = escalaId => chamar({ action: 'relEquipe', escalaId }, 45000);
+  const relEquipeSalvar = (escalaId, dados) => chamar({ action: 'relEquipeSalvar', escalaId, dados }, 30000);
   const minhasEscalas = async () => { try { return (await Store.meta('minhasEscalas')) || []; } catch (e) { return []; } };
 
   /* ---------- Índice de reincidência (consulta do TF sem internet) ----------
@@ -536,7 +540,7 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, sairDoTurno, turnoPapel, mesmoNome, recuperarTurnos, tfsDoTurno, escalaDados, escalaSalvar, escalaExcluir, escalaGerar, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
+  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, sairDoTurno, turnoPapel, mesmoNome, recuperarTurnos, tfsDoTurno, escalaDados, escalaSalvar, escalaExcluir, escalaGerar, relEquipeLista, relEquipe, relEquipeSalvar, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
     pceProximoNumero, pceEmitir, pceConsultar, pceBaixarMunicipio, pceMapaGeral, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

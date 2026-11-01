@@ -1,0 +1,80 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Relatório da equipe</title>
+<style>
+/* Relatório de prestação de contas do convênio – etapa 1.10 (fiscalização do trânsito nas BVAs), por equipe e período da escala.
+   Preenchido por rel-equipe-docs.js (app: js/docs.js → relEquipe; painel: aba Escalas). Cabeçalho e rodapé iguais aos do Termo de Fiscalização do turno;
+   as assinaturas vão para a 2ª folha. */
+@page{ size:A4 portrait; margin:8mm 7mm; }
+*{ box-sizing:border-box; }
+body{ margin:0; background:#fff; color:#000; }
+.a4{ width:196mm; margin:0 auto; min-height:279mm; display:flex; flex-direction:column; }   /* rodapé no pé da folha */
+.doc-eq{ font-family:Calibri, Carlito, Arial, sans-serif; font-size:13.5px; }
+.doc-eq .cab{ text-align:center; margin:2mm 0 2mm; font-size:11.5px; line-height:1.35; } .doc-eq .cab img{ width:13mm; height:auto; display:block; margin:0 auto 1mm; }
+.doc-eq h1{ font-size:13.5px; text-align:center; margin:3mm 0 0; line-height:1.5; }
+.doc-eq .corpo{ margin:4mm 14mm 0; }
+.doc-eq .serv div{ margin:2px 0; }
+.doc-eq .caixa{ border:1px solid #000; padding:3px 6px; margin:2.5mm 0; white-space:pre-wrap; }
+.doc-eq .ativ-tit{ text-align:center; font-weight:bold; margin:5mm 0 2mm; }
+.doc-eq .intro{ margin:0 0 2mm 8mm; }
+.doc-eq .ativ{ margin-left:8mm; line-height:1.7; }
+.doc-eq .obs{ margin-top:2mm; white-space:pre-wrap; }
+.doc-eq .assinaturas{ display:flex; flex-wrap:wrap; justify-content:space-between; gap:0 8mm; }
+.doc-eq .assin{ margin-top:11mm; width:78mm; text-align:center; break-inside:avoid; page-break-inside:avoid; }
+.doc-eq .assin .linha{ border-top:1px solid #000; margin-bottom:2px; }
+.doc-eq .assin b{ display:block; font-weight:normal; } .doc-eq .assin small{ display:block; font-size:11.5px; }
+.doc-eq .assin.resp{ margin-left:auto; margin-right:auto; }
+/* rodapé do Termo de Fiscalização (termo.html): endereço, logo da ADAF e SEPROR/AM */
+.doc-eq .rodape{ display:flex; justify-content:space-between; align-items:center; margin:auto 7mm 0; padding-top:2mm; break-inside:avoid; page-break-inside:avoid; }
+.doc-eq .rodape img{ height:11mm; width:auto; } .doc-eq .rodape .end{ font-size:8.5px; line-height:1.35; color:#1b325d; width:36%; }
+.doc-eq .rodape .sepror{ width:34%; text-align:right; } .doc-eq .corpo{ margin-bottom:7mm; }
+.folha-assin{ page-break-before:always; break-before:page; }
+.doc-eq .ident{ text-align:center; margin:4mm 0 0; line-height:1.6; }
+.doc-eq .folha-assin .assin{ margin-top:22mm; }
+[hidden]{ display:none !important; }
+</style>
+</head>
+<body>
+<div class="a4 doc-eq">
+  <div class="cab"><img src="../img/brasao.png" alt=""><div>GOVERNO DO ESTADO DO AMAZONAS</div><div>Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM</div></div>
+  <h1>RELATÓRIO DE PRESTAÇÃO DE CONTA – CONVÊNIO N° <span data-c="convenio"></span> –<br>MAPA/ADAF/AM</h1>
+  <h1>RELATÓRIO DE ATIVIDADES – ETAPA <span data-c="etapa"></span></h1>
+  <div class="corpo">
+    <p><span data-c="equipe"></span> - Nome dos Servidores:</p>
+    <div class="serv" id="servidores"></div>
+    <div class="caixa">Responsável pela equipe: <span data-c="responsavel"></span></div>
+    <div class="caixa">Período: <span data-c="periodo"></span>.</div>
+    <div class="caixa">Local: <span data-c="local"></span></div>
+    <div class="caixa">Objetivo:
+<span data-c="objetivo"></span></div>
+    <div class="caixa">Deslocamento:
+<span data-c="deslocamento"></span></div>
+    <div class="ativ-tit">ATIVIDADES DESENVOLVIDAS</div>
+    <p class="intro" data-c="intro"></p>
+    <div class="ativ" id="linhas"></div>
+    <div class="obs" id="obs-linha">OBS: <span data-c="obs"></span></div>
+  </div>
+  <div class="rodape"><div class="end">Avenida Carlos Drummond de Andrade, 1460 Japiim<br>Conj. Atílio Andreazza. ULBRA, Bloco G, 1º andar<br>
+    Fone: (92) 99192-3067 / 99983-1176<br>Manaus-AM-CEP 69077-730<br>E-mail: gabinete@adaf.am.gov.br</div>
+    <img src="../img/logo-adaf.png" alt="ADAF"><div class="sepror"><img src="../img/sepror.png" alt="SEPROR – Secretaria de Produção Rural do Estado do Amazonas"></div></div>
+</div>
+<!-- assinaturas em folha própria (equipes de 4 ou mais fiscais não cabem na primeira) -->
+<div class="a4 doc-eq folha-assin">
+  <div class="cab"><img src="../img/brasao.png" alt=""><div>GOVERNO DO ESTADO DO AMAZONAS</div><div>Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM</div></div>
+  <h1>RELATÓRIO DE ATIVIDADES – ETAPA <span data-c="etapa"></span></h1>
+  <div class="corpo">
+    <p class="ident"><span data-c="equipe"></span> · <span data-c="local"></span><br>Período: <span data-c="periodo"></span>.</p>
+    <div class="ativ-tit">ASSINATURAS</div>
+    <div class="assinaturas" id="assinaturas"></div>
+    <div class="assin resp" id="assin-resp"><div class="linha"></div><b></b><small>Assinatura e carimbo do Responsável da Equipe</small></div>
+  </div>
+  <div class="rodape"><div class="end">Avenida Carlos Drummond de Andrade, 1460 Japiim<br>Conj. Atílio Andreazza. ULBRA, Bloco G, 1º andar<br>
+    Fone: (92) 99192-3067 / 99983-1176<br>Manaus-AM-CEP 69077-730<br>E-mail: gabinete@adaf.am.gov.br</div>
+    <img src="../img/logo-adaf.png" alt="ADAF"><div class="sepror"><img src="../img/sepror.png" alt="SEPROR – Secretaria de Produção Rural do Estado do Amazonas"></div></div>
+</div>
+<script src="../js/config.js"></script>
+<script src="rel-equipe-docs.js"></script>
+</body>
+</html>

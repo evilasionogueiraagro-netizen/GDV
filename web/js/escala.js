@@ -51,13 +51,14 @@ const EscalaUI = (() => {
         ${mostrarEs.length ? mostrarEs.map(e => `<button type="button" class="esc-item${e.fim < h ? ' passada' : ''}" data-esc="${esc(e.id)}">
           <span class="esc-per"><b>${periodo(e)}</b>${e.inicio <= h && e.fim >= h ? ' <span class="esc-selo atual">Atual</span>' : e.fim < h ? ' <span class="esc-selo">Anterior</span>' : ''}
             <span class="esc-selo ${e.situacao === 'publicada' ? 'ok' : 'rasc'}">${e.situacao === 'publicada' ? 'Publicada' : 'Rascunho'}</span></span>
-          <small>${e.fiscais.length ? esc(e.fiscais.map(nomeF).join(', ')) : 'Nenhum fiscal escolhido'}</small></button>`).join('')
+          <small>${e.equipeNumero ? `Equipe ${esc(e.equipeNumero)} · ` : ''}${e.fiscais.length ? esc(e.fiscais.map(nomeF).join(', ')) : 'Nenhum fiscal escolhido'}</small></button>`).join('')
         : '<p class="dica">Nenhuma escala ainda.</p>'}
         <button type="button" class="botao sec mini" data-escnova="${esc(b)}">${icone('mais')} Nova escala da ${esc(b)}</button>
         ${CONFIG.regimeEscala(b).regime === 'ajustavel' ? '' : `<button type="button" class="botao sec mini" data-escgerar="${esc(b)}">${icone('calendario')} Gerar períodos da ${esc(b)}</button>`}</div>`;
     }).join('');
     mostrar(`<div class="card"><h3>${icone('calendario')} Escalas de plantão</h3>
         <p class="dica" style="text-align:left">Quem fica em cada BVA em cada período. Só a escala <b>publicada</b> aparece para os fiscais e para a gerência.</p>
+        <button type="button" class="botao sec mini" data-go="relequipes">${icone('documento')} Relatórios das equipes</button>
         <button type="button" class="botao" data-escnova="">${icone('mais')} Nova escala</button></div>
       ${AVISOS.length ? `<div class="card aviso" id="escAvisos">${icone('alerta')} <b>Atenção</b><ul>${AVISOS.map(a => `<li>${esc(a)}</li>`).join('')}</ul></div>` : ''}
       <div id="escLista">${blocos}</div>`);
@@ -93,6 +94,8 @@ const EscalaUI = (() => {
         <div id="escSemLista" class="esc-chips">${(e ? e.fiscais.filter(f => !f.id) : []).map(f => chipSem(f.nome)).join('')}</div>
         <p class="dica" style="text-align:left">Quando ele ganhar login, tire o nome daqui e marque a conta na lista acima.</p></div>
       <p class="dica" id="escConta" style="text-align:left"></p>
+      <div class="duas"><label>Nº da equipe <small>(relatório)</small><input id="escEquipe" inputmode="numeric" maxlength="4" autocomplete="off" placeholder="ex.: 33" value="${esc(e ? e.equipeNumero || '' : '')}"></label>
+        <label>Responsável pela equipe<select id="escResp"></select></label></div>
       <div class="duas"><button type="button" class="botao sec" id="escRascunho">${icone('salvar')} Salvar rascunho</button>
         <button type="button" class="botao" id="escPublicar">${icone('ok')} Publicar</button></div>
       ${e ? `<button type="button" class="botao vermelho" id="escExcluir">${icone('lixeira')} Excluir esta escala</button>` : ''}
@@ -109,6 +112,12 @@ const EscalaUI = (() => {
         st.textContent = em.length ? 'Também na ' + em.map(x => `${x.bva} (${dBR(x.inicio).slice(0, 5)} a ${dBR(x.fim).slice(0, 5)})`).join('; ') : 'Livre neste período';
         st.className = em.length ? 'esc-ocupado' : 'esc-livre';
       });
+      // responsável: um dos fiscais escolhidos (conta: id; sem login: "nome:<nome>")
+      const sel = $('#escResp'), atual = sel.dataset.v !== undefined ? sel.value : (e ? e.responsavel || '' : '');
+      const opc = [...document.querySelectorAll('#escFiscais input:checked')].map(i => [i.dataset.fiscal, (D.fiscais.find(f => f.id === i.dataset.fiscal) || {}).nome || ''])
+        .concat([...document.querySelectorAll('#escSemLista [data-sem]')].map(x => ['nome:' + x.dataset.sem.trim().replace(/\s+/g, ' ').toLowerCase(), x.dataset.sem]));
+      sel.innerHTML = '<option value="">— escolha —</option>' + opc.map(([v, n]) => `<option value="${esc(v)}" ${v === atual ? 'selected' : ''}>${esc(n)}</option>`).join('');
+      sel.dataset.v = '1';
       const n = document.querySelectorAll('#escFiscais input:checked').length + document.querySelectorAll('#escSemLista [data-sem]').length;
       $('#escConta').textContent = `${n} fiscal(is) escolhido(s) para a ${bvaAtual()}.`;
     };
@@ -128,9 +137,11 @@ const EscalaUI = (() => {
       const fiscais = [...document.querySelectorAll('#escFiscais input:checked')].map(i => i.dataset.fiscal)
         .concat([...document.querySelectorAll('#escSemLista [data-sem]')].map(x => ({ nome: x.dataset.sem })));
       if (situacao === 'publicada' && !fiscais.length) return toast('Escolha pelo menos um fiscal para publicar.', true);
+      if ($('#escEquipe').value.trim() && !/^\d{1,4}$/.test($('#escEquipe').value.trim())) return toast('Nº da equipe: use só números (ex.: 33).', true);
       const bts = document.querySelectorAll('#fEscala button'); bts.forEach(b => { b.disabled = true; });
       try {
-        const r = await Sync.escalaSalvar({ id: e ? e.id : '', bva: bvaAtual(), inicio: $('#escIni').value, fim: $('#escFim').value, fiscais, situacao });
+        const r = await Sync.escalaSalvar({ id: e ? e.id : '', bva: bvaAtual(), inicio: $('#escIni').value, fim: $('#escFim').value, fiscais, situacao,
+          equipeNumero: $('#escEquipe').value.trim(), responsavel: $('#escResp').value });
         AVISOS = r.avisos || []; mexer(l => l.filter(x => x.id !== r.escala.id).concat([r.escala]));
         toast(situacao === 'publicada' ? 'Escala publicada.' : 'Rascunho salvo.'); go('escalas');
       } catch (err) { bts.forEach(b => { b.disabled = false; }); toast(err.message || 'Não foi possível gravar.', true); }
@@ -214,10 +225,64 @@ const EscalaUI = (() => {
     pop.addEventListener('keydown', ev => { if (ev.key === 'Escape') fechar(); });
     pop.querySelector('#escPopOk').focus();
   }
+  /* ---------- Relatório da equipe (prestação de contas do convênio): um por escala publicada ----------
+     Veem os fiscais da escala e a coordenação; editam o responsável pela equipe e a coordenação. Os números vêm da planilha (todos os
+     turnos da equipe no período); os textos (local, objetivo, deslocamento…) começam pelos do último relatório da BVA ou pelos padrão. */
+  async function relLista() {
+    const mostrar = tela();
+    if (!navigator.onLine) return mostrar(`<div class="card aviso"><h3>${icone('offline')} Sem internet</h3><p>O relatório da equipe é montado com os dados da planilha: conecte-se e tente de novo.</p></div>`);
+    mostrar('<div class="card"><p>Carregando as escalas…</p></div>');
+    let r; try { r = await Sync.relEquipeLista(); } catch (e) { return mostrar(`<div class="card aviso">${icone('alerta')} ${esc(e.message || 'Não foi possível ler as escalas.')}</div>`); }
+    mostrar(`<div class="card"><h3>${icone('documento')} Relatórios da equipe</h3>
+      <p class="dica" style="text-align:left">Prestação de contas do convênio: um relatório por escala de plantão, com os números de todos os turnos da equipe no período. O responsável pela equipe edita os textos.</p>
+      ${r.escalas.length ? r.escalas.map(e => `<button type="button" class="esc-item" data-releq="${esc(e.id)}">
+        <span class="esc-per"><b>${esc(e.bva)}</b> ${e.equipeNumero ? `<span class="esc-selo">Equipe ${esc(e.equipeNumero)}</span>` : ''}${e.inicio <= r.hoje && e.fim >= r.hoje ? ' <span class="esc-selo atual">Em andamento</span>' : ''}${e.salvoEm ? ' <span class="esc-selo ok">Editado</span>' : ''}</span>
+        <small>${periodo(e)}${e.editar ? ' · você pode editar' : ''}</small></button>`).join('') : '<p class="dica">Nenhuma escala publicada sua nos últimos 120 dias.</p>'}</div>`);
+  }
+  const CAMPOS_REL = [['local', 'Local', 1], ['objetivo', 'Objetivo', 4], ['deslocamento', 'Deslocamento', 2], ['intro', 'Texto antes das atividades', 2], ['obs', 'OBS', 2]];
+  async function rel(id) {
+    const mostrar = tela();
+    if (!navigator.onLine) return mostrar(`<div class="card aviso"><h3>${icone('offline')} Sem internet</h3><p>Conecte-se para abrir o relatório da equipe.</p></div>`);
+    mostrar('<div class="card"><p>Somando os turnos da equipe…</p></div>');
+    let R; try { R = await Sync.relEquipe(id); } catch (e) { return mostrar(`<div class="card aviso">${icone('alerta')} ${esc(e.message || 'Não foi possível abrir o relatório.')}</div>
+      <button class="botao sec" data-go="relequipes">${icone('voltar')} Voltar</button>`); }
+    const e = R.escala, N = R.numeros, base = { ...CONFIG.textosRelEquipe(e.bva), ...Object.fromEntries(Object.entries(R.anterior || {}).filter(([, v]) => v)), kg: '', repasse: '0' };
+    const D0 = { ...base, ...(R.dados || {}) }, ed = !!R.editar;
+    const resp = (e.fiscais.find(f => (f.id || 'nome:' + f.nome.trim().replace(/\s+/g, ' ').toLowerCase()) === e.responsavel) || {}).nome;
+    const outras = Object.keys(N.outras || {}).map(u => `${N.outras[u]} ${u}`).join(', ');
+    const campo = ([k, rot, linhas]) => ed
+      ? `<label>${rot}${linhas > 1 ? `<textarea id="re-${k}" rows="${linhas}" maxlength="1500">${esc(D0[k] || '')}</textarea>` : `<input id="re-${k}" maxlength="200" value="${esc(D0[k] || '')}">`}</label>`
+      : `<p><b>${rot}:</b> ${esc(D0[k] || '—')}</p>`;
+    mostrar(`<div class="card"><h3>${icone('documento')} ${e.equipeNumero ? `Equipe ${esc(e.equipeNumero)} · ` : ''}${esc(e.bva)}</h3>
+        <p>${periodo(e)}</p><p class="dica" style="text-align:left">Servidores: ${esc(e.fiscais.map(f => f.nome).join(', '))}<br>Responsável: ${resp ? esc(resp) : '<b>não definido na escala</b>'}</p></div>
+      <div class="card"><h3>Atividades (todos os turnos da equipe)</h3>
+        <ul class="re-num"><li>${N.turnos} turno(s) · ${N.veiculos} veículo(s) abordado(s)</li><li>${N.tfs} TF(s) de barreira${N.numerosTF.length ? `: ${esc(N.numerosTF.join(', '))}` : ''}</li>
+          <li>${N.apreensoes} apreensão(ões) · ${String(N.kg).replace('.', ',')} kg apreendidos${outras ? ` (e ${esc(outras)})` : ''}</li><li>${N.rechacos} rechaço(s)</li><li>${N.educacao} medida(s) de educação sanitária</li></ul>
+        ${ed ? `<div class="duas"><label>Quantidade apreendida (kg) <small>(vazio = ${String(N.kg).replace('.', ',')})</small><input id="re-kg" inputmode="decimal" maxlength="20" value="${esc(D0.kg || '')}"></label>
+          <label>Termos de repasse<input id="re-repasse" inputmode="numeric" maxlength="4" value="${esc(D0.repasse || '0')}"></label></div>`
+          : `<p><b>Termos de repasse:</b> ${esc(D0.repasse || '0')}${D0.kg ? ` · <b>kg (corrigido):</b> ${esc(D0.kg)}` : ''}</p>`}</div>
+      <div class="card"><h3>Textos do relatório</h3>${CAMPOS_REL.map(campo).join('')}
+        ${R.salvoEm ? `<p class="dica">Última edição: ${esc(R.salvoPor)}.</p>` : ''}${ed ? '' : '<p class="dica">Só o responsável pela equipe (ou a coordenação) edita.</p>'}</div>
+      ${ed ? `<button class="botao sec" id="re-salvar">${icone('salvar')} Salvar</button>` : ''}
+      <button class="botao" id="re-pdf">${icone('documento')} Gerar relatório (PDF)</button>
+      <button class="botao sec" data-go="relequipes">${icone('voltar')} Voltar</button>`);
+    const atuais = () => { const d = { ...D0 }; if (ed) CAMPOS_REL.concat([['kg'], ['repasse']]).forEach(([k]) => { d[k] = $('#re-' + k).value.trim(); }); return d; };
+    if (ed) $('#re-salvar').onclick = async () => {
+      const b = $('#re-salvar'); b.disabled = true;
+      try { const r = await Sync.relEquipeSalvar(id, atuais()); R.salvoEm = r.salvoEm; R.salvoPor = r.salvoPor; Object.assign(D0, atuais()); toast('Relatório salvo.'); }
+      catch (err) { toast(err.message || 'Não foi possível salvar.', true); }
+      b.disabled = false;
+    };
+    $('#re-pdf').onclick = async () => {
+      try { await Docs.relEquipe({ ...R, dados: atuais() }); } catch (err) { toast('Erro ao gerar documento: ' + err.message, true); }
+    };
+  }
+
   document.addEventListener('click', ev => {
     const n = ev.target.closest('[data-escnova]'); if (n) return go('escala', '+' + n.dataset.escnova);
     const gg = ev.target.closest('[data-escgerar]'); if (gg) return go('escalagerar', gg.dataset.escgerar);
-    const i = ev.target.closest('[data-esc]'); if (i) go('escala', i.dataset.esc);
+    const i = ev.target.closest('[data-esc]'); if (i) return go('escala', i.dataset.esc);
+    const re = ev.target.closest('[data-releq]'); if (re) go('relequipe', re.dataset.releq);
   });
-  return { lista, form, gerar, minha, cartaoMinha, aviso };
+  return { lista, form, gerar, minha, cartaoMinha, aviso, relLista, rel };
 })();

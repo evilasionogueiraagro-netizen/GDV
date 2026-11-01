@@ -14,16 +14,15 @@ Decisões: [TF e página da BVA](decisoes/anteriores.md#tf-e-página-da-bva)
 Falta, nesta ordem:
 1. Antes da página:
    - Gerência no TF (GDV, GDA, GIPOA), cada uma com a sua lista de produtos. GDV: 34 vegetais. GDA: aves, bovinos, equinos, peixes vivos, pescado, ovinos. GIPOA: couro bovino, ovos, produtos cárneos, sebo bovino, mel de abelha.
-   - Constatação e enquadramento sugeridos por produto × procedimento (liberação, apreensão, rechaço), abas V, A e I da planilha.
    - Dados do fiel depositário no TF e no PDF: nome, RG, CPF, endereço, telefone.
-   - Importar cadastros de transportadores (placa, nome, CPF, endereço, município, UF, telefone) da planilha maior do gestor.
+   - Importar cadastros de transportadores da planilha maior do gestor.
 2. Página da BVA: QR dinâmico, check-in (quem, onde, hora, GPS), início do turno e pareamento. Lista dos TFs da BVA, com impressão de 2 vias ou PDF.
    - Check-out opcional pelo QR.
 3. Salvar cada PDF automaticamente na pasta TERMOS_EMITIDOS do PC.
 
 Com o login (22/10/2026), o QR prova só a **presença** (identidade vem do login; check-in grava o `usuarioId` e o GPS):
 - **PC da BVA:** usuário próprio, só com o QR e os TFs da BVA. **QR:** assinado pelo servidor, muda a cada ~30 s.
-- **Aba prevista:** `CheckinsNasBarreiras` (usuarioId, barreiraId, turnoId, em, lat, lon).
+- **Aba prevista:** `CheckinsNasBarreiras`.
 
 ---
 
@@ -37,7 +36,7 @@ Falta:
 - Cadastros dos programas banana, mandioca, soja e propriedade geral (a aba `CadastrosPCE` já tem `programa` e `dados` em JSON).
 - Fotos no termo e no cadastro (a coluna `fotos` existe, sem tela).
 - Relatório no app com os termos de outros servidores (hoje usa os do aparelho; o painel usa todos).
-- Via do produtor por link ou QR do documento (o PDF já sai por "Enviar ao produtor").
+- Via do produtor por link ou QR do documento.
 
 ---
 

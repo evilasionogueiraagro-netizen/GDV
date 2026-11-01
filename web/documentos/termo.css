@@ -62,4 +62,5 @@ table.interna .c-mun { width: 40%; } table.interna .c-uf { width: 23%; }
 #rodape { position: absolute; left: 14mm; right: 14mm; bottom: 8mm; display: flex; align-items: center; justify-content: space-between; }
 #enderecoRodape { font-size: 6.4pt; line-height: 1.35; color: #1b325d; width: 36%; }
 #logoRodape { height: 11mm; width: auto; }
-#sepror { width: 34%; text-align: right; font-size: 8pt; line-height: 1.3; }
+#sepror { width: 34%; text-align: right; }
+#sepror img { height: 11mm; width: auto; }

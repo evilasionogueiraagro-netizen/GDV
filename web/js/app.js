@@ -908,6 +908,7 @@ document.addEventListener('click', async e => {
     Sync.sincronizar(); toast('Excluído.'); lista();
   } else if (d.doc) {
     try {
+      toast('Preparando o documento…');
       await Docs[d.doc](d.id);
     } catch (err) { toast('Erro ao gerar documento: ' + err.message, true); }
   }

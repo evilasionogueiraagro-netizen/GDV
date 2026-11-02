@@ -45,6 +45,8 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
   ok(r.ok && N.turnos === 2 && N.veiculos === 3 && N.educacao === 9, 'turnos da equipe (dono ou colega pelo código), sem cancelado, de outra BVA ou fora do período; veículos e educação sanitária', N);
   ok(N.tfs === 3 && N.apreensoes === 1 && N.rechacos === 1 && N.liberacoes === 1 && N.numerosTF.join() === 'TFA,TFB,TFC', 'TFs dos turnos + o sem turno lavrado por fiscal da equipe (sem cancelado nem de quem é de fora)', N);
   ok(N.kg === 600 && N.outras.Caixas === 3, 'kg apreendidos: Kg + Ton × 1000; caixas à parte', [N.kg, N.outras]);
+  ok(N.apreendidos.length === 3 && N.apreendidos.map(x => `${x.tf}:${x.p}:${x.q}:${x.u}`).join('|') === '1:LARANJA:100:Kg|1:MANGA:0.5:Ton|1:GOIABA:3:Caixas',
+    'Termo de Repasse: cada produto apreendido da equipe (nº do TF, produto, quantidade, unidade)', N.apreendidos);
   ok(r.editar === true && !r.dados && !r.anterior, 'responsável pode editar; nada salvo ainda');
 
   console.log('3) quem vê e quem edita');
@@ -60,6 +62,8 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
   ok(!r.ok && /Só o responsável/.test(r.erro), 'integrante não grava', r.erro);
   r = await post({ action: 'relEquipeSalvar', key: A.token, escalaId: eid, dados: { kg: 'muito' } });
   ok(!r.ok && /use só números/.test(r.erro), 'kg só com números', r.erro);
+  r = await post({ action: 'relEquipeSalvar', key: A.token, escalaId: eid, dados: { repasseItens: [{ tf: '1', p: 'LARANJA', u: 'Kg', q: 'muito' }] } });
+  ok(!r.ok && /quantidade inválida em "LARANJA"/.test(r.erro), 'Termo de Repasse: quantidade só com números', r.erro);
   r = await post({ action: 'relEquipeSalvar', key: A.token, escalaId: eid, dados: { local: 'Local Ficticio', objetivo: 'Objetivo ficticio do teste.', deslocamento: 'Manaus/AM x Ficticio',
     intro: 'Intro ficticia:', kg: '650,5', repasse: '1', obs: 'Anexo Termos de Fiscalização.', cpf: '52998224725' } });
   ok(r.ok && r.salvoPor === A.nome, 'responsável grava', r.erro);
@@ -113,9 +117,36 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
   ok(/Objetivo ficticio editado no app\./.test(pr.texto) && /Assinatura e carimbo do Servidor/.test(pr.texto) && /Assinatura e carimbo do Responsável da Equipe/.test(pr.texto), 'PDF: textos e assinaturas');
   ok(pr.folha2.length === 2 && pr.folha2[pr.folha2.length - 1] === A.nome, 'assinaturas na 2ª folha (o responsável por último)', pr.folha2);
   ok(['brasao.png', 'logo-adaf.png', 'sepror.png'].every(n => pr.imgs.some(s => s.includes(n))) && /gabinete@adaf\.am\.gov\.br/.test(pr.texto), 'PDF: cabeçalho e rodapé do Termo (brasão, endereço, logos ADAF e SEPROR)', pr.imgs);
+  // Termo de Repasse: itens das apreensões (editáveis), total, local e data, órgão que recebe; salvo e no PDF
+  const itens = () => p.$$eval('#re-itens .re-item', ls => ls.map(l => [...l.querySelectorAll('input')].map(i => i.value).join(':')));
+  ok((await itens()).join('|') === '1:LARANJA:Kg:100|1:MANGA:Ton:0,5|1:GOIABA:Caixas:3' && (await p.textContent('#re-rpTotal')) === '600 Kg + 3 Caixas',
+    'Termo de Repasse na tela: os produtos apreendidos e o total', await itens());
+  ok(/^033\/\d{4}$/.test(await p.inputValue('#re-rpNumero')) && (await p.inputValue('#re-rpOrgao')) === 'ADERR' && /^BR 174 KM 75 PVA Jundiá\/RR, \d{2} de [a-zç]+ de \d{4}\.$/.test(await p.inputValue('#re-rpLocal')),
+    'Termo de Repasse: nº pela equipe, órgão e local e data padrão do Jundiá', [await p.inputValue('#re-rpNumero'), await p.inputValue('#re-rpLocal')]);
+  await p.click('#re-itens .re-item >> nth=2 >> [data-rprm]'); await p.click('#re-rpAdd');
+  await p.fill('#re-itens .re-item >> nth=2 >> [data-k=p]', 'CAJU'); await p.fill('#re-itens .re-item >> nth=2 >> [data-k=u]', 'Kg'); await p.fill('#re-itens .re-item >> nth=2 >> [data-k=q]', '2,5');
+  await p.fill('#re-itens .re-item >> nth=2 >> [data-k=tf]', '9');
+  ok((await p.textContent('#re-rpTotal')) === '602,5 Kg', 'tirar e acrescentar item refaz o total', await p.textContent('#re-rpTotal'));
+  await p.evaluate(() => { document.querySelector('#toast').textContent = ''; }); await p.click('#re-salvar');
+  await p.waitForFunction(() => /Relatório salvo/.test(document.querySelector('#toast').textContent), null, { timeout: 10000 });
+  r = await post({ action: 'relEquipe', key: B.token, escalaId: eid });
+  ok(r.dados.repasseItens.length === 3 && r.dados.repasseItens[2].p === 'CAJU' && r.dados.repasseItens[2].q === '2.5' && r.dados.repasseOrgao === 'ADERR', 'itens do Termo de Repasse salvos', r.dados.repasseItens);
+  await p.evaluate(() => { window.__prints = []; }); await p.click('#re-rpPdf');
+  await p.waitForFunction(() => window.__prints && window.__prints.length, null, { timeout: 15000 });
+  const rp = await p.evaluate(() => window.__prints[0]);
+  const rpt = rp.texto.replace(/\s+/g, '');
+  ok(/TERMODEREPASSEDEPRODUTOSAPREENDIDOSNº033\/\d{4}/.test(rpt) && /1LARANJAKg100/.test(rpt) && /1MANGATon0,5/.test(rpt) && /9CAJUKg2,5/.test(rpt)
+    && /TOTAL602,5Kg/.test(rpt) && /Local e Data:BR 174 KM 75 PVA Jundiá\/RR, /.test(rp.texto) && /Servidor da ADAF/.test(rp.texto) && /Servidor da ADERR/.test(rp.texto),
+    'Termo de Repasse em PDF (itens, total, local e data, assinaturas ADAF e ADERR)', rp.texto.slice(0, 400));
+  ok(['brasao.png', 'logo-adaf.png', 'sepror.png'].every(n => rp.imgs.some(s => s.includes(n))), 'Termo de Repasse: cabeçalho e rodapé do Termo', rp.imgs);
   const ext = await p.evaluate(() => { const f = document.createElement('iframe'); f.src = 'documentos/rel-equipe.html'; document.body.appendChild(f);
     return new Promise(ok => { f.onload = () => { const X = f.contentWindow.RelEquipeDocs; ok([0, 1, 16, 21, 100, 101, 999, 1000, 1530, 2000].map(n => X.extenso(n)).concat([X.extenso(1, true), X.extenso(232, true)])); f.remove(); }; }); });
   ok(ext.join('|') === 'zero|um|dezesseis|vinte e um|cem|cento e um|novecentos e noventa e nove|mil|mil quinhentos e trinta|dois mil|uma|duzentas e trinta e duas', 'número por extenso', ext);
+  const nRep = await p.evaluate(eid => { const R0 = { escala: { bva: 'BVA - JUNDIÁ', inicio: '2026-10-24', fim: '2026-11-02', equipeNumero: '33', fiscais: [] }, numeros: { veiculos: 0, tfs: 0, apreensoes: 0, kg: 0, outras: {}, rechacos: 0, educacao: 0, apreendidos: [{ tf: '1', p: 'MANGA', u: 'Kg', q: 2 }] } };
+    const l = R => RelEquipeDocs.valores(R).linhas.find(x => /Repasse/.test(x));
+    return [l({ ...R0, dados: {} }), l({ ...R0, dados: { repasse: '' }, numeros: { ...R0.numeros, apreendidos: [] } }), l({ ...R0, dados: { repasse: '3' } }), l({ ...R0, dados: { repasseItens: [] } })]; });
+  ok(nRep.join('|') === 'Termos de Repasse emitidos: 1 termo.|Termos de Repasse emitidos: 0 termos.|Termos de Repasse emitidos: 3 termos.|Termos de Repasse emitidos: 0 termos.',
+    'termos de repasse: sem digitar, 1 com itens no Termo de Repasse e 0 sem; o digitado vale', nRep);
   ok(!err.length, 'sem erros de página', err);
   await b.close(); console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.'); process.exit(falhas ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

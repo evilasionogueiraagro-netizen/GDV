@@ -322,15 +322,17 @@ CONFIG.RELEQUIPE = {
       local: 'Barreira de Vigilância Agropecuária – BVA/ Jundiá/RR',
       objetivo: 'Executar Ações de Fiscalização do Trânsito na Barreira Conjunta entre ADAF/AM e ADERR/RR, visando coibir a entrada de Pragas Quarentenárias Ausentes no Estado do Amazonas.',
       deslocamento: 'Manaus/AM x Presidente Figueiredo/AM x Rorainópolis/RR (BVA do Jundiá)',
-      intro: 'Foram realizadas as seguintes ações de fiscalização do trânsito na BVA conjunta entre ADAF/AM e ADERR/RR:'
+      intro: 'Foram realizadas as seguintes ações de fiscalização do trânsito na BVA conjunta entre ADAF/AM e ADERR/RR:',
+      repasseLocal: 'BR 174 KM 75 PVA Jundiá/RR', repasseOrgao: 'ADERR'      // Termo de Repasse: local (antes da data) e órgão que recebe
     }
   }
 };
-/** Textos padrão do relatório da equipe da BVA ({local, objetivo, deslocamento, intro, obs}). */
+/** Textos padrão do relatório da equipe da BVA ({local, objetivo, deslocamento, intro, obs, repasseLocal, repasseOrgao}). */
 CONFIG.textosRelEquipe = function (bva) {
   const k = String(bva || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '').replace(/^bva/, '');
   const p = CONFIG.RELEQUIPE.porBva[k] || {}, nome = String(bva || '').trim();
   return { local: p.local || `Barreira de Vigilância Agropecuária – ${nome}`,
     objetivo: p.objetivo || `Executar Ações de Fiscalização do Trânsito na ${nome}, visando coibir a entrada de Pragas Quarentenárias Ausentes no Estado do Amazonas.`,
-    deslocamento: p.deslocamento || '', intro: p.intro || `Foram realizadas as seguintes ações de fiscalização do trânsito na ${nome}:`, obs: CONFIG.RELEQUIPE.obs };
+    deslocamento: p.deslocamento || '', intro: p.intro || `Foram realizadas as seguintes ações de fiscalização do trânsito na ${nome}:`, obs: CONFIG.RELEQUIPE.obs,
+    repasseLocal: p.repasseLocal || nome, repasseOrgao: p.repasseOrgao || '' };
 };

@@ -1,12 +1,15 @@
 /* ---------- Relatório da equipe (prestação de contas do convênio, etapa 1.10) ----------
  * Um relatório por escala publicada: a equipe (nº, fiscais e responsável, da escala), o período e a BVA, e os números de todos os
  * turnos da equipe no período (veículos, TFs de barreira, apreensões, kg apreendidos, rechaços, educação sanitária). Os números
- * vêm da planilha a cada leitura; o que se edita (local, objetivo, deslocamento, kg corrigido, termos de repasse, OBS) fica na aba
+ * vêm da planilha a cada leitura; o que se edita (local, objetivo, deslocamento, kg corrigido, termos de repasse, OBS e o Termo de
+ * Repasse de produtos apreendidos: nº, local e data, órgão que recebe e itens) fica na aba
  * RelatoriosEquipe (id = id da escala). Veem: os fiscais da escala, a coordenação e o painel. Editam: o responsável da equipe,
  * a coordenação (permissão escala) e a gerência. Toda gravação vai para HistoricoDeAlteracoes.
  */
 const REL_EQUIPE_DIAS_ = 120;                         // lista: escalas publicadas que acabaram há até 120 dias (e as em andamento)
-const REL_EQUIPE_CAMPOS_ = { local: 200, objetivo: 1500, deslocamento: 300, intro: 500, kg: 20, repasse: 6, obs: 1500 };
+const REL_EQUIPE_CAMPOS_ = { local: 200, objetivo: 1500, deslocamento: 300, intro: 500, kg: 20, repasse: 6, obs: 1500,
+                            repasseNumero: 20, repasseLocalData: 200, repasseOrgao: 60 };
+const REL_EQUIPE_ITENS_ = 120;                        // itens do Termo de Repasse (nº do TF, produto, unidade, quantidade)
 
 /** Chave da BVA para comparar turno, TF (barreira) e escala: apelido → nome da BVA (localCanon_), só letras e números, sem o "BVA". */
 function chaveBvaRel_(v) { return normPub_(localCanon_(v)).replace(/ /g, '').replace(/^bva/, ''); }
@@ -33,7 +36,7 @@ function relEquipeApurar_(e) {
     const quem = [t.usuario].concat(String(t.fiscal || '').split(/\s+e\s+|,|;|\//), lerJSONSeguro_(t.colegas, []), colegas[t.id] || []);
     return quem.some(function (n) { return nomes[nomeChave_(n)]; });
   };
-  const turnos = {}, out = { turnos: 0, veiculos: 0, educacao: 0, tfs: 0, apreensoes: 0, rechacos: 0, liberacoes: 0, kg: 0, outras: {}, numerosTF: [] };
+  const turnos = {}, out = { turnos: 0, veiculos: 0, educacao: 0, tfs: 0, apreensoes: 0, rechacos: 0, liberacoes: 0, kg: 0, outras: {}, numerosTF: [], apreendidos: [] };
   lerLeitura_('Turnos').forEach(function (t) {
     if (!t.id || t.cancelado === 1 || !noPer(t.data) || chaveBvaRel_(t.local) !== bva || !daEquipe(t)) return;
     turnos[t.id] = 1; out.turnos++; out.educacao += Number(t.pessoasEducacao) || 0;
@@ -54,12 +57,14 @@ function relEquipeApurar_(e) {
     out.apreensoes++;
     produtosTF_(f.produtos).forEach(function (pr) {                            // kg: Kg e Ton (× 1000); as outras unidades à parte
       if (pr.quantidade === null) return;
+      out.apreendidos.push({ tf: String(f.numero || f.numeroTxt || ''), p: pr.produto, u: pr.unidade, q: pr.quantidade });   // Termo de Repasse
       const t = toneladas_(pr.quantidade, pr.unidade);
       if (t !== null) out.kg += t * 1000; else { const u = pr.unidade || 'sem unidade'; out.outras[u] = (out.outras[u] || 0) + pr.quantidade; }
     });
   });
   out.kg = Math.round(out.kg * 100) / 100;
   out.numerosTF.sort();
+  out.apreendidos.sort(function (a, b) { return (Number(a.tf) || 0) - (Number(b.tf) || 0) || a.tf.localeCompare(b.tf); });
   return out;
 }
 
@@ -107,6 +112,16 @@ function relEquipeSalvar_(req, quem, painel) {
   Object.keys(REL_EQUIPE_CAMPOS_).forEach(function (k) { dados[k] = textoAutor_(String(d[k] == null ? '' : d[k]).replace(/\r/g, '').trim()).slice(0, REL_EQUIPE_CAMPOS_[k]); });
   if (dados.kg && !/^\d{1,9}([.,]\d{1,3})?$/.test(dados.kg)) throw new Error('Quantidade apreendida (kg): use só números (ex.: 125,5).');
   if (dados.repasse && !/^\d{1,4}$/.test(dados.repasse)) throw new Error('Termos de repasse: use um número inteiro.');
+  // itens do Termo de Repasse: [{tf, p, u, q}] (sem itens = os produtos das apreensões, montados na tela)
+  if (Array.isArray(d.repasseItens)) {
+    if (d.repasseItens.length > REL_EQUIPE_ITENS_) throw new Error('Termo de repasse: itens demais (até ' + REL_EQUIPE_ITENS_ + ').');
+    dados.repasseItens = d.repasseItens.map(function (x) {
+      const t = function (v, n) { return textoAutor_(String(v == null ? '' : v).replace(/\s+/g, ' ').trim()).slice(0, n); };
+      const it = { tf: t(x && x.tf, 20), p: t(x && x.p, 80), u: t(x && x.u, 20), q: t(x && x.q, 12).replace(',', '.') };
+      if (it.q && !/^\d{1,9}(\.\d{1,3})?$/.test(it.q)) throw new Error('Termo de repasse: quantidade inválida em "' + (it.p || 'item') + '" (use números, ex.: 2,5).');
+      return it;
+    }).filter(function (x) { return x.p || x.q; });
+  }
   return comLock_(function () {
     const atual = lerLinhas_('RelatoriosEquipe').filter(function (r) { return r.id === e.id; })[0], agora = Date.now();
     const reg = { escalaId: e.id, dados: JSON.stringify(dados), atualizadoEm: agora, atualizadoPor: textoAutor_(quem) };

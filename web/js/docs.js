@@ -571,7 +571,7 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     const f = await abrirModelo('termo-repasse.html'), w = f.contentWindow;
     for (let i = 0; i < 50 && !w.RelEquipeDocs; i++) await new Promise(r => setTimeout(r, 50));
     const r = w.RelEquipeDocs.montarRepasse(f.contentDocument, R);
-    return imprimir(f, `Termo_de_Repasse_${String(r.numero).replace(/[^\w]+/g, '_')}_${String(R.escala.bva).replace(/[^\w]+/g, '_')}`);
+    return imprimir(f, `Termo_de_${r.tipo.normalize('NFD').replace(/[\u0300-\u036f]/g, '')}_${String(r.numero).replace(/[^\w]+/g, '_')}_${String(R.escala.bva).replace(/[^\w]+/g, '_')}`);
   }
 
   return { ficha, termo, tf, auto, limparImpressao, relEquipe, termoRepasse, fiscaisDoTurno, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, nomePdfMon, ordenar, esc };

@@ -171,7 +171,8 @@
     const velho = document.getElementById('pn-releq-dlg'); if (velho) velho.remove();
     let R; try { R = await P.chamar({ action: 'painelRelEquipe', escalaId: id }); } catch (err) { return P.toast(err.message); }
     const e = R.escala, N = R.numeros, ed = !!R.editar && P.pode('gerencia');
-    const D0 = { ...CONFIG.textosRelEquipe(e.bva), ...Object.fromEntries(Object.entries(R.anterior || {}).filter(([, v]) => v)), kg: '', repasse: '0', ...(R.dados || {}) };
+    const D0 = { ...CONFIG.textosRelEquipe(e.bva), ...Object.fromEntries(Object.entries(R.anterior || {}).filter(([, v]) => v)), kg: '',
+      repasse: RelEquipeDocs.repasse(R).itens.length ? '1' : '0', ...(R.dados || {}) };
     const CAMPOS = [['local', 'Local', 1], ['objetivo', 'Objetivo', 4], ['deslocamento', 'Deslocamento', 2], ['intro', 'Texto antes das atividades', 2], ['obs', 'OBS', 2]];
     const dlg = P.el('dialog', 'pn-dlg'); dlg.id = 'pn-releq-dlg';
     dlg.innerHTML = `<form method="dialog" class="pn-dlg-form" novalidate><h3>Relatório da equipe${e.equipeNumero ? ' ' + esc(e.equipeNumero) : ''} · ${esc(e.bva)}</h3>

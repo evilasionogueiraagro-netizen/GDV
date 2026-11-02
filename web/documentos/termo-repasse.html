@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <title>Termo de Repasse</title>
 <style>
-/* Termo de Repasse de produtos apreendidos (modelo da GDV), um por equipe e período da escala. Preenchido por rel-equipe-docs.js
+/* Termo de Repasse (na CEASA, Termo de Destruição) de produtos apreendidos (modelo da GDV), um por equipe e período da escala. Preenchido por rel-equipe-docs.js
    (montarRepasse). Cabeçalho e rodapé iguais aos do Termo de Fiscalização do turno. */
 @page{ size:A4 portrait; margin:8mm 7mm; }
 *{ box-sizing:border-box; }
@@ -34,7 +34,7 @@ body{ margin:0; background:#fff; color:#000; }
     <table>
       <colgroup><col style="width:16%"><col><col style="width:12%"><col style="width:18%"></colgroup>
       <thead>
-        <tr class="tit"><th colspan="3">TERMO DE REPASSE DE PRODUTOS APREENDIDOS</th><th class="num">Nº <span data-c="numero"></span></th></tr>
+        <tr class="tit"><th colspan="3" data-c="titulo">TERMO DE REPASSE DE PRODUTOS APREENDIDOS</th><th class="num">Nº <span data-c="numero"></span></th></tr>
         <tr><th>Nº TF</th><th>Descrição do Produto</th><th>Und</th><th>Quantidade</th></tr>
       </thead>
       <tbody id="itens"></tbody>

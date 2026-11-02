@@ -246,6 +246,7 @@ const EscalaUI = (() => {
     mostrar('<div class="card"><p>Somando os turnos da equipe…</p></div>');
     let R; try { R = await Sync.relEquipe(id); } catch (e) { return mostrar(`<div class="card aviso">${icone('alerta')} ${esc(e.message || 'Não foi possível abrir o relatório.')}</div>
       <button class="botao sec" data-go="relequipes">${icone('voltar')} Voltar</button>`); }
+    const RP = RelEquipeDocs.repasse(R);                                     // Termo de Repasse: o salvo ou o montado pelas apreensões
     const e = R.escala, N = R.numeros, base = { ...CONFIG.textosRelEquipe(e.bva), ...Object.fromEntries(Object.entries(R.anterior || {}).filter(([, v]) => v)), kg: '', repasse: '0' };
     const D0 = { ...base, ...(R.dados || {}) }, ed = !!R.editar;
     const resp = (e.fiscais.find(f => (f.id || 'nome:' + f.nome.trim().replace(/\s+/g, ' ').toLowerCase()) === e.responsavel) || {}).nome;
@@ -263,15 +264,47 @@ const EscalaUI = (() => {
           : `<p><b>Termos de repasse:</b> ${esc(D0.repasse || '0')}${D0.kg ? ` · <b>kg (corrigido):</b> ${esc(D0.kg)}` : ''}</p>`}</div>
       <div class="card"><h3>Textos do relatório</h3>${CAMPOS_REL.map(campo).join('')}
         ${R.salvoEm ? `<p class="dica">Última edição: ${esc(R.salvoPor)}.</p>` : ''}${ed ? '' : '<p class="dica">Só o responsável pela equipe (ou a coordenação) edita.</p>'}</div>
+      <div class="card"><h3>Termo de repasse de produtos apreendidos</h3>
+        ${ed ? `<div class="duas"><label>Nº do termo<input id="re-rpNumero" maxlength="20" value="${esc(RP.numero)}"></label>
+          <label>Órgão que recebe <small>(ex.: ADERR)</small><input id="re-rpOrgao" maxlength="60" value="${esc(RP.orgao)}"></label></div>
+          <label>Local e data<input id="re-rpLocal" maxlength="200" value="${esc(RP.localData)}"></label>
+          <div class="re-itens" id="re-itens"></div>
+          <div class="duas"><button type="button" class="botao sec mini" id="re-rpAdd">${icone('mais')} Adicionar item</button>
+            <button type="button" class="botao sec mini" id="re-rpRecarregar">${icone('sincronizar')} Refazer pelas apreensões</button></div>
+          <p class="dica" style="text-align:left">Os itens vêm dos produtos apreendidos nos TFs da equipe; edite, tire ou acrescente e toque em Salvar. Total: <b id="re-rpTotal"></b></p>`
+          : `<p><b>Nº:</b> ${esc(RP.numero)} · <b>Recebe:</b> ${esc(RP.orgao || '—')}</p><p><b>Local e data:</b> ${esc(RP.localData)}</p>
+          <ul class="re-num">${RP.itens.map(x => `<li>TF ${esc(x.tf || '—')} · ${esc(x.p)} · ${esc(x.q)} ${esc(x.u)}</li>`).join('') || '<li>Nenhum produto apreendido.</li>'}</ul><p><b>Total:</b> ${esc(RP.totalTxt)}</p>`}
+        <button class="botao sec" id="re-rpPdf">${icone('documento')} Termo de repasse (PDF)</button></div>
       ${ed ? `<button class="botao sec" id="re-salvar">${icone('salvar')} Salvar</button>` : ''}
       <button class="botao" id="re-pdf">${icone('documento')} Gerar relatório (PDF)</button>
       <button class="botao sec" data-go="relequipes">${icone('voltar')} Voltar</button>`);
-    const atuais = () => { const d = { ...D0 }; if (ed) CAMPOS_REL.concat([['kg'], ['repasse']]).forEach(([k]) => { d[k] = $('#re-' + k).value.trim(); }); return d; };
+    // itens do Termo de Repasse (só quem edita): nº do TF, produto, unidade e quantidade, uma linha cada
+    const linhaRp = x => `<div class="re-item"><input aria-label="Nº do TF" data-k="tf" maxlength="20" value="${esc(x.tf || '')}" placeholder="TF">
+      <input aria-label="Produto" data-k="p" maxlength="80" value="${esc(x.p || '')}" placeholder="Produto"><input aria-label="Unidade" data-k="u" maxlength="20" value="${esc(x.u || '')}" placeholder="Und">
+      <input aria-label="Quantidade" data-k="q" inputmode="decimal" maxlength="12" value="${esc(String(x.q == null ? '' : x.q).replace('.', ','))}" placeholder="Qtd">
+      <button type="button" class="mini" data-rprm aria-label="Tirar item">${icone('fechar')}</button></div>`;
+    const itensRp = () => [...document.querySelectorAll('#re-itens .re-item')].map(l => Object.fromEntries([...l.querySelectorAll('[data-k]')].map(i => [i.dataset.k, i.value.trim()])));
+    const totalRp = () => { const t = $('#re-rpTotal'); if (t) t.textContent = RelEquipeDocs.repasse({ ...R, dados: { ...R.dados, repasseItens: itensRp() } }).totalTxt; };
+    const desenharRp = itens => { $('#re-itens').innerHTML = itens.map(linhaRp).join(''); totalRp(); };
+    if (ed) {
+      desenharRp(RP.itens);
+      $('#re-itens').oninput = totalRp;
+      $('#re-itens').onclick = ev => { const b = ev.target.closest('[data-rprm]'); if (b) { b.closest('.re-item').remove(); totalRp(); } };
+      $('#re-rpAdd').onclick = () => { $('#re-itens').insertAdjacentHTML('beforeend', linhaRp({})); totalRp(); };
+      $('#re-rpRecarregar').onclick = () => { if (confirm('Refazer os itens pelos produtos apreendidos nos TFs da equipe? O que foi editado nos itens sai.')) desenharRp(RelEquipeDocs.repasse({ ...R, dados: {} }).itens); };
+    }
+    const atuais = () => { const d = { ...D0 }; if (!ed) return d;
+      CAMPOS_REL.concat([['kg'], ['repasse']]).forEach(([k]) => { d[k] = $('#re-' + k).value.trim(); });
+      d.repasseNumero = $('#re-rpNumero').value.trim(); d.repasseOrgao = $('#re-rpOrgao').value.trim(); d.repasseLocalData = $('#re-rpLocal').value.trim();
+      d.repasseItens = itensRp().filter(x => x.p || x.q); return d; };
     if (ed) $('#re-salvar').onclick = async () => {
       const b = $('#re-salvar'); b.disabled = true;
       try { const r = await Sync.relEquipeSalvar(id, atuais()); R.salvoEm = r.salvoEm; R.salvoPor = r.salvoPor; Object.assign(D0, atuais()); toast('Relatório salvo.'); }
       catch (err) { toast(err.message || 'Não foi possível salvar.', true); }
       b.disabled = false;
+    };
+    $('#re-rpPdf').onclick = async () => {
+      try { await Docs.termoRepasse({ ...R, dados: atuais() }); } catch (err) { toast('Erro ao gerar documento: ' + err.message, true); }
     };
     $('#re-pdf').onclick = async () => {
       try { await Docs.relEquipe({ ...R, dados: atuais() }); } catch (err) { toast('Erro ao gerar documento: ' + err.message, true); }

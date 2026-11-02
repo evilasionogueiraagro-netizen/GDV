@@ -312,3 +312,8 @@ nav button .ico { width:24px; height:24px; margin-bottom:2px; }
 #tf-ai-card h4 { margin:12px 0 4px; font-size:15px; }
 .tf-ai-test { border:1px solid var(--borda); border-radius:10px; padding:6px 10px 2px; margin:10px 0 0; }
 .tf-ai-test legend { font-weight:700; font-size:14px; padding:0 4px; } .tf-ai-test legend small { font-weight:400; color:var(--mut); }
+
+/* Relatório da equipe → itens do Termo de Repasse (nº do TF, produto, unidade, quantidade, tirar) */
+.re-itens { display: grid; gap: 6px; margin: 8px 0; }
+.re-item { display: grid; grid-template-columns: 4.6em 1fr 3.6em 4.6em auto; gap: 4px; align-items: center; }
+.re-item input { min-width: 0; padding: 8px 6px; }

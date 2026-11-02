@@ -81,6 +81,14 @@
   const KG = { kg: 1, kgs: 1, quilo: 1, quilos: 1, quilograma: 1, quilogramas: 1, t: 1000, ton: 1000, tons: 1000, tonelada: 1000, toneladas: 1000 };
   const fatorKg = u => KG[String(u || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, '')];
   const qtd = v => Number(String(v == null ? '' : v).replace(',', '.')) || 0;
+  /** Enquadramento legal da mosca-da-carambola na BVA (tabela do TF, CONFIG.TF.enquadramento: regra de hospedeiros da saída, ou sem sentido). */
+  function enquadramentoMosca(bva) {
+    const E = CONFIG.TF && CONFIG.TF.enquadramento; if (!E) return '';
+    const k = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase(), b = k(bva);
+    const r = E.regras.filter(x => x.grupo === 'mosca' && [].concat(x.bva).some(n => b.includes(k(n))))
+      .sort((x, y) => (x.sentido === 'saida' ? 0 : x.sentido ? 2 : 1) - (y.sentido === 'saida' ? 0 : y.sentido ? 2 : 1))[0];
+    return (r ? r.normas : E.comum).map(n => E.normas[n]).join('; ') + '.';
+  }
   function repasse(R) {
     const e = R.escala, d = R.dados || {}, pad = CONFIG.textosRelEquipe(e.bva), fim = dia(e.fim);
     const itens = Array.isArray(d.repasseItens) ? d.repasseItens.map(x => ({ ...x }))
@@ -92,11 +100,14 @@
       numero: d.repasseNumero || `${e.equipeNumero ? String(e.equipeNumero).padStart(3, '0') : '___'}/${String(e.fim).slice(0, 4)}`,
       localData: d.repasseLocalData || `${pad.repasseLocal}, ${fim ? `${fim.d} de ${fim.m} de ${fim.a}` : ''}.`,
       orgao: d.repasseOrgao != null && d.repasseOrgao !== '' ? d.repasseOrgao : pad.repasseOrgao, itens,
+      // enquadramento legal: o salvo; sem nada salvo, o da mosca-da-carambola no Termo de Destruição (CEASA) e em branco no de Repasse
+      enquadramento: d.repasseEnquadramento != null ? String(d.repasseEnquadramento) : tipo === 'Destruição' ? enquadramentoMosca(e.bva) : '',
       kg: Math.round(kg * 1000) / 1000, outras, totalTxt: num(Math.round(kg * 1000) / 1000) + ' Kg' + Object.keys(outras).map(u => ` + ${num(outras[u])} ${u}`).join('') };
   }
   /** Preenche o modelo do Termo de Repasse (ou de Destruição). */
   function montarRepasse(doc, R) {
     const r = repasse(R), set = (k, t) => doc.querySelectorAll(`[data-c="${k}"]`).forEach(x => { x.textContent = t; });
+    set('enquadramento', r.enquadramento); if (!r.enquadramento.trim()) { const q = doc.getElementById('enq'); if (q) q.remove(); }   // sem texto: a caixa nem sai
     set('titulo', r.titulo); set('numero', r.numero); set('localData', r.localData); set('total', r.totalTxt); doc.title = r.nome;
     set('orgao', r.orgao ? `Assinatura e Carimbo do Servidor da ${r.orgao}` : r.destruicao ? 'Assinatura e Carimbo do Responsável no Local da Destruição' : 'Assinatura e Carimbo do Recebedor');
     const tb = doc.getElementById('itens'); tb.replaceChildren();
@@ -106,5 +117,5 @@
     for (let i = r.itens.length; i < 6; i++) { const tr = doc.createElement('tr'); tr.innerHTML = '<td>&nbsp;</td><td></td><td></td><td></td>'; tb.appendChild(tr); }   // linhas em branco, como no papel
     return r;
   }
-  window.RelEquipeDocs = { montar, valores, extenso, periodo, repasse, montarRepasse };
+  window.RelEquipeDocs = { montar, valores, extenso, periodo, repasse, montarRepasse, enquadramentoMosca };
 })();

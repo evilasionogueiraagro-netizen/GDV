@@ -139,6 +139,7 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
     && /TOTAL602,5Kg/.test(rpt) && /Local e Data:BR 174 KM 75 PVA Jundiá\/RR, /.test(rp.texto) && /Servidor da ADAF/.test(rp.texto) && /Servidor da ADERR/.test(rp.texto),
     'Termo de Repasse em PDF (itens, total, local e data, assinaturas ADAF e ADERR)', rp.texto.slice(0, 400));
   ok(['brasao.png', 'logo-adaf.png', 'sepror.png'].every(n => rp.imgs.some(s => s.includes(n))), 'Termo de Repasse: cabeçalho e rodapé do Termo', rp.imgs);
+  ok(!/Enquadramento legal/.test(rp.texto), 'Termo de Repasse (Jundiá): sem enquadramento legal, se ninguém escrever');
   const ext = await p.evaluate(() => { const f = document.createElement('iframe'); f.src = 'documentos/rel-equipe.html'; document.body.appendChild(f);
     return new Promise(ok => { f.onload = () => { const X = f.contentWindow.RelEquipeDocs; ok([0, 1, 16, 21, 100, 101, 999, 1000, 1530, 2000].map(n => X.extenso(n)).concat([X.extenso(1, true), X.extenso(232, true)])); f.remove(); }; }); });
   ok(ext.join('|') === 'zero|um|dezesseis|vinte e um|cem|cento e um|novecentos e noventa e nove|mil|mil quinhentos e trinta|dois mil|uma|duzentas e trinta e duas', 'número por extenso', ext);
@@ -157,8 +158,9 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
         texto: f.contentDocument.body.textContent.replace(/\s+/g, ' ') }); f.remove(); };
   }));
   ok(ce.nome === 'Termo de Destruição' && ce.local === 'Aterro Sanitário de Manaus, 31 de outubro de 2026.' && ce.linha === 'Termos de Destruição emitidos: 1 termo.'
-    && /TERMO DE DESTRUIÇÃO DE PRODUTOS APREENDIDOS/.test(ce.texto) && /Responsável no Local da Destruição/.test(ce.texto) && !/REPASSE/.test(ce.texto),
-    'CEASA: Termo de Destruição, no Aterro Sanitário de Manaus (e no relatório: "Termos de Destruição emitidos")', ce);
+    && /TERMO DE DESTRUIÇÃO DE PRODUTOS APREENDIDOS/.test(ce.texto) && /Responsável no Local da Destruição/.test(ce.texto) && !/REPASSE/.test(ce.texto)
+    && /Enquadramento legal:\s*Lei Federal nº 9\.712 .*Portaria SDA\/MAPA nº 1\.675 de 26\/08\/2026\./.test(ce.texto),
+    'CEASA: Termo de Destruição, no Aterro Sanitário de Manaus, com o enquadramento da mosca (e no relatório: "Termos de Destruição emitidos")', ce);
   ok(!err.length, 'sem erros de página', err);
   await b.close(); console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.'); process.exit(falhas ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

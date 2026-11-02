@@ -566,5 +566,13 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     return imprimir(f, `Relatorio_Equipe${e.equipeNumero ? '_' + e.equipeNumero : ''}_${String(e.bva).replace(/[^\w]+/g, '_')}_${e.inicio}_a_${e.fim}`);
   }
 
-  return { ficha, termo, tf, auto, limparImpressao, relEquipe, fiscaisDoTurno, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, nomePdfMon, ordenar, esc };
+  /** Termo de Repasse de produtos apreendidos da equipe: modelo termo-repasse.html (rel-equipe-docs.js → montarRepasse). */
+  async function termoRepasse(R) {
+    const f = await abrirModelo('termo-repasse.html'), w = f.contentWindow;
+    for (let i = 0; i < 50 && !w.RelEquipeDocs; i++) await new Promise(r => setTimeout(r, 50));
+    const r = w.RelEquipeDocs.montarRepasse(f.contentDocument, R);
+    return imprimir(f, `Termo_de_Repasse_${String(r.numero).replace(/[^\w]+/g, '_')}_${String(R.escala.bva).replace(/[^\w]+/g, '_')}`);
+  }
+
+  return { ficha, termo, tf, auto, limparImpressao, relEquipe, termoRepasse, fiscaisDoTurno, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, nomePdfMon, ordenar, esc };
 })();

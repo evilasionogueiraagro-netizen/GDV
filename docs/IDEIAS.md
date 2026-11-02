@@ -13,7 +13,7 @@ Decisões: [TF e página da BVA](decisoes/anteriores.md#tf-e-página-da-bva)
 
 Falta, nesta ordem:
 1. Antes da página:
-   - Gerência no TF (GDV, GDA, GIPOA), cada uma com a sua lista de produtos. GDV: 34 vegetais. GDA: aves, bovinos, equinos, peixes vivos, pescado, ovinos. GIPOA: couro bovino, ovos, produtos cárneos, sebo bovino, mel de abelha.
+   - Gerência no TF (GDV, GDA, GIPOA), cada uma com a sua lista de produtos.
    - Dados do fiel depositário no TF e no PDF: nome, RG, CPF, endereço, telefone.
    - Importar cadastros de transportadores da planilha maior do gestor.
 2. Página da BVA: QR dinâmico, check-in (quem, onde, hora, GPS), início do turno e pareamento. Lista dos TFs da BVA, com impressão de 2 vias ou PDF.
@@ -47,7 +47,7 @@ Feito: veja [modulos/convenio.md](modulos/convenio.md).
 Decisões: [Convênio MAPA/ADAF](decisoes/anteriores.md#convênio-mapaadaf)
 
 Falta:
-- Registro de armadilhas (mosca-da-carambola, etapa 1.3) e de ações de controle (supressão de monilíase, etapa 1.5) no app de campo. Hoje entram por lançamento manual no painel. Quando existirem, a apuração pode ser automática, como a 1.4.
+- Registro de armadilhas (etapa 1.3) e de ações de controle (etapa 1.5) no app de campo; hoje, lançamento manual no painel.
 - Criar convênio novo: hoje é copiar a linha da aba `Convenios` e ajustar o JSON.
 
 ---
@@ -82,7 +82,7 @@ Feito: veja [modulos/relatorios.md](modulos/relatorios.md) e [apps/administrativ
 Decisões: [VIGIFITO e Portal do Administrativo](decisoes/anteriores.md#vigifito-e-portal-do-administrativo)
 
 Falta:
-- Carga: madeira em m³ no próprio registro (hoje manual); "auto de destruição" como campo do TF (hoje, TF de apreensão: "apreensão p/ destruição" no e-GDV); conversão de caixas e sacos para t por produto (tabela de pesos médios), hoje listados à parte.
+- Carga: madeira em m³ no registro; "auto de destruição" no TF; caixas e sacos em t por produto (pesos médios).
 - Histórico do Jundiá por período de 10 dias: falta o modelo do gestor com os anos anteriores.
 - Metas SUASA: aguardando o plano (motor de metas do convênio).
 

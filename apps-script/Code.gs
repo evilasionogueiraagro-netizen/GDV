@@ -190,7 +190,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-11-02a';
+const VERSAO_CODIGO = '2026-11-02b';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -207,6 +207,7 @@ function doPost(e) {
     if (req.action === 'painelEncerrarTurno') return json_(painelEncerrarTurno(req.key, req.turnoId, req.fim));
     if (req.action === 'tfVerificar') return json_(tfVerificar_(req));                      // página pública verificar.html: sem credencial
     if (req.action === 'publicoDados') return json_(publicoDados_(req));                    // dashboard público (web/dashboard/): sem credencial, só agregados
+    if (req.action === 'docSistemaSalvar') return json_(docSistemaSalvar_(req));            // GitHub → Word do Termo de Referência no Drive (chave DOC_SISTEMA_CHAVE)
     if (req.action === 'painelPublicoConfig') return json_(painelPublicoConfig(req.key));
     if (req.action === 'painelPublicoSalvar') return json_(painelPublicoSalvar(req.key, req.config));
     if (req.action === 'painelConvenios') return json_(painelConvenios(req.key));

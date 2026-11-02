@@ -19,6 +19,8 @@ function onOpen() {
     .addItem('Arquivar anos antigos agora', 'menuArquivarAgora')
     .addItem('Definir e-mails do relatório mensal', 'menuEmailsRelatorio')
     .addItem('Enviar relatório do mês passado agora', 'menuEnviarRelatorio')
+    .addSeparator()
+    .addItem('Chave dos documentos do sistema (GitHub → Drive)', 'menuChaveDocsSistema')
     .addToUi();
 }
 
@@ -211,4 +213,15 @@ function menuNovaSenhaGerente() {
     ui.alert('Nova senha para ' + r.usuario.nome, 'Matrícula: ' + r.usuario.matricula + '\nSenha provisória: ' + r.senhaProvisoria +
       '\n\nEla aparece só agora. As sessões abertas dessa pessoa foram encerradas; a troca é obrigatória no próximo acesso.', ui.ButtonSet.OK);
   } catch (e) { ui.alert('Não foi possível gerar', String(e.message || e), ui.ButtonSet.OK); }
+}
+
+/** Gera a chave com que o GitHub envia o Word do Termo de Referência para a pasta "GDV - Documentos do sistema" (documentos-sistema.gs). */
+function menuChaveDocsSistema() {
+  const ui = SpreadsheetApp.getUi();
+  const r = ui.alert('Chave dos documentos do sistema', 'Gerar uma chave nova? A anterior deixa de valer até ser trocada também no GitHub.', ui.ButtonSet.YES_NO);
+  if (r !== ui.Button.YES) return;
+  const chave = docSistemaChaveNova_();
+  pastaDocsSistema_();
+  ui.alert('Chave gerada', 'Copie a chave abaixo e cole no GitHub: Settings → Secrets and variables → Actions → New repository secret, nome DOC_SISTEMA_CHAVE.\n\n' +
+    chave + '\n\nO Word do Termo de Referência vai para a pasta "' + DOCS_SISTEMA_PASTA_ + '" do seu Drive a cada atualização.', ui.ButtonSet.OK);
 }

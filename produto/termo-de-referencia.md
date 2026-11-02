@@ -7,8 +7,8 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | Órgão | Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM |
 | Unidade responsável | Gerência de Defesa Vegetal – GDV |
 | Produto | e-GDV (app de campo, painel gerencial, Portal do Administrativo, dashboard público e serviço de dados) |
-| Versão do sistema descrita | 2026-11-02a |
-| Versão deste Termo | 1.1, de 02/11/2026 |
+| Versão do sistema descrita | 2026-11-02b |
+| Versão deste Termo | 1.2, de 02/11/2026 |
 
 ## 1. Objeto
 
@@ -195,7 +195,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 
 10.2. Critério de aceite de cada versão: suíte de testes aprovada, documentação atualizada e versão do serviço de dados registrada.
 
-10.3. Este Termo é atualizado a cada melhoria que muda o que o sistema faz. O histórico fica na seção 11.
+10.3. Este Termo é atualizado a cada melhoria que muda o que o sistema faz. O histórico fica na seção 11. A cada atualização publicada, o Word é gerado e guardado automaticamente na pasta "GDV - Documentos do sistema" do Drive da planilha do sistema; as versões anteriores ficam numa subpasta.
 
 ## 11. Histórico de versões deste Termo
 
@@ -203,3 +203,4 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 |---|---|---|---|
 | 1.0 | 02/11/2026 | 2026-11-01a | Primeira versão: objeto, justificativa, solução, requisitos funcionais e não funcionais, arquitetura, perfis, LGPD, implantação e manutenção |
 | 1.1 | 02/11/2026 | 2026-11-02a | RF-26A: Termo de Repasse de produtos apreendidos no relatório da equipe; termos de repasse preenchidos automaticamente |
+| 1.2 | 02/11/2026 | 2026-11-02b | Word do Termo gerado e guardado automaticamente no Drive a cada atualização (item 10.3) |

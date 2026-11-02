@@ -19,7 +19,8 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) proce
   ok(/obrigatória/.test(await p.textContent('#nPlacaInfo')), 'CEASA: placa obrigatória');
   await p.selectOption('#nLocal', 'BVA - JUNDIÁ'); ok(/opcional/.test(await p.textContent('#nPlacaInfo')), 'JUNDIÁ: placa opcional');
   ok(await p.inputValue('#nUnidade') === 'BVA - JUNDIÁ' && await p.$eval('#nUnidade', e => e.readOnly), 'fixa: Unidade (Termo) = a BVA escolhida, sem edição');
-  await p.selectOption('#nPosto', 'Móvel'); await p.waitForFunction(() => document.querySelector('#nLocal').value);
+  await p.selectOption('#nPosto', 'Móvel');
+  await p.waitForFunction(() => { const l = document.querySelector('#nLocal'); return l && l.tagName === 'INPUT' && l.value; });   // a lista de BVAs já tinha valor: espera o campo do endereço
   ok((await p.inputValue('#nLocal')) === 'BR-174 – Vila do Pitinga – Presidente Figueiredo/AM', 'volante: endereço pela coordenada → ' + await p.inputValue('#nLocal'));
   ok(/opcional/.test(await p.textContent('#nPlacaInfo')), 'volante: placa opcional');
   await p.waitForFunction(() => document.querySelector('#nUnidade').value);

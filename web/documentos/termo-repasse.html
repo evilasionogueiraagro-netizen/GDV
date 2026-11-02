@@ -19,6 +19,8 @@ body{ margin:0; background:#fff; color:#000; }
 .doc-rp .tit th{ font-size:14.5px; text-align:left; } .doc-rp .tit th.num{ text-align:right; white-space:nowrap; }
 .doc-rp td.c{ text-align:center; white-space:nowrap; }
 .doc-rp .total td{ font-weight:bold; }
+.doc-rp .enq{ margin-top:5mm; border:1px solid #000; padding:4px 6px; white-space:pre-wrap; } .doc-rp .enq b{ display:block; margin-bottom:1mm; }
+[hidden]{ display:none !important; }
 .doc-rp .local{ margin-top:6mm; } .doc-rp .local b{ display:block; margin-bottom:1mm; }
 .doc-rp .assinaturas{ display:flex; justify-content:space-between; gap:10mm; margin-top:22mm; }
 .doc-rp .assin{ flex:1; text-align:center; border-top:1px solid #000; padding-top:2px; font-size:12.5px; }
@@ -40,6 +42,7 @@ body{ margin:0; background:#fff; color:#000; }
       <tbody id="itens"></tbody>
       <tfoot><tr class="total"><td colspan="3">TOTAL</td><td class="c" data-c="total"></td></tr></tfoot>
     </table>
+    <div class="enq" id="enq"><b>Enquadramento legal:</b><span data-c="enquadramento"></span></div>
     <div class="local"><b>Local e Data:</b><span data-c="localData"></span></div>
     <div class="assinaturas">
       <div class="assin">Assinatura e Carimbo do Servidor da ADAF</div>

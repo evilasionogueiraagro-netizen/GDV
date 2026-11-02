@@ -8,7 +8,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | Unidade responsável | Gerência de Defesa Vegetal – GDV |
 | Produto | e-GDV (app de campo, painel gerencial, Portal do Administrativo, dashboard público e serviço de dados) |
 | Versão do sistema descrita | 2026-11-02b |
-| Versão deste Termo | 1.2, de 02/11/2026 |
+| Versão deste Termo | 1.3, de 02/11/2026 |
 
 ## 1. Objeto
 
@@ -98,7 +98,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
   - rechaços;
   - medidas de educação sanitária.
 - RF-26. O responsável pela equipe edita os textos, a correção de quilos e os termos de repasse; os demais integrantes consultam. O PDF traz a página de assinaturas de cada servidor.
-- RF-26A. Termo de Repasse de produtos apreendidos, montado com os produtos das apreensões da equipe no período (nº do TF, produto, unidade e quantidade). O responsável pode editar os itens, o número, o local e data e o órgão que recebe. O PDF traz o total e as assinaturas da ADAF e do órgão que recebe. O número de termos de repasse do relatório vem preenchido (1 quando o termo tem itens).
+- RF-26A. Termo de Repasse (na BVA - CEASA, Termo de Destruição, no Aterro Sanitário de Manaus) de produtos apreendidos, montado com os produtos das apreensões da equipe no período (nº do TF, produto, unidade e quantidade). O responsável pode editar os itens, o número, o local e data e o órgão que recebe. O PDF traz o total e as assinaturas da ADAF e do órgão que recebe. O número de termos de repasse do relatório vem preenchido (1 quando o termo tem itens).
 - RF-27. O Portal do Administrativo acompanha as diárias (PCDP) de cada fiscal escalado.
 
 ### 4.5. PCE – Programa de Controle e Erradicação
@@ -204,3 +204,4 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | 1.0 | 02/11/2026 | 2026-11-01a | Primeira versão: objeto, justificativa, solução, requisitos funcionais e não funcionais, arquitetura, perfis, LGPD, implantação e manutenção |
 | 1.1 | 02/11/2026 | 2026-11-02a | RF-26A: Termo de Repasse de produtos apreendidos no relatório da equipe; termos de repasse preenchidos automaticamente |
 | 1.2 | 02/11/2026 | 2026-11-02b | Word do Termo gerado e guardado automaticamente no Drive a cada atualização (item 10.3) |
+| 1.3 | 02/11/2026 | 2026-11-02b | RF-26A: na BVA - CEASA o termo dos produtos apreendidos é de Destruição (Aterro Sanitário de Manaus) |

@@ -74,5 +74,34 @@
     doc.getElementById('obs-linha').hidden = !v.obs;
     return v;
   }
-  window.RelEquipeDocs = { montar, valores, extenso, periodo };
+  /* ---------- Termo de Repasse de produtos apreendidos (modelo termo-repasse.html) ----------
+     Itens: os salvos pelo responsável (dados.repasseItens) ou, sem nada salvo, os produtos das apreensões da equipe (numeros.apreendidos).
+     Nº padrão: o da equipe com 3 dígitos / ano do fim (033/2026); local e data: o local da BVA + o último dia do período. */
+  const KG = { kg: 1, kgs: 1, quilo: 1, quilos: 1, quilograma: 1, quilogramas: 1, t: 1000, ton: 1000, tons: 1000, tonelada: 1000, toneladas: 1000 };
+  const fatorKg = u => KG[String(u || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/\s+/g, '')];
+  const qtd = v => Number(String(v == null ? '' : v).replace(',', '.')) || 0;
+  function repasse(R) {
+    const e = R.escala, d = R.dados || {}, pad = CONFIG.textosRelEquipe(e.bva), fim = dia(e.fim);
+    const itens = Array.isArray(d.repasseItens) ? d.repasseItens.map(x => ({ ...x }))
+      : (R.numeros.apreendidos || []).map(x => ({ tf: String(x.tf || ''), p: x.p, u: x.u || '', q: String(x.q) }));
+    let kg = 0; const outras = {};
+    itens.forEach(x => { const f = fatorKg(x.u); if (f) kg += qtd(x.q) * f; else if (x.q !== '') outras[x.u || 'sem unidade'] = (outras[x.u || 'sem unidade'] || 0) + qtd(x.q); });
+    return { numero: d.repasseNumero || `${e.equipeNumero ? String(e.equipeNumero).padStart(3, '0') : '___'}/${String(e.fim).slice(0, 4)}`,
+      localData: d.repasseLocalData || `${pad.repasseLocal}, ${fim ? `${fim.d} de ${fim.m} de ${fim.a}` : ''}.`,
+      orgao: d.repasseOrgao != null && d.repasseOrgao !== '' ? d.repasseOrgao : pad.repasseOrgao, itens,
+      kg: Math.round(kg * 1000) / 1000, outras, totalTxt: num(Math.round(kg * 1000) / 1000) + ' Kg' + Object.keys(outras).map(u => ` + ${num(outras[u])} ${u}`).join('') };
+  }
+  /** Preenche o modelo do Termo de Repasse. */
+  function montarRepasse(doc, R) {
+    const r = repasse(R), set = (k, t) => doc.querySelectorAll(`[data-c="${k}"]`).forEach(x => { x.textContent = t; });
+    set('numero', r.numero); set('localData', r.localData); set('total', r.totalTxt);
+    set('orgao', r.orgao ? `Assinatura e Carimbo do Servidor da ${r.orgao}` : 'Assinatura e Carimbo do Recebedor');
+    const tb = doc.getElementById('itens'); tb.replaceChildren();
+    r.itens.forEach(x => { const tr = doc.createElement('tr');
+      [x.tf, x.p, x.u, x.q === '' ? '' : num(qtd(x.q))].forEach((t, i) => { const td = doc.createElement('td'); td.textContent = t; if (i !== 1) td.className = 'c'; tr.appendChild(td); });
+      tb.appendChild(tr); });
+    for (let i = r.itens.length; i < 6; i++) { const tr = doc.createElement('tr'); tr.innerHTML = '<td>&nbsp;</td><td></td><td></td><td></td>'; tb.appendChild(tr); }   // linhas em branco, como no papel
+    return r;
+  }
+  window.RelEquipeDocs = { montar, valores, extenso, periodo, repasse, montarRepasse };
 })();

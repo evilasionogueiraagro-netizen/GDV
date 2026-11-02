@@ -8,7 +8,7 @@
  */
 const REL_EQUIPE_DIAS_ = 120;                         // lista: escalas publicadas que acabaram há até 120 dias (e as em andamento)
 const REL_EQUIPE_CAMPOS_ = { local: 200, objetivo: 1500, deslocamento: 300, intro: 500, kg: 20, repasse: 6, obs: 1500,
-                            repasseNumero: 20, repasseLocalData: 200, repasseOrgao: 60 };
+                            repasseNumero: 20, repasseLocalData: 200, repasseOrgao: 60, repasseEnquadramento: 3000 };
 const REL_EQUIPE_ITENS_ = 120;                        // itens do Termo de Repasse (nº do TF, produto, unidade, quantidade)
 
 /** Chave da BVA para comparar turno, TF (barreira) e escala: apelido → nome da BVA (localCanon_), só letras e números, sem o "BVA". */
@@ -110,6 +110,7 @@ function relEquipeSalvar_(req, quem, painel) {
   if (!a.editar) throw new Error('Só o responsável pela equipe (ou a coordenação) edita este relatório.');
   const d = req.dados && typeof req.dados === 'object' ? req.dados : {}, dados = {};
   Object.keys(REL_EQUIPE_CAMPOS_).forEach(function (k) { dados[k] = textoAutor_(String(d[k] == null ? '' : d[k]).replace(/\r/g, '').trim()).slice(0, REL_EQUIPE_CAMPOS_[k]); });
+  if (d.repasseEnquadramento == null) delete dados.repasseEnquadramento;   // não veio (ex.: painel): o termo segue com o enquadramento padrão
   if (dados.kg && !/^\d{1,9}([.,]\d{1,3})?$/.test(dados.kg)) throw new Error('Quantidade apreendida (kg): use só números (ex.: 125,5).');
   if (dados.repasse && !/^\d{1,4}$/.test(dados.repasse)) throw new Error('Termos de repasse: use um número inteiro.');
   // itens do Termo de Repasse: [{tf, p, u, q}] (sem itens = os produtos das apreensões, montados na tela)

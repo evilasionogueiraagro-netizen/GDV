@@ -171,7 +171,8 @@
     const velho = document.getElementById('pn-releq-dlg'); if (velho) velho.remove();
     let R; try { R = await P.chamar({ action: 'painelRelEquipe', escalaId: id }); } catch (err) { return P.toast(err.message); }
     const e = R.escala, N = R.numeros, ed = !!R.editar && P.pode('gerencia');
-    const D0 = { ...CONFIG.textosRelEquipe(e.bva), ...Object.fromEntries(Object.entries(R.anterior || {}).filter(([, v]) => v)), kg: '', repasse: '0', ...(R.dados || {}) };
+    const D0 = { ...CONFIG.textosRelEquipe(e.bva), ...Object.fromEntries(Object.entries(R.anterior || {}).filter(([, v]) => v)), kg: '',
+      repasse: RelEquipeDocs.repasse(R).itens.length ? '1' : '0', ...(R.dados || {}) };
     const CAMPOS = [['local', 'Local', 1], ['objetivo', 'Objetivo', 4], ['deslocamento', 'Deslocamento', 2], ['intro', 'Texto antes das atividades', 2], ['obs', 'OBS', 2]];
     const dlg = P.el('dialog', 'pn-dlg'); dlg.id = 'pn-releq-dlg';
     dlg.innerHTML = `<form method="dialog" class="pn-dlg-form" novalidate><h3>Relatório da equipe${e.equipeNumero ? ' ' + esc(e.equipeNumero) : ''} · ${esc(e.bva)}</h3>
@@ -183,7 +184,7 @@
       ${R.salvoEm ? `<p class="pn-sub">Última edição: ${esc(R.salvoPor)}</p>` : ''}
       <p class="pn-dlg-erro" id="pn-re-erro" role="alert"></p>
       <div class="pn-dlg-botoes"><button type="button" class="pn-btn" id="pn-re-fechar">Fechar</button>${ed ? '<button type="button" class="pn-btn" id="pn-re-salvar">Salvar</button>' : ''}
-        <button type="button" class="pn-btn pn-btn-prim" id="pn-re-pdf">Gerar PDF</button></div></form>`;
+        <button type="button" class="pn-btn" id="pn-re-rp">Termo de repasse (PDF)</button><button type="button" class="pn-btn pn-btn-prim" id="pn-re-pdf">Gerar PDF</button></div></form>`;
     document.body.appendChild(dlg);
     const q = x => dlg.querySelector(x), atuais = () => { const d = { ...D0 }; CAMPOS.concat([['kg'], ['repasse']]).forEach(([k]) => { d[k] = q('#pn-re-' + k).value.trim(); }); return d; };
     q('#pn-re-fechar').onclick = () => dlg.close(); dlg.addEventListener('close', () => dlg.remove());
@@ -191,18 +192,21 @@
       try { await P.chamar({ action: 'painelRelEquipeSalvar', escalaId: id, dados: atuais() }); P.toast('Relatório salvo.'); q('#pn-re-erro').textContent = ''; }
       catch (err) { q('#pn-re-erro').textContent = err.message; }
     };
-    q('#pn-re-pdf').onclick = async () => {
+    // PDF: modelo num iframe (o mesmo do app), preenchido por rel-equipe-docs.js; o Termo de Repasse usa os itens salvos (ou as apreensões)
+    const imprimir = async (arquivo, preencher, nome) => {
       const fr = document.createElement('iframe');
       fr.style.cssText = 'position:fixed;left:-9999px;top:0;width:210mm;height:297mm;border:0';
-      await new Promise((ok, no) => { fr.onload = ok; fr.onerror = no; fr.src = '../documentos/rel-equipe.html'; document.body.appendChild(fr); });
+      await new Promise((ok, no) => { fr.onload = ok; fr.onerror = no; fr.src = '../documentos/' + arquivo; document.body.appendChild(fr); });
       const w = fr.contentWindow;
       for (let i = 0; i < 50 && !w.RelEquipeDocs; i++) await new Promise(r => setTimeout(r, 50));
-      w.RelEquipeDocs.montar(fr.contentDocument, { ...R, dados: atuais() });
-      const titulo = document.title, nome = `Relatorio_Equipe${e.equipeNumero ? '_' + e.equipeNumero : ''}_${String(e.bva).replace(/[^\w]+/g, '_')}_${e.inicio}_a_${e.fim}`;
-      document.title = nome; fr.contentDocument.title = nome;
+      preencher(w.RelEquipeDocs, fr.contentDocument);
+      const titulo = document.title; document.title = nome; fr.contentDocument.title = nome;
       w.addEventListener('afterprint', () => { document.title = titulo; fr.remove(); });
       w.focus(); w.print();
     };
+    const sufixo = `${String(e.bva).replace(/[^\w]+/g, '_')}_${e.inicio}_a_${e.fim}`;
+    q('#pn-re-pdf').onclick = () => imprimir('rel-equipe.html', (X, d) => X.montar(d, { ...R, dados: atuais() }), `Relatorio_Equipe${e.equipeNumero ? '_' + e.equipeNumero : ''}_${sufixo}`);
+    q('#pn-re-rp').onclick = () => imprimir('termo-repasse.html', (X, d) => X.montarRepasse(d, { ...R, dados: atuais() }), `Termo_de_Repasse${e.equipeNumero ? '_' + e.equipeNumero : ''}_${sufixo}`);
     dlg.showModal();
   }
 

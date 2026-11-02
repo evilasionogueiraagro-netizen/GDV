@@ -36,7 +36,7 @@ Falta:
 - Cadastros dos programas banana, mandioca, soja e propriedade geral (a aba `CadastrosPCE` já tem `programa` e `dados` em JSON).
 - Fotos no termo e no cadastro (a coluna `fotos` existe, sem tela).
 - Relatório no app com os termos de outros servidores (hoje usa os do aparelho; o painel usa todos).
-- Via do produtor por link ou QR do documento.
+- Via do produtor por link ou QR.
 
 ---
 

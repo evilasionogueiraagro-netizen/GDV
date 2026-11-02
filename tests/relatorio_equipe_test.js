@@ -142,6 +142,11 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
   const ext = await p.evaluate(() => { const f = document.createElement('iframe'); f.src = 'documentos/rel-equipe.html'; document.body.appendChild(f);
     return new Promise(ok => { f.onload = () => { const X = f.contentWindow.RelEquipeDocs; ok([0, 1, 16, 21, 100, 101, 999, 1000, 1530, 2000].map(n => X.extenso(n)).concat([X.extenso(1, true), X.extenso(232, true)])); f.remove(); }; }); });
   ok(ext.join('|') === 'zero|um|dezesseis|vinte e um|cem|cento e um|novecentos e noventa e nove|mil|mil quinhentos e trinta|dois mil|uma|duzentas e trinta e duas', 'número por extenso', ext);
+  const nRep = await p.evaluate(eid => { const R0 = { escala: { bva: 'BVA - JUNDIÁ', inicio: '2026-10-24', fim: '2026-11-02', equipeNumero: '33', fiscais: [] }, numeros: { veiculos: 0, tfs: 0, apreensoes: 0, kg: 0, outras: {}, rechacos: 0, educacao: 0, apreendidos: [{ tf: '1', p: 'MANGA', u: 'Kg', q: 2 }] } };
+    const l = R => RelEquipeDocs.valores(R).linhas.find(x => /Repasse/.test(x));
+    return [l({ ...R0, dados: {} }), l({ ...R0, dados: { repasse: '' }, numeros: { ...R0.numeros, apreendidos: [] } }), l({ ...R0, dados: { repasse: '3' } }), l({ ...R0, dados: { repasseItens: [] } })]; });
+  ok(nRep.join('|') === 'Termos de Repasse emitidos: 1 termo.|Termos de Repasse emitidos: 0 termos.|Termos de Repasse emitidos: 3 termos.|Termos de Repasse emitidos: 0 termos.',
+    'termos de repasse: sem digitar, 1 com itens no Termo de Repasse e 0 sem; o digitado vale', nRep);
   ok(!err.length, 'sem erros de página', err);
   await b.close(); console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.'); process.exit(falhas ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

@@ -268,11 +268,12 @@ const EscalaUI = (() => {
         ${ed ? `<div class="duas"><label>Nº do termo<input id="re-rpNumero" maxlength="20" value="${esc(RP.numero)}"></label>
           <label>${RP.destruicao ? 'Órgão no local <small>(opcional)</small>' : 'Órgão que recebe <small>(ex.: ADERR)</small>'}<input id="re-rpOrgao" maxlength="60" value="${esc(RP.orgao)}"></label></div>
           <label>Local e data<input id="re-rpLocal" maxlength="200" value="${esc(RP.localData)}"></label>
+          <label>Enquadramento legal <small>(vazio = não sai no termo)</small><textarea id="re-rpEnq" rows="4" maxlength="3000">${esc(RP.enquadramento)}</textarea></label>
           <div class="re-itens" id="re-itens"></div>
           <div class="duas"><button type="button" class="botao sec mini" id="re-rpAdd">${icone('mais')} Adicionar item</button>
             <button type="button" class="botao sec mini" id="re-rpRecarregar">${icone('sincronizar')} Refazer pelas apreensões</button></div>
           <p class="dica" style="text-align:left">Os itens vêm dos produtos apreendidos nos TFs da equipe; edite, tire ou acrescente e toque em Salvar. Total: <b id="re-rpTotal"></b></p>`
-          : `<p><b>Nº:</b> ${esc(RP.numero)} · <b>Recebe:</b> ${esc(RP.orgao || '—')}</p><p><b>Local e data:</b> ${esc(RP.localData)}</p>
+          : `<p><b>Nº:</b> ${esc(RP.numero)} · <b>Recebe:</b> ${esc(RP.orgao || '—')}</p><p><b>Local e data:</b> ${esc(RP.localData)}</p>${RP.enquadramento ? `<p><b>Enquadramento legal:</b> ${esc(RP.enquadramento)}</p>` : ''}
           <ul class="re-num">${RP.itens.map(x => `<li>TF ${esc(x.tf || '—')} · ${esc(x.p)} · ${esc(x.q)} ${esc(x.u)}</li>`).join('') || '<li>Nenhum produto apreendido.</li>'}</ul><p><b>Total:</b> ${esc(RP.totalTxt)}</p>`}
         <button class="botao sec" id="re-rpPdf">${icone('documento')} ${RP.nome} (PDF)</button></div>
       ${ed ? `<button class="botao sec" id="re-salvar">${icone('salvar')} Salvar</button>` : ''}
@@ -299,7 +300,7 @@ const EscalaUI = (() => {
     }
     const atuais = () => { const d = { ...D0 }; if (!ed) return d;
       CAMPOS_REL.concat([['kg'], ['repasse']]).forEach(([k]) => { d[k] = $('#re-' + k).value.trim(); });
-      d.repasseNumero = $('#re-rpNumero').value.trim(); d.repasseOrgao = $('#re-rpOrgao').value.trim(); d.repasseLocalData = $('#re-rpLocal').value.trim();
+      d.repasseNumero = $('#re-rpNumero').value.trim(); d.repasseOrgao = $('#re-rpOrgao').value.trim(); d.repasseLocalData = $('#re-rpLocal').value.trim(); d.repasseEnquadramento = $('#re-rpEnq').value.trim();
       d.repasseItens = itensRp().filter(x => x.p || x.q); return d; };
     if (ed) $('#re-salvar').onclick = async () => {
       const b = $('#re-salvar'); b.disabled = true;

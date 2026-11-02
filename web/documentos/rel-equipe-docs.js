@@ -39,7 +39,8 @@
     const kgTxt = String(d.kg || '').trim();
     const kg = kgTxt ? Number(kgTxt.replace(',', '.')) : N.kg;
     const outras = kgTxt ? '' : Object.keys(N.outras || {}).map(u => `${num(N.outras[u])} ${u.toLowerCase()}`).join(', ');
-    const repasse = Number(d.repasse || 0);
+    // termos de repasse: o digitado; sem nada digitado, 1 se o Termo de Repasse tem itens (salvos ou das apreensões), senão 0
+    const nRep = d.repasse != null && String(d.repasse).trim() !== '' ? Number(d.repasse) || 0 : (repasse(R).itens.length ? 1 : 0);
     return {
       convenio: CONFIG.RELEQUIPE.convenio, etapa: CONFIG.RELEQUIPE.etapa,
       equipe: e.equipeNumero ? `Equipe ${e.equipeNumero}` : 'Equipe',
@@ -50,7 +51,7 @@
         `Termo de Fiscalização emitidos: ${comExtenso(N.tfs, 'termo', 'termos')}.`,
         `Apreensões realizadas: ${comExtenso(N.apreensoes, 'apreensão', 'apreensões', true)}.`,
         `Quantidade de Produtos Apreendidos: ${num(kg)} ${plural(kg, 'quilograma', 'quilogramas')}${outras ? ` (e ${outras})` : ''}.`,
-        `Termos de Repasse emitidos: ${repasse} ${plural(repasse, 'termo', 'termos')}.`,
+        `Termos de Repasse emitidos: ${nRep} ${plural(nRep, 'termo', 'termos')}.`,
         `Rechaços realizados: ${N.rechacos} ${plural(N.rechacos, 'rechaço', 'rechaços')}.`,
         `Medidas de educação sanitária: ${num(N.educacao)} ${plural(N.educacao, 'medida', 'medidas')}.`
       ],

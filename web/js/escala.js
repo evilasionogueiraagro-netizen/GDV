@@ -247,7 +247,7 @@ const EscalaUI = (() => {
     let R; try { R = await Sync.relEquipe(id); } catch (e) { return mostrar(`<div class="card aviso">${icone('alerta')} ${esc(e.message || 'Não foi possível abrir o relatório.')}</div>
       <button class="botao sec" data-go="relequipes">${icone('voltar')} Voltar</button>`); }
     const RP = RelEquipeDocs.repasse(R);                                     // Termo de Repasse: o salvo ou o montado pelas apreensões
-    const e = R.escala, N = R.numeros, base = { ...CONFIG.textosRelEquipe(e.bva), ...Object.fromEntries(Object.entries(R.anterior || {}).filter(([, v]) => v)), kg: '', repasse: '0' };
+    const e = R.escala, N = R.numeros, base = { ...CONFIG.textosRelEquipe(e.bva), ...Object.fromEntries(Object.entries(R.anterior || {}).filter(([, v]) => v)), kg: '', repasse: RP.itens.length ? '1' : '0' };
     const D0 = { ...base, ...(R.dados || {}) }, ed = !!R.editar;
     const resp = (e.fiscais.find(f => (f.id || 'nome:' + f.nome.trim().replace(/\s+/g, ' ').toLowerCase()) === e.responsavel) || {}).nome;
     const outras = Object.keys(N.outras || {}).map(u => `${N.outras[u]} ${u}`).join(', ');
@@ -284,9 +284,13 @@ const EscalaUI = (() => {
       <input aria-label="Quantidade" data-k="q" inputmode="decimal" maxlength="12" value="${esc(String(x.q == null ? '' : x.q).replace('.', ','))}" placeholder="Qtd">
       <button type="button" class="mini" data-rprm aria-label="Tirar item">${icone('fechar')}</button></div>`;
     const itensRp = () => [...document.querySelectorAll('#re-itens .re-item')].map(l => Object.fromEntries([...l.querySelectorAll('[data-k]')].map(i => [i.dataset.k, i.value.trim()])));
-    const totalRp = () => { const t = $('#re-rpTotal'); if (t) t.textContent = RelEquipeDocs.repasse({ ...R, dados: { ...R.dados, repasseItens: itensRp() } }).totalTxt; };
+    // termos de repasse: enquanto o responsável não digitar, 1 com itens no Termo de Repasse, 0 sem
+    let repAuto = !(R.dados && R.dados.repasse != null && String(R.dados.repasse).trim() !== '');
+    const totalRp = () => { const t = $('#re-rpTotal'); if (t) t.textContent = RelEquipeDocs.repasse({ ...R, dados: { ...R.dados, repasseItens: itensRp() } }).totalTxt;
+      if (repAuto && $('#re-repasse')) $('#re-repasse').value = itensRp().some(x => x.p || x.q) ? '1' : '0'; };
     const desenharRp = itens => { $('#re-itens').innerHTML = itens.map(linhaRp).join(''); totalRp(); };
     if (ed) {
+      $('#re-repasse').oninput = () => { repAuto = false; };
       desenharRp(RP.itens);
       $('#re-itens').oninput = totalRp;
       $('#re-itens').onclick = ev => { const b = ev.target.closest('[data-rprm]'); if (b) { b.closest('.re-item').remove(); totalRp(); } };

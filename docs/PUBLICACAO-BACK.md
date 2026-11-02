@@ -38,6 +38,9 @@ Precisa da conta dona (**adafegdv@gmail.com**) e do dono do repositório (só el
    Depois apague o `clasprc-gdv.json`. O segredo vale para workflows de qualquer branch (não de fork); para restringir à `main`, use um environment.
 6. Teste: **Actions → Publicar Apps Script → Run workflow** (branch `main`). Com a versão já no ar, termina com "nada a publicar".
 
+## Word do Termo de Referência no Drive
+Merge que muda `produto/`: o workflow `documentos.yml` gera o Word e chama `docSistemaSalvar` (pasta "GDV - Documentos do sistema"). Uma vez: menu e-GDV → Chave dos documentos do sistema → segredo `DOC_SISTEMA_CHAVE`.
+
 ## Dia a dia
 - **Voltar uma versão**: reverta o commit na `main` (o workflow publica o anterior). Na pressa: **Implantar → Gerenciar implantações → lápis → Versão**, escolha a anterior.
 - **Projetos "SISTEMA GDV" em script.google.com**: o backup diário copia a planilha e o script ligado a ela (até 30 guardados). Só vale o da planilha de produção: pegue o ID em **Extensões → Apps Script** na planilha, não na lista.

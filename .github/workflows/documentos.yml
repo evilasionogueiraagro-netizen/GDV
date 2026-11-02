@@ -1,0 +1,76 @@
+name: Documentos do sistema no Drive
+# Depois da publicação do Apps Script (que roda depois dos testes na main), gera o Word do Termo de Referência
+# (produto/gerar-tr.js) e envia ao Web App (action docSistemaSalvar), que guarda na pasta "GDV - Documentos do sistema"
+# do Drive do dono da planilha. Só envia quando o commit mudou produto/ (ou pelo botão "Run workflow").
+# Configuração (uma vez): menu da planilha e-GDV → Chave dos documentos do sistema; a chave vai no segredo DOC_SISTEMA_CHAVE.
+on:
+  workflow_run:
+    workflows: ['Publicar Apps Script']
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: documentos
+  cancel-in-progress: false
+jobs:
+  enviar:
+    if: >-
+      github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          fetch-depth: 2
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Conferir se há o que enviar
+        id: alvo
+        env:
+          CHAVE: ${{ secrets.DOC_SISTEMA_CHAVE }}
+        run: |
+          if [ -z "$CHAVE" ]; then
+            echo "::notice::Segredo DOC_SISTEMA_CHAVE não configurado: o Word do Termo de Referência não vai para o Drive (menu da planilha e-GDV → Chave dos documentos do sistema)."
+            echo "enviar=0" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          if [ "${{ github.event_name }}" != "workflow_dispatch" ] && ! git diff --name-only HEAD~1 HEAD | grep -q '^produto/'; then
+            echo "::notice::O commit não mudou produto/; nada a enviar."
+            echo "enviar=0" >> "$GITHUB_OUTPUT"; exit 0
+          fi
+          url=$(sed -nE "s/.*sync: \{ url: '([^']+)'.*/\1/p" web/js/config.js)
+          [ -n "$url" ] || { echo "::error::URL /exec não encontrada em web/js/config.js"; exit 1; }
+          { echo "enviar=1"; echo "url=$url"; } >> "$GITHUB_OUTPUT"
+
+      - name: Gerar o Word
+        if: steps.alvo.outputs.enviar == '1'
+        run: |
+          mkdir -p /tmp/gerar && (cd /tmp/gerar && npm init -y >/dev/null && npm install --silent docx@9)
+          NODE_PATH=/tmp/gerar/node_modules node produto/gerar-tr.js /tmp/Termo_de_Referencia_e-GDV.docx
+
+      - name: Enviar ao Drive
+        if: steps.alvo.outputs.enviar == '1'
+        env:
+          CHAVE: ${{ secrets.DOC_SISTEMA_CHAVE }}
+        run: |
+          versao=$(sed -nE 's/^\| Versão deste Termo \| ([^|]+) \|.*/\1/p' produto/termo-de-referencia.md | head -1)
+          base64 -w0 /tmp/Termo_de_Referencia_e-GDV.docx > /tmp/tr.b64
+          jq -n --arg chave "$CHAVE" --arg versao "$versao" --rawfile b64 /tmp/tr.b64 \
+            '{action: "docSistemaSalvar", chave: $chave, nome: "Termo_de_Referencia_e-GDV.docx", versao: $versao, base64: $b64}' > /tmp/corpo.json
+          # o Apps Script responde com redirecionamento; -L segue e traz a resposta
+          for i in 1 2 3; do
+            r=$(curl -sL --max-time 120 -H 'Content-Type: text/plain;charset=utf-8' --data-binary @/tmp/corpo.json "${{ steps.alvo.outputs.url }}" || true)
+            if [ "$(printf '%s' "$r" | jq -r '.ok // empty' 2>/dev/null)" = "true" ]; then echo "Enviado: versão $versao"; exit 0; fi
+            echo "Tentativa $i: $(printf '%s' "$r" | jq -r '.erro // empty' 2>/dev/null || echo 'sem resposta')"
+            sleep 30
+          done
+          echo "::error::O Web App não guardou o Word no Drive (confira a chave e o menu da planilha)."
+          exit 1
+
+      - name: Apagar arquivos temporários
+        if: always()
+        run: rm -f /tmp/corpo.json /tmp/tr.b64

@@ -73,7 +73,7 @@ function mkFolder(nome, pai) {
 let relogioDrive = 0;   // datas de criação crescentes (makeCopy no mesmo ms)
 function mkArqApi(a) {
   a.criado = a.criado || (Date.now() + (++relogioDrive));
-  a.api = { getId: () => a.id, getUrl: () => 'https://drive.google.com/file/d/' + a.id + '/view', getName: () => a.nome, setTrashed: v => { a.trashed = !!v; },
+  a.api = { getId: () => a.id, getUrl: () => 'https://drive.google.com/file/d/' + a.id + '/view', getName: () => a.nome, setName: n => { a.nome = String(n); return a.api; }, setTrashed: v => { a.trashed = !!v; },
     isTrashed: () => a.trashed, getDateCreated: () => new Date(a.criado), setSharing: () => { a.compartilhado = true; },
     moveTo: pasta => { a.pai = pasta.getId(); return a.api; },
     makeCopy: (nome, pasta) => { if (driveFalha) throw new Error('Drive indisponível (teste)'); const fid = 'arq-' + (++drive.seq), c = { kind: 'arquivo', id: fid, nome, mime: a.mime, bytes: [], pai: pasta.getId(), trashed: false, compartilhado: false, copiaDe: a.id };

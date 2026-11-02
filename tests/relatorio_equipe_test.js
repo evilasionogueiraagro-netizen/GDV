@@ -147,6 +147,18 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
     return [l({ ...R0, dados: {} }), l({ ...R0, dados: { repasse: '' }, numeros: { ...R0.numeros, apreendidos: [] } }), l({ ...R0, dados: { repasse: '3' } }), l({ ...R0, dados: { repasseItens: [] } })]; });
   ok(nRep.join('|') === 'Termos de Repasse emitidos: 1 termo.|Termos de Repasse emitidos: 0 termos.|Termos de Repasse emitidos: 3 termos.|Termos de Repasse emitidos: 0 termos.',
     'termos de repasse: sem digitar, 1 com itens no Termo de Repasse e 0 sem; o digitado vale', nRep);
+  // CEASA: os apreendidos vão para destruição: "Termo de Destruição", no Aterro Sanitário de Manaus
+  const ce = await p.evaluate(() => new Promise(fim => {
+    const R = { escala: { bva: 'BVA - CEASA', inicio: '2026-10-24', fim: '2026-10-31', equipeNumero: '7', fiscais: [] }, dados: {},
+      numeros: { veiculos: 0, tfs: 1, apreensoes: 1, kg: 3, outras: {}, rechacos: 0, educacao: 0, apreendidos: [{ tf: '12', p: 'MANGA', u: 'Kg', q: 3 }] } };
+    const f = document.createElement('iframe'); f.src = 'documentos/termo-repasse.html'; document.body.appendChild(f);
+    f.onload = () => { const X = f.contentWindow.RelEquipeDocs, r = X.montarRepasse(f.contentDocument, R);
+      fim({ nome: r.nome, local: r.localData, linha: RelEquipeDocs.valores(R).linhas.find(x => /emitidos: \d+ termo/.test(x) && /Destrui|Repasse/.test(x)),
+        texto: f.contentDocument.body.textContent.replace(/\s+/g, ' ') }); f.remove(); };
+  }));
+  ok(ce.nome === 'Termo de Destruição' && ce.local === 'Aterro Sanitário de Manaus, 31 de outubro de 2026.' && ce.linha === 'Termos de Destruição emitidos: 1 termo.'
+    && /TERMO DE DESTRUIÇÃO DE PRODUTOS APREENDIDOS/.test(ce.texto) && /Responsável no Local da Destruição/.test(ce.texto) && !/REPASSE/.test(ce.texto),
+    'CEASA: Termo de Destruição, no Aterro Sanitário de Manaus (e no relatório: "Termos de Destruição emitidos")', ce);
   ok(!err.length, 'sem erros de página', err);
   await b.close(); console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.'); process.exit(falhas ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

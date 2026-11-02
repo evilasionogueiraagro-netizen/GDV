@@ -260,13 +260,13 @@ const EscalaUI = (() => {
         <ul class="re-num"><li>${N.turnos} turno(s) · ${N.veiculos} veículo(s) abordado(s)</li><li>${N.tfs} TF(s) de barreira${N.numerosTF.length ? `: ${esc(N.numerosTF.join(', '))}` : ''}</li>
           <li>${N.apreensoes} apreensão(ões) · ${String(N.kg).replace('.', ',')} kg apreendidos${outras ? ` (e ${esc(outras)})` : ''}</li><li>${N.rechacos} rechaço(s)</li><li>${N.educacao} medida(s) de educação sanitária</li></ul>
         ${ed ? `<div class="duas"><label>Quantidade apreendida (kg) <small>(vazio = ${String(N.kg).replace('.', ',')})</small><input id="re-kg" inputmode="decimal" maxlength="20" value="${esc(D0.kg || '')}"></label>
-          <label>Termos de repasse<input id="re-repasse" inputmode="numeric" maxlength="4" value="${esc(D0.repasse || '0')}"></label></div>`
-          : `<p><b>Termos de repasse:</b> ${esc(D0.repasse || '0')}${D0.kg ? ` · <b>kg (corrigido):</b> ${esc(D0.kg)}` : ''}</p>`}</div>
+          <label>Termos de ${RP.tipo.toLowerCase()}<input id="re-repasse" inputmode="numeric" maxlength="4" value="${esc(D0.repasse || '0')}"></label></div>`
+          : `<p><b>Termos de ${RP.tipo.toLowerCase()}:</b> ${esc(D0.repasse || '0')}${D0.kg ? ` · <b>kg (corrigido):</b> ${esc(D0.kg)}` : ''}</p>`}</div>
       <div class="card"><h3>Textos do relatório</h3>${CAMPOS_REL.map(campo).join('')}
         ${R.salvoEm ? `<p class="dica">Última edição: ${esc(R.salvoPor)}.</p>` : ''}${ed ? '' : '<p class="dica">Só o responsável pela equipe (ou a coordenação) edita.</p>'}</div>
-      <div class="card"><h3>Termo de repasse de produtos apreendidos</h3>
+      <div class="card"><h3>${RP.nome} de produtos apreendidos</h3>
         ${ed ? `<div class="duas"><label>Nº do termo<input id="re-rpNumero" maxlength="20" value="${esc(RP.numero)}"></label>
-          <label>Órgão que recebe <small>(ex.: ADERR)</small><input id="re-rpOrgao" maxlength="60" value="${esc(RP.orgao)}"></label></div>
+          <label>${RP.destruicao ? 'Órgão no local <small>(opcional)</small>' : 'Órgão que recebe <small>(ex.: ADERR)</small>'}<input id="re-rpOrgao" maxlength="60" value="${esc(RP.orgao)}"></label></div>
           <label>Local e data<input id="re-rpLocal" maxlength="200" value="${esc(RP.localData)}"></label>
           <div class="re-itens" id="re-itens"></div>
           <div class="duas"><button type="button" class="botao sec mini" id="re-rpAdd">${icone('mais')} Adicionar item</button>
@@ -274,7 +274,7 @@ const EscalaUI = (() => {
           <p class="dica" style="text-align:left">Os itens vêm dos produtos apreendidos nos TFs da equipe; edite, tire ou acrescente e toque em Salvar. Total: <b id="re-rpTotal"></b></p>`
           : `<p><b>Nº:</b> ${esc(RP.numero)} · <b>Recebe:</b> ${esc(RP.orgao || '—')}</p><p><b>Local e data:</b> ${esc(RP.localData)}</p>
           <ul class="re-num">${RP.itens.map(x => `<li>TF ${esc(x.tf || '—')} · ${esc(x.p)} · ${esc(x.q)} ${esc(x.u)}</li>`).join('') || '<li>Nenhum produto apreendido.</li>'}</ul><p><b>Total:</b> ${esc(RP.totalTxt)}</p>`}
-        <button class="botao sec" id="re-rpPdf">${icone('documento')} Termo de repasse (PDF)</button></div>
+        <button class="botao sec" id="re-rpPdf">${icone('documento')} ${RP.nome} (PDF)</button></div>
       ${ed ? `<button class="botao sec" id="re-salvar">${icone('salvar')} Salvar</button>` : ''}
       <button class="botao" id="re-pdf">${icone('documento')} Gerar relatório (PDF)</button>
       <button class="botao sec" data-go="relequipes">${icone('voltar')} Voltar</button>`);

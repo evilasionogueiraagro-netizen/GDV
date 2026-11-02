@@ -180,11 +180,11 @@
       <p>${N.turnos} turno(s) · ${N.veiculos} veículo(s) · ${N.tfs} TF(s) · ${N.apreensoes} apreensão(ões) · ${String(N.kg).replace('.', ',')} kg · ${N.rechacos} rechaço(s) · ${N.educacao} educação sanitária</p>
       ${CAMPOS.map(([k, rot, l]) => `<label class="pn-conv-campo">${rot}${l > 1 ? `<textarea id="pn-re-${k}" rows="${l}" maxlength="1500" ${ed ? '' : 'readonly'}>${esc(D0[k] || '')}</textarea>` : `<input id="pn-re-${k}" maxlength="200" value="${esc(D0[k] || '')}" ${ed ? '' : 'readonly'}>`}</label>`).join('')}
       <div class="pn-conv-cfg-grade"><label class="pn-conv-campo">Quantidade apreendida (kg; vazio = ${String(N.kg).replace('.', ',')})<input id="pn-re-kg" inputmode="decimal" maxlength="20" value="${esc(D0.kg || '')}" ${ed ? '' : 'readonly'}></label>
-        <label class="pn-conv-campo">Termos de repasse<input id="pn-re-repasse" inputmode="numeric" maxlength="4" value="${esc(D0.repasse || '0')}" ${ed ? '' : 'readonly'}></label></div>
+        <label class="pn-conv-campo">Termos de ${esc(RelEquipeDocs.repasse(R).tipo.toLowerCase())}<input id="pn-re-repasse" inputmode="numeric" maxlength="4" value="${esc(D0.repasse || '0')}" ${ed ? '' : 'readonly'}></label></div>
       ${R.salvoEm ? `<p class="pn-sub">Última edição: ${esc(R.salvoPor)}</p>` : ''}
       <p class="pn-dlg-erro" id="pn-re-erro" role="alert"></p>
       <div class="pn-dlg-botoes"><button type="button" class="pn-btn" id="pn-re-fechar">Fechar</button>${ed ? '<button type="button" class="pn-btn" id="pn-re-salvar">Salvar</button>' : ''}
-        <button type="button" class="pn-btn" id="pn-re-rp">Termo de repasse (PDF)</button><button type="button" class="pn-btn pn-btn-prim" id="pn-re-pdf">Gerar PDF</button></div></form>`;
+        <button type="button" class="pn-btn" id="pn-re-rp">${esc(RelEquipeDocs.repasse(R).nome)} (PDF)</button><button type="button" class="pn-btn pn-btn-prim" id="pn-re-pdf">Gerar PDF</button></div></form>`;
     document.body.appendChild(dlg);
     const q = x => dlg.querySelector(x), atuais = () => { const d = { ...D0 }; CAMPOS.concat([['kg'], ['repasse']]).forEach(([k]) => { d[k] = q('#pn-re-' + k).value.trim(); }); return d; };
     q('#pn-re-fechar').onclick = () => dlg.close(); dlg.addEventListener('close', () => dlg.remove());
@@ -206,7 +206,7 @@
     };
     const sufixo = `${String(e.bva).replace(/[^\w]+/g, '_')}_${e.inicio}_a_${e.fim}`;
     q('#pn-re-pdf').onclick = () => imprimir('rel-equipe.html', (X, d) => X.montar(d, { ...R, dados: atuais() }), `Relatorio_Equipe${e.equipeNumero ? '_' + e.equipeNumero : ''}_${sufixo}`);
-    q('#pn-re-rp').onclick = () => imprimir('termo-repasse.html', (X, d) => X.montarRepasse(d, { ...R, dados: atuais() }), `Termo_de_Repasse${e.equipeNumero ? '_' + e.equipeNumero : ''}_${sufixo}`);
+    q('#pn-re-rp').onclick = () => imprimir('termo-repasse.html', (X, d) => X.montarRepasse(d, { ...R, dados: atuais() }), `Termo_de_${RelEquipeDocs.repasse(R).tipo.normalize('NFD').replace(/[\u0300-\u036f]/g, '')}${e.equipeNumero ? '_' + e.equipeNumero : ''}_${sufixo}`);
     dlg.showModal();
   }
 

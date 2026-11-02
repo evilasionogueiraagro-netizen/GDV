@@ -113,6 +113,7 @@ Legado (`MSG_PORTAL`, podem sair): `painelConvLancar`, `painelConvExcluir`, `pai
 | action | parâmetros | resposta | proteções |
 |---|---|---|---|
 | `tfVerificar` | `id` (UUID do TF) | `encontrado`, `tf` (dados mascarados) | placa mascarada; máx. 30 ids inválidos/min |
+| `docSistemaSalvar` | `chave`, `nome`, `versao`, `base64` (.docx) | `id`, `pasta` | só o GitHub (chave `DOC_SISTEMA_CHAVE`) |
 | `publicoDados` | `periodo` (`15d`, `30d`, `ano`, `anoAnterior`, `tudo`, `intervalo` + `de`/`ate`), `previa` (+ `key` de admin) | `periodo`, `periodos`, `numeros`, `mapa`, `aoVivo`, `atualizadoEm`; `ativo: false` se desligado; intervalo inválido: `ok: false`, `erro` | cache de 5 min; números < 3 suprimidos; grade ~11 km |
 
 ## Fora do doPost

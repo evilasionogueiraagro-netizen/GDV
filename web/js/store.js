@@ -9,7 +9,7 @@ const Store = (() => {
       const rq = indexedDB.open('gdv', 4);
       rq.onupgradeneeded = () => {
         const d = rq.result;
-        ['turnos', 'veiculos', 'tfs', 'pessoas', 'placas', 'levantamentos', 'colheitas', 'propriedades', 'cadastrosPce', 'termosPce']
+        ['turnos', 'veiculos', 'tfs', 'pessoas', 'placas', 'levantamentos', 'colheitas', 'propriedades', 'cadastrosPce', 'termosPce', 'culturasAvaliadas', 'resultados']
           .forEach(n => { if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: 'id' }); });
         // fotos/assinaturas: o índice "enviado" permite contar os pendentes sem carregar as imagens
         if (!d.objectStoreNames.contains('arquivos')) d.createObjectStore('arquivos', { keyPath: 'id' }).createIndex('enviado', 'enviado');

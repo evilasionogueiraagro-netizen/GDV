@@ -97,7 +97,7 @@ function textoPlanilha_(v) {
 function semApostrofo_(v) { return /^'[=+\-@]/.test(v) ? v.slice(1) : v; }
 
 /** Abas em que o registro tem dono: quem não gravou não altera (IDOR). Pessoas, Placas, Propriedades e CadastrosPCE são cadastros comuns. */
-const ABAS_COM_DONO_ = ['TFs', 'Veiculos', 'Levantamentos', 'Colheitas', 'TermosPCE'];
+const ABAS_COM_DONO_ = ['TFs', 'Veiculos', 'Levantamentos', 'Colheitas', 'TermosPCE', 'CulturasAvaliadas', 'Resultados'];
 const MSG_REGISTRO_ALHEIO_ = 'Este registro foi gravado por outro servidor e não pode ser alterado por você.';
 /** Mesmo autor? (nome do login; sem diferença de maiúscula/espaço). Linha sem autor (antiga) não tem dono. */
 function mesmoDono_(dono, usuario) { return !dono || nomeChave_(dono) === nomeChave_(usuario); }

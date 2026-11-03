@@ -89,7 +89,13 @@ const TABELAS = {
               'doc', 'nome', 'atividade', 'empresa', 'cnpj', 'atividadeEmpresa', 'endereco', 'municipio', 'uf', 'telefone', 'lat', 'lon', 'data', 'hora',
               'servidor', 'cargo', 'matricula', 'lotacao', 'pragas', 'tipoLocal', 'acoes', 'constatacao', 'enquadramento', 'testemunhas', 'recebidoEm',
               'plantasInspecionadas', 'amostra', 'sintomas', 'hospedeiros', 'fotos', 'assinaturas', 'documentos', 'registroAntigo',
-              'cancelado', 'motivoCancel', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
+              'cancelado', 'motivoCancel', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
+              'levantamentoId', 'culturaId', 'cultura'],   // 1 TF por cultura avaliada na visita (pce-tf.gs): chave única (levantamentoId, culturaId)
+  // Visita do PCE normalizada em 3FN (pce-visita.gs): culturas avaliadas na visita e resultado por praga da cultura
+  CulturasAvaliadas: ['id', 'levantamentoId', 'culturaId', 'cultura', 'area', 'espLinha', 'espPlanta', 'espUnidade', 'fotos',
+                      'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario', 'excluido'],
+  Resultados: ['id', 'levantamentoId', 'culturaId', 'pragaId', 'praga', 'resultado', 'coleta', 'tipoMaterial', 'codigoAmostra', 'destinoAmostra',
+               'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario', 'excluido'],
   Arquivos: ['id', 'dono', 'donoId', 'tipo', 'papel', 'nome', 'mime', 'tamanho', 'driveId', 'url', 'usuario', 'criadoEm',  // fotos/assinaturas/PDFs no Drive
              'rotulo'],   // rotulo = "praga – cultura" da foto do levantamento (vai também no nome do arquivo)
   // TF de Barreira em preenchimento no aparelho (alerta "apreensão em andamento" no painel). id = usuario|rascunhoId. Sem CPF/nome do fiscalizado.
@@ -192,7 +198,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-29h';
+const VERSAO_CODIGO = '2026-10-29i';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -292,6 +298,8 @@ function sincronizar_(req, usuario) {
   const propriedades = lista_(req.propriedades);
   const cadastrosPce = lista_(req.cadastrosPce);
   const termosPce = lista_(req.termosPce);
+  const culturasAvaliadas = lista_(req.culturasAvaliadas);
+  const resultados = lista_(req.resultados);
   const since = Number(req.since) || 0;
   // Módulos sem autorização: os registros NÃO são gravados e voltam em "recusados" (o app os mantém pendentes no aparelho).
   // Pessoas (cadastro do fiscalizado/produtor) servem ao TF e ao PCE: entram se qualquer um dos dois estiver liberado.
@@ -306,7 +314,9 @@ function sincronizar_(req, usuario) {
     tfs: filtrar('tfs', tfs, perm.tf), placas: filtrar('placas', placas, perm.tf), pessoas: filtrar('pessoas', pessoas, perm.tf || perm.pce),
     levantamentos: filtrar('levantamentos', levantamentos, perm.pce), colheitas: filtrar('colheitas', colheitas, perm.pce),
     propriedades: filtrar('propriedades', propriedades, perm.pce),
-    cadastrosPce: filtrar('cadastrosPce', cadastrosPce, perm.pce), termosPce: filtrar('termosPce', termosPce, perm.pce)
+    cadastrosPce: filtrar('cadastrosPce', cadastrosPce, perm.pce), termosPce: filtrar('termosPce', termosPce, perm.pce),
+    culturasAvaliadas: filtrar('culturasAvaliadas', culturasAvaliadas, perm.pce),
+    resultados: filtrar('resultados', resultados, perm.pce)
   };
   // registros antigos (digitados do papel) só com a permissão "antigo": os demais do mesmo lote entram normalmente
   if (!perm.antigo) {
@@ -343,7 +353,8 @@ function sincronizar_(req, usuario) {
     if (T.tfs.length) marcarConflitosTFs_(gravados_(T.tfs, recusados.tfs), agora);
     gravar_('Pessoas', T.pessoas, agora, usuario);
     gravar_('Placas', T.placas, agora, usuario);
-    alheios('levantamentos', gravar_('Levantamentos', T.levantamentos, agora, usuario));
+    if (typeof sincronizarVisitasPce_ === 'function') sincronizarVisitasPce_(T, agora, usuario, alheios, recusados);
+    else alheios('levantamentos', gravar_('Levantamentos', T.levantamentos, agora, usuario));
     const jaGravadas = {};                                                            // termos que a planilha já tem: mantêm o emitidoEm gravado
     if (T.colheitas.length) lerLeitura_('Colheitas').forEach(function (l) { jaGravadas[l.id] = true; });
     T.colheitas.forEach(function (c) {
@@ -361,14 +372,17 @@ function sincronizar_(req, usuario) {
     gravar_('Propriedades', T.propriedades, agora, usuario);
     // Cadastro de imóvel e Termo de Fiscalização do PCE: nº em texto no formato do papel; número repetido = conflito (o mais antigo vale)
     [['cadastro', 'cadastrosPce'], ['termo', 'termosPce']].forEach(function (x) {
-      const regs = T[x[1]], D = DOCS_PCE[x[0]];
+      let regs = T[x[1]];
+      const D = DOCS_PCE[x[0]];
       if (!regs.length) return;
       const ja = {}; lerLeitura_(D.aba).forEach(function (l) { ja[l.id] = true; });
       regs.forEach(function (r) {
         if (!r) return;
         normalizarDocPce_(x[0], r);
+        if (x[0] === 'termo' && typeof normalizarTermoPceVisita_ === 'function') normalizarTermoPceVisita_(r, T);
         if (!r.emitidoEm) { if (ja[r.id]) delete r.emitidoEm; else r.emitidoEm = agora; }
       });
+      if (x[0] === 'termo' && typeof filtrarTermosPceUnicos_ === 'function') regs = filtrarTermosPceUnicos_(regs, usuario, alheios);
       alheios(x[1], gravar_(D.aba, regs, agora, usuario));
       marcarConflitos_(D.seq, gravados_(regs, recusados[x[1]]), agora);
     });
@@ -394,6 +408,8 @@ function sincronizar_(req, usuario) {
       ultimosPce: ultimosPce_(),                        // último nº de Termo de Colheita por "UNIDADE|ano"
       cadastrosPce: lerMudancas_('CadastrosPCE', since, usuario),   // Cadastro de imóvel e Termo de Fiscalização do PCE (só os do próprio servidor)
       termosPce: lerMudancas_('TermosPCE', since, usuario),
+      culturasAvaliadas: lerMudancas_('CulturasAvaliadas', since, usuario),
+      resultados: lerMudancas_('Resultados', since, usuario),
       ultimosDocPce: ultimosDocPce_(),                  // último nº de Termo de Fiscalização ("T|UNIDADE|ano") e de Cadastro ("C|PROGRAMA|UNIDADE|ano")
       permissoes: perm,                                 // módulos liberados para este servidor (o app guarda e esconde o que não pode)
       bvas: bvasCadastro_(),                            // BVAs cadastradas no painel (o app junta com CONFIG.bvas)

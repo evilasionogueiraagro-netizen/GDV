@@ -147,6 +147,7 @@
         ${campo('pn-cat-tf', 'Nome no quadro do Termo (vazio = fora do quadro)', atual.nomeNoTF, `maxlength="60" ${dis}`)}
         ${campo('pn-cat-prog', 'Programa que divide com outras pragas (vazio = programa próprio)', atual.programa || '', `maxlength="60" list="pn-cat-progs" placeholder="ex.: Citros" ${dis}`)}
         ${selecao('pn-cat-lev', 'Levantamento no campo', [['1', 'Sim (aparece nas culturas do levantamento)'], ['0', 'Não (ausente no Brasil: só educação sanitária)']], Number(atual.levantamento) === 0 ? '0' : '1', dis)}
+        ${selecao('pn-cat-opc', 'No Termo de Fiscalização', [['0', 'Gera Termo (resposta obrigatória no levantamento)'], ['1', 'Campo opcional (sem Termo próprio)']], Number(atual.opcional) === 1 ? '1' : '0', dis)}
         <datalist id="pn-cat-progs">${[...new Set(ST.cat.pragas.map(x => x.programa).filter(Boolean))].map(x => `<option value="${esc(x)}">`).join('')}</datalist>
         ${selecao('pn-cat-ativo', 'Situação', [['1', 'Ativa (aparece no app)'], ['0', 'Desativada']], atual.ativo ? '1' : '0', dis)}</div>
       <div class="pn-cat-secao">Enquadramento legal <small>vai no Termo quando detectada ou suspeita</small></div>
@@ -163,7 +164,7 @@
     qd('#pn-cat-fam-sel').onchange = e => { const v = e.target.value; if (v && !fams.includes(v)) fams.push(v); e.target.value = ''; desenharLigacoes(); };
     qd('#pn-cat-cult-sel').onchange = e => { const v = e.target.value; if (v && !cults.includes(v)) cults.push(v); e.target.value = ''; desenharLigacoes(); };
     qd('#pn-cat-salvar').onclick = () => gravar(c, 'pragas', 'praga', { id: atual.id, nomePopular: qd('#pn-cat-nome').value, nomeCientifico: qd('#pn-cat-cient').value,
-      tipo: qd('#pn-cat-tipo').value, nomeNoTF: qd('#pn-cat-tf').value, programa: qd('#pn-cat-prog').value, levantamento: qd('#pn-cat-lev').value === '1', enquadramentoLegal: qd('#pn-cat-enq').value, ativo: qd('#pn-cat-ativo').value === '1',
+      tipo: qd('#pn-cat-tipo').value, nomeNoTF: qd('#pn-cat-tf').value, programa: qd('#pn-cat-prog').value, levantamento: qd('#pn-cat-lev').value === '1', opcional: qd('#pn-cat-opc').value === '1', enquadramentoLegal: qd('#pn-cat-enq').value, ativo: qd('#pn-cat-ativo').value === '1',
       familias: fams, culturas: cults }, det);
   }
 

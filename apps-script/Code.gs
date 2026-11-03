@@ -183,7 +183,8 @@ const TABELAS = {
   Culturas: ['id', 'nome', 'nomeCientifico', 'familiaId', 'cultivares', 'ativo', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor'],
   Pragas: ['id', 'nomePopular', 'nomeCientifico', 'tipo', 'enquadramentoLegal', 'nomeNoTF', 'ativo', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor',
            'programa',     // nome do programa quando várias pragas dividem um Termo (ex.: Citros); vazio = a praga é o programa
-           'levantamento'],   // 0 = sem levantamento no campo (praga ausente no Brasil, ex.: Fusariose FOC R4T: só educação sanitária)
+           'levantamento',   // 0 = sem levantamento no campo (praga ausente no Brasil, ex.: Fusariose FOC R4T: só educação sanitária)
+           'opcional'],      // 1 = campo opcional (resposta não obrigatória, sem Termo próprio; entra no Termo do programa, se tiver)
   PragasDasFamilias: ['id', 'pragaId', 'familiaId', 'ativo', 'atualizadoEm', 'atualizadoPor'],
   PragasDasCulturas: ['id', 'pragaId', 'culturaId', 'ativo', 'atualizadoEm', 'atualizadoPor']
 };

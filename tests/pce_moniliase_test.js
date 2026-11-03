@@ -62,8 +62,8 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   if (!(await A.locator('.modulo').count())) await A.click('nav [data-v=modulos]');
   await A.click('.modulo[data-v=pce]'); await A.waitForSelector('#pceServForm');
   await A.check('#pce-s-digitacao'); await A.click('#pce-s-salvar'); await A.waitForSelector('#pce-cads');
-  ok(await A.locator('#pce-tfs').count() === 1 && await A.locator('#pce-rel').count() === 1, 'lista do PCE: Cadastro de imóvel, Termo de Fiscalização e Relatório de atividades');
   await A.click('#pce-cads'); await A.waitForSelector('#mon-novo-papel');
+  ok(await A.locator('#pce-tfs').count() === 1 && await A.locator('#pce-rel').count() === 1, 'gestão de propriedades: Cadastro de imóvel, Termo de Fiscalização e Relatório de atividades');
   ok(await A.locator('#mon-novo').count() === 0, 'quem só digita: só "Digitar do papel"');
   await A.click('#mon-novo-papel'); await A.waitForSelector('#monCadForm.pce-antigo');
   ok(await A.locator('.pce-canvas').count() === 0 && await A.locator('[data-mon=gps]').count() === 0, 'papel: sem assinaturas e sem GPS');
@@ -222,7 +222,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   ok(JSON.stringify(baixados) === '["001-2025-AUTAZES","003-2025-AUTAZES"]', '"Dados para o campo": cadastros de monilíase de Autazes no aparelho', baixados);
   const pAut = await Wp.evaluate(async () => (await Store.todos('propriedades')).filter(p => p.campoMun).map(p => ({ id: p.id, ult: p.ultimoTermoPce && p.ultimoTermoPce.numeroTxt })));
   ok(pAut.length === 2 && pAut.every(x => /^00[12]\.2026\.AUTAZES$/.test(x.ult || '')), 'propriedades baixadas com o último termo de fiscalização', pAut);
-  await Wp.evaluate(() => go('pce')); await Wp.waitForSelector('#pce-tfs'); await shot(Wp, 'mon_lista_pce_celular.png', false);
+  await Wp.evaluate(() => go('pcecads')); await Wp.waitForSelector('#pce-tfs'); await shot(Wp, 'mon_lista_pce_celular.png', false);
   await Wp.click('#pce-tfs'); await Wp.waitForSelector('#mon-novo');
   ok(await Wp.locator('#mon-novo-papel').count() === 0, 'sem a permissão Papel: sem "Digitar do papel"');
   await Wp.ctx.setOffline(true);

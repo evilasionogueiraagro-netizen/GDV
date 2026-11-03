@@ -1169,14 +1169,47 @@ const PCEUI = (() => {
     view(`<div class="card pce-serv"><div><b>${esc(s.nome)}</b><small>${dig ? 'Digitação de registros do papel' : esc(s.cargo) + ' · ' + esc(s.lotacao)}${s.matricula ? ' · Mat. ' + esc(s.matricula) : ''}</small></div>
         <button class="mini" data-pce="servidor" id="pce-meusdados">${icone('pessoa')} Meus dados</button></div>
       ${digSemAut ? avisoSemAntigoHTML() : ''}
-      ${dig ? '' : `<button class="botao" data-pce="novolev" id="pce-novolev">${icone('mais')} Novo levantamento</button>
-      <div class="duas campo-atalhos"><button class="botao sec" data-v="pcecampo" id="pce-campo">${icone('baixar')} Dados para o campo</button><button class="botao sec" data-v="pcemapa" id="pce-mapa">${icone('mapa')} Perto de mim</button></div>
-      ${campoRes ? `<p class="dica" id="pce-campo-res">No aparelho: ${esc(campoRes)}</p>` : ''}`}
-      ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-pce="novolevantigo" id="pce-novolevantigo">${icone('documento')} Registro antigo (digitar do papel)</button>` : ''}
-      ${digSemAut ? '' : `<div class="pce-docs-atalhos" aria-label="Outros documentos do PCE">
-        <button class="mini" data-v="pcecads" id="pce-cads">${icone('propriedade')} Cadastros de propriedades</button>
-        <button class="mini" data-v="pcetfs" id="pce-tfs">${icone('formulario')} Termos de Fiscalização</button>
-        <button class="mini" data-v="pcerel" id="pce-rel">${icone('resumo')} Relatório de atividades</button></div>`}
+      <div class="pce-fluxos">
+        <div class="card pce-fluxo-card">
+          <div class="pce-fluxo-topo">
+            <span class="pce-fluxo-ic">${icone('propriedade')}</span>
+            <div>
+              <h3 class="pce-fluxo-titulo">Propriedades e Gestão</h3>
+              <p class="pce-fluxo-sub">Cadastro de imóveis, consulta da base, estatísticas, termos de fiscalização e relatórios de atividades.</p>
+            </div>
+          </div>
+          <div class="pce-fluxo-acoes duas">
+            <button class="botao" data-v="pcecad">${icone('mais')} Cadastrar propriedade</button>
+            <button class="botao sec" data-v="pcecads" id="pce-cads">${icone('propriedade')} Gerenciar propriedades</button>
+          </div>
+        </div>
+        <div class="card pce-fluxo-card">
+          <div class="pce-fluxo-topo">
+            <span class="pce-fluxo-ic">${icone('broto')}</span>
+            <div>
+              <h3 class="pce-fluxo-titulo">Levantamentos</h3>
+              <p class="pce-fluxo-sub">Registro de inspeções fitossanitárias em campo e emissão de termos.</p>
+            </div>
+          </div>
+          <div class="pce-fluxo-acoes">
+            ${dig ? '' : `<button class="botao" data-pce="novolev" id="pce-novolev">${icone('mais')} Criar levantamento</button>`}
+            ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-pce="novolevantigo" id="pce-novolevantigo">${icone('documento')} Registro antigo (digitar do papel)</button>` : ''}
+          </div>
+        </div>
+        ${dig ? '' : `<div class="card pce-fluxo-card">
+          <div class="pce-fluxo-topo">
+            <span class="pce-fluxo-ic">${icone('baixar')}</span>
+            <div>
+              <h3 class="pce-fluxo-titulo">Dados Offline</h3>
+              <p class="pce-fluxo-sub">Baixe propriedades do município para trabalhar sem internet no campo.</p>
+            </div>
+          </div>
+          <div id="pce-campo-res" class="pce-campo-status">${campoRes ? 'No aparelho: ' + esc(campoRes) : 'Nenhum município baixado no aparelho.'}</div>
+          <div class="pce-fluxo-acoes">
+            <button class="botao sec" data-v="pcecampo" id="pce-campo">${icone('baixar')} Salvar propriedades para o offline</button>
+          </div>
+        </div>`}
+      </div>
       ${todos.length ? `<div class="pce-ordem"><label for="pce-ordem">Organizar por</label> <select id="pce-ordem"><option value="municipio">Município</option><option value="data">Data (mais recentes primeiro)</option></select></div>` : ''}
       <div id="pceItens"></div>`);
     const G = new Map(todos.map(x => [x.id, Docs.pceGrupos(x)]));

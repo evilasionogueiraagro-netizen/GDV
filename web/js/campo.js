@@ -265,12 +265,35 @@ const Campo = (() => {
   }
   async function posicaoSilenciosa() { try { return await pegarLocalSilencioso(); } catch (e) { return null; } }
 
+  function subnavHTML(v) {
+    return `<div class="pce-subnav" role="tablist" aria-label="Submenu de navegação">
+      <button class="pce-subnav-btn ${v === 'pcecads' ? 'on' : ''}" data-v="pcecads" id="pce-cads">${icone('propriedade')} <span>Propriedades</span></button>
+      <button class="pce-subnav-btn ${v === 'pcetfs' ? 'on' : ''}" data-v="pcetfs" id="pce-tfs">${icone('formulario')} <span>Termos</span></button>
+      <button class="pce-subnav-btn ${v === 'pcerel' ? 'on' : ''}" data-v="pcerel" id="pce-rel">${icone('resumo')} <span>Relatório</span></button>
+      <button class="pce-subnav-btn ${v === 'pcemapa' ? 'on' : ''}" data-v="pcemapa" id="pce-mapa">${icone('mapa')} <span>Perto de mim</span></button>
+      <button class="pce-subnav-btn ${v === 'pcecampo' ? 'on' : ''}" data-v="pcecampo" id="pce-subnav-campo">${icone('baixar')} <span>Dados Offline</span></button>
+    </div>`;
+  }
+
   /* ================= tela: baixar dados para o campo ================= */
   async function telaBaixar() {
     const mostrar = tela();
     const m = await lerMeta(), lista = Object.values(m).sort((a, b) => a.municipio.localeCompare(b.municipio, 'pt-BR'));
     if (!mostrar.viva()) return;
-    mostrar(`<div class="card" id="campo-topo"><h3>${icone('baixar')} Dados para o campo</h3>
+    const totP = lista.reduce((s, x) => s + (x.nProps || 0), 0), totPe = lista.reduce((s, x) => s + (x.nPessoas || 0), 0);
+    mostrar(`${subnavHTML('pcecampo')}
+      <div class="card pce-stats">
+        <div class="pce-stats-topo">
+          <b>${icone('baixar')} Armazenamento Offline</b>
+          <small>Cache local para o campo</small>
+        </div>
+        <div class="pce-stats-grid">
+          <div class="pce-stat-item"><span class="pce-stat-num">${lista.length}</span><span class="pce-stat-rot">Municípios salvos</span></div>
+          <div class="pce-stat-item"><span class="pce-stat-num">${totP}</span><span class="pce-stat-rot">Propriedades em cache</span></div>
+          <div class="pce-stat-item"><span class="pce-stat-num">${totPe}</span><span class="pce-stat-rot">Produtores em cache</span></div>
+        </div>
+      </div>
+      <div class="card" id="campo-topo"><h3>${icone('baixar')} Dados para o campo</h3>
         <p class="dica" style="text-align:left">Antes de sair, <b>com internet</b>, baixe os produtores e as propriedades do(s) município(s) da viagem. Sem internet, a busca por CPF, nome ou código, a ficha e o mapa usam esses dados. Com internet, eles se atualizam sozinhos (a cada 6 h).</p>
         <p class="dica campo-lgpd" style="text-align:left">${icone('bloqueio')} São dados pessoais (LGPD): use só no serviço e <b>apague do aparelho ao voltar</b>.</p></div>
       <div class="card" id="campo-baixados"><h3>Neste aparelho</h3>${lista.length ? lista.map(x => `<div class="campo-mun" data-mun="${esc(x.municipio)}">
@@ -331,7 +354,8 @@ const Campo = (() => {
     if (MAPA) { try { MAPA.map.remove(); } catch (e) { /* tela anterior */ } MAPA = null; }
     Object.assign(S, { D, rota, sel: '', q: '', raio: lsGetC('gdv.campoRaio') || '' });
     const nMun = Object.keys(D.meta).length;
-    mostrar(`<div class="card campo-mapa-card"><h3>${icone('mapa')} Propriedades perto de mim</h3>
+    mostrar(`${subnavHTML('pcemapa')}
+      <div class="card campo-mapa-card"><h3>${icone('mapa')} Propriedades perto de mim</h3>
         ${nGeral ? `<div class="tf-novo" id="campo-geral">Com internet: o mapa mostra também as ${nGeral} propriedade(s) dos municípios não baixados. Para ver o produtor e trabalhar sem internet, baixe o município. <button class="mini" data-v="pcecampo">${icone('baixar')} Baixar dados</button></div>`
           : nMun ? '' : `<div class="tf-novo" id="campo-semdados">Nenhum município baixado: o mapa mostra só as propriedades já usadas neste aparelho. <button class="mini" data-v="pcecampo">${icone('baixar')} Baixar dados</button></div>`}
         <div id="campo-mapa" class="campo-mapa" role="region" aria-label="Mapa das propriedades"></div>

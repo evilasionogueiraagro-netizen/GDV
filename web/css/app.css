@@ -257,11 +257,49 @@ nav button span { font-size:9.5px; } nav button.on { color:var(--link); font-wei
 /* PCE: atalhos para cadastros, termos de fiscalização e relatório (o fluxo principal é a visita: levantamento → termo) */
 .pce-docs-atalhos { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 12px; } .pce-docs-atalhos .mini { margin:0; padding:8px 10px; }
 .pce-visita .botao { margin:8px 0; }
+
+/* PCE — 3 Cards Principais por Fluxo na Tela Inicial */
+.pce-fluxos { margin:0 0 12px; }
+.pce-fluxo-card { margin:0 0 12px; border:1.5px solid var(--grade); border-radius:14px; padding:16px; background:var(--sf); box-shadow:var(--sombra); transition:border-color .15s ease; }
+.pce-fluxo-card:hover { border-color:var(--borda); }
+.pce-fluxo-topo { display:flex; align-items:flex-start; gap:12px; margin-bottom:12px; }
+.pce-fluxo-ic { flex:0 0 42px; height:42px; border-radius:10px; background:var(--sf2); border:1px solid var(--grade); display:flex; align-items:center; justify-content:center; color:var(--destaque); }
+.pce-fluxo-ic .ico { width:22px; height:22px; }
+.pce-fluxo-titulo { margin:0 0 3px; font-size:16.5px; font-weight:700; color:var(--destaque); }
+.pce-fluxo-sub { margin:0; font-size:13px; color:var(--mut); line-height:1.4; }
+.pce-fluxo-acoes { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+.pce-fluxo-acoes.duas { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.pce-fluxo-acoes .botao { margin:0; }
+.pce-campo-status { font-size:13px; color:var(--ink); background:var(--sf2); padding:8px 12px; border-radius:8px; border:1px solid var(--grade); margin-bottom:4px; }
+
+/* PCE — Submenu / Abas internas (Pills) */
+.pce-subnav { display:flex; gap:6px; overflow-x:auto; padding:2px 2px 10px; margin:0 0 12px; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.pce-subnav::-webkit-scrollbar { display:none; }
+.pce-subnav-btn { flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; padding:7px 12px; background:var(--sf); border:1.5px solid var(--grade); border-radius:20px; font-size:13px; font-weight:600; color:var(--mut); cursor:pointer; text-decoration:none; white-space:nowrap; transition:all .15s ease; }
+.pce-subnav-btn .ico { width:15px; height:15px; }
+.pce-subnav-btn:hover { background:var(--sf2); color:var(--ink); border-color:var(--borda); }
+.pce-subnav-btn.on { background:var(--sel); border-color:var(--marca2); color:var(--destaque); font-weight:700; }
+
+/* PCE — Painel de Estatísticas */
+.pce-stats { margin-bottom:12px; padding:14px; background:var(--sf); border-radius:12px; border:1px solid var(--grade); }
+.pce-stats-topo { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; border-bottom:1px solid var(--grade); padding-bottom:6px; flex-wrap:wrap; gap:4px; }
+.pce-stats-topo b { display:flex; align-items:center; gap:6px; font-size:14.5px; color:var(--destaque); }
+.pce-stats-topo small { font-size:12px; color:var(--mut); }
+.pce-stats-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:8px; }
+.pce-stat-item { background:var(--sf2); border:1px solid var(--grade); border-radius:8px; padding:8px; text-align:center; }
+.pce-stat-num { display:block; font-size:20px; font-weight:700; color:var(--destaque); }
+.pce-stat-rot { display:block; font-size:11.5px; color:var(--mut); margin-top:2px; }
+
+@media (min-width:1024px) {
+  .pce-fluxos { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-bottom:14px; }
+  .pce-fluxo-card { margin:0; display:flex; flex-direction:column; justify-content:space-between; }
+  .pce-fluxo-acoes.duas { grid-template-columns:1fr; }
+}
 /* PCE: resultado do laboratório do Termo de Colheita (selo com texto, não só cor) */
 .pce-lab { display:inline-block; font-size:13px; border-radius:6px; padding:2px 8px; background:var(--sf2); color:inherit; border:1px solid var(--borda); }
-.pce-lab.positivo { border-color:var(--critico); background:rgba(208,59,59,.10); font-weight:600; }
-.pce-lab.negativo { border-color:var(--bom); background:rgba(12,163,12,.08); }
-.pce-lab.inconclusivo, .pce-lab.inviavel { border-color:var(--serio); background:rgba(236,131,90,.10); }
+.pce-lab.positivo { border-color:var(--critico); background:color-mix(in srgb, var(--critico) 12%, var(--sf)); color:var(--critico); font-weight:600; }
+.pce-lab.negativo { border-color:var(--bom); background:color-mix(in srgb, var(--bom) 10%, var(--sf)); color:var(--bom-txt); }
+.pce-lab.inconclusivo, .pce-lab.inviavel { border-color:var(--serio); background:color-mix(in srgb, var(--serio) 12%, var(--sf)); color:var(--atencao-txt); }
 .pce-lab.sem { opacity:.8; }
 .pce-outro-l[hidden], #pce-modal-lab label[hidden] { display:none !important; }
 .pce-lista-outro { min-width:0; } .pce-outro-l { margin-top:6px; }

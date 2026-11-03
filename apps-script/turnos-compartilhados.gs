@@ -38,6 +38,14 @@ function turnosCompartilhados_(usuario, agora) {
   return { turnos: turnos, veiculos: veiculos };
 }
 
+/** TFs do sync: os do próprio login e os ligados aos turnos compartilhados (`ids`). TF de colega com dados do fiscalizado: registro de
+ *  leitura de dados pessoais (AcessosADados, no máximo 1 vez por hora, como as demais leituras). */
+function tfsDoSync_(since, usuario, ids) {
+  const tfs = lerMudancasTurnos_('TFs', since, usuario, ids, 'turnoId');
+  if (tfs.some(function (t) { return t.usuario !== usuario; })) lido_({ action: 'tfsTurnoCompartilhado' }, { ok: true });
+  return tfs;
+}
+
 /** Mudanças desde `since` do próprio login e das linhas cujo `campo` está em `ids` (turno compartilhado). */
 function lerMudancasTurnos_(nome, since, usuario, ids, campo) {
   if (!Object.keys(ids).length) return lerMudancas_(nome, since, usuario);
@@ -86,7 +94,7 @@ function turnoParear_(req, usuario) {
   if (erros >= PAREAR_TENTATIVAS) throw new Error('Muitos códigos errados. Aguarde 15 minutos e peça um código novo ao colega.');
   const errou = function (msg) { cacheGravar_(chave, erros + 1, PAREAR_VALIDADE_MS / 1000); return new Error(msg); };
   if (!RE_CODIGO_PAREAR_.test(codigo)) throw errou('Digite o código de 6 números que aparece no aparelho do colega.');
-  return comLock_(function () {
+  const r = comLock_(function () {
     const agora = Date.now();
     const p = lerLinhas_('Pareamentos').filter(function (x) { return x.codigo === codigo && !x.colega && x.expiraEm > agora; })[0];
     if (!p) throw errou('Código inválido ou vencido. Peça um código novo ao colega (vale 15 minutos).');
@@ -98,8 +106,12 @@ function turnoParear_(req, usuario) {
     atualizar_('Turnos', t._linha, { colegas: JSON.stringify(colegas), srv_ts: agora });
     t.colegas = JSON.stringify(colegas); t.srv_ts = agora; delete t._linha;
     const veiculos = lerLeitura_('Veiculos').filter(function (v) { return v.turnoId === t.id; });
-    return { ok: true, turno: t, veiculos: veiculos, dono: t.usuario };
+    // TFs já lavrados no turno (o colega passa a ver o TF completo, como o dono)
+    const tfs = USUARIO_ATUAL_ && USUARIO_ATUAL_.modulos && USUARIO_ATUAL_.modulos.tf ? lerLeitura_('TFs').filter(function (f) { return f.turnoId === t.id; }) : [];
+    return { ok: true, turno: t, veiculos: veiculos, tfs: tfs, dono: t.usuario };
   });
+  if (r.tfs.length) lido_({ action: 'tfsTurnoCompartilhado' }, r);   // fora do lock (lido_ grava com o próprio lock)
+  return r;
 }
 
 /** turnoSair {turnoId}: o colega deixa o turno compartilhado (o que ele lançou fica). O nome continua no turno: ele participou. */
@@ -198,7 +210,8 @@ function turnoRecuperar_(req, usuario) {
   }).map(function (t) { ids[t.id] = true; return limpo(t); });
   return { ok: true, turnos: turnos,
     veiculos: lerLinhas_('Veiculos').filter(function (v) { return ids[v.turnoId]; }).map(limpo),
-    tfs: lerLinhas_('TFs').filter(function (t) { return ids[t.turnoId] && nomeChave_(t.usuario) === eu; }).map(limpo),   // só os TFs do próprio login
+    // TFs dos turnos do período: os do login e, com o módulo TF, os dos colegas no turno compartilhado
+    tfs: lerLinhas_('TFs').filter(function (t) { return ids[t.turnoId] && (nomeChave_(t.usuario) === eu || (USUARIO_ATUAL_ && USUARIO_ATUAL_.modulos && USUARIO_ATUAL_.modulos.tf)); }).map(limpo),
     compartilhados: turnos.filter(function (t) { return nomeChave_(t.usuario) !== eu; }).map(function (t) { return t.id; }) };
 }
 

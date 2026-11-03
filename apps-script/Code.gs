@@ -181,7 +181,8 @@ const TABELAS = {
   // modelo de cadastro; ligações praga × família e praga × cultura (id = pragaId|alvo; ativo 0 = desfeita, nada se apaga)
   FamiliasDeCulturas: ['id', 'nome', 'modeloCadastro', 'ativo', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor'],
   Culturas: ['id', 'nome', 'nomeCientifico', 'familiaId', 'cultivares', 'ativo', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor'],
-  Pragas: ['id', 'nomePopular', 'nomeCientifico', 'tipo', 'enquadramentoLegal', 'nomeNoTF', 'ativo', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor'],
+  Pragas: ['id', 'nomePopular', 'nomeCientifico', 'tipo', 'enquadramentoLegal', 'nomeNoTF', 'ativo', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor',
+           'programa'],   // nome do programa quando várias pragas dividem um Termo (ex.: Citros); vazio = a praga é o programa
   PragasDasFamilias: ['id', 'pragaId', 'familiaId', 'ativo', 'atualizadoEm', 'atualizadoPor'],
   PragasDasCulturas: ['id', 'pragaId', 'culturaId', 'ativo', 'atualizadoEm', 'atualizadoPor']
 };

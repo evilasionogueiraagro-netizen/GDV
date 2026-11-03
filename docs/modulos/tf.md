@@ -30,5 +30,5 @@ TF do app de campo (isolado ou no turno), impresso em 2 vias. Veja também: [app
 - `Code.gs`: `tfProximoNumero`, `tfEmitir`, `tfConsultar`, `tfIndiceReincidencia`, `tfVerificar`; `MODULO_DA_ACAO`.
 
 ## LGPD
-- Fiscal baixa só os próprios TFs; outros cadastros só por consulta.
+- Fiscal baixa os TFs dele e os do turno compartilhado (módulo TF); só quem lavrou altera.
 - Índice só com hashes (testáveis por tentativa de CPF): só para quem tem o módulo TF.

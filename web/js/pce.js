@@ -581,6 +581,11 @@ const PCEUI = (() => {
   const nomeDaPraga = p => P.pragas.find(n => idCat(n) === p.id) || p.nomePopular;
   const pragaPorNome = nome => { const k = idCat(nome); return k ? pragasCat().find(p => p.id === k || idCat(p.nomePopular) === k) || null : null; };
   const culturaIdDe = nome => { const k = idCat(nome), c = CAT && CAT.culturas.find(x => x.id === k || idCat(x.nome) === k); return c ? c.id : k; };
+  /** Programa da cultura (o do papel: cadastro e Termo) = modelo de cadastro da família dela; sem família, "propriedade" (outras culturas). */
+  const programaDaCultura = nome => {
+    const c = CAT && CAT.culturas.find(x => idCat(x.nome) === idCat(nome)), f = c && c.familiaId && CAT.familias.find(x => x.id === c.familiaId);
+    return { programa: (f && f.modeloCadastro) || 'propriedade', nome: f ? f.nome : 'Outras culturas' };
+  };
   const chavePraga = g => g.pragaId || (g.praga ? idCat(g.praga) : 'sem-praga');
   /** Pragas da cultura no catálogo: as ligadas à família dela e as ligadas só a ela. */
   function pragasLigadas(nomeCultura) {
@@ -648,11 +653,11 @@ const PCEUI = (() => {
     cards.forEach(c => { F.fotosC[c.uid] = c.fotos; });
     return cards.length ? cards : [culturaVazia()];
   }
-  /** Pragas avaliadas numa cultura da visita, com o enquadramento legal do catálogo (Termo de Fiscalização da cultura). */
-  async function pragasDaCulturaNaVisita(lev, cultura) {
+  /** Pragas avaliadas nas culturas de um programa da visita, com o enquadramento legal do catálogo (Termo de Fiscalização do programa). */
+  async function pragasDasCulturasNaVisita(lev, culturas) {
     await carregarCatalogo();
-    const k = idCat(cultura);
-    return Docs.pceGrupos(lev).pragas.flatMap(g => g.culturas.filter(c => idCat(c.cultura) === k).map(c => {
+    const ks = new Set(culturas.map(idCat));
+    return Docs.pceGrupos(lev).pragas.flatMap(g => g.culturas.filter(c => ks.has(idCat(c.cultura))).map(c => {
       const p = pragaPorNome(g.praga);
       return { praga: g.praga, resultado: c.resultado, enquadramento: (p && p.enquadramentoLegal) || '' };
     }));
@@ -1068,22 +1073,29 @@ const PCEUI = (() => {
     tfs = tfs || (await Store.todos('termosPce')).filter(t => !Number(t.excluido));
     const doc = digitos(r.doc), nomeP = semAcento(r.propriedade || '').toUpperCase().trim();
     const daProp = x => (pid && x.propriedadeId === pid) || (doc && digitos(x.doc) === doc && (!nomeP || semAcento(x.propriedade || '').toUpperCase().trim() === nomeP));
-    // um Termo por cultura avaliada (levantamentoId + cultura); Termo antigo da visita (sem cultura): o do mesmo dia na mesma propriedade
-    const daVisita = tfs.filter(t => t.levantamentoId === r.id && t.culturaId);
-    const culturas = [...new Map(Docs.pceGrupos(r).pragas.flatMap(g => g.culturas.map(c => [culturaIdDe(c.cultura), c.cultura]))).entries()]
-      .map(([culturaId, cultura]) => ({ culturaId, cultura, termo: daVisita.find(t => t.culturaId === culturaId) || null }));
-    const antigo = daVisita.length ? null : tfs.find(t => !t.culturaId && (t.levantamentoId === r.id || (daProp(t) && t.data === r.data))) || null;
-    return { pid, programa, cadastro: cads.find(c => daProp(c) && (c.programa || 'moniliase') === programa) || null, termo: antigo, culturas };
+    // um Termo por programa da visita (como o papel), com as culturas dele; Termo antigo (sem programa da visita): o do mesmo dia na mesma propriedade
+    const daVisita = tfs.filter(t => t.levantamentoId === r.id && t.programaVisita), progs = new Map();
+    [...new Set(Docs.pceGrupos(r).pragas.flatMap(g => g.culturas.map(c => c.cultura)))].forEach(cultura => {
+      const pg = programaDaCultura(cultura);
+      if (!progs.has(pg.programa)) progs.set(pg.programa, { ...pg, culturas: [] });
+      progs.get(pg.programa).culturas.push(cultura);
+    });
+    const programas = [...progs.values()].map(x => ({ ...x, termo: daVisita.find(t => t.programaVisita === x.programa) || null }));
+    const antigo = daVisita.length ? null : tfs.find(t => !t.programaVisita && (t.levantamentoId === r.id || (daProp(t) && t.data === r.data))) || null;
+    return { pid, programa, cadastro: cads.find(c => daProp(c) && (c.programa || 'moniliase') === programa) || null, termo: antigo, programas };
   }
   function botoesVisita(r, v, grande) {
     if (!Sync.pode('pce') || (Number(r.registroAntigo) === 1 && !podeAntigo())) return '';
     const id = x => (grande ? `id="${x}"` : ''), ci = v.programa === 'citros';
     const cad = v.cadastro ? '' : `<button class="${grande ? 'botao' : 'editar'}" data-pce="cadvisita" data-id="${esc(r.id)}" ${grande ? id('pce-pronto-cad') : curto(ci ? 'Cadastro citros' : 'Cadastro', ci ? 'Cadastro de citros' : 'Cadastrar a propriedade')}>${ci ? 'Cadastro de citros' : 'Cadastrar a propriedade'}${grande ? ' e fazer o Termo' : ''}</button>`;
     if (v.termo) return cad + `<button class="${grande ? 'botao sec' : 'editar'}" data-pce="abrirtfvisita" data-id="${esc(v.termo.id)}" ${grande ? id('pce-pronto-tf') : curto('TF ' + (v.termo.numeroTxt || ''), 'Termo de Fiscalização ' + (v.termo.numeroTxt || ''))}>${icone('formulario')} Termo de Fiscalização ${esc(v.termo.numeroTxt || '')}</button>`;
-    // um Termo por cultura avaliada: o feito abre; o que falta, cria já ligado à visita e à cultura
-    return cad + v.culturas.map((c, i) => c.termo
-      ? `<button class="${grande ? 'botao sec' : 'editar'}" data-pce="abrirtfvisita" data-id="${esc(c.termo.id)}" ${grande ? id('pce-pronto-tf-' + i) : curto('TF ' + c.cultura, 'Termo de Fiscalização ' + (c.termo.numeroTxt || '') + ' – ' + c.cultura)}>${icone('formulario')} Termo ${esc(c.termo.numeroTxt || '')} – ${esc(c.cultura)}</button>`
-      : `<button class="${grande ? (cad || i ? 'botao sec' : 'botao') : 'tfbtn'}" data-pce="tfvisita" data-id="${esc(r.id)}" data-cultura="${esc(c.cultura)}" ${grande ? id('pce-pronto-tf-' + i) : curto('TF ' + c.cultura, 'Fazer o Termo de Fiscalização – ' + c.cultura)}>${icone('formulario')} ${grande ? 'Termo de Fiscalização – ' + esc(c.cultura) : 'TF ' + esc(c.cultura)}</button>`).join('');
+    // um Termo por programa da visita: o feito abre; o que falta, cria já ligado à visita, com as culturas do programa
+    return cad + v.programas.map((x, i) => {
+      const rot = `${x.nome} (${x.culturas.join(', ')})`;
+      return x.termo
+        ? `<button class="${grande ? 'botao sec' : 'editar'}" data-pce="abrirtfvisita" data-id="${esc(x.termo.id)}" ${grande ? id('pce-pronto-tf-' + i) : curto('TF ' + x.nome, 'Termo de Fiscalização ' + (x.termo.numeroTxt || '') + ' – ' + rot)}>${icone('formulario')} Termo ${esc(x.termo.numeroTxt || '')} – ${esc(rot)}</button>`
+        : `<button class="${grande ? (cad || i ? 'botao sec' : 'botao') : 'tfbtn'}" data-pce="tfvisita" data-id="${esc(r.id)}" data-programa="${esc(x.programa)}" ${grande ? id('pce-pronto-tf-' + i) : curto('TF ' + x.nome, 'Fazer o Termo de Fiscalização – ' + rot)}>${icone('formulario')} ${grande ? 'Termo de Fiscalização – ' + esc(rot) : 'TF ' + esc(x.nome)}</button>`;
+    }).join('');
   }
   /** Tela depois de salvar: resumo por praga e os PDFs (um por praga). */
   async function levPronto(id) {
@@ -1093,14 +1105,14 @@ const PCEUI = (() => {
     view(`<div class="card" id="pce-lev-pronto"><h3>${icone('ok')} Levantamento salvo</h3>
       <p><b>${esc(r.nome)}</b> · ${esc(r.propriedade || 'Propriedade não informada')}</p><p>${esc(dBR(r.data))} ${esc(r.hora)} · ${esc(r.municipio)}</p>
       ${r.tipoLocal || r.origemVisita || r.comercial ? `<p class="dica" style="text-align:left" id="pce-pronto-local">Local: ${esc(r.tipoLocal || 'não informado')}${r.comercial ? ` · Comercial: ${r.comercial === 'sim' ? 'sim' : 'não'}` : ''} · Origem: ${esc(r.origemVisita || 'não informada')}</p>` : ''}
-      <ul class="pce-res-lista">${visita.culturas.map(cu => { const prs = G.pragas.flatMap(g => g.culturas.filter(c => c.cultura === cu.cultura).map(c => ({ praga: g.praga, ...c })));
+      <ul class="pce-res-lista">${visita.programas.flatMap(x => x.culturas).map(cultura => ({ cultura })).map(cu => { const prs = G.pragas.flatMap(g => g.culturas.filter(c => c.cultura === cu.cultura).map(c => ({ praga: g.praga, ...c })));
         const nF = new Set(prs.flatMap(x => x.fotos)).size;
         return `<li><b>${icone('broto')} ${esc(cu.cultura)}</b>${nF ? ` <small>${nF} foto(s)</small>` : ''}<br><small>${prs.map(x => `${esc(nomePraga(x.praga))} ${seloRes(x.resultado)}`).join(' · ')}</small></li>`; }).join('')}</ul>
       ${G.gerais.length ? `<p class="dica" style="text-align:left">${G.gerais.length} foto(s) gerais (registro anterior) saem em todos os PDFs.</p>` : ''}</div>
       ${botoesVisita(r, visita, true) ? `<div class="card pce-visita"><h3>Próximo passo da visita</h3>
         <p class="dica" style="text-align:left">${visita.cadastro ? 'Propriedade já cadastrada' + (visita.cadastro.numeroTxt ? ` (cadastro ${visita.programa === 'citros' ? 'de citros ' : ''}${esc(visita.cadastro.numeroTxt)})` : '') + '.'
           : visita.programa === 'citros' ? 'Pragas de citros: o Cadastro de citros sai deste levantamento (só confirmar o número e assinar).'
-          : 'Propriedade nova: cadastre a propriedade.'} ${visita.termo ? '' : 'Cada cultura avaliada tem o seu Termo de Fiscalização, já preenchido com as pragas dela e o enquadramento das detectadas e suspeitas.'}</p>
+          : 'Propriedade nova: cadastre a propriedade.'} ${visita.termo ? '' : 'Um Termo de Fiscalização por programa, como no papel, com as culturas do programa avaliadas na visita, as pragas delas e o enquadramento das detectadas e suspeitas.'}</p>
         ${botoesVisita(r, visita, true)}</div>` : ''}
       <div class="pce-pdfs">${botoesPdf(r.id, G, true)}</div>
       <button class="botao sec" data-pce="enviarlev" data-id="${esc(r.id)}" id="pce-enviar">${icone('enviar')} Enviar ao produtor (WhatsApp, e-mail…)</button>
@@ -1784,7 +1796,7 @@ const PCEUI = (() => {
         }
         if (a === 'cadvisita') go('pcecad', { propId: v.pid, levId: r.id, antigo, programa: v.programa });
         else {
-          const cu = v.culturas.find(c => c.cultura === el.dataset.cultura), cult = cu ? { culturaId: cu.culturaId, cultura: cu.cultura } : {};
+          const pg = v.programas.find(x => x.programa === el.dataset.programa), cult = pg ? { programaVisita: pg.programa, nomePrograma: pg.nome, culturas: pg.culturas } : {};
           go('pcetf', v.cadastro ? { cadastroId: v.cadastro.id, levId: r.id, antigo, ...cult } : { propId: v.pid, levId: r.id, antigo, ...cult });
         }
       }
@@ -1850,7 +1862,7 @@ const PCEUI = (() => {
     } catch (err) { toast(err.message || String(err), true); }
   });
 
-  return { lista, levantamento, levPronto, pragasDaCulturaNaVisita, culturaIdDe, termos, termo, pronto, servidor, status, textoOficial, lerCoordenadas, lerNumeroPapel,
+  return { lista, levantamento, levPronto, pragasDasCulturasNaVisita, termos, termo, pronto, servidor, status, textoOficial, lerCoordenadas, lerNumeroPapel,
     // usados pelo moniliase.js (Cadastro de imóvel e Termo de Fiscalização do PCE)
     docOk, fmtDoc, validarCoord, gms, servidorAtual, servidorOk, soDigitador, podeAntigo, exigirServidor, dadosServidor, servAntigoHTML, servidorDigitado, cargoValor,
     lembrarServidor, completarServidor, servidoresLembrados, dataHoraPassadaOk, montarPessoa, opts, SEM_ANTIGO };

@@ -577,7 +577,9 @@ const PCEUI = (() => {
   async function carregarCatalogo() { const c = await Store.meta('catalogoPce'); CAT = c && Array.isArray(c.culturas) && Array.isArray(c.pragas) ? c : null; }
   const culturasCat = () => (CAT ? CAT.culturas.filter(c => Number(c.ativo) !== 0).map(c => c.nome) : P.culturas);
   const pragasCat = () => (CAT ? CAT.pragas.filter(p => Number(p.ativo) !== 0) : P.pragas.map(n => ({ id: idCat(n), nomePopular: n })));
-  const temLevantamento = p => Number(p.levantamento) !== 0;              // 0 = praga ausente no Brasil (só educação sanitária): fora do levantamento
+  const temLevantamento = p => Number(p.levantamento) !== 0;
+  /** Praga opcional (Moko, Pinta Preta...): resposta não obrigatória e sem Termo próprio (entra no Termo do programa, se tiver um). */
+  const opcional = nome => { const p = pragaPorNome(nome); return !!(p && Number(p.opcional) === 1); };              // 0 = praga ausente no Brasil (só educação sanitária): fora do levantamento
   /** Nome gravado em "pragas": o da lista antiga (config.js) quando é a mesma praga, porque PDF, citros e Termo reconhecem por ele; senão o popular. */
   const nomeDaPraga = p => P.pragas.find(n => idCat(n) === p.id) || p.nomePopular;
   const pragaPorNome = nome => { const k = idCat(nome); return k ? pragasCat().find(p => p.id === k || idCat(p.nomePopular) === k) || null : null; };
@@ -717,7 +719,7 @@ const PCEUI = (() => {
     const inp = (cls, rot) => `<label>${rot}<input class="r-${cls}" value="${esc(g[cls])}" maxlength="60" ${amostra}></label>`;
     const lista = pragasCat().filter(p => temLevantamento(p) || p.id === chavePraga(g)), outra = g.outra || (!!g.praga && !g.ligada && !lista.some(p => p.id === chavePraga(g)));
     const topo = g.ligada
-      ? `<b>${icone('praga')} ${esc(g.praga)}</b><small class="pce-pr-cat">do catálogo</small>`
+      ? `<b>${icone('praga')} ${esc(g.praga)}</b><small class="pce-pr-cat">${opcional(g.praga) ? 'opcional' : 'do catálogo'}</small>`
       : `<label class="pce-pr-nome">Praga/doença *<select class="r-praga"><option value="">${esc(g.legado ? SEM_PRAGA + ' (registro anterior)' : 'Selecione')}</option>
           ${lista.map(p => `<option value="${esc(p.id)}" ${!outra && p.id === chavePraga(g) ? 'selected' : ''}>${esc(nomeDaPraga(p))}</option>`).join('')}
           <option value="${OUTRA}" ${outra ? 'selected' : ''}>Outra (digitar o nome)</option></select></label>
@@ -725,7 +727,7 @@ const PCEUI = (() => {
     return `<div class="pce-pr" data-uid="${u}" data-ligada="${g.ligada ? 1 : ''}" data-pid="${esc(g.pragaId)}" data-nome="${esc(g.praga)}" data-legado="${g.legado ? 1 : ''}">
       <div class="pce-pr-topo">${topo}</div>
       ${g.ligada ? '' : `<label class="r-outra-l" ${outra ? '' : 'hidden'}>Nome da praga/doença *<input class="r-outra" maxlength="80" value="${esc(outra ? g.praga : '')}" autocomplete="off"></label>`}
-      <fieldset class="pce-res"><legend>Resultado *</legend><div class="pce-res-op">${Object.keys(RES).map(v => `<label class="pce-res-${v}"><input type="radio" class="r-res"
+      <fieldset class="pce-res"><legend>Resultado${g.ligada && opcional(g.praga) ? ' (opcional)' : ' *'}</legend><div class="pce-res-op">${Object.keys(RES).map(v => `<label class="pce-res-${v}"><input type="radio" class="r-res"
         name="res-${u}" value="${v}" ${g.resultado === v ? 'checked' : ''}><span>${esc(RES[v])}</span></label>`).join('')}</div></fieldset>
       <label>Coleta de amostra<select class="r-coleta">${opts(['Não', 'Sim'], g.coleta === 'Sim' ? 'Sim' : 'Não')}</select></label>
       <div class="pce-amostra" ${amostra ? 'hidden' : ''}>${inp('tipoMaterial', 'Tipo de material')}<div class="duas">${inp('codigoAmostra', 'Código da amostra')}${inp('destinoAmostra', 'Destino da amostra')}</div></div></div>`;
@@ -931,7 +933,7 @@ const PCEUI = (() => {
   function culturasValidadas(D) {
     const cults = [], vistas = new Set();
     for (const [i, c] of D.culturasForm.entries()) {
-      const prs = c.pragas.filter(g => g.ligada || g.praga || g.outra || g.resultado || g.legado);
+      const prs = c.pragas.filter(g => (g.ligada && !opcional(g.praga)) || g.resultado || (!g.ligada && (g.praga || g.outra || g.legado)));   // opcional sem resposta: fica de fora
       if (!c.cultura) {
         if (c.fotos.length) { toast(`Cultura ${i + 1}: escolha a cultura das fotos.`, true); return null; }
         if (prs.length) { toast(`Cultura ${i + 1}: escolha a cultura avaliada.`, true); return null; }
@@ -1077,7 +1079,7 @@ const PCEUI = (() => {
     const daProp = x => (pid && x.propriedadeId === pid) || (doc && digitos(x.doc) === doc && (!nomeP || semAcento(x.propriedade || '').toUpperCase().trim() === nomeP));
     // um Termo por programa da visita (como o papel), com as culturas dele; Termo antigo (sem programa da visita): o do mesmo dia na mesma propriedade
     const daVisita = tfs.filter(t => t.levantamentoId === r.id && t.programaVisita), progs = new Map();
-    Docs.pceGrupos(r).pragas.filter(g => String(g.praga || '').trim()).forEach(g => {   // as frutas do Termo = as culturas em que as pragas do programa foram avaliadas
+    Docs.pceGrupos(r).pragas.filter(g => String(g.praga || '').trim() && (!opcional(g.praga) || pragaPorNome(g.praga).programa)).forEach(g => {   // opcional sem programa: sem Termo   // as frutas do Termo = as culturas em que as pragas do programa foram avaliadas
       const pg = programaDaPraga(g.praga);
       if (!progs.has(pg.programa)) progs.set(pg.programa, { ...pg, culturas: [] });
       g.culturas.forEach(c => { if (!progs.get(pg.programa).culturas.includes(c.cultura)) progs.get(pg.programa).culturas.push(c.cultura); });

@@ -1,6 +1,6 @@
 /* ---------- Catálogo do PCE: famílias, culturas e pragas (painel, gerência) ----------
  * Modelo (docs/arquitetura.md, seção do PCE): a praga é o programa (um Termo por programa), menos quando várias dividem um (Citros: HLB,
- * cancro, ácaro...; campo "programa" da praga); a família agrupa culturas e define o modelo de cadastro;
+ * cancro, ácaro...; campo "programa" da praga). Praga "opcional" (Moko, Pinta Preta...) é campo opcional: sem resposta obrigatória e sem Termo próprio; a família agrupa culturas e define o modelo de cadastro;
  * pragas de uma cultura = as ligadas à família dela + as ligadas só a ela (PragasDasFamilias, PragasDasCulturas).
  * Fonte única = abas da planilha. Enquanto ninguém editou, vale a base abaixo (CATALOGO_PCE_BASE_, igual ao CONFIG.PCE do app);
  * a primeira gravação no painel copia a base para as abas e daí em diante só as abas valem. Ligação desfeita = ativo 0 (nada é apagado).
@@ -41,13 +41,13 @@ const CATALOGO_PCE_BASE_ = {
     { nomeAntigo: 'Vassoura de Bruxa da Mandioca', nomePopular: 'Vassoura-de-bruxa da Mandioca', nomeCientifico: '', tipo: 'doenca',
       nomeNoTF: 'Vassoura-de-bruxa da Mandioca', familias: ['Mandioca'] },
     { nomeAntigo: 'Amaranthus palmeri', nomePopular: 'Amaranthus palmeri', nomeCientifico: 'Amaranthus palmeri', tipo: 'praga', nomeNoTF: 'Amaranthus palmeri',
-      familias: ['Soja'] },
+      familias: ['Soja'], opcional: true },
     { nomeAntigo: 'Diaphorina citri (vetor do HLB)', nomePopular: 'Diaphorina citri (vetor do HLB)', nomeCientifico: 'Diaphorina citri', tipo: 'praga',
-      nomeNoTF: 'Diaphorina citri', enquadramentoLegal: ENQ_CITROS_PCE_, familias: ['Citros'] },
-    { nomeAntigo: 'Pinta Preta dos Citros', nomePopular: 'Pinta Preta dos Citros', nomeCientifico: 'Phyllosticta citricarpa', tipo: 'doenca', familias: ['Citros'] },
-    { nomeAntigo: 'Leprose dos Citros', nomePopular: 'Leprose dos Citros', nomeCientifico: '', tipo: 'doenca', familias: ['Citros'] },
-    { nomeAntigo: 'Moko da Bananeira', nomePopular: 'Moko da Bananeira', nomeCientifico: 'Ralstonia solanacearum raça 2', tipo: 'doenca', familias: ['Bananeira'] },
-    { nomeAntigo: 'Sigatoka Negra', nomePopular: 'Sigatoka Negra', nomeCientifico: 'Pseudocercospora fijiensis', tipo: 'doenca', familias: ['Bananeira'] }
+      nomeNoTF: 'Diaphorina citri', enquadramentoLegal: ENQ_CITROS_PCE_, familias: ['Citros'], opcional: true },
+    { nomeAntigo: 'Pinta Preta dos Citros', nomePopular: 'Pinta Preta dos Citros', nomeCientifico: 'Phyllosticta citricarpa', tipo: 'doenca', familias: ['Citros'], opcional: true },
+    { nomeAntigo: 'Leprose dos Citros', nomePopular: 'Leprose dos Citros', nomeCientifico: '', tipo: 'doenca', familias: ['Citros'], opcional: true },
+    { nomeAntigo: 'Moko da Bananeira', nomePopular: 'Moko da Bananeira', nomeCientifico: 'Ralstonia solanacearum raça 2', tipo: 'doenca', familias: ['Bananeira'], opcional: true },
+    { nomeAntigo: 'Sigatoka Negra', nomePopular: 'Sigatoka Negra', nomeCientifico: 'Pseudocercospora fijiensis', tipo: 'doenca', familias: ['Bananeira'], opcional: true }
   ]
 };
 
@@ -67,7 +67,7 @@ function catalogoPceBase_() {
     const id = pceId_(p.nomeAntigo);
     cat.pragas.push({ id: id, nomePopular: p.nomePopular, nomeCientifico: p.nomeCientifico || '', tipo: p.tipo, enquadramentoLegal: p.enquadramentoLegal || '',
                       nomeNoTF: p.nomeNoTF || '', ativo: 1, programa: (p.familias || []).indexOf('Citros') >= 0 ? 'Citros' : '',
-                      levantamento: p.semLevantamento ? 0 : 1 });
+                      levantamento: p.semLevantamento ? 0 : 1, opcional: p.opcional ? 1 : 0 });
     (p.familias || []).forEach(function (f) { cat.pragasDasFamilias.push({ id: id + '|' + pceId_(f), pragaId: id, familiaId: pceId_(f), ativo: 1 }); });
   });
   return cat;
@@ -87,7 +87,7 @@ function catalogoPce_() {
                atualizadoEm: Number(c.atualizadoEm) || 0, atualizadoPor: c.atualizadoPor || '' }; }),
     pragas: limpa(cat.pragas).map(function (p) {
       return { id: p.id, nomePopular: p.nomePopular, nomeCientifico: p.nomeCientifico || '', tipo: TIPOS_PRAGA_PCE_.indexOf(p.tipo) >= 0 ? p.tipo : 'praga',
-               enquadramentoLegal: p.enquadramentoLegal || '', nomeNoTF: p.nomeNoTF || '', ativo: at(p), programa: p.programa || '', levantamento: Number(p.levantamento) === 0 && p.levantamento !== '' ? 0 : 1,
+               enquadramentoLegal: p.enquadramentoLegal || '', nomeNoTF: p.nomeNoTF || '', ativo: at(p), programa: p.programa || '', levantamento: Number(p.levantamento) === 0 && p.levantamento !== '' ? 0 : 1, opcional: Number(p.opcional) === 1 ? 1 : 0,
                atualizadoEm: Number(p.atualizadoEm) || 0, atualizadoPor: p.atualizadoPor || '' }; }),
     // só as ligações valendo
     pragasDasFamilias: limpa(cat.pragasDasFamilias).filter(function (l) { return at(l); }).map(function (l) { return { pragaId: l.pragaId, familiaId: l.familiaId }; }),
@@ -159,7 +159,7 @@ function painelPceCatalogoSalvar(token, req) {
     aba = 'Pragas'; nomeCampo = 'nomePopular';
     reg = { nomePopular: txt(it.nomePopular, 80), nomeCientifico: txt(it.nomeCientifico, 120), tipo: TIPOS_PRAGA_PCE_.indexOf(it.tipo) >= 0 ? it.tipo : 'praga',
             enquadramentoLegal: txt(it.enquadramentoLegal, 1000), nomeNoTF: txt(it.nomeNoTF, 60), programa: txt(it.programa, 60),
-            levantamento: it.levantamento === false || it.levantamento === 0 ? 0 : 1, ativo: ativo };
+            levantamento: it.levantamento === false || it.levantamento === 0 ? 0 : 1, opcional: it.opcional === true || it.opcional === 1 ? 1 : 0, ativo: ativo };
   }
   if (reg[nomeCampo].length < 2) throw new Error('Informe o nome.');
   const ligaFam = tipo === 'praga' ? ids(it.familias) : null, ligaCult = tipo === 'praga' ? ids(it.culturas) : tipo === 'cultura' ? ids(it.pragas) : null;

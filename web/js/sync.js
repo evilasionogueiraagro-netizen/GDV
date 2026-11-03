@@ -416,6 +416,9 @@ const Sync = (() => {
         await aplicar('colheitas', r.colheitas || []);
         await aplicar('cadastrosPce', r.cadastrosPce || []);
         await aplicar('termosPce', r.termosPce || []);
+        if (Array.isArray(r.culturasAvaliadas)) await aplicar('culturasAvaliadas', r.culturasAvaliadas).catch(() => {});
+        if (Array.isArray(r.resultados)) await aplicar('resultados', r.resultados).catch(() => {});
+        if (r.catalogoPce && typeof r.catalogoPce === 'object') await Store.setMeta('catalogoPce', r.catalogoPce);
         await lembrarUltimosDocPce(r.ultimosDocPce);
         if (r.barreiras) await Store.setMeta('barreiras', r.barreiras);
         if (Array.isArray(r.minhasEscalas)) await Store.setMeta('minhasEscalas', r.minhasEscalas);   // escalas de plantão publicadas do fiscal

@@ -214,9 +214,20 @@ const Envio = (() => {
     const env = {}; NOMES.forEach(n => { env[n] = vai[n].slice(0, LIMITES[n]); });
     const since = (await Store.meta('lastSync')) || 0;
     const corpo = { action: 'sync', since, aparelho: await sinal(p, origem) }; NOMES.forEach(n => { corpo[CAMPOS[n]] = env[n].map(limpo); });
+    if (env.g.length) {
+      const levIds = new Set(env.g.map(l => l.id));
+      try {
+        const ca = (await Store.todos('culturasAvaliadas')).filter(x => x && levIds.has(x.levantamentoId) && x.pendente);
+        const rs = (await Store.todos('resultados')).filter(x => x && levIds.has(x.levantamentoId) && x.pendente);
+        if (ca.length) corpo.culturasAvaliadas = ca.map(limpo);
+        if (rs.length) corpo.resultados = rs.map(limpo);
+      } catch (e) { /* banco v4 antigo sem as stores novas */ }
+    }
     const r = await chamar(corpo);
     const rec = r.recusados || {};
     for (const n of NOMES) await marcarEnviados(STORES[n], env[n], rec[CAMPOS[n]], Number(r.agora) || 0);
+    if (corpo.culturasAvaliadas) await marcarEnviados('culturasAvaliadas', corpo.culturasAvaliadas, rec.culturasAvaliadas, Number(r.agora) || 0).catch(() => {});
+    if (corpo.resultados) await marcarEnviados('resultados', corpo.resultados, rec.resultados, Number(r.agora) || 0).catch(() => {});
     return { r, rec, recusouAlgo: Object.keys(rec).some(k => (rec[k] || []).length),
       resta: NOMES.some(n => vai[n].length > env[n].length), enviados: NOMES.reduce((s, n) => s + env[n].length, 0) };
   }

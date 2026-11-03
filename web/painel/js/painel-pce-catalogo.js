@@ -1,6 +1,6 @@
 /* Catálogo do PCE no painel (aba PCE → "Culturas" e "Doenças e pragas"): lista à esquerda, detalhe à direita. Lê quem tem o módulo PCE;
    edita quem tem gerência + PCE (o servidor confere). Actions painelPceCatalogo e painelPceCatalogoSalvar (pce-catalogo.gs). As pragas de
-   uma cultura são as da família dela + as ligadas só a ela; a praga é o programa. Os aparelhos recebem o catálogo na próxima sincronização. */
+   uma cultura são as da família dela + as ligadas só a ela; a praga é o programa (um Termo), menos as que dividem um (campo programa, ex.: Citros). Os aparelhos recebem o catálogo na próxima sincronização. */
 (function () {
   'use strict';
   if (typeof Painel === 'undefined') return;
@@ -114,12 +114,12 @@
   function renderPragas(c) {
     const ed = ST.podeEditar, dis = ed ? '' : 'disabled';
     const nova = ed ? Object.assign(P.el('button', 'pn-btn pn-btn-prim', '+ Nova doença ou praga'), { type: 'button', onclick: () => { ST.sel.pragas = '+'; render(c, 'pragas'); } }) : null;
-    cabeca(c, 'praga', 'Doenças e pragas', 'Cada praga é um programa: enquadramento legal que vai no Termo e as culturas que ela afeta.', nova);
+    cabeca(c, 'praga', 'Doenças e pragas', 'Cada praga é um programa (um Termo de Fiscalização), menos as que dividem um, como as de citros: enquadramento legal, programa e as culturas que ela afeta.', nova);
     const q = k(ST.busca.pragas), todas = ST.cat.pragas.filter(x => !q || k(x.nomePopular + ' ' + x.nomeCientifico).includes(q));
     const grupos = [['Doenças', todas.filter(x => x.tipo === 'doenca')], ['Pragas', todas.filter(x => x.tipo !== 'doenca')]].filter(g => g[1].length)
       .map(([g, l]) => [g, l.sort((a, b) => a.nomePopular.localeCompare(b.nomePopular, 'pt-BR'))]);
     if (!ST.sel.pragas && grupos.length) ST.sel.pragas = grupos[0][1][0].id;
-    const atual = ST.sel.pragas === '+' ? { id: '', nomePopular: '', nomeCientifico: '', tipo: 'praga', enquadramentoLegal: '', nomeNoTF: '', ativo: 1, novo: true } : praga(ST.sel.pragas);
+    const atual = ST.sel.pragas === '+' ? { id: '', nomePopular: '', nomeCientifico: '', tipo: 'praga', enquadramentoLegal: '', nomeNoTF: '', programa: '', ativo: 1, novo: true } : praga(ST.sel.pragas);
     const dois = P.el('div', 'pn-cat-dois'); c.appendChild(dois);
     const lista = P.el('div', 'pn-cartao pn-cat-lista');
     lista.innerHTML = `<input type="search" class="pn-cat-busca" placeholder="Buscar doença ou praga" aria-label="Buscar doença ou praga" value="${esc(ST.busca.pragas)}">
@@ -145,6 +145,8 @@
         ${campo('pn-cat-cient', 'Nome científico', atual.nomeCientifico, `maxlength="120" ${dis}`)}
         ${selecao('pn-cat-tipo', 'Tipo', Object.entries(TIPOS), atual.tipo, dis)}
         ${campo('pn-cat-tf', 'Nome no quadro do Termo (vazio = fora do quadro)', atual.nomeNoTF, `maxlength="60" ${dis}`)}
+        ${campo('pn-cat-prog', 'Programa que divide com outras pragas (vazio = programa próprio)', atual.programa || '', `maxlength="60" list="pn-cat-progs" placeholder="ex.: Citros" ${dis}`)}
+        <datalist id="pn-cat-progs">${[...new Set(ST.cat.pragas.map(x => x.programa).filter(Boolean))].map(x => `<option value="${esc(x)}">`).join('')}</datalist>
         ${selecao('pn-cat-ativo', 'Situação', [['1', 'Ativa (aparece no app)'], ['0', 'Desativada']], atual.ativo ? '1' : '0', dis)}</div>
       <div class="pn-cat-secao">Enquadramento legal <small>vai no Termo quando detectada ou suspeita</small></div>
       <textarea id="pn-cat-enq" rows="3" maxlength="1000" ${dis} aria-label="Enquadramento legal">${esc(atual.enquadramentoLegal)}</textarea>
@@ -160,7 +162,7 @@
     qd('#pn-cat-fam-sel').onchange = e => { const v = e.target.value; if (v && !fams.includes(v)) fams.push(v); e.target.value = ''; desenharLigacoes(); };
     qd('#pn-cat-cult-sel').onchange = e => { const v = e.target.value; if (v && !cults.includes(v)) cults.push(v); e.target.value = ''; desenharLigacoes(); };
     qd('#pn-cat-salvar').onclick = () => gravar(c, 'pragas', 'praga', { id: atual.id, nomePopular: qd('#pn-cat-nome').value, nomeCientifico: qd('#pn-cat-cient').value,
-      tipo: qd('#pn-cat-tipo').value, nomeNoTF: qd('#pn-cat-tf').value, enquadramentoLegal: qd('#pn-cat-enq').value, ativo: qd('#pn-cat-ativo').value === '1',
+      tipo: qd('#pn-cat-tipo').value, nomeNoTF: qd('#pn-cat-tf').value, programa: qd('#pn-cat-prog').value, enquadramentoLegal: qd('#pn-cat-enq').value, ativo: qd('#pn-cat-ativo').value === '1',
       familias: fams, culturas: cults }, det);
   }
 

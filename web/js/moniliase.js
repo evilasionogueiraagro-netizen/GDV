@@ -866,9 +866,9 @@ const PCEMon = (() => {
       const lev = o.levId ? await Store.obter('levantamentos', o.levId) : null;   // Termo da visita: pragas do levantamento já marcadas
       if (lev) {
         st.levId = lev.id;
-        // Termo de um programa da visita: só as pragas avaliadas nas culturas dele; enquadramento = o das detectadas e suspeitas (catálogo)
-        const daCult = st.culturas.length ? await U().pragasDasCulturasNaVisita(lev, st.culturas) : null;
-        daCultCitros = daCult && daCult.map(x => x.praga);
+        // Termo de um programa da visita: só as pragas dele; enquadramento = o das detectadas e suspeitas (catálogo)
+        const daCult = st.programaVisita ? await U().pragasDoProgramaNaVisita(lev, st.programaVisita) : null;
+        daCultCitros = daCult && [...new Set(daCult.map(x => x.praga))];
         D.pragas = pragasDoLevantamento(lev, daCultCitros);
         const enq = daCult ? [...new Set(daCult.filter(x => x.resultado !== 'nao_detectada' && x.enquadramento).map(x => x.enquadramento))] : [];
         if (enq.length) D.enquadramento = enq.join('\n');
@@ -877,8 +877,8 @@ const PCEMon = (() => {
       }
       // Termo de citros (levantamento com praga de citros ou cadastro de citros): identificação, data/hora, local, frases e enquadramento já preenchidos
       const cad0 = o.cadastroId ? await Store.obter('cadastrosPce', o.cadastroId) : null;
-      // Termo de um programa: é de citros só no programa citros (banana da mesma visita não)
-      const citrosDaCultura = st.programaVisita ? st.programaVisita === 'citros' : !daCultCitros || daCultCitros.some(x => PCECitros.ehCitros(x));
+      // Termo de um programa: é de citros só no programa Citros (monilíase ou mosca da mesma visita não)
+      const citrosDaCultura = st.programaVisita ? st.programaVisita === 'citros' : true;
       if ((cad0 && cad0.programa === 'citros') || (levEhCitros(lev) && citrosDaCultura)) {
         st.programa = 'citros';
         const fo = await fonteCitros(st, lev, cad0);

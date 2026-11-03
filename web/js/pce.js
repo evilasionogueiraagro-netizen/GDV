@@ -581,10 +581,12 @@ const PCEUI = (() => {
   const nomeDaPraga = p => P.pragas.find(n => idCat(n) === p.id) || p.nomePopular;
   const pragaPorNome = nome => { const k = idCat(nome); return k ? pragasCat().find(p => p.id === k || idCat(p.nomePopular) === k) || null : null; };
   const culturaIdDe = nome => { const k = idCat(nome), c = CAT && CAT.culturas.find(x => x.id === k || idCat(x.nome) === k); return c ? c.id : k; };
-  /** Programa da cultura (o do papel: cadastro e Termo) = modelo de cadastro da família dela; sem família, "propriedade" (outras culturas). */
-  const programaDaCultura = nome => {
-    const c = CAT && CAT.culturas.find(x => idCat(x.nome) === idCat(nome)), f = c && c.familiaId && CAT.familias.find(x => x.id === c.familiaId);
-    return { programa: (f && f.modeloCadastro) || 'propriedade', nome: f ? f.nome : 'Outras culturas' };
+  /** Programa da praga (um Termo de Fiscalização por programa, como o papel): o que ela divide com outras (Citros) ou ela mesma. */
+  const programaDaPraga = nome => {
+    const p = pragaPorNome(nome);
+    if (p && p.programa) return { programa: idCat(p.programa), nome: p.programa };
+    if (!CAT && PCECitros.ehCitros(nome)) return { programa: 'citros', nome: 'Citros' };
+    return p ? { programa: p.id, nome: p.nomeNoTF || p.nomePopular } : { programa: idCat(nome), nome: String(nome) };
   };
   const chavePraga = g => g.pragaId || (g.praga ? idCat(g.praga) : 'sem-praga');
   /** Pragas da cultura no catálogo: as ligadas à família dela e as ligadas só a ela. */
@@ -653,11 +655,10 @@ const PCEUI = (() => {
     cards.forEach(c => { F.fotosC[c.uid] = c.fotos; });
     return cards.length ? cards : [culturaVazia()];
   }
-  /** Pragas avaliadas nas culturas de um programa da visita, com o enquadramento legal do catálogo (Termo de Fiscalização do programa). */
-  async function pragasDasCulturasNaVisita(lev, culturas) {
+  /** Pragas de um programa avaliadas na visita (uma linha por cultura), com o enquadramento legal do catálogo (Termo do programa). */
+  async function pragasDoProgramaNaVisita(lev, programa) {
     await carregarCatalogo();
-    const ks = new Set(culturas.map(idCat));
-    return Docs.pceGrupos(lev).pragas.flatMap(g => g.culturas.filter(c => ks.has(idCat(c.cultura))).map(c => {
+    return Docs.pceGrupos(lev).pragas.filter(g => String(g.praga || '').trim() && programaDaPraga(g.praga).programa === programa).flatMap(g => g.culturas.map(c => {
       const p = pragaPorNome(g.praga);
       return { praga: g.praga, resultado: c.resultado, enquadramento: (p && p.enquadramentoLegal) || '' };
     }));
@@ -1075,10 +1076,10 @@ const PCEUI = (() => {
     const daProp = x => (pid && x.propriedadeId === pid) || (doc && digitos(x.doc) === doc && (!nomeP || semAcento(x.propriedade || '').toUpperCase().trim() === nomeP));
     // um Termo por programa da visita (como o papel), com as culturas dele; Termo antigo (sem programa da visita): o do mesmo dia na mesma propriedade
     const daVisita = tfs.filter(t => t.levantamentoId === r.id && t.programaVisita), progs = new Map();
-    [...new Set(Docs.pceGrupos(r).pragas.flatMap(g => g.culturas.map(c => c.cultura)))].forEach(cultura => {
-      const pg = programaDaCultura(cultura);
+    Docs.pceGrupos(r).pragas.filter(g => String(g.praga || '').trim()).forEach(g => {   // as frutas do Termo = as culturas em que as pragas do programa foram avaliadas
+      const pg = programaDaPraga(g.praga);
       if (!progs.has(pg.programa)) progs.set(pg.programa, { ...pg, culturas: [] });
-      progs.get(pg.programa).culturas.push(cultura);
+      g.culturas.forEach(c => { if (!progs.get(pg.programa).culturas.includes(c.cultura)) progs.get(pg.programa).culturas.push(c.cultura); });
     });
     const programas = [...progs.values()].map(x => ({ ...x, termo: daVisita.find(t => t.programaVisita === x.programa) || null }));
     const antigo = daVisita.length ? null : tfs.find(t => !t.programaVisita && (t.levantamentoId === r.id || (daProp(t) && t.data === r.data))) || null;
@@ -1105,7 +1106,7 @@ const PCEUI = (() => {
     view(`<div class="card" id="pce-lev-pronto"><h3>${icone('ok')} Levantamento salvo</h3>
       <p><b>${esc(r.nome)}</b> · ${esc(r.propriedade || 'Propriedade não informada')}</p><p>${esc(dBR(r.data))} ${esc(r.hora)} · ${esc(r.municipio)}</p>
       ${r.tipoLocal || r.origemVisita || r.comercial ? `<p class="dica" style="text-align:left" id="pce-pronto-local">Local: ${esc(r.tipoLocal || 'não informado')}${r.comercial ? ` · Comercial: ${r.comercial === 'sim' ? 'sim' : 'não'}` : ''} · Origem: ${esc(r.origemVisita || 'não informada')}</p>` : ''}
-      <ul class="pce-res-lista">${visita.programas.flatMap(x => x.culturas).map(cultura => ({ cultura })).map(cu => { const prs = G.pragas.flatMap(g => g.culturas.filter(c => c.cultura === cu.cultura).map(c => ({ praga: g.praga, ...c })));
+      <ul class="pce-res-lista">${[...new Set(G.pragas.flatMap(g => g.culturas.map(c => c.cultura)))].map(cultura => ({ cultura })).map(cu => { const prs = G.pragas.flatMap(g => g.culturas.filter(c => c.cultura === cu.cultura).map(c => ({ praga: g.praga, ...c })));
         const nF = new Set(prs.flatMap(x => x.fotos)).size;
         return `<li><b>${icone('broto')} ${esc(cu.cultura)}</b>${nF ? ` <small>${nF} foto(s)</small>` : ''}<br><small>${prs.map(x => `${esc(nomePraga(x.praga))} ${seloRes(x.resultado)}`).join(' · ')}</small></li>`; }).join('')}</ul>
       ${G.gerais.length ? `<p class="dica" style="text-align:left">${G.gerais.length} foto(s) gerais (registro anterior) saem em todos os PDFs.</p>` : ''}</div>
@@ -1862,7 +1863,7 @@ const PCEUI = (() => {
     } catch (err) { toast(err.message || String(err), true); }
   });
 
-  return { lista, levantamento, levPronto, pragasDasCulturasNaVisita, termos, termo, pronto, servidor, status, textoOficial, lerCoordenadas, lerNumeroPapel,
+  return { lista, levantamento, levPronto, pragasDoProgramaNaVisita, termos, termo, pronto, servidor, status, textoOficial, lerCoordenadas, lerNumeroPapel,
     // usados pelo moniliase.js (Cadastro de imóvel e Termo de Fiscalização do PCE)
     docOk, fmtDoc, validarCoord, gms, servidorAtual, servidorOk, soDigitador, podeAntigo, exigirServidor, dadosServidor, servAntigoHTML, servidorDigitado, cargoValor,
     lembrarServidor, completarServidor, servidoresLembrados, dataHoraPassadaOk, montarPessoa, opts, SEM_ANTIGO };

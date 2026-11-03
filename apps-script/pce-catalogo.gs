@@ -1,5 +1,6 @@
 /* ---------- Catálogo do PCE: famílias, culturas e pragas (painel, gerência) ----------
- * Modelo (docs/arquitetura.md, seção do PCE): a praga é o programa (1:1); a família agrupa culturas e define o modelo de cadastro;
+ * Modelo (docs/arquitetura.md, seção do PCE): a praga é o programa (um Termo por programa), menos quando várias dividem um (Citros: HLB,
+ * cancro, ácaro...; campo "programa" da praga); a família agrupa culturas e define o modelo de cadastro;
  * pragas de uma cultura = as ligadas à família dela + as ligadas só a ela (PragasDasFamilias, PragasDasCulturas).
  * Fonte única = abas da planilha. Enquanto ninguém editou, vale a base abaixo (CATALOGO_PCE_BASE_, igual ao CONFIG.PCE do app);
  * a primeira gravação no painel copia a base para as abas e daí em diante só as abas valem. Ligação desfeita = ativo 0 (nada é apagado).
@@ -65,7 +66,7 @@ function catalogoPceBase_() {
   B.pragas.forEach(function (p) {
     const id = pceId_(p.nomeAntigo);
     cat.pragas.push({ id: id, nomePopular: p.nomePopular, nomeCientifico: p.nomeCientifico || '', tipo: p.tipo, enquadramentoLegal: p.enquadramentoLegal || '',
-                      nomeNoTF: p.nomeNoTF || '', ativo: 1 });
+                      nomeNoTF: p.nomeNoTF || '', ativo: 1, programa: (p.familias || []).indexOf('Citros') >= 0 ? 'Citros' : '' });
     (p.familias || []).forEach(function (f) { cat.pragasDasFamilias.push({ id: id + '|' + pceId_(f), pragaId: id, familiaId: pceId_(f), ativo: 1 }); });
   });
   return cat;
@@ -85,7 +86,7 @@ function catalogoPce_() {
                atualizadoEm: Number(c.atualizadoEm) || 0, atualizadoPor: c.atualizadoPor || '' }; }),
     pragas: limpa(cat.pragas).map(function (p) {
       return { id: p.id, nomePopular: p.nomePopular, nomeCientifico: p.nomeCientifico || '', tipo: TIPOS_PRAGA_PCE_.indexOf(p.tipo) >= 0 ? p.tipo : 'praga',
-               enquadramentoLegal: p.enquadramentoLegal || '', nomeNoTF: p.nomeNoTF || '', ativo: at(p),
+               enquadramentoLegal: p.enquadramentoLegal || '', nomeNoTF: p.nomeNoTF || '', ativo: at(p), programa: p.programa || '',
                atualizadoEm: Number(p.atualizadoEm) || 0, atualizadoPor: p.atualizadoPor || '' }; }),
     // só as ligações valendo
     pragasDasFamilias: limpa(cat.pragasDasFamilias).filter(function (l) { return at(l); }).map(function (l) { return { pragaId: l.pragaId, familiaId: l.familiaId }; }),
@@ -156,7 +157,7 @@ function painelPceCatalogoSalvar(token, req) {
   } else {
     aba = 'Pragas'; nomeCampo = 'nomePopular';
     reg = { nomePopular: txt(it.nomePopular, 80), nomeCientifico: txt(it.nomeCientifico, 120), tipo: TIPOS_PRAGA_PCE_.indexOf(it.tipo) >= 0 ? it.tipo : 'praga',
-            enquadramentoLegal: txt(it.enquadramentoLegal, 1000), nomeNoTF: txt(it.nomeNoTF, 60), ativo: ativo };
+            enquadramentoLegal: txt(it.enquadramentoLegal, 1000), nomeNoTF: txt(it.nomeNoTF, 60), programa: txt(it.programa, 60), ativo: ativo };
   }
   if (reg[nomeCampo].length < 2) throw new Error('Informe o nome.');
   const ligaFam = tipo === 'praga' ? ids(it.familias) : null, ligaCult = tipo === 'praga' ? ids(it.culturas) : tipo === 'cultura' ? ids(it.pragas) : null;

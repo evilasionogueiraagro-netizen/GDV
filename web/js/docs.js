@@ -254,6 +254,7 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
       }
       const src = imgSegura(arquivos[ass[papel]]);
       if (src) { const im = d.createElement('img'); im.src = src; im.alt = 'Assinatura'; area.append(im); b.classList.add('assinada'); }
+      else if (ass[papel]) area.textContent = '(assinatura arquivada no Drive)';   // colhida em outro aparelho
     });
   }
   /** Anexo fotográfico: folha(s) no fim, depois das vias, com as fotos em grade (2 por linha) e legenda nº/data. */

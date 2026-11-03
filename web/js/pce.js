@@ -904,6 +904,7 @@ const PCEUI = (() => {
         if (t.value === OUTRA) l.querySelector('input').focus();
       }
       if (t.classList.contains('c-cultura')) {                             // cultura escolhida ou trocada: as pragas dela no catálogo entram no card
+        if (!CAT) await carregarCatalogo();                                 // o catálogo pode ter chegado no sync depois de o formulário abrir
         const lst = coletarLev().culturasForm, c = lst.find(x => x.uid === t.closest('.pce-cultura').dataset.uid);
         if (c) { completarLigadas(c); await desenharCulturas(lst); }
       }

@@ -127,7 +127,7 @@ const PCEMon = (() => {
       if (F !== st || !f.isConnected) return;
       Store.setMeta(RASC[st.tipo], { dados: st.tipo === 'cadastro' ? (st.programa === 'citros' ? coletarCadCi() : coletarCad()) : coletarTf(), id: st.id, novo: st.novo, antigo: st.antigo ? 1 : 0, docs: st.docs,
         assNovas: st.assNovas, cadastroId: st.cadastroId || '', propriedadeId: st.propriedadeId || '', hospedeiros: st.hospedeiros || [], deTermo: st.deTermo ? 1 : 0, levId: st.levId || '',
-        culturaId: st.culturaId || '', cultura: st.cultura || '', programa: st.programa || '', em: Date.now() });
+        programaVisita: st.programaVisita || '', nomePrograma: st.nomePrograma || '', culturas: st.culturas || [], programa: st.programa || '', em: Date.now() });
     }, atraso);
   }
   function fechar() { if (F) F.vivo = false; clearTimeout(tR); F = null; }
@@ -707,7 +707,7 @@ const PCEMon = (() => {
       ${A ? topoPapel(st.novo ? 'Termo de Fiscalização (PCE) — digitar do papel' : 'Editar Termo de Fiscalização (do papel)', st.novo) + U().servAntigoHTML(p, D, st.lembrados)
         : `<div class="card mon-topo"><h3>${icone('formulario')} ${st.novo ? 'Termo de Fiscalização (PCE)' : 'Editar Termo de Fiscalização'}${CIT ? ' — citros' : ''}</h3>
           <p class="dica" style="text-align:left">Não é o TF de Barreira. Servidor: <b>${esc(st.serv.servidor)}</b> · ${esc(st.serv.cargo)}</p>
-          ${st.cultura ? `<p class="dica" style="text-align:left" id="mt-cultura">${icone('broto')} Cultura avaliada na visita: <b>${esc(st.cultura)}</b></p>` : ''}</div>`}
+          ${st.culturas && st.culturas.length ? `<p class="dica" style="text-align:left" id="mt-programa">${icone('broto')} Programa ${esc(st.nomePrograma || st.programaVisita)}: <b>${esc(st.culturas.join(', '))}</b></p>` : ''}</div>`}
       <div class="card"><h3>Nº do termo</h3>
         <label>Unidade (numeração) *<select id="${p}unidade">${opts(P.municipios, D.unidade, 'Selecione')}</select></label>
         ${A && st.novo ? `${inp(p, 'numpapel', 'Nº do termo (como está no papel) *', D.numPapel, 'placeholder="ex.: 001.2026.AUTAZES ou 1" autocomplete="off"')}<div id="${p}numpapel-st" class="tf-status" aria-live="polite"></div>`
@@ -820,9 +820,9 @@ const PCEMon = (() => {
    * endereço, município, UF, telefone e coordenadas; atividade = culturas avaliadas (ex.: "Cultivo de cacau e cupuaçu"), também para a
    * empresa quando há CNPJ/empresa. Só preenche o que veio do levantamento; o cadastro ligado depois completa o resto.
    */
-  function identDoLev(lev, D, cultura) {
+  function identDoLev(lev, D, culturas) {
     const coord = x => (x === '' || x == null ? '' : String(x).replace('.', ','));
-    const cult = cultura ? [String(cultura).toLowerCase()] : [...new Set(Docs.pceGrupos(lev).pragas.flatMap(g => g.culturas.map(c => String(c.cultura || '').trim().toLowerCase())).filter(Boolean))];
+    const cult = culturas && culturas.length ? culturas.map(x => String(x).toLowerCase()) : [...new Set(Docs.pceGrupos(lev).pragas.flatMap(g => g.culturas.map(c => String(c.cultura || '').trim().toLowerCase())).filter(Boolean))];
     const ativ = cult.length ? 'Cultivo de ' + PCEDocs.listaE(cult) : '';
     const temEmpresa = !!(lev.empresa || digitos(lev.cnpj).length === 14 || digitos(lev.doc).length === 14);
     const o = { nome: lev.nome || '', doc: PCEDocs.fmtDoc(lev.doc || ''), empresa: lev.empresa || '', cnpj: PCEDocs.fmtDoc(lev.cnpj || ''), endereco: lev.endereco || '',
@@ -850,35 +850,35 @@ const PCEMon = (() => {
     if (t.rasc) {
       const r = t.rasc, rec = r.id ? await Store.obter('termosPce', r.id) : null;
       st = { tipo: 'termo', id: r.id, novo: !rec, rec, antigo: !!r.antigo, docs: r.docs || [], ass: rec ? lerJSON(rec.assinaturas, {}) : {}, assNovas: r.assNovas || {},
-        cadastroId: r.cadastroId || '', propriedadeId: r.propriedadeId || '', hospedeiros: r.hospedeiros || [], levId: r.levId || '', culturaId: r.culturaId || '', cultura: r.cultura || '', programa: r.programa || (rec && rec.programa) || '' };
+        cadastroId: r.cadastroId || '', propriedadeId: r.propriedadeId || '', hospedeiros: r.hospedeiros || [], levId: r.levId || '', programaVisita: r.programaVisita || '', nomePrograma: r.nomePrograma || '', culturas: r.culturas || [], programa: r.programa || (rec && rec.programa) || '' };
       D = { ...tfVazio(s), ...r.dados };
     } else if (rec0) {
       st = { tipo: 'termo', id: rec0.id, novo: false, rec: rec0, antigo: Number(rec0.registroAntigo) === 1, docs: lerJSON(rec0.documentos, []), ass: lerJSON(rec0.assinaturas, {}), assNovas: {},
         cadastroId: rec0.cadastroId || '', propriedadeId: rec0.propriedadeId || '', hospedeiros: lerJSON(rec0.hospedeiros, []), programa: rec0.programa || '',
-        levId: rec0.levantamentoId || '', culturaId: rec0.culturaId || '', cultura: rec0.cultura || '' };
+        levId: rec0.levantamentoId || '', programaVisita: rec0.programaVisita || '', culturas: lerJSON(rec0.culturas, []) };
       D = tfDeRegistro(rec0);
     } else {
       st = { tipo: 'termo', id: Store.novoId(), novo: true, rec: null, antigo: querAntigo, docs: [], ass: {}, assNovas: {}, cadastroId: '', propriedadeId: o.propId || '', hospedeiros: [], levId: '',
-        culturaId: o.culturaId || '', cultura: o.cultura || '' };
+        programaVisita: o.programaVisita || '', nomePrograma: o.nomePrograma || '', culturas: o.culturas || [] };
       D = tfVazio(querAntigo ? null : s, o.manter || {});
       if (!querAntigo) Object.assign(D, { data: hojeISO(), hora: agoraHM(), acoes: ['Fiscalização'] });
-      let daCultCitros = null;                                                     // Termo de uma cultura: pragas dela (também no de citros)
+      let daCultCitros = null;                                                     // Termo de um programa: pragas das culturas dele (também no de citros)
       const lev = o.levId ? await Store.obter('levantamentos', o.levId) : null;   // Termo da visita: pragas do levantamento já marcadas
       if (lev) {
         st.levId = lev.id;
-        // Termo de uma cultura da visita: só as pragas avaliadas nela; enquadramento = o das detectadas e suspeitas (catálogo)
-        const daCult = st.cultura ? await U().pragasDaCulturaNaVisita(lev, st.cultura) : null;
+        // Termo de um programa da visita: só as pragas avaliadas nas culturas dele; enquadramento = o das detectadas e suspeitas (catálogo)
+        const daCult = st.culturas.length ? await U().pragasDasCulturasNaVisita(lev, st.culturas) : null;
         daCultCitros = daCult && daCult.map(x => x.praga);
         D.pragas = pragasDoLevantamento(lev, daCultCitros);
         const enq = daCult ? [...new Set(daCult.filter(x => x.resultado !== 'nao_detectada' && x.enquadramento).map(x => x.enquadramento))] : [];
         if (enq.length) D.enquadramento = enq.join('\n');
         if (querAntigo) Object.assign(D, { data: lev.data || D.data, hora: lev.hora || D.hora });
-        Object.assign(D, identDoLev(lev, D, st.cultura));                                     // identificação do produtor já digitada no levantamento
+        Object.assign(D, identDoLev(lev, D, st.culturas));                                     // identificação do produtor já digitada no levantamento
       }
       // Termo de citros (levantamento com praga de citros ou cadastro de citros): identificação, data/hora, local, frases e enquadramento já preenchidos
       const cad0 = o.cadastroId ? await Store.obter('cadastrosPce', o.cadastroId) : null;
-      // Termo de uma cultura: é de citros só se a cultura tem praga de citros (laranja sim, banana da mesma visita não)
-      const citrosDaCultura = !daCultCitros || daCultCitros.some(x => PCECitros.ehCitros(x));
+      // Termo de um programa: é de citros só no programa citros (banana da mesma visita não)
+      const citrosDaCultura = st.programaVisita ? st.programaVisita === 'citros' : !daCultCitros || daCultCitros.some(x => PCECitros.ehCitros(x));
       if ((cad0 && cad0.programa === 'citros') || (levEhCitros(lev) && citrosDaCultura)) {
         st.programa = 'citros';
         const fo = await fonteCitros(st, lev, cad0);
@@ -962,7 +962,8 @@ const PCEMon = (() => {
         recebidoEm: D.recebidoEm.trim(), plantasInspecionadas: plantas === '' ? 0 : plantas, amostra: D.amostra, sintomas: D.sintomas,
         hospedeiros: JSON.stringify(st.hospedeiros || []), fotos: base.fotos || '[]', assinaturas: JSON.stringify(mapa), documentos: JSON.stringify(st.docs),
         registroAntigo: A ? 1 : 0, cancelado: Number(base.cancelado) || 0, motivoCancel: base.motivoCancel || '', excluido: 0,
-        levantamentoId: st.levId || base.levantamentoId || '', culturaId: st.culturaId || base.culturaId || '', cultura: st.cultura || base.cultura || '' };
+        levantamentoId: st.levId || base.levantamentoId || '', programaVisita: st.programaVisita || base.programaVisita || '',
+        culturas: st.culturas && st.culturas.length ? JSON.stringify(st.culturas) : base.culturas || '' };
       const pessoa = await montarPessoa(doc, { nome, endereco: rec.endereco, municipio: D.municipio, uf: rec.uf, telefone: rec.telefone });
       const prop = c ? null : await montarProp(propriedadeId, { doc, municipio: D.municipio, lat: rec.lat, lon: rec.lon, endereco: rec.endereco, uf: rec.uf, cnpj: rec.cnpj, empresa: rec.empresa });
       if (st.novo) {

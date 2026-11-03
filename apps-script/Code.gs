@@ -93,7 +93,7 @@ const TABELAS = {
               'servidor', 'cargo', 'matricula', 'lotacao', 'pragas', 'tipoLocal', 'acoes', 'constatacao', 'enquadramento', 'testemunhas', 'recebidoEm',
               'plantasInspecionadas', 'amostra', 'sintomas', 'hospedeiros', 'fotos', 'assinaturas', 'documentos', 'registroAntigo',
               'cancelado', 'motivoCancel', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
-              'levantamentoId', 'culturaId', 'cultura'],   // 1 TF por cultura avaliada na visita (pce-tf.gs): chave única (levantamentoId, culturaId)
+              'levantamentoId', 'programaVisita', 'culturas'],   // 1 TF por programa da visita (como o papel), com as culturas dele: chave única (levantamentoId, programaVisita)
   // Visita do PCE normalizada em 3FN (pce-visita.gs): culturas avaliadas na visita e resultado por praga da cultura
   CulturasAvaliadas: ['id', 'levantamentoId', 'culturaId', 'cultura', 'area', 'espLinha', 'espPlanta', 'espUnidade', 'fotos',
                       'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario', 'excluido'],

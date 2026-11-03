@@ -306,6 +306,7 @@ const Sync = (() => {
     const r = await chamar({ action: 'turnoParear', codigo }, 20000);
     await Store.gravar('turnos', { ...r.turno, pendente: 0 });
     for (const v of r.veiculos || []) await Store.gravar('veiculos', { ...v, pendente: 0 });
+    if ((r.tfs || []).length) await aplicar('tfs', r.tfs);          // TFs já lavrados no turno (dono e colegas)
     return r;
   }
   const sairDoTurno = turnoId => chamar({ action: 'turnoSair', turnoId }, 20000);

@@ -274,7 +274,7 @@ async function home() {
       <p><b>Início do turno:</b> ${esc(t.inicio)}</p>
       <p><small>${Number(t.semPlaca) ? 'Placa do veículo opcional neste turno.' : 'Placa do veículo obrigatória neste turno.'}</small></p>
       ${souColega(t) ? `<p class="dica">Turno de <b>${esc(t.usuario)}</b>: você está colaborando com o seu login. Os veículos e TFs que você lançar entram neste turno; só quem abriu encerra.</p>` : ''}</div>
-    <div id="conviteBox"></div>
+    <div id="conviteBox">${CONVITE && CONVITE.turnoId === t.id && CONVITE.expiraEm > Date.now() ? conviteHTML(CONVITE) : ''}</div>
     <div class="card contador"><h1>${v.length}</h1><p>Veículos registrados</p></div>
     <button class="botao" data-go="registrar">${icone('mais')} Registrar veículo</button>
     <button class="botao" data-go="lista">${icone('lista')} Lista de veículos</button>
@@ -285,18 +285,24 @@ async function home() {
   if ($('#convidar')) $('#convidar').onclick = () => convidarColega(t);
 }
 /** Dono do turno: código de 6 números (15 min) para um colega entrar com o próprio login. Precisa de internet. */
+/** Último código gerado (fica na tela mesmo se a sincronização redesenhar o turno; some quando vence ou o turno muda). */
+let CONVITE = null;
+function conviteHTML(r) {
+  const hora = new Date(r.expiraEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return `<div class="card aviso" id="convite"><h3>${icone('pessoa')} Convite para o colega</h3>
+      <div class="codigo-par" aria-label="Código ${esc(r.codigo.split('').join(' '))}">${esc(r.codigo.slice(0, 3))} ${esc(r.codigo.slice(3))}</div>
+      <p>Vale até <b>${esc(hora)}</b> e para uma pessoa. No app do colega, com o login dele: <b>Turno → Entrar no turno de um colega</b> e digite o código.</p>
+      <p class="dica">Ele passa a lançar veículos e TFs neste turno e o nome dele entra no Termo. Para mais de um colega, gere um código para cada.</p></div>`;
+}
 async function convidarColega(t) {
   if (!navigator.onLine) return toast('Sem internet: o convite precisa de conexão (nos dois aparelhos).', true);
   const b = $('#convidar'); b.disabled = true; b.textContent = 'Gerando o código…';
   try {
     await Sync.sincronizar();                                    // o turno precisa estar no servidor
     const r = await Sync.convidarColega(t.id);
+    CONVITE = { turnoId: t.id, codigo: r.codigo, expiraEm: r.expiraEm };
     const box = $('#conviteBox'); if (!box) return;
-    const hora = new Date(r.expiraEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    box.innerHTML = `<div class="card aviso" id="convite"><h3>${icone('pessoa')} Convite para o colega</h3>
-      <div class="codigo-par" aria-label="Código ${esc(r.codigo.split('').join(' '))}">${esc(r.codigo.slice(0, 3))} ${esc(r.codigo.slice(3))}</div>
-      <p>Vale até <b>${esc(hora)}</b> e para uma pessoa. No app do colega, com o login dele: <b>Turno → Entrar no turno de um colega</b> e digite o código.</p>
-      <p class="dica">Ele passa a lançar veículos e TFs neste turno e o nome dele entra no Termo. Para mais de um colega, gere um código para cada.</p></div>`;
+    box.innerHTML = conviteHTML(CONVITE);
   } catch (e) { toast(e.message || 'Não foi possível gerar o código.', true); }
   finally { const b2 = $('#convidar'); if (b2) { b2.disabled = false; b2.innerHTML = `${icone('pessoa')} Convidar outro colega`; } }
 }

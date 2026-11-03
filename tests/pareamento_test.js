@@ -80,6 +80,19 @@ const hoje = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10);
     r = await post({ action: 'tfEmitir', key: B.token, tf: { id: 'tf-colega-1', barreira: 'BVA-CEASA', ano, numero: 5, numeroTxt: `0005/${ano} - BVA - CEASA`, turnoId,
       data: hoje, hora: agoraHM, fiscal: B.nome, local: 'BVA - CEASA', placa: 'ABC1D23', doc: '52998224725', nome: 'FULANO FICTICIO TESTE', procedimento: 'rechaco', criadoEm: Date.now(), atualizadoEm: Date.now() } });
     ok(r.ok && r.emitido, 'colega lavra TF de rechaço no turno do dono', r);
+    // TF completo visível para todos do turno: o do colega chega no aparelho do dono (sync), marcado, sem "Cancelar"; quem não é do turno não recebe
+    await sinc(pa);
+    const tfA = await pa.evaluate(() => Store.obter('tfs', 'tf-colega-1'));
+    ok(tfA && tfA.usuario === B.nome && tfA.doc === '52998224725' && tfA.nome === 'FULANO FICTICIO TESTE' && !tfA.pendente, 'dono recebe o TF completo do colega (sync)', tfA);
+    r = await post({ action: 'sync', key: C.token, since: 0 });
+    ok(r.ok && !(r.tfs || []).some(x => x.id === 'tf-colega-1'), 'quem não é do turno não recebe o TF');
+    ok((await aba('AcessosADados')).some(x => x.acao === 'tfsTurnoCompartilhado' && x.nome === A.nome), 'leitura do TF do colega registrada (AcessosADados)');
+    await pa.evaluate(() => go('tf')); await pa.waitForSelector('#tfItens .item');
+    const itemCol = pa.locator('#tfItens .item', { hasText: '0005/' });
+    ok(/Lavrado por Beltrano Ficticio Teste/.test(await itemCol.textContent()) && !(await itemCol.locator('[data-tf=cancelar]').count()), 'lista de TFs do dono: o do colega aparece como "Lavrado por…", sem "Cancelar"');
+    r = await post({ action: 'sync', key: A.token, since: 9e15, tfs: [{ ...tfA, cancelado: 1, motivoCancel: 'teste', atualizadoEm: Date.now() + 5000 }] });
+    ok(r.ok && (r.recusados && (r.recusados.tfs || []).includes('tf-colega-1')) && String((await aba('TFs')).find(x => x.id === 'tf-colega-1').cancelado) === '0', 'o dono não cancela o TF do colega (servidor recusa)', r.recusados);
+    await pa.evaluate(() => go('home')); await pa.waitForSelector('#encerrar');
     r = await post({ action: 'turnoTFs', key: C.token, turnoId }); ok(!r.ok && /outro fiscal/.test(r.erro), 'turnoTFs: quem não participou do turno é recusado', r.erro);
     // TF do dono sem ligação com o turno (aberto fora dele), no dia e no horário do turno: também é do turno; o de outro fiscal, não
     await post({ action: 'tfEmitir', key: A.token, tf: { id: 'tf-solto-1', barreira: 'BVA-CEASA', ano, numero: 6, numeroTxt: `0006/${ano} - BVA - CEASA`, turnoId: '',

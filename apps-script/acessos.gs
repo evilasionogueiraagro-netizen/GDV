@@ -61,7 +61,8 @@ function autenticar_(key) {
 /* ---------- Registro de leitura de dados pessoais (LGPD) ---------- */
 
 // actions que devolvem dados pessoais (CPF, nome, endereço, coordenada do produtor/fiscalizado ou a lista de servidores)
-const ACOES_COM_DADOS_PESSOAIS_ = ['painelDados', 'pceConsultar', 'pceBaixarMunicipio', 'pceMapaGeral', 'admDados', 'usuariosListar', 'sessoesListar', 'turnoRecuperar'];
+const ACOES_COM_DADOS_PESSOAIS_ = ['painelDados', 'pceConsultar', 'pceBaixarMunicipio', 'pceMapaGeral', 'admDados', 'usuariosListar', 'sessoesListar', 'turnoRecuperar',
+                                   'tfsTurnoCompartilhado'];   // TF completo do colega no turno compartilhado (sync e entrar no turno)
 const LEITURA_INTERVALO_S_ = 3600;   // no máximo uma linha por usuário + action por hora (o painel ao vivo chama painelDados a cada minuto)
 const RESUMO_LEITURA_ = ['de', 'ate', 'aoVivo', 'municipio', 'municipios', 'ano', 'aba'];   // filtros que podem ir para o registro (nunca CPF/nome)
 

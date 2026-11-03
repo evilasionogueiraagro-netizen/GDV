@@ -1203,7 +1203,7 @@ const PCEUI = (() => {
           <div class="info pce-lev-av">${g.pragas.length} praga(s)/doença(s) · ${cult.length} cultura(s) avaliada(s)${col ? ` · ${col} com coleta` : ''} · ${fotos.length} foto(s)</div>
           <div class="info pce-lev-av-pc" aria-hidden="true">${g.pragas.length} praga(s) · ${cult.length} cultura(s)<br>${fotos.length} foto(s)${col ? ` · ${col} coleta(s)` : ''}</div>
           ${g.pragas.length ? `<div class="info pce-res-resumo">${g.pragas.map(p => `<span>${esc(nomePraga(p.praga))} ${seloRes(resultadoPraga(p))}</span>`).join(' ')}</div>` : ''}
-          ${pend ? `<div class="info pend">⏳ aguardando envio${papelSemAut ? ' — registro do papel: sem autorização, fica guardado neste aparelho' : ''}</div>` : ''}
+          ${pend ? `<div class="info pend">${icone('sincronizar')} aguardando envio${papelSemAut ? ' — registro do papel: sem autorização, fica guardado neste aparelho' : ''}</div>` : ''}
           <div class="botoes pce-acoes">${papelSemAut ? '' : `<button class="editar" data-pce="abrirlev" data-id="${esc(x.id)}">Abrir</button>`}
           ${botoesPdf(x.id, Docs.pceGrupos(levPorPrograma(x)), false)}
           ${botoesVisita(x, V.get(x.id), false)}
@@ -1481,7 +1481,7 @@ const PCEUI = (() => {
   }
   async function gerarTermoNumerado(F, D, a, u, doc, btn) {
     let sug; try { sug = await sugerirNumero(u, a); } catch (e) { return toast(e.message, true); }
-    btn.textContent = '⏳ Gerando…';
+    btn.textContent = 'Gerando…';
 
     const t0 = Date.now(), id = F.id, nome = D.nome.trim().replace(/\s+/g, ' ').toUpperCase();
     const { mapa, novos } = prepararAssinaturas(F);
@@ -1615,7 +1615,7 @@ const PCEUI = (() => {
     const t = await Store.obter('colheitas', id); if (!t) return go('pcetermos');
     view(`<div class="card" id="pce-pronto"><h3>${icone('ok')} Termo de Colheita gerado</h3><div class="tf-num"><b id="pce-pronto-num">${esc(t.numeroTxt)}</b></div>
       <p>${esc(t.nome)} · ${esc(fmtDoc(digitos(t.doc)))}</p><p>${esc(dBR(t.data))} ${esc(t.hora)} · ${esc(t.cultura)} · ${esc(t.quantidade)} amostra(s)</p>
-      ${t.pendente ? '<div class="tf-novo">⏳ Número provisório / aguardando envio: será conferido na planilha ao sincronizar. Se houver repetição, a coordenação é avisada.</div>' : '<div class="tf-ok">✓ Número confirmado na planilha.</div>'}
+      ${t.pendente ? `<div class="tf-novo">${icone('sincronizar')} Número provisório / aguardando envio: será conferido na planilha ao sincronizar. Se houver repetição, a coordenação é avisada.</div>` : '<div class="tf-ok">✓ Número confirmado na planilha.</div>'}
       ${t.numeroOrigem === 'editado' && Number(t.registroAntigo) !== 1 ? `<div class="tf-novo">${icone('editar')} Número alterado manualmente (o sistema sugeriu ${num3(t.numeroSugerido)}). Registrado para auditoria.</div>` : ''}
       <p id="pce-pronto-lab">${seloLab(labDe(t))}</p></div>
       <button class="botao" data-pce="imprimirtermo" data-id="${esc(t.id)}" id="pce-imprimir">${icone('imprimir')} Imprimir / PDF (${P.vias || 2} vias)</button>
@@ -1647,7 +1647,7 @@ const PCEUI = (() => {
         <div class="info pce-lab-info">${seloLab(labDe(t))}</div>
         ${t.cancelado ? `<div class="info pend">${icone('proibido')} CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
         ${t.conflito ? '<div class="info pend">Número duplicado na planilha: confira com a coordenação.</div>' : ''}
-        ${t.pendente ? `<div class="info pend">⏳ ${t.provisorio ? 'número provisório, será conferido ao sincronizar' : 'aguardando envio'}${Number(t.registroAntigo) === 1 && !podeAnt ? ' — termo do papel: sem autorização, fica guardado neste aparelho' : ''}</div>` : ''}
+        ${t.pendente ? `<div class="info pend">${icone('sincronizar')} ${t.provisorio ? 'número provisório, será conferido ao sincronizar' : 'aguardando envio'}${Number(t.registroAntigo) === 1 && !podeAnt ? ' — termo do papel: sem autorização, fica guardado neste aparelho' : ''}</div>` : ''}
         <div class="botoes"><button class="editar" data-pce="imprimirtermo" data-id="${esc(t.id)}">Imprimir</button>
         ${t.cancelado || !Sync.pode('pce') ? '' : `<button class="editar" data-pce="laudo" data-id="${esc(t.id)}">${icone('amostra')} Resultado</button>`}
         ${t.cancelado ? '' : `<button class="excluir" data-pce="cancelartermo" data-id="${esc(t.id)}">Cancelar termo</button>`}</div></div>`).join('')
@@ -1803,7 +1803,7 @@ const PCEUI = (() => {
     const levs = (await Store.todos('levantamentos')).filter(x => !x.excluido), cols = (await Store.todos('colheitas')).filter(x => !x.excluido);
     const pend = levs.filter(x => x.pendente).length + cols.filter(x => x.pendente).length + (await Sync.arquivosPendentes(null, null, [])).length;   // só os do PCE
     if (!levs.length && !cols.length) return 'Nenhum registro';
-    return `${levs.length} levantamento(s) · ${cols.length} termo(s)${pend ? ` · ⏳ ${pend} aguardando envio` : ''}`;
+    return `${levs.length} levantamento(s) · ${cols.length} termo(s)${pend ? ` · ${pend} aguardando envio` : ''}`;
   }
 
   /* ---------- ações (cliques) ---------- */

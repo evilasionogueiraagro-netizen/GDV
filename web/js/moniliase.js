@@ -987,13 +987,13 @@ const PCEMon = (() => {
   /* ================= telas de "salvo" e listas ================= */
   const situacao = r => [Number(r.cancelado) === 1 ? `<div class="info pend">${icone('proibido')} CANCELADO${r.motivoCancel ? ': ' + esc(r.motivoCancel) : ''}</div>` : '',
     Number(r.conflito) === 1 ? '<div class="info pend">Número repetido na planilha: confira com a coordenação.</div>' : '',
-    r.pendente ? `<div class="info pend">⏳ ${r.provisorio ? 'número provisório, conferido ao sincronizar' : 'aguardando envio'}</div>` : ''].join('');
+    r.pendente ? `<div class="info pend">${icone('sincronizar')} ${r.provisorio ? 'número provisório, conferido ao sincronizar' : 'aguardando envio'}</div>` : ''].join('');
   async function pronto(tipo, id) {
     const r = await Store.obter(STORE[tipo], id); if (!r) return go(tipo === 'termo' ? 'pcetfs' : 'pcecads');
     const papel = Number(r.registroAntigo) === 1 && U().podeAntigo();
     view(`<div class="card" id="mon-pronto"><h3>${icone('ok')} ${esc(NOME[tipo])} salvo</h3><div class="tf-num"><b id="mon-pronto-num">${esc(r.numeroTxt || '')}</b></div>
       <p><b>${esc(r.nome)}</b>${r.propriedade ? ' · ' + esc(r.propriedade) : ''}</p><p>${esc(dBR(r.data))} ${esc(r.hora || '')} · ${esc(r.municipio)}</p>
-      ${r.pendente ? '<div class="tf-novo">⏳ Aguardando envio / número provisório: conferido na planilha ao sincronizar.</div>' : '<div class="tf-ok">✓ Número confirmado na planilha.</div>'}
+      ${r.pendente ? `<div class="tf-novo">${icone('sincronizar')} Aguardando envio / número provisório: conferido na planilha ao sincronizar.</div>` : '<div class="tf-ok">✓ Número confirmado na planilha.</div>'}
       ${r.numeroOrigem === 'papel' ? '<p class="dica">Número do papel.</p>' : ''}${situacao({ ...r, pendente: 0 })}</div>
       <button class="botao" data-mon="imprimir" data-tipo="${tipo}" data-id="${esc(r.id)}" id="mon-imprimir">${icone('imprimir')} Imprimir / PDF</button>
       ${tipo === 'termo' ? `<button class="botao sec" data-mon="enviar" data-id="${esc(r.id)}" id="mon-enviar">${icone('enviar')} Enviar ao produtor (WhatsApp, e-mail…)</button>`

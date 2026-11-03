@@ -94,7 +94,7 @@ const TABELAS = {
               'plantasInspecionadas', 'amostra', 'sintomas', 'hospedeiros', 'fotos', 'assinaturas', 'documentos', 'registroAntigo',
               'cancelado', 'motivoCancel', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
               'levantamentoId', 'programaVisita', 'culturas'],   // 1 TF por programa da visita (como o papel), com as culturas dele: chave única (levantamentoId, programaVisita)
-  // Visita do PCE normalizada em 3FN (pce-visita.gs): culturas avaliadas na visita e resultado por praga da cultura
+  // Visita do PCE por cultura (pce-visita.gs): culturas avaliadas na visita e resultado de cada praga na cultura
   CulturasAvaliadas: ['id', 'levantamentoId', 'culturaId', 'cultura', 'area', 'espLinha', 'espPlanta', 'espUnidade', 'fotos',
                       'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario', 'excluido'],
   Resultados: ['id', 'levantamentoId', 'culturaId', 'pragaId', 'praga', 'resultado', 'coleta', 'tipoMaterial', 'codigoAmostra', 'destinoAmostra',
@@ -207,7 +207,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-11-03a';
+const VERSAO_CODIGO = '2026-11-03b';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -367,8 +367,7 @@ function sincronizar_(req, usuario) {
     if (T.tfs.length) { const g = gravados_(T.tfs, recusados.tfs); marcarConflitosTFs_(g, agora); marcarConflitos_('AI', g, agora); }   // auto de infração: nº repetido = autoConflito
     gravar_('Pessoas', T.pessoas, agora, usuario);
     gravar_('Placas', T.placas, agora, usuario);
-    if (typeof sincronizarVisitasPce_ === 'function') sincronizarVisitasPce_(T, agora, usuario, alheios, recusados);
-    else alheios('levantamentos', gravar_('Levantamentos', T.levantamentos, agora, usuario));
+    sincronizarVisitasPce_(T, agora, usuario, alheios, recusados);       // levantamentos + culturas avaliadas + resultados (pce-visita.gs)
     const jaGravadas = {};                                                            // termos que a planilha já tem: mantêm o emitidoEm gravado
     if (T.colheitas.length) lerLeitura_('Colheitas').forEach(function (l) { jaGravadas[l.id] = true; });
     T.colheitas.forEach(function (c) {
@@ -393,10 +392,10 @@ function sincronizar_(req, usuario) {
       regs.forEach(function (r) {
         if (!r) return;
         normalizarDocPce_(x[0], r);
-        if (x[0] === 'termo' && typeof normalizarTermoPceVisita_ === 'function') normalizarTermoPceVisita_(r, T);
+        if (x[0] === 'termo') normalizarTermoPceVisita_(r);
         if (!r.emitidoEm) { if (ja[r.id]) delete r.emitidoEm; else r.emitidoEm = agora; }
       });
-      if (x[0] === 'termo' && typeof filtrarTermosPceUnicos_ === 'function') regs = filtrarTermosPceUnicos_(regs, usuario, alheios);
+      if (x[0] === 'termo') regs = filtrarTermosPceUnicos_(regs, usuario, alheios);   // um Termo por programa da visita
       alheios(x[1], gravar_(D.aba, regs, agora, usuario));
       marcarConflitos_(D.seq, gravados_(regs, recusados[x[1]]), agora);
     });

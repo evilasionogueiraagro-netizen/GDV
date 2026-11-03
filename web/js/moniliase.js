@@ -1,4 +1,4 @@
-// PCE — monilíase: Cadastro de imóvel com hospedeiros (1x por propriedade), Termo de Fiscalização do PCE (1 por visita; não é o TF de
+// PCE — monilíase: Cadastro de imóvel com hospedeiros (1x por propriedade), Termo de Fiscalização do PCE (1 por programa em cada visita; não é o TF de
 // Barreira) e Relatório de atividades (prestação de contas do convênio). Formulários na mesma ordem do papel, com o modo "digitar do papel"
 // (número, data e PDF escaneado do papel; sem assinaturas) para a estagiária e o modo de campo (GPS, assinaturas, número do sistema).
 // Usa funções do app.js (view, go, tela, toast, $, esc, dBR, hojeISO, agoraHM, pegarLocal, avisoAtivacao), do pce.js (PCEUI), do campo.js,
@@ -671,6 +671,8 @@ const PCEMon = (() => {
 
   /* ================= Termo de Fiscalização do PCE ================= */
   const PT = 'mt-';
+  // a frase pronta de "não constatei" fala da monilíase: só aparece com ela marcada, para não entrar no Termo de outro programa
+  const mostrarNegativa = () => { const b = $('#' + PT + 'negativa'); if (b) b.hidden = !cv(PT, 'pragas').includes('Monilíase'); };
   const tfVazio = (s, m = {}) => ({ unidade: m.unidade || (s && s.lotacao) || '', numPapel: '', sNome: m.sNome || '', sCargo: m.sCargo || '', sMatricula: m.sMatricula || '', sLotacao: m.sLotacao || '',
     nome: '', doc: '', atividade: '', empresa: '', cnpj: '', atividadeEmpresa: '', endereco: '', municipio: m.municipio || (s && s.lotacao) || '', uf: 'AM', telefone: '', lat: '', lon: '',
     pragas: ['Monilíase'], tipoLocal: [], data: m.data || '', hora: '', acoes: [], constatacao: '', enquadramento: '', t1nome: '', t1doc: '', t2nome: '', t2doc: '', recebidoEm: '',
@@ -906,7 +908,7 @@ const PCEMon = (() => {
       if (pd.municipio) { const m = $('#' + PT + 'municipio'); if (![...m.options].some(x => x.value === pd.municipio)) m.add(new Option(pd.municipio, pd.municipio)); m.value = pd.municipio; }
       if (c) ligarCadastro(c, true); else $('#' + PT + 'cad').innerHTML = cadLigadoHTML(st);
     }
-    mostrarCoord(PT); mostrarNumPapel(PT, 'termo'); avisoDoc(PT);
+    mostrarCoord(PT); mostrarNumPapel(PT, 'termo'); avisoDoc(PT); mostrarNegativa();
     if (st.antigo) await renderDocs(PT); else for (const pp of ['produtor', 'servidor', 'testemunha1', 'testemunha2']) await ligarAss(pp);
     const f = $('#monTfForm');
     f.addEventListener('input', e => {
@@ -919,6 +921,7 @@ const PCEMon = (() => {
     f.addEventListener('change', async e => {
       const el = e.target;
       if (el.id === PT + 'pdfs') return adicionarPDFs(el, PT);
+      if (el.name === PT + 'pragas') mostrarNegativa();
       if (el.id === PT + 'snome') await U().completarServidor(PT);
       if (el.id === PT + 'doc' || el.id === PT + 'cnpj') { el.value = PCEDocs.fmtDoc(digitos(el.value)) || el.value; avisoDoc(PT); }
       if ([PT + 'numpapel', PT + 'unidade', PT + 'data'].includes(el.id)) mostrarNumPapel(PT, 'termo');
@@ -1038,7 +1041,7 @@ const PCEMon = (() => {
           </div>
         </div>
         <div class="card"><h3>Termos de Fiscalização (PCE)</h3>
-          <p class="dica" style="text-align:left">Um termo por visita; ligado ao cadastro da propriedade. Não é o TF de Barreira.</p></div>
+          <p class="dica" style="text-align:left">Um termo por programa em cada visita; ligado ao cadastro da propriedade. Não é o TF de Barreira.</p></div>
         <div class="duas" style="margin-bottom:10px">
           ${dig ? '' : `<button class="botao" data-mon="novo" data-tipo="${tipo}" id="mon-novo">${icone('mais')} Novo termo</button>`}
           ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-mon="novo" data-tipo="${tipo}" data-antigo="1" id="mon-novo-papel">${icone('documento')} Digitar do papel</button>` : ''}

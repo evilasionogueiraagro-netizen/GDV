@@ -1139,9 +1139,9 @@ const PCEUI = (() => {
     view(`<div class="card" id="pce-lev-pronto"><h3>${icone('ok')} Levantamento salvo</h3>
       <p><b>${esc(r.nome)}</b> · ${esc(r.propriedade || 'Propriedade não informada')}</p><p>${esc(dBR(r.data))} ${esc(r.hora)} · ${esc(r.municipio)}</p>
       ${r.tipoLocal || r.origemVisita || r.comercial ? `<p class="dica" style="text-align:left" id="pce-pronto-local">Local: ${esc(r.tipoLocal || 'não informado')}${r.comercial ? ` · Comercial: ${r.comercial === 'sim' ? 'sim' : 'não'}` : ''} · Origem: ${esc(r.origemVisita || 'não informada')}</p>` : ''}
-      <ul class="pce-res-lista">${[...new Set(G.pragas.flatMap(g => g.culturas.map(c => c.cultura)))].map(cultura => ({ cultura })).map(cu => { const prs = G.pragas.flatMap(g => g.culturas.filter(c => c.cultura === cu.cultura).map(c => ({ praga: g.praga, ...c })));
+      <table class="tabela pce-res-tabela" id="pce-pronto-res"><thead><tr><th scope="col">Praga</th><th scope="col">Resultado</th></tr></thead>${[...new Set(G.pragas.flatMap(g => g.culturas.map(c => c.cultura)))].map(cultura => ({ cultura })).map(cu => { const prs = G.pragas.flatMap(g => g.culturas.filter(c => c.cultura === cu.cultura).map(c => ({ praga: g.praga, ...c })));
         const nF = new Set(prs.flatMap(x => x.fotos)).size;
-        return `<li><b>${icone('broto')} ${esc(cu.cultura)}</b>${nF ? ` <small>${nF} foto(s)</small>` : ''}<br><small>${prs.map(x => `${esc(nomePraga(x.praga))} ${seloRes(x.resultado)}`).join(' · ')}</small></li>`; }).join('')}</ul>
+        return `<tbody><tr class="pce-res-cultura"><th colspan="2" scope="colgroup">${icone('broto')} ${esc(cu.cultura)}${nF ? ` <small>${nF} foto(s)</small>` : ''}</th></tr>${prs.map(x => `<tr><td>${esc(nomePraga(x.praga))}</td><td>${seloRes(x.resultado)}</td></tr>`).join('')}</tbody>`; }).join('')}</table>
       ${G.gerais.length ? `<p class="dica" style="text-align:left">${G.gerais.length} foto(s) gerais (registro anterior) saem em todos os PDFs.</p>` : ''}</div>
       ${botoesVisita(r, visita, true) ? `<div class="card pce-visita"><h3>Próximo passo da visita</h3>
         <p class="dica" style="text-align:left">${visita.cadastro ? 'Propriedade já cadastrada' + (visita.cadastro.numeroTxt ? ` (cadastro ${visita.programa === 'citros' ? 'de citros ' : ''}${esc(visita.cadastro.numeroTxt)})` : '') + '.'

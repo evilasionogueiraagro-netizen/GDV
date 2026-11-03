@@ -29,6 +29,8 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== und
   await p.click('#pce-addpraga'); await p.selectOption('.pce-praga >> nth=1 >> .p-praga', 'Bactrocera carambolae');
   await p.selectOption('.pce-praga >> nth=1 >> .pce-cult >> nth=0 >> .c-cultura', 'Laranja'); await p.click('.pce-praga >> nth=1 >> .pce-cult >> nth=0 >> .pce-res-nao_detectada');
   await p.click('#pce-salvar'); await p.waitForSelector('#pce-lev-pronto');
+  ok(await p.locator('#pce-pronto-res tbody').count() === 2 && await p.locator('#pce-pronto-res .pce-res-cultura').count() === 2 && await p.locator('#pce-pronto-res td .pce-selo-res').count() === 2,
+    'resumo em tabela: um bloco por cultura, com uma linha por praga e o resultado');
   ok(await p.locator('.pce-visita #pce-pronto-tf').count() === 1 && await p.locator('.pce-visita #pce-pronto-cad').count() === 1 && /Propriedade nova/.test(await p.textContent(".pce-visita")),
     'depois de salvar: "Próximo passo da visita" com Cadastrar a propriedade e Termo de Fiscalização');
   await p.screenshot({ path: amb.saida('pce_visita_pronto.png'), fullPage: true });

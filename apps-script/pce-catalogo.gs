@@ -35,7 +35,7 @@ const CATALOGO_PCE_BASE_ = {
     { nomeAntigo: 'Cancro Cítrico', nomePopular: 'Cancro Cítrico', nomeCientifico: 'Xanthomonas citri subsp. citri', tipo: 'doenca', nomeNoTF: 'Cancro Cítrico',
       enquadramentoLegal: ENQ_CITROS_PCE_, familias: ['Citros'] },
     { nomeAntigo: 'Fusarium R4T', nomePopular: 'Fusariose (FOC R4T)', nomeCientifico: 'Fusarium oxysporum f. sp. cubense raça 4 tropical', tipo: 'doenca',
-      nomeNoTF: 'Fusariose FOC R4T', familias: ['Bananeira'] },
+      nomeNoTF: 'Fusariose FOC R4T', familias: ['Bananeira'], semLevantamento: true },   // ausente no Brasil: só educação sanitária
     { nomeAntigo: 'Monilíase do Cacaueiro', nomePopular: 'Monilíase do Cacaueiro', nomeCientifico: 'Moniliophthora roreri', tipo: 'doenca', nomeNoTF: 'Monilíase',
       familias: ['Cacau e cupuaçu'] },
     { nomeAntigo: 'Vassoura de Bruxa da Mandioca', nomePopular: 'Vassoura-de-bruxa da Mandioca', nomeCientifico: '', tipo: 'doenca',
@@ -66,7 +66,8 @@ function catalogoPceBase_() {
   B.pragas.forEach(function (p) {
     const id = pceId_(p.nomeAntigo);
     cat.pragas.push({ id: id, nomePopular: p.nomePopular, nomeCientifico: p.nomeCientifico || '', tipo: p.tipo, enquadramentoLegal: p.enquadramentoLegal || '',
-                      nomeNoTF: p.nomeNoTF || '', ativo: 1, programa: (p.familias || []).indexOf('Citros') >= 0 ? 'Citros' : '' });
+                      nomeNoTF: p.nomeNoTF || '', ativo: 1, programa: (p.familias || []).indexOf('Citros') >= 0 ? 'Citros' : '',
+                      levantamento: p.semLevantamento ? 0 : 1 });
     (p.familias || []).forEach(function (f) { cat.pragasDasFamilias.push({ id: id + '|' + pceId_(f), pragaId: id, familiaId: pceId_(f), ativo: 1 }); });
   });
   return cat;
@@ -86,7 +87,7 @@ function catalogoPce_() {
                atualizadoEm: Number(c.atualizadoEm) || 0, atualizadoPor: c.atualizadoPor || '' }; }),
     pragas: limpa(cat.pragas).map(function (p) {
       return { id: p.id, nomePopular: p.nomePopular, nomeCientifico: p.nomeCientifico || '', tipo: TIPOS_PRAGA_PCE_.indexOf(p.tipo) >= 0 ? p.tipo : 'praga',
-               enquadramentoLegal: p.enquadramentoLegal || '', nomeNoTF: p.nomeNoTF || '', ativo: at(p), programa: p.programa || '',
+               enquadramentoLegal: p.enquadramentoLegal || '', nomeNoTF: p.nomeNoTF || '', ativo: at(p), programa: p.programa || '', levantamento: Number(p.levantamento) === 0 && p.levantamento !== '' ? 0 : 1,
                atualizadoEm: Number(p.atualizadoEm) || 0, atualizadoPor: p.atualizadoPor || '' }; }),
     // só as ligações valendo
     pragasDasFamilias: limpa(cat.pragasDasFamilias).filter(function (l) { return at(l); }).map(function (l) { return { pragaId: l.pragaId, familiaId: l.familiaId }; }),
@@ -157,7 +158,8 @@ function painelPceCatalogoSalvar(token, req) {
   } else {
     aba = 'Pragas'; nomeCampo = 'nomePopular';
     reg = { nomePopular: txt(it.nomePopular, 80), nomeCientifico: txt(it.nomeCientifico, 120), tipo: TIPOS_PRAGA_PCE_.indexOf(it.tipo) >= 0 ? it.tipo : 'praga',
-            enquadramentoLegal: txt(it.enquadramentoLegal, 1000), nomeNoTF: txt(it.nomeNoTF, 60), programa: txt(it.programa, 60), ativo: ativo };
+            enquadramentoLegal: txt(it.enquadramentoLegal, 1000), nomeNoTF: txt(it.nomeNoTF, 60), programa: txt(it.programa, 60),
+            levantamento: it.levantamento === false || it.levantamento === 0 ? 0 : 1, ativo: ativo };
   }
   if (reg[nomeCampo].length < 2) throw new Error('Informe o nome.');
   const ligaFam = tipo === 'praga' ? ids(it.familias) : null, ligaCult = tipo === 'praga' ? ids(it.culturas) : tipo === 'cultura' ? ids(it.pragas) : null;

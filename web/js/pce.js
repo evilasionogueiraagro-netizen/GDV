@@ -577,6 +577,7 @@ const PCEUI = (() => {
   async function carregarCatalogo() { const c = await Store.meta('catalogoPce'); CAT = c && Array.isArray(c.culturas) && Array.isArray(c.pragas) ? c : null; }
   const culturasCat = () => (CAT ? CAT.culturas.filter(c => Number(c.ativo) !== 0).map(c => c.nome) : P.culturas);
   const pragasCat = () => (CAT ? CAT.pragas.filter(p => Number(p.ativo) !== 0) : P.pragas.map(n => ({ id: idCat(n), nomePopular: n })));
+  const temLevantamento = p => Number(p.levantamento) !== 0;              // 0 = praga ausente no Brasil (só educação sanitária): fora do levantamento
   /** Nome gravado em "pragas": o da lista antiga (config.js) quando é a mesma praga, porque PDF, citros e Termo reconhecem por ele; senão o popular. */
   const nomeDaPraga = p => P.pragas.find(n => idCat(n) === p.id) || p.nomePopular;
   const pragaPorNome = nome => { const k = idCat(nome); return k ? pragasCat().find(p => p.id === k || idCat(p.nomePopular) === k) || null : null; };
@@ -594,7 +595,7 @@ const PCEUI = (() => {
     const c = CAT && nomeCultura ? CAT.culturas.find(x => idCat(x.nome) === idCat(nomeCultura)) : null; if (!c) return [];
     const ids = new Set([...(CAT.pragasDasFamilias || []).filter(l => c.familiaId && l.familiaId === c.familiaId).map(l => l.pragaId),
       ...(CAT.pragasDasCulturas || []).filter(l => l.culturaId === c.id).map(l => l.pragaId)]);
-    return pragasCat().filter(p => ids.has(p.id));
+    return pragasCat().filter(p => ids.has(p.id) && temLevantamento(p));
   }
   const pragaVazia = (p, ligada) => ({ uid: novoUid(), pragaId: p ? p.id : '', praga: p ? nomeDaPraga(p) : '', ligada: !!ligada, outra: false, legado: false,
     resultado: '', coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '' });
@@ -714,7 +715,7 @@ const PCEUI = (() => {
   function blocoPraga(g) {
     const u = esc(g.uid), amostra = g.coleta === 'Sim' ? '' : 'disabled';   // sem coleta: campos da amostra escondidos
     const inp = (cls, rot) => `<label>${rot}<input class="r-${cls}" value="${esc(g[cls])}" maxlength="60" ${amostra}></label>`;
-    const lista = pragasCat(), outra = g.outra || (!!g.praga && !g.ligada && !lista.some(p => p.id === chavePraga(g)));
+    const lista = pragasCat().filter(p => temLevantamento(p) || p.id === chavePraga(g)), outra = g.outra || (!!g.praga && !g.ligada && !lista.some(p => p.id === chavePraga(g)));
     const topo = g.ligada
       ? `<b>${icone('praga')} ${esc(g.praga)}</b><small class="pce-pr-cat">do catálogo</small>`
       : `<label class="pce-pr-nome">Praga/doença *<select class="r-praga"><option value="">${esc(g.legado ? SEM_PRAGA + ' (registro anterior)' : 'Selecione')}</option>

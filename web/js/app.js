@@ -74,7 +74,7 @@ const temFicha = t => { const b = CONFIG.bvas.find(x => x.nome === t.local); ret
 /** Turno que não conta veículos (soPessoas = 1, ex.: volante de Tabatinga): conta só as pessoas orientadas (turno.pessoasEducacao). */
 const soPessoas = t => !!(t && Number(t.soPessoas) === 1);
 /** Turno compartilhado: o turno é de outro login (o colega entrou pelo código do dono). Só o dono encerra; o colega sai. */
-const souColega = t => !!(t && t.usuario && Sync.nome() && t.usuario !== Sync.nome());
+const souColega = t => !!(t && t.usuario && Sync.nome() && !Sync.mesmoNome(t.usuario, Sync.nome()));
 const botaoFim = t => souColega(t) ? `<button class="botao vermelho" id="encerrar">${icone('voltar')} Sair do turno</button>`
   : `<button class="botao vermelho" id="encerrar">${icone('parar')} Encerrar turno</button>
      <button class="botao sec" id="cancelarTurno" type="button">${icone('fechar')} Cancelar turno (aberto por engano)</button>`;
@@ -109,11 +109,13 @@ function renderNav(view) {
     pcecads: 'pce', pcecad: 'pce', pcecadpronto: 'pce', pcetfs: 'pce', pcetf: 'pce', pcetfpronto: 'pce', pcerel: 'pce', escala: 'escalas', escalagerar: 'escalas' })[view] || view;
   $('#nav').innerHTML = NAVS[MODULO].map(([v, i, t]) => `<button data-v="${v}" class="${v === ativo ? 'on' : ''}">${icone(i)}<span>${t}</span></button>`).join('');
 }
-function go(view, arg) {
+/** Abre a tela. o.manterRolagem: redesenho da mesma tela (sincronização), sem voltar ao topo. Devolve a promessa do desenho. */
+function go(view, arg, o) {
   if (VIEW === 'fechado' && view !== 'fechado' && EDIT) avisarSaidaPendente(EDIT);   // aviso não bloqueante: encerramento ainda não chegou
   const bloq = semPermissaoPara(view);
   if (bloq) { toast(`${SEM_AUT}: ${Sync.MODULOS[bloq]}.`, true); view = 'modulos'; arg = null; }
   if (VIEW === 'tfnovo' && view !== 'tfnovo' && typeof TFUI !== 'undefined') TFUI.saiu();   // saiu do formulário de TF sem gerar
+  if (typeof Docs !== 'undefined' && !(o && o.manterRolagem)) Docs.limparImpressao();   // documento da última impressão (celular) sai da página
   VIEW = view; EDIT = arg || null;
   if (view === 'modulos' || view === 'config') MODULO = 'hub';
   else if (view === 'tf') MODULO = 'tf';
@@ -122,15 +124,27 @@ function go(view, arg) {
   else if (/^escala/.test(view)) MODULO = 'escala';
   else if (/^tf/.test(view) && MODULO === 'hub') MODULO = 'tf';          // TF aberto a partir do veículo continua no módulo de veículos (embutido)
   renderNav(view); GER++;
-  ({ modulos, home, registrar, editar: registrar, lista, resumo, fechado, historico, config, turnopapel, tf: () => TFUI.lista(), tfnovo: () => TFUI.novo(EDIT), tfpronto: () => TFUI.pronto(EDIT),
+  const r = ({ modulos, home, registrar, editar: registrar, lista, resumo, fechado, historico, config, turnopapel, tf: () => TFUI.lista(), tfnovo: () => TFUI.novo(EDIT), tfpronto: () => TFUI.pronto(EDIT),
     pce: () => PCEUI.lista(), pcelev: () => PCEUI.levantamento(EDIT), pcetermos: () => PCEUI.termos(), pcetermo: () => PCEUI.termo(EDIT),
     pcepronto: () => PCEUI.pronto(EDIT), pcelevpronto: () => PCEUI.levPronto(EDIT), pceservidor: () => PCEUI.servidor(EDIT),
     pcecampo: () => Campo.telaBaixar(), pcemapa: () => Campo.telaMapa(), pcerota: () => Campo.telaRota(),
     // PCE monilíase: Cadastro de imóvel, Termo de Fiscalização do PCE e Relatório de atividades (moniliase.js)
     pcecads: () => PCEMon.lista('cadastro'), pcecad: () => PCEMon.cadastro(EDIT), pcecadpronto: () => PCEMon.pronto('cadastro', EDIT),
     pcetfs: () => PCEMon.lista('termo'), pcetf: () => PCEMon.termo(EDIT), pcetfpronto: () => PCEMon.pronto('termo', EDIT), pcerel: () => PCEMon.relatorio(),
-    escalas: () => EscalaUI.lista(), escala: () => EscalaUI.form(EDIT), escalagerar: () => EscalaUI.gerar(EDIT) }[view])();
-  window.scrollTo(0, 0);
+    escalas: () => EscalaUI.lista(), escala: () => EscalaUI.form(EDIT), escalagerar: () => EscalaUI.gerar(EDIT),
+    relequipes: () => EscalaUI.relLista(), relequipe: () => EscalaUI.rel(EDIT) }[view])();
+  if (!(o && o.manterRolagem)) window.scrollTo(0, 0);
+  return r;
+}
+/**
+ * Redesenho pedido pela sincronização automática (a cada 20 s a 1 min): a mesma tela, na mesma posição da rolagem. Com o fiscal
+ * digitando num campo da tela, não redesenha (o próximo redesenho pega os dados novos).
+ */
+function redesenhar() {
+  const ae = document.activeElement;
+  if (ae && $('#view').contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+  const y = window.scrollY;
+  Promise.resolve(go(VIEW, EDIT, { manterRolagem: true })).then(() => { if (y && Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y); }).catch(() => {});
 }
 
 async function modulos() {
@@ -300,6 +314,8 @@ async function entrarComCodigo(codigo) {
   try {
     const r = await Sync.parearTurno(codigo);
     await Store.setMeta('turnoAtual', r.turno.id);
+    const comp = (await Store.meta('turnosCompartilhados')) || [];             // o turno do colega fica no Histórico (Termo) depois de encerrado
+    if (!comp.includes(r.turno.id)) await Store.setMeta('turnosCompartilhados', comp.concat([r.turno.id]).slice(-200));
     try { localStorage.removeItem(LS_AVISO_ENC); } catch (e) { /* sem armazenamento */ }
     toast(`Você entrou no turno de ${r.dono}.`); Sync.sincronizar(); go('home');
   } catch (e) { toast(e.message || 'Não foi possível entrar no turno.', true); const b2 = $('#fParear button[type=submit]'); if (b2) { b2.disabled = false; b2.innerHTML = `${icone('pessoa')} Entrar no turno`; } }
@@ -354,7 +370,7 @@ async function corrigirNumero(id) {
 // outro aparelho: vira o turno deste também (turnoAtual), e os veículos lançados nos dois vão para o mesmo turno (e o mesmo Termo).
 async function turnosAbertosOutros() {
   const eu = Sync.nome(), limite = Date.now() - 24 * 3600e3;
-  return (await Store.todos('turnos')).filter(t => !Number(t.encerrado) && !t.excluido && (!t.usuario || !eu || t.usuario === eu) &&
+  return (await Store.todos('turnos')).filter(t => !Number(t.encerrado) && !t.excluido && (!t.usuario || !eu || Sync.mesmoNome(t.usuario, eu)) &&
     (Number(t.criadoEm) || Date.parse(t.data + 'T' + (t.inicio || '00:00') + ':00-04:00') || 0) >= limite)
     .sort((a, b) => (Number(b.criadoEm) || 0) - (Number(a.criadoEm) || 0));
 }
@@ -565,7 +581,7 @@ async function registrar() {
     <label>Tipo do veículo</label>
     <div class="tipos">${Object.entries(CONFIG.tipos).map(([c, x]) => `
       <label class="tipo-card"><input type="radio" name="tipo" value="${c}" ${c === tipo ? 'checked' : ''}>${icone(x.icone)}<span>${x.nome}</span></label>`).join('')}</div>
-    <label>Pessoas a bordo (estimativa)<input id="pessoas" type="number" min="0" inputmode="numeric" value="${v ? v.pessoas : CONFIG.tipos[tipo].pessoas}"></label>
+    <label>Pessoas que receberam educação sanitária<input id="pessoas" type="number" min="0" inputmode="numeric" placeholder="0" value="${v ? esc(String(Number(v.pessoas) || 0)) : ''}"></label>
     <div class="veic-ufs" role="group" aria-label="Origem e destino (opcional)"><div class="veic-ufs-rot">Origem e destino <small>(opcional)</small></div>
       <label>Cidade de origem<input id="vMunOri" maxlength="60" autocomplete="off" autocapitalize="words" placeholder="ex.: Boa Vista" value="${esc(v && v.origemMun || '')}"></label>
       <label>UF<select id="vUfOri" aria-label="UF de origem">${opcoesUF(v && v.ufOrigem)}</select></label>
@@ -596,9 +612,6 @@ async function registrar() {
   placa.oninput = () => { placa.value = placa.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); conferirTF(); };
   $('#vCuidado').onchange = e => { $('#vCuidadoBox').hidden = !e.target.checked; if (e.target.checked) $('#vCuidadoMot').focus(); };
   if (placa.value) conferirTF();
-  document.querySelectorAll('input[name=tipo]').forEach(r => r.onchange = () => {
-    if (!v) $('#pessoas').value = CONFIG.tipos[r.value].pessoas;
-  });
   if (!v && !semPlaca) placa.focus();
   $('#fVeic').onsubmit = async e => {
     e.preventDefault();
@@ -611,7 +624,7 @@ async function registrar() {
     const existentes = await veiculosDe(t.id);
     if (p && existentes.some(x => x.placa === p && x.id !== (v && v.id)) && !confirm(`A placa ${p} já foi registrada neste turno. Registrar de novo?`)) return;
     const tp = document.querySelector('input[name=tipo]:checked').value;
-    // educação sanitária, medida fitossanitária, partidas, documentos e inspeção saem das pessoas a bordo e dos TFs (servidor); ao editar um
+    // educação sanitária, medida fitossanitária, partidas, documentos e inspeção saem das pessoas informadas pelo fiscal e dos TFs (servidor); ao editar um
     // registro antigo, os campos de fiscalização que ele já tinha ficam como estavam ({ ...v, ...dados })
     const dados = { turnoId: t.id, placa: p, tipo: tp, pessoas: Math.max(0, parseInt($('#pessoas').value, 10) || 0), obs: $('#obs').value.trim(), excluido: 0,
       ufOrigem: $('#vUfOri').value, ufDestino: $('#vUfDes').value,
@@ -807,9 +820,18 @@ async function historico() {
       <div class="card"><h3>Turnos</h3>${turnos.length ? turnos.map(t => `
         <div class="turno-linha"><div><b>${esc(t.numeroTF)}</b><br><small>${dBR(t.data)} · ${esc(t.inicio)}${t.fim ? '–' + esc(t.fim) : ''} · ${esc(t.fiscal)} · ${porTurno[t.id] || 0} veíc.${t.encerrado ? '' : ' · em andamento'}${t.encerradoPor ? (encerradoAuto(t.encerradoPor) ? ' · encerrado automaticamente (12 h)' : ' · encerrado pela gerência') : ''}${t.pendente ? ` · ${icone('pendente')} aguardando envio` : ''}</small></div>
         <div>${botaoNumero(t)}${t.encerrado ? `<button class="mini" data-doc="termo" data-id="${t.id}">Termo</button>` : ''}${temFicha(t) ? `<button class="mini" data-doc="ficha" data-id="${t.id}">Ficha</button>` : ''}</div></div>`).join('') : '<div class="vazio">Sem turnos no período.</div>'}</div>
+      <button class="botao sec" data-go="relequipes">${icone('documento')} Relatório da equipe (escala de plantão)</button>
+      <button class="botao sec" id="recuperar">${icone('baixar')} Buscar meus turnos na planilha (período acima)</button>
+      <p class="dica">Traz de volta para este celular os seus turnos do período (e os de colegas em que você entrou pelo código), com os veículos: o Termo volta a sair por aqui.</p>
       <button class="botao vermelho" id="limpar">${icone('lixeira')} Limpar histórico deste aparelho</button>
       <p class="dica">Remove só os turnos já encerrados <b>deste celular</b>. Os dados continuam salvos na planilha.</p>`;
     $('#limpar').onclick = limparHistorico;
+    $('#recuperar').onclick = async () => {
+      if (!navigator.onLine) return toast('Sem internet: para buscar os turnos na planilha é preciso conexão.', true);
+      const b = $('#recuperar'); b.disabled = true; b.textContent = 'Buscando na planilha…';
+      try { const n = await Sync.recuperarTurnos($('#hDe').value, $('#hAte').value); toast(n ? `${n} turno(s) da planilha neste celular.` : 'Nenhum turno seu na planilha neste período.'); desenhar(); }
+      catch (e) { toast(e.message || 'Não foi possível buscar os turnos.', true); b.disabled = false; b.innerHTML = `${icone('baixar')} Buscar meus turnos na planilha (período acima)`; }
+    };
   };
   $('#hDe').onchange = $('#hAte').onchange = desenhar;
   desenhar();
@@ -888,6 +910,7 @@ document.addEventListener('click', async e => {
     Sync.sincronizar(); toast('Excluído.'); lista();
   } else if (d.doc) {
     try {
+      toast('Preparando o documento…');
       await Docs[d.doc](d.id);
     } catch (err) { toast('Erro ao gerar documento: ' + err.message, true); }
   }
@@ -901,13 +924,13 @@ Sync.onEstado(e => {
   b.innerHTML = icone(ic) + ' ' + esc(txt + (e.tipo === 'sync' ? '' : pend));
   atualizarStatusEnc().catch(() => {});
 });
-window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'resumo', 'historico', 'tf', 'pce', 'pcetermos', 'pcecads', 'pcetfs', 'fechado'].includes(VIEW)) go(VIEW, EDIT); });
+window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'resumo', 'historico', 'tf', 'pce', 'pcetermos', 'pcecads', 'pcetfs', 'fechado'].includes(VIEW)) redesenhar(); });
 // permissões mudaram no sync: se a tela aberta é de um módulo que deixou de ser autorizado, volta para os módulos (nada é apagado);
 // na tela de módulos (ou em telas livres) só redesenha
 window.addEventListener('gdv-permissoes', () => {
   if (semPermissaoPara(VIEW)) go(VIEW);                                   // go() avisa e leva para a tela de módulos
   else if (VIEW === 'modulos') go('modulos');
-  else if (['home', 'lista', 'pce', 'pcetermos', 'pcepronto', 'pcelevpronto'].includes(VIEW)) go(VIEW, EDIT);   // botões "Lavrar TF" / "do papel" aparecem/somem
+  else if (['home', 'lista', 'pce', 'pcetermos', 'pcepronto', 'pcelevpronto'].includes(VIEW)) redesenhar();   // botões "Lavrar TF" / "do papel" aparecem/somem
 });
 window.addEventListener('online', () => Sync.atualizarContagem());
 window.addEventListener('gdv-sync-fim', () => { atualizarStatusEnc().catch(() => {}); });

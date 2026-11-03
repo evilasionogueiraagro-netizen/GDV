@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <meta name="theme-color" content="#0B3A82">
 <title>Manual do fiscal – e-GDV</title>
-<link rel="icon" href="img/icon-192.png">
+<link rel="icon" href="img/icone-egdv-192.png">
 <link rel="stylesheet" href="css/design.css">
 <link rel="stylesheet" href="css/manual.css">
 </head>
@@ -26,21 +26,24 @@
 
   <section><h2>2. Turno na barreira</h2>
     <ol>
-      <li>Toque em <b>Educação Sanitária/Fiscalização de Trânsito</b>, escolha o posto (<b>Fixa</b> ou <b>Volante</b>) e <b class="bt">Iniciar turno</b>. O colega que trabalha junto entra no mesmo turno com o próprio login: toque em <b class="bt">Convidar colega</b> e passe o código de 6 números.</li>
-      <li>Para cada veículo parado: <b class="bt">Registrar veículo</b> (placa, tipo, pessoas a bordo; origem e destino se souber). A placa só é obrigatória na BVA CEASA.</li>
+      <li>Toque em <b>Educação Sanitária/Fiscalização de Trânsito</b>, escolha o posto (<b>Fixa</b> ou <b>Volante</b>) e <b class="bt">Iniciar turno</b>. O colega que trabalha junto entra no mesmo turno com o próprio login: toque em <b class="bt">Convidar colega</b> e passe o código de 6 números; ele toca em <b class="bt">Entrar no turno de um colega</b> e digita o código.</li>
+      <li>Para cada veículo parado: <b class="bt">Registrar veículo</b> (placa, tipo, origem e destino se souber) e digite quantas <b>pessoas receberam educação sanitária</b> no veículo (vazio = 0). A placa só é obrigatória na BVA CEASA.</li>
       <li>Para corrigir ou lavrar TF de um veículo: <b class="bt">Lista de veículos</b>.</li>
       <li>No fim: <b class="bt">Encerrar turno</b> e espere a confirmação. Se ficar "aguardando envio", abra o app de novo quando tiver internet.</li>
     </ol>
     <p>Turno esquecido aberto é encerrado sozinho depois de 12 horas.</p>
+    <p><b>Termo do turno</b>: no <b class="bt">Histórico</b>, toque em <b>Termo</b> no turno encerrado. Ele traz os nºs dos TFs lavrados no turno (os seus e os dos colegas) e as medidas tomadas. Se o turno não aparece neste aparelho (ex.: aberto no outro celular), use <b class="bt">Buscar meus turnos na planilha</b>, no fim do Histórico. Nº do TF do turno errado: <b>Corrigir nº</b>.</p>
   </section>
 
   <section><h2>3. Termo de Fiscalização (TF)</h2>
     <ol>
       <li>Abra em <b class="bt">Novo TF</b> ou, no turno, em <b class="bt">Lavrar TF</b> ao lado do veículo.</li>
       <li>Digite o <b>CPF/CNPJ</b> e a <b>placa</b>: o app busca o cadastro e avisa se é <b>reincidente</b>.</li>
-      <li>Marque o procedimento (liberação, apreensão ou rechaço), confira o texto sugerido, os produtos e, se quiser, fotos e assinaturas na tela.</li>
+      <li>Preencha os produtos, a origem e o destino e marque o procedimento (liberação, apreensão ou rechaço). A constatação e o enquadramento legal vêm sugeridos pela BVA, pelo sentido (entrada ou saída, pela origem e destino) e pelo produto; confira e edite se precisar. Na liberação o enquadramento fica em branco.</li>
+      <li>Se quiser, fotos e assinaturas na tela.</li>
       <li><b class="bt">Gerar TF</b>, confira o número e confirme. Salve em PDF ou imprima: saem 2 vias.</li>
     </ol>
+    <p><b>Auto de infração</b>: marque <b>Auto de infração</b> no TF (qualquer procedimento). Os fatos, o enquadramento e os dados do condutor vêm do TF e podem ser editados; o nº segue a sequência de autos da BVA no ano. O PDF sai em 3 vias.</p>
     <p>Sem internet, o número do TF é provisório e é conferido quando o celular enviar.</p>
   </section>
 
@@ -56,7 +59,17 @@
     </ul>
   </section>
 
-  <section><h2>5. Sem internet</h2>
+  <section><h2>5. Escala e relatório da equipe</h2>
+    <ul>
+      <li><b>Sua escala</b>: quando a coordenação publica a escala, o app mostra a BVA, o período e a equipe na tela inicial. A coordenação (ou a gerência, no painel) também informa o <b>nº da equipe</b> e o <b>responsável</b>.</li>
+      <li><b>Relatório da equipe</b> (prestação de contas do convênio): no <b class="bt">Histórico</b>, toque em <b class="bt">Relatório da equipe (escala de plantão)</b> e escolha a escala. Os números (veículos, TFs, apreensões, kg, rechaços e educação sanitária) somam todos os turnos da equipe no período.</li>
+      <li><b>Responsável pela equipe</b>: confere os números, corrige os kg se precisar, confere os termos de repasse (vem 1 quando há produtos no Termo de Repasse), ajusta local, objetivo, deslocamento e OBS e toca em <b class="bt">Salvar</b>. Os demais da equipe veem o mesmo relatório, sem editar.</li>
+      <li><b>Termo de repasse</b> (na CEASA, <b>Termo de destruição</b>, no Aterro Sanitário de Manaus): na mesma tela, os produtos apreendidos nos TFs da equipe já vêm listados (nº do TF, produto, unidade e quantidade). O responsável confere, tira ou acrescenta itens, ajusta o nº, o local e data, o órgão que recebe e o enquadramento legal (na CEASA já vem o da mosca-da-carambola), toca em <b class="bt">Salvar</b> e gera o PDF em <b class="bt">Termo de repasse (PDF)</b>.</li>
+      <li>Todos podem tocar em <b class="bt">Gerar relatório (PDF)</b>: a 1ª folha traz o relatório; a 2ª, as assinaturas de cada servidor e do responsável. Precisa de internet.</li>
+    </ul>
+  </section>
+
+  <section><h2>6. Sem internet</h2>
     <ul>
       <li>Tudo fica guardado no celular e é enviado sozinho quando a conexão voltar. O selo no topo mostra a situação; toque nele para enviar agora.</li>
       <li><b>Não desinstale o app</b> nem limpe os dados do navegador com algo aguardando envio: é assim que se perdem dados.</li>
@@ -64,13 +77,15 @@
     </ul>
   </section>
 
-  <section><h2>6. Problemas comuns</h2>
+  <section><h2>7. Problemas comuns</h2>
     <ul>
       <li><b>"Matrícula ou senha incorreta"</b>: confira as duas. Depois de várias tentativas, espere 15 minutos.</li>
       <li><b>"Sem autorização"</b> ou um módulo sumiu: ele não está liberado para você. Fale com a gerência.</li>
       <li><b>"Acesso revogado" ou "sessão inválida"</b>: entre de novo. O que não foi enviado continua guardado.</li>
       <li><b>"Nova versão do app disponível"</b>: toque em <b>Atualizar agora</b>, de preferência com tudo enviado.</li>
       <li><b>Localização não aparece</b>: ligue o GPS e permita a localização para o app.</li>
+      <li><b>Toquei em imprimir e nada aconteceu</b> (celular): espere aparecer <b>Documento pronto</b> e toque em <b class="bt">Imprimir</b>; na janela, escolha <b>Salvar como PDF</b>.</li>
+      <li><b>Turno não aparece no computador</b>: confira se entrou com a mesma matrícula do celular e use <b class="bt">Buscar meus turnos na planilha</b> no Histórico.</li>
     </ul>
   </section>
 </main>

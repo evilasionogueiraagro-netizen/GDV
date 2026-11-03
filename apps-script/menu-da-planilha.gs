@@ -4,6 +4,7 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu('e-GDV')
     .addItem('Definir último nº de TF usado (barreira)', 'menuDefinirSequencia')
     .addItem('Auditar numeração de TF (lacunas e duplicidades)', 'menuAuditarNumeracao')
+    .addItem('Definir último nº de Auto de infração usado (barreira)', 'menuDefinirSequenciaAuto')
     .addItem('Definir último nº de Termo de Colheita (PCE)', 'menuDefinirSequenciaPce')
     .addItem('Auditar numeração de Termo de Colheita (PCE)', 'menuAuditarNumeracaoPce')
     .addItem('Definir último nº de Termo de Fiscalização (PCE)', 'menuDefinirSequenciaTermoPce')
@@ -18,6 +19,8 @@ function onOpen() {
     .addItem('Arquivar anos antigos agora', 'menuArquivarAgora')
     .addItem('Definir e-mails do relatório mensal', 'menuEmailsRelatorio')
     .addItem('Enviar relatório do mês passado agora', 'menuEnviarRelatorio')
+    .addSeparator()
+    .addItem('Chave dos documentos do sistema (GitHub → Drive)', 'menuChaveDocsSistema')
     .addToUi();
 }
 
@@ -95,6 +98,18 @@ function menuDefinirSequencia() {
   const u = ui.prompt('Último número usado', 'Último nº de TF JÁ usado nessa barreira/ano (o próximo será este + 1). Use 0 para começar do 0001.', ui.ButtonSet.OK_CANCEL);
   if (u.getSelectedButton() !== ui.Button.OK) return;
   try { const n = definirSequencia_(b.getResponseText().trim(), Number(a.getResponseText()), Number(u.getResponseText())); ui.alert('Pronto', 'O próximo TF será o nº ' + (n + 1) + '.', ui.ButtonSet.OK); }
+  catch (e) { ui.alert('Não foi possível definir', String(e.message || e), ui.ButtonSet.OK); }
+}
+
+function menuDefinirSequenciaAuto() {
+  const ui = SpreadsheetApp.getUi();
+  const b = ui.prompt('Barreira', 'Código da barreira (coluna id da aba Barreiras), ex.: BVA-CEASA', ui.ButtonSet.OK_CANCEL);
+  if (b.getSelectedButton() !== ui.Button.OK) return;
+  const a = ui.prompt('Ano', 'Ano da numeração (ex.: ' + new Date().getFullYear() + ')', ui.ButtonSet.OK_CANCEL);
+  if (a.getSelectedButton() !== ui.Button.OK) return;
+  const u = ui.prompt('Último número usado', 'Último nº de Auto de infração JÁ usado nessa barreira/ano (o próximo será este + 1). Use 0 para começar do 0001.', ui.ButtonSet.OK_CANCEL);
+  if (u.getSelectedButton() !== ui.Button.OK) return;
+  try { const n = definirSequencia_(b.getResponseText().trim(), Number(a.getResponseText()), Number(u.getResponseText()), 'AI'); ui.alert('Pronto', 'O próximo Auto de infração será o nº ' + (n + 1) + '.', ui.ButtonSet.OK); }
   catch (e) { ui.alert('Não foi possível definir', String(e.message || e), ui.ButtonSet.OK); }
 }
 
@@ -198,4 +213,15 @@ function menuNovaSenhaGerente() {
     ui.alert('Nova senha para ' + r.usuario.nome, 'Matrícula: ' + r.usuario.matricula + '\nSenha provisória: ' + r.senhaProvisoria +
       '\n\nEla aparece só agora. As sessões abertas dessa pessoa foram encerradas; a troca é obrigatória no próximo acesso.', ui.ButtonSet.OK);
   } catch (e) { ui.alert('Não foi possível gerar', String(e.message || e), ui.ButtonSet.OK); }
+}
+
+/** Gera a chave com que o GitHub envia o Word do Termo de Referência para a pasta "GDV - Documentos do sistema" (documentos-sistema.gs). */
+function menuChaveDocsSistema() {
+  const ui = SpreadsheetApp.getUi();
+  const r = ui.alert('Chave dos documentos do sistema', 'Gerar uma chave nova? A anterior deixa de valer até ser trocada também no GitHub.', ui.ButtonSet.YES_NO);
+  if (r !== ui.Button.YES) return;
+  const chave = docSistemaChaveNova_();
+  pastaDocsSistema_();
+  ui.alert('Chave gerada', 'Copie a chave abaixo e cole no GitHub: Settings → Secrets and variables → Actions → New repository secret, nome DOC_SISTEMA_CHAVE.\n\n' +
+    chave + '\n\nO Word do Termo de Referência vai para a pasta "' + DOCS_SISTEMA_PASTA_ + '" do seu Drive a cada atualização.', ui.ButtonSet.OK);
 }

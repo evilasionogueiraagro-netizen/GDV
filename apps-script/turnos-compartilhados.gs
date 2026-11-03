@@ -179,3 +179,53 @@ function turnoNumero_(req, usuario) {
     return { ok: true, turno: { id: id, numeroTF: numeroTF, letra: letra } };
   });
 }
+
+/**
+ * turnoRecuperar {de, ate}: devolve ao aparelho os turnos do período (até 62 dias) do próprio login (mesmo nome, sem diferença de
+ * maiúsculas e espaços) e os turnos em que ele entrou pelo código, com os veículos e os TFs do login ligados a eles: o fiscal
+ * refaz o Termo de um turno que sumiu do celular (aparelho novo, limpeza). Só leitura; turno cancelado fica de fora.
+ */
+function turnoRecuperar_(req, usuario) {
+  const de = String(req.de || ''), ate = String(req.ate || '');
+  if (!diaValido_(de) || !diaValido_(ate) || ate < de) throw new Error('Informe o período (de e até).');
+  if (somarDias_(de, 62) < ate) throw new Error('Período longo demais (até 62 dias).');
+  const eu = nomeChave_(usuario), colega = {};
+  lerLeitura_('Pareamentos').forEach(function (p) { if (p.id && p.colega && p.entrouEm && nomeChave_(p.colega) === eu) colega[p.turnoId] = true; });
+  const limpo = function (o) { delete o._linha; return o; }, ids = {};
+  const turnos = lerLinhas_('Turnos').filter(function (t) {
+    const d = String(t.data).slice(0, 10);
+    return t.id && d >= de && d <= ate && Number(t.cancelado) !== 1 && (nomeChave_(t.usuario) === eu || colega[t.id]);
+  }).map(function (t) { ids[t.id] = true; return limpo(t); });
+  return { ok: true, turnos: turnos,
+    veiculos: lerLinhas_('Veiculos').filter(function (v) { return ids[v.turnoId]; }).map(limpo),
+    tfs: lerLinhas_('TFs').filter(function (t) { return ids[t.turnoId] && nomeChave_(t.usuario) === eu; }).map(limpo),   // só os TFs do próprio login
+    compartilhados: turnos.filter(function (t) { return nomeChave_(t.usuario) !== eu; }).map(function (t) { return t.id; }) };
+}
+
+/**
+ * turnoTFs {turnoId}: nºs e medidas (procedimento, auto, advertência, fiel depositário) dos TFs de barreira do turno para o Termo do turno, de quem participou dele (dono ou colega pelo código):
+ * os ligados ao turno (turnoId) e os sem turno lavrados por um dos participantes no dia e no horário do turno, depois de aberto. Só o nº (sem dados
+ * pessoais): o aparelho tem só os próprios TFs, e o TF do colega também entra no Termo. TF cancelado fica de fora.
+ */
+function turnoTFs_(req, usuario) {
+  const id = String(req.turnoId || '').trim();
+  if (!id || id.length > 64) throw new Error('Turno não informado.');
+  const t = lerLeitura_('Turnos').filter(function (x) { return x.id === id; })[0];
+  if (!t) return { ok: true, tfs: [] };
+  const part = {}; part[nomeChave_(t.usuario)] = true;
+  lerLeitura_('Pareamentos').forEach(function (p) { if (p.turnoId === id && p.colega && p.entrouEm) part[nomeChave_(p.colega)] = true; });
+  if (!part[nomeChave_(usuario)]) throw new Error('Este turno é de outro fiscal.');
+  const d = String(t.data).slice(0, 10), ini = String(t.inicio || '00:00'), fim = String(t.fim || '');
+  const noHorario = function (f) {                    // turno que passa da meia-noite (fim < início): até o fim, no dia seguinte
+    const fd = String(f.data).slice(0, 10), h = String(f.hora || '');
+    if (fim && fim < ini) return (fd === d && h >= ini) || (fd === somarDias_(d, 1) && h <= fim);
+    return fd === d && h >= ini && (!fim || h <= fim);
+  };
+  const tfs = lerLeitura_('TFs').filter(function (f) {
+    // sem turno: só o criado depois da abertura do turno (o TF lavrado antes de abrir o turno, no mesmo minuto, não é dele)
+    return f.id && f.cancelado !== 1 && (f.turnoId === id || (!f.turnoId && part[nomeChave_(f.usuario)] && noHorario(f) && Number(f.criadoEm) >= Number(t.criadoEm)));
+  }).sort(function (a, b) { return a.numero - b.numero; }).map(function (f) {
+    return { numeroTxt: f.numeroTxt, procedimento: f.procedimento, auto: f.auto, advertencia: f.advertencia, fiel: f.fiel };   // medidas do TF (sem dados pessoais)
+  });
+  return { ok: true, tfs: tfs };
+}

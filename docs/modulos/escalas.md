@@ -8,3 +8,4 @@ A coordenação monta no app a equipe de cada BVA por período; a gerência vê 
 - Actions: `escala*` (app) e `painelEscala*` (gravar: gerência). App: lista abre da meta `escalaDados`.
 - Sync: `minhasEscalas` → aviso na tela inicial e BVA proposta no turno. Painel: escala de hoje × turnos ("fora da escala").
 - Portal: cada fiscal da escala publicada fica pendente de diárias até a PCDP concluída (`EscalaPcdp`, `admEscalas`/`admEscalaPcdp`).
+- Equipe: `equipeNumero` e `responsavel` (id ou `nome:…`). Relatório da equipe (convênio 1.10, `relatorio-equipe.gs`, aba `RelatoriosEquipe`): turnos da BVA no período com alguém da escala. Veem equipe e coordenação; editam responsável, coordenação, gerência. PDF `rel-equipe.html`; Termo de Repasse `termo-repasse.html`.

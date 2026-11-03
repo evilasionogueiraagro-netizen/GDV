@@ -89,7 +89,7 @@ const NAVS = {
   veiculos: [['modulos', 'inicio', 'Módulos'], ['home', 'caminhao-bau', 'Turno'], ['registrar', 'mais', 'Registrar'], ['lista', 'lista', 'Lista'], ['resumo', 'resumo', 'Resumo'], ['historico', 'historico', 'Histórico']],
   tf: [['modulos', 'inicio', 'Módulos'], ['tf', 'documento', 'Meus TFs'], ['tfnovo', 'mais', 'Novo TF']],
   escala: [['modulos', 'inicio', 'Módulos'], ['escalas', 'calendario', 'Escalas']],
-  pce: [['modulos', 'inicio', 'Módulos'], ['pce', 'broto', 'Levantamentos'], ['pcelev', 'mais', 'Novo levantamento'], ['pcemapa', 'mapa', 'Perto de mim'], ['pcetermos', 'amostra', 'Termos de colheita'], ['pcetermo', 'formulario', 'Novo termo']]
+  pce: [['modulos', 'inicio', 'Módulos'], ['pce', 'broto', 'Levantamentos'], ['pcecads', 'propriedade', 'Propriedades'], ['pcelev', 'mais', 'Novo levantamento'], ['pcemapa', 'mapa', 'Perto de mim'], ['pcetermos', 'amostra', 'Termos de colheita']]
 };
 const VIEWS_VEICULOS = ['home', 'registrar', 'editar', 'lista', 'resumo', 'fechado', 'historico', 'turnopapel'];
 /** Módulo (permissão) de cada tela: veiculos, tf ou pce; '' = livre (módulos, status). */
@@ -106,7 +106,7 @@ function semPermissaoPara(view) {
 function renderNav(view) {
   const ativo = ({ editar: 'lista', fechado: 'home', tfpronto: MODULO === 'tf' ? 'tf' : 'lista', tfnovo: MODULO === 'tf' ? 'tfnovo' : 'lista',
     pcepronto: 'pcetermos', pcelevpronto: 'pce', pceservidor: 'pce', pcecampo: 'pce', pcerota: 'pcemapa',
-    pcecads: 'pce', pcecad: 'pce', pcecadpronto: 'pce', pcetfs: 'pce', pcetf: 'pce', pcetfpronto: 'pce', pcerel: 'pce', escala: 'escalas', escalagerar: 'escalas' })[view] || view;
+    pcecads: 'pcecads', pcecad: 'pcecads', pcecadpronto: 'pcecads', pcetfs: 'pcecads', pcetf: 'pcecads', pcetfpronto: 'pcecads', pcerel: 'pcecads', escala: 'escalas', escalagerar: 'escalas' })[view] || view;
   $('#nav').innerHTML = NAVS[MODULO].map(([v, i, t]) => `<button data-v="${v}" class="${v === ativo ? 'on' : ''}">${icone(i)}<span>${t}</span></button>`).join('');
 }
 /** Abre a tela. o.manterRolagem: redesenho da mesma tela (sincronização), sem voltar ao topo. Devolve a promessa do desenho. */

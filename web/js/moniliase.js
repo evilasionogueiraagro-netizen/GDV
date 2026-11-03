@@ -1001,6 +1001,16 @@ const PCEMon = (() => {
       ${papel ? `<button class="botao sec" data-mon="novo" data-tipo="${tipo}" data-antigo="1">${icone('documento')} Digitar outro do papel</button>` : `<button class="botao sec" data-mon="novo" data-tipo="${tipo}">${icone('mais')} Novo</button>`}
       <button class="botao sec" data-v="${tipo === 'termo' ? 'pcetfs' : 'pcecads'}">${icone('formulario')} Ver lista</button>`);
   }
+  function subnavHTML(v) {
+    return `<div class="pce-subnav" role="tablist" aria-label="Submenu de gestão">
+      <button class="pce-subnav-btn ${v === 'pcecads' ? 'on' : ''}" data-v="pcecads" id="pce-subnav-cads">${icone('propriedade')} <span>Propriedades</span></button>
+      <button class="pce-subnav-btn ${v === 'pcetfs' ? 'on' : ''}" data-v="pcetfs" id="pce-tfs">${icone('formulario')} <span>Termos</span></button>
+      <button class="pce-subnav-btn ${v === 'pcerel' ? 'on' : ''}" data-v="pcerel" id="pce-rel">${icone('resumo')} <span>Relatório</span></button>
+      <button class="pce-subnav-btn ${v === 'pcemapa' ? 'on' : ''}" data-v="pcemapa" id="pce-mapa">${icone('mapa')} <span>Perto de mim</span></button>
+      <button class="pce-subnav-btn ${v === 'pcecampo' ? 'on' : ''}" data-v="pcecampo" id="pce-subnav-campo">${icone('baixar')} <span>Dados Offline</span></button>
+    </div>`;
+  }
+
   async function lista(tipo) {
     if (bloqueado()) return view(avisoAtivacao());
     const mostrar = tela();
@@ -1009,14 +1019,54 @@ const PCEMon = (() => {
     const podeAnt = U().podeAntigo(), dig = U().soDigitador(s) && podeAnt;
     const todos = (await Store.todos(STORE[tipo])).filter(x => !Number(x.excluido))
       .sort((a, b) => (Number(b.ano) - Number(a.ano)) || (Number(b.numero) - Number(a.numero)) || (b.criadoEm || 0) - (a.criadoEm || 0));
+    const propsOffline = (await Store.todos('propriedades')).filter(p => !p.excluido);
+    const munsOffline = new Set(propsOffline.map(p => p.campoMun).filter(Boolean));
+    const produtoresOffline = (await Store.todos('pessoas')).filter(p => !p.excluido);
     if (!mostrar.viva()) return;
     const T = tipo === 'termo';
-    mostrar(`<div class="card"><h3>${T ? 'Termos de Fiscalização (PCE)' : 'Cadastros de propriedades'}</h3>
-        <p class="dica" style="text-align:left">${T ? 'Um termo por visita; ligado ao cadastro da propriedade. Não é o TF de Barreira.' : 'Um cadastro por propriedade e programa: monilíase (cacau, cupuaçu…) aqui; citros () a partir do levantamento com praga de citros.'}</p></div>
-      ${dig ? '' : `<button class="botao" data-mon="novo" data-tipo="${tipo}" id="mon-novo">${icone('mais')} ${T ? 'Novo termo' : 'Novo cadastro'}</button>`}
-      ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-mon="novo" data-tipo="${tipo}" data-antigo="1" id="mon-novo-papel">${icone('documento')} Digitar do papel</button>` : ''}
-      ${T ? '<button class="botao sec" data-v="pcerel" id="mon-ir-rel">Relatório de atividades</button>' : ''}
-      <div class="card"><label>Pesquisar (nº, nome, CPF, propriedade, município)<input id="monQ"></label></div><div id="monItens"></div>`);
+    if (T) {
+      mostrar(`${subnavHTML('pcetfs')}
+        <div class="card pce-stats">
+          <div class="pce-stats-topo">
+            <b>${icone('formulario')} Panorama de Termos (PCE)</b>
+            <small>Termos de fiscalização emitidos</small>
+          </div>
+          <div class="pce-stats-grid">
+            <div class="pce-stat-item"><span class="pce-stat-num">${todos.length}</span><span class="pce-stat-rot">Termos no aparelho</span></div>
+            <div class="pce-stat-item"><span class="pce-stat-num">${todos.filter(x => !x.pendente).length}</span><span class="pce-stat-rot">Confirmados</span></div>
+            <div class="pce-stat-item"><span class="pce-stat-num">${todos.filter(x => x.pendente).length}</span><span class="pce-stat-rot">Aguardando envio</span></div>
+          </div>
+        </div>
+        <div class="card"><h3>Termos de Fiscalização (PCE)</h3>
+          <p class="dica" style="text-align:left">Um termo por visita; ligado ao cadastro da propriedade. Não é o TF de Barreira.</p></div>
+        <div class="duas" style="margin-bottom:10px">
+          ${dig ? '' : `<button class="botao" data-mon="novo" data-tipo="${tipo}" id="mon-novo">${icone('mais')} Novo termo</button>`}
+          ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-mon="novo" data-tipo="${tipo}" data-antigo="1" id="mon-novo-papel">${icone('documento')} Digitar do papel</button>` : ''}
+        </div>
+        <button class="botao sec" data-v="pcerel" id="mon-ir-rel">${icone('resumo')} Relatório de atividades</button>
+        <div class="card"><label>Pesquisar (nº, nome, CPF, propriedade, município)<input id="monQ" autocomplete="off"></label></div><div id="monItens"></div>`);
+    } else {
+      mostrar(`${subnavHTML('pcecads')}
+        <div class="card pce-stats">
+          <div class="pce-stats-topo">
+            <b>${icone('resumo')} Panorama de Propriedades</b>
+            <small>Base do aparelho e dados sincronizados</small>
+          </div>
+          <div class="pce-stats-grid">
+            <div class="pce-stat-item"><span class="pce-stat-num">${todos.length}</span><span class="pce-stat-rot">Cadastros no aparelho</span></div>
+            <div class="pce-stat-item"><span class="pce-stat-num">${propsOffline.length}</span><span class="pce-stat-rot">Propriedades salvas</span></div>
+            <div class="pce-stat-item"><span class="pce-stat-num">${produtoresOffline.length}</span><span class="pce-stat-rot">Produtores salvos</span></div>
+            <div class="pce-stat-item"><span class="pce-stat-num">${munsOffline.size}</span><span class="pce-stat-rot">Municípios baixados</span></div>
+          </div>
+        </div>
+        <div class="card"><h3>Cadastros de propriedades</h3>
+          <p class="dica" style="text-align:left">Um cadastro por propriedade e programa: monilíase (cacau, cupuaçu…) aqui; citros a partir do levantamento com praga de citros.</p></div>
+        <div class="duas" style="margin-bottom:10px">
+          ${dig ? '' : `<button class="botao" data-mon="novo" data-tipo="${tipo}" id="mon-novo">${icone('mais')} Novo cadastro</button>`}
+          ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-mon="novo" data-tipo="${tipo}" data-antigo="1" id="mon-novo-papel">${icone('documento')} Digitar do papel</button>` : ''}
+        </div>
+        <div class="card"><label>Pesquisar (nº, nome, CPF, propriedade, município)<input id="monQ" autocomplete="off"></label></div><div id="monItens"></div>`);
+    }
     const desenhar = () => {
       const q = norm($('#monQ').value), qd = digitos($('#monQ').value);
       const v = todos.filter(x => !q || norm([x.numeroTxt, x.nome, x.propriedade, x.municipio].join(' ')).includes(q) || (qd.length >= 3 && digitos(x.doc).includes(qd)));
@@ -1085,7 +1135,8 @@ const PCEMon = (() => {
     const servs = [...new Set(termos.map(t => String(t.servidor || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     const fp = filtroPadrao(), pr = TC.pragas || [];
     if (!mostrar.viva()) return;
-    mostrar(`<form id="monRelForm" class="card" autocomplete="off"><h3>${icone('resumo')} Relatório de atividades</h3>
+    mostrar(`${subnavHTML('pcerel')}
+      <form id="monRelForm" class="card" autocomplete="off"><h3>${icone('resumo')} Relatório de atividades</h3>
       <p class="dica" style="text-align:left">Prestação de contas do convênio, a partir dos Termos de Fiscalização (PCE) deste aparelho. Os números são calculados; os textos podem ser editados.</p>
       <div class="duas"><label>De<input id="mr-de" type="date" value="${esc(m.de || fp.de)}"></label><label>Até<input id="mr-ate" type="date" value="${esc(m.ate || fp.ate)}"></label></div>
       <div class="duas"><label>Município<select id="mr-mun">${opts(P.municipios, m.municipio || '', 'Todos')}</select></label>
@@ -1113,10 +1164,20 @@ const PCEMon = (() => {
         'mr-resp': R.servidores[0] ? [R.servidores[0].nome, R.servidores[0].funcao].filter(Boolean).join(' - ') : '' };
       Object.entries(suger).forEach(([k, v]) => { const el = $('#' + k); if (el && (!el.value.trim() || el.value === auto[k])) { el.value = v; auto[k] = v; } });
       const c = R.calc;
-      $('#mr-previa').innerHTML = `<b>Atividades desenvolvidas</b><ul class="mon-rel-lista"><li>Hospedeiros inspecionados: <b>${esc(c.textos.hospedeiros)}</b></li>
-        <li>Plantas inspecionadas: <b id="mr-plantas">${esc(c.textos.plantas)}</b></li><li>Presença de sintomas: <b>${esc(c.textos.sintomas)}</b></li>
-        <li>Coleta de amostra: <b>${esc(c.textos.coleta)}</b></li><li>Educação sanitária: <b id="mr-folders">${esc(c.textos.educacao)}</b></li>
-        <li>Termos de Fiscalização emitidos: <b id="mr-ntermos">${esc(c.textos.termos)}</b></li></ul><small>${c.cadastros.length} cadastro(s) ligado(s).</small>`;
+      $('#mr-previa').innerHTML = `<div class="pce-stats-topo">
+          <b>${icone('resumo')} Atividades desenvolvidas</b>
+          <small>${c.cadastros.length} cadastro(s) ligado(s)</small>
+        </div>
+        <div class="pce-stats-grid">
+          <div class="pce-stat-item"><b class="pce-stat-num" id="mr-ntermos">${esc(c.textos.termos)}</b><span class="pce-stat-rot">Termos emitidos</span></div>
+          <div class="pce-stat-item"><b class="pce-stat-num" id="mr-plantas">${esc(c.textos.plantas)}</b><span class="pce-stat-rot">Plantas inspecionadas</span></div>
+          <div class="pce-stat-item"><b class="pce-stat-num">${esc(c.textos.coleta)}</b><span class="pce-stat-rot">Coleta de amostra</span></div>
+          <div class="pce-stat-item"><b class="pce-stat-num">${esc(c.textos.sintomas)}</b><span class="pce-stat-rot">Sintomas</span></div>
+        </div>
+        <ul class="mon-rel-lista" style="margin-top:12px">
+          <li>Hospedeiros inspecionados: <b>${esc(c.textos.hospedeiros)}</b></li>
+          <li>Educação sanitária: <b id="mr-folders">${esc(c.textos.educacao)}</b></li>
+        </ul>`;
     };
     f.addEventListener('change', () => atualizar().catch(e => toast(e.message, true)));
     f.addEventListener('input', e => { if (['mr-de', 'mr-ate', 'mr-folders-n'].includes(e.target.id)) atualizar().catch(() => {}); });

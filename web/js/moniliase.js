@@ -877,8 +877,8 @@ const PCEMon = (() => {
       }
       // Termo de citros (levantamento com praga de citros ou cadastro de citros): identificação, data/hora, local, frases e enquadramento já preenchidos
       const cad0 = o.cadastroId ? await Store.obter('cadastrosPce', o.cadastroId) : null;
-      // Termo de um programa: é de citros só no programa Citros (monilíase ou mosca da mesma visita não)
-      const citrosDaCultura = st.programaVisita ? st.programaVisita === 'citros' : true;
+      // Termo de um programa: é de citros só se as pragas dele são de citros (monilíase ou mosca da mesma visita não)
+      const citrosDaCultura = !daCultCitros || daCultCitros.some(x => PCECitros.ehCitros(x));
       if ((cad0 && cad0.programa === 'citros') || (levEhCitros(lev) && citrosDaCultura)) {
         st.programa = 'citros';
         const fo = await fonteCitros(st, lev, cad0);

@@ -776,7 +776,7 @@ const TFUI = (() => {
     view(`<div class="card"><h3>${icone('ok')} ${pap ? 'TF do papel gravado' : 'TF gerado'}</h3><div class="tf-num"><b>${esc(t.numeroTxt)}</b></div>
       <p>${esc(t.nome)} · ${esc(fmtDoc(t.doc))}</p><p>${dBR(t.data)} ${esc(t.hora)}${t.placa ? ' · ' + esc(t.placa) : ''}</p>
       ${pap ? `<div class="tf-novo" id="tf-papel-info">${icone('documento')} Digitado do papel · servidor que fiscalizou: ${esc(t.fiscal)}</div>` : ''}
-      ${t.pendente ? '<div class="tf-novo">⏳ Número provisório / aguardando envio: será conferido na planilha ao sincronizar. Se houver repetição, a coordenação é avisada.</div>' : '<div class="tf-ok">✓ Número confirmado na planilha.</div>'}
+      ${t.pendente ? `<div class="tf-novo">${icone('sincronizar')} Número provisório / aguardando envio: será conferido na planilha ao sincronizar. Se houver repetição, a coordenação é avisada.</div>` : '<div class="tf-ok">✓ Número confirmado na planilha.</div>'}
       ${t.numeroOrigem === 'editado' ? `<div class="tf-novo">${icone('editar')} Número alterado manualmente (o sistema sugeriu ${num4(t.numeroSugerido)}). Registrado para auditoria.</div>` : ''}
       ${t.reincidente ? `<div class="tf-alerta">${icone('alerta')} Fiscalizado reincidente: ${t.tfsAnteriores} TF(s) anterior(es).</div>` : ''}
       ${t.cancelado ? `<div class="tf-alerta">${icone('proibido')} CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
@@ -826,7 +826,7 @@ const TFUI = (() => {
         <div class="info">${esc(PROC[t.procedimento] || 'Sem procedimento')}${t.placa ? ' · ' + esc(t.placa) : ''}${t.reincidente ? ' · reincidente' : ''}${Number(t.registroAntigo) === 1 ? ' · do papel' : ''}</div>
         ${t.cancelado ? `<div class="info pend">${icone('proibido')} CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
         ${t.conflito ? '<div class="info pend">Número duplicado na planilha: confira com a coordenação.</div>' : ''}
-        ${t.pendente ? `<div class="info pend">⏳ ${t.provisorio ? 'número provisório, será conferido ao sincronizar' : 'aguardando envio'}</div>` : ''}
+        ${t.pendente ? `<div class="info pend">${icone('sincronizar')} ${t.provisorio ? 'número provisório, será conferido ao sincronizar' : 'aguardando envio'}</div>` : ''}
         <div class="botoes"><button class="editar" data-tf="abrir" data-id="${esc(t.id)}">Abrir</button><button class="editar" data-tf="imprimir" data-id="${esc(t.id)}">Imprimir</button>
         ${temAuto(t) ? `<button class="editar" data-tf="imprimirauto" data-id="${esc(t.id)}">Auto de infração</button>` : ''}
         ${t.cancelado ? '' : `<button class="excluir" data-tf="cancelar" data-id="${esc(t.id)}">Cancelar TF</button>`}

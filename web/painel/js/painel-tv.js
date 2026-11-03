@@ -440,7 +440,7 @@
       tfGPS.forEach(a => L.marker([a.lat, a.lon], { icon: pino('tf', tam), interactive: false, keyboard: false, zIndexOffset: 1200 }).addTo(m.map));
       // a situação vai escrita no rótulo (barreiras juntas, como em Manaus, ficam identificadas sem depender do pino)
       // (curto, para caber no aglomerado; o detalhe completo está na lista ao lado)
-      const sitRot = t => t.tfAndamento ? `<em>${P.tfApreensao(t) ? 'APREENSÃO' : 'TF'}</em>` : t.situacao === 'longa' ? `<em>! ${fmt.int(Math.floor((t.duracaoMin || 0) / 60))} h</em>` : t.situacao === 'semsinal' ? '<em>? sem sinal</em>' : t.situacao === 'aguardando' ? '<em>⏳ enviando</em>' : '';
+      const sitRot = t => t.tfAndamento ? `<em>${P.tfApreensao(t) ? 'APREENSÃO' : 'TF'}</em>` : t.situacao === 'longa' ? `<em>! ${fmt.int(Math.floor((t.duracaoMin || 0) / 60))} h</em>` : t.situacao === 'semsinal' ? '<em>? sem sinal</em>' : t.situacao === 'aguardando' ? '<em>enviando</em>' : '';
       rotular(m, comGPS.map(t => ({ lat: t.lat, lon: t.lon, cls: P.pinoDe(t), html: `${sitRot(t)}<b>${esc(curto(t.local) || 'Barreira')}</b><span>${fmt.int(deHoje(t).n)}</span>` }))
         .concat(tfGPS.map(a => ({ lat: a.lat, lon: a.lon, cls: 'tf', html: `<em>${a.apreensao ? 'APREENSÃO' : 'TF'}</em><b>${esc(curto(a.onde))}</b>` }))), tam / 2);
     }

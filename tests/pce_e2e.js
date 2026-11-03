@@ -152,7 +152,7 @@ const ANO = new Date().getFullYear();
   const nPend = await pendentes(A); ok(nPend === 6, 'pendentes: levantamento + pessoa + propriedade + 3 arquivos = ' + nPend);
   await A.waitForFunction(() => /6 a enviar/.test(document.querySelector('#sync').textContent), null, { timeout: 5000 }); ok(true, 'selo: ' + await A.textContent('#sync'));
   await A.click('nav [data-v=modulos]'); await A.waitForSelector('.modulo[data-v=pce]');
-  ok(/1 levantamento\(s\) · 0 termo\(s\) · ⏳ 4 aguardando envio/.test(await A.textContent('.modulo[data-v=pce] .pce-status')), 'cartão do hub: ' + await A.textContent('.modulo[data-v=pce] .pce-status'));
+  ok(/1 levantamento\(s\) · 0 termo\(s\) · 4 aguardando envio/.test(await A.textContent('.modulo[data-v=pce] .pce-status')), 'cartão do hub: ' + await A.textContent('.modulo[data-v=pce] .pce-status'));
 
   console.log('3) volta a internet: sincroniza e envia as fotos ao Drive');
   await A.ctx.setOffline(false); await A.evaluate(() => window.dispatchEvent(new Event('online'))); await sync(A);

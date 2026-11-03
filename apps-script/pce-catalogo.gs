@@ -1,6 +1,7 @@
 /* ---------- Catálogo do PCE: famílias, culturas e pragas (painel, gerência) ----------
  * Modelo (docs/arquitetura.md, seção do PCE): a praga é o programa (um Termo por programa), menos quando várias dividem um (Citros: HLB,
- * cancro, ácaro...; campo "programa" da praga). Praga "opcional" (Moko, Pinta Preta...) é campo opcional: sem resposta obrigatória e sem Termo próprio; a família agrupa culturas e define o modelo de cadastro;
+ * cancro, ácaro...; campo "programa" da praga). Programas = os grupos do relatório do convênio: Pragas dos Citros, Pragas da Soja, Monilíase do
+ * Cacaueiro e Cupuaçuzeiro, Mosca-da-Carambola, Pragas da Bananeira e Pragas da Mandioca. Praga "opcional" (Moko, Pinta Preta...) é campo opcional: sem resposta obrigatória e sem Termo próprio; a família agrupa culturas e define o modelo de cadastro;
  * pragas de uma cultura = as ligadas à família dela + as ligadas só a ela (PragasDasFamilias, PragasDasCulturas).
  * Fonte única = abas da planilha. Enquanto ninguém editou, vale a base abaixo (CATALOGO_PCE_BASE_, igual ao CONFIG.PCE do app);
  * a primeira gravação no painel copia a base para as abas e daí em diante só as abas valem. Ligação desfeita = ativo 0 (nada é apagado).
@@ -25,29 +26,29 @@ const CATALOGO_PCE_BASE_ = {
     'Maracujá', 'Castanha-do-Brasil', 'Pupunha', 'Dendê', 'Urucum', 'Seringueira', 'Hortaliças diversas'],
   // nomeAntigo = o texto de CONFIG.PCE.pragas que os levantamentos gravaram (dá o id); nomeNoTF = quadro do Termo de Fiscalização
   pragas: [
-    { nomeAntigo: 'Bactrocera carambolae', nomePopular: 'Mosca-da-carambola', nomeCientifico: 'Bactrocera carambolae', tipo: 'praga', nomeNoTF: 'Mosca-da-Carambola' },
+    { nomeAntigo: 'Bactrocera carambolae', nomePopular: 'Mosca-da-carambola', nomeCientifico: 'Bactrocera carambolae', tipo: 'praga', nomeNoTF: 'Mosca-da-Carambola', programa: 'Mosca-da-Carambola' },
     { nomeAntigo: 'Schizotetranychus hindustanicus', nomePopular: 'Ácaro Hindustânico', nomeCientifico: 'Schizotetranychus hindustanicus', tipo: 'praga',
-      nomeNoTF: 'Ácaro Hindustânico', enquadramentoLegal: ENQ_CITROS_PCE_, familias: ['Citros'] },
+      nomeNoTF: 'Ácaro Hindustânico', enquadramentoLegal: ENQ_CITROS_PCE_, familias: ['Citros'], programa: 'Pragas dos Citros' },
     { nomeAntigo: 'Phakopsora pachyrhizi', nomePopular: 'Ferrugem asiática da soja', nomeCientifico: 'Phakopsora pachyrhizi', tipo: 'doenca',
-      nomeNoTF: 'Ferrugem Asiática da soja', familias: ['Soja'] },
+      nomeNoTF: 'Ferrugem Asiática da soja', familias: ['Soja'], programa: 'Pragas da Soja' },
     { nomeAntigo: 'HLB / Greening', nomePopular: 'HLB / Greening', nomeCientifico: 'Candidatus Liberibacter spp.', tipo: 'doenca', nomeNoTF: 'HLB',
-      enquadramentoLegal: ENQ_CITROS_PCE_, familias: ['Citros'] },
+      enquadramentoLegal: ENQ_CITROS_PCE_, familias: ['Citros'], programa: 'Pragas dos Citros' },
     { nomeAntigo: 'Cancro Cítrico', nomePopular: 'Cancro Cítrico', nomeCientifico: 'Xanthomonas citri subsp. citri', tipo: 'doenca', nomeNoTF: 'Cancro Cítrico',
-      enquadramentoLegal: ENQ_CITROS_PCE_, familias: ['Citros'] },
+      enquadramentoLegal: ENQ_CITROS_PCE_, familias: ['Citros'], programa: 'Pragas dos Citros' },
     { nomeAntigo: 'Fusarium R4T', nomePopular: 'Fusariose (FOC R4T)', nomeCientifico: 'Fusarium oxysporum f. sp. cubense raça 4 tropical', tipo: 'doenca',
-      nomeNoTF: 'Fusariose FOC R4T', familias: ['Bananeira'], semLevantamento: true },   // ausente no Brasil: só educação sanitária
+      nomeNoTF: 'Fusariose FOC R4T', familias: ['Bananeira'], opcional: true, programa: 'Pragas da Bananeira' },   // ausente no Brasil: ação é educação sanitária; no levantamento, opcional (identificada ou não)
     { nomeAntigo: 'Monilíase do Cacaueiro', nomePopular: 'Monilíase do Cacaueiro', nomeCientifico: 'Moniliophthora roreri', tipo: 'doenca', nomeNoTF: 'Monilíase',
-      familias: ['Cacau e cupuaçu'] },
+      familias: ['Cacau e cupuaçu'], programa: 'Monilíase do Cacaueiro e Cupuaçuzeiro' },
     { nomeAntigo: 'Vassoura de Bruxa da Mandioca', nomePopular: 'Vassoura-de-bruxa da Mandioca', nomeCientifico: '', tipo: 'doenca',
-      nomeNoTF: 'Vassoura-de-bruxa da Mandioca', familias: ['Mandioca'] },
+      nomeNoTF: 'Vassoura-de-bruxa da Mandioca', familias: ['Mandioca'], programa: 'Pragas da Mandioca' },
     { nomeAntigo: 'Amaranthus palmeri', nomePopular: 'Amaranthus palmeri', nomeCientifico: 'Amaranthus palmeri', tipo: 'praga', nomeNoTF: 'Amaranthus palmeri',
-      familias: ['Soja'], opcional: true },
+      familias: ['Soja'], opcional: true, programa: 'Pragas da Soja' },
     { nomeAntigo: 'Diaphorina citri (vetor do HLB)', nomePopular: 'Diaphorina citri (vetor do HLB)', nomeCientifico: 'Diaphorina citri', tipo: 'praga',
-      nomeNoTF: 'Diaphorina citri', enquadramentoLegal: ENQ_CITROS_PCE_, familias: ['Citros'], opcional: true },
-    { nomeAntigo: 'Pinta Preta dos Citros', nomePopular: 'Pinta Preta dos Citros', nomeCientifico: 'Phyllosticta citricarpa', tipo: 'doenca', familias: ['Citros'], opcional: true },
-    { nomeAntigo: 'Leprose dos Citros', nomePopular: 'Leprose dos Citros', nomeCientifico: '', tipo: 'doenca', familias: ['Citros'], opcional: true },
-    { nomeAntigo: 'Moko da Bananeira', nomePopular: 'Moko da Bananeira', nomeCientifico: 'Ralstonia solanacearum raça 2', tipo: 'doenca', familias: ['Bananeira'], opcional: true },
-    { nomeAntigo: 'Sigatoka Negra', nomePopular: 'Sigatoka Negra', nomeCientifico: 'Pseudocercospora fijiensis', tipo: 'doenca', familias: ['Bananeira'], opcional: true }
+      nomeNoTF: 'Diaphorina citri', enquadramentoLegal: ENQ_CITROS_PCE_, familias: ['Citros'], opcional: true, programa: 'Pragas dos Citros' },
+    { nomeAntigo: 'Pinta Preta dos Citros', nomePopular: 'Pinta Preta dos Citros', nomeCientifico: 'Phyllosticta citricarpa', tipo: 'doenca', familias: ['Citros'], opcional: true, programa: 'Pragas dos Citros' },
+    { nomeAntigo: 'Leprose dos Citros', nomePopular: 'Leprose dos Citros', nomeCientifico: '', tipo: 'doenca', familias: ['Citros'], opcional: true, programa: 'Pragas dos Citros' },
+    { nomeAntigo: 'Moko da Bananeira', nomePopular: 'Moko da Bananeira', nomeCientifico: 'Ralstonia solanacearum raça 2', tipo: 'doenca', familias: ['Bananeira'], opcional: true, programa: 'Pragas da Bananeira' },
+    { nomeAntigo: 'Sigatoka Negra', nomePopular: 'Sigatoka Negra', nomeCientifico: 'Pseudocercospora fijiensis', tipo: 'doenca', familias: ['Bananeira'], opcional: true, programa: 'Pragas da Bananeira' }
   ]
 };
 
@@ -66,7 +67,7 @@ function catalogoPceBase_() {
   B.pragas.forEach(function (p) {
     const id = pceId_(p.nomeAntigo);
     cat.pragas.push({ id: id, nomePopular: p.nomePopular, nomeCientifico: p.nomeCientifico || '', tipo: p.tipo, enquadramentoLegal: p.enquadramentoLegal || '',
-                      nomeNoTF: p.nomeNoTF || '', ativo: 1, programa: (p.familias || []).indexOf('Citros') >= 0 ? 'Citros' : '',
+                      nomeNoTF: p.nomeNoTF || '', ativo: 1, programa: p.programa || '',
                       levantamento: p.semLevantamento ? 0 : 1, opcional: p.opcional ? 1 : 0 });
     (p.familias || []).forEach(function (f) { cat.pragasDasFamilias.push({ id: id + '|' + pceId_(f), pragaId: id, familiaId: pceId_(f), ativo: 1 }); });
   });

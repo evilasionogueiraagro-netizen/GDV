@@ -801,7 +801,7 @@ const PCEUI = (() => {
         `<option value="${v}" ${D.comercial === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
       <div class="duas">${listaOutroHTML('tipolocal', 'Tipo de local', P.tiposLocal || [], D.tipoLocal)}${listaOutroHTML('origem', 'Origem da visita', P.origensVisita || [], D.origemVisita)}</div></div>
     <div class="card pce-culturas-card" id="pce-culturas-card"><h3>Culturas avaliadas</h3>
-      <p class="dica" style="text-align:left">Um card para cada cultura avaliada na visita. Ao escolher a cultura, as pragas e doenças dela no catálogo aparecem e cada uma precisa de resultado. Cada cultura gera o seu Termo de Fiscalização. Com praga de citros, aparece o bloco “${icone('citros')} Cultura do citros” (um só para o levantamento).</p>
+      <p class="dica" style="text-align:left">Um card para cada cultura avaliada na visita. Ao escolher a cultura, as pragas e doenças dela no catálogo aparecem; as marcadas com * precisam de resultado, as opcionais só se forem avaliadas. Sai um Termo de Fiscalização por programa (Pragas dos Citros, Pragas da Bananeira...), com as culturas avaliadas nele. Com praga de citros, aparece o bloco “${icone('citros')} Cultura do citros” (um só para o levantamento).</p>
       <div id="pce-culturas"></div>
       <button type="button" class="botao sec" data-pce="addcult" id="pce-addcult">+ Adicionar cultura</button>
       ${PCECitros.html(D.citros)}</div>

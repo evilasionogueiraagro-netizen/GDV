@@ -395,7 +395,7 @@
         detalhe: vHoje.length ? `em ${plural(turnosHoje, 'turno', 'turnos')}` + (h24[pico] ? ` · pico às ${pico}h (${fmt.int(h24[pico])})` : '') : 'nenhum registro ainda' }
     ], 'tv-kpis-vivo');
     kpisTV(dir, [
-      { chave: 'pessoas', rotulo: 'Pessoas hoje', valor: vHoje.reduce((s, v) => s + v.pessoas, 0), detalhe: 'estimativa por veículo' },
+      { chave: 'pessoas', rotulo: 'Pessoas hoje', valor: vHoje.reduce((s, v) => s + v.pessoas, 0), detalhe: 'educação sanitária' },
       { chave: 'tfs', rotulo: 'TFs hoje', valor: dH.tfs.length, detalhe: dH.tfs.length ? `${fmt.int(nProc('liberacao'))} lib. · ${fmt.int(nProc('rechaco'))} rech.` : 'nenhum TF hoje' },
       { chave: 'apreensoes', rotulo: 'Apreensões hoje', valor: nProc('apreensao'), detalhe: 'p/ destruição' }
     ], 'tv-kpis-vivo tv-kpis-mini');

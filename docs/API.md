@@ -29,6 +29,8 @@ Contrato das actions: ao criar, mudar ou remover uma, atualize esta tabela. Regr
 | `turnoConvidar` | veiculos (dono) | `turnoId` | `codigo`, `expiraEm` |
 | `turnoParear` | veiculos | `codigo` | `turno`, `veiculos`, `dono` |
 | `turnoSair` | veiculos | `turnoId` | `saiu` |
+| `turnoRecuperar` | veiculos | `de`, `ate` (≤ 62 dias) | `turnos`, `veiculos`, `tfs` |
+| `turnoTFs` | veiculos (dono ou colega) | `turnoId` | `tfs` [{`numeroTxt`, `procedimento`, `auto`, `advertencia`, `fiel`}] |
 | `turnoPapelRegistrar` | antigo | `turno`, `veiculos`, `pessoas` | `turno` |
 | `turnoNumero` | veiculos | `turnoId`, `numero` | `turno` |
 | `pceProximoNumero` | pce | `unidade`, `ano` | `ultimo`, `proximo` |
@@ -42,7 +44,7 @@ Contrato das actions: ao criar, mudar ou remover uma, atualize esta tabela. Regr
 
 ### Campos nos registros
 
-- `levantamentos[].citros`: texto JSON (ou `''`) do bloco "Cultura do citros", só com praga de citros. Formato: `{v: 1, comercial, naoComercial, naoComercialOutros, atividades[], atividadeOutros, situacao, situacaoOutras, culturas[{atividade, cultivar, area, idade, plantas, producao}], entrega, formasEntrega[], compradores[], compradorOutros, beneficia, beneficiaTipo, materiais[], origemMaterial, delimitacao.pintapreta{tem, tempo, controle, qual}, deteccao.hlb|acaro|cancro{tem, tempo}, rt{nome, conselho}}`. Sim/não = `'sim'`/`'nao'` (em `deteccao`, `'sim'` = presença). `citrosTexto_` normaliza (textos ≤ 200, números ≥ 0, ≤ 20 `culturas`; inválido = `''`).
+- `levantamentos[].citros`: texto JSON (ou `''`) do bloco "Cultura do citros", só com praga de citros. Formato: `{v: 1, …}` (campos em `citrosTexto_`, pce.gs). Sim/não = `'sim'`/`'nao'` (em `deteccao`, `'sim'` = presença). `citrosTexto_` normaliza (textos ≤ 200, números ≥ 0, ≤ 20 `culturas`; inválido = `''`).
 - `levantamentos[]`: `cnpj` (14 dígitos), `empresa` (≤ 120), `endereco` (≤ 200), `uf` (2 letras); `identLev_`.
 - `CadastrosPCE` e `TermosPCE` (`programa = 'citros'`): cadastro = `dados` (JSON acima + `levantamentoId`, `codigoPropriedade`, `endereco`, `telefone`, `email`, `empresa`, `culturasAvaliadas[]`, `amostra`); termo = `tipoLocal`, `constatacao`.
 - `tfs[]`, `tf`, `veiculos[]`: `ufOrigem`, `ufDestino` (opcionais, sigla de `CONFIG.ufs`). TF antigo sem a coluna: UF por `ufDoTexto_` (texto de `origem`/`destino`).
@@ -101,6 +103,7 @@ Legado (`MSG_PORTAL`, podem sair): `painelConvLancar`, `painelConvExcluir`, `pai
 | action | parâmetros | resposta | proteções |
 |---|---|---|---|
 | `tfVerificar` | `id` (UUID do TF) | `encontrado`, `tf` (dados mascarados) | placa mascarada; máx. 30 ids inválidos/min |
+| `docSistemaSalvar` | `chave`, `nome`, `versao`, `base64` (.docx) | `id`, `pasta` | só o GitHub (chave `DOC_SISTEMA_CHAVE`) |
 | `publicoDados` | `periodo` (`15d`, `30d`, `ano`, `anoAnterior`, `tudo`, `intervalo` + `de`/`ate`), `previa` (+ `key` de admin) | `periodo`, `periodos`, `numeros`, `mapa`, `aoVivo`, `atualizadoEm`; `ativo: false` se desligado; intervalo inválido: `ok: false`, `erro` | cache de 5 min; números < 3 suprimidos; grade ~11 km |
 
 ## Fora do doPost

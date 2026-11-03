@@ -14,7 +14,7 @@
       ['acoes', 'Ações de barreira', 'Quantidade de turnos de barreira (fixas e volantes).'],
       ['horas', 'Horas de barreira', 'Soma da duração dos turnos.'],
       ['veiculos', 'Veículos abordados', 'Total de veículos e evolução.'],
-      ['pessoas', 'Pessoas orientadas', 'Estimativa de pessoas nos veículos (educação sanitária).'],
+      ['pessoas', 'Pessoas orientadas', 'Pessoas que receberam educação sanitária, informadas pelo fiscal em cada veículo.'],
       ['porBarreira', 'Por barreira', 'Gráfico por BVA fixa; volantes somados num item só.'],
       ['tiposVeiculo', 'Tipos de veículo', 'Passeio, caminhão, ônibus…']]],
     ['TF de Barreira', [

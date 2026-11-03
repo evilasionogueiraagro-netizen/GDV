@@ -47,7 +47,10 @@ const TABELAS = {
         'numeroSugerido', 'numeroOrigem', 'emitidoEm',   // auditoria da numeração (colunas novas ficam sempre no fim)
         'fotos', 'assinaturas', 'recusaAssinatura',    // fotos = JSON [ids]; assinaturas = JSON {fiscalizado, servidor} (ids na aba Arquivos); recusaAssinatura = 1: fiscalizado se recusou
         'ufOrigem', 'ufDestino',                      // UF de origem/destino da carga (sigla de UFS_ ou "Exterior"; vazio = não informada; TF antigo: ufDoTexto_ de origem/destino)
-        'registroAntigo', 'pdfs'],                    // TF digitado do papel (Digitar do papel): registroAntigo = 1, pdfs = JSON [ids] dos PDFs escaneados (aba Arquivos)
+        'registroAntigo', 'pdfs',                     // TF digitado do papel (Digitar do papel): registroAntigo = 1, pdfs = JSON [ids] dos PDFs escaneados (aba Arquivos)
+        // auto de infração do TF (auto = 1): sequência própria por barreira/ano (SEQUENCIAS.AI); autoDados = JSON com os campos do auto
+        // (ocorrência, condutor, RENAVAM, CEP, fatos, enquadramento, ciência, testemunhas, coordenadas); autoConflito = nº repetido
+        'autoNumero', 'autoNumeroTxt', 'autoNumeroOrigem', 'autoDados', 'autoConflito'],
   Pessoas: ['id', 'tipo', 'nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
             'email'],                                                                                                              // id = CPF/CNPJ (só dígitos)
   Placas: ['id', 'doc', 'nome', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],                                                    // id = placa
@@ -163,7 +166,10 @@ const TABELAS = {
   // entra com ele (colega/entrouEm) e sai quando quiser (saiuEm). Cada convite é uma linha; nada é apagado.
   Pareamentos: ['id', 'turnoId', 'dono', 'codigo', 'criadoEm', 'expiraEm', 'colega', 'entrouEm', 'saiuEm'],
   // escala de plantão por BVA e período (escalas.gs): fiscais = JSON [{id, nome}]; situacao = rascunho | publicada; excluir é lógico
-  Escalas: ['id', 'bva', 'inicio', 'fim', 'fiscais', 'situacao', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor', 'publicadaEm', 'publicadaPor', 'excluido'],
+  Escalas: ['id', 'bva', 'inicio', 'fim', 'fiscais', 'situacao', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor', 'publicadaEm', 'publicadaPor', 'excluido',
+            'equipeNumero', 'responsavel'],   // nº da equipe (relatório da equipe) e responsável (chave do fiscal: id ou "nome:…")
+  // relatório da equipe (relatorio-equipe.gs): id = id da escala; dados = JSON dos campos editáveis (local, objetivo, deslocamento, kg, repasse, obs)
+  RelatoriosEquipe: ['id', 'escalaId', 'dados', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor'],
   // diárias das escalas no Portal do Administrativo: escala × fiscal (id = escalaId|usuarioId); situacao = pendente | concluida (PCDP)
   EscalaPcdp: ['id', 'escalaId', 'usuarioId', 'nome', 'situacao', 'pcdp', 'atualizadoEm', 'atualizadoPor', 'admId'],
   // BVAs cadastradas pela gerência no painel (bvas.gs): somam-se às de CONFIG.bvas e mudam/desativam as de lá pelo nome
@@ -181,7 +187,7 @@ const TABELAS = {
 };
 const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'cuidado', 'semPlaca', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
                           'expiraEm', 'ativo', 'ativadoEm', 'oculto', 'ocultoEm',
-                          'ano', 'numero', 'ultimo', 'de', 'ate', 'em', 'numeroSugerido', 'emitidoEm', 'amostras', 'inspecao', 'coleta', 'fiel', 'auto',
+                          'ano', 'numero', 'ultimo', 'de', 'ate', 'em', 'numeroSugerido', 'emitidoEm', 'amostras', 'inspecao', 'coleta', 'fiel', 'auto', 'autoNumero', 'autoConflito',
                           'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito', 'tamanho',
                           'inicioTs', 'atualizadoTs', 'registroAntigo', 'encerradoEm', 'canceladoEm',
                           'standalone', 'online', 'ultimoSinal', 'ultimoErroEm', 'primeiroSinal', 'recusaAssinatura',
@@ -192,13 +198,13 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'cuidado', 'semPlaca', 'exclui
                           'entrouEm', 'saiuEm'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, pragas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000,
-                        dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000, citros: 20000, cargaPapel: 3000 };   // demais colunas: 500
+                        dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000, citros: 20000, cargaPapel: 3000, autoDados: 10000 };   // demais colunas: 500
 // culturas/fotos/assinaturas são JSON: cortar o texto invalidaria o JSON (e apagaria as referências no aparelho). Os limites acima
 // cabem numa célula (50.000 caracteres) e o app limita a quantidade de culturas/fotos e o tamanho dos campos para nunca chegar neles.
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-10-29i';
+const VERSAO_CODIGO = '2026-11-03a';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -215,6 +221,7 @@ function doPost(e) {
     if (req.action === 'painelEncerrarTurno') return json_(painelEncerrarTurno(req.key, req.turnoId, req.fim));
     if (req.action === 'tfVerificar') return json_(tfVerificar_(req));                      // página pública verificar.html: sem credencial
     if (req.action === 'publicoDados') return json_(publicoDados_(req));                    // dashboard público (web/dashboard/): sem credencial, só agregados
+    if (req.action === 'docSistemaSalvar') return json_(docSistemaSalvar_(req));            // GitHub → Word do Termo de Referência no Drive (chave DOC_SISTEMA_CHAVE)
     if (req.action === 'painelPublicoConfig') return json_(painelPublicoConfig(req.key));
     if (req.action === 'painelPublicoSalvar') return json_(painelPublicoSalvar(req.key, req.config));
     if (req.action === 'painelConvenios') return json_(painelConvenios(req.key));
@@ -239,6 +246,7 @@ function doPost(e) {
     if (req.action === 'painelEscalaGerar') return json_(painelEscalaGerar(req.key, req));
     if (req.action === 'painelEscalaSalvar') return json_(painelEscalaSalvar(req.key, req));
     if (req.action === 'painelEscalaExcluir') return json_(painelEscalaExcluir(req.key, req));
+    if (/^painelRelEquipe(Lista|Salvar)?$/.test(String(req.action))) return json_(painelRelEquipe(req.key, req));
     if (/^adm[A-Z]/.test(String(req.action || ''))) return json_(lido_(req, admAcao_(req)));   // Portal do Administrativo (token em `sessao`)
     // Login com matrícula e senha (usuarios.gs): entrar, trocarSenha, sair, minhaSessao e as actions de gerência
     const acaoUsuarios = usuariosAcao_(req.action);
@@ -268,9 +276,12 @@ function doPost(e) {
     if (req.action === 'turnoConvidar') return json_(turnoConvidar_(req, usuario));
     if (req.action === 'turnoParear') return json_(turnoParear_(req, usuario));
     if (req.action === 'turnoSair') return json_(turnoSair_(req, usuario));
+    if (req.action === 'turnoTFs') return json_(turnoTFs_(req, usuario));
+    if (req.action === 'turnoRecuperar') return json_(lido_(req, turnoRecuperar_(req, usuario)));
     if (req.action === 'turnoPapelRegistrar') return json_(turnoPapelRegistrar_(req, usuario));
     if (req.action === 'turnoNumero') return json_(turnoNumero_(req, usuario));
     if (/^escala(Dados|Salvar|Excluir|Gerar)$/.test(String(req.action))) return json_(escalaAcao_(req, usuario));
+    if (/^relEquipe(Lista|Salvar)?$/.test(String(req.action))) return json_(relEquipeAcao_(req, usuario));
     throw new Error('Ação inválida.');
   } catch (err) {
     const r = { ok: false, erro: String(err.message || err) };
@@ -350,7 +361,7 @@ function sincronizar_(req, usuario) {
     alheios('veiculos', gravar_('Veiculos', T.veiculos, agora, usuario));
     T.tfs.forEach(function (t) { if (t && !t.emitidoEm) t.emitidoEm = agora; });            // momento em que a planilha recebeu o TF
     alheios('tfs', gravar_('TFs', T.tfs, agora, usuario));
-    if (T.tfs.length) marcarConflitosTFs_(gravados_(T.tfs, recusados.tfs), agora);
+    if (T.tfs.length) { const g = gravados_(T.tfs, recusados.tfs); marcarConflitosTFs_(g, agora); marcarConflitos_('AI', g, agora); }   // auto de infração: nº repetido = autoConflito
     gravar_('Pessoas', T.pessoas, agora, usuario);
     gravar_('Placas', T.placas, agora, usuario);
     if (typeof sincronizarVisitasPce_ === 'function') sincronizarVisitasPce_(T, agora, usuario, alheios, recusados);

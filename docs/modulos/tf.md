@@ -4,6 +4,7 @@ TF do app de campo (isolado ou no turno), impresso em 2 vias. Veja também: [app
 
 ## Regras
 - Não confundir: o TF de Barreira é só para irregularidade na barreira (`tf.html`). O Termo de Fiscalização de ação (fim do turno, fiscalização de propriedade) é outro documento, com outro template ([arquitetura](../arquitetura.md)).
+- Barreiras do TF: aba `Barreiras`; a BVA cadastrada no painel entra nela (`barreiraDaBva_`).
 - Numeração: uma sequência por barreira e ano, na planilha (`0012/2026 - BVA - CEASA`). Próximo = maior + 1. Início: e-GDV → Definir último nº de TF usado.
 - `tfEmitir` grava só número livre; senão sugere outro antes do PDF.
 - Sem internet: número provisório (último + 1). Se já usado, vale o mais antigo; o outro fica `conflito = 1`.
@@ -11,6 +12,8 @@ TF do app de campo (isolado ou no turno), impresso em 2 vias. Veja também: [app
 - Registro do veículo: placa com TF não cancelado na mesma BVA fica com borda vermelha e aviso (não bloqueia). Índice do aparelho com chave placa + BVA (BVA do turno do TF, senão o local do TF, com apelidos) + TFs do aparelho; vale sem internet. Índice antigo (sem `v: 2`) é baixado inteiro de novo.
 - Alerta de cuidado (`Veiculos.cuidado`, `cuidadoMotivo`): placa com borda amarela e "Cuidado ao abordar este veículo" + 3 últimas observações, em qualquer BVA (índice `v: 3`, também com só o módulo de veículos). Não se desmarca no app (`gravar_`). Painel: `alertasCuidado` (7 dias), aviso, som e notificação até "Ciente".
 - Duas vias, uma por folha A4.
+- Textos: `CONFIG.TF.modelos` (constatação) e `CONFIG.TF.enquadramento` (BVA, sentido, produto).
+- Auto de infração (caixa no TF): nº próprio por barreira/ano (`SEQUENCIAS.AI`), conferido no `tfEmitir`; sem internet, provisório (`autoConflito` se repetir). PDF em 3 vias (`auto.html`).
 - UF de origem/destino opcionais (`CONFIG.ufs`, inclui "Exterior"); TF de veículo herda a UF do veículo.
 - Fotos e assinaturas (fiscalizado e servidor) no Drive via `Arquivos`; `recusaAssinatura = 1` se o fiscalizado se recusa. O painel recebe só `nFotos` e `assinado`.
 - Cancelar (motivo obrigatório): mantém o número e sai da reincidência. Cancelado e enviado pode sair da lista do aparelho; na planilha continua.
@@ -19,7 +22,7 @@ TF do app de campo (isolado ou no turno), impresso em 2 vias. Veja também: [app
 - `verificar.html` (sem login, `tfVerificar`): nº, data, barreira, situação e placa mascarada. Nunca CPF/CNPJ, nome, endereço, telefone ou produtos. 30 ids inválidos por minuto: bloqueio de 1 min.
 
 ## Dados
-- `TFs`: `numero`, `numeroOrigem` (`sistema`/`editado`/`provisorio`/`papel`), `numeroSugerido`, `conflito`, `cancelado`, `reincidente`, `registroAntigo`.
+- `TFs`: `auto*` (auto de infração; `autoDados` fora do painel); `numero`, `numeroOrigem` (`sistema`/`editado`/`provisorio`/`papel`), `numeroSugerido`, `conflito`, `cancelado`, `reincidente`, `registroAntigo`.
 - `Numeracao` (`barreira|ano`, `ultimo`); `Pessoas` (CPF/CNPJ).
 
 ## Código

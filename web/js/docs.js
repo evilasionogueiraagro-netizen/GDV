@@ -23,12 +23,60 @@ const Docs = (() => {
     });
   }
   // `nome` vira o título da página durante a impressão (sugestão de nome do arquivo PDF).
+  // Celular: o print() dentro do iframe imprime a tela do app (Chrome no Android) e o "afterprint" chega antes de o PDF ser gerado;
+  // lá o documento pronto é copiado para a própria página (imprimirNaPagina). No computador, imprime o iframe, como sempre.
+  const noCelular = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || localStorage.getItem('gdv.imprimirNaPagina') === '1';
   function imprimir(frame, nome) {
+    if (noCelular()) return imprimirNaPagina(frame, nome);
     const w = frame.contentWindow, tituloAntes = document.title;
     document.title = nome; frame.contentDocument.title = nome;
     w.addEventListener('afterprint', () => { document.title = tituloAntes; frame.remove(); });
     w.focus();
     w.print();
+  }
+  /**
+   * Impressão na própria página (celular): o documento preenchido vai para um shadow root (#gdv-impressao: os estilos do modelo não
+   * vazam para o app nem os do app para ele), com os endereços de imagens resolvidos a partir de documentos/. Na impressão só ele
+   * aparece (@media print). Fica na página até o próximo documento ou a próxima tela (o PDF do Android é gerado depois do print()).
+   */
+  function imprimirNaPagina(frame, nome) {
+    const d = frame.contentDocument;
+    limparImpressao();
+    d.querySelectorAll('[src]').forEach(e => { if (e.src) e.setAttribute('src', e.src); });   // ../img/… → endereço completo
+    const regra = r => {
+      if (r.selectorText) return r.cssText.replace(r.selectorText, r.selectorText.split(',').map(x => x.trim().replace(/^(html|body)\b/, ':host')).join(', '));
+      return /^@page/.test(r.cssText) ? '' : r.cssText;
+    };
+    let css = '';
+    [...d.styleSheets].forEach(sh => { try { css += [...sh.cssRules].map(regra).join('\n') + '\n'; } catch (e) { /* folha de outra origem */ } });
+    const host = document.createElement('div'); host.id = 'gdv-impressao';
+    const raiz = host.attachShadow({ mode: 'open' });
+    raiz.innerHTML = `<style>:host{all:initial;display:block;font-family:Arial,sans-serif;color:#000;background:#fff}\n${css}</style>${d.body.innerHTML}`;
+    const pg = document.createElement('style'); pg.id = 'gdv-impressao-pg';
+    pg.textContent = '#gdv-impressao{display:none}@page{size:A4 portrait;margin:0}' +
+      '@media print{body{margin:0!important;padding:0!important;background:#fff!important}body>*:not(#gdv-impressao){display:none!important}#gdv-impressao{display:block!important}}';
+    document.head.appendChild(pg); document.body.appendChild(host); frame.remove();
+    limparImpressao.titulo = limparImpressao.titulo || document.title; document.title = nome;
+    const imgs = [...raiz.querySelectorAll('img')].map(im => (im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; setTimeout(r, 4000); })));
+    return Promise.all(imgs).then(() => (Date.now() - toque > 3000 ? botaoImprimir() : window.print()));
+  }
+  // O Chrome do Android ignora o print() que chega muito depois do toque (sem aviso: "não acontece nada"). Documento que demorou
+  // a ficar pronto: uma barra com o botão "Imprimir", e o print() sai do novo toque.
+  let toque = 0;
+  document.addEventListener('click', () => { toque = Date.now(); }, true);          // todo toque (Termo, TF, auto, PCE) marca a hora
+  function botaoImprimir() {
+    const barra = document.createElement('div'); barra.id = 'gdv-imprimir-barra'; barra.className = 'card'; barra.setAttribute('role', 'dialog');
+    barra.style.cssText = 'position:fixed;left:12px;right:12px;bottom:84px;z-index:9999;margin:0;box-shadow:0 4px 18px rgba(0,0,0,.25)';
+    barra.innerHTML = `<p style="margin:0 0 8px"><b>Documento pronto.</b> Toque em Imprimir e escolha “Salvar como PDF”.</p>
+      <button type="button" class="botao" id="gdv-imprimir-ok">Imprimir</button><button type="button" class="botao sec" id="gdv-imprimir-fechar">Fechar</button>`;
+    document.body.appendChild(barra);
+    barra.querySelector('#gdv-imprimir-ok').onclick = () => window.print();
+    barra.querySelector('#gdv-imprimir-fechar').onclick = () => limparImpressao();
+  }
+  /** Tira da página o documento da última impressão (celular) e volta o título. */
+  function limparImpressao() {
+    ['gdv-impressao', 'gdv-impressao-pg', 'gdv-imprimir-barra'].forEach(id => { const e = document.getElementById(id); if (e) e.remove(); });
+    if (limparImpressao.titulo) { document.title = limparImpressao.titulo; limparImpressao.titulo = ''; }
   }
 
   const ordenar = v => v.slice().sort((a, b) => (a.hora + a.criadoEm).localeCompare(b.hora + b.criadoEm) || a.criadoEm - b.criadoEm);
@@ -85,6 +133,19 @@ const Docs = (() => {
     return `${gmsTermo(c[0], 'N', 'S')} / ${gmsTermo(c[1], 'E', 'W')} (${c[0].toFixed(5)}, ${c[1].toFixed(5)})`;
   }
 
+  /** TFs do turno na planilha (turnoTFs) sem segurar a impressão: espera no máximo 1,5 s; depois disso vale a última resposta guardada
+   *  (meta tfsDoTurno, 30 turnos), e a resposta que chegar tarde fica guardada para o próximo Termo. */
+  async function tfsDaPlanilha(turnoId) {
+    const guardado = ((await Store.meta('tfsDoTurno')) || {})[turnoId], antes = guardado ? guardado.tfs : [];
+    if (!(navigator.onLine && typeof Sync !== 'undefined' && Sync.ativado())) return antes;
+    const busca = Sync.tfsDoTurno(turnoId).then(async r => {
+      const c = (await Store.meta('tfsDoTurno')) || {}; c[turnoId] = { tfs: r.tfs || [], em: Date.now() };
+      await Store.setMeta('tfsDoTurno', Object.fromEntries(Object.keys(c).sort((a, b) => c[b].em - c[a].em).slice(0, 30).map(k => [k, c[k]])));
+      return c[turnoId].tfs;
+    }).catch(() => null);
+    return (await Promise.race([busca, new Promise(ok => setTimeout(() => ok(null), 1500))])) || antes;
+  }
+
   /** Termo de Fiscalização do turno (modelo padrão ADAF 2026): identificação do posto, descrição da ação com os números do turno,
    *  enquadramento legal em branco (linhas para preencher à mão), testemunhas, recebimento da 2ª via e assinatura do servidor. */
   async function termo(turnoId) {
@@ -105,7 +166,19 @@ const Docs = (() => {
     set('idCoordenadas', textoCoordenadas(turno));
     set('servidorNome', fiscaisDoTurno(turno));
     const pessoas = veiculos.reduce((s, v) => s + (Number(v.pessoas) || 0), 0) + (Number(turno.pessoasEducacao) || 0);
-    const lavrados = (await Store.todos('tfs')).filter(x => x.turnoId === turnoId && !x.cancelado).sort((a, b) => a.numero - b.numero).map(x => x.numeroTxt);
+    // TFs de barreira do turno (nº e medidas): os deste aparelho e, com internet, os da planilha (o do colega e o do turno lavrado sem
+    // ligação com ele: turnoTFs). O Termo traz os nºs e a soma das medidas tomadas.
+    const porNum = {};
+    (await Store.todos('tfs')).filter(x => x.turnoId === turnoId && !x.cancelado).forEach(x => { porNum[x.numeroTxt] = x; });
+    (await tfsDaPlanilha(turnoId)).forEach(x => { if (x && x.numeroTxt && !porNum[x.numeroTxt]) porNum[x.numeroTxt] = x; });
+    const lavrados = Object.keys(porNum).sort(), tfsTurno = lavrados.map(k => porNum[k]);
+    const conta = (n, um, varios) => n ? `${n} ${n === 1 ? um : varios}` : '';
+    const medidas = [conta(tfsTurno.filter(x => x.procedimento === 'liberacao').length, 'liberação', 'liberações'),
+      conta(tfsTurno.filter(x => x.procedimento === 'apreensao').length, 'apreensão', 'apreensões'),
+      conta(tfsTurno.filter(x => x.procedimento === 'rechaco').length, 'rechaço', 'rechaços'),
+      conta(tfsTurno.filter(x => Number(x.auto) === 1).length, 'auto de infração', 'autos de infração'),
+      conta(tfsTurno.filter(x => Number(x.advertencia) === 1).length, 'advertência', 'advertências'),
+      conta(tfsTurno.filter(x => Number(x.fiel) === 1).length, 'fiel depositário', 'fiéis depositários')].filter(Boolean);
     const ini = turno.inicio || '__:__', fim = turno.fim || '__:__';
     // turno que só conta pessoas orientadas (volante de Tabatinga: educação sanitária da monilíase)
     const soPes = Number(turno.soPessoas) === 1, temaCfg = ((CONFIG.volantesSoPessoas || {})[String(turno.unidade || '').toUpperCase()] || {}).tema;
@@ -116,7 +189,7 @@ const Docs = (() => {
 ${soPes ? `<p>Foram realizadas <strong>${pessoas}</strong> ações de educação sanitária (pessoas orientadas)${tema ? ` sobre a <strong>${tema}</strong>` : ''}.</p>`
   : `<p>Foram fiscalizados <strong>${veiculos.length}</strong> veículos e realizadas <strong>${pessoas}</strong> ações de educação sanitária (pessoas orientadas),
 com inspeção de veículos, cargas, bagagens, pessoas e demais materiais sujeitos ao controle da Defesa Agropecuária.</p>`}
-<p>Termos de Fiscalização de Barreira lavrados: ${lavrados.length ? `<strong>${esc(lavrados.join('; '))}</strong>` : '<strong>nenhum</strong>'}.</p>
+<p>Termos de Fiscalização de Barreira lavrados: ${lavrados.length ? `<strong>${esc(lavrados.join('; '))}</strong>.${medidas.length ? ` Medidas tomadas: <strong>${esc(medidas.join(', '))}</strong>.` : ''}` : '<strong>nenhum</strong>.'}</p>
 <p>Foram prestadas orientações aos usuários quanto às normas fitossanitárias vigentes, especialmente sobre os riscos de introdução e
 dispersão de pragas quarentenárias, com destaque para a <strong>${soPes && tema ? tema : 'Mosca-da-Carambola (<i>Bactrocera carambolae</i>)'}</strong>, e sobre
 a obrigatoriedade da apresentação da documentação fitossanitária quando exigida.</p>
@@ -245,6 +318,40 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     await Promise.all([...d.images].map(im => (im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; }))));
     const nomeArq = `TF ${String(t.numeroTxt).replace(/\//g, '-')} ${prods.map(p => String(p).split(' - ')[0]).join('_') || 'SEM_PRODUTO'} ${PROC_TITULO[t.procedimento] || 'OUTRO'}`;
     imprimir(f, nomeArq);
+  }
+
+  /**
+   * Auto de Infração do TF (modelo ADAF, documentos/auto.html): dados do autuado, placa, origem e destino vêm do TF; os do auto
+   * (ocorrência, condutor, RENAVAM, CEP, fatos, enquadramento, ciência, testemunhas, coordenadas) de autoDados. 3 vias, folhas separadas.
+   */
+  async function auto(id) {
+    const t = await Store.obter('tfs', id);
+    if (!t) throw new Error('TF não encontrado.');
+    if (!(Number(t.auto) === 1 && Number(t.autoNumero) > 0)) throw new Error('Este TF não tem auto de infração.');
+    const ai = jsonPce(t.autoDados, {}), f = await abrirModelo('auto.html'), d = f.contentDocument;
+    const v = {}, comUF = (x, uf) => [String(x || '').trim(), String(uf || '').trim()].filter(Boolean).join('/');
+    const [seq, ano, ...un] = String(t.autoNumeroTxt || '').split('-');
+    Object.assign(v, { num_seq: seq, num_ano: ano, num_unidade: un.join('-'), tf_ref: `Lavrado com o TF nº ${t.numeroTxt}`,
+      nome: t.nome, doc: fmtDoc(t.doc), nome_comercial: ai.nomeComercial, cadastro: ai.cadastro, condutor: ai.condutor, condutor_cpf: fmtDoc(ai.condutorCpf),
+      endereco: t.endereco, municipio: t.municipio, uf: t.uf, cep: ai.cep, renavam: ai.renavam, placa: t.placa,
+      procedencia: comUF(t.origem, t.ufOrigem), destino: comUF(t.destino, t.ufDestino), fatos: ai.fatos, enquadramento: ai.enquadramento,
+      ciente_nome: ai.condutor || t.nome, ciente_cpf: fmtDoc(ai.condutor ? ai.condutorCpf : t.doc), ciente_ass: ai.ciencia === 'recusou' ? 'Recusou-se a assinar' : ai.ciencia === 'naoSabe' ? 'Não sabe ler e escrever' : '',
+      local_data: `${t.local || ''}, ${t.data ? dataBR(t.data) : ''} ${t.hora || ''}`, autuante: t.fiscal });
+    const la = parseFloat(ai.lat), lo = parseFloat(ai.lon);
+    v.coordenadas = isNaN(la) || isNaN(lo) ? '' : `${gmsTermo(la, 'N', 'S')} / ${gmsTermo(lo, 'E', 'W')} (${la.toFixed(5)}, ${lo.toFixed(5)})`;
+    ['t1', 't2'].forEach(k => { const x = ai[k] || {}; v[k + '_nome'] = x.nome; v[k + '_cpf'] = fmtDoc(x.cpf); v[k + '_endereco'] = x.endereco; v[k + '_telefone'] = x.telefone; });
+    preencherCampos(d, v);
+    const marcas = { oc_unidade: ai.ocorrencia === 'unidade', oc_barreira: (ai.ocorrencia || 'barreira') === 'barreira', oc_estabelecimento: ai.ocorrencia === 'estabelecimento',
+      ci_autuado: ai.ciencia === 'autuado', ci_naosabe: ai.ciencia === 'naoSabe', ci_recusou: ai.ciencia === 'recusou' };
+    d.querySelectorAll('[data-marca]').forEach(e => { e.textContent = marcas[e.getAttribute('data-marca')] ? '☑' : '☐'; });
+    const pg = d.querySelector('.a4');
+    await caberEmUmaPagina(d, pg, { campos: ['fatos', 'enquadramento'], primeiro: ['sem ajuste', () => {}] });
+    if (t.cancelado) { const b = d.createElement('div'); b.className = 'cancelado-faixa'; b.textContent = 'TF CANCELADO' + (t.motivoCancel ? ' – ' + t.motivoCancel : ''); pg.insertBefore(b, pg.children[1] || null); }
+    const paginas = [pg];
+    [1, 2].forEach(() => { const c = pg.cloneNode(true); paginas[paginas.length - 1].after(c); paginas.push(c); });
+    paginas.forEach((p, i) => p.querySelectorAll('[data-via]').forEach(e => e.classList.toggle('atual', Number(e.getAttribute('data-via')) === i)));
+    await Promise.all([...d.images].map(im => (im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; }))));
+    imprimir(f, `Auto de Infracao ${String(t.autoNumeroTxt).replace(/\//g, '-')}`);
   }
 
   /* ---------- PCE: Ficha de Levantamento Fitossanitário e Termo de Colheita de Amostras ---------- */
@@ -446,9 +553,27 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     await w.PCEDocs.montar(f.contentDocument, tipo, dados, opcoes || {});
     const nome = nomePdfMon(tipo, dados);
     if (modo === 'arquivo') return PDF.deFrame(f, nome);
+    const folhas = f.contentDocument.querySelectorAll('.a4').length;      // antes de imprimir: no celular o iframe sai da página
     imprimir(f, nome);
-    return f.contentDocument.querySelectorAll('.a4').length;
+    return folhas;
   }
 
-  return { ficha, termo, tf, fiscaisDoTurno, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, nomePdfMon, ordenar, esc };
+  /** Relatório da equipe (prestação de contas do convênio): modelo rel-equipe.html preenchido por documentos/rel-equipe-docs.js. */
+  async function relEquipe(R) {
+    const f = await abrirModelo('rel-equipe.html'), w = f.contentWindow;
+    for (let i = 0; i < 50 && !w.RelEquipeDocs; i++) await new Promise(r => setTimeout(r, 50));
+    w.RelEquipeDocs.montar(f.contentDocument, R);
+    const e = R.escala;
+    return imprimir(f, `Relatorio_Equipe${e.equipeNumero ? '_' + e.equipeNumero : ''}_${String(e.bva).replace(/[^\w]+/g, '_')}_${e.inicio}_a_${e.fim}`);
+  }
+
+  /** Termo de Repasse de produtos apreendidos da equipe: modelo termo-repasse.html (rel-equipe-docs.js → montarRepasse). */
+  async function termoRepasse(R) {
+    const f = await abrirModelo('termo-repasse.html'), w = f.contentWindow;
+    for (let i = 0; i < 50 && !w.RelEquipeDocs; i++) await new Promise(r => setTimeout(r, 50));
+    const r = w.RelEquipeDocs.montarRepasse(f.contentDocument, R);
+    return imprimir(f, `Termo_de_${r.tipo.normalize('NFD').replace(/[\u0300-\u036f]/g, '')}_${String(r.numero).replace(/[^\w]+/g, '_')}_${String(R.escala.bva).replace(/[^\w]+/g, '_')}`);
+  }
+
+  return { ficha, termo, tf, auto, limparImpressao, relEquipe, termoRepasse, fiscaisDoTurno, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, nomePdfMon, ordenar, esc };
 })();

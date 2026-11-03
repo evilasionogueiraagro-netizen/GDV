@@ -664,7 +664,7 @@ const Painel = (() => {
   function notificar(novos) {
     if (emTV() || typeof Notification === 'undefined' || Notification.permission !== 'granted') return;
     novos.forEach(a => {
-      const tit = `${a.titulo} — ${a.onde}`, op = { body: textoTF(a), tag: 'gdv-tf-' + a.id, renotify: true, requireInteraction: true, icon: 'img/icon-192.png' };
+      const tit = `${a.titulo} — ${a.onde}`, op = { body: textoTF(a), tag: 'gdv-tf-' + a.id, renotify: true, requireInteraction: true, icon: 'img/icone-egdv-192.png' };
       TFA.notificacoes++;
       const direto = () => { try { new Notification(tit, op); } catch (e) { /* ex.: Android exige o service worker */ } };
       try {
@@ -728,7 +728,7 @@ const Painel = (() => {
     if (novos.length) {
       tocarSom();
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted') novos.forEach(a => {
-        const tit = 'Alerta de cuidado — ' + (a.local || 'campo'), op = { body: textoCuidado(a) + (a.obs ? '\n' + a.obs : ''), tag: 'gdv-cuidado-' + a.id, requireInteraction: true, icon: 'img/icon-192.png' };
+        const tit = 'Alerta de cuidado — ' + (a.local || 'campo'), op = { body: textoCuidado(a) + (a.obs ? '\n' + a.obs : ''), tag: 'gdv-cuidado-' + a.id, requireInteraction: true, icon: 'img/icone-egdv-192.png' };
         const direto = () => { try { new Notification(tit, op); } catch (e) { /* ex.: Android exige o service worker */ } };
         try { if (navigator.serviceWorker && navigator.serviceWorker.getRegistration) navigator.serviceWorker.getRegistration().then(r => r ? r.showNotification(tit, op) : direto()).catch(direto); else direto(); }
         catch (e) { direto(); }
@@ -1358,9 +1358,11 @@ const Painel = (() => {
     if (typeof ResizeObserver !== 'undefined') {
       const ro = new ResizeObserver(() => {
         if (!div.isConnected) return ro.disconnect();
-        if (!div.clientWidth) return;
-        map.invalidateSize();
-        if (semTamanho) { semTamanho = false; if (!vistaGuardada) map.fitBounds(AM_LIMITES, { padding: [4, 4] }); }
+        if (!div.clientWidth || !reg.vivo || !map._loaded) return;
+        try {                                                               // mapa já trocado pelo redesenho do painel: nada a fazer
+          map.invalidateSize();
+          if (semTamanho) { semTamanho = false; if (!vistaGuardada) map.fitBounds(AM_LIMITES, { padding: [4, 4] }); }
+        } catch (e) { ro.disconnect(); }
       });
       ro.observe(div);
     }
@@ -1369,7 +1371,7 @@ const Painel = (() => {
     const cheia = () => document.fullscreenElement === card || card.classList.contains('pn-mapa-cheia');
     const rotuloCheia = () => { const c = cheia(); btCheia.innerHTML = `${icone(c ? 'sair-tela-cheia' : 'tela-cheia')} ${c ? 'Sair da tela cheia' : 'Tela cheia'}`;
       if (c) { map.scrollWheelZoom.enable(); map.dragging.enable(); } else if (toque) map.dragging.disable();
-      if (c !== estavaCheia) { estavaCheia = c; setTimeout(() => { map.invalidateSize(); map.fitBounds(AM_LIMITES, { padding: [4, 4] }); }, 200); } };
+      if (c !== estavaCheia) { estavaCheia = c; setTimeout(() => { try { if (div.isConnected) { map.invalidateSize(); map.fitBounds(AM_LIMITES, { padding: [4, 4] }); } } catch (e) { /* mapa removido */ } }, 200); } };
     btCheia.onclick = () => {
       if (cheia()) { if (document.fullscreenElement === card) document.exitFullscreen().catch(() => {}); card.classList.remove('pn-mapa-cheia'); document.body.classList.remove('pn-mapa-cheia-aberto'); rotuloCheia(); return; }
       const fallback = () => { card.classList.add('pn-mapa-cheia'); document.body.classList.add('pn-mapa-cheia-aberto'); rotuloCheia(); };
@@ -1459,7 +1461,7 @@ const Painel = (() => {
       { chave: 'andamento', rotulo: 'Barreiras em andamento agora', valor: vivos.length, detalhe: vivos.length ? (ruins ? `${ruins} com alerta (sem sinal ou > 12 h)` : 'todas com sinal') : 'nenhuma aberta', status: ruins ? 'serio' : (vivos.length ? 'bom' : null) },
       { chave: 'horas', rotulo: 'Horas de barreira', valor: Math.round(horas / 60), detalhe: `${fmt.int(d.turnos.length)} turno(s)${nLim ? ` · ${nLim} aberto(s) há mais de 12 h contado(s) com 12 h` : ''}` },
       { chave: 'veiculos', rotulo: 'Veículos abordados', valor: d.veiculos.length, detalhe: horas ? `${fmt.num(d.veiculos.length / (horas / 60), 1)} por hora de barreira` : null },
-      { chave: 'pessoas', rotulo: 'Pessoas impactadas', valor: pessoas, detalhe: 'estimativa por veículo' },
+      { chave: 'pessoas', rotulo: 'Pessoas impactadas', valor: pessoas, detalhe: 'educação sanitária, informadas pelo fiscal' },
       { chave: 'tfs', rotulo: 'TFs lavrados', valor: d.tfs.length, detalhe: `${fmt.int(proc('apreensao'))} apreensões · ${fmt.int(proc('rechaco'))} rechaços${d.tfsCancelados.length ? ` · ${d.tfsCancelados.length} cancelado(s)` : ''}`, apreensoes: proc('apreensao') },
       { chave: 'levantamentos', rotulo: 'Levantamentos PCE', valor: d.levantamentos.length, detalhe: `${fmt.int(prop)} propriedade(s)` },
       { chave: 'deteccoes', rotulo: 'Detecções de pragas', valor: det, detalhe: d.levantamentos.length ? `${fmt.pct(comPraga / d.levantamentos.length)} dos levantamentos${susp ? ` · ${fmt.int(susp)} suspeita(s)` : ''} · ${fmt.int(neg)} negativo(s)` : null, status: det ? 'critico' : null,

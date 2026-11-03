@@ -119,7 +119,8 @@ nav button span { font-size:9.5px; } nav button.on { color:var(--link); font-wei
 .pce-ordem { display:flex; align-items:center; gap:8px; margin:0 0 10px; font-size:14px; color:var(--mut); } .pce-ordem select { width:auto; margin:0; padding:6px 8px; }
 .pce-lev-grupo { font-weight:700; color:var(--destaque); margin:14px 2px 6px; font-size:15px; } .pce-lev-grupo small { font-weight:400; color:var(--mut); font-size:12.5px; margin-left:6px; }
 .pce-res-resumo { display:flex; flex-wrap:wrap; gap:4px 10px; }
-.pce-res-lista { margin:8px 0 0; padding-left:18px; } .pce-res-lista li { margin:6px 0; } .pce-res-lista small { color:var(--mut); }
+.pce-res-tabela { margin:10px 0 0; } .pce-res-tabela td:last-child { width:1%; white-space:nowrap; } .pce-res-tabela td { vertical-align:middle; }
+.pce-res-cultura th { white-space:normal; font-weight:700; color:var(--ink); background:var(--sf2); border-top:2px solid var(--base); } .pce-res-cultura small { font-weight:400; color:var(--mut); }
 .pce-pdfs .botao { margin-top:8px; }
 
 .pce-arquivo { position:relative; flex-direction:row; align-items:center; justify-content:center; background:var(--sf); color:var(--link); border:2px dashed var(--marca2); border-radius:10px; padding:12px; font-size:15px; font-weight:600; cursor:pointer; }

@@ -126,6 +126,8 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   ok(/003-2025-AUTAZES/.test(await A.textContent('#mt-cadinfo')) && /JOAO FICTICIO/.test(await A.inputValue('#mt-nome')) && (await A.inputValue('#mt-plantas')) === '1', 'termo ligado ao cadastro por CPF: nome, plantas = total do cadastro', await A.textContent('#mt-cadinfo'));
   await A.fill('#mt-lat', '-3,60033'); await A.fill('#mt-lon', '-59,15044W');
   ok(await A.isChecked('input[name="mt-pragas"][value="Monilíase"]'), 'Monilíase marcada por padrão');
+  await A.uncheck('input[name="mt-pragas"][value="Monilíase"]'); ok(await A.isHidden('#mt-negativa'), 'sem Monilíase marcada: sem a frase pronta de "não constatei a monilíase"');
+  await marcar(A, 'mt-pragas', 'Monilíase');
   await marcar(A, 'mt-acoes', 'Fiscalização'); await A.click('#mt-negativa');
   ok(await A.locator('#mt-material').count() === 0, 'termo sem "material educativo" (folders só no relatório)');
   await A.fill('#mt-plantas', '75'); await sim(A, 'mt-amostra', 'nao');

@@ -196,7 +196,7 @@ const CONFIG = {
     // Levantamento por praga/doença: um card por praga, com as culturas avaliadas (resultado e fotos de cada cultura). Um PDF por praga.
     resultados: [['detectada', 'Detectada'], ['nao_detectada', 'Não detectada'], ['suspeita', 'Suspeita']],
     maxPragas: 20, maxCulturas: 40, maxFotos: 60,    // por levantamento (cards de praga, culturas somadas e fotos somadas)
-    // Cadastro de imóvel (1x por propriedade e programa) e Termo de Fiscalização do PCE (1 por visita; não é o TF de Barreira), dos modelos de papel
+    // Cadastro de imóvel (1x por propriedade e programa) e Termo de Fiscalização do PCE (1 por programa em cada visita; não é o TF de Barreira), dos modelos de papel
     moniliase: {
       hospedeiros: [['cupuacu', 'Cupuaçu'], ['cacau', 'Cacau'], ['herrania', 'Herrania'], ['cacaui', 'Cacauí'], ['cupui', 'Cupuí'], ['macambo', 'Macambo']],
       tiposNaoComercial: [['sitio', 'Sítio'], ['residencia', 'Residência'], ['vegetacao', 'Vegetação espontânea'], ['publica', 'Área pública'], ['outros', 'Outros']],

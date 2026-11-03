@@ -465,8 +465,8 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     const fotosCult = culturas.map(c => c.fotos), nFotos = fotosCult.reduce((s, l) => s + l.length, 0) + G.gerais.length;
     preencherCampos(d, Object.assign({}, reg, {
       data: dataPce(reg.data), doc: fmtDoc(reg.doc), coordDec: co.dec || 'Não capturadas', coordGms: co.gms,
-      praga: nomePraga(grupo.praga), fichaN: total > 1 ? `${i + 1} de ${total} (uma ficha por praga/doença avaliada na visita)` : '1 de 1',
-      resumoPraga: culturas.length ? `${culturas.length} cultura(s) avaliada(s): ${resumoResultados(culturas)}.` : 'Nenhuma cultura informada.',
+      praga: nomePraga(grupo.praga), fichaN: total > 1 ? `${i + 1} de ${total} (uma ficha por programa, como o Termo)` : '1 de 1',
+      resumoPraga: culturas.length ? `${new Set(culturas.map(c => c.culturaBase || c.cultura)).size} cultura(s) avaliada(s): ${resumoResultados(culturas)}.` : 'Nenhuma cultura informada.',
       nFotos: nFotos ? `(${nFotos})` : '',
       localOrigem: `Local: ${String(reg.tipoLocal || '').trim() || 'não informado'}${reg.comercial === 'sim' ? ' · Comercial: sim' : reg.comercial === 'nao' ? ' · Comercial: não' : ''}`
         + ` · Origem: ${String(reg.origemVisita || '').trim() || 'não informada'}`

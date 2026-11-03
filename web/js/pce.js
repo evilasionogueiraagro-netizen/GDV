@@ -1059,7 +1059,36 @@ const PCEUI = (() => {
   const seloRes = r => `<span class="pce-selo-res ${esc(r)}">${esc(RES[r] || '')}</span>`;
   /** Rótulo curto do botão na lista em tabela do PC (o CSS mostra data-curto; o texto inteiro fica no title). */
   const curto = (c, t) => ` data-curto="${esc(c.trim())}" title="${esc(t.trim())}"`;
-  /** Botões "PDF: <praga>" (um por praga) e "Imprimir todos". grande = tela depois de salvar. */
+  /**
+   * O levantamento visto por programa: o PDF é o do Termo, então sai um por programa, como o Termo (Citros: uma ficha com HLB, cancro, ácaro...).
+   * "pragas" vira [{praga: nome do programa, culturas: uma linha por cultura × praga}]. Praga opcional sem programa (Moko...) vai na ficha do
+   * programa que avaliou a mesma cultura (campo opcional do Termo); sem nenhum, ficha própria. As fotos de cada cultura saem uma vez por ficha.
+   */
+  function levPorPrograma(r) {
+    const G = Docs.pceGrupos(r); if (!G.pragas.length) return r;
+    const progs = new Map(), soltas = [];
+    G.pragas.forEach(g => {
+      const nome = String(g.praga || '').trim();
+      if (nome && opcional(nome) && !(pragaPorNome(nome) || {}).programa) return soltas.push(g);
+      const pg = nome ? programaDaPraga(nome) : { programa: 'sem-praga', nome: SEM_PRAGA };
+      if (!progs.has(pg.programa)) progs.set(pg.programa, { praga: pg.nome, itens: [] });
+      progs.get(pg.programa).itens.push(g);
+    });
+    soltas.forEach(g => {
+      const alvo = [...progs.values()].find(p => p.itens.some(x => x.culturas.some(c => g.culturas.some(k => k.cultura === c.cultura))));
+      if (alvo) alvo.itens.push(g); else progs.set('opc-' + idCat(g.praga), { praga: g.praga, itens: [g] });
+    });
+    const pragas = [...progs.values()].map(p => {
+      const linhas = p.itens.flatMap(g => g.culturas.map(c => ({ ...c, pragaDaLinha: g.praga }))), ordem = [...new Set(linhas.map(c => c.cultura))], comFoto = new Set();
+      linhas.sort((a, b) => ordem.indexOf(a.cultura) - ordem.indexOf(b.cultura));
+      return { praga: p.praga, culturas: linhas.map(c => {
+        const fotos = comFoto.has(c.cultura) ? [] : c.fotos; comFoto.add(c.cultura);
+        return { ...c, culturaBase: c.cultura, cultura: p.itens.length > 1 ? `${c.cultura} – ${nomePraga(c.pragaDaLinha)}` : c.cultura, fotos };
+      }) };
+    });
+    return { ...r, pragas: JSON.stringify(pragas) };
+  }
+  /** Botões "PDF: <programa>" (um por programa, como o Termo) e "Imprimir todos". G = Docs.pceGrupos(levPorPrograma(r)). grande = tela depois de salvar. */
   function botoesPdf(id, G, grande) {
     const cls = grande ? 'botao' : 'editar';
     return G.pragas.map((g, i) => `<button class="${cls} pce-pdf" data-pce="imprimirlev" data-id="${esc(id)}" data-g="${i}"${grande ? '' : curto('PDF ' + nomePraga(g.praga).split(' ')[0], 'PDF: ' + nomePraga(g.praga))}>PDF: ${esc(nomePraga(g.praga))}</button>`).join('')
@@ -1118,9 +1147,9 @@ const PCEUI = (() => {
           : visita.programa === 'citros' ? 'Pragas de citros: o Cadastro de citros sai deste levantamento (só confirmar o número e assinar).'
           : 'Propriedade nova: cadastre a propriedade.'} ${visita.termo ? '' : 'Um Termo de Fiscalização por programa, como no papel, com as culturas do programa avaliadas na visita, as pragas delas e o enquadramento das detectadas e suspeitas.'}</p>
         ${botoesVisita(r, visita, true)}</div>` : ''}
-      <div class="pce-pdfs">${botoesPdf(r.id, G, true)}</div>
+      <div class="pce-pdfs">${botoesPdf(r.id, Docs.pceGrupos(levPorPrograma(r)), true)}</div>
       <button class="botao sec" data-pce="enviarlev" data-id="${esc(r.id)}" id="pce-enviar">${icone('enviar')} Enviar ao produtor (WhatsApp, e-mail…)</button>
-      <p class="dica">Um PDF por praga/doença: cada um traz os dados da visita, só as culturas e as fotos daquela praga e as assinaturas. Na janela de impressão, escolha “Salvar como PDF”.${G.pragas.length > 1 ? ' “Imprimir todos” gera um PDF de cada vez (no celular, cada um abre a sua janela de impressão).' : ''}</p>
+      <p class="dica">Um PDF por programa, como o Termo: cada um traz os dados da visita, as culturas e pragas daquele programa, as fotos e as assinaturas. Na janela de impressão, escolha “Salvar como PDF”.${G.pragas.length > 1 ? ' “Imprimir todos” gera um PDF de cada vez (no celular, cada um abre a sua janela de impressão).' : ''}</p>
       ${amostras.length && Sync.pode('pce') && !(Number(r.registroAntigo) === 1 && !podeAntigo()) ? `<button class="botao sec" data-pce="termodelev" data-id="${esc(r.id)}" id="pce-pronto-termo">${icone('amostra')} Termo de colheita (${amostras.length} amostra(s))</button>` : ''}
       <button class="botao sec" data-v="pce" id="pce-pronto-lista">${icone('formulario')} Ver levantamentos</button>`);
   }
@@ -1129,6 +1158,7 @@ const PCEUI = (() => {
     if (bloqueado()) return view(avisoAtivacao());
     const mostrar = tela();
     const s = await exigirServidor('pce', null, true); if (!s || !mostrar.viva()) return;
+    await carregarCatalogo();
     fechar(L); fechar(T);
     const podeAnt = podeAntigo(), dig = soDigitador(s) && podeAnt, digSemAut = soDigitador(s) && !podeAnt;
     const todos = (await Store.todos('levantamentos')).filter(x => !x.excluido)
@@ -1174,7 +1204,7 @@ const PCEUI = (() => {
           ${g.pragas.length ? `<div class="info pce-res-resumo">${g.pragas.map(p => `<span>${esc(nomePraga(p.praga))} ${seloRes(resultadoPraga(p))}</span>`).join(' ')}</div>` : ''}
           ${pend ? `<div class="info pend">⏳ aguardando envio${papelSemAut ? ' — registro do papel: sem autorização, fica guardado neste aparelho' : ''}</div>` : ''}
           <div class="botoes pce-acoes">${papelSemAut ? '' : `<button class="editar" data-pce="abrirlev" data-id="${esc(x.id)}">Abrir</button>`}
-          ${botoesPdf(x.id, g, false)}
+          ${botoesPdf(x.id, Docs.pceGrupos(levPorPrograma(x)), false)}
           ${botoesVisita(x, V.get(x.id), false)}
           ${Sync.pode('pce') && !papelSemAut ? `<button class="tfbtn" data-pce="termodelev" data-id="${esc(x.id)}"${curto('Colheita', 'Termo de colheita')}>Termo de colheita</button>` : ''}
           <button class="excluir" data-pce="excluirlev" data-id="${esc(x.id)}">Excluir</button></div></div>`;
@@ -1681,15 +1711,15 @@ const PCEUI = (() => {
     const store = qual === 'lev' ? 'levantamentos' : 'colheitas', fn = qual === 'lev' ? 'pceLevantamento' : 'pceColheita';
     const r = await Store.obter(store, id); if (!r) throw new Error('Registro não encontrado.');
     if (typeof Docs[fn] !== 'function') throw new Error('Modelo de impressão indisponível nesta versão do app.');
-    await Docs[fn](r, await arquivosPorId(r), qual === 'lev' ? Number(g) || 0 : undefined);
+    await Docs[fn](qual === 'lev' ? levPorPrograma(r) : r, await arquivosPorId(r), qual === 'lev' ? Number(g) || 0 : undefined);
   }
   /**
    * "Imprimir todos": gera os PDFs das pragas um de cada vez. O 1º sai já; para cada um dos seguintes o fiscal toca em "Gerar PDF n de N"
    * (no celular cada PDF abre a sua janela de impressão, e o navegador só abre a impressão com um toque do usuário).
    */
   async function imprimirTodos(id) {
-    const r = await Store.obter('levantamentos', id); if (!r) throw new Error('Registro não encontrado.');
-    const G = Docs.pceGrupos(r), n = G.pragas.length, arqs = await arquivosPorId(r);
+    const r0 = await Store.obter('levantamentos', id); if (!r0) throw new Error('Registro não encontrado.');
+    const r = levPorPrograma(r0), G = Docs.pceGrupos(r), n = G.pragas.length, arqs = await arquivosPorId(r);
     const fechar = () => { const m = $('#pce-modal-todos'); if (m) m.remove(); };
     const passo = async i => {
       await Docs.pceLevantamento(r, arqs, i);
@@ -1715,7 +1745,8 @@ const PCEUI = (() => {
    * de um toque recente. Sem compartilhamento de arquivos (computador, navegador antigo): baixa o PDF e explica como enviar.
    */
   async function enviarProdutor(qual, id) {
-    const lev = qual === 'lev', r = await Store.obter(lev ? 'levantamentos' : 'colheitas', id); if (!r) throw new Error('Registro não encontrado.');
+    const lev = qual === 'lev', r0 = await Store.obter(lev ? 'levantamentos' : 'colheitas', id); if (!r0) throw new Error('Registro não encontrado.');
+    const r = lev ? levPorPrograma(r0) : r0;
     const G = lev ? Docs.pceGrupos(r) : null, itens = lev ? (G.pragas.length ? G.pragas.map((g, i) => ({ i, rot: nomePraga(g.praga) })) : [{ i: 0, rot: 'Ficha' }])
       : [{ i: 0, rot: 'Termo de Colheita ' + (r.numeroTxt || '') + ' — via do produtor' }];
     const fecharM = () => { const m = $('#pce-modal-enviar'); if (m) m.remove(); };

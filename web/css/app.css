@@ -70,12 +70,15 @@ nav button span { font-size:9.5px; } nav button.on { color:var(--link); font-wei
 .pce-gps { display:flex; justify-content:space-between; align-items:center; gap:8px; } .pce-gps .dica { text-align:left; padding:0; }
 .pce-cult { border:1px solid var(--grade); border-radius:10px; padding:10px; margin:10px 0; background:var(--sf2); }
 .pce-cult-topo { display:flex; justify-content:space-between; align-items:center; } .pce-cult-topo b { color:var(--destaque); }
-/* PCE — levantamento por praga/doença: card da praga com as culturas avaliadas dentro (resultado e fotos de cada cultura) */
-.pce-praga { border:2px solid var(--base); border-radius:12px; padding:10px; margin:12px 0; background:var(--sf); }
-.pce-praga-topo { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; } .pce-praga-topo b { color:var(--destaque); font-size:16px; }
-.pce-praga [hidden] { display:none !important; }
-.pce-praga .pce-cult { margin:8px 0; }
-.pce-addcult { margin-top:4px; }
+/* PCE — levantamento por cultura: card da cultura (área, espaçamento, fotos) com as pragas/doenças avaliadas nela (resultado e amostra de cada uma) */
+.pce-cultura { border:2px solid var(--base); border-radius:12px; padding:10px; margin:12px 0; background:var(--sf); }
+.pce-cultura-topo { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; } .pce-cultura-topo b { color:var(--destaque); font-size:16px; }
+.pce-cultura [hidden] { display:none !important; }
+.pce-prs h4 { margin:12px 0 4px; font-size:14px; color:var(--mut); }
+.pce-pr { border:1px solid var(--grade); border-radius:10px; padding:10px; margin:8px 0; background:var(--sf2); }
+.pce-pr-topo { display:flex; justify-content:space-between; align-items:center; gap:8px; } .pce-pr-topo b { color:var(--destaque); }
+.pce-pr-topo .pce-pr-nome { flex:1; margin:0; } .pce-pr-cat { color:var(--mut); font-size:12px; }
+.pce-addpraga { margin-top:4px; }
 /* PCE — bloco "Cultura do citros" (cadastro de cítricos): um só, dentro do card "Pragas e doenças", com praga de citros no levantamento */
 .pce-citros { border:2px solid var(--atencao); border-radius:12px; padding:10px; margin:12px 0; background:color-mix(in srgb, var(--atencao) 16%, var(--sf)); }
 .pce-citros h4 { margin:0 0 4px; font-size:16px; color:var(--atencao-txt); } .pce-citros h4 small { display:block; font-weight:400; font-size:12.5px; color:var(--mut); }
@@ -103,8 +106,8 @@ nav button span { font-size:9.5px; } nav button.on { color:var(--link); font-wei
 .pce-res-op .pce-res-nao_detectada:has(input:checked) { background:var(--sucesso); border-color:var(--sucesso); color:#fff; }
 /* espaçamento: seletor da unidade (m | cm) acima dos dois campos */
 .pce-esp { border:0; padding:0; margin:6px 0 0; min-width:0; } .pce-esp legend { padding:0; font-size:13px; color:var(--mut); margin-bottom:4px; }
-.pce-esp-un { display:inline-grid; grid-template-columns:repeat(2,64px); gap:6px; margin-bottom:6px; }
-.pce-esp-un label { position:relative; flex-direction:row; justify-content:center; margin:0; padding:7px 4px; border:1.5px solid var(--grade); border-radius:8px; background:var(--sf); font-weight:600; color:var(--ink); cursor:pointer; }
+.pce-esp-un { display:grid; grid-template-columns:repeat(2,minmax(0,140px)); gap:6px; margin-bottom:6px; }
+.pce-esp-un label { position:relative; flex-direction:row; justify-content:center; margin:0; padding:7px 10px; border:1.5px solid var(--grade); border-radius:8px; background:var(--sf); font-weight:600; color:var(--ink); cursor:pointer; }
 .pce-esp-un input { position:absolute; opacity:0; width:1px; height:1px; }
 .pce-esp-un label:has(input:focus-visible) { outline:2px solid var(--marca2); outline-offset:2px; }
 .pce-esp-un label:has(input:checked) { background:var(--marca2); border-color:var(--marca2); color:#fff; }

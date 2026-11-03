@@ -254,11 +254,11 @@ const PCEUI = (() => {
      (fotos de registro anterior, do levantamento inteiro). No levantamento F.fotos é calculado (todas as fotos do formulário). */
   const listaFotos = (F, chave) => (chave == null ? F.fotos : chave === 'gerais' ? F.gerais : (F.fotosC[chave] = F.fotosC[chave] || []));
   function setListaFotos(F, chave, l) { if (chave == null) F.fotos = l; else if (chave === 'gerais') F.gerais = l; else F.fotosC[chave] = l; }
-  /** Rótulo "praga – cultura" da foto (aba Arquivos e nome no Drive), lido do card da cultura no formulário. */
+  /** Rótulo da foto (aba Arquivos e nome no Drive): a cultura do card em que foi tirada. */
   function rotuloFoto(chave) {
-    const c = chave && chave !== 'gerais' ? document.querySelector(`.pce-cult[data-uid="${chave}"]`) : null; if (!c) return null;
-    const praga = nomePragaCard(c.closest('.pce-praga')), cultura = c.querySelector('.c-cultura').value;
-    return { praga, cultura, rotulo: [praga || SEM_PRAGA, cultura].filter(Boolean).join(' – ') };
+    const c = chave && chave !== 'gerais' ? document.querySelector(`.pce-cultura[data-uid="${chave}"]`) : null; if (!c) return null;
+    const cultura = c.querySelector('.c-cultura').value;
+    return { praga: '', cultura, rotulo: cultura };
   }
   async function adicionarFotos(F, input, prev, chave) {
     const files = [...(input.files || [])]; input.value = '';
@@ -562,18 +562,49 @@ const PCEUI = (() => {
   }
   function fechar(F) { if (F) F.vivo = false; clearTimeout(tRasc); }
 
-  /* ================= Levantamento fitossanitário (por praga/doença) ================= */
-  // Dados gerais (servidor, produtor, propriedade, localização, data/hora, assinaturas) uma vez por visita; depois um card por praga/doença
-  // avaliada, com uma ou mais culturas (resultado, coleta de amostra e fotos de cada cultura). A mesma cultura pode estar em várias pragas.
-  // Gravado em "pragas" (JSON); "culturas" (uma por cultura × praga) e "fotos" (todas) continuam preenchidos para o painel e os relatórios.
+  /* ================= Levantamento fitossanitário (por cultura) ================= */
+  // Dados gerais (servidor, produtor, propriedade, localização, data/hora, assinaturas) uma vez por visita; depois um card por cultura
+  // avaliada (área, espaçamento e fotos), com as pragas/doenças avaliadas nela (resultado e coleta de amostra de cada uma).
+  // As pragas ligadas à cultura no catálogo (pela família ou direto) aparecem sozinhas e exigem resultado; outras podem ser somadas.
+  // Gravado em culturasAvaliadas e resultados (uma linha por cultura e por cultura × praga) e, para os PDFs (um por praga), o painel e
+  // os relatórios, também em "pragas" (praga → culturas, JSON), "culturas" e "fotos", como antes.
   const SEM_PRAGA = 'Sem praga informada', OUTRA = '__outra';
   const RES = Object.fromEntries(P.resultados || [['detectada', 'Detectada'], ['nao_detectada', 'Não detectada'], ['suspeita', 'Suspeita']]);
   const novoUid = () => 'c' + Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-3);
-  const culturaVazia = () => ({ uid: novoUid(), cultura: '', area: '', espLinha: '', espPlanta: '', espUnidade: 'm', resultado: '', coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '', fotos: [] });
-  const pragaVazia = () => ({ praga: '', legado: false, outra: false, culturas: [culturaVazia()] });
+  /** Id do catálogo a partir do nome (o mesmo pceId_ do servidor): "HLB / Greening" → "hlb-greening". */
+  const idCat = s => semAcento(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/ /g, '-').slice(0, 60);
+  let CAT = null;                                                        // catálogo recebido no sync (null: só as listas do config.js, sem ligações)
+  async function carregarCatalogo() { const c = await Store.meta('catalogoPce'); CAT = c && Array.isArray(c.culturas) && Array.isArray(c.pragas) ? c : null; }
+  const culturasCat = () => (CAT ? CAT.culturas.filter(c => Number(c.ativo) !== 0).map(c => c.nome) : P.culturas);
+  const pragasCat = () => (CAT ? CAT.pragas.filter(p => Number(p.ativo) !== 0) : P.pragas.map(n => ({ id: idCat(n), nomePopular: n })));
+  /** Nome gravado em "pragas": o da lista antiga (config.js) quando é a mesma praga, porque PDF, citros e Termo reconhecem por ele; senão o popular. */
+  const nomeDaPraga = p => P.pragas.find(n => idCat(n) === p.id) || p.nomePopular;
+  const pragaPorNome = nome => { const k = idCat(nome); return k ? pragasCat().find(p => p.id === k || idCat(p.nomePopular) === k) || null : null; };
+  const culturaIdDe = nome => { const k = idCat(nome), c = CAT && CAT.culturas.find(x => x.id === k || idCat(x.nome) === k); return c ? c.id : k; };
+  const chavePraga = g => g.pragaId || (g.praga ? idCat(g.praga) : 'sem-praga');
+  /** Pragas da cultura no catálogo: as ligadas à família dela e as ligadas só a ela. */
+  function pragasLigadas(nomeCultura) {
+    const c = CAT && nomeCultura ? CAT.culturas.find(x => idCat(x.nome) === idCat(nomeCultura)) : null; if (!c) return [];
+    const ids = new Set([...(CAT.pragasDasFamilias || []).filter(l => c.familiaId && l.familiaId === c.familiaId).map(l => l.pragaId),
+      ...(CAT.pragasDasCulturas || []).filter(l => l.culturaId === c.id).map(l => l.pragaId)]);
+    return pragasCat().filter(p => ids.has(p.id));
+  }
+  const pragaVazia = (p, ligada) => ({ uid: novoUid(), pragaId: p ? p.id : '', praga: p ? nomeDaPraga(p) : '', ligada: !!ligada, outra: false, legado: false,
+    resultado: '', coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '' });
+  const culturaVazia = () => ({ uid: novoUid(), cultura: '', area: '', espLinha: '', espPlanta: '', espUnidade: 'm', fotos: [], pragas: [] });
+  /** Acerta as pragas do card com o catálogo: marca as ligadas, soma as que faltam e tira as ligadas a outra cultura ainda sem resposta (troca de cultura). */
+  function completarLigadas(c) {
+    const lig = pragasLigadas(c.cultura), ehLig = g => lig.some(p => p.id === chavePraga(g));
+    c.pragas = c.pragas.filter(g => !g.ligada || g.resultado || ehLig(g));
+    c.pragas.forEach(g => { g.ligada = ehLig(g); });
+    lig.forEach(p => { if (!c.pragas.some(g => chavePraga(g) === p.id)) c.pragas.push(pragaVazia(p, true)); });
+    c.pragas = [...c.pragas.filter(g => g.ligada), ...c.pragas.filter(g => !g.ligada)];
+    return c;
+  }
+
   const levVazio = s => ({ doc: '', nome: '', telefone: '', email: '', empresa: '', cnpj: '', propriedade: '', codigoPropriedade: '', situacaoFundiaria: '',
     municipio: s.lotacao || '', endereco: '', uf: 'AM', lat: '', lon: '', precisao: '', data: hojeISO(), hora: agoraHM(), obs: '', tipoLocal: '', origemVisita: '', comercial: '',
-    pragas: [pragaVazia()], citros: null });
+    culturasForm: [culturaVazia()], citros: null });
   /** Registro antigo: nada pré-preenchido com "agora" nem com o perfil de quem digita ("Salvar e digitar outro" mantém servidor/município/data). */
   const levVazioAntigo = (s, m = {}) => ({ ...levVazio(s), municipio: m.municipio || '', data: m.data || '', hora: '', coordTxt: '',
     sNome: m.sNome || '', sCargo: m.sCargo || '', sMatricula: m.sMatricula || '', sLotacao: m.sLotacao || '' });
@@ -585,27 +616,58 @@ const PCEUI = (() => {
     coordTxt: coordTxtDe(r), sNome: r.servidor || '', sCargo: r.cargo || '', sMatricula: r.matricula || '', sLotacao: r.lotacao || '',
     tipoLocal: r.tipoLocal || '', origemVisita: r.origemVisita || '', comercial: r.comercial || '', citros: r.citros || '' }; };
   const nomePraga = p => String(p || '').trim() || SEM_PRAGA;
-
   /**
-   * Prepara o estado de fotos do formulário (F.fotosC: uid da cultura → ids; F.gerais) e devolve os cards para desenhar.
-   * deRegistro: card sem praga vindo de registro/rascunho antigo = "Sem praga informada (registro anterior)".
+   * Registro ou rascunho antigo ("pragas" = praga → culturas) → cards por cultura. Prepara F.fotosC (uid da cultura → ids) e F.gerais.
+   * deRegistro: praga sem nome vinda de registro antigo = "Sem praga informada (registro anterior)".
    */
-  function pragasParaForm(F, pragas, gerais, deRegistro) {
+  function culturasParaForm(F, pragas, gerais, deRegistro) {
     F.fotosC = {}; F.gerais = (gerais || []).slice();
-    const cards = (pragas || []).map(g => ({ praga: String(g.praga || ''), outra: !!g.outra, legado: !!g.legado || (deRegistro && !String(g.praga || '').trim()),
-      culturas: (g.culturas || []).map(c => { const uid = novoUid(); F.fotosC[uid] = (Array.isArray(c.fotos) ? c.fotos : []).filter(Boolean);
-        return { ...culturaVazia(), ...c, uid, coleta: c.coleta === 'Sim' ? 'Sim' : 'Não', resultado: RES[c.resultado] ? c.resultado : '', fotos: F.fotosC[uid] }; }) }));
-    cards.forEach(g => { if (!g.culturas.length) g.culturas.push(culturaVazia()); });
-    return cards.length ? cards : [pragaVazia()];
+    const ix = new Map(), cards = [];
+    (pragas || []).forEach(g => (g.culturas || []).forEach(c0 => {
+      const nome = String(c0.cultura || ''), k = nome ? idCat(nome) : novoUid();
+      let c = ix.get(k);
+      if (!c) {
+        c = { ...culturaVazia(), cultura: nome, area: c0.area || '', espLinha: c0.espLinha || '', espPlanta: c0.espPlanta || '', espUnidade: 'espUnidade' in c0 ? c0.espUnidade || '' : 'm' };
+        ix.set(k, c); cards.push(c);
+      }
+      (Array.isArray(c0.fotos) ? c0.fotos : []).filter(Boolean).forEach(id => { if (!c.fotos.includes(id)) c.fotos.push(id); });
+      const p = pragaPorNome(g.praga), nomeP = String(g.praga || '');
+      if (c.pragas.some(x => chavePraga(x) === (p ? p.id : nomeP ? idCat(nomeP) : 'sem-praga'))) return;
+      c.pragas.push({ ...pragaVazia(), pragaId: p ? p.id : nomeP ? idCat(nomeP) : '', praga: p ? nomeDaPraga(p) : nomeP, outra: !!nomeP && !p,
+        legado: !!g.legado || (deRegistro && !nomeP), resultado: RES[c0.resultado] ? c0.resultado : '', coleta: c0.coleta === 'Sim' ? 'Sim' : 'Não',
+        tipoMaterial: c0.tipoMaterial || '', codigoAmostra: c0.codigoAmostra || '', destinoAmostra: c0.destinoAmostra || '' });
+    }));
+    cards.forEach(c => { F.fotosC[c.uid] = c.fotos; completarLigadas(c); });
+    return cards.length ? cards : [culturaVazia()];
+  }
+  /** Rascunho desta versão (cards por cultura, como coletarLev devolve). */
+  function culturasDoRascunho(F, lista, gerais) {
+    F.fotosC = {}; F.gerais = (gerais || []).slice();
+    const cards = lista.map(c => ({ ...culturaVazia(), ...c, uid: c.uid || novoUid(), fotos: (c.fotos || []).filter(Boolean),
+      pragas: (c.pragas || []).map(g => ({ ...pragaVazia(), ...g, uid: g.uid || novoUid() })) }));
+    cards.forEach(c => { F.fotosC[c.uid] = c.fotos; });
+    return cards.length ? cards : [culturaVazia()];
+  }
+  /** Pragas avaliadas numa cultura da visita, com o enquadramento legal do catálogo (Termo de Fiscalização da cultura). */
+  async function pragasDaCulturaNaVisita(lev, cultura) {
+    await carregarCatalogo();
+    const k = idCat(cultura);
+    return Docs.pceGrupos(lev).pragas.flatMap(g => g.culturas.filter(c => idCat(c.cultura) === k).map(c => {
+      const p = pragaPorNome(g.praga);
+      return { praga: g.praga, resultado: c.resultado, enquadramento: (p && p.enquadramentoLegal) || '' };
+    }));
   }
   /** No levantamento, F.fotos = todas as fotos do formulário (gerais + de cada cultura): rascunho, descarte e limite contam todas. */
   function ligarFotosLev(F) {
     Object.defineProperty(F, 'fotos', { configurable: true, enumerable: true, get: () => [...F.gerais, ...Object.values(F.fotosC).flat()] });
   }
-  function nomePragaCard(card) {
-    if (!card) return '';
-    const sel = card.querySelector('.p-praga');
-    return sel.value === OUTRA ? card.querySelector('.p-outra').value.trim().replace(/\s+/g, ' ') : sel.value;
+  /** Praga de um bloco do card: a do catálogo (fixa) ou a escolhida/digitada. */
+  function pragaDoBloco(e) {
+    if (e.dataset.ligada === '1') return { pragaId: e.dataset.pid, praga: e.dataset.nome, outra: false };
+    const v = e.querySelector('.r-praga').value;
+    if (v === OUTRA) { const t = e.querySelector('.r-outra').value.trim().replace(/\s+/g, ' '); return { pragaId: t ? idCat(t) : '', praga: t, outra: true }; }
+    const p = pragasCat().find(x => x.id === v);
+    return p ? { pragaId: p.id, praga: nomeDaPraga(p), outra: false } : { pragaId: '', praga: '', outra: false };
   }
 
   function coletarLev() {
@@ -614,14 +676,16 @@ const PCEUI = (() => {
       codigoPropriedade: g('codigo'), situacaoFundiaria: g('situacao'), municipio: g('municipio'), endereco: g('endereco'), uf: g('uf'), lat: g('lat'), lon: g('lon'), precisao: g('precisao'), data: g('data'), hora: g('hora'), obs: g('obs'),
       coordTxt: g('coord'), sNome: g('snome'), sCargo: cargoValor('pce-scargo'), sMatricula: g('smatricula'), sLotacao: g('slotacao'),
       tipoLocal: listaOutroValor('tipolocal'), origemVisita: listaOutroValor('origem'), comercial: g('comercial'), citros: PCECitros.coletar(),
-      pragas: [...document.querySelectorAll('#pce-pragas .pce-praga')].map(card => ({ praga: nomePragaCard(card), outra: card.querySelector('.p-praga').value === OUTRA,
-        legado: card.dataset.legado === '1',
-        culturas: [...card.querySelectorAll('.pce-cult')].map(b => {
-          const q = c => b.querySelector('.c-' + c).value, uid = b.dataset.uid, r = b.querySelector('.c-res:checked');
-          return { uid, cultura: q('cultura'), area: q('area'), espLinha: q('espLinha'), espPlanta: q('espPlanta'),
-            espUnidade: (b.querySelector('.c-espUnidade:checked') || {}).value || '', resultado: r ? r.value : '', coleta: q('coleta'),
-            tipoMaterial: q('tipoMaterial'), codigoAmostra: q('codigoAmostra'), destinoAmostra: q('destinoAmostra'), fotos: ((L && L.fotosC[uid]) || []).slice() };
-        }) })) };
+      culturasForm: [...document.querySelectorAll('#pce-culturas .pce-cultura')].map(b => {
+        const q = c => b.querySelector('.c-' + c).value, uid = b.dataset.uid;
+        return { uid, cultura: q('cultura'), area: q('area'), espLinha: q('espLinha'), espPlanta: q('espPlanta'),
+          espUnidade: (b.querySelector('.c-espUnidade:checked') || {}).value || '', fotos: ((L && L.fotosC[uid]) || []).slice(),
+          pragas: [...b.querySelectorAll('.pce-pr')].map(e => {
+            const r = e.querySelector('.r-res:checked'), q2 = c => e.querySelector('.r-' + c).value;
+            return { uid: e.dataset.uid, ...pragaDoBloco(e), ligada: e.dataset.ligada === '1', legado: e.dataset.legado === '1', resultado: r ? r.value : '',
+              coleta: q2('coleta'), tipoMaterial: q2('tipoMaterial'), codigoAmostra: q2('codigoAmostra'), destinoAmostra: q2('destinoAmostra') };
+          }) };
+      }) };
   }
   const campo = (id, rot, v, extra = '') => `<label>${rot}<input id="pce-${id}" value="${esc(v)}" ${extra}></label>`;
   /** Lista com "Outro" digitável (tipo de local e origem da visita): valor fora da lista = "Outro" + o texto. */
@@ -639,46 +703,56 @@ const PCEUI = (() => {
   }
   /** Espaçamento entre linhas e entre plantas: só número (vírgula ou ponto decimal) e a unidade escolhida no seletor, gravada em espUnidade.
    *  Registro anterior sem unidade: o texto antigo aparece como estava e o seletor fica sem escolha até a pessoa marcar. */
-  const UNIDADES_ESP = ['m', 'cm'], ESP_NUM = 'inputmode="decimal" maxlength="8" autocomplete="off"';
+  const UNIDADES_ESP = ['m', 'cm'], NOME_UNIDADE = { m: 'Metros', cm: 'Centímetros' }, ESP_NUM = 'inputmode="decimal" maxlength="8" autocomplete="off"';
   const espNumero = v => /^\d+([.,]\d+)?$/.test(v) && Number(v.replace(',', '.')) > 0;
+  function blocoPraga(g) {
+    const u = esc(g.uid), amostra = g.coleta === 'Sim' ? '' : 'disabled';   // sem coleta: campos da amostra escondidos
+    const inp = (cls, rot) => `<label>${rot}<input class="r-${cls}" value="${esc(g[cls])}" maxlength="60" ${amostra}></label>`;
+    const lista = pragasCat(), outra = g.outra || (!!g.praga && !g.ligada && !lista.some(p => p.id === chavePraga(g)));
+    const topo = g.ligada
+      ? `<b>${icone('praga')} ${esc(g.praga)}</b><small class="pce-pr-cat">do catálogo</small>`
+      : `<label class="pce-pr-nome">Praga/doença *<select class="r-praga"><option value="">${esc(g.legado ? SEM_PRAGA + ' (registro anterior)' : 'Selecione')}</option>
+          ${lista.map(p => `<option value="${esc(p.id)}" ${!outra && p.id === chavePraga(g) ? 'selected' : ''}>${esc(nomeDaPraga(p))}</option>`).join('')}
+          <option value="${OUTRA}" ${outra ? 'selected' : ''}>Outra (digitar o nome)</option></select></label>
+        <button type="button" class="mini" data-pce="delpraga" data-uid="${u}" aria-label="Remover praga/doença">Remover</button>`;
+    return `<div class="pce-pr" data-uid="${u}" data-ligada="${g.ligada ? 1 : ''}" data-pid="${esc(g.pragaId)}" data-nome="${esc(g.praga)}" data-legado="${g.legado ? 1 : ''}">
+      <div class="pce-pr-topo">${topo}</div>
+      ${g.ligada ? '' : `<label class="r-outra-l" ${outra ? '' : 'hidden'}>Nome da praga/doença *<input class="r-outra" maxlength="80" value="${esc(outra ? g.praga : '')}" autocomplete="off"></label>`}
+      <fieldset class="pce-res"><legend>Resultado *</legend><div class="pce-res-op">${Object.keys(RES).map(v => `<label class="pce-res-${v}"><input type="radio" class="r-res"
+        name="res-${u}" value="${v}" ${g.resultado === v ? 'checked' : ''}><span>${esc(RES[v])}</span></label>`).join('')}</div></fieldset>
+      <label>Coleta de amostra<select class="r-coleta">${opts(['Não', 'Sim'], g.coleta === 'Sim' ? 'Sim' : 'Não')}</select></label>
+      <div class="pce-amostra" ${amostra ? 'hidden' : ''}>${inp('tipoMaterial', 'Tipo de material')}<div class="duas">${inp('codigoAmostra', 'Código da amostra')}${inp('destinoAmostra', 'Destino da amostra')}</div></div></div>`;
+  }
   function blocoCultura(c, k) {
-    const amostra = c.coleta === 'Sim' ? '' : 'disabled', u = esc(c.uid);
+    const u = esc(c.uid);
     const inp = (cls, rot, extra = '') => `<label>${rot}<input class="c-${cls}" value="${esc(c[cls])}" maxlength="60" ${extra}></label>`;
-    return `<div class="pce-cult" data-uid="${u}"><div class="pce-cult-topo"><b>Cultura ${k + 1}</b>
+    const semLig = c.cultura && !c.pragas.some(g => g.ligada);
+    return `<div class="pce-cultura" data-uid="${u}"><div class="pce-cultura-topo"><b>${icone('broto')} Cultura ${k + 1}</b>
         <button type="button" class="mini" data-pce="delcult" data-uid="${u}" aria-label="Remover cultura ${k + 1}">Remover</button></div>
-      <label>Cultura *<select class="c-cultura">${opts(P.culturas, c.cultura, 'Selecione')}</select></label>
-      <fieldset class="pce-res"><legend>Resultado *</legend><div class="pce-res-op">${Object.keys(RES).map(v => `<label class="pce-res-${v}"><input type="radio" class="c-res"
-        name="res-${u}" value="${v}" ${c.resultado === v ? 'checked' : ''}><span>${esc(RES[v])}</span></label>`).join('')}</div></fieldset>
-      <div class="duas">${inp('area', 'Área (ha)', 'inputmode="decimal"')}<label>Coleta de amostra<select class="c-coleta">${opts(['Não', 'Sim'], c.coleta === 'Sim' ? 'Sim' : 'Não')}</select></label></div>
+      <label>Cultura avaliada *<select class="c-cultura">${opts(culturasCat(), c.cultura, 'Selecione')}</select></label>
+      <div class="duas">${inp('area', 'Área (ha)', 'inputmode="decimal"')}<span></span></div>
       <fieldset class="pce-esp"><legend>Espaçamento</legend><div class="pce-esp-un" role="radiogroup" aria-label="Unidade do espaçamento">${UNIDADES_ESP.map(x =>
-        `<label><input type="radio" class="c-espUnidade" name="esp-${u}" value="${x}" ${c.espUnidade === x ? 'checked' : ''}><span>${x}</span></label>`).join('')}</div>
+        `<label><input type="radio" class="c-espUnidade" name="esp-${u}" value="${x}" ${c.espUnidade === x ? 'checked' : ''}><span>${NOME_UNIDADE[x]}</span></label>`).join('')}</div>
         <div class="duas">${inp('espLinha', 'Entre linhas', ESP_NUM)}${inp('espPlanta', 'Entre plantas', ESP_NUM)}</div></fieldset>
-      <div class="pce-amostra">${inp('tipoMaterial', 'Tipo de material', amostra)}<div class="duas">${inp('codigoAmostra', 'Código da amostra', amostra)}${inp('destinoAmostra', 'Destino da amostra', amostra)}</div></div>
+      <div class="pce-prs"><h4>Pragas e doenças avaliadas nesta cultura</h4>
+        ${!c.cultura ? '<p class="dica" style="text-align:left">Escolha a cultura: as pragas e doenças dela no catálogo aparecem aqui.</p>'
+          : semLig ? '<p class="dica" style="text-align:left">Nenhuma praga ligada a esta cultura no catálogo. Some abaixo a que foi avaliada.</p>' : ''}
+        ${c.pragas.map(blocoPraga).join('')}
+        <button type="button" class="botao sec pce-addpraga" data-pce="addpraga" data-uid="${u}">+ Outra praga/doença nesta cultura</button></div>
       <label class="pce-arquivo pce-arquivo-cult">${icone('camera')} Fotos desta cultura<input type="file" class="c-fotos" data-uid="${u}" accept="image/*" multiple></label>
       <div id="pce-fotos-${u}" class="pce-fotos pce-fotos-cult"></div></div>`;
   }
-  function blocoPraga(g, i) {
-    const outra = g.outra || (!!g.praga && !P.pragas.includes(g.praga));
-    return `<div class="pce-praga" data-p="${i}" data-legado="${g.legado ? 1 : ''}"><div class="pce-praga-topo"><b>${icone('praga')} Praga/doença ${i + 1}</b>
-        <button type="button" class="mini" data-pce="delpraga" data-p="${i}" aria-label="Remover praga/doença ${i + 1}">Remover</button></div>
-      <label>Praga/doença avaliada *<select class="p-praga"><option value="">${esc(g.legado ? SEM_PRAGA + ' (registro anterior)' : 'Selecione')}</option>
-        ${P.pragas.map(x => `<option ${!outra && x === g.praga ? 'selected' : ''}>${esc(x)}</option>`).join('')}
-        <option value="${OUTRA}" ${outra ? 'selected' : ''}>Outra (digitar o nome)</option></select></label>
-      <label class="p-outra-l" ${outra ? '' : 'hidden'}>Nome da praga/doença *<input class="p-outra" maxlength="80" value="${esc(outra ? g.praga : '')}" autocomplete="off"></label>
-      <div class="pce-cults">${g.culturas.map(blocoCultura).join('')}</div>
-      <button type="button" class="botao sec pce-addcult" data-pce="addcult" data-p="${i}">+ Adicionar cultura nesta praga</button></div>`;
-  }
-  async function desenharPragas(lista) {
-    const el = $('#pce-pragas'); if (!el || !L) return;
-    el.innerHTML = lista.map(blocoPraga).join('');
+  async function desenharCulturas(lista) {
+    const el = $('#pce-culturas'); if (!el || !L) return;
+    el.innerHTML = lista.map(blocoCultura).join('');
     const F = L;
     atualizarCitros();
-    for (const c of lista.flatMap(g => g.culturas)) await renderFotos(F, '#pce-fotos-' + c.uid, c.uid);
+    for (const c of lista) await renderFotos(F, '#pce-fotos-' + c.uid, c.uid);
   }
-  /** Bloco "Cultura do citros": visível só com card de praga de citros; praga de citros detectada pré-marca "Presença" na detecção/delimitação. */
+  /** Bloco "Cultura do citros": visível só com praga de citros em alguma cultura; praga de citros detectada pré-marca "Presença" na detecção/delimitação. */
   function atualizarCitros() {
-    const cards = [...document.querySelectorAll('#pce-pragas .pce-praga')];
-    PCECitros.atualizar(cards.map(c => ({ praga: nomePragaCard(c), detectada: !!c.querySelector('.c-res[value="detectada"]:checked') })));
+    const prs = [...document.querySelectorAll('#pce-culturas .pce-pr')];
+    PCECitros.atualizar(prs.map(e => ({ praga: pragaDoBloco(e).praga, detectada: !!e.querySelector('.r-res[value="detectada"]:checked') })));
   }
   const fotosGeraisHTML = () => `<div class="card" id="pce-gerais-card"><h3>${icone('camera')} Fotos gerais (registro anterior)</h3>
       <p class="dica" style="text-align:left">Fotos do levantamento inteiro, de antes da separação por praga. Saem em todos os PDFs. As fotos novas vão em cada cultura.</p>
@@ -717,11 +791,11 @@ const PCEUI = (() => {
       <label>Plantio comercial?<select id="pce-comercial">${[['', 'Não informado'], ['sim', 'Sim'], ['nao', 'Não']].map(([v, t]) =>
         `<option value="${v}" ${D.comercial === v ? 'selected' : ''}>${t}</option>`).join('')}</select></label>
       <div class="duas">${listaOutroHTML('tipolocal', 'Tipo de local', P.tiposLocal || [], D.tipoLocal)}${listaOutroHTML('origem', 'Origem da visita', P.origensVisita || [], D.origemVisita)}</div></div>
-    <div class="card pce-pragas-card" id="pce-pragas-card"><h3>Pragas e doenças avaliadas</h3>
-      <p class="dica" style="text-align:left">Um card para cada praga/doença avaliada na visita; dentro dele, as culturas avaliadas, com o resultado e as fotos de cada uma. A mesma cultura pode aparecer em pragas diferentes. Cada praga sai num PDF próprio. Com praga de citros, aparece o bloco “${icone('citros')} Cultura do citros” (um só para o levantamento).</p>
-      <div id="pce-pragas"></div>
-      ${PCECitros.html(D.citros)}
-      <button type="button" class="botao sec" data-pce="addpraga" id="pce-addpraga">+ Adicionar praga/doença</button></div>
+    <div class="card pce-culturas-card" id="pce-culturas-card"><h3>Culturas avaliadas</h3>
+      <p class="dica" style="text-align:left">Um card para cada cultura avaliada na visita. Ao escolher a cultura, as pragas e doenças dela no catálogo aparecem e cada uma precisa de resultado. Cada cultura gera o seu Termo de Fiscalização. Com praga de citros, aparece o bloco “${icone('citros')} Cultura do citros” (um só para o levantamento).</p>
+      <div id="pce-culturas"></div>
+      <button type="button" class="botao sec" data-pce="addcult" id="pce-addcult">+ Adicionar cultura</button>
+      ${PCECitros.html(D.citros)}</div>
     ${F.gerais.length ? fotosGeraisHTML() : ''}
     ${A ? pdfHTML('pce-') : ''}
     ${A || !CONFIG.assinaturaNaTela ? '' : `<div class="card"><h3>Assinaturas (opcional)</h3>
@@ -740,6 +814,7 @@ const PCEUI = (() => {
     const querAntigo = !!(o.antigo || (rec0 && Number(rec0.registroAntigo) === 1) || (!id && soDigitador(s0) && podeAntigo()));   // quem só digita: sempre do papel (sem a permissão: pede cargo/lotação)
     if (querAntigo && !podeAntigo()) { toast(SEM_ANTIGO, true); return go('pce'); }   // registro do papel: só com a permissão "antigo"
     const s = await exigirServidor('pcelev', arg, querAntigo); if (!s) return;
+    await carregarCatalogo();
     fechar(L); fechar(T); L = null;
     let F = null, D = null, cards = null, prefill = null;
     let rasc = await Store.meta('pceLevRascunho');
@@ -753,10 +828,11 @@ const PCEUI = (() => {
         const rec = await Store.obter('levantamentos', rasc.id);
         F = { id: rasc.id, novo: !rec, rec: rec || null, docs: rasc.docs || [], antigo: !!rasc.antigo, ass: rasc.ass || {}, assNovas: rasc.assNovas || {}, naoAssina: !!rasc.naoAssina };
         D = { ...(F.antigo ? levVazioAntigo(s) : levVazio(s)), ...rasc.dados };
-        if (Array.isArray(rasc.dados.pragas)) cards = pragasParaForm(F, rasc.dados.pragas, rasc.gerais, false);
+        if (Array.isArray(rasc.dados.culturasForm)) cards = culturasDoRascunho(F, rasc.dados.culturasForm, rasc.gerais);
+        else if (Array.isArray(rasc.dados.pragas)) cards = culturasParaForm(F, rasc.dados.pragas, rasc.gerais, false);   // rascunho da versão por praga
         else {                                                             // rascunho da versão anterior (culturas + fotos do levantamento inteiro)
           const G = Docs.pceGrupos({ culturas: rasc.dados.culturas || [], fotos: rasc.fotos || [] });
-          cards = pragasParaForm(F, G.pragas, G.gerais, true);
+          cards = culturasParaForm(F, G.pragas, G.gerais, true);
         }
       } else await descartarRascunho('lev', rasc);
     }
@@ -768,8 +844,8 @@ const PCEUI = (() => {
         : { id: Store.novoId(), novo: true, rec: null, docs: [], antigo: querAntigo, ass: {}, assNovas: {} };
       D = rec ? levDeRegistro(rec) : F.antigo ? levVazioAntigo(s, o.manter) : levVazio(s);
       if (!rec && o.propId) prefill = await Campo.dadosPara(o.propId);      // "Fazer levantamento aqui" (mapa): produtor e propriedade já preenchidos
-      if (rec) { const G = Docs.pceGrupos(rec); cards = pragasParaForm(F, G.pragas, G.gerais, true); }   // registro anterior: convertido para cards
-      else cards = pragasParaForm(F, [], [], false);
+      if (rec) { const G = Docs.pceGrupos(rec); cards = culturasParaForm(F, G.pragas, G.gerais, true); }   // registro salvo: convertido para cards por cultura
+      else cards = culturasParaForm(F, [], [], false);
     }
     ligarFotosLev(F);
     if (F.naoAssina == null) F.naoAssina = !!F.ass.produtorDoc;
@@ -781,7 +857,7 @@ const PCEUI = (() => {
     F.prodLivre = !F.novo || !!prefill || dd.length === 11 || dd.length === 14 || [D.nome, D.telefone, D.email, D.empresa, D.cnpj, D.propriedade, D.codigoPropriedade].some(x => String(x || '').trim());
     L = F;
     view(formLevHTML(D, F));
-    await desenharPragas(cards);
+    await desenharCulturas(cards);
     if (F.gerais.length) await renderFotos(F, '#pce-fotos-gerais', 'gerais');
     if (F.antigo) { mostrarCoord('pce-'); await renderDocs(F, '#pce-pdfs-lista'); }
     else {
@@ -792,7 +868,7 @@ const PCEUI = (() => {
     f.addEventListener('input', e => {
       if (e.target.id === 'pce-busca-prop') { clearTimeout(tm.busca); tm.busca = setTimeout(() => buscarPropForm().catch(() => {}), 250); return; }
       if (e.target.id === 'pce-doc') aoDigitarDoc('pce-', e.target); if (e.target.id === 'pce-coord') mostrarCoord('pce-');
-      if (e.target.classList.contains('p-outra')) atualizarCitros();
+      if (e.target.classList.contains('r-outra')) atualizarCitros();
       if (e.target.matches('.c-espLinha, .c-espPlanta')) {             // só número: tira letras e deixa um separador decimal
         const v = e.target.value; let n = v.replace(/[^\d.,]/g, ''); const i = n.search(/[.,]/);
         if (i >= 0) n = n.slice(0, i + 1) + n.slice(i + 1).replace(/[.,]/g, '');
@@ -810,12 +886,19 @@ const PCEUI = (() => {
       if (t.dataset && t.dataset.outro) { const l = $('#' + t.dataset.outro + '-l'); if (l) { l.hidden = t.value !== OUTRO; if (!l.hidden) l.querySelector('input').focus(); } }
       if (t.id === 'pce-snome') await completarServidor('pce-');
       if (t.id === 'pce-doc') t.value = fmtDoc(digitos(t.value));
-      if (t.classList.contains('c-coleta')) t.closest('.pce-cult').querySelectorAll('.pce-amostra input').forEach(i => { i.disabled = t.value !== 'Sim'; });
-      if (t.classList.contains('p-praga')) {                               // "Outra": mostra o campo do nome
-        const l = t.closest('.pce-praga').querySelector('.p-outra-l'); l.hidden = t.value !== OUTRA;
+      if (t.classList.contains('r-coleta')) {
+        const am = t.closest('.pce-pr').querySelector('.pce-amostra'); am.hidden = t.value !== 'Sim';
+        am.querySelectorAll('input').forEach(i => { i.disabled = t.value !== 'Sim'; });
+      }
+      if (t.classList.contains('r-praga')) {                               // "Outra": mostra o campo do nome
+        const l = t.closest('.pce-pr').querySelector('.r-outra-l'); l.hidden = t.value !== OUTRA;
         if (t.value === OUTRA) l.querySelector('input').focus();
       }
-      if (t.classList.contains('p-praga') || t.classList.contains('c-res') || t.classList.contains('p-outra')) { atualizarCitros(); copiarComercial(); }
+      if (t.classList.contains('c-cultura')) {                             // cultura escolhida ou trocada: as pragas dela no catálogo entram no card
+        const lst = coletarLev().culturasForm, c = lst.find(x => x.uid === t.closest('.pce-cultura').dataset.uid);
+        if (c) { completarLigadas(c); await desenharCulturas(lst); }
+      }
+      if (t.classList.contains('r-praga') || t.classList.contains('r-res') || t.classList.contains('r-outra') || t.classList.contains('c-cultura')) { atualizarCitros(); copiarComercial(); }
       if (t.id === 'pce-comercial') copiarComercial();
       if (t.closest('#pce-citros')) PCECitros.ligar();
       if (t.id === 'pce-cnpj') avisoCnpj(t);
@@ -834,38 +917,69 @@ const PCEUI = (() => {
     const d = digitos(t.value), st = $('#pce-st-cnpj'); if (d.length === 14) t.value = fmtDoc(d);
     if (st) st.innerHTML = !d ? '' : d.length !== 14 ? '<div class="tf-alerta">CNPJ incompleto (14 dígitos).</div>' : cnpjOk(d) ? '' : '<div class="tf-alerta">CNPJ com dígitos inválidos: confira a digitação.</div>';
   }
-  /** Cards de praga do formulário → pragas a gravar (só culturas preenchidas). null = parar (mensagem já mostrada). */
-  function pragasValidadas(D) {
-    const out = [], vistas = new Map();
-    for (const [i, g] of D.pragas.entries()) {
-      const nome = g.praga || (g.legado ? SEM_PRAGA : `card ${i + 1}`);
-      if (g.culturas.some(c => !c.cultura && c.fotos.length)) { toast(`${nome}: escolha a cultura das fotos (há fotos numa cultura sem nome).`, true); return null; }
-      const cults = g.culturas.filter(c => c.cultura);
-      if (!cults.length) {
-        if (g.praga || g.outra) { toast(`Informe ao menos uma cultura avaliada para ${g.praga || 'a praga/doença ' + (i + 1)}.`, true); return null; }
+  /**
+   * Cards de cultura do formulário → {cults: culturas a gravar, pragas: o mesmo em praga → culturas (PDF, painel, relatórios)}.
+   * Toda praga do card precisa de resultado (as do catálogo não podem ficar sem). null = parar (mensagem já mostrada).
+   */
+  function culturasValidadas(D) {
+    const cults = [], vistas = new Set();
+    for (const [i, c] of D.culturasForm.entries()) {
+      const prs = c.pragas.filter(g => g.ligada || g.praga || g.outra || g.resultado || g.legado);
+      if (!c.cultura) {
+        if (c.fotos.length) { toast(`Cultura ${i + 1}: escolha a cultura das fotos.`, true); return null; }
+        if (prs.length) { toast(`Cultura ${i + 1}: escolha a cultura avaliada.`, true); return null; }
         continue;                                                          // card vazio: ignorado
       }
-      if (g.outra && !g.praga) { toast(`Digite o nome da praga/doença ${i + 1} (opção “Outra”).`, true); return null; }
-      if (!g.praga && !g.legado) { toast(`Escolha a praga/doença avaliada no card ${i + 1}.`, true); return null; }
-      if (!g.praga && cults.some(c => c.resultado && c.resultado !== 'nao_detectada')) { toast(`Card ${i + 1}: escolha a praga/doença detectada ou suspeita.`, true); return null; }
-      const espRuim = cults.find(c => [c.espLinha, c.espPlanta].some(v => v.trim() && !espNumero(v.trim())));
-      if (espRuim) { toast(`Espaçamento de ${espRuim.cultura} em ${nomePraga(g.praga)}: só números (ex.: 3 ou 2,5).`, true); return null; }
-      const semUn = cults.find(c => (c.espLinha.trim() || c.espPlanta.trim()) && !UNIDADES_ESP.includes(c.espUnidade));
-      if (semUn) { toast(`Escolha a unidade do espaçamento (m ou cm) de ${semUn.cultura} em ${nomePraga(g.praga)}.`, true); return null; }
-      const semRes = cults.find(c => !c.resultado);
-      if (semRes) { toast(`Informe o resultado de ${semRes.cultura} em ${nomePraga(g.praga)} (detectada, não detectada ou suspeita).`, true); return null; }
-      const nomes = cults.map(c => c.cultura), dup = nomes.find((c, k) => nomes.indexOf(c) !== k);
-      if (dup) { toast(`${dup} aparece duas vezes em ${nomePraga(g.praga)}. Junte numa só cultura (área e fotos).`, true); return null; }
-      const k = semAcento(g.praga).toUpperCase();
-      if (vistas.has(k)) { toast(`${nomePraga(g.praga)} está em dois cards. Junte as culturas num só card.`, true); return null; }
-      vistas.set(k, 1);
-      out.push({ praga: g.praga, culturas: cults.map(c => ({ cultura: c.cultura, area: c.area.trim(), espLinha: c.espLinha.trim(), espPlanta: c.espPlanta.trim(),
-        espUnidade: c.espLinha.trim() || c.espPlanta.trim() ? c.espUnidade : '', resultado: c.resultado, coleta: c.coleta === 'Sim' ? 'Sim' : 'Não', tipoMaterial: c.coleta === 'Sim' ? c.tipoMaterial.trim() : '',
-        codigoAmostra: c.coleta === 'Sim' ? c.codigoAmostra.trim() : '', destinoAmostra: c.coleta === 'Sim' ? c.destinoAmostra.trim() : '', fotos: c.fotos.slice() })) });
+      const k = idCat(c.cultura);
+      if (vistas.has(k)) { toast(`${c.cultura} está em dois cards. Junte numa só cultura (área, pragas e fotos).`, true); return null; }
+      vistas.add(k);
+      if ([c.espLinha, c.espPlanta].some(v => v.trim() && !espNumero(v.trim()))) { toast(`Espaçamento de ${c.cultura}: só números (ex.: 3 ou 2,5).`, true); return null; }
+      if ((c.espLinha.trim() || c.espPlanta.trim()) && !UNIDADES_ESP.includes(c.espUnidade)) { toast(`Escolha a unidade do espaçamento (metros ou centímetros) de ${c.cultura}.`, true); return null; }
+      if (!prs.length) { toast(`Informe ao menos uma praga/doença avaliada em ${c.cultura}.`, true); return null; }
+      const ks = new Set();
+      for (const g of prs) {
+        if (g.outra && !g.praga) { toast(`${c.cultura}: digite o nome da praga/doença (opção “Outra”).`, true); return null; }
+        if (!g.praga && !g.legado) { toast(`${c.cultura}: escolha a praga/doença avaliada (ou remova o bloco vazio).`, true); return null; }
+        if (!g.resultado) { toast(`Informe o resultado de ${nomePraga(g.praga)} em ${c.cultura} (detectada, não detectada ou suspeita).`, true); return null; }
+        if (!g.praga && g.resultado !== 'nao_detectada') { toast(`${c.cultura}: escolha a praga/doença detectada ou suspeita.`, true); return null; }
+        if (ks.has(chavePraga(g))) { toast(`${nomePraga(g.praga)} aparece duas vezes em ${c.cultura}.`, true); return null; }
+        ks.add(chavePraga(g));
+      }
+      const am = g => (g.coleta === 'Sim' ? { tipoMaterial: g.tipoMaterial.trim(), codigoAmostra: g.codigoAmostra.trim(), destinoAmostra: g.destinoAmostra.trim() }
+        : { tipoMaterial: '', codigoAmostra: '', destinoAmostra: '' });
+      cults.push({ cultura: c.cultura, culturaId: culturaIdDe(c.cultura), area: c.area.trim(), espLinha: c.espLinha.trim(), espPlanta: c.espPlanta.trim(),
+        espUnidade: c.espLinha.trim() || c.espPlanta.trim() ? c.espUnidade : '', fotos: c.fotos.slice(),
+        pragas: prs.map(g => ({ pragaId: chavePraga(g), praga: g.praga, legado: !!g.legado, resultado: g.resultado, coleta: g.coleta === 'Sim' ? 'Sim' : 'Não', ...am(g) })) });
     }
-    if (!out.length) { toast('Informe pelo menos uma praga/doença com uma cultura avaliada.', true); return null; }
-    if (out.reduce((s, g) => s + g.culturas.length, 0) > MAX_CULTURAS) { toast(`Limite de ${MAX_CULTURAS} culturas por levantamento (somando as pragas).`, true); return null; }
-    return out;
+    if (!cults.length) { toast('Informe pelo menos uma cultura avaliada, com as pragas/doenças dela.', true); return null; }
+    if (cults.length > MAX_CULTURAS || cults.reduce((s, c) => s + c.pragas.length, 0) > MAX_CULTURAS * 2) { toast(`Limite de ${MAX_CULTURAS} culturas por levantamento.`, true); return null; }
+    const ix = new Map(), pragas = [];
+    cults.forEach(c => c.pragas.forEach(g => {
+      const k = g.legado && !g.praga ? 'sem-praga' : g.pragaId;
+      if (!ix.has(k)) { ix.set(k, { praga: g.praga, ...(g.legado && !g.praga ? { legado: true } : {}), culturas: [] }); pragas.push(ix.get(k)); }
+      ix.get(k).culturas.push({ cultura: c.cultura, area: c.area, espLinha: c.espLinha, espPlanta: c.espPlanta, espUnidade: c.espUnidade, resultado: g.resultado,
+        coleta: g.coleta, tipoMaterial: g.tipoMaterial, codigoAmostra: g.codigoAmostra, destinoAmostra: g.destinoAmostra, fotos: c.fotos.slice() });
+    }));
+    return { cults, pragas };
+  }
+  /** Linhas de culturasAvaliadas e resultados da visita (id fixo por levantamento + cultura [+ praga]: reeditar substitui). */
+  function linhasDaVisita(levId, cults) {
+    const usu = { levantamentoId: levId, excluido: 0 };
+    return {
+      culturas: cults.map(c => ({ id: levId + '|' + c.culturaId, ...usu, culturaId: c.culturaId, cultura: c.cultura, area: c.area, espLinha: c.espLinha,
+        espPlanta: c.espPlanta, espUnidade: c.espUnidade, fotos: JSON.stringify(c.fotos) })),
+      resultados: cults.flatMap(c => c.pragas.map(g => ({ id: levId + '|' + c.culturaId + '|' + g.pragaId, ...usu, culturaId: c.culturaId, pragaId: g.pragaId,
+        praga: g.praga, resultado: g.resultado, coleta: g.coleta, tipoMaterial: g.tipoMaterial, codigoAmostra: g.codigoAmostra, destinoAmostra: g.destinoAmostra })))
+    };
+  }
+  /** Grava as linhas da visita e marca como excluídas as que saíram (cultura ou praga removida na edição). */
+  async function gravarLinhasDaVisita(levId, cults) {
+    const V = linhasDaVisita(levId, cults);
+    for (const [store, novas] of [['culturasAvaliadas', V.culturas], ['resultados', V.resultados]]) {
+      const ids = new Set(novas.map(x => x.id)), antigas = (await Store.todos(store)).filter(x => x && x.levantamentoId === levId && !Number(x.excluido) && !ids.has(x.id));
+      for (const x of novas) { const a = await Store.obter(store, x.id); await Store.salvar(store, { ...(a || {}), ...x }); }
+      for (const x of antigas) await Store.salvar(store, { ...x, excluido: 1 });
+    }
   }
   /** Compatibilidade: uma cultura por cultura × praga (praga = nome só se detectada/suspeita), para o painel, relatórios e versões anteriores. */
   const culturasDerivadas = pragas => pragas.flatMap(g => g.culturas.map(c => ({ cultura: c.cultura, area: c.area, espLinha: c.espLinha, espPlanta: c.espPlanta, espUnidade: c.espUnidade || '',
@@ -883,7 +997,8 @@ const PCEUI = (() => {
     const cnpj = digitos(D.cnpj);
     if (cnpj && cnpj.length !== 14) { toast('O CNPJ da propriedade/empresa deve ter 14 dígitos (ou deixe em branco).', true); return $('#pce-cnpj').focus(); }
     if (cnpj && !cnpjOk(cnpj) && !confirm('O CNPJ da propriedade/empresa tem dígitos inválidos. Continuar mesmo assim?')) return;
-    const pragas = pragasValidadas(D); if (!pragas) return;
+    const V = culturasValidadas(D); if (!V) return;
+    const pragas = V.pragas;
     // cultura do citros: só com praga de citros (sem ela, a coluna fica vazia; o digitado some ao salvar). Detecção (3 doenças) obrigatória.
     let citros = '';
     if (pragas.some(g => PCECitros.ehCitros(g.praga))) {
@@ -897,11 +1012,11 @@ const PCEUI = (() => {
     const btn = $('#pce-salvar'), btn2 = $('#pce-salvar-outro'); btn.disabled = true; if (btn2) btn2.disabled = true; F.salvando = true;
     try {
       const { mapa, novos } = prepararAssinaturas(F);
-      const fotos = [...F.gerais, ...pragas.flatMap(g => g.culturas.flatMap(c => c.fotos))];
+      const fotos = [...new Set([...F.gerais, ...V.cults.flatMap(c => c.fotos)])];
       const antes = idsArquivos(F.rec), depois = new Set([...fotos, ...F.docs, ...Object.values(mapa)]);
       await Store.gravarVarios('arquivos', novos);
-      // fotos ainda não enviadas: praga/cultura atuais (o fiscal pode ter trocado a praga ou a cultura depois de fotografar)
-      const rotulos = new Map(pragas.flatMap(g => g.culturas.flatMap(c => c.fotos.map(id => [id, { praga: g.praga, cultura: c.cultura, rotulo: `${nomePraga(g.praga)} – ${c.cultura}` }]))));
+      // fotos ainda não enviadas: cultura atual (o fiscal pode ter trocado a cultura depois de fotografar)
+      const rotulos = new Map(V.cults.flatMap(c => c.fotos.map(id => [id, { praga: '', cultura: c.cultura, rotulo: c.cultura }])));
       await Store.mesclar('arquivos', [...rotulos.keys()].map(id => ({ id })), (a, row) => (a && !a.enviado ? { ...a, ...rotulos.get(row.id) } : null));
       const base = { ...(F.rec || {}) }; delete base.pendente;
       const rec = { ...base, id: F.id, ...(sv || F.serv), data: D.data, hora: D.hora, doc, nome: D.nome.trim().replace(/\s+/g, ' ').toUpperCase(), telefone: D.telefone.trim(),
@@ -913,6 +1028,7 @@ const PCEUI = (() => {
         uf: D.uf.trim().toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2) };
       if (F.antigo || F.docs.length) Object.assign(rec, { registroAntigo: F.antigo ? 1 : 0, documentos: JSON.stringify(F.docs) });   // campos técnicos (não aparecem no painel nem na ficha)
       await Store.salvar('levantamentos', rec);
+      await gravarLinhasDaVisita(F.id, V.cults);
       if (sv) await lembrarServidor(sv);
       await apagarSeNaoEnviado([...antes].filter(id => !depois.has(id)));               // removidos antes do envio somem do aparelho
       await Store.salvar('pessoas', await montarPessoa(doc, { nome: rec.nome, telefone: rec.telefone, email: rec.email, endereco: rec.endereco, uf: rec.uf }));
@@ -952,29 +1068,39 @@ const PCEUI = (() => {
     tfs = tfs || (await Store.todos('termosPce')).filter(t => !Number(t.excluido));
     const doc = digitos(r.doc), nomeP = semAcento(r.propriedade || '').toUpperCase().trim();
     const daProp = x => (pid && x.propriedadeId === pid) || (doc && digitos(x.doc) === doc && (!nomeP || semAcento(x.propriedade || '').toUpperCase().trim() === nomeP));
-    return { pid, programa, cadastro: cads.find(c => daProp(c) && (c.programa || 'moniliase') === programa) || null, termo: tfs.find(t => daProp(t) && t.data === r.data) || null };
+    // um Termo por cultura avaliada (levantamentoId + cultura); Termo antigo da visita (sem cultura): o do mesmo dia na mesma propriedade
+    const daVisita = tfs.filter(t => t.levantamentoId === r.id && t.culturaId);
+    const culturas = [...new Map(Docs.pceGrupos(r).pragas.flatMap(g => g.culturas.map(c => [culturaIdDe(c.cultura), c.cultura]))).entries()]
+      .map(([culturaId, cultura]) => ({ culturaId, cultura, termo: daVisita.find(t => t.culturaId === culturaId) || null }));
+    const antigo = daVisita.length ? null : tfs.find(t => !t.culturaId && (t.levantamentoId === r.id || (daProp(t) && t.data === r.data))) || null;
+    return { pid, programa, cadastro: cads.find(c => daProp(c) && (c.programa || 'moniliase') === programa) || null, termo: antigo, culturas };
   }
   function botoesVisita(r, v, grande) {
     if (!Sync.pode('pce') || (Number(r.registroAntigo) === 1 && !podeAntigo())) return '';
     const id = x => (grande ? `id="${x}"` : ''), ci = v.programa === 'citros';
     const cad = v.cadastro ? '' : `<button class="${grande ? 'botao' : 'editar'}" data-pce="cadvisita" data-id="${esc(r.id)}" ${grande ? id('pce-pronto-cad') : curto(ci ? 'Cadastro citros' : 'Cadastro', ci ? 'Cadastro de citros' : 'Cadastrar a propriedade')}>${ci ? 'Cadastro de citros' : 'Cadastrar a propriedade'}${grande ? ' e fazer o Termo' : ''}</button>`;
-    const tf = v.termo ? `<button class="${grande ? 'botao sec' : 'editar'}" data-pce="abrirtfvisita" data-id="${esc(v.termo.id)}" ${grande ? id('pce-pronto-tf') : curto('TF ' + (v.termo.numeroTxt || ''), 'Termo de Fiscalização ' + (v.termo.numeroTxt || ''))}>${icone('formulario')} Termo de Fiscalização ${esc(v.termo.numeroTxt || '')}</button>`
-      : `<button class="${grande ? (cad ? 'botao sec' : 'botao') : 'tfbtn'}" data-pce="tfvisita" data-id="${esc(r.id)}" ${grande ? id('pce-pronto-tf') : curto('TF', 'Fazer o Termo de Fiscalização')}>${icone('formulario')} ${grande ? (cad ? 'Só o Termo de Fiscalização (sem cadastro)' : 'Fazer o Termo de Fiscalização da visita') : 'Termo de Fiscalização'}</button>`;
-    return cad + tf;
+    if (v.termo) return cad + `<button class="${grande ? 'botao sec' : 'editar'}" data-pce="abrirtfvisita" data-id="${esc(v.termo.id)}" ${grande ? id('pce-pronto-tf') : curto('TF ' + (v.termo.numeroTxt || ''), 'Termo de Fiscalização ' + (v.termo.numeroTxt || ''))}>${icone('formulario')} Termo de Fiscalização ${esc(v.termo.numeroTxt || '')}</button>`;
+    // um Termo por cultura avaliada: o feito abre; o que falta, cria já ligado à visita e à cultura
+    return cad + v.culturas.map((c, i) => c.termo
+      ? `<button class="${grande ? 'botao sec' : 'editar'}" data-pce="abrirtfvisita" data-id="${esc(c.termo.id)}" ${grande ? id('pce-pronto-tf-' + i) : curto('TF ' + c.cultura, 'Termo de Fiscalização ' + (c.termo.numeroTxt || '') + ' – ' + c.cultura)}>${icone('formulario')} Termo ${esc(c.termo.numeroTxt || '')} – ${esc(c.cultura)}</button>`
+      : `<button class="${grande ? (cad || i ? 'botao sec' : 'botao') : 'tfbtn'}" data-pce="tfvisita" data-id="${esc(r.id)}" data-cultura="${esc(c.cultura)}" ${grande ? id('pce-pronto-tf-' + i) : curto('TF ' + c.cultura, 'Fazer o Termo de Fiscalização – ' + c.cultura)}>${icone('formulario')} ${grande ? 'Termo de Fiscalização – ' + esc(c.cultura) : 'TF ' + esc(c.cultura)}</button>`).join('');
   }
   /** Tela depois de salvar: resumo por praga e os PDFs (um por praga). */
   async function levPronto(id) {
     const r = id ? await Store.obter('levantamentos', id) : null; if (!r || r.excluido) return go('pce');
+    await carregarCatalogo();
     const G = Docs.pceGrupos(r), amostras = amostrasDe(G), visita = await docsDaVisita(r);
     view(`<div class="card" id="pce-lev-pronto"><h3>${icone('ok')} Levantamento salvo</h3>
       <p><b>${esc(r.nome)}</b> · ${esc(r.propriedade || 'Propriedade não informada')}</p><p>${esc(dBR(r.data))} ${esc(r.hora)} · ${esc(r.municipio)}</p>
       ${r.tipoLocal || r.origemVisita || r.comercial ? `<p class="dica" style="text-align:left" id="pce-pronto-local">Local: ${esc(r.tipoLocal || 'não informado')}${r.comercial ? ` · Comercial: ${r.comercial === 'sim' ? 'sim' : 'não'}` : ''} · Origem: ${esc(r.origemVisita || 'não informada')}</p>` : ''}
-      <ul class="pce-res-lista">${G.pragas.map(g => `<li><b>${esc(nomePraga(g.praga))}</b> ${seloRes(resultadoPraga(g))}<br><small>${g.culturas.map(c => `${esc(c.cultura)} (${esc(RES[c.resultado])}${c.fotos.length ? `, ${c.fotos.length} foto(s)` : ''})`).join(' · ')}</small></li>`).join('')}</ul>
+      <ul class="pce-res-lista">${visita.culturas.map(cu => { const prs = G.pragas.flatMap(g => g.culturas.filter(c => c.cultura === cu.cultura).map(c => ({ praga: g.praga, ...c })));
+        const nF = new Set(prs.flatMap(x => x.fotos)).size;
+        return `<li><b>${icone('broto')} ${esc(cu.cultura)}</b>${nF ? ` <small>${nF} foto(s)</small>` : ''}<br><small>${prs.map(x => `${esc(nomePraga(x.praga))} ${seloRes(x.resultado)}`).join(' · ')}</small></li>`; }).join('')}</ul>
       ${G.gerais.length ? `<p class="dica" style="text-align:left">${G.gerais.length} foto(s) gerais (registro anterior) saem em todos os PDFs.</p>` : ''}</div>
       ${botoesVisita(r, visita, true) ? `<div class="card pce-visita"><h3>Próximo passo da visita</h3>
         <p class="dica" style="text-align:left">${visita.cadastro ? 'Propriedade já cadastrada' + (visita.cadastro.numeroTxt ? ` (cadastro ${visita.programa === 'citros' ? 'de citros ' : ''}${esc(visita.cadastro.numeroTxt)})` : '') + '.'
-          : visita.programa === 'citros' ? 'Pragas de citros: o Cadastro de citros sai deste levantamento (só confirmar o número e assinar) e, ao salvar, o Termo de Fiscalização da visita abre já preenchido com as frases de ausência/presença.'
-          : 'Propriedade nova: cadastre a propriedade e, ao salvar, o Termo de Fiscalização da visita abre já preenchido.'}</p>
+          : visita.programa === 'citros' ? 'Pragas de citros: o Cadastro de citros sai deste levantamento (só confirmar o número e assinar).'
+          : 'Propriedade nova: cadastre a propriedade.'} ${visita.termo ? '' : 'Cada cultura avaliada tem o seu Termo de Fiscalização, já preenchido com as pragas dela e o enquadramento das detectadas e suspeitas.'}</p>
         ${botoesVisita(r, visita, true)}</div>` : ''}
       <div class="pce-pdfs">${botoesPdf(r.id, G, true)}</div>
       <button class="botao sec" data-pce="enviarlev" data-id="${esc(r.id)}" id="pce-enviar">${icone('enviar')} Enviar ao produtor (WhatsApp, e-mail…)</button>
@@ -1657,7 +1783,10 @@ const PCEUI = (() => {
           if (f.length) { toast(`Abra o levantamento e marque Ausência ou Presença de sintomas de ${PCECitros.listaE(f)} (bloco “Cultura do citros”).`, true); return; }
         }
         if (a === 'cadvisita') go('pcecad', { propId: v.pid, levId: r.id, antigo, programa: v.programa });
-        else go('pcetf', v.cadastro ? { cadastroId: v.cadastro.id, levId: r.id, antigo } : { propId: v.pid, levId: r.id, antigo });
+        else {
+          const cu = v.culturas.find(c => c.cultura === el.dataset.cultura), cult = cu ? { culturaId: cu.culturaId, cultura: cu.cultura } : {};
+          go('pcetf', v.cadastro ? { cadastroId: v.cadastro.id, levId: r.id, antigo, ...cult } : { propId: v.pid, levId: r.id, antigo, ...cult });
+        }
       }
       else if (a === 'excluirlev') await excluirLev(id);
       else if (a === 'novotermo') go('pcetermo');
@@ -1671,34 +1800,26 @@ const PCEUI = (() => {
       else if (!F) return;
       else if (a === 'ci-addcult') { if (PCECitros.addLinha()) agendarRascunho(); }
       else if (a === 'ci-delcult') { PCECitros.delLinha(+el.dataset.i); agendarRascunho(); }
-      else if (a === 'addpraga') {
-        const lst = coletarLev().pragas; if (lst.length >= MAX_PRAGAS) return toast(`Limite de ${MAX_PRAGAS} pragas/doenças por levantamento.`, true);
-        if (lst.reduce((s, g) => s + g.culturas.length, 0) >= MAX_CULTURAS) return toast(`Limite de ${MAX_CULTURAS} culturas por levantamento (somando as pragas).`, true);
-        lst.push(pragaVazia()); await desenharPragas(lst); agendarRascunho();
-        const novo = document.querySelectorAll('#pce-pragas .pce-praga'), ult = novo[novo.length - 1];
-        if (ult) { ult.scrollIntoView({ block: 'start' }); ult.querySelector('.p-praga').focus(); }
-      } else if (a === 'addcult') {
-        const lst = coletarLev().pragas, g = lst[+el.dataset.p]; if (!g) return;
-        if (lst.reduce((s, x) => s + x.culturas.length, 0) >= MAX_CULTURAS) return toast(`Limite de ${MAX_CULTURAS} culturas por levantamento (somando as pragas).`, true);
-        g.culturas.push(culturaVazia()); await desenharPragas(lst); agendarRascunho();
-      } else if (a === 'delcult' || a === 'delpraga') {
-        const lst = coletarLev().pragas, salvo = idsArquivos(F.rec);
-        let fora = [];
-        if (a === 'delcult') {
-          const g = lst.find(x => x.culturas.some(c => c.uid === el.dataset.uid)); if (!g) return;
-          const c = g.culturas.find(x => x.uid === el.dataset.uid);
-          if (c.fotos.length && !confirm(`Remover a cultura${c.cultura ? ' ' + c.cultura : ''} e ${c.fotos.length === 1 ? 'a foto dela' : `as ${c.fotos.length} fotos dela`}?`)) return;
-          g.culturas = g.culturas.filter(x => x !== c); if (!g.culturas.length) g.culturas.push(culturaVazia());
-          fora = [c];
-        } else {
-          const i = +el.dataset.p, g = lst[i]; if (!g) return;
-          const nF = g.culturas.reduce((s, c) => s + c.fotos.length, 0), nC = g.culturas.filter(c => c.cultura).length;
-          if ((nF || nC || g.praga) && !confirm(`Remover ${g.praga ? 'a praga/doença ' + g.praga : 'este card'}${nC ? ` com ${nC} cultura(s)` : ''}${nF ? ` e ${nF} foto(s)` : ''}?`)) return;
-          lst.splice(i, 1); if (!lst.length) lst.push(pragaVazia());
-          fora = g.culturas;
-        }
-        for (const c of fora) { await apagarSeNaoEnviado(c.fotos.filter(x => !salvo.has(x))); delete F.fotosC[c.uid]; }
-        await desenharPragas(lst); agendarRascunho();
+      else if (a === 'addcult') {
+        const lst = coletarLev().culturasForm; if (lst.length >= MAX_CULTURAS) return toast(`Limite de ${MAX_CULTURAS} culturas por levantamento.`, true);
+        lst.push(culturaVazia()); await desenharCulturas(lst); agendarRascunho();
+        const novo = document.querySelectorAll('#pce-culturas .pce-cultura'), ult = novo[novo.length - 1];
+        if (ult) { ult.scrollIntoView({ block: 'start' }); ult.querySelector('.c-cultura').focus(); }
+      } else if (a === 'addpraga') {
+        const lst = coletarLev().culturasForm, c = lst.find(x => x.uid === el.dataset.uid); if (!c) return;
+        if (c.pragas.length >= MAX_PRAGAS) return toast(`Limite de ${MAX_PRAGAS} pragas/doenças por cultura.`, true);
+        c.pragas.push(pragaVazia()); await desenharCulturas(lst); agendarRascunho();
+        const b = document.querySelector(`.pce-cultura[data-uid="${c.uid}"] .pce-pr:last-of-type .r-praga`); if (b) b.focus();
+      } else if (a === 'delpraga') {
+        const lst = coletarLev().culturasForm, c = lst.find(x => x.pragas.some(g => g.uid === el.dataset.uid)); if (!c) return;
+        c.pragas = c.pragas.filter(g => g.uid !== el.dataset.uid); await desenharCulturas(lst); agendarRascunho();
+      } else if (a === 'delcult') {
+        const lst = coletarLev().culturasForm, salvo = idsArquivos(F.rec), c = lst.find(x => x.uid === el.dataset.uid); if (!c) return;
+        const nR = c.pragas.filter(g => g.resultado).length;
+        if ((c.fotos.length || nR) && !confirm(`Remover a cultura${c.cultura ? ' ' + c.cultura : ''}${nR ? ` com ${nR} resultado(s)` : ''}${c.fotos.length ? ` e ${c.fotos.length} foto(s)` : ''}?`)) return;
+        const resto = lst.filter(x => x !== c); if (!resto.length) resto.push(culturaVazia());
+        await apagarSeNaoEnviado(c.fotos.filter(x => !salvo.has(x))); delete F.fotosC[c.uid];
+        await desenharCulturas(resto); agendarRascunho();
       }
       else if (a === 'delfoto') {
         const ch = el.dataset.chave;                                         // levantamento: foto de uma cultura (uid) ou "gerais"
@@ -1729,7 +1850,7 @@ const PCEUI = (() => {
     } catch (err) { toast(err.message || String(err), true); }
   });
 
-  return { lista, levantamento, levPronto, termos, termo, pronto, servidor, status, textoOficial, lerCoordenadas, lerNumeroPapel,
+  return { lista, levantamento, levPronto, pragasDaCulturaNaVisita, culturaIdDe, termos, termo, pronto, servidor, status, textoOficial, lerCoordenadas, lerNumeroPapel,
     // usados pelo moniliase.js (Cadastro de imóvel e Termo de Fiscalização do PCE)
     docOk, fmtDoc, validarCoord, gms, servidorAtual, servidorOk, soDigitador, podeAntigo, exigirServidor, dadosServidor, servAntigoHTML, servidorDigitado, cargoValor,
     lembrarServidor, completarServidor, servidoresLembrados, dataHoraPassadaOk, montarPessoa, opts, SEM_ANTIGO };

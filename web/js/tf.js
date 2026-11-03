@@ -782,13 +782,14 @@ const TFUI = (() => {
       ${t.cancelado ? `<div class="tf-alerta">${icone('proibido')} CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
       ${nF ? `<p class="dica" style="text-align:left">${icone('camera')} ${nF} foto(s): saem no anexo fotográfico, no fim do PDF.</p>` : ''}
       ${temAuto(t) ? `<div class="tf-novo" id="tf-auto-info">${icone('documento')} Auto de infração nº <b>${esc(t.autoNumeroTxt)}</b>${t.autoNumeroOrigem === 'provisorio' ? ' (provisório: conferido na planilha ao sincronizar)' : ''}${Number(t.autoConflito) === 1 ? ' · número repetido na planilha: confira com a coordenação' : ''}</div>` : ''}</div>
-      ${pap ? `<div class="card"><h3>${icone('documento')} PDF escaneado</h3><div id="tf-pdfs-pronto"></div></div>` : t.cancelado ? '' : assCardHTML(PR)}
+      ${doColega(t) ? `<div class="tf-novo">${icone('pessoa')} Lavrado por <b>${esc(t.usuario)}</b> no turno compartilhado: aqui dá para ver e imprimir; assinar, cancelar ou mudar, só no aparelho de quem lavrou.</div>` : ''}
+      ${pap ? `<div class="card"><h3>${icone('documento')} PDF escaneado</h3><div id="tf-pdfs-pronto"></div></div>` : t.cancelado || doColega(t) ? '' : assCardHTML(PR)}
       <button class="botao" data-tf="imprimir" data-id="${esc(t.id)}">${icone('imprimir')} Imprimir / PDF (2 vias)</button>
       ${temAuto(t) ? `<button class="botao" data-tf="imprimirauto" data-id="${esc(t.id)}">${icone('imprimir')} Imprimir auto de infração (3 vias)</button>` : ''}
       <button class="botao sec" data-tf="novo">${icone('mais')} Novo TF</button>
       ${MODULO === 'veiculos' ? '<button class="botao sec" data-go="lista">↩ Voltar à lista de veículos</button>' : '<button class="botao sec" data-go="tf">Ver lista de TFs</button>'}
       <p class="dica">Na janela de impressão, escolha “Salvar como PDF” ou imprima direto. As 2 vias saem em páginas separadas${nF ? '; o anexo fotográfico vai uma vez, no fim' : ''}.</p>`);
-    if (pap) await renderPDFs(pdfs, '#tf-pdfs-pronto', false); else await desenharAss(PR);
+    if (pap) await renderPDFs(pdfs, '#tf-pdfs-pronto', false); else if (!doColega(t)) await desenharAss(PR);
     const rc = $('#tf-recusa');
     if (rc) rc.onchange = async () => { const r = PR; await gravarAssinatura(r, 'fiscalizado', null, rc.checked); };
   }
@@ -807,6 +808,8 @@ const TFUI = (() => {
     toast(recusa !== undefined ? (rec ? 'Recusa registrada.' : 'Recusa desmarcada.') : img ? 'Assinatura salva.' : 'Assinatura removida.');
   }
   let verRemovidos = false;
+  /** TF lavrado por um colega do turno compartilhado (chega no sync para todos do turno): só quem lavrou cancela. */
+  const doColega = t => !!(t && t.usuario && !Sync.mesmoNome(t.usuario, Sync.nome()));
   async function lista() {
     if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());
     const mostrar = tela();
@@ -824,12 +827,13 @@ const TFUI = (() => {
       $('#tfItens').innerHTML = v.length ? v.map(t => `<div class="item"><div class="topo"><div><div class="placa">${esc(t.numeroTxt)}</div><div class="tipo">${esc(t.nome)}</div></div>
         <div class="hora">${dBR(t.data)}</div></div>
         <div class="info">${esc(PROC[t.procedimento] || 'Sem procedimento')}${t.placa ? ' · ' + esc(t.placa) : ''}${t.reincidente ? ' · reincidente' : ''}${Number(t.registroAntigo) === 1 ? ' · do papel' : ''}</div>
+        ${doColega(t) ? `<div class="info">${icone('pessoa')} Lavrado por ${esc(t.usuario)} (turno compartilhado)</div>` : ''}
         ${t.cancelado ? `<div class="info pend">${icone('proibido')} CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
         ${t.conflito ? '<div class="info pend">Número duplicado na planilha: confira com a coordenação.</div>' : ''}
         ${t.pendente ? `<div class="info pend">⏳ ${t.provisorio ? 'número provisório, será conferido ao sincronizar' : 'aguardando envio'}</div>` : ''}
         <div class="botoes"><button class="editar" data-tf="abrir" data-id="${esc(t.id)}">Abrir</button><button class="editar" data-tf="imprimir" data-id="${esc(t.id)}">Imprimir</button>
         ${temAuto(t) ? `<button class="editar" data-tf="imprimirauto" data-id="${esc(t.id)}">Auto de infração</button>` : ''}
-        ${t.cancelado ? '' : `<button class="excluir" data-tf="cancelar" data-id="${esc(t.id)}">Cancelar TF</button>`}
+        ${t.cancelado || doColega(t) ? '' : `<button class="excluir" data-tf="cancelar" data-id="${esc(t.id)}">Cancelar TF</button>`}
         ${t.cancelado && !t.pendente ? (removidos.has(t.id) ? `<button class="editar" data-tf="restaurar" data-id="${esc(t.id)}">Voltar para a lista</button>`
           : `<button class="excluir" data-tf="tirar" data-id="${esc(t.id)}">Excluir da lista</button>`) : ''}</div></div>`).join('') : '<div class="vazio">Nenhum TF neste aparelho.</div>';
     };
@@ -865,6 +869,7 @@ const TFUI = (() => {
         await Store.setMeta('tfsRemovidos', [...r]); toast(a === 'tirar' ? 'TF excluído da lista.' : 'TF de volta à lista.'); lista();
       }
       else if (a === 'cancelar') {
+        if (doColega(await Store.obter('tfs', id))) return toast('Só quem lavrou o TF pode cancelar.', true);
         const motivo = prompt('Motivo do cancelamento (o número do TF continua usado):'); if (motivo == null) return;
         const t = await Store.obter('tfs', id); await Store.salvar('tfs', { ...t, cancelado: 1, motivoCancel: motivo.trim().slice(0, 300) });
         Sync.sincronizar(); toast('TF cancelado.'); lista();

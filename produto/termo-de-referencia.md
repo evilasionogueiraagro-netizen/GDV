@@ -7,8 +7,8 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | Órgão | Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM |
 | Unidade responsável | Gerência de Defesa Vegetal – GDV |
 | Produto | e-GDV (app de campo, painel gerencial, Portal do Administrativo, dashboard público e serviço de dados) |
-| Versão do sistema descrita | 2026-11-02c |
-| Versão deste Termo | 1.4, de 02/11/2026 |
+| Versão do sistema descrita | 2026-11-03a |
+| Versão deste Termo | 1.5, de 03/11/2026 |
 
 ## 1. Objeto
 
@@ -63,7 +63,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 
 ### 4.2. Turno na barreira e educação sanitária
 - RF-05. Abertura de turno em posto fixo (BVA) ou volante, com número do Termo do turno, horário e localização (GPS) de início e fim.
-- RF-06. Turno compartilhado: o colega entra no mesmo turno com o próprio login, por um código de 6 números.
+- RF-06. Turno compartilhado: o colega entra no mesmo turno com o próprio login, por um código de 6 números. Os TFs lavrados no turno ficam visíveis para todos os fiscais do turno.
 - RF-07. Registro de cada veículo: placa (obrigatória onde a BVA exige), tipo, origem e destino, e quantas pessoas receberam educação sanitária.
 - RF-08. Alerta de cuidado na placa (abordagem com risco), visto por outros fiscais em qualquer BVA e avisado à gerência.
 - RF-09. Aviso de placa com TF anterior na mesma BVA, também sem internet.
@@ -177,7 +177,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 
 8.1. Dados pessoais (CPF/CNPJ, nome, endereço, telefone do fiscalizado e do produtor) são usados só nos documentos oficiais e na consulta de reincidência. No painel aparecem mascarados.
 
-8.2. O fiscal baixa apenas os seus próprios TFs. Os dados de campo do PCE são apagados do aparelho ao fim da viagem.
+8.2. O fiscal baixa os seus próprios TFs e os TFs dos turnos compartilhados de que participou; só quem lavrou altera ou cancela o TF, e cada leitura do TF de um colega fica registrada. Os dados de campo do PCE são apagados do aparelho ao fim da viagem.
 
 8.3. Publicações externas (dashboard, verificação de TF, relatório mensal) não levam dados pessoais.
 
@@ -206,3 +206,4 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | 1.2 | 02/11/2026 | 2026-11-02b | Word do Termo gerado e guardado automaticamente no Drive a cada atualização (item 10.3) |
 | 1.3 | 02/11/2026 | 2026-11-02b | RF-26A: na BVA - CEASA o termo dos produtos apreendidos é de Destruição (Aterro Sanitário de Manaus) |
 | 1.4 | 02/11/2026 | 2026-11-02c | RF-26A: enquadramento legal no Termo de Repasse/Destruição (na CEASA, o da mosca-da-carambola) |
+| 1.5 | 03/11/2026 | 2026-11-03a | RF-06 e item 8.2: TFs do turno compartilhado visíveis para todos os fiscais do turno |

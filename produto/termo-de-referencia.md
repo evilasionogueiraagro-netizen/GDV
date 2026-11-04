@@ -7,8 +7,8 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | Órgão | Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM |
 | Unidade responsável | Gerência de Defesa Vegetal – GDV |
 | Produto | e-GDV (app de campo, painel gerencial, Portal do Administrativo, dashboard público e serviço de dados) |
-| Versão do sistema descrita | 2026-11-03a |
-| Versão deste Termo | 1.5, de 03/11/2026 |
+| Versão do sistema descrita | 2026-11-04a |
+| Versão deste Termo | 1.6, de 04/11/2026 |
 
 ## 1. Objeto
 
@@ -63,7 +63,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 
 ### 4.2. Turno na barreira e educação sanitária
 - RF-05. Abertura de turno em posto fixo (BVA) ou volante, com número do Termo do turno, horário e localização (GPS) de início e fim.
-- RF-06. Turno compartilhado: o colega entra no mesmo turno com o próprio login, por um código de 6 números. Os TFs lavrados no turno ficam visíveis para todos os fiscais do turno.
+- RF-06. Turno compartilhado: o colega entra no mesmo turno com o próprio login, por um código de 6 números ou, na BVA fixa com turno em andamento, com um toque (sem código). Os TFs lavrados no turno ficam visíveis para todos os fiscais do turno.
 - RF-07. Registro de cada veículo: placa (obrigatória onde a BVA exige), tipo, origem e destino, e quantas pessoas receberam educação sanitária.
 - RF-08. Alerta de cuidado na placa (abordagem com risco), visto por outros fiscais em qualquer BVA e avisado à gerência.
 - RF-09. Aviso de placa com TF anterior na mesma BVA, também sem internet.
@@ -207,3 +207,4 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | 1.3 | 02/11/2026 | 2026-11-02b | RF-26A: na BVA - CEASA o termo dos produtos apreendidos é de Destruição (Aterro Sanitário de Manaus) |
 | 1.4 | 02/11/2026 | 2026-11-02c | RF-26A: enquadramento legal no Termo de Repasse/Destruição (na CEASA, o da mosca-da-carambola) |
 | 1.5 | 03/11/2026 | 2026-11-03a | RF-06 e item 8.2: TFs do turno compartilhado visíveis para todos os fiscais do turno |
+| 1.6 | 04/11/2026 | 2026-11-04a | RF-06: entrar com um toque no turno em andamento da BVA fixa, sem código |

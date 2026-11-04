@@ -88,5 +88,5 @@ Falta:
 
 ## 7. Assinatura na tela (desligada temporariamente)
 
-- **Situação:** desde 28/10/2026 a assinatura com o dedo na tela (TF de Barreira e PCE) está desligada (gerência): documentos com linhas em branco para assinar no papel.
+- **Situação:** desde 28/10/2026 desligada (gerência): linhas em branco para assinar no papel.
 - **Para retomar:** `assinaturaNaTela: true` em `web/js/config.js`. O código e os testes continuam (os testes ligam a chave para conferir).

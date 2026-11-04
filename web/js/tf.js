@@ -737,15 +737,17 @@ const TFUI = (() => {
     btn.disabled = true; btn.textContent = 'Consultando a planilha…';
     const fim = () => { btn.disabled = false; btn.textContent = rot; };
     let sug; try { sug = await Sync.proximoNumero(bar.id, a); } catch (e) { fim(); return toast(e.semPermissao ? e.message : 'Sem resposta da planilha: ' + e.message + ' Tente de novo.', true); }
-    const efeito = n > sug.ultimo ? `${sug.ultimo ? `O último nº usado nesta barreira em ${a} é ${num4(sug.ultimo)}.` : `Nenhum TF desta barreira em ${a} na planilha.`} Gravando o ${num4(n)}, a sequência desta barreira continua a partir dele: o próximo TF sugerido (também para os fiscais em campo) será o ${num4(n + 1)}.`
+    const papel = !!sug.inicioApp && D.data < sug.inicioApp;                  // série do papel: talão que começou do 0001 junto com o app
+    const efeito = papel ? `Data anterior ao 1º TF do app nesta barreira (${dBR(sug.inicioApp)}): o TF entra na série do papel, como ${num4(n)}/${a} - ${bar.sufixo} (papel). Pode repetir número de TF do app e não muda a sequência do app.`
+      : n > sug.ultimo ? `${sug.ultimo ? `O último nº usado nesta barreira em ${a} é ${num4(sug.ultimo)}.` : `Nenhum TF desta barreira em ${a} na planilha.`} Gravando o ${num4(n)}, a sequência desta barreira continua a partir dele: o próximo TF sugerido (também para os fiscais em campo) será o ${num4(n + 1)}.`
       : `O último nº usado nesta barreira em ${a} é ${num4(sug.ultimo)}: o ${num4(n)} é menor e a sequência não muda.`;
-    if (!confirm(`Gravar o TF ${num4(n)}/${a} - ${bar.sufixo} (digitado do papel)?\n\n${efeito}`)) return fim();
+    if (!confirm(`Gravar o TF ${num4(n)}/${a} - ${bar.sufixo}${papel ? ' (papel)' : ''} (digitado do papel)?\n\n${efeito}`)) return fim();
     const t0 = Date.now(), nome = (D.nome.trim() || 'NÃO IDENTIFICADO').toUpperCase(), hist = reincDe(st.hist);
     const prods = D.produtos.filter(p => p.p && p.q).map(p => `${p.p} - ${p.q} ${p.u}`);
     const pessoa = doc ? { id: doc, tipo: doc.length === 14 ? 'PJ' : 'PF', nome, rg: D.rg.trim(), endereco: D.endereco.trim(), municipio: D.municipio.trim(), uf: D.uf.trim().toUpperCase(), telefone: D.telefone.trim(), criadoEm: t0, atualizadoEm: t0 } : null;
     const placa = docOk(doc) && D.placa.length >= 7 ? { id: D.placa, doc, nome, criadoEm: t0, atualizadoEm: t0 } : null;   // documento padrão: sem vínculo
     const rec = {
-      id: st.id, criadoEm: t0, atualizadoEm: t0, barreira: bar.id, ano: a, numero: n, numeroTxt: `${num4(n)}/${a} - ${bar.sufixo}`, turnoId: '', veiculoId: '',
+      id: st.id, criadoEm: t0, atualizadoEm: t0, barreira: bar.id, ano: a, numero: n, numeroTxt: `${num4(n)}/${a} - ${bar.sufixo}${papel ? ' (papel)' : ''}`, turnoId: '', veiculoId: '',
       data: D.data, hora: D.hora, fiscal: servidor, local: D.local.trim(), placa: D.placa, origem: D.origem.trim(), destino: D.destino.trim(),
       ufOrigem: CONFIG.ufs.includes(D.ufOrigem) ? D.ufOrigem : '', ufDestino: CONFIG.ufs.includes(D.ufDestino) ? D.ufDestino : '',
       doc, nome, rg: D.rg.trim(), endereco: D.endereco.trim(), municipio: D.municipio.trim(), uf: D.uf.trim().toUpperCase(), telefone: D.telefone.trim(), relacao: D.relacao,
@@ -758,12 +760,13 @@ const TFUI = (() => {
     btn.textContent = 'Gravando…';
     let r; try { r = await Sync.emitirTF(rec, docOk(doc) ? pessoa : null, placa); } catch (e) { fim(); return toast((e.semPermissao ? '' : 'Não gravou: ') + e.message, true); }
     if (r.emitido === false) { fim(); return toast(`O nº ${num4(n)}/${a} já está na planilha: ${r.ocupadoPor.numeroTxt} (${r.ocupadoPor.usuario}, ${dBR(r.ocupadoPor.data)} ${r.ocupadoPor.hora}). Confira o número do papel.`, true); }
+    if (r.numeroTxt) rec.numeroTxt = r.numeroTxt;                                  // a planilha decide a série (papel ou sequência única)
     await Store.gravar('tfs', { ...rec, pendente: 0, emitidoEm: r.emitidoEm });     // os PDFs sobem ao Drive na sincronização
     if (pessoa && docOk(doc)) await Store.gravar('pessoas', { ...pessoa, pendente: 0 });
     if (placa) await Store.gravar('placas', { ...placa, pendente: 0 });
-    await Sync.lembrarUltimos({ [chave(bar.id, a)]: Math.max(n, sug.ultimo) });
+    if (!r.seriePapel) await Sync.lembrarUltimos({ [chave(bar.id, a)]: Math.max(n, sug.ultimo) });
     clearTimeout(tRasc); await Store.setMeta(chaveRasc(true), null); localStorage.setItem('gdv.barreira', bar.id); lembrarServidor(servidor);
-    S = null; Sync.sincronizar(); toast(`TF ${num4(n)}/${a} do papel gravado ✓`); go('tfpronto', rec.id);
+    S = null; Sync.sincronizar(); toast(`TF ${rec.numeroTxt} do papel gravado ✓`); go('tfpronto', rec.id);
   }
 
   /* ---------- telas: pronto (detalhes do TF, antes de imprimir) e lista ---------- */

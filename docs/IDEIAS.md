@@ -59,7 +59,7 @@ Feito: veja [modulos/relatorios.md](modulos/relatorios.md) e, para a carga na ba
 Decisões: [Relatório GDV](decisoes/anteriores.md#relatório-gdv)
 
 Falta:
-- Medida aplicada com quantidade (medida fitossanitária, área controlada, poda drástica, destruição), por visita. Hoje: linhas "Medida fitossanitária" e "Área controlada" e coluna "Poda drástica", no painel.
+- Medida aplicada com quantidade, por visita (hoje: linhas e coluna próprias no painel).
 - Vazio sanitário da soja. Hoje: coluna "Fiscalizações do vazio sanitário" por município.
 - Educação sanitária no app (ações, público atingido). Hoje: tabela da Seção V no painel. A linha de veículos orientados já é automática.
 - Importação de CFO/CFOC, PTV e UP/UC (CSV dos sistemas de certificação). Hoje: tabelas das Seções III e IV no painel.

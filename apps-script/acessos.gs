@@ -21,7 +21,7 @@ const NOME_MODULO = { veiculos: 'Educação Sanitária/Fiscalização de Trânsi
 const MODULO_DA_ACAO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf', tfIndiceReincidencia: 'tf',
                          pceProximoNumero: 'pce', pceEmitir: 'pce', pceConsultar: 'pce', pceBaixarMunicipio: 'pce', pceMapaGeral: 'pce', arquivoEnviar: 'pce',
                          pceDocNumero: 'pce', pceDocRegistrar: 'pce',
-                         turnoConvidar: 'veiculos', turnoParear: 'veiculos', turnoSair: 'veiculos', turnosAbertos: 'veiculos', turnoEntrar: 'veiculos',
+                         turnoConvidar: 'veiculos', turnoParear: 'veiculos', turnoSair: 'veiculos', turnosAbertos: 'veiculos', turnoEntrar: 'veiculos', turnoRemoverColega: 'veiculos',
                          turnoPapelRegistrar: 'veiculos', turnoNumero: 'veiculos', turnoRecuperar: 'veiculos', turnoTFs: 'veiculos' };
 const MSG_SEM_ANTIGO = 'Sem autorização para digitar registros antigos (do papel). Fale com a gerência.';
 

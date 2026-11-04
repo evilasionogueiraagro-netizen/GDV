@@ -499,6 +499,7 @@ function novoTurno() {
     // o outro aparelho abriu o turno enquanto este formulário estava na tela: entra nele em vez de abrir outro
     // (depois da validação e com o botão já travado: dois toques seguidos não abrem dois turnos)
     if ((await turnosAbertosOutros()).length) { toast('Turno em andamento no outro aparelho com o seu login: continue lançando por aqui.'); return go('home'); }
+    abertos = await turnosAbertosNaBva(); mostrarAbertos();              // outro login pode ter aberto turno aqui depois que a tela abriu
     const aqui = abertosAqui()[0];
     if (aqui && !confirm(`Já tem turno em andamento em ${aqui.local} (${aqui.fiscal || aqui.dono}).\n\nO melhor é entrar nele ("Entrar neste turno"). Abrir um turno separado mesmo assim?`)) {
       btn.disabled = false; btn.textContent = 'Iniciar turno'; return;

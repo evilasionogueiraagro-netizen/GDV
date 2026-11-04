@@ -304,7 +304,7 @@ const Sync = (() => {
   const convidarColega = turnoId => chamar({ action: 'turnoConvidar', turnoId }, 20000);
   const parearTurno = codigo => entrada({ action: 'turnoParear', codigo });
   /** Turnos em andamento nas BVAs fixas abertos por outros logins; turnoEntrar entra num deles sem código (um toque). */
-  const turnosAbertos = () => chamar({ action: 'turnosAbertos' }, 10000);
+  const turnosAbertos = () => chamar({ action: 'turnosAbertos' }, 6000);
   const entrarNoTurno = turnoId => entrada({ action: 'turnoEntrar', turnoId });
   async function entrada(req) {
     const r = await chamar(req, 20000);

@@ -274,6 +274,7 @@ async function home() {
       <p><b>Início do turno:</b> ${esc(t.inicio)}</p>
       <p><small>${Number(t.semPlaca) ? 'Placa do veículo opcional neste turno.' : 'Placa do veículo obrigatória neste turno.'}</small></p>
       ${souColega(t) ? `<p class="dica">Turno de <b>${esc(t.usuario)}</b>: você está colaborando com o seu login. Os veículos e TFs que você lançar entram neste turno; só quem abriu encerra.</p>` : ''}</div>
+    ${colegasHTML(t)}
     <div id="conviteBox">${CONVITE && CONVITE.turnoId === t.id && CONVITE.expiraEm > Date.now() ? conviteHTML(CONVITE) : ''}</div>
     <div class="card contador"><h1>${v.length}</h1><p>Veículos registrados</p></div>
     <button class="botao" data-go="registrar">${icone('mais')} Registrar veículo</button>
@@ -283,6 +284,27 @@ async function home() {
     ${botaoFim(t)}`);
   $('#encerrar').onclick = () => encerrarTurno(t); ligarCancelar(t);
   if ($('#convidar')) $('#convidar').onclick = () => convidarColega(t);
+  document.querySelectorAll('[data-tirar]').forEach(b => { b.onclick = () => tirarColega(t, b.dataset.tirar, b); });
+}
+const listaJSON = s => { try { const v = JSON.parse(s || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
+/** Dono: os colegas que entraram no turno pelo app, com "Tirar do turno" (quem entrou por engano e não lançou nada). */
+function colegasHTML(t) {
+  const l = souColega(t) ? [] : listaJSON(t.colegas).filter(Boolean);
+  if (!l.length) return '';
+  return `<div class="card" id="colegasBox"><h3>${icone('pessoa')} Colegas no turno</h3>
+    ${l.map(n => `<div class="linha-acoes"><span>${esc(n)}</span><button type="button" class="botao sec mini" data-tirar="${esc(n)}">Tirar do turno</button></div>`).join('')}
+    <p class="dica">Entrou por engano? Tire do turno: só vale se ele ainda não lançou veículo nem TF neste turno.</p></div>`;
+}
+async function tirarColega(t, nome, b) {
+  if (!navigator.onLine) return toast('Sem internet: para tirar o colega do turno é preciso conexão.', true);
+  if (!confirm(`Tirar ${nome} do turno?\n\nO nome dele sai do turno (Termo, painel e relatório). Fica registrado que você tirou.`)) return;
+  b.disabled = true; b.textContent = 'Tirando…';
+  try {
+    await Sync.removerColega(t.id, nome);
+    const x = await Store.obter('turnos', t.id);
+    if (x) await Store.gravar('turnos', { ...x, colegas: JSON.stringify(listaJSON(x.colegas).filter(n => !Sync.mesmoNome(n, nome))) });
+    toast(`${nome} saiu do turno.`); go('home');
+  } catch (e) { toast(e.message || 'Não foi possível tirar o colega do turno.', true); b.disabled = false; b.textContent = 'Tirar do turno'; }
 }
 /** Dono do turno: código de 6 números (15 min) para um colega entrar com o próprio login. Precisa de internet. */
 /** Último código gerado (fica na tela mesmo se a sincronização redesenhar o turno; some quando vence ou o turno muda). */
@@ -308,7 +330,7 @@ async function convidarColega(t) {
 }
 /** Colega: sai do turno compartilhado (o que lançou continua no turno). Sem internet, sai só deste aparelho. */
 async function sairDoTurno(t) {
-  if (!confirm(`Sair do turno de ${t.usuario}?\n\nO que você lançou continua no turno. Para voltar, peça um código novo.`)) return;
+  if (!confirm(`Sair do turno de ${t.usuario}?\n\nO que você lançou continua no turno (se não lançou nada, seu nome sai do turno). Para voltar, entre de novo.`)) return;
   await Store.setMeta('turnoAtual', '');
   Sync.sincronizar().catch(() => {}).then(() => Sync.sairDoTurno(t.id)).catch(() => {});   // pendentes sobem; o servidor registra a saída
   toast('Você saiu do turno do colega.'); go('home');
@@ -419,6 +441,7 @@ function novoTurno() {
     <div id="nLocalBox"></div>
     <label>Unidade (Termo) <small id="nUnidadeInfo"></small><input id="nUnidade" required autocomplete="off"></label>
     <label>Fiscal — nome completo *${Sync.nome() ? ` <small>(${Sync.usuario() ? 'da sua conta' : 'vinculado a este aparelho'})</small>` : ''}<input id="nFiscal1" autocomplete="off" ${Sync.nome() ? 'readonly' : ''} value="${Sync.nome() ? esc(Sync.nome()) : ls('fiscal1')}" placeholder="Nome e sobrenome"></label>
+    <div class="card aviso" id="nForaEscala" hidden>${icone('calendario')} Você não está na escala de plantão desta BVA para hoje: só os fiscais escalados abrem ou entram em turno aqui. Se você vai cobrir o plantão, peça à coordenação de barreira para ajustar a escala e sincronize.</div>
     <button class="botao" type="submit">Iniciar turno</button></form>`);
   $('#fParear').onsubmit = e => { e.preventDefault(); const c = $('#pCodigo').value.replace(/\D/g, '');
     if (c.length !== 6) return toast('Digite os 6 números do código.', true); entrarComCodigo(c); };
@@ -473,7 +496,14 @@ function novoTurno() {
   // Turno já em andamento na BVA escolhida (aberto por outro login): entrar nele com um toque em vez de abrir outro
   let abertos = [];
   const abertosAqui = () => $('#nPosto') && $('#nPosto').value === 'Fixa' && $('#nLocal') ? abertos.filter(a => nlLocal(a.local) === nlLocal($('#nLocal').value)) : [];
+  /** BVA fixa com escala publicada para hoje: só quem está nela abre turno (coordenação e gerência, livres). */
+  async function conferirEscala() {
+    const aviso = $('#nForaEscala'), btn = $('#fTurno button[type=submit]'); if (!aviso || !btn) return true;
+    const pode = !($('#nPosto').value === 'Fixa' && $('#nLocal')) || await Sync.podeTurnoNaBva($('#nLocal').value, hojeISO());
+    aviso.hidden = pode; btn.disabled = !pode; return pode;
+  }
   function mostrarAbertos() {
+    conferirEscala();
     const box = $('#abertosBox'); if (!box) return;
     box.innerHTML = abertosAqui().map(a => `<div class="card aviso turno-aberto"><h3>${icone('pessoa')} Turno em andamento nesta BVA</h3>
       <p><b>${esc(a.local)}</b> · ${esc(a.numeroTF || '')}</p><p>${esc(a.fiscal || a.dono)}</p><p class="dica">Aberto às ${esc(a.inicio || '')}. Entre para lançar no mesmo turno, com o seu login.</p>
@@ -494,6 +524,7 @@ function novoTurno() {
     if (!nomes.length) { toast('Informe o nome completo do fiscal.', true); $('#nFiscal1').focus(); return; }
     const curto = nomes.find(n => n.split(' ').length < 2);
     if (curto) { toast(`Informe o nome completo (nome e sobrenome): "${curto}"`, true); return; }
+    if (!(await conferirEscala())) { toast('Você não está na escala de plantão desta BVA para hoje.', true); return; }
     const data = hojeISO(), inicio = agoraHM();                                  // horário = instante do clique
     const btn = $('#fTurno button[type=submit]'); btn.disabled = true; btn.textContent = 'Obtendo localização…';
     // o outro aparelho abriu o turno enquanto este formulário estava na tela: entra nele em vez de abrir outro

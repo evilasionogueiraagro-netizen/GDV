@@ -42,7 +42,7 @@ Falta:
 
 ## 3. Convênios: armadilhas, controle e convênios novos
 
-*Feito em 14/10/2026 (metas, execução financeira e relatório mensal no painel). Armadilhas e ações de controle: em espera, por decisão do gestor ("não agora").*
+*Feito em 14/10/2026 (metas, execução e relatório mensal). Armadilhas e controle: em espera (gestor).*
 Feito: veja [modulos/convenio.md](modulos/convenio.md).
 Decisões: [Convênio MAPA/ADAF](decisoes/anteriores.md#convênio-mapaadaf)
 
@@ -54,7 +54,7 @@ Falta:
 
 ## 4. Relatório GDV: próximos passos
 
-*Feito em 14/10/2026 (mensal e anual) e em 16/10/2026 (carga na barreira). Em espera, por decisão do gestor ("não fazer agora"): por ora, entram como linha manual.*
+*Feito em 14 e 16/10/2026. Em espera (gestor): por ora, linha manual.*
 Feito: veja [modulos/relatorios.md](modulos/relatorios.md) e, para a carga na barreira, [modulos/vigifito.md](modulos/vigifito.md).
 Decisões: [Relatório GDV](decisoes/anteriores.md#relatório-gdv)
 
@@ -63,8 +63,8 @@ Falta:
 - Vazio sanitário da soja. Hoje: coluna "Fiscalizações do vazio sanitário" por município.
 - Educação sanitária no app (ações, público atingido). Hoje: tabela da Seção V no painel. A linha de veículos orientados já é automática.
 - Importação de CFO/CFOC, PTV e UP/UC (CSV dos sistemas de certificação). Hoje: tabelas das Seções III e IV no painel.
-- Armadilhas (mosca-da-carambola e Diaphorina citri). Hoje: coluna "Monitoramento de armadilhas" e linha "Armadilhas para Diaphorina citri" (Seção VI).
-- Avisos de consistência: coordenadas fora do município informado (exige a malha no servidor); importação dos relatórios dos meses anteriores ao e-GDV.
+- Armadilhas (mosca-da-carambola e Diaphorina citri). Hoje: coluna e linha próprias no painel (Seção VI).
+- Avisos de consistência: coordenada fora do município (exige a malha); importar relatórios anteriores ao e-GDV.
 
 ---
 

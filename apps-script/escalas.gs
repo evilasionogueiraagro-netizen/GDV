@@ -151,6 +151,30 @@ function minhasEscalas_() {
     .map(function (e) { return { id: e.id, bva: e.bva, inicio: e.inicio, fim: e.fim, equipe: e.fiscais.map(function (f) { return f.nome; }), equipeNumero: e.equipeNumero }; });
 }
 
+/**
+ * Turno em BVA fixa só para quem está na escala: onde há escala publicada cobrindo o dia, só os fiscais dela abrem ou entram em
+ * turno; BVA sem escala publicada para o dia fica livre. Coordenação de barreira e gerência (livre) não têm a trava.
+ * Sync: escalasDaBva = {livre, escalas: publicadas que ainda não acabaram, só BVA, período e se o login está nela (sem nomes)}.
+ */
+const livreDeEscala_ = function () {
+  const p = (USUARIO_ATUAL_ && USUARIO_ATUAL_.permissoes) || [];
+  return p.indexOf('coordenacaoBarreiras') >= 0 || p.indexOf('gerencia') >= 0;
+};
+function escalasDaBva_() {
+  const hoje = hojeManaus_(), eu = USUARIO_ATUAL_ && USUARIO_ATUAL_.id;
+  return { livre: livreDeEscala_() ? 1 : 0, escalas: escalasVivas_().filter(function (e) { return e.situacao === 'publicada' && e.fim >= hoje; })
+    .map(function (e) { return { bva: e.bva, inicio: e.inicio, fim: e.fim, eu: e.fiscais.some(function (f) { return f.id === eu; }) ? 1 : 0 }; }) };
+}
+const MSG_FORA_ESCALA_ = 'Você não está na escala de plantão desta BVA para hoje. Fale com a coordenação de barreira (ela ajusta a escala).';
+function exigirEscalaNaBva_(local, dia) {
+  if (!USUARIO_ATUAL_ || livreDeEscala_()) return;
+  dia = dia || hojeManaus_();
+  const k = localCanon_(local), es = escalasVivas_().filter(function (e) { return e.situacao === 'publicada' && e.inicio <= dia && e.fim >= dia && localCanon_(e.bva) === k; });
+  if (es.length && !es.some(function (e) { return e.fiscais.some(function (f) { return f.id === USUARIO_ATUAL_.id; }); })) {
+    const e = new Error(MSG_FORA_ESCALA_); e.foraEscala = 1; throw e;
+  }
+}
+
 /* app de campo (key): só com a permissão coordenacaoBarreiras */
 function exigirEscala_() {
   if (USUARIO_ATUAL_ && USUARIO_ATUAL_.modulos && USUARIO_ATUAL_.modulos.escala === 1) return;

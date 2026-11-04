@@ -157,7 +157,8 @@ const TABELAS = {
   HistoricoDeAlteracoes: ['id', 'em', 'usuarioId', 'acao', 'tabela', 'registroId', 'antes', 'depois'],
   // Turno compartilhado (turnos-compartilhados.gs): o dono do turno gera um código (válido por 15 min); o colega, com o próprio login,
   // entra com ele (colega/entrouEm) e sai quando quiser (saiuEm). Cada convite é uma linha; nada é apagado.
-  Pareamentos: ['id', 'turnoId', 'dono', 'codigo', 'criadoEm', 'expiraEm', 'colega', 'entrouEm', 'saiuEm'],
+  Pareamentos: ['id', 'turnoId', 'dono', 'codigo', 'criadoEm', 'expiraEm', 'colega', 'entrouEm', 'saiuEm',
+                'removidoPor'],   // colega tirado do turno sem ter lançado nada (entrou por engano): quem tirou (o próprio colega ou o dono)
   // escala de plantão por BVA e período (escalas.gs): fiscais = JSON [{id, nome}]; situacao = rascunho | publicada; excluir é lógico
   Escalas: ['id', 'bva', 'inicio', 'fim', 'fiscais', 'situacao', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor', 'publicadaEm', 'publicadaPor', 'excluido',
             'equipeNumero', 'responsavel'],   // nº da equipe (relatório da equipe) e responsável (chave do fiscal: id ou "nome:…")
@@ -190,7 +191,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-11-04b';
+const VERSAO_CODIGO = '2026-11-04d';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -262,6 +263,7 @@ function doPost(e) {
     if (req.action === 'turnoSair') return json_(turnoSair_(req, usuario));
     if (req.action === 'turnosAbertos') return json_(turnosAbertos_(req, usuario));
     if (req.action === 'turnoEntrar') return json_(turnoEntrar_(req, usuario));
+    if (req.action === 'turnoRemoverColega') return json_(turnoRemoverColega_(req, usuario));
     if (req.action === 'turnoTFs') return json_(turnoTFs_(req, usuario));
     if (req.action === 'turnoRecuperar') return json_(lido_(req, turnoRecuperar_(req, usuario)));
     if (req.action === 'turnoPapelRegistrar') return json_(turnoPapelRegistrar_(req, usuario));
@@ -402,6 +404,7 @@ function sincronizar_(req, usuario) {
       permissoes: perm,                                 // módulos liberados para este servidor (o app guarda e esconde o que não pode)
       bvas: bvasCadastro_(),                            // BVAs cadastradas no painel (o app junta com CONFIG.bvas)
       minhasEscalas: minhasEscalas_(),                  // escalas de plantão publicadas do fiscal que ainda não acabaram (escalas.gs)
+      escalasDaBva: escalasDaBva_(),                    // turno em BVA fixa só para quem está na escala do dia (sem nomes; escalas.gs)
       recusados: recusados                              // ids NÃO gravados por falta de autorização no módulo ou para registro antigo (ficam pendentes no aparelho)
     };
   } finally {

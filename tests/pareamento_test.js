@@ -84,7 +84,24 @@ const hoje = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10);
     const tD = (await aba('Turnos')).find(t => t.id === turnoId);
     ok(pDir && pDir.dono === A.nome && !pDir.codigo && Number(pDir.entrouEm) > 0 && JSON.parse(tD.colegas).includes(F3.nome) && JSON.parse(tD.colegas).includes(B.nome),
       'Pareamentos registra a entrada sem código (quem, de quem, quando); os dois colegas no turno', [pDir, tD.colegas]);
-    r = await post({ action: 'turnoSair', key: F3.token, turnoId }); ok(r.ok, 'terceiro fiscal sai do turno', r);
+    r = await post({ action: 'turnoSair', key: F3.token, turnoId });
+    let tX = (await aba('Turnos')).find(t => t.id === turnoId), pX = (await aba('Pareamentos')).find(x => x.turnoId === turnoId && x.colega === F3.nome);
+    ok(r.ok && r.removido && !JSON.parse(tX.colegas).includes(F3.nome) && JSON.parse(tX.colegas).includes(B.nome) && pX.removidoPor === F3.nome && Number(pX.saiuEm) > 0,
+      'terceiro fiscal sai sem ter lançado nada: o nome sai do turno (removidoPor registrado); o colega que lançou fica', [r, tX.colegas, pX]);
+    console.log('3c) dono tira do turno quem entrou por engano');
+    const F4 = await U.fiscal('Quarto Ficticio Teste');
+    r = await post({ action: 'turnoEntrar', key: F4.token, turnoId }); ok(r.ok, 'quarto fiscal entra por engano', r.erro);
+    r = await post({ action: 'turnoRemoverColega', key: B.token, turnoId, colega: F4.nome });
+    ok(!r.ok && /Só quem abriu/.test(r.erro), 'quem não é dono não tira colega', r.erro);
+    await sinc(pa); await pa.evaluate(() => go('home')); await pa.waitForSelector(`[data-tirar="${F4.nome}"]`, { timeout: 15000 });
+    ok(/Colegas no turno/.test(await pa.textContent('#colegasBox')) && await pa.locator(`[data-tirar="${B.nome}"]`).count() === 1, 'dono: cartão "Colegas no turno" com "Tirar do turno" para cada colega');
+    await pa.click(`[data-tirar="${F4.nome}"]`); await pa.waitForFunction(n => !document.querySelector(`[data-tirar="${n}"]`), F4.nome, { timeout: 15000 });
+    tX = (await aba('Turnos')).find(t => t.id === turnoId); pX = (await aba('Pareamentos')).find(x => x.turnoId === turnoId && x.colega === F4.nome);
+    ok(!JSON.parse(tX.colegas).includes(F4.nome) && pX.removidoPor === A.nome, 'dono tirou o quarto fiscal: nome fora do turno, Pareamentos registra quem tirou', [tX.colegas, pX]);
+    r = await post({ action: 'turnoRemoverColega', key: A.token, turnoId, colega: B.nome });
+    ok(!r.ok && /já lançou 1 veículo/.test(r.erro) && JSON.parse((await aba('Turnos')).find(t => t.id === turnoId).colegas).includes(B.nome), 'colega que já lançou não sai pelo dono (o nome fica)', r.erro);
+    r = await post({ action: 'sync', key: F4.token, since: 0, aparelho: 'x' });
+    ok(r.ok && !(r.turnos || []).some(t => t.id === turnoId), 'quem foi tirado não recebe mais o turno', (r.turnos || []).map(t => t.id));
     ok(!pd.erros.length, 'sem erros de página (terceiro fiscal)', pd.erros);
     await pd.context().close();
     await pa.click('nav [data-v=home]');

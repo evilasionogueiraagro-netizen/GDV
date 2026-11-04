@@ -61,6 +61,13 @@ const dia = n => new Date(Date.parse(hoje + 'T12:00:00Z') + n * 864e5).toISOStri
     ok(cv.ok && !r.ok && /não está na escala/.test(r.erro), 'com o código, fora da escala: recusado', r.erro);
     r = await post({ action: 'turnoEntrar', key: coord.token, turnoId });
     ok(r.ok && r.turno.id === turnoId, 'coordenação entra mesmo fora da escala', r.erro);
+    const tFora = { id: 'turno-fora-escala', numeroTF: 'TF-009-A-' + hoje.slice(0, 4), data: hoje, letra: 'A', inicio: '08:00', fim: '', fiscal: F.nome, local: 'BVA - CEASA',
+      unidade: 'BVA - CEASA', posto: 'Fixa', encerrado: 0, criadoEm: Date.now(), atualizadoEm: Date.now() };
+    const vFora = { id: 'veic-fora-escala', turnoId: tFora.id, placa: 'ABC1D23', data: hoje, hora: '08:10', criadoEm: Date.now(), atualizadoEm: Date.now() };
+    r = await post({ action: 'sync', key: F.token, since: 0, turnos: [tFora, { ...tFora, id: 'turno-jundia-livre', local: 'BVA - JUNDIÁ', unidade: 'BVA - JUNDIÁ' }], veiculos: [vFora] });
+    const tsx = await (await fetch(API + '/__aba?nome=Turnos')).json();
+    ok(r.ok && (r.recusados.turnos || []).includes(tFora.id) && (r.recusados.veiculos || []).includes(vFora.id) && !tsx.some(l => l[0] === tFora.id) && tsx.some(l => l[0] === 'turno-jundia-livre'),
+      'sync: turno novo na BVA escalada, de quem está fora, não grava (nem o veículo); na BVA sem escala, grava', r.recusados);
     ok(!pf.erros.length && !pe.erros.length, 'sem erros de página', pf.erros.concat(pe.erros));
   } finally { await b.close(); }
   console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.');

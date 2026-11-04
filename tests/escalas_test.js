@@ -145,9 +145,13 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
 
   console.log('3) painel: aba Escalas (anterior/atual/próxima, hoje × turnos, fora da escala) e edição pela gerência');
   const ag = Date.now(), hIni = new Date(Date.now() - 5 * 3600e3).toISOString().slice(11, 16);   // começou há 1 h (Manaus)
-  r = await post({ action: 'sync', key: f1.token, since: 0, turnos: [{ id: 'turno-fora-1', numeroTF: 'TF-801-A-' + hoje.slice(0, 4), data: hoje, letra: 'A', inicio: hIni, fim: '', fiscal: 'Ana Escalada Teste',
-    local: 'BVA - CEASA', unidade: 'BVA - CEASA', posto: 'Fixa', encerrado: 0, criadoEm: ag, atualizadoEm: ag }] });
-  ok(r.ok, 'Ana (escalada no Jundiá) abre turno na CEASA', r.erro);
+  const tFora = { id: 'turno-fora-1', numeroTF: 'TF-801-A-' + hoje.slice(0, 4), data: hoje, letra: 'A', inicio: hIni, fim: '', fiscal: 'Ana Escalada Teste',
+    local: 'BVA - CEASA', unidade: 'BVA - CEASA', posto: 'Fixa', encerrado: 0, criadoEm: ag, atualizadoEm: ag };
+  r = await post({ action: 'sync', key: f1.token, since: 0, turnos: [tFora] });
+  ok(r.ok && (r.recusados.turnos || []).includes('turno-fora-1'), 'Ana (escalada no Jundiá) não abre turno na CEASA pelo sync (fora da escala)', r.recusados);
+  // turno de antes da trava (ou aberto quando a escala ainda não incluía): gravado direto na planilha para o painel mostrar "fora da escala"
+  const g0 = await (await fetch(API + '/__fn?nome=gravar_&args=' + encodeURIComponent(JSON.stringify(['Turnos', [tFora], ag, 'Ana Escalada Teste'])))).json();
+  ok(g0 && !g0.erro, 'turno fora da escala gravado direto (dado antigo)', g0);
   const cg = await b.newContext({ viewport: { width: 1366, height: 900 }, timezoneId: 'America/Manaus', locale: 'pt-BR', serviceWorkers: 'block' });
   await cg.addInitScript(i => { if (!sessionStorage.getItem('__init')) { sessionStorage.setItem('__init', 1); localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.painel.token', i.t); localStorage.setItem('gdv.painel.nome', i.n); } }, { t: g.token, n: g.nome });
   const G = await cg.newPage(); G.on('pageerror', x => err.push('painel: ' + x.message)); G.on('dialog', d => d.accept());

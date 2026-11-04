@@ -287,7 +287,7 @@ function turnoRecuperar_(req, usuario) {
   if (!diaValido_(de) || !diaValido_(ate) || ate < de) throw new Error('Informe o período (de e até).');
   if (somarDias_(de, 62) < ate) throw new Error('Período longo demais (até 62 dias).');
   const eu = nomeChave_(usuario), colega = {};
-  lerLeitura_('Pareamentos').forEach(function (p) { if (p.id && p.colega && p.entrouEm && nomeChave_(p.colega) === eu) colega[p.turnoId] = true; });
+  lerLeitura_('Pareamentos').forEach(function (p) { if (p.id && p.colega && p.entrouEm && !p.removidoPor && nomeChave_(p.colega) === eu) colega[p.turnoId] = true; });
   const limpo = function (o) { delete o._linha; return o; }, ids = {};
   const turnos = lerLinhas_('Turnos').filter(function (t) {
     const d = String(t.data).slice(0, 10);
@@ -311,7 +311,7 @@ function turnoTFs_(req, usuario) {
   const t = lerLeitura_('Turnos').filter(function (x) { return x.id === id; })[0];
   if (!t) return { ok: true, tfs: [] };
   const part = {}; part[nomeChave_(t.usuario)] = true;
-  lerLeitura_('Pareamentos').forEach(function (p) { if (p.turnoId === id && p.colega && p.entrouEm) part[nomeChave_(p.colega)] = true; });
+  lerLeitura_('Pareamentos').forEach(function (p) { if (p.turnoId === id && p.colega && p.entrouEm && !p.removidoPor) part[nomeChave_(p.colega)] = true; });
   if (!part[nomeChave_(usuario)]) throw new Error('Este turno é de outro fiscal.');
   const d = String(t.data).slice(0, 10), ini = String(t.inicio || '00:00'), fim = String(t.fim || '');
   const noHorario = function (f) {                    // turno que passa da meia-noite (fim < início): até o fim, no dia seguinte

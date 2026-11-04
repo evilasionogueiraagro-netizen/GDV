@@ -106,8 +106,12 @@ const pdfBuf = () => Buffer.from('%PDF-1.4\n% tf do papel ficticio\n1 0 obj << /
     console.log('4) talão do papel e app começaram os dois do 1: TF do papel anterior ao 1º do app é da série do papel');
     const ANTES = diaManaus(Date.now() - 3 * 86400e3);
     if (ANTES.slice(0, 4) === ONTEM.slice(0, 4)) {
+      r = await post({ action: 'tfEmitir', key: F.token, tf: tfBase({ numero: 300, numeroTxt: `0300/${ANO} - BVA - CEASA`, data: ANTES }) });
+      ok(r.ok && r.emitido && !r.seriePapel && r.numeroTxt === `0300/${ANO} - BVA - CEASA`, 'antes de qualquer TF do app: papel 0300 na sequência única', r);
       r = await post({ action: 'tfEmitir', key: F.token, tf: tfBase({ numero: 545, numeroTxt: `0545/${ANO} - BVA - CEASA`, registroAntigo: 0, numeroOrigem: 'sistema' }) });
       ok(r.ok && r.emitido, 'TF do app 0545 (data de ontem): o 1º do app nesta barreira', r);
+      const t300 = (await ler('TFs')).find(t => t.numero === 300), t543 = (await ler('TFs')).find(t => t.numero === 543);
+      ok(t300.numeroTxt === `0300/${ANO} - BVA - CEASA (papel)` && !/papel/.test(t543.numeroTxt), 'com o 1º TF do app, o papel anterior já gravado ganha "(papel)" no nº (o da mesma data, não)', [t300.numeroTxt, t543.numeroTxt]);
       r = await post({ action: 'tfProximoNumero', key: F.token, barreira: 'BVA-CEASA', ano: ANO });
       ok(r.ok && r.inicioApp === ONTEM && r.proximo === 546, 'tfProximoNumero informa a data do 1º TF do app', r);
       r = await post({ action: 'tfEmitir', key: F.token, tf: tfBase({ numero: 545, numeroTxt: `0545/${ANO} - BVA - CEASA`, data: ANTES }) });

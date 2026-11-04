@@ -17,7 +17,7 @@ TF do app de campo (isolado ou no turno), impresso em 2 vias. Veja também: [app
 - UF de origem/destino opcionais (`CONFIG.ufs`, inclui "Exterior"); TF de veículo herda a UF do veículo.
 - Fotos e assinaturas (fiscalizado e servidor) no Drive via `Arquivos`; `recusaAssinatura = 1` se o fiscalizado se recusa. O painel recebe só `nFotos` e `assinado`.
 - Cancelar (motivo obrigatório): mantém o número e sai da reincidência. Cancelado e enviado pode sair da lista do aparelho; na planilha continua.
-- TF antigo (digitar do papel): exige TF, PCE e Papel. Nº, data e hora digitados (futuro recusado). Com internet; número já usado na barreira/ano é recusado. Número maior: a sequência segue dele. Fiscalizado opcional (vazio = "NÃO IDENTIFICADO"); PDF escaneado (até 10, 10 MB) no lugar de fotos; sem turno.
+- TF antigo (digitar do papel): exige TF, PCE e Papel. Nº, data e hora digitados (futuro recusado). Com internet; número já usado na barreira/ano é recusado. Número maior: a sequência segue dele. Antes do 1º TF do app na barreira/ano: série "(papel)", à parte da sequência. Fiscalizado opcional (vazio = "NÃO IDENTIFICADO"); PDF escaneado (até 10, 10 MB) no lugar de fotos; sem turno.
 - Mesmo TF (nº, ano, placa) numa carga do plantão importado: a carga conta só como veículo, o resto vem do TF. Jundiá: a barreira precisa estar em `Barreiras` e o Local do TF é o nome da BVA do posto no VIGIFITO.
 - `verificar.html` (sem login, `tfVerificar`): nº, data, barreira, situação e placa mascarada. Nunca CPF/CNPJ, nome, endereço, telefone ou produtos. 30 ids inválidos por minuto: bloqueio de 1 min.
 

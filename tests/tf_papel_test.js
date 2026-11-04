@@ -102,6 +102,26 @@ const pdfBuf = () => Buffer.from('%PDF-1.4\n% tf do papel ficticio\n1 0 obj << /
     const VD = await post({ action: 'painelVigDados', key: TOK, ano: ANO }), J = ((VD.apuracao.porMes || {})['pf-jundia'] || {})[ONTEM.slice(0, 7)] || {};
     ok(J.veiculos === 3 && J.tfs === 1 && J.partidas === 1 && J.apreensao === 1 && J.internN === 1 && J.inspecaoFito === 1 && J.inspecao === 1,
       'VIGIFITO Jundiá: 3 veículos; TF, partida, apreensão e internalização = 1 (a carga conta pelo TF do papel, não duas vezes); inspeção do TF = 1', J);
+
+    console.log('4) talão do papel e app começaram os dois do 1: TF do papel anterior ao 1º do app é da série do papel');
+    const ANTES = diaManaus(Date.now() - 3 * 86400e3);
+    if (ANTES.slice(0, 4) === ONTEM.slice(0, 4)) {
+      r = await post({ action: 'tfEmitir', key: F.token, tf: tfBase({ numero: 545, numeroTxt: `0545/${ANO} - BVA - CEASA`, registroAntigo: 0, numeroOrigem: 'sistema' }) });
+      ok(r.ok && r.emitido, 'TF do app 0545 (data de ontem): o 1º do app nesta barreira', r);
+      r = await post({ action: 'tfProximoNumero', key: F.token, barreira: 'BVA-CEASA', ano: ANO });
+      ok(r.ok && r.inicioApp === ONTEM && r.proximo === 546, 'tfProximoNumero informa a data do 1º TF do app', r);
+      r = await post({ action: 'tfEmitir', key: F.token, tf: tfBase({ numero: 545, numeroTxt: `0545/${ANO} - BVA - CEASA`, data: ANTES }) });
+      ok(r.ok && r.emitido && r.seriePapel && r.numeroTxt === `0545/${ANO} - BVA - CEASA (papel)`, 'papel 0545 com data anterior ao app: grava na série do papel, nº com "(papel)"', r);
+      r = await post({ action: 'tfEmitir', key: F.token, tf: tfBase({ numero: 545, numeroTxt: `0545/${ANO} - BVA - CEASA`, data: ANTES }) });
+      ok(r.ok && r.emitido === false && /\(papel\)/.test(r.ocupadoPor.numeroTxt), 'outro papel 0545 anterior ao app: recusado (repetido na série do papel)', r);
+      r = await post({ action: 'tfEmitir', key: F.token, tf: tfBase({ numero: 545, numeroTxt: `0545/${ANO} - BVA - CEASA`, data: ONTEM }) });
+      ok(r.ok && r.emitido === false && !/papel/.test(r.ocupadoPor.numeroTxt), 'papel 0545 com data do app em diante: recusado (repete o do app)', r);
+      r = await post({ action: 'tfEmitir', key: F.token, tf: tfBase({ numero: 2000, numeroTxt: `2000/${ANO} - BVA - CEASA`, data: ANTES }) });
+      const px = await post({ action: 'tfProximoNumero', key: F.token, barreira: 'BVA-CEASA', ano: ANO });
+      ok(r.ok && r.emitido && px.proximo === 546, 'papel 2000 anterior ao app não mexe na sequência do app (próximo continua 546)', px);
+      const conf = (await ler('TFs')).filter(t => t.numero === 545).map(t => t.conflito);
+      ok(conf.length === 2 && conf.every(c => Number(c) === 0), 'app 0545 e papel 0545 não ficam marcados como conflito', conf);
+    } else console.log('  (início de ano: seção pulada)');
   } finally { await b.close(); }
   console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.');
   process.exitCode = falhas ? 1 : 0;

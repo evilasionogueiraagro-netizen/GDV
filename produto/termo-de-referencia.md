@@ -7,8 +7,8 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | Órgão | Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM |
 | Unidade responsável | Gerência de Defesa Vegetal – GDV |
 | Produto | e-GDV (app de campo, painel gerencial, Portal do Administrativo, dashboard público e serviço de dados) |
-| Versão do sistema descrita | 2026-11-04a |
-| Versão deste Termo | 1.6, de 04/11/2026 |
+| Versão do sistema descrita | 2026-11-04b |
+| Versão deste Termo | 1.7, de 04/11/2026 |
 
 ## 1. Objeto
 
@@ -85,7 +85,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 - RF-18. Constatação e enquadramento legal sugeridos pela BVA, pelo sentido da rota (entrada ou saída, pela origem e destino) e pelo produto, conforme a tabela de enquadramentos da GDV. O fiscal pode editar os textos.
 - RF-19. Auto de Infração no próprio TF, com numeração própria por barreira e ano e PDF em 3 vias.
 - RF-20. PDF do TF em 2 vias, com QR code de verificação; cancelamento com motivo, mantendo o número.
-- RF-21. Digitação de TFs antigos do papel.
+- RF-21. Digitação de TFs antigos do papel. O TF de papel anterior ao 1º TF do aplicativo na barreira forma uma série própria, marcada "(papel)", sem conflitar com a numeração do aplicativo.
 - RF-22. Página pública de verificação de autenticidade, sem dados pessoais.
 
 ### 4.4. Escalas de plantão e relatório da equipe
@@ -208,3 +208,4 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | 1.4 | 02/11/2026 | 2026-11-02c | RF-26A: enquadramento legal no Termo de Repasse/Destruição (na CEASA, o da mosca-da-carambola) |
 | 1.5 | 03/11/2026 | 2026-11-03a | RF-06 e item 8.2: TFs do turno compartilhado visíveis para todos os fiscais do turno |
 | 1.6 | 04/11/2026 | 2026-11-04a | RF-06: entrar com um toque no turno em andamento da BVA fixa, sem código |
+| 1.7 | 04/11/2026 | 2026-11-04b | RF-21: série do papel para TFs anteriores ao aplicativo na barreira |

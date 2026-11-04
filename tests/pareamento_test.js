@@ -66,6 +66,29 @@ const hoje = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10);
     const pr = (await aba('Pareamentos')).find(x => x.codigo === codigo);
     ok(pr && pr.dono === A.nome && pr.colega === B.nome && Number(pr.entrouEm) > 0 && !pr.saiuEm, 'aba Pareamentos registra quem convidou, quem entrou e quando', pr);
 
+    console.log('3b) terceiro fiscal na mesma BVA: entra no turno em andamento com um toque (sem código)');
+    const F3 = await U.fiscal('Deltrano Ficticio Teste');
+    r = await post({ action: 'turnosAbertos', key: B.token });
+    ok(r.ok && !r.turnos.some(x => x.id === turnoId), 'turnosAbertos: quem já está no turno não o vê de novo', r.turnos);
+    r = await post({ action: 'turnoEntrar', key: A.token, turnoId });
+    ok(!r.ok && /já é seu/.test(r.erro), 'turnoEntrar: o dono não "entra" no próprio turno', r.erro);
+    const pd = await abrirApp(F3.ls);
+    await pd.waitForSelector('#fTurno'); await pd.selectOption('#nPosto', 'Fixa'); await pd.selectOption('#nLocal', 'BVA - CEASA');
+    await pd.waitForSelector('[data-entrar]', { timeout: 15000 });
+    const cartao = await pd.textContent('#abertosBox'); await pd.screenshot({ path: amb.saida('pareamento_entrar_direto.png') });
+    ok(/Turno em andamento nesta BVA/.test(cartao) && /Fulano Ficticio Teste/.test(cartao) && /Beltrano Ficticio Teste/.test(cartao) && !/52998224725/.test(cartao),
+      'novo turno na BVA com turno aberto: cartão "Turno em andamento nesta BVA" com os fiscais e "Entrar neste turno"', cartao);
+    await pd.click('[data-entrar]'); await pd.waitForSelector('.contador h1', { timeout: 25000 });
+    ok(/Turno de Fulano Ficticio Teste/.test(await pd.textContent('main')) && (await pd.textContent('.contador h1')).trim() === '2', 'terceiro fiscal: entra no turno do dono e já vê os 2 veículos');
+    const pDir = (await aba('Pareamentos')).find(x => x.turnoId === turnoId && x.colega === F3.nome);
+    const tD = (await aba('Turnos')).find(t => t.id === turnoId);
+    ok(pDir && pDir.dono === A.nome && !pDir.codigo && Number(pDir.entrouEm) > 0 && JSON.parse(tD.colegas).includes(F3.nome) && JSON.parse(tD.colegas).includes(B.nome),
+      'Pareamentos registra a entrada sem código (quem, de quem, quando); os dois colegas no turno', [pDir, tD.colegas]);
+    r = await post({ action: 'turnoSair', key: F3.token, turnoId }); ok(r.ok, 'terceiro fiscal sai do turno', r);
+    ok(!pd.erros.length, 'sem erros de página (terceiro fiscal)', pd.erros);
+    await pd.context().close();
+    await pa.click('nav [data-v=home]');
+
     console.log('4) só o dono grava e encerra o turno');
     const t0 = ts[0];
     r = await post({ action: 'sync', key: B.token, since: 9e15, turnos: [{ ...t0, encerrado: 1, fim: '10:00', fiscal: 'Outro Nome', atualizadoEm: Date.now() + 5000 }], veiculos: [] });

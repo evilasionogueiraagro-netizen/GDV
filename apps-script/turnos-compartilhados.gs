@@ -101,14 +101,57 @@ function turnoParear_(req, usuario) {
     const turnos = lerLinhas_('Turnos'), t = turnoAbertoPorId_(turnos, p.turnoId);
     if (t.usuario === usuario) throw new Error('Este turno já é seu: os seus aparelhos já entram nele sozinhos.');
     atualizar_('Pareamentos', p._linha, { colega: usuario, entrouEm: agora });
-    const colegas = lerJSONSeguro_(t.colegas, []);
-    if (!colegas.some(function (n) { return nomeChave_(n) === nomeChave_(usuario); })) colegas.push(usuario);
-    atualizar_('Turnos', t._linha, { colegas: JSON.stringify(colegas), srv_ts: agora });
-    t.colegas = JSON.stringify(colegas); t.srv_ts = agora; delete t._linha;
-    const veiculos = lerLeitura_('Veiculos').filter(function (v) { return v.turnoId === t.id; });
-    // TFs já lavrados no turno (o colega passa a ver o TF completo, como o dono)
-    const tfs = USUARIO_ATUAL_ && USUARIO_ATUAL_.modulos && USUARIO_ATUAL_.modulos.tf ? lerLeitura_('TFs').filter(function (f) { return f.turnoId === t.id; }) : [];
-    return { ok: true, turno: t, veiculos: veiculos, tfs: tfs, dono: t.usuario };
+    return juntarAoTurno_(t, usuario, agora);
+  });
+  if (r.tfs.length) lido_({ action: 'tfsTurnoCompartilhado' }, r);   // fora do lock (lido_ grava com o próprio lock)
+  return r;
+}
+
+/** Dentro do lock: põe o colega em Turnos.colegas e devolve o turno, os veículos e (módulo TF) os TFs já lançados nele. */
+function juntarAoTurno_(t, usuario, agora) {
+  const colegas = lerJSONSeguro_(t.colegas, []);
+  if (!colegas.some(function (n) { return nomeChave_(n) === nomeChave_(usuario); })) colegas.push(usuario);
+  atualizar_('Turnos', t._linha, { colegas: JSON.stringify(colegas), srv_ts: agora });
+  t.colegas = JSON.stringify(colegas); t.srv_ts = agora; delete t._linha;
+  const veiculos = lerLeitura_('Veiculos').filter(function (v) { return v.turnoId === t.id; });
+  // TFs já lavrados no turno (o colega passa a ver o TF completo, como o dono)
+  const tfs = USUARIO_ATUAL_ && USUARIO_ATUAL_.modulos && USUARIO_ATUAL_.modulos.tf ? lerLeitura_('TFs').filter(function (f) { return f.turnoId === t.id; }) : [];
+  return { ok: true, turno: t, veiculos: veiculos, tfs: tfs, dono: t.usuario };
+}
+
+/** Turno de BVA fixa aberto agora (início nas últimas 12 h), que conta veículos e não foi cancelado: dá para entrar sem código. */
+function turnoAbertoNaBva_(t, agora) {
+  if (!t.id || t.encerrado === 1 || Number(t.cancelado) === 1 || t.soPessoas === 1 || !ehFixa_(t)) return false;
+  const ini = tsManaus_(t.data, t.inicio);
+  return ini !== null && agora - ini <= TURNO_MAX_MS && ini - agora <= ENCERRAR_TOLERANCIA_MS;
+}
+
+/**
+ * turnosAbertos {}: turnos em andamento nas BVAs fixas abertos por outros logins, para o fiscal entrar com um toque (turnoEntrar)
+ * em vez de abrir outro turno na mesma BVA. Só o que aparece no cartão do turno: nº, BVA, fiscais, início.
+ */
+function turnosAbertos_(req, usuario) {
+  const agora = Date.now(), dentro = turnosCompartilhados_(usuario, agora).turnos;
+  const turnos = lerLeitura_('Turnos').filter(function (t) { return t.usuario !== usuario && !dentro[t.id] && turnoAbertoNaBva_(t, agora); })
+    .map(function (t) { return { id: t.id, numeroTF: t.numeroTF, local: t.local, fiscal: t.fiscal, dono: t.usuario, data: t.data, inicio: t.inicio }; });
+  return { ok: true, turnos: turnos };
+}
+
+/**
+ * turnoEntrar {turnoId}: o fiscal entra, sem código, num turno em andamento de BVA fixa (turnosAbertos). Fica registrado na aba
+ * Pareamentos como um pareamento sem código (dono, colega, entrouEm), igual ao do código: sync, Termo e painel não mudam.
+ */
+function turnoEntrar_(req, usuario) {
+  const id = String(req.turnoId || '').trim();
+  if (!id || id.length > 64) throw new Error('Turno não informado.');
+  const r = comLock_(function () {
+    const agora = Date.now(), t = turnoAbertoPorId_(lerLinhas_('Turnos'), id);
+    if (t.usuario === usuario) throw new Error('Este turno já é seu: os seus aparelhos já entram nele sozinhos.');
+    if (!turnoAbertoNaBva_(t, agora)) throw new Error('Este turno não aceita entrada direta. Peça o código ao colega que abriu o turno.');
+    const ja = lerLeitura_('Pareamentos').some(function (p) { return p.turnoId === id && p.colega === usuario && !p.saiuEm; });
+    if (!ja) inserir_('Pareamentos', [{ id: uuid_(), turnoId: id, dono: t.usuario, codigo: '', criadoEm: agora, expiraEm: agora,
+                                         colega: usuario, entrouEm: agora }]);
+    return juntarAoTurno_(t, usuario, agora);
   });
   if (r.tfs.length) lido_({ action: 'tfsTurnoCompartilhado' }, r);   // fora do lock (lido_ grava com o próprio lock)
   return r;

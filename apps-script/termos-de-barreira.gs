@@ -92,6 +92,17 @@ function seriePapelTF_(r, inicio) {
 }
 const SUFIXO_PAPEL_ = ' (papel)';
 
+/** Dentro do lock: TFs da série do papel já gravados sem "(papel)" no nº em texto (gravados antes da série existir, ou antes do 1º
+ *  TF do app na barreira) ganham o sufixo, para não ter dois documentos com o mesmo nº em texto. srv_ts muda: os aparelhos recebem. */
+function sufixarSeriePapel_(barreira, ano, regs, agora) {
+  const ini = inicioAppTF_(regs);
+  const falta = function (r) { return r.barreira === barreira && r.ano === ano && seriePapelTF_(r, ini) && r.numeroTxt && String(r.numeroTxt).indexOf(SUFIXO_PAPEL_) < 0; };
+  if (!regs.some(falta)) return 0;
+  const linhas = lerLinhas_('TFs').filter(falta);
+  linhas.forEach(function (r) { atualizar_('TFs', r._linha, { numeroTxt: r.numeroTxt + SUFIXO_PAPEL_, srv_ts: agora }); });
+  return linhas.length;
+}
+
 function ultimoSeq_(tipo, grupo, ano, regs) {
   const s = SEQUENCIAS[tipo];
   let ultimo = 0, ref = null;
@@ -156,6 +167,7 @@ function emitir_(req, usuario) {
     tf.emitidoEm = (antes && antes.emitidoEm) || agora;                          // reenvio do mesmo TF não muda a data de emissão
     numerarAuto_(tf, todos, antes);
     gravar_('TFs', [tf], agora, usuario);
+    sufixarSeriePapel_(barreira, ano, todos.filter(function (r) { return r.id !== tf.id; }).concat([tf]), agora);
     if (req.pessoa) gravar_('Pessoas', [req.pessoa], agora, usuario);
     if (req.placa) gravar_('Placas', [req.placa], agora, usuario);
     return { ok: true, emitido: true, numero: numero, numeroTxt: tf.numeroTxt, seriePapel: papel, emitidoEm: tf.emitidoEm, srv_ts: agora,

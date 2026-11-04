@@ -175,6 +175,18 @@ function exigirEscalaNaBva_(local, dia) {
   }
 }
 
+/** Sync: ids dos turnos NOVOS de BVA fixa que o login não pode abrir (fora da escala do dia do turno). Não grava: ficam pendentes. */
+function turnosForaDaEscala_(turnos) {
+  const fora = {};
+  if (!turnos.length || livreDeEscala_()) return fora;
+  const existe = {}; lerLinhas_('Turnos').forEach(function (t) { existe[t.id] = true; });
+  turnos.forEach(function (t) {
+    if (!t || !t.id || existe[t.id] || !ehFixa_(t)) return;
+    try { exigirEscalaNaBva_(t.local, String(t.data || '').slice(0, 10) || hojeManaus_()); } catch (e) { fora[t.id] = true; }
+  });
+  return fora;
+}
+
 /* app de campo (key): só com a permissão coordenacaoBarreiras */
 function exigirEscala_() {
   if (USUARIO_ATUAL_ && USUARIO_ATUAL_.modulos && USUARIO_ATUAL_.modulos.escala === 1) return;

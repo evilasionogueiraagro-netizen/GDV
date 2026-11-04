@@ -340,6 +340,14 @@ function sincronizar_(req, usuario) {
       const comTF = {}; lerLeitura_('TFs').concat(T.tfs).forEach(function (f) { if (f && f.turnoId && Number(f.cancelado) !== 1) comTF[f.turnoId] = true; });
       T.turnos.forEach(function (t) { if (t && Number(t.cancelado) === 1 && comTF[t.id]) { t.cancelado = 0; t.canceladoEm = 0; } });
     }
+    // turno novo em BVA fixa fora da escala do dia: não grava (nem os veículos dele); fica pendente no aparelho (escalas.gs)
+    const foraEscala = turnosForaDaEscala_(T.turnos);
+    if (Object.keys(foraEscala).length) {
+      alheios('turnos', Object.keys(foraEscala));
+      alheios('veiculos', T.veiculos.filter(function (v) { return v && foraEscala[v.turnoId]; }).map(function (v) { return v.id; }));
+      T.turnos = T.turnos.filter(function (t) { return !(t && foraEscala[t.id]); });
+      T.veiculos = T.veiculos.filter(function (v) { return !(v && foraEscala[v.turnoId]); });
+    }
     letrasDosTurnos_(T.turnos);                                                        // A, B, C… pela ordem do nº do turno (turnos-compartilhados.gs)
     gravar_('Turnos', T.turnos, agora, usuario);
     alheios('veiculos', gravar_('Veiculos', T.veiculos, agora, usuario));

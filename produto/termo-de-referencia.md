@@ -7,8 +7,8 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | Órgão | Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM |
 | Unidade responsável | Gerência de Defesa Vegetal – GDV |
 | Produto | e-GDV (app de campo, painel gerencial, Portal do Administrativo, dashboard público e serviço de dados) |
-| Versão do sistema descrita | 2026-11-04b |
-| Versão deste Termo | 1.7, de 04/11/2026 |
+| Versão do sistema descrita | 2026-11-04d |
+| Versão deste Termo | 1.9, de 04/11/2026 |
 
 ## 1. Objeto
 
@@ -63,7 +63,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 
 ### 4.2. Turno na barreira e educação sanitária
 - RF-05. Abertura de turno em posto fixo (BVA) ou volante, com número do Termo do turno, horário e localização (GPS) de início e fim.
-- RF-06. Turno compartilhado: o colega entra no mesmo turno com o próprio login, por um código de 6 números ou, na BVA fixa com turno em andamento, com um toque (sem código). Os TFs lavrados no turno ficam visíveis para todos os fiscais do turno.
+- RF-06. Turno compartilhado: o colega entra no mesmo turno com o próprio login, por um código de 6 números ou, na BVA fixa com turno em andamento, com um toque (sem código); quem entrou por engano e não lançou nada sai do turno, pelo próprio fiscal ou por quem abriu o turno. Os TFs lavrados no turno ficam visíveis para todos os fiscais do turno.
 - RF-07. Registro de cada veículo: placa (obrigatória onde a BVA exige), tipo, origem e destino, e quantas pessoas receberam educação sanitária.
 - RF-08. Alerta de cuidado na placa (abordagem com risco), visto por outros fiscais em qualquer BVA e avisado à gerência.
 - RF-09. Aviso de placa com TF anterior na mesma BVA, também sem internet.
@@ -90,7 +90,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 
 ### 4.4. Escalas de plantão e relatório da equipe
 - RF-23. A coordenação monta a escala de cada BVA por período: fiscais, número da equipe e responsável. A escala passa de rascunho a publicada. A gerência também edita pelo painel.
-- RF-24. O fiscal vê a própria escala na tela inicial.
+- RF-24. O fiscal vê a própria escala na tela inicial. Na BVA fixa com escala publicada para o dia, só os fiscais escalados abrem ou entram em turno; a coordenação e a gerência não têm essa trava; BVA sem escala publicada fica livre.
 - RF-25. Relatório da equipe (prestação de contas do convênio, etapa 1.10), com os números somados automaticamente de todos os turnos da equipe no período:
   - veículos abordados;
   - Termos de Fiscalização emitidos;
@@ -209,3 +209,5 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | 1.5 | 03/11/2026 | 2026-11-03a | RF-06 e item 8.2: TFs do turno compartilhado visíveis para todos os fiscais do turno |
 | 1.6 | 04/11/2026 | 2026-11-04a | RF-06: entrar com um toque no turno em andamento da BVA fixa, sem código |
 | 1.7 | 04/11/2026 | 2026-11-04b | RF-21: série do papel para TFs anteriores ao aplicativo na barreira |
+| 1.8 | 04/11/2026 | 2026-11-04c | RF-06: tirar do turno compartilhado o fiscal que entrou por engano |
+| 1.9 | 04/11/2026 | 2026-11-04d | Turno em BVA fixa só para os fiscais da escala de plantão publicada do dia |

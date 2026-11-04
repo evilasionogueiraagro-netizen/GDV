@@ -36,7 +36,7 @@ Contrato das actions: ao criar, mudar ou remover uma, atualize esta tabela. Regr
 | `turnoParear` | veiculos | `codigo` | `turno`, `veiculos`, `dono` |
 | `turnoSair` | veiculos | `turnoId` | `saiu` |
 | `turnosAbertos` | veiculos | — | `turnos` (BVA fixa, até 12 h, de outros) |
-| `turnoEntrar` | veiculos | `turnoId` | como `turnoParear` |
+| `turnoEntrar` / `turnoRemoverColega` (dono) | veiculos | `turnoId` / + `colega` | como `turnoParear` / `removido` |
 | `turnoRecuperar` | veiculos | `de`, `ate` (≤ 62 dias) | `turnos`, `veiculos`, `tfs` |
 | `turnoTFs` | veiculos (dono ou colega) | `turnoId` | `tfs` [{`numeroTxt`, `procedimento`, `auto`, `advertencia`, `fiel`}] |
 | `turnoPapelRegistrar` | antigo | `turno`, `veiculos`, `pessoas` | `turno` |

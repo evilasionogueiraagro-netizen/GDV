@@ -314,6 +314,8 @@ const Sync = (() => {
     return r;
   }
   const sairDoTurno = turnoId => chamar({ action: 'turnoSair', turnoId }, 20000);
+  /** Dono: tira do turno o colega que entrou por engano (só se ele não lançou nada). */
+  const removerColega = (turnoId, colega) => chamar({ action: 'turnoRemoverColega', turnoId, colega }, 20000);
   /** Nºs dos TFs de barreira do turno na planilha (os do colega também), para o Termo do turno. */
   const tfsDoTurno = turnoId => chamar({ action: 'turnoTFs', turnoId }, 8000);
   /** Histórico → "Buscar meus turnos na planilha": turnos do período (os do login e os em que entrou pelo código), veículos e TFs do login.
@@ -339,6 +341,15 @@ const Sync = (() => {
   const relEquipe = escalaId => chamar({ action: 'relEquipe', escalaId }, 45000);
   const relEquipeSalvar = (escalaId, dados) => chamar({ action: 'relEquipeSalvar', escalaId, dados }, 30000);
   const minhasEscalas = async () => { try { return (await Store.meta('minhasEscalas')) || []; } catch (e) { return []; } };
+  /** Turno em BVA fixa: onde há escala publicada cobrindo o dia, só quem está nela (coordenação e gerência, livres). true = pode. */
+  async function podeTurnoNaBva(bva, dia) {
+    let m = null; try { m = await Store.meta('escalasDaBva'); } catch (e) { m = null; }
+    if (!m || Number(m.livre) === 1) return true;
+    const l = Array.isArray(m.escalas) ? m.escalas : [];
+    const k = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '');
+    const es = l.filter(e => k(e.bva) === k(bva) && e.inicio <= dia && e.fim >= dia);
+    return !es.length || es.some(e => Number(e.eu) === 1);
+  }
 
   /* ---------- Índice de reincidência (consulta do TF sem internet) ----------
      Resumo de TODOS os TFs não cancelados (todas as barreiras) por hash do CPF/CNPJ, da placa e da placa + BVA: {h: {n, ap, re, au, li, ad, ult}}, sem dados
@@ -445,6 +456,7 @@ const Sync = (() => {
         await lembrarUltimosDocPce(r.ultimosDocPce);
         if (r.barreiras) await Store.setMeta('barreiras', r.barreiras);
         if (Array.isArray(r.minhasEscalas)) await Store.setMeta('minhasEscalas', r.minhasEscalas);   // escalas de plantão publicadas do fiscal
+        if (r.escalasDaBva && Array.isArray(r.escalasDaBva.escalas)) await Store.setMeta('escalasDaBva', r.escalasDaBva);       // turno em BVA fixa só para quem está na escala
         if (Array.isArray(r.bvas)) { await Store.setMeta('bvas', r.bvas); CONFIG.aplicarBvas(r.bvas); }   // BVAs cadastradas no painel
         await lembrarUltimos(r.ultimos);
         await lembrarUltimosPce(r.ultimosPce);
@@ -545,7 +557,7 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, turnosAbertos, entrarNoTurno, sairDoTurno, turnoPapel, mesmoNome, recuperarTurnos, tfsDoTurno, escalaDados, escalaSalvar, escalaExcluir, escalaGerar, relEquipeLista, relEquipe, relEquipeSalvar, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
+  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, turnosAbertos, entrarNoTurno, sairDoTurno, removerColega, podeTurnoNaBva, turnoPapel, mesmoNome, recuperarTurnos, tfsDoTurno, escalaDados, escalaSalvar, escalaExcluir, escalaGerar, relEquipeLista, relEquipe, relEquipeSalvar, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
     pceProximoNumero, pceEmitir, pceConsultar, pceBaixarMunicipio, pceMapaGeral, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

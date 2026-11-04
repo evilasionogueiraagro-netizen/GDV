@@ -499,7 +499,8 @@ function novoTurno() {
   /** BVA fixa com escala publicada para hoje: só quem está nela abre turno (coordenação e gerência, livres). */
   async function conferirEscala() {
     const aviso = $('#nForaEscala'), btn = $('#fTurno button[type=submit]'); if (!aviso || !btn) return true;
-    const pode = !($('#nPosto').value === 'Fixa' && $('#nLocal')) || await Sync.podeTurnoNaBva($('#nLocal').value, hojeISO());
+    const diaManaus = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10);   // a escala é pelo dia de Manaus (como no servidor)
+    const pode = !($('#nPosto').value === 'Fixa' && $('#nLocal')) || await Sync.podeTurnoNaBva($('#nLocal').value, diaManaus);
     aviso.hidden = pode; btn.disabled = !pode; return pode;
   }
   function mostrarAbertos() {

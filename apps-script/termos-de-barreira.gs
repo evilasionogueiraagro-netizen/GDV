@@ -72,12 +72,47 @@ function grupoSeq_(tipo, r) { const s = SEQUENCIAS[tipo]; return s.grupoDe ? s.g
  * Numeração: UMA sequência por grupo (barreira ou unidade) e por ano, sem faixas reservadas. O "último usado" é o maior
  * número entre os registros gravados (inclusive cancelados, que mantêm o número) e o ponto de partida da aba Numeracao.
  */
+/**
+ * Série do papel (TF): TF digitado do papel com data anterior ao 1º TF do app na mesma barreira/ano. O talão de papel e o app
+ * começaram os dois do 0001 (ex.: BVA - CEASA em 2026): esse TF pode repetir número do app, não conta para a sequência do app e o
+ * nº em texto leva "(papel)". TF do papel com data a partir do 1º TF do app segue a sequência única (não repete número).
+ */
+function inicioAppTF_(regs) {
+  const o = {};
+  regs.forEach(function (r) {
+    if (Number(r.registroAntigo) === 1 || !(Number(r.numero) > 0) || !r.data) return;
+    const k = r.barreira + '|' + r.ano; if (!o[k] || String(r.data) < o[k]) o[k] = String(r.data);
+  });
+  return o;
+}
+function seriePapelTF_(r, inicio) {
+  if (Number(r.registroAntigo) !== 1) return false;
+  const i = inicio[r.barreira + '|' + r.ano];
+  return !!i && String(r.data || '') < i;
+}
+const SUFIXO_PAPEL_ = ' (papel)';
+
+/** Dentro do lock: TFs da série do papel já gravados sem "(papel)" no nº em texto (gravados antes da série existir, ou antes do 1º
+ *  TF do app na barreira) ganham o sufixo, para não ter dois documentos com o mesmo nº em texto. srv_ts muda: os aparelhos recebem. */
+function sufixarSeriePapel_(barreira, ano, regs, agora) {
+  const ini = inicioAppTF_(regs);
+  const falta = function (r) { return r.barreira === barreira && r.ano === ano && seriePapelTF_(r, ini) && r.numeroTxt && String(r.numeroTxt).indexOf(SUFIXO_PAPEL_) < 0; };
+  if (!regs.some(falta)) return 0;
+  const linhas = lerLinhas_('TFs').filter(falta);
+  linhas.forEach(function (r) { atualizar_('TFs', r._linha, { numeroTxt: r.numeroTxt + SUFIXO_PAPEL_, srv_ts: agora }); });
+  return linhas.length;
+}
+
 function ultimoSeq_(tipo, grupo, ano, regs) {
   const s = SEQUENCIAS[tipo];
   let ultimo = 0, ref = null;
   const base = lerLeitura_('Numeracao').filter(function (r) { return r.id === chaveSeq_(tipo, grupo, ano); })[0];
   if (base) ultimo = base.ultimo;
-  (regs || lerLeitura_(s.aba)).forEach(function (r) { const n = numSeq_(tipo, r); if (grupoSeq_(tipo, r) === grupo && r.ano === ano && n > ultimo) { ultimo = n; ref = r; } });
+  const todos = regs || lerLeitura_(s.aba), ini = tipo === 'TF' ? inicioAppTF_(todos) : {};
+  todos.forEach(function (r) {
+    const n = numSeq_(tipo, r);
+    if (grupoSeq_(tipo, r) === grupo && r.ano === ano && n > ultimo && !(tipo === 'TF' && seriePapelTF_(r, ini))) { ultimo = n; ref = r; }
+  });
   return { ultimo: ultimo, ref: ref };
 }
 
@@ -95,6 +130,7 @@ function proximoNumero_(req) {
   if (!listarBarreiras_().some(function (b) { return b.id === barreira; })) throw new Error('Barreira desconhecida: ' + barreira);
   const tfs = lerLeitura_('TFs'), u = ultimoNumero_(barreira, ano, tfs);
   return { ok: true, barreira: barreira, ano: ano, ultimo: u.ultimo, proximo: u.ultimo + 1, autoUltimo: ultimoSeq_('AI', barreira, ano, tfs).ultimo,
+           inicioApp: inicioAppTF_(tfs)[barreira + '|' + ano] || '',            // data do 1º TF do app: TF do papel anterior a ela é da série do papel
            ultimoTF: u.ref ? { numeroTxt: u.ref.numeroTxt, data: u.ref.data, hora: u.ref.hora, usuario: u.ref.usuario } : null };
 }
 
@@ -116,8 +152,11 @@ function emitir_(req, usuario) {
   const lock = LockService.getScriptLock();
   lock.waitLock(30000);
   try {
-    const todos = lerLeitura_('TFs');
-    const ocupante = todos.filter(function (r) { return r.barreira === barreira && r.ano === ano && r.numero === numero && r.id !== tf.id; })[0];
+    const todos = lerLeitura_('TFs'), ini = inicioAppTF_(todos.filter(function (r) { return r.id !== tf.id; }));
+    const papel = seriePapelTF_(tf, ini);                                         // série do papel: só disputa número com a própria série
+    const base = String(tf.numeroTxt || '').replace(SUFIXO_PAPEL_, '');
+    if (Number(tf.registroAntigo) === 1 && base) tf.numeroTxt = base + (papel ? SUFIXO_PAPEL_ : '');
+    const ocupante = todos.filter(function (r) { return r.barreira === barreira && r.ano === ano && r.numero === numero && r.id !== tf.id && seriePapelTF_(r, ini) === papel; })[0];
     if (ocupante) {
       const u = ultimoNumero_(barreira, ano, todos);
       return { ok: true, emitido: false, ocupadoPor: { numeroTxt: ocupante.numeroTxt, data: ocupante.data, hora: ocupante.hora, usuario: ocupante.usuario },
@@ -128,9 +167,10 @@ function emitir_(req, usuario) {
     tf.emitidoEm = (antes && antes.emitidoEm) || agora;                          // reenvio do mesmo TF não muda a data de emissão
     numerarAuto_(tf, todos, antes);
     gravar_('TFs', [tf], agora, usuario);
+    sufixarSeriePapel_(barreira, ano, todos.filter(function (r) { return r.id !== tf.id; }).concat([tf]), agora);
     if (req.pessoa) gravar_('Pessoas', [req.pessoa], agora, usuario);
     if (req.placa) gravar_('Placas', [req.placa], agora, usuario);
-    return { ok: true, emitido: true, numero: numero, emitidoEm: tf.emitidoEm, srv_ts: agora,
+    return { ok: true, emitido: true, numero: numero, numeroTxt: tf.numeroTxt, seriePapel: papel, emitidoEm: tf.emitidoEm, srv_ts: agora,
              autoNumero: Number(tf.autoNumero) || 0, autoNumeroTxt: tf.autoNumeroTxt || '', autoNumeroOrigem: tf.autoNumeroOrigem || '' };
   } finally {
     lock.releaseLock();
@@ -168,12 +208,13 @@ function marcarConflitos_(tipo, recebidos, agora) {
   const s = SEQUENCIAS[tipo], ids = {};
   recebidos.forEach(function (r) { if (r && r.id) ids[r.id] = true; });
   const colC = s.conflito || 'conflito', t = lerTudo_(s.aba), iC = t.cols.indexOf(colC) + 1, iS = t.cols.indexOf('srv_ts') + 1, grupos = {};
+  const ini = tipo === 'TF' ? inicioAppTF_(t.valores.map(function (l) { return paraObjeto_(t.cols, l); })) : {};
   t.valores.forEach(function (l, i) {
     const o = paraObjeto_(t.cols, l);
     if (tipo !== 'TF' && !(numSeq_(tipo, o) > 0)) return;               // termo/auto sem número não entra em conflito (TF: comportamento original)
     if (tipo === 'AI' && (Number(o.auto) !== 1 || o.cancelado === 1)) return;   // auto desmarcado ou TF cancelado não disputa o número
     if ((tipo === 'TPCE' || tipo === 'CPCE') && o.excluido === 1) return;   // cadastro excluído não disputa o número
-    const k = grupoSeq_(tipo, o) + '|' + o.ano + '|' + numSeq_(tipo, o);
+    const k = grupoSeq_(tipo, o) + '|' + o.ano + '|' + numSeq_(tipo, o) + (tipo === 'TF' && seriePapelTF_(o, ini) ? '|papel' : '');
     (grupos[k] = grupos[k] || []).push({ i: i, o: o });
   });
   Object.keys(grupos).forEach(function (k) {

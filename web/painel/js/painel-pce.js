@@ -105,6 +105,7 @@
     const nCult = levs.reduce((s, l) => s + l.culturasUnicas.length, 0);   // a mesma cultura avaliada para várias pragas conta uma vez
     const tipos = new Set(itens.map(x => x.cultura)).size;
     const termos = d.colheitas, amostrasTermos = termos.reduce((s, t) => s + qtdAmostras(t), 0);
+    const cadsPer = (d.cadastrosPce || []).filter(c => c.data >= f.de && c.data <= f.ate);
     const cob = cobertura(d, f), nMun = cob.linhas.length;
     const cobAno = cob.linhas.filter(l => l.sit >= 1).length, munPer = cob.linhas.filter(l => l.periodo).length;
     const nConf = auditoriaFiltrada(d, f).reduce((s, a) => s + (a.conflitos || 0) + a.duplicados.length, 0);
@@ -122,13 +123,16 @@
         status: nConf ? 'critico' : null },
       { chave: 'termosPce', rotulo: 'Termos de fiscalização', valor: (d.termosPce || []).length,
         detalhe: `${fmt.int((d.termosPce || []).reduce((s, t) => s + (t.plantasInspecionadas || 0), 0))} plantas inspecionadas` },
-      { chave: 'cadastrosPce', rotulo: 'Cadastros monilíase', valor: (d.cadastrosPce || []).filter(c => c.data >= f.de && c.data <= f.ate).length,
-        detalhe: 'imóveis com hospedeiros cadastrados no período' },
+      { chave: 'cadastrosPce', rotulo: 'Cadastros de imóvel', valor: cadsPer.length,
+        detalhe: Object.entries(cadsPer.reduce((o, c) => { const k = progCad(c.programa); o[k] = (o[k] || 0) + 1; return o; }, {})).map(([k, n]) => `${k}: ${n}`).join(' · ') || 'nenhum cadastro no período' },
       { chave: 'cobertura', rotulo: `Cobertura (${cob.ano})`, valor: `${fmt.int(cobAno)} / ${fmt.int(nMun)}`, detalhe: `municípios com levantamento de ${fmt.dataCurta(cob.lim)} a ${fmt.dataCurta(f.ate)}`,
         status: nMun && cobAno / nMun < 0.5 ? 'atencao' : null, cobertos: cobAno, total: nMun }
     ];
   }
 
+  /** Cadastros de imóvel são por programa (monilíase, citros, banana, mandioca, soja, cadastro geral): nome curto do programa. */
+  const ROT_CAD = (typeof CONFIG !== 'undefined' && CONFIG.PCE && CONFIG.PCE.cadastros && CONFIG.PCE.cadastros.rotulos) || {};
+  const progCad = p => ROT_CAD[p || 'moniliase'] || String(p || 'moniliase');
   /** Cálculos do módulo para o modo TV e a aba: detecções por praga, focos (novo × recorrente) e cobertura municipal. */
   function calculos(d, f) {
     const itens = itensCultura(d.levantamentos);
@@ -378,7 +382,7 @@
   /* ---------- Monilíase: Termos de Fiscalização do PCE, Cadastros de imóvel e Relatório de atividades ---------- */
   function secaoMoniliase(c, d, f) {
     const termos = d.termosPceTodos || [], cads = d.cadastrosPce || [];
-    const sm = P.secao(c, 'Monilíase: termos e cadastros', 'Termos de Fiscalização do PCE (um por programa em cada visita) e Cadastros de imóvel com hospedeiros. O relatório de atividades usa os filtros de período, município e servidor.');
+    const sm = P.secao(c, 'Termos e cadastros de imóvel', 'Termos de Fiscalização do PCE (um por programa em cada visita) e Cadastros de imóvel (um por propriedade e programa: monilíase, citros, banana, mandioca, soja e cadastro geral). O relatório de atividades usa os filtros de período, município e servidor.');
     sm.parentNode.classList.add('pn-pce-mon');
     const bar = P.el('div', 'pn-mon-acoes');
     const b = P.el('button', 'pn-btn pn-btn-prim', 'Relatório de atividades'); b.type = 'button'; b.id = 'pn-pce-relatorio';
@@ -395,10 +399,11 @@
     ], termos, { id: 'pce-termos-fisc', titulo: 'Termos de Fiscalização', csv: 'pce-termos-fiscalizacao.csv', ordenar: 'numeroTxt', limite: 15, vazio: 'Nenhum Termo de Fiscalização no período.' });
     P.tabela(sm, [
       { chave: 'numeroTxt', rotulo: 'Nº', ordem: l => (l.ano || 0) * 1e6 + (l.numero || 0) }, { chave: 'data', rotulo: 'Data', fmt: fmt.data },
+      { chave: 'programa', rotulo: 'Programa', fmt: v => progCad(v) },
       { chave: 'municipio', rotulo: 'Município' }, { chave: 'nome', rotulo: 'Produtor', fmt: (v, l) => [v, l.doc].filter(Boolean).join(' · ') || '—' },
-      { chave: 'propriedade', rotulo: 'Propriedade', fmt: v => v || '—' }, { chave: 'totalPlantas', rotulo: 'Plantas', num: true, fmt: fmt.int },
-      { chave: 'sintomas', rotulo: 'Sintomas', fmt: (v, l) => (l.dados && l.dados.sintomas === 'sim') ? 'Sim' : 'Não' }, { chave: 'servidor', rotulo: 'Servidor' }
-    ], cads, { id: 'pce-cadastros-mon', titulo: 'Cadastros de imóvel (monilíase)', csv: 'pce-cadastros-moniliase.csv', ordenar: 'numeroTxt', limite: 15, vazio: 'Nenhum cadastro no período.' });
+      { chave: 'propriedade', rotulo: 'Propriedade', fmt: v => v || '—' }, { chave: 'totalPlantas', rotulo: 'Plantas', num: true, fmt: v => (v ? fmt.int(v) : '—') },
+      { chave: 'sintomas', rotulo: 'Sintomas', fmt: (v, l) => (l.programa && l.programa !== 'moniliase' ? '—' : (l.dados && l.dados.sintomas === 'sim') ? 'Sim' : 'Não') }, { chave: 'servidor', rotulo: 'Servidor' }
+    ], cads, { id: 'pce-cadastros-mon', titulo: 'Cadastros de imóvel (todos os programas)', csv: 'pce-cadastros-imovel.csv', ordenar: 'numeroTxt', limite: 15, vazio: 'Nenhum cadastro no período.' });
   }
   const REL_LS = 'gdv.painel.relatorioPce';
   function dialogoRelatorio(d, f) {

@@ -599,6 +599,17 @@ const PCEUI = (() => {
       ...(CAT.pragasDasCulturas || []).filter(l => l.culturaId === c.id).map(l => l.pragaId)]);
     return pragasCat().filter(p => ids.has(p.id) && temLevantamento(p));
   }
+  /**
+   * Restrição praga × cultura (CONFIG.PCE.hospedeiros, docs/modulos/pce-hospedeiros.md): praga listada só é oferecida nas culturas e famílias dela e
+   * nas ligadas a ela no catálogo. Praga fora da lista, cultura ainda não escolhida e aparelho sem catálogo (sem famílias para conferir): sem restrição.
+   */
+  function pragaServeCultura(p, nomeCultura) {
+    const H = P.hospedeiros || {}, k = Object.keys(H).find(n => idCat(n) === p.id);
+    const c = CAT && nomeCultura ? CAT.culturas.find(x => idCat(x.nome) === idCat(nomeCultura)) : null;
+    if (!k || !c) return true;
+    const fam = CAT.familias.find(f => f.id === c.familiaId), h = H[k];
+    return (h.culturas || []).some(n => idCat(n) === c.id) || (!!fam && (h.familias || []).some(n => idCat(n) === fam.id)) || pragasLigadas(c.nome).some(x => x.id === p.id);
+  }
   const pragaVazia = (p, ligada) => ({ uid: novoUid(), pragaId: p ? p.id : '', praga: p ? nomeDaPraga(p) : '', ligada: !!ligada, outra: false, legado: false,
     resultado: '', coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '' });
   const culturaVazia = () => ({ uid: novoUid(), cultura: '', area: '', espLinha: '', espPlanta: '', espUnidade: 'm', fotos: [], pragas: [] });
@@ -714,10 +725,10 @@ const PCEUI = (() => {
    *  Registro anterior sem unidade: o texto antigo aparece como estava e o seletor fica sem escolha até a pessoa marcar. */
   const UNIDADES_ESP = ['m', 'cm'], NOME_UNIDADE = { m: 'Metros', cm: 'Centímetros' }, ESP_NUM = 'inputmode="decimal" maxlength="8" autocomplete="off"';
   const espNumero = v => /^\d+([.,]\d+)?$/.test(v) && Number(v.replace(',', '.')) > 0;
-  function blocoPraga(g) {
+  function blocoPraga(g, cultura) {
     const u = esc(g.uid), amostra = g.coleta === 'Sim' ? '' : 'disabled';   // sem coleta: campos da amostra escondidos
     const inp = (cls, rot) => `<label>${rot}<input class="r-${cls}" value="${esc(g[cls])}" maxlength="60" ${amostra}></label>`;
-    const lista = pragasCat().filter(p => temLevantamento(p) || p.id === chavePraga(g)), outra = g.outra || (!!g.praga && !g.ligada && !lista.some(p => p.id === chavePraga(g)));
+    const lista = pragasCat().filter(p => p.id === chavePraga(g) || (temLevantamento(p) && pragaServeCultura(p, cultura))), outra = g.outra || (!!g.praga && !g.ligada && !lista.some(p => p.id === chavePraga(g)));
     const topo = g.ligada
       ? `<b>${icone('praga')} ${esc(g.praga)}</b><small class="pce-pr-cat">${opcional(g.praga) ? 'opcional' : 'do catálogo'}</small>`
       : `<label class="pce-pr-nome">Praga/doença *<select class="r-praga"><option value="">${esc(g.legado ? SEM_PRAGA + ' (registro anterior)' : 'Selecione')}</option>
@@ -746,7 +757,7 @@ const PCEUI = (() => {
       <div class="pce-prs"><h4>Pragas e doenças avaliadas nesta cultura</h4>
         ${!c.cultura ? '<p class="dica" style="text-align:left">Escolha a cultura: as pragas e doenças dela no catálogo aparecem aqui.</p>'
           : semLig ? '<p class="dica" style="text-align:left">Nenhuma praga ligada a esta cultura no catálogo. Some abaixo a que foi avaliada.</p>' : ''}
-        ${c.pragas.map(blocoPraga).join('')}
+        ${c.pragas.map(g => blocoPraga(g, c.cultura)).join('')}
         <button type="button" class="botao sec pce-addpraga" data-pce="addpraga" data-uid="${u}">+ Outra praga/doença nesta cultura</button></div>
       <label class="pce-arquivo pce-arquivo-cult">${icone('camera')} Fotos desta cultura<input type="file" class="c-fotos" data-uid="${u}" accept="image/*" multiple></label>
       <div id="pce-fotos-${u}" class="pce-fotos pce-fotos-cult"></div></div>`;

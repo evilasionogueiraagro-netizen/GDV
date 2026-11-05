@@ -5,8 +5,9 @@ const Store = (() => {
   function db() {
     if (!dbp) dbp = new Promise((ok, no) => {
       // v2: tfs, pessoas, placas · v3: módulo PCE (levantamentos, colheitas, propriedades, arquivos) · v4: PCE monilíase
-      // (cadastrosPce = Cadastro de imóvel, termosPce = Termo de Fiscalização do PCE). Os dados antigos são mantidos.
-      const rq = indexedDB.open('gdv', 4);
+      // (cadastrosPce = Cadastro de imóvel, termosPce = Termo de Fiscalização do PCE) · v5: levantamento por cultura (culturasAvaliadas,
+      // resultados). Os dados antigos são mantidos. Store nova = subir a versão: aparelho que já está na versão atual não roda o onupgradeneeded.
+      const rq = indexedDB.open('gdv', 5);
       rq.onupgradeneeded = () => {
         const d = rq.result;
         ['turnos', 'veiculos', 'tfs', 'pessoas', 'placas', 'levantamentos', 'colheitas', 'propriedades', 'cadastrosPce', 'termosPce', 'culturasAvaliadas', 'resultados']

@@ -555,7 +555,7 @@ const PCEMon = (() => {
       const deTermo = st.deTermo, levId = st.levId; fechar(); await Store.setMeta(RASC.cadastro, null);
       Sync.sincronizar();
       if (deTermo) { toast('Cadastro salvo. Voltando ao Termo de Fiscalização.'); return go('pcetf', { retomar: true, cadastroId: rec.id }); }
-      if (levId) { toast('Cadastro salvo. Agora os Termos de Fiscalização da visita (um por cultura).'); return go('pcelevpronto', levId); }
+      if (levId) { toast('Cadastro salvo. Agora os Termos de Fiscalização da visita (um por programa).'); return go('pcelevpronto', levId); }
       if (outro) { toast(`Cadastro ${rec.numeroTxt || ''} salvo. Digite o próximo.`); return go('pcecad', { antigo: true, manter: { sNome: sv.servidor, sCargo: sv.cargo, sMatricula: sv.matricula, sLotacao: sv.lotacao, unidade: D.unidade, municipio: D.municipio, data: D.data, local: D.local.trim() } }); }
       go('pcecadpronto', rec.id);
     } catch (e) { toast('Erro ao salvar: ' + e.message, true); }
@@ -663,7 +663,7 @@ const PCEMon = (() => {
       const levId = st.levId, deTermo = st.deTermo; fechar(); await Store.setMeta(RASC.cadastro, null);
       Sync.sincronizar();
       if (deTermo) { toast('Cadastro de citros salvo. Voltando ao Termo de Fiscalização.'); return go('pcetf', { retomar: true, cadastroId: rec.id }); }
-      if (levId) { toast(`Cadastro de citros ${rec.numeroTxt || ''} salvo. Agora os Termos de Fiscalização da visita (um por cultura).`); return go('pcelevpronto', levId); }
+      if (levId) { toast(`Cadastro de citros ${rec.numeroTxt || ''} salvo. Agora os Termos de Fiscalização da visita (um por programa).`); return go('pcelevpronto', levId); }
       go('pcecadpronto', rec.id);
     } catch (e) { toast('Erro ao salvar: ' + e.message, true); }
     finally { st.salvando = false; if (btn.isConnected) btn.disabled = false; }
@@ -788,7 +788,7 @@ const PCEMon = (() => {
     const mapa = TC.pragaDoLevantamento || {}, quadro = TC.pragas || [], n = x => semAcento(String(x || '')).toLowerCase();
     const out = [];
     Docs.pceGrupos(lev).pragas.forEach(g => {
-      const nome = String(g.praga || '').trim(); if (!nome || (so && !so.includes(g.praga))) return;   // so = só estas pragas (Termo de uma cultura)
+      const nome = String(g.praga || '').trim(); if (!nome || (so && !so.includes(g.praga))) return;   // so = só estas pragas (Termo de um programa)
       const alvo = mapa[nome] || quadro.find(q => n(q) === n(nome)) || '';
       if (alvo && !out.includes(alvo)) out.push(alvo);
     });
@@ -802,7 +802,7 @@ const PCEMon = (() => {
     if (lev && !lev.excluido && levEhCitros(lev)) return { citros: lev.citros, culturas: culturasCitrosDoLev(lev), lev, cad };
     return dc ? { citros: dc, culturas: dc.culturasAvaliadas || [], lev: null, cad } : null;
   }
-  /** Termo de citros novo: identificação, data e hora da visita, local, frases de ausência/presença, enquadramento padrão e números do relatório. */
+  /** Termo de citros novo: identificação, data e hora da visita, local, frases de ausência/presença e números do relatório (o enquadramento legal já vem do catálogo em D). */
   function preencherTfCitros(D, fo) {
     const L0 = fo.lev || {}, c = fo.cad || {}, dc = fo.cad ? lerJSON(fo.cad.dados, {}) : {};
     const v = (a, b) => (a !== '' && a != null ? a : b), coord = x => (x === '' || x == null ? '' : String(x).replace('.', ','));
@@ -812,7 +812,7 @@ const PCEMon = (() => {
       lat: coord(v(L0.lat, c.lat)), lon: coord(v(L0.lon, c.lon)), data: v(L0.data, c.data) || D.data, hora: String(v(L0.hora, c.hora) || D.hora || '').slice(0, 5),
       atividade: PCECitros.atividadesTexto(fo.citros),
       localAcao: fo.lev ? localDoLev(fo.lev) : [c.propriedade ? 'Propriedade ' + c.propriedade : '', dc.endereco, c.municipio ? `${c.municipio}/${c.uf || 'AM'}` : ''].filter(Boolean).join(', '),
-      constatacao: PCECitros.frases(fo.citros, fo.culturas).join('\n'), enquadramento: CI.enquadramento || '',
+      constatacao: PCECitros.frases(fo.citros, fo.culturas).join('\n'),   // enquadramento: o do catálogo (planilha da GDV), já em D; nunca sobrescrito aqui
       pragas: [...new Set([...(CI.deteccao || []).map(x => x[1]), ...(fo.lev ? pragasDoLevantamento(fo.lev, fo.so) : [])])], acoes: ['Fiscalização'],
       plantas: String(PCECitros.totalPlantas(fo.citros) || ''), sintomas: PCECitros.temPresenca(fo.citros) ? 'sim' : 'nao',
       amostra: fo.lev ? (G.some(x => x.culturas.some(k => k.coleta === 'Sim')) ? 'sim' : 'nao') : (dc.amostra || '') });
@@ -1004,16 +1004,6 @@ const PCEMon = (() => {
       ${papel ? `<button class="botao sec" data-mon="novo" data-tipo="${tipo}" data-antigo="1">${icone('documento')} Digitar outro do papel</button>` : `<button class="botao sec" data-mon="novo" data-tipo="${tipo}">${icone('mais')} Novo</button>`}
       <button class="botao sec" data-v="${tipo === 'termo' ? 'pcetfs' : 'pcecads'}">${icone('formulario')} Ver lista</button>`);
   }
-  function subnavHTML(v) {
-    return `<div class="pce-subnav" role="tablist" aria-label="Submenu de gestão">
-      <button class="pce-subnav-btn ${v === 'pcecads' ? 'on' : ''}" data-v="pcecads" id="pce-subnav-cads">${icone('propriedade')} <span>Propriedades</span></button>
-      <button class="pce-subnav-btn ${v === 'pcetfs' ? 'on' : ''}" data-v="pcetfs" id="pce-tfs">${icone('formulario')} <span>Termos</span></button>
-      <button class="pce-subnav-btn ${v === 'pcerel' ? 'on' : ''}" data-v="pcerel" id="pce-rel">${icone('resumo')} <span>Relatório</span></button>
-      <button class="pce-subnav-btn ${v === 'pcemapa' ? 'on' : ''}" data-v="pcemapa" id="pce-mapa">${icone('mapa')} <span>Perto de mim</span></button>
-      <button class="pce-subnav-btn ${v === 'pcecampo' ? 'on' : ''}" data-v="pcecampo" id="pce-subnav-campo">${icone('baixar')} <span>Dados Offline</span></button>
-    </div>`;
-  }
-
   async function lista(tipo) {
     if (bloqueado()) return view(avisoAtivacao());
     const mostrar = tela();
@@ -1028,7 +1018,7 @@ const PCEMon = (() => {
     if (!mostrar.viva()) return;
     const T = tipo === 'termo';
     if (T) {
-      mostrar(`${subnavHTML('pcetfs')}
+      mostrar(`${Campo.subnavHTML('pcetfs')}
         <div class="card pce-stats">
           <div class="pce-stats-topo">
             <b>${icone('formulario')} Panorama de Termos (PCE)</b>
@@ -1049,7 +1039,7 @@ const PCEMon = (() => {
         <button class="botao sec" data-v="pcerel" id="mon-ir-rel">${icone('resumo')} Relatório de atividades</button>
         <div class="card"><label>Pesquisar (nº, nome, CPF, propriedade, município)<input id="monQ" autocomplete="off"></label></div><div id="monItens"></div>`);
     } else {
-      mostrar(`${subnavHTML('pcecads')}
+      mostrar(`${Campo.subnavHTML('pcecads')}
         <div class="card pce-stats">
           <div class="pce-stats-topo">
             <b>${icone('resumo')} Panorama de Propriedades</b>
@@ -1138,7 +1128,7 @@ const PCEMon = (() => {
     const servs = [...new Set(termos.map(t => String(t.servidor || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     const fp = filtroPadrao(), pr = TC.pragas || [];
     if (!mostrar.viva()) return;
-    mostrar(`${subnavHTML('pcerel')}
+    mostrar(`${Campo.subnavHTML('pcerel')}
       <form id="monRelForm" class="card" autocomplete="off"><h3>${icone('resumo')} Relatório de atividades</h3>
       <p class="dica" style="text-align:left">Prestação de contas do convênio, a partir dos Termos de Fiscalização (PCE) deste aparelho. Os números são calculados; os textos podem ser editados.</p>
       <div class="duas"><label>De<input id="mr-de" type="date" value="${esc(m.de || fp.de)}"></label><label>Até<input id="mr-ate" type="date" value="${esc(m.ate || fp.ate)}"></label></div>

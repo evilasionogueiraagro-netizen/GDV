@@ -339,7 +339,7 @@ function arquivoEnviar_(req, usuario) {
   const a = req.arquivo || {};
   const id = String(a.id || ''), dono = String(a.dono || ''), donoId = String(a.donoId || ''), tipo = String(a.tipo || '');
   const papel = String(a.papel || ''), mime = String(a.mime || '');
-  // foto do levantamento por praga: "praga – cultura" a que a foto pertence (texto livre, só informativo: aba Arquivos e nome no Drive)
+  // foto do levantamento: cultura a que a foto pertence (texto livre, só informativo: aba Arquivos e nome no Drive)
   const rotulo = tipo === 'foto' ? String(a.rotulo || '').replace(/\s+/g, ' ').trim().slice(0, 120) : '';
   if (!ARQ_RE_UUID.test(id)) throw new Error('Identificador de arquivo inválido.');
   if (['levantamentos', 'colheitas', 'tfs', 'turnos', 'cadastrosPce', 'termosPce'].indexOf(dono) < 0) throw new Error('Arquivo sem registro de origem válido.');

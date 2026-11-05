@@ -670,12 +670,12 @@ const PCEUI = (() => {
     cards.forEach(c => { F.fotosC[c.uid] = c.fotos; });
     return cards.length ? cards : [culturaVazia()];
   }
-  /** Pragas de um programa avaliadas na visita (uma linha por cultura), com o enquadramento legal do catálogo (Termo do programa). */
+  /** Pragas de um programa avaliadas na visita (uma linha por cultura; opcional = praga de resposta não obrigatória), com o enquadramento legal do catálogo (Termo do programa). */
   async function pragasDoProgramaNaVisita(lev, programa) {
     await carregarCatalogo();
     return Docs.pceGrupos(lev).pragas.filter(g => String(g.praga || '').trim() && programaDaPraga(g.praga).programa === programa).flatMap(g => g.culturas.map(c => {
       const p = pragaPorNome(g.praga);
-      return { praga: g.praga, resultado: c.resultado, enquadramento: (p && p.enquadramentoLegal) || (P.legislacao || {})[g.praga] || '' };   // sem catálogo no aparelho: a planilha da GDV em CONFIG.PCE.legislacao
+      return { praga: g.praga, cultura: c.cultura, opcional: opcional(g.praga), resultado: c.resultado, enquadramento: (p && p.enquadramentoLegal) || (P.legislacao || {})[g.praga] || '' };   // sem catálogo no aparelho: a planilha da GDV em CONFIG.PCE.legislacao
     }));
   }
   /** No levantamento, F.fotos = todas as fotos do formulário (gerais + de cada cultura): rascunho, descarte e limite contam todas. */

@@ -31,7 +31,7 @@ function relEquipeApurar_(e) {
   const bva = chaveBvaRel_(e.bva), noPer = function (d) { d = String(d || '').slice(0, 10); return d >= e.inicio && d <= e.fim; };
   const nomes = {}; e.fiscais.forEach(function (f) { nomes[nomeChave_(f.nome)] = 1; });
   const colegas = {};
-  lerLeitura_('Pareamentos').forEach(function (p) { if (p.turnoId && p.colega && p.entrouEm) (colegas[p.turnoId] = colegas[p.turnoId] || []).push(p.colega); });
+  lerLeitura_('Pareamentos').forEach(function (p) { if (p.turnoId && p.colega && p.entrouEm && !p.removidoPor) (colegas[p.turnoId] = colegas[p.turnoId] || []).push(p.colega); });
   const daEquipe = function (t) {
     const quem = [t.usuario].concat(String(t.fiscal || '').split(/\s+e\s+|,|;|\//), lerJSONSeguro_(t.colegas, []), colegas[t.id] || []);
     return quem.some(function (n) { return nomes[nomeChave_(n)]; });

@@ -125,7 +125,7 @@ const PCEMon = (() => {
     const f = $('#monCadForm') || $('#monTfForm'), st = F; if (!f || !st || !st.vivo) return;
     tR = setTimeout(() => {
       if (F !== st || !f.isConnected) return;
-      Store.setMeta(RASC[st.tipo], { dados: st.tipo === 'cadastro' ? (st.programa === 'citros' ? coletarCadCi() : coletarCad()) : coletarTf(), id: st.id, novo: st.novo, antigo: st.antigo ? 1 : 0, docs: st.docs,
+      Store.setMeta(RASC[st.tipo], { dados: st.tipo === 'cadastro' ? (st.coletar ? st.coletar() : st.programa === 'citros' ? coletarCadCi() : coletarCad()) : coletarTf(), id: st.id, novo: st.novo, antigo: st.antigo ? 1 : 0, docs: st.docs,
         assNovas: st.assNovas, cadastroId: st.cadastroId || '', propriedadeId: st.propriedadeId || '', hospedeiros: st.hospedeiros || [], deTermo: st.deTermo ? 1 : 0, levId: st.levId || '',
         programaVisita: st.programaVisita || '', nomePrograma: st.nomePrograma || '', culturas: st.culturas || [], programa: st.programa || '', em: Date.now() });
     }, atraso);
@@ -427,7 +427,9 @@ const PCEMon = (() => {
     if (id && (!rec0 || rec0.excluido)) { toast('Cadastro não encontrado.', true); return go('pcecads'); }
     const t = await tratarRascunho('cadastro', id, false); if (!t) return go('pcecads');
     // Cadastro de citros: sai do levantamento (rascunho retomado vale o programa dele)
-    if ((t.rasc ? t.rasc.programa : rec0 ? rec0.programa : o.programa) === 'citros') return cadastroCitros(o, rec0, t.rasc, s);
+    const prog = t.rasc ? t.rasc.programa : rec0 ? rec0.programa : o.programa;
+    if (prog === 'citros') return cadastroCitros(o, rec0, t.rasc, s);
+    if (PCECads.ehGenerico(prog)) return PCECads.abrir({ ...o, antigo: querAntigo }, rec0, t.rasc, s);       // banana, mandioca, soja e cadastro geral (pce-cadastros.js)
     let st, D;
     if (t.rasc) {
       const r = t.rasc, rec = r.id ? await Store.obter('cadastrosPce', r.id) : null;
@@ -497,7 +499,7 @@ const PCEMon = (() => {
     const p = x.prop || {}, pe = x.pessoa || {};
     set('nome', pe.nome); set('doc', PCEDocs.fmtDoc(p.doc || pe.id)); set('propriedade', p.nome); set('municipio', p.municipio); set('endereco', p.endereco || pe.endereco);
     set('cnpj', p.cnpj); if (p.lat !== '' && p.lat != null) { set('lat', String(p.lat).replace('.', ',')); set('lon', String(p.lon).replace('.', ',')); }
-    set('telefone', pe.telefone);
+    set('telefone', pe.telefone); set('codigo', p.codigo);
     if (x.prop && x.prop.id && F) F.propriedadeId = x.prop.id;                // mesma propriedade do levantamento/mapa
     const r = $('#' + pref + 'busca-res'), b = $('#' + pref + 'busca'); if (r) r.replaceChildren(); if (b) b.value = '';
     mostrarCoord(pref); avisoDoc(pref); agendar(0);
@@ -1001,7 +1003,7 @@ const PCEMon = (() => {
       <button class="botao" data-mon="imprimir" data-tipo="${tipo}" data-id="${esc(r.id)}" id="mon-imprimir">${icone('imprimir')} Imprimir / PDF</button>
       ${tipo === 'termo' ? `<button class="botao sec" data-mon="enviar" data-id="${esc(r.id)}" id="mon-enviar">${icone('enviar')} Enviar ao produtor (WhatsApp, e-mail…)</button>`
         : `<button class="botao sec" data-mon="termodocad" data-id="${esc(r.id)}" id="mon-termodocad">${icone('formulario')} Termo de Fiscalização desta propriedade</button>`}
-      ${papel ? `<button class="botao sec" data-mon="novo" data-tipo="${tipo}" data-antigo="1">${icone('documento')} Digitar outro do papel</button>` : `<button class="botao sec" data-mon="novo" data-tipo="${tipo}">${icone('mais')} Novo</button>`}
+      ${papel ? `<button class="botao sec" data-mon="novo" data-tipo="${tipo}" data-antigo="1" data-programa="${esc(tipo === 'cadastro' ? r.programa || '' : '')}">${icone('documento')} Digitar outro do papel</button>` : `<button class="botao sec" data-mon="novo" data-tipo="${tipo}" data-programa="${esc(tipo === 'cadastro' ? r.programa || '' : '')}">${icone('mais')} Novo</button>`}
       <button class="botao sec" data-v="${tipo === 'termo' ? 'pcetfs' : 'pcecads'}">${icone('formulario')} Ver lista</button>`);
   }
   async function lista(tipo) {
@@ -1053,7 +1055,9 @@ const PCEMon = (() => {
           </div>
         </div>
         <div class="card"><h3>Cadastros de propriedades</h3>
-          <p class="dica" style="text-align:left">Um cadastro por propriedade e programa: monilíase (cacau, cupuaçu…) aqui; citros a partir do levantamento com praga de citros.</p></div>
+          <p class="dica" style="text-align:left">Um cadastro por propriedade e programa (monilíase, banana, mandioca, soja e cadastro geral); citros a partir do levantamento com praga de citros.</p></div>
+        <div class="card"><label>Modelo do novo cadastro<select id="mon-modelo">${PCECads.modelosAvulsos().map(m => `<option value="${m}">${esc(PCECads.nomeModelo(m))}</option>`).join('')}</select></label>
+          <p class="dica" style="text-align:left">O de citros sai do levantamento com praga de citros. Cada modelo tem a numeração própria.</p></div>
         <div class="duas" style="margin-bottom:10px">
           ${dig ? '' : `<button class="botao" data-mon="novo" data-tipo="${tipo}" id="mon-novo">${icone('mais')} Novo cadastro</button>`}
           ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-mon="novo" data-tipo="${tipo}" data-antigo="1" id="mon-novo-papel">${icone('documento')} Digitar do papel</button>` : ''}
@@ -1064,8 +1068,8 @@ const PCEMon = (() => {
       const q = norm($('#monQ').value), qd = digitos($('#monQ').value);
       const v = todos.filter(x => !q || norm([x.numeroTxt, x.nome, x.propriedade, x.municipio].join(' ')).includes(q) || (qd.length >= 3 && digitos(x.doc).includes(qd)));
       $('#monItens').innerHTML = v.length ? v.map(x => `<div class="item mon-item" data-reg="${esc(x.id)}"><div class="topo"><div><div class="placa">${esc(x.numeroTxt || '(sem nº)')}</div>
-          <div class="tipo">${x.programa === 'citros' ? '<span class="mon-prog">Citros</span> ' : ''}${esc(x.nome)}${x.propriedade ? ' · ' + esc(x.propriedade) : ''}</div></div><div class="hora">${esc(dBR(x.data))}<br>${esc(x.hora || '')}</div></div>
-        <div class="info">${esc(x.municipio)} · ${T ? `${esc(x.plantasInspecionadas || 0)} planta(s)${x.cadastroId ? ' · cadastro' : ''}` : `${esc(x.totalPlantas || 0)} planta(s)`}</div>
+          <div class="tipo">${T ? (x.programa === 'citros' ? '<span class="mon-prog">Citros</span> ' : '') : `<span class="mon-prog">${esc(PCECads.rotulo(x.programa))}</span> `}${esc(x.nome)}${x.propriedade ? ' · ' + esc(x.propriedade) : ''}</div></div><div class="hora">${esc(dBR(x.data))}<br>${esc(x.hora || '')}</div></div>
+        <div class="info">${esc(x.municipio)} · ${T ? `${esc(x.plantasInspecionadas || 0)} planta(s)${x.cadastroId ? ' · cadastro' : ''}` : `${esc(PCECads.rotulo(x.programa))}${Number(x.totalPlantas) ? ` · ${esc(x.totalPlantas)} planta(s)` : ''}`}</div>
         ${situacao(x)}
         <div class="botoes">${Number(x.registroAntigo) === 1 && !podeAnt ? '' : `<button class="editar" data-mon="abrir" data-tipo="${tipo}" data-id="${esc(x.id)}">Abrir</button>`}
           <button class="editar" data-mon="imprimir" data-tipo="${tipo}" data-id="${esc(x.id)}">PDF</button>
@@ -1084,7 +1088,7 @@ const PCEMon = (() => {
   async function imprimir(tipo, id, modo) {
     const r = await Store.obter(STORE[tipo], id); if (!r) throw new Error('Registro não encontrado.');
     const arquivos = await Anexos.arquivosPorId(r);
-    if (r.programa !== 'citros') return Docs.pceMon(tipo, r, { arquivos }, modo);
+    if (r.programa !== 'citros') return Docs.pceMon(PCEDocs.tipoDoRegistro(tipo, r), r, { arquivos }, modo);      // cadastro de banana, mandioca, soja e propriedade: modelo próprio
     const extras = [];
     if (modo !== 'arquivo') {
       const outros = tipo === 'termo' ? [r.cadastroId ? await Store.obter('cadastrosPce', r.cadastroId) : null].filter(c => c && !Number(c.excluido) && c.programa === 'citros')
@@ -1219,7 +1223,10 @@ const PCEMon = (() => {
     const el = e.target.closest('[data-mon]'); if (!el) return;
     const a = el.dataset.mon, id = el.dataset.id, tipo = el.dataset.tipo;
     try {
-      if (a === 'novo') go(tipo === 'termo' ? 'pcetf' : 'pcecad', el.dataset.antigo ? { antigo: true } : null);
+      if (a === 'novo') {
+        const prog = tipo === 'termo' ? '' : el.dataset.programa || ($('#mon-modelo') || {}).value || '';           // modelo escolhido na lista ("moniliase" = o de sempre)
+        go(tipo === 'termo' ? 'pcetf' : 'pcecad', el.dataset.antigo || (prog && prog !== 'moniliase') ? { ...(el.dataset.antigo ? { antigo: true } : {}), ...(prog && prog !== 'moniliase' ? { programa: prog } : {}) } : null);
+      }
       else if (a === 'abrir') go(tipo === 'termo' ? 'pcetf' : 'pcecad', id);
       else if (a === 'imprimir') await imprimir(tipo, id);
       else if (a === 'enviar') await enviar(id);
@@ -1258,7 +1265,7 @@ const PCEMon = (() => {
         const propIdLig = F.propriedadeId || '';
         fechar(); go('pcecad', { antigo, deTermo: true, prefill: pre, propIdLig, manter: antigo ? { sNome: D.sNome, sCargo: D.sCargo, sMatricula: D.sMatricula, sLotacao: D.sLotacao, unidade: D.unidade, municipio: D.municipio } : {} });
       }
-      else if (a === 'salvaroutro') { if (F.tipo === 'termo') await salvarTf(true); else await salvarCad(true); }
+      else if (a === 'salvaroutro') { if (F.tipo === 'termo') await salvarTf(true); else if (F.salvar) await F.salvar(true); else await salvarCad(true); }
       else if (a === 'descartar') {
         if (!confirm('Descartar este formulário? Os dados preenchidos serão perdidos.')) return;
         const tp = F.tipo, salvo = Anexos.idsArquivos(F.rec), docs = F.docs.filter(x => !salvo.has(x)), deTermo = F.deTermo;
@@ -1268,5 +1275,10 @@ const PCEMon = (() => {
     } catch (err) { toast(err.message || String(err), true); }
   });
 
-  return { cadastro, termo: termoForm, pronto, lista, relatorio, gerarRelatorio, lerEixo, lerPar, lerNumeroDoc, numero, propIdDe, imprimir };
+  // peças comuns que o pce-cadastros.js reaproveita (número, servidor, produtor, GPS, assinaturas, PDF do papel e rascunho)
+  const nucleo = { sn, cks, inp, rv, cv, g, opts, coordHTML, mostrarCoord, lerPar, lerNumeroDoc, topoPapel, pdfHTML, assHTML, ligarAss, renderDocs, adicionarPDFs, mostrarNumPapel,
+    numerarEGravar, propIdDe, montarProp, montarPessoa, docConfere, avisoDoc, buscarProdutor, dadosDaPropriedade, agendar, fechar, area, inteiro, unid, RASC, PC,
+    estado: () => F, definir: st => { F = st; } };
+
+  return { cadastro, termo: termoForm, pronto, lista, relatorio, gerarRelatorio, lerEixo, lerPar, lerNumeroDoc, numero, propIdDe, imprimir, nucleo };
 })();

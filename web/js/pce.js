@@ -1110,11 +1110,13 @@ const PCEUI = (() => {
   }
   const amostrasDe = G => G.pragas.flatMap(g => g.culturas.filter(c => c.coleta === 'Sim').map(c => ({ praga: g.praga, cultura: c.cultura, tipoMaterial: c.tipoMaterial || '', codigoAmostra: c.codigoAmostra || '' })));
 
-  /** Programa do cadastro da visita: "citros" se o levantamento tem praga de citros; senão "moniliase" (cadastro de imóvel com hospedeiros). */
-  const programaLev = r => (Docs.pceGrupos(r).pragas.some(g => PCECitros.ehCitros(g.praga)) ? 'citros' : 'moniliase');
+  /** Cadastros da visita: um por modelo (família da cultura no catálogo; citros se há praga de citros; cultura sem família = cadastro geral). */
+  const modelosLev = r => PCECads.modelosDaVisita(r, CAT);
+  /** Texto do botão do cadastro que falta (citros e monilíase mantêm os de sempre). */
+  const rotuloCad = (m, so1) => (m === 'citros' ? 'Cadastro de citros' : m === 'moniliase' && so1 ? 'Cadastrar a propriedade' : m === 'propriedade' ? 'Cadastro geral da propriedade' : 'Cadastro de ' + PCECads.rotulo(m).toLowerCase());
   /** Documentos da visita: cadastro da propriedade (1x por programa) e Termo de Fiscalização do mesmo dia na mesma propriedade. */
   async function docsDaVisita(r, cads, tfs) {
-    const pid = propId(r.codigoPropriedade, r.doc, r.propriedade), programa = programaLev(r);
+    const pid = propId(r.codigoPropriedade, r.doc, r.propriedade);
     cads = cads || (await Store.todos('cadastrosPce')).filter(c => !Number(c.excluido));
     tfs = tfs || (await Store.todos('termosPce')).filter(t => !Number(t.excluido));
     const doc = digitos(r.doc), nomeP = semAcento(r.propriedade || '').toUpperCase().trim();
@@ -1128,12 +1130,15 @@ const PCEUI = (() => {
     });
     const programas = [...progs.values()].map(x => ({ ...x, termo: daVisita.find(t => t.programaVisita === x.programa) || null }));
     const antigo = daVisita.length ? null : tfs.find(t => !t.programaVisita && (t.levantamentoId === r.id || (daProp(t) && t.data === r.data))) || null;
-    return { pid, programa, cadastro: cads.find(c => daProp(c) && (c.programa || 'moniliase') === programa) || null, termo: antigo, programas };
+    // um cadastro por modelo; o que já existe na propriedade (um por propriedade e programa) não pede de novo
+    const modelos = modelosLev(r).map(m => ({ modelo: m, cadastro: cads.find(c => daProp(c) && (c.programa || 'moniliase') === m) || null }));
+    return { pid, programa: modelos[0].modelo, cadastro: modelos[0].cadastro, modelos, termo: antigo, programas };
   }
   function botoesVisita(r, v, grande) {
     if (!Sync.pode('pce') || (Number(r.registroAntigo) === 1 && !podeAntigo())) return '';
-    const id = x => (grande ? `id="${x}"` : ''), ci = v.programa === 'citros';
-    const cad = v.cadastro ? '' : `<button class="${grande ? 'botao' : 'editar'}" data-pce="cadvisita" data-id="${esc(r.id)}" ${grande ? id('pce-pronto-cad') : curto(ci ? 'Cadastro citros' : 'Cadastro', ci ? 'Cadastro de citros' : 'Cadastrar a propriedade')}>${ci ? 'Cadastro de citros' : 'Cadastrar a propriedade'}${grande ? ' e fazer o Termo' : ''}</button>`;
+    const id = x => (grande ? `id="${x}"` : ''), faltam = v.modelos.filter(m => !m.cadastro);
+    const cad = faltam.map((m, i) => { const rot = rotuloCad(m.modelo, faltam.length === 1), ci = m.modelo === 'citros';
+      return `<button class="${grande ? 'botao' : 'editar'}" data-pce="cadvisita" data-id="${esc(r.id)}" data-modelo="${m.modelo}" ${grande ? id(i ? 'pce-pronto-cad-' + m.modelo : 'pce-pronto-cad') : curto(ci ? 'Cadastro citros' : 'Cadastro ' + (faltam.length > 1 ? PCECads.rotulo(m.modelo) : ''), rot)}>${rot}${grande && faltam.length === 1 && m.modelo === 'moniliase' ? ' e fazer o Termo' : ''}</button>`; }).join('');
     if (v.termo) return cad + `<button class="${grande ? 'botao sec' : 'editar'}" data-pce="abrirtfvisita" data-id="${esc(v.termo.id)}" ${grande ? id('pce-pronto-tf') : curto('TF ' + (v.termo.numeroTxt || ''), 'Termo de Fiscalização ' + (v.termo.numeroTxt || ''))}>${icone('formulario')} Termo de Fiscalização ${esc(v.termo.numeroTxt || '')}</button>`;
     // um Termo por programa da visita: o feito abre; o que falta, cria já ligado à visita, com as culturas do programa
     return cad + v.programas.map((x, i) => {
@@ -1156,9 +1161,9 @@ const PCEUI = (() => {
         return `<tbody><tr class="pce-res-cultura"><th colspan="2" scope="colgroup">${icone('broto')} ${esc(cu.cultura)}${nF ? ` <small>${nF} foto(s)</small>` : ''}</th></tr>${prs.map(x => `<tr><td>${esc(nomePraga(x.praga))}</td><td>${seloRes(x.resultado)}</td></tr>`).join('')}</tbody>`; }).join('')}</table>
       ${G.gerais.length ? `<p class="dica" style="text-align:left">${G.gerais.length} foto(s) gerais (registro anterior) saem em todos os PDFs.</p>` : ''}</div>
       ${botoesVisita(r, visita, true) ? `<div class="card pce-visita"><h3>Próximo passo da visita</h3>
-        <p class="dica" style="text-align:left">${visita.cadastro ? 'Propriedade já cadastrada' + (visita.cadastro.numeroTxt ? ` (cadastro ${visita.programa === 'citros' ? 'de citros ' : ''}${esc(visita.cadastro.numeroTxt)})` : '') + '.'
-          : visita.programa === 'citros' ? 'Pragas de citros: o Cadastro de citros sai deste levantamento (só confirmar o número e assinar).'
-          : 'Propriedade nova: cadastre a propriedade.'} ${visita.termo ? '' : 'Um Termo de Fiscalização por programa, como no papel, com as culturas do programa avaliadas na visita, as pragas delas e o enquadramento das detectadas e suspeitas.'}</p>
+        <p class="dica" style="text-align:left">${visita.modelos.filter(m => m.cadastro).map(m => 'Propriedade já cadastrada' + (m.cadastro.numeroTxt ? ` (cadastro ${m.modelo === 'citros' ? 'de citros ' : m.modelo === 'moniliase' ? '' : PCECads.rotulo(m.modelo).toLowerCase() + ' '}${esc(m.cadastro.numeroTxt)})` : '') + '.').join(' ')}
+          ${visita.modelos.some(m => !m.cadastro && m.modelo === 'citros') ? 'Pragas de citros: o Cadastro de citros sai deste levantamento (só confirmar o número e assinar).' : ''}
+          ${visita.modelos.some(m => !m.cadastro && m.modelo !== 'citros') ? (visita.modelos.filter(m => !m.cadastro).length > 1 ? 'Esta visita pede mais de um cadastro (um por modelo de ficha): faça cada um.' : 'Propriedade nova: cadastre a propriedade.') : ''} ${visita.termo ? '' : 'Um Termo de Fiscalização por programa, como no papel, com as culturas do programa avaliadas na visita, as pragas delas e o enquadramento das detectadas e suspeitas.'}</p>
         ${botoesVisita(r, visita, true)}</div>` : ''}
       <div class="pce-pdfs">${botoesPdf(r.id, Docs.pceGrupos(levPorPrograma(r)), true)}</div>
       <button class="botao sec" data-pce="enviarlev" data-id="${esc(r.id)}" id="pce-enviar">${icone('enviar')} Enviar ao produtor (WhatsApp, e-mail…)</button>
@@ -1872,15 +1877,19 @@ const PCEUI = (() => {
       else if (a === 'abrirtfvisita') go('pcetf', id);
       else if (a === 'tfvisita' || a === 'cadvisita') {                    // Termo de Fiscalização / cadastro da propriedade a partir do levantamento
         const r = await Store.obter('levantamentos', id); if (!r) return;
+        await carregarCatalogo();
         const v = await docsDaVisita(r), antigo = Number(r.registroAntigo) === 1;
-        if (v.programa === 'citros') {                                       // cadastro e termo de citros precisam da detecção completa (registro da versão anterior)
+        if (a === 'tfvisita' ? v.modelos.some(m => m.modelo === 'citros') : el.dataset.modelo === 'citros') {                                       // cadastro e termo de citros precisam da detecção completa (registro da versão anterior)
           const f = PCECitros.faltaDeteccao(r.citros);
           if (f.length) { toast(`Abra o levantamento e marque Ausência ou Presença de sintomas de ${PCECitros.listaE(f)} (bloco “Cultura do citros”).`, true); return; }
         }
-        if (a === 'cadvisita') go('pcecad', { propId: v.pid, levId: r.id, antigo, programa: v.programa });
+        if (a === 'cadvisita') go('pcecad', { propId: v.pid, levId: r.id, antigo, programa: el.dataset.modelo || v.programa });
         else {
           const pg = v.programas.find(x => x.programa === el.dataset.programa), cult = pg ? { programaVisita: pg.programa, nomePrograma: pg.nome, culturas: pg.culturas } : {};
-          go('pcetf', v.cadastro ? { cadastroId: v.cadastro.id, levId: r.id, antigo, ...cult } : { propId: v.pid, levId: r.id, antigo, ...cult });
+          // cadastro ligado ao Termo: o do modelo das culturas do programa dele (sem programa escolhido, o primeiro)
+          const mods = pg ? pg.culturas.map(c => PCECads.modeloDaCultura(c, CAT)).concat(/citros/i.test(pg.nome) ? ['citros'] : []) : null;
+          const cadT = ((mods ? v.modelos.find(m => m.cadastro && mods.includes(m.modelo)) : v.modelos.find(m => m.cadastro)) || {}).cadastro || null;
+          go('pcetf', cadT ? { cadastroId: cadT.id, levId: r.id, antigo, ...cult } : { propId: v.pid, levId: r.id, antigo, ...cult });
         }
       }
       else if (a === 'excluirlev') await excluirLev(id);

@@ -1,5 +1,6 @@
-// PCE — documentos do Cadastro de imóvel (monilíase), do Cadastro de citros, do Termo de Fiscalização do PCE (o de citros tem modelo próprio)
-// e do Relatório de atividades. Usado em três lugares: dentro dos modelos (pce-cadastro-moniliase.html, pce-cadastro-citros.html, pce-termo.html,
+// PCE — documentos do Cadastro de imóvel (monilíase), do Cadastro de citros, dos Cadastros por programa (banana, mandioca, soja e propriedade: um
+// modelo de papel cada), do Termo de Fiscalização do PCE (o de citros tem modelo próprio) e do Relatório de atividades. Usado em três lugares: dentro
+// dos modelos (pce-cadastro-moniliase.html, pce-cadastro-citros.html, pce-cadastro-{banana,mandioca,soja,propriedade}.html, pce-termo.html,
 // pce-termo-citros.html, pce-relatorio.html), no app de campo
 // (docs.js abre o modelo num iframe e chama PCEDocs.montar) e no painel (relatório). Sem dependências: só DOM e dados.
 //
@@ -87,6 +88,28 @@ const PCEDocs = (() => {
       latTxt: c.lat === '' || c.lat == null ? '' : String(c.lat).replace('.', ','), lonTxt: c.lon === '' || c.lon == null ? '' : String(c.lon).replace('.', ','),
       dataTxt: dataBR(c.data), servCargo: c.cargo || '', servMat: c.matricula ? 'Matrícula: ' + c.matricula : '', servLot: c.lotacao ? 'Lotação: ' + c.lotacao : '' };
   }
+  /* ---------- Cadastros por programa (banana, mandioca, soja, propriedade): ficha de papel + levantamento ---------- */
+  const MODELOS_CAD = ['banana', 'mandioca', 'soja', 'propriedade'];
+  const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
+  function valoresCadastroGen(c) {
+    const d = lerJSON(c.dados, {}), dt = obj(d.deteccao), det = {};
+    Object.keys(dt).forEach(k => { const x = obj(dt[k]); det[k] = { tem: x.tem || '', tempo: x.tempo || '', controle: x.controle || '', qual: x.qual || '' }; });
+    const am = obj(d.amostra), rt = obj(d.rt);
+    const culturas = arr(d.culturas).filter(x => x && typeof x === 'object').map(x => { const o = {}; Object.keys(x).forEach(k => { o[k] = numTxt(x[k]); }); return o; });
+    return { ...c, d: { ...d, deteccao: det, amostra: { tem: am.tem || '', tipo: am.tipo || '' }, rt: { nome: rt.nome || '', conselho: rt.conselho || '' },
+      areaTotal: numTxt(d.areaTotal), areaAgricola: numTxt(d.areaAgricola), tipos: arr(d.tipos), natureza: arr(d.natureza), compradores: arr(d.compradores) }, culturas,
+      cpf: digitos(c.doc).length === 14 ? '' : fmtDoc(c.doc), cnpjTxt: fmtDoc(c.cnpj || (digitos(c.doc).length === 14 ? c.doc : '')),
+      latTxt: c.lat === '' || c.lat == null ? '' : String(c.lat).replace('.', ','), lonTxt: c.lon === '' || c.lon == null ? '' : String(c.lon).replace('.', ','),
+      dataTxt: dataBR(c.data), servCargo: c.cargo || '', servMat: c.matricula ? 'Matrícula: ' + c.matricula : '', servLot: c.lotacao ? 'Lotação: ' + c.lotacao : '' };
+  }
+  /** Tabela do modelo ([data-tabela] com data-cols e data-min = linhas em branco no mínimo, como no papel). */
+  function linhasTabela(pg, linhas) {
+    const tb = pg.querySelector('[data-tabela]'); if (!tb) return;
+    const doc = pg.ownerDocument, cols = tb.getAttribute('data-cols').split(','), l = linhas.slice();
+    while (l.length < (Number(tb.getAttribute('data-min')) || 3)) l.push(null);
+    tb.textContent = '';
+    l.forEach(x => { const tr = doc.createElement('tr'); tr.className = x ? 'cheia' : 'vazia'; cols.forEach(k => { const td = doc.createElement('td'); td.textContent = x ? x[k] || '' : ''; tr.append(td); }); tb.append(tr); });
+  }
   function valoresTermoCitros(t) {
     const v = valoresTermo(t), h = String(t.hora || '').slice(0, 5).split(':');
     return { ...v, localAcao: String(lerJSON(t.tipoLocal, [])[0] || ''), horaH: h[0] || '', horaM: h[1] || '', coordLat: t.lat === '' || t.lat == null ? '' : String(t.lat).replace('.', ','),
@@ -148,9 +171,12 @@ const PCEDocs = (() => {
   /* ---------- montagem no documento (dentro do iframe do modelo) ---------- */
   const TEMPLATES = { termo: 'pce-termo.html', cadastro: 'pce-cadastro-moniliase.html', relatorio: 'pce-relatorio.html',
     termoCitros: 'pce-termo-citros.html', cadastroCitros: 'pce-cadastro-citros.html' };
-  /** Modelo de um termo/cadastro conforme o programa (citros tem modelo próprio). */
-  const tipoDoRegistro = (tipo, reg) => (reg && reg.programa === 'citros' && (tipo === 'termo' || tipo === 'cadastro') ? tipo + 'Citros' : tipo);
+  MODELOS_CAD.forEach(m => { TEMPLATES['cadastro' + cap(m)] = `pce-cadastro-${m}.html`; });
+  /** Modelo de um termo/cadastro conforme o programa (citros tem modelo próprio; o cadastro de banana, mandioca, soja e propriedade também). */
+  const tipoDoRegistro = (tipo, reg) => (reg && reg.programa === 'citros' && (tipo === 'termo' || tipo === 'cadastro') ? tipo + 'Citros'
+    : reg && tipo === 'cadastro' && MODELOS_CAD.includes(reg.programa) ? 'cadastro' + cap(reg.programa) : tipo);
   const VALORES = { termo: valoresTermo, cadastro: valoresCadastro, termoCitros: valoresTermoCitros, cadastroCitros: valoresCadastroCitros, relatorio: valoresRelatorio };
+  MODELOS_CAD.forEach(m => { VALORES['cadastro' + cap(m)] = valoresCadastroGen; });
   const cacheModelo = {};
   /** Página modelo (.a4) de outro arquivo de documentos (para anexar termos/cadastros ao relatório); o <style> dele vem junto, uma vez. */
   async function modeloDe(doc, tipo) {
@@ -165,6 +191,7 @@ const PCEDocs = (() => {
     const r = VALORES[tipo](dados);
     preencher(pg, r);
     if (tipo === 'cadastroCitros') linhasCulturas(pg, r.culturas);
+    else if (MODELOS_CAD.some(m => tipo === 'cadastro' + cap(m))) linhasTabela(pg, r.culturas);
     if (tipo === 'relatorio') {
       const ul = pg.querySelector('[data-lista=servidores]');
       if (ul) { ul.textContent = ''; (dados.servidores || []).forEach(s => { const li = pg.ownerDocument.createElement('div'); li.textContent = [s.nome, s.funcao].filter(Boolean).join(' - '); ul.append(li); }); }
@@ -173,7 +200,8 @@ const PCEDocs = (() => {
     return pg;
   }
   /**
-   * Preenche o documento aberto (doc = documento do modelo). tipo: termo | cadastro | termoCitros | cadastroCitros | relatorio.
+   * Preenche o documento aberto (doc = documento do modelo). tipo: termo | cadastro | termoCitros | cadastroCitros | cadastroBanana | cadastroMandioca |
+   * cadastroSoja | cadastroPropriedade | relatorio.
    * opcoes.arquivos = {id: arquivo} (assinaturas); no relatório, opcoes.anexos = {termos:[...], cadastros:[...]} vira páginas depois do relatório
    * (termo/cadastro de citros com o modelo de citros); opcoes.extras = [{tipo, dados, arquivos, antes}] = outras páginas antes/depois (citros:
    * Cadastro de citros + Termo de Fiscalização da visita no mesmo PDF).
@@ -196,6 +224,6 @@ const PCEDocs = (() => {
     return doc.querySelectorAll('.a4').length;
   }
 
-  return { montar, preencher, calcularRelatorio, valoresTermo, valoresCadastro, valoresTermoCitros, valoresCadastroCitros, tipoDoRegistro, totalPlantas, coordTxt, fmtDoc, dataBR, HOSP, nomeHosp, norm, listaE, lerJSON };
+  return { montar, preencher, calcularRelatorio, valoresTermo, valoresCadastro, valoresTermoCitros, valoresCadastroCitros, valoresCadastroGen, tipoDoRegistro, totalPlantas, coordTxt, fmtDoc, dataBR, HOSP, nomeHosp, norm, listaE, lerJSON };
 })();
 if (typeof window !== 'undefined') window.PCEDocs = PCEDocs;

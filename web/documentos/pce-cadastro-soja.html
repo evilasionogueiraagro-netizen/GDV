@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Ficha de cadastro e levantamento de soja</title>
+<link rel="stylesheet" href="pce.css">
+<style>
+/* Ficha de cadastro e levantamento de soja: layout do modelo de papel da ADAF/GDV (1 folha A4). As regras .doc-cp estão em pce.css (compartilhadas pelos cadastros por programa). */
+@page{ size:A4 portrait; margin:8mm 7mm; }
+</style>
+</head>
+<body>
+<div class="a4 doc-cp">
+  <div class="via"></div>
+  <div class="cab"><img src="../img/brasao.png" alt="">
+    <div>GOVERNO DO ESTADO DO AMAZONAS</div>
+    <div>Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM</div>
+    <div>Gerência de Defesa Vegetal – GDV</div></div>
+  <div class="cq">
+  <table class="ln"><tr><td class="tit" style="font-size:15px">FICHA DE CADASTRO E LEVANTAMENTO DE SOJA</td></tr>
+    <tr><td class="tit2">Nº <span class="num" data-c="numeroTxt"></span>
+      <div class="leg">Nº sequencial &nbsp;&nbsp; Ano &nbsp;&nbsp;&nbsp; Unidade</div></td></tr>
+    <tr><td class="atend">(ATENDIMENTO A PORTARIA Nº 865, DE 2 DE AGOSTO DE 2023)<br>LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS</td></tr>
+    <tr><td style="height:2mm"></td></tr></table>
+  <table class="ln "><tr><td class="sec">1. &nbsp; DADOS DO PRODUTOR/PROPRIETÁRIO</td></tr></table>
+  <table class="ln dados"><tr><td >NOME DO PRODUTOR: <span class="v l" data-c="nome"></span> CPF: <span class="v m2" data-c="cpf"></span><br>
+      NOME DA PROPRIEDADE: <span class="v l" data-c="propriedade"></span> CNPJ: <span class="v m2" data-c="cnpjTxt"></span><br>
+      TELEFONE: <span class="v m2" data-c="d.telefone"></span><br>
+      CÓDIGO DA PROPRIEDADE (CONFORME IN N°33/2016): <span class="v m2" data-c="d.codigoPropriedade"></span><br>
+      GEORREFERENCIAMENTO: Lat.: <span class="v c" data-c="latTxt"></span> Lon.: <span class="v c" data-c="lonTxt"></span><br>
+      ENDEREÇO: <span class="v l" data-c="d.endereco"></span> MUNICÍPIO: <span class="v m2" data-c="municipio"></span> UF: <span class="v s" data-c="uf"></span></td></tr></table>
+  <table class="ln "><tr><td class="sec">2. &nbsp; DADOS DA PROPRIEDADE</td></tr></table>
+  <table class="ln op"><tr><td ><b>SITUAÇÃO FUNDIÁRIA:</b> <span class="m" data-m="d.situacao=proprietario"></span> PROPRIETÁRIO &nbsp; <span class="m" data-m="d.situacao=arrendatario"></span> ARRENDATÁRIO &nbsp; <span class="m" data-m="d.situacao=cooperativa"></span> COOPERATIVA &nbsp; <span class="m" data-m="d.situacao=outras"></span> OUTRAS (ESPECIFICAR): <span class="tx" data-c="d.situacaoOutras"></span></td></tr></table>
+  <table class="ln "><tr><td class="sec">3. &nbsp; CULTURA DA SOJA</td></tr></table>
+  <table class="ln cult"><colgroup><col style="width:30%"><col style="width:14%"><col style="width:20%"><col style="width:36%"></colgroup><thead><tr><th>CULTIVAR</th><th>ÁREA<br>(ha)</th><th>ESPAÇAMENTO</th><th>PRODUÇÃO<br>(tonelada/Ano – sacas/ha/ano)</th></tr></thead><tbody data-tabela="culturas" data-cols="cultivar,area,espacamento,producao" data-min="3"></tbody></table>
+  <table class="ln op"><tr><td class="b" style="width:30%">DESTINO DA PRODUÇÃO:</td><td ><span class="tx" data-c="d.destino"></span></td></tr></table>
+  <table class="ln op"><tr><td style="width:46%">MAQUINÁRIO ORIUNDO OU SE DESLOCA PARA OUTRA UF?</td><td style="width:16%"><span class="m" data-m="d.maquinario=sim"></span> SIM &nbsp;<span class="m" data-m="d.maquinario=nao"></span> NÃO</td><td >LOCAL: <span class="tx" data-c="d.maquinarioLocal"></span></td></tr><tr><td >LIMPEZA REALIZADA NO MAQUINÁRIO ANTES DO USO?</td><td ><span class="m" data-m="d.limpeza=sim"></span> SIM &nbsp;<span class="m" data-m="d.limpeza=nao"></span> NÃO</td><td >DE QUE FORMA: <span class="tx" data-c="d.limpezaForma"></span></td></tr></table>
+  <table class="ln op"><tr><td class="b" style="width:30%">FORNECEDOR DAS SEMENTES:</td><td ><span class="tx" data-c="d.fornecedor"></span></td></tr></table>
+  <table class="ln "><tr><td class="sec">4. &nbsp; LEVANTAMENTO DE DETECÇÃO</td></tr></table>
+  <table class="ln op det"><tr><td style="width:34%"><b>FERRUGEM ASIÁTICA</b></td><td style="width:16%"><span class="m" data-m="d.deteccao.ferrugem.tem=sim"></span> sim &nbsp;<span class="m" data-m="d.deteccao.ferrugem.tem=nao"></span> não</td><td >Há quanto tempo: <span class="tx" data-c="d.deteccao.ferrugem.tempo"></span></td></tr><tr><td style="width:34%"><b>Amaranthus palmeri</b></td><td style="width:16%"><span class="m" data-m="d.deteccao.amaranthus.tem=sim"></span> sim &nbsp;<span class="m" data-m="d.deteccao.amaranthus.tem=nao"></span> não</td><td >Qual: <span class="tx" data-c="d.deteccao.amaranthus.qual"></span></td></tr></table>
+  <table class="ln op"><tr><td style="width:70%">NOME DO RESPONSÁVEL TÉCNICO: <span class="tx" data-c="d.rt.nome"></span></td><td >N° CONSELHO: <span class="tx" data-c="d.rt.conselho"></span></td></tr></table>
+  <table class="ln assin"><tr><td>
+    <div class="cols">
+      <div class="col" data-ass="servidor"><div class="ass-img"></div><div class="linha">SERVIDOR DA ADAF-AM</div>
+        <div class="serv"><b data-c="servidor"></b><br><span data-c="servCargo"></span><br><span data-c="servMat"></span> <span data-c="servLot"></span></div></div>
+      <div class="col" data-ass="produtor"><div class="ass-img"></div><div class="linha">PRODUTOR/PROPRIETÁRIO</div><div class="serv" data-c="nome"></div></div></div>
+    <div class="data">DATA: <span class="v m2" data-c="dataTxt"></span></div></td></tr></table>
+  </div>
+  <div class="vias"><span>1ª via: Unidade Local</span><span>2ª via: ADAF Central (E-mail)</span></div>
+  <div class="rodape">
+    <div class="rodape-esquerda" style="font-size:10px">Avenida Carlos Drummond de Andrade, 1460 Japiim<br>Conj. Atílio Andreazza. ULBRA, Bloco G, 1º andar<br>
+      Fone: (92) 99192-3067 / 99983-1176<br>Manaus-AM-CEP 69077-730<br>E-mail: gabinete@adaf.am.gov.br</div>
+    <div class="rodape-centro"><img src="../img/logo-adaf.png" alt="ADAF"></div>
+    <div class="rodape-direita"><img class="logo-sepror" src="../img/sepror.png" alt="SEPROR – Secretaria de Produção Rural do Estado do Amazonas"></div>
+  </div>
+</div>
+<script src="pce-docs.js"></script>
+</body>
+</html>

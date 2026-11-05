@@ -202,9 +202,17 @@ const CONFIG = {
     // tipo: texto | num | sn (sim/não) | opcao (uma) | varios | tabela. se: {k, v} = só aparece com aquela resposta. Códigos vão para a planilha: não mudam.
     // deteccao: resposta "tem" (sim/não) vem do resultado no levantamento (Detectada ou Suspeita = sim); o resto se pergunta aqui.
     // reaproveita: campos copiados do cadastro mais recente da mesma propriedade, de qualquer programa, ao abrir um cadastro novo.
+    // Marcas do modelo (o que a ficha de papel tem além de "campos"): telefone (telefone do produtor), rt (responsável técnico e nº do conselho),
+    // amostra (colheita de amostras sim/não e tipo de material; vem do levantamento), comercial (propriedade comercial? sim/não e, se não, o tipo;
+    // nada é escondido nem dispensado quando "não": a ficha de banana manda preencher "apenas os itens 1, 4 e 5" mas só tem os itens 1 a 3).
+    // rotulos: nome curto do programa (lista, painel). culturaModelo: cultura → modelo, só para quando o aparelho ainda não recebeu o catálogo
+    // (com o catálogo, vale a família da cultura); cultura que não está aqui nem no catálogo cai no cadastro geral ("propriedade").
     cadastros: {
+      rotulos: { moniliase: 'Monilíase', citros: 'Citros', banana: 'Banana', mandioca: 'Mandioca', soja: 'Soja', propriedade: 'Propriedade' },
+      culturaModelo: { 'Laranja': 'citros', 'Limão': 'citros', 'Tangerina': 'citros', 'Banana': 'banana', 'Cacau': 'moniliase', 'Cupuaçu': 'moniliase', 'Herrania': 'moniliase',
+        'Cacauí': 'moniliase', 'Cupuí': 'moniliase', 'Macambo': 'moniliase', 'Mandioca': 'mandioca', 'Soja': 'soja' },
       reaproveita: ['situacao', 'situacaoOutras', 'rt', 'viaAcesso', 'viaOutra', 'origemMaterial', 'destino'],
-      propriedade: { nome: 'Cadastro geral da propriedade', modelo: 'pce-cadastro-propriedade.html', campos: [
+      propriedade: { nome: 'Cadastro geral da propriedade', modelo: 'pce-cadastro-propriedade.html', telefone: true, rt: true, campos: [
         { k: 'viaAcesso', rot: 'Principal via de acesso', tipo: 'opcao', ops: [['fluvial', 'Fluvial'], ['terrestre', 'Terrestre'], ['outra', 'Outra']] },
         { k: 'viaOutra', rot: 'Outra via (qual)', tipo: 'texto', se: { k: 'viaAcesso', v: 'outra' } },
         { k: 'situacao', rot: 'Situação fundiária', tipo: 'opcao', ops: 'situacoes' },
@@ -222,12 +230,12 @@ const CONFIG = {
         { k: 'naturezaOutros', rot: 'Outros (quais)', tipo: 'texto', se: { k: 'natureza', v: 'outros' } },
         { k: 'instalacoes', rot: 'Existem instalações próprias?', tipo: 'sn' }, { k: 'instalacoesTipos', rot: 'Quais tipos', tipo: 'texto', se: { k: 'instalacoes', v: 'sim' } }
       ] },
-      banana: { nome: 'Cadastro de banana', modelo: 'pce-cadastro-banana.html', comercial: true, campos: [
+      banana: { nome: 'Cadastro de banana', modelo: 'pce-cadastro-banana.html', comercial: true, rt: true, campos: [
         { k: 'culturas', rot: 'Dados da cultura', tipo: 'tabela', colunas: [['cultivar', 'Cultivar'], ['area', 'Área (ha)'], ['idade', 'Idade do plantio (ano)'], ['plantas', 'Quantidade (plantas)'], ['producao', 'Produção (t/ano)']] },
         { k: 'compradores', rot: 'Com quem comercializa', tipo: 'varios', ops: 'compradores' },
         { k: 'origemMaterial', rot: 'Origem do material genético', tipo: 'texto' }, { k: 'destino', rot: 'Destino da produção', tipo: 'texto' }
       ], deteccao: [{ k: 'moko', praga: 'Moko da Bananeira', rot: 'Moko da Bananeira', extra: ['tempo', 'controle', 'qual'] }, { k: 'sigatoka', praga: 'Sigatoka Negra', rot: 'Sigatoka Negra', extra: ['tempo', 'controle', 'qual'] }] },
-      mandioca: { nome: 'Cadastro de mandioca', modelo: 'pce-cadastro-mandioca.html', campos: [
+      mandioca: { nome: 'Cadastro de mandioca', modelo: 'pce-cadastro-mandioca.html', telefone: true, amostra: true, campos: [
         { k: 'situacao', rot: 'Situação fundiária', tipo: 'opcao', ops: 'situacoes' }, { k: 'situacaoOutras', rot: 'Outras (especificar)', tipo: 'texto', se: { k: 'situacao', v: 'outras' } },
         { k: 'culturas', rot: 'Cultura da mandioca', tipo: 'tabela', colunas: [['cultivar', 'Cultivar/variedade'], ['area', 'Área (ha)'], ['espacamento', 'Espaçamento'], ['producao', 'Estimativa de produção (t/ano ou sacas/ha/ano)']] },
         { k: 'estagio', rot: 'Estágio da planta', tipo: 'opcao', ops: [['plantio', 'Plantio e emergência (15-30 dias)'], ['vegetativo', 'Desenvolvimento vegetativo (60-90 dias)'],
@@ -237,7 +245,7 @@ const CONFIG = {
         { k: 'assistencia', rot: 'Assistência técnica?', tipo: 'sn' }, { k: 'assistenciaEmpresa', rot: 'Nome da empresa', tipo: 'texto', se: { k: 'assistencia', v: 'sim' } },
         { k: 'limpeza', rot: 'Limpeza realizada dos utensílios/ferramentas?', tipo: 'sn' }, { k: 'limpezaForma', rot: 'De que forma', tipo: 'texto', se: { k: 'limpeza', v: 'sim' } }
       ], deteccao: [{ k: 'vassoura', praga: 'Vassoura de Bruxa da Mandioca', rot: 'Vassoura-de-bruxa da mandioca', extra: ['tempo'] }] },
-      soja: { nome: 'Cadastro de soja', modelo: 'pce-cadastro-soja.html', campos: [
+      soja: { nome: 'Cadastro de soja', modelo: 'pce-cadastro-soja.html', telefone: true, rt: true, campos: [
         { k: 'situacao', rot: 'Situação fundiária', tipo: 'opcao', ops: 'situacoes' }, { k: 'situacaoOutras', rot: 'Outras (especificar)', tipo: 'texto', se: { k: 'situacao', v: 'outras' } },
         { k: 'culturas', rot: 'Cultura da soja', tipo: 'tabela', colunas: [['cultivar', 'Cultivar'], ['area', 'Área (ha)'], ['espacamento', 'Espaçamento'], ['producao', 'Produção (t/ano ou sacas/ha/ano)']] },
         { k: 'destino', rot: 'Destino da produção', tipo: 'texto' },

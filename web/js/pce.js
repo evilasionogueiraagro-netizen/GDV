@@ -1091,12 +1091,14 @@ const PCEUI = (() => {
       const alvo = [...progs.values()].find(p => p.itens.some(x => x.culturas.some(c => g.culturas.some(k => k.cultura === c.cultura))));
       if (alvo) alvo.itens.push(g); else progs.set('opc-' + idCat(g.praga), { praga: g.praga, itens: [g] });
     });
+    // O nome do programa identifica a praga sozinho (Monilíase, Mosca-da-Carambola)? Senão (Pragas da Bananeira, Pragas dos Citros...) a linha leva "Cultura – praga" mesmo com uma só praga.
+    const sozinho = p => p.itens.length === 1 && [nomePraga(p.itens[0].praga), (pragaPorNome(p.itens[0].praga) || {}).nomePopular, (pragaPorNome(p.itens[0].praga) || {}).nomeNoTF].some(n => n && idCat(n) === idCat(p.praga));
     const pragas = [...progs.values()].map(p => {
       const linhas = p.itens.flatMap(g => g.culturas.map(c => ({ ...c, pragaDaLinha: g.praga }))), ordem = [...new Set(linhas.map(c => c.cultura))], comFoto = new Set();
       linhas.sort((a, b) => ordem.indexOf(a.cultura) - ordem.indexOf(b.cultura));
       return { praga: p.praga, culturas: linhas.map(c => {
         const fotos = comFoto.has(c.cultura) ? [] : c.fotos; comFoto.add(c.cultura);
-        return { ...c, culturaBase: c.cultura, cultura: p.itens.length > 1 ? `${c.cultura} – ${nomePraga(c.pragaDaLinha)}` : c.cultura, fotos };
+        return { ...c, culturaBase: c.cultura, cultura: !sozinho(p) ? `${c.cultura} – ${nomePraga(c.pragaDaLinha)}` : c.cultura, fotos };
       }) };
     });
     return { ...r, pragas: JSON.stringify(pragas) };

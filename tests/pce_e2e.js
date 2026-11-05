@@ -195,8 +195,8 @@ const ANO = new Date().getFullYear();
   ok(/^Levantamento_JOSE_DA_SILVA_Moniliase_do_Cacaueiro_e_Cupuacuzeiro_\d\d-\d\d-\d{4}$/.test(pr.titulo), 'nome sugerido do PDF 1: ' + pr.titulo);
   await salvarPdf(A, pr, 'pce_lev_pdf_moniliase');
   pr = await imprimir(A, '.item.pce-lev [data-pce=imprimirlev][data-g="1"]');
-  ok(/PROGRAMA Pragas da Bananeira/.test(pr.texto) && /FICHA 2 de 3/.test(pr.texto) && /1 Banana 2,5 3 m 2,50 m Detectada Não/.test(pr.texto) && !pr.texto.includes('Cacau') && !pr.texto.includes('AM-002') && !pr.texto.includes('AM-001'),
-    'PDF 2 (Pragas da Bananeira, com a Fusariose opcional): só a Banana detectada, com o espaçamento e a unidade junto do valor (m)');
+  ok(/PROGRAMA Pragas da Bananeira/.test(pr.texto) && /FICHA 2 de 3/.test(pr.texto) && /1 Banana – Fusarium R4T 2,5 3 m 2,50 m Detectada Não/.test(pr.texto) && !pr.texto.includes('Cacau') && !pr.texto.includes('AM-002') && !pr.texto.includes('AM-001'),
+    'PDF 2 (Pragas da Bananeira, com a Fusariose opcional): só a Banana detectada (com a praga na linha: o nome do programa não a diz), com o espaçamento e a unidade junto do valor (m)');
   ok(pr.imgs === 2 && /Banana – foto 1/.test(pr.texto) && /^Levantamento_JOSE_DA_SILVA_Pragas_da_Bananeira_\d\d-\d\d-\d{4}$/.test(pr.titulo), 'PDF 2: a foto da Banana + assinatura; nome ' + pr.titulo);
   await salvarPdf(A, pr, 'pce_lev_pdf_bananeira');
   pr = await imprimir(A, '.item.pce-lev [data-pce=imprimirlev][data-g="2"]');

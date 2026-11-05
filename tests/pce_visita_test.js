@@ -87,6 +87,21 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== und
   await p.evaluate(id => PCEUI.levPronto(id), lev2); await p.waitForSelector('#pce-lev-pronto');
   ok(await p.locator('#pce-pronto-cad').count() === 0 && await p.locator('.pce-visita [data-pce=tfvisita]').count() === 2 && /Fazer o Termo|Termo de Fiscalização/.test(await p.textContent('.pce-visita')) && /já cadastrada/.test(await p.textContent('.pce-visita')),
     'propriedade já cadastrada: só os Termos de Fiscalização da visita, um por programa (sem "Cadastrar")');
+  // 5) praga opcional sem caixa no quadro do Termo (Moko, Sigatoka): entra na descrição do Termo do programa, sem sumir
+  const lev3 = await p.evaluate(async () => {
+    const l = (await Store.todos('levantamentos'))[0], cult = (praga, resultado) => ({ praga, culturas: [{ cultura: 'Banana', area: '1', espLinha: '', espPlanta: '', resultado, coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '', fotos: [] }] });
+    const n = { ...l, id: Store.novoId(), data: '2026-01-06', hora: '09:00', pendente: 1, pragas: JSON.stringify([cult('Moko da Bananeira', 'detectada'), cult('Sigatoka Negra', 'nao_detectada')]) };
+    await Store.salvar('levantamentos', n); return n.id;
+  });
+  await p.evaluate(id => PCEUI.levPronto(id), lev3); await p.waitForSelector('#pce-lev-pronto');
+  await p.click('.pce-visita [data-pce=tfvisita][data-programa="pragas-da-bananeira"]'); await p.waitForSelector('#monTfForm');
+  const descB = await p.inputValue('#mt-constatacao');
+  ok(descB.split('\n').join('|') === 'Praga opcional Moko da Bananeira: Detectada em Banana.|Praga opcional Sigatoka Negra: Não detectada em Banana.', 'Termo do programa: as pragas opcionais respondidas (Moko, Sigatoka) entram na descrição', descB);
+  ok((await p.evaluate(() => [...document.querySelectorAll('#monTfForm input[name="mt-pragas"]:checked')].length)) === 0, 'sem caixa no quadro para elas: nenhuma marcada');
+  await p.click('#mt-salvar');
+  for (let i = 0; i < 40 && !(await p.locator('#mon-pronto').count()); i++) { if (await p.locator('#mon-m-ok').count()) await p.click('#mon-m-ok'); await p.waitForTimeout(300); }
+  const tfB = await p.evaluate(async id => (await Store.todos('termosPce')).find(t => t.levantamentoId === id) || {}, lev3);
+  ok(await p.locator('#mon-pronto').count() === 1 && /Moko da Bananeira: Detectada/.test(tfB.constatacao || '') && tfB.pragas === '[]', 'Termo só com opcionais respondidas salva (a linha da descrição vale como praga) e guarda a descrição', [await toast(), tfB.constatacao, tfB.pragas]);
   ok(err.length === 0, 'sem erros de JavaScript', err);
   await b.close(); process.exit(falhas ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

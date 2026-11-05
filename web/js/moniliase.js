@@ -796,6 +796,21 @@ const PCEMon = (() => {
     });
     return out;
   }
+  /**
+   * Pragas opcionais respondidas no levantamento (Pinta Preta, Leprose, Moko, Sigatoka...) que não têm caixa no quadro do Termo: o papel só tem a
+   * descrição livre, então entram nela, uma linha por praga e resultado ("Praga opcional Moko da Bananeira: Detectada em Banana."). dasPragas = saída de
+   * pragasDoProgramaNaVisita (as do programa do Termo). O Termo de citros não tem o quadro de pragas: nele entram todas as opcionais (inclusive Diaphorina).
+   */
+  function linhasOpcionais(dasPragas, citros) {
+    const mapa = TC.pragaDoLevantamento || {}, quadro = TC.pragas || [], n = x => semAcento(String(x || '')).toLowerCase(), res = Object.fromEntries(P.resultados || []);
+    const porLinha = new Map();
+    (dasPragas || []).filter(x => x.opcional && (citros || (!mapa[x.praga] && !quadro.some(q => n(q) === n(x.praga))))).forEach(x => {
+      const k = x.praga + '|' + x.resultado; if (!porLinha.has(k)) porLinha.set(k, { praga: x.praga, resultado: x.resultado, culturas: [] });
+      const c = String(x.cultura || '').trim(); if (c && !porLinha.get(k).culturas.includes(c)) porLinha.get(k).culturas.push(c);
+    });
+    return [...porLinha.values()].map(x => `Praga opcional ${x.praga}: ${res[x.resultado] || x.resultado}${x.culturas.length ? ' em ' + PCEDocs.listaE(x.culturas) : ''}.`);
+  }
+  const ehLinhaOpcional = l => /^\s*Praga opcional /i.test(l);
   /** De onde vêm os dados do Termo de citros: o levantamento da visita (se está no aparelho) ou a cópia guardada no Cadastro de citros. */
   async function fonteCitros(st, lev, cad) {
     cad = cad || (st.cadastroId ? await Store.obter('cadastrosPce', st.cadastroId) : null);
@@ -814,7 +829,7 @@ const PCEMon = (() => {
       lat: coord(v(L0.lat, c.lat)), lon: coord(v(L0.lon, c.lon)), data: v(L0.data, c.data) || D.data, hora: String(v(L0.hora, c.hora) || D.hora || '').slice(0, 5),
       atividade: PCECitros.atividadesTexto(fo.citros),
       localAcao: fo.lev ? localDoLev(fo.lev) : [c.propriedade ? 'Propriedade ' + c.propriedade : '', dc.endereco, c.municipio ? `${c.municipio}/${c.uf || 'AM'}` : ''].filter(Boolean).join(', '),
-      constatacao: PCECitros.frases(fo.citros, fo.culturas).join('\n'),   // enquadramento: o do catálogo (planilha da GDV), já em D; nunca sobrescrito aqui
+      constatacao: [...PCECitros.frases(fo.citros, fo.culturas), ...(fo.opc || [])].join('\n'),   // enquadramento: o do catálogo (planilha da GDV), já em D; nunca sobrescrito aqui
       pragas: [...new Set([...(CI.deteccao || []).map(x => x[1]), ...(fo.lev ? pragasDoLevantamento(fo.lev, fo.so) : [])])], acoes: ['Fiscalização'],
       plantas: String(PCECitros.totalPlantas(fo.citros) || ''), sintomas: PCECitros.temPresenca(fo.citros) ? 'sim' : 'nao',
       amostra: fo.lev ? (G.some(x => x.culturas.some(k => k.coleta === 'Sim')) ? 'sim' : 'nao') : (dc.amostra || '') });
@@ -837,8 +852,9 @@ const PCEMon = (() => {
   /** Botão "Refazer as frases": troca as linhas de ausência/presença da descrição (o texto acrescentado pelo fiscal continua). */
   async function refazerFrases() {
     const fo = await fonteCitros(F); if (!fo) return toast('Levantamento/cadastro de citros não encontrado neste aparelho.', true);
-    const el = $('#' + PT + 'constatacao'), resto = el.value.split('\n').filter(l => !/^\s*(Ausência|Presença) de sintomas de /i.test(l)).join('\n').trim();
-    el.value = [...PCECitros.frases(fo.citros, fo.culturas), resto].filter(Boolean).join('\n'); agendar(0);
+    const el = $('#' + PT + 'constatacao'), resto = el.value.split('\n').filter(l => !/^\s*(Ausência|Presença) de sintomas de /i.test(l) && !ehLinhaOpcional(l)).join('\n').trim();
+    const opc = fo.lev && F.programaVisita ? linhasOpcionais(await U().pragasDoProgramaNaVisita(fo.lev, F.programaVisita), true) : [];
+    el.value = [...PCECitros.frases(fo.citros, fo.culturas), ...opc, resto].filter(Boolean).join('\n'); agendar(0);
   }
   async function termoForm(arg) {
     if (bloqueado()) return view(avisoAtivacao());
@@ -866,13 +882,15 @@ const PCEMon = (() => {
         programaVisita: o.programaVisita || '', nomePrograma: o.nomePrograma || '', culturas: o.culturas || [] };
       D = tfVazio(querAntigo ? null : s, o.manter || {});
       if (!querAntigo) Object.assign(D, { data: hojeISO(), hora: agoraHM(), acoes: ['Fiscalização'] });
-      let daCultCitros = null;                                                     // Termo de um programa: pragas das culturas dele (também no de citros)
+      let daCultCitros = null, opc = [], opcCit = [];                                                    // Termo de um programa: pragas das culturas dele (também no de citros)
       const lev = o.levId ? await Store.obter('levantamentos', o.levId) : null;   // Termo da visita: pragas do levantamento já marcadas
       if (lev) {
         st.levId = lev.id;
         // Termo de um programa da visita: só as pragas dele; enquadramento = o das detectadas e suspeitas (catálogo)
         const daCult = st.programaVisita ? await U().pragasDoProgramaNaVisita(lev, st.programaVisita) : null;
         daCultCitros = daCult && [...new Set(daCult.map(x => x.praga))];
+        opc = linhasOpcionais(daCult); opcCit = linhasOpcionais(daCult, true);                                                        // opcionais sem caixa no quadro: vão na descrição
+        if (opc.length) D.constatacao = [D.constatacao, ...opc].filter(Boolean).join('\n');
         D.pragas = pragasDoLevantamento(lev, daCultCitros);
         const enq = daCult ? [...new Set(daCult.filter(x => x.resultado !== 'nao_detectada' && x.enquadramento).map(x => x.enquadramento))] : [];
         if (enq.length) D.enquadramento = enq.join('\n');
@@ -886,7 +904,7 @@ const PCEMon = (() => {
       if ((cad0 && cad0.programa === 'citros') || (levEhCitros(lev) && citrosDaCultura)) {
         st.programa = 'citros';
         const fo = await fonteCitros(st, lev, cad0);
-        if (fo) { if (!st.levId && fo.lev) st.levId = fo.lev.id; preencherTfCitros(D, { ...fo, so: daCultCitros }); }
+        if (fo) { if (!st.levId && fo.lev) st.levId = fo.lev.id; preencherTfCitros(D, { ...fo, so: daCultCitros, opc: opcCit }); }
       }
     }
     st.cad = st.cadastroId ? await Store.obter('cadastrosPce', st.cadastroId) : null;
@@ -944,7 +962,7 @@ const PCEMon = (() => {
     if (!D.municipio) return toast('Escolha o município.', true);
     const co = lerPar(D.lat, D.lon); if (co.erro) return toast('Coordenadas: ' + co.erro, true);
     const CIT = st.programa === 'citros';
-    if (!D.pragas.length) return toast('Marque a praga (ex.: Monilíase).', true);
+    if (!D.pragas.length && !D.constatacao.split('\n').some(ehLinhaOpcional)) return toast('Marque a praga (ex.: Monilíase).', true);   // só opcional respondida (sem caixa no quadro): vale a linha da descrição
     if (CIT && !D.localAcao.trim()) { toast('Informe o local da fiscalização (“ao realizar fiscalização no(a)…”).', true); return $('#' + PT + 'localAcao').focus(); }
     if (CIT && !D.constatacao.trim()) { toast('Descreva a situação constatada (frases de ausência/presença de HLB, Ácaro Hindustânico e Cancro Cítrico).', true); return $('#' + PT + 'constatacao').focus(); }
     if (!D.acoes.length) return toast('Marque a ação realizada (ex.: Fiscalização).', true);

@@ -184,6 +184,7 @@ const guardar = nome => { if (COPIA) { fs.mkdirSync(COPIA, { recursive: true });
   const desc = await t('constatacao');
   ok(desc.split('\n')[0] === 'Ausência de sintomas de HLB nos frutos e folhas da cultura Laranja e Limão.' && /^Ausência de sintomas de Ácaro Hindustânico nos frutos e folhas da cultura/m.test(desc)
     && /^Presença de sintomas de Cancro Cítrico nos frutos e folhas da cultura Laranja e Limão\.$/m.test(desc), 'Termo: uma frase por doença (ausência/presença), com as culturas de citros', desc);
+  ok(/^Praga opcional Pinta Preta dos Citros: Não detectada em \S/m.test(desc) && desc.split('\n').length === 4, 'Termo: a praga opcional respondida (Pinta Preta) entra na descrição, em uma linha (o Termo de citros não tem quadro de pragas)', desc);
   ok(await t('enquadramento') === ENQ_CANCRO, 'Termo: enquadramento legal da planilha da GDV, só da praga detectada (Cancro Cítrico; HLB e Ácaro ausentes ficam de fora) (editável)', await t('enquadramento'));
   ok(await t('atividade') === 'Produção comercial de frutos; Pomar experimental' && await t('plantas') === '550' && await p.isChecked('input[name="mt-sintomas"][value="sim"]'),
     'Termo: atividade, plantas (soma da cultura do citros) e "presença de sintomas" para o relatório', [await t('atividade'), await t('plantas')]);
@@ -197,7 +198,7 @@ const guardar = nome => { if (COPIA) { fs.mkdirSync(COPIA, { recursive: true });
   await p.fill('#mt-localAcao', 'Propriedade Sítio Ficticio, Ramal Ficticio, km 3, Manaus/AM');
   await p.fill('#mt-enquadramento', ENQ_CANCRO);
   await p.click('[data-mon=frasescitros]');
-  ok((await t('constatacao')).split('\n').length === 4 && /Orientado o produtor/.test(await t('constatacao')), '"Refazer as frases": troca só as frases (o texto do fiscal continua)', await t('constatacao'));
+  ok((await t('constatacao')).split('\n').length === 5 && /Orientado o produtor/.test(await t('constatacao')) && /^Praga opcional Pinta Preta/m.test(await t('constatacao')), '"Refazer as frases": troca só as frases e a linha da praga opcional, sem duplicar (o texto do fiscal continua)', await t('constatacao'));
   await p.click('#mt-salvar'); await confirmarNumeros('#mon-pronto');
   ok(await p.locator('#mon-pronto').count() === 1, 'Termo de Fiscalização salvo', await toast());
 

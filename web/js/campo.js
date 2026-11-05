@@ -107,9 +107,11 @@ const Campo = (() => {
     try { await baixar(venc); if (VIEW_CAMPO() === 'pcecampo') telaBaixar(); return true; } finally { auto = false; }
   }
   const VIEW_CAMPO = () => (typeof VIEW !== 'undefined' ? VIEW : '');
-  /** LGPD: a gerência tirou o módulo PCE ou revogou o aparelho → os dados baixados saem do aparelho (o que tem registro pendente fica). */
+  /** LGPD: a gerência tirou o módulo PCE ou revogou o aparelho → os dados baixados e o catálogo saem do aparelho (o que tem registro pendente fica).
+   Os levantamentos do próprio fiscal ficam (são o registro dele) e, com eles, as linhas da visita (culturasAvaliadas, resultados), que não têm dado pessoal. */
   async function limparSeSemAcesso() {
     if (!(localStorage.getItem('gdv.revogado') || !Sync.pode('pce'))) return false;
+    await Store.apagar('meta', ['catalogoPce']);                         // catálogo de culturas e pragas: o servidor só manda a quem tem o módulo
     const m = Object.values(await lerMeta()); if (!m.length) return false;
     for (const x of m) await apagar(x.municipio);
     await gravarRota({ ids: [], manual: false });

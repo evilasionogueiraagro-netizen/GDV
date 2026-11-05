@@ -104,6 +104,14 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
   ok(pc2.length === 1 && pc2.every(x => Number(x.excluido) === 1) && pr2.length >= 1 && pr2.every(x => Number(x.excluido) === 1) && pc1.every(x => Number(x.excluido) !== 1), 'na planilha: linhas do excluído com excluido = 1 (nada apagado) e as do outro levantamento intactas', [pc2.length, pr2.length]);
   pend = await semPend();
   ok(pend.levantamentos === 0 && pend.culturasAvaliadas === 0 && pend.resultados === 0, 'nada fica pendente depois de excluir', pend);
+
+  console.log('5) LGPD: módulo PCE retirado apaga o catálogo do aparelho');
+  ok(await p.evaluate(async () => !!(await Store.meta('catalogoPce'))), 'antes: o aparelho tem o catálogo');
+  const rp = await U.permissoes(f.usuario.id, ['campo']);
+  ok(rp.ok, 'gerência tira o módulo PCE', rp);
+  await sync();
+  ok(await p.evaluate(async () => (await Store.meta('catalogoPce')) === undefined), 'sem o módulo: o catálogo some do aparelho');
+  ok(await p.evaluate(async () => (await Store.todos('levantamentos')).length) === 2, 'os levantamentos do próprio fiscal ficam');
   ok(err.length === 0, 'sem erros de JavaScript', err);
   await b.close(); process.exit(falhas ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

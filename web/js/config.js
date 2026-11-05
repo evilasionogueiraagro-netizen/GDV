@@ -142,7 +142,8 @@ const CONFIG = {
       'Tefé', 'Tonantins', 'Uarini', 'Urucará', 'Urucurituba'],
     culturas: ['Mandioca', 'Banana', 'Açaí', 'Cacau', 'Cupuaçu', 'Guaraná', 'Pimenta-do-reino', 'Milho', 'Feijão', 'Arroz', 'Café', 'Coco',
       'Abacaxi', 'Laranja', 'Limão', 'Tangerina', 'Mamão', 'Melancia', 'Maracujá', 'Castanha-do-Brasil', 'Pupunha', 'Dendê', 'Urucum',
-      'Seringueira', 'Hortaliças diversas', 'Soja'],
+      'Seringueira', 'Hortaliças diversas', 'Soja', 'Algodão', 'Cana-de-açúcar',
+      'Carambola', 'Goiaba', 'Manga', 'Acerola', 'Caju', 'Jaca', 'Pitanga', 'Jambo', 'Taperebá', 'Sapotilha', 'Abiu', 'Araçá-boi', 'Biribá', 'Fruta-pão', 'Tomate', 'Pimenta de cheiro'],
     pragas: ['Bactrocera carambolae', 'Schizotetranychus hindustanicus', 'Phakopsora pachyrhizi', 'HLB / Greening', 'Cancro Cítrico',
       'Fusarium R4T', 'Monilíase do Cacaueiro', 'Vassoura de Bruxa da Mandioca', 'Amaranthus palmeri', 'Diaphorina citri (vetor do HLB)',
       'Pinta Preta dos Citros', 'Leprose dos Citros'],
@@ -173,6 +174,78 @@ const CONFIG = {
       cultivares: ['Laranja Pera', 'Laranja Lima', 'Laranja Valência', 'Laranja Natal', 'Limão Tahiti', 'Limão Galego', 'Tangerina Ponkan', 'Tangerina Murcote',
         'Lima ácida', 'Pomelo'],                     // só sugestão (texto livre)
       maxCulturas: 20                                // linhas da tabela "Cultura do citros" (o servidor também corta em 20)
+    },
+    // Legislação por praga, para o "Enquadramento legal" do Termo. Fonte única: docs/modulos/pce-legislacao.csv (planilha da GDV); o teste pce_legislacao_test confere.
+    legislacao: {
+      'Monilíase do Cacaueiro': 'IN 112 DE 11/12/2020; SDA Nº 703 DE 21/11/2022; PORTARIA Nº 337/23 DE 11 DE AGOSTO DE 2023; PORTARIA Nº 263/2024; MAPA 818/2025',
+      'HLB / Greening': 'Portaria SDA/MAPA nº 1.326, de 4 de julho de 2025; IN SDA/MAPA nº 38',
+      'Cancro Cítrico': 'IN MAPA nº 21/2018; IN SDA/MAPA nº 38',
+      'Schizotetranychus hindustanicus': 'IN MAPA nº 8/2012; IN SDA/MAPA nº 38, de 1º de outubro de 2018',
+      'Bactrocera carambolae': 'Instrução Normativa SDA/MAPA nº 38; Portaria SDA/MAPA n° 1.545; PORTARIA SDA/MAPA nº 1.569, de 13 de março de 2026; Portaria SDA/MAPA n° 1.675 de 26 de agosto de 2026; Portaria MAPA n° 855, de 7 de novembro de 2025; Portaria MAPA nº 627, de 10 de novembro de 2023; Portaria SDA/MAPA n° 859, de 19 de julho de 2023; Portaria SDA/MAPA nº 780, de 06 de abril de 2023',
+      'Phakopsora pachyrhizi': 'Portaria SDA/MAPA nº 1.124, de 25 de junho de 2024; Portaria SDA/MAPA nº 1.579, de 9 de abril de 2026',
+      'Amaranthus palmeri': 'Instrução Normativa SDA/MAPA nº 38; Portaria SDA/MAPA nº 1.119',
+      'Vassoura de Bruxa da Mandioca': 'Instrução Normativa SDA/MAPA nº 38; Portaria SDA/MAPA nº 1.257; Portaria MAPA nº 769',
+      'Fusarium R4T': 'Portaria SDA/MAPA nº 1.291, de 22 de maio de 2025; Instrução Normativa SDA/MAPA nº 131 de 27 de junho de 2019; Instrução Normativa SDA/MAPA nº 30 de 05 de junho de 2020'
+    },
+    // Restrição praga x cultura (fontes em docs/modulos/pce-hospedeiros.md): praga listada aqui só é oferecida nas culturas e famílias dela e nas
+    // ligadas a ela no catálogo. Praga fora da lista e "Outra" digitada não têm restrição.
+    hospedeiros: {
+      'Bactrocera carambolae': { familias: ['Citros'], culturas: ['Carambola', 'Goiaba', 'Manga', 'Acerola', 'Caju', 'Jaca', 'Pitanga', 'Jambo', 'Taperebá', 'Sapotilha', 'Abiu', 'Araçá-boi', 'Biribá', 'Fruta-pão', 'Tomate', 'Pimenta de cheiro', 'Mamão', 'Maracujá'] },
+      'Schizotetranychus hindustanicus': { familias: ['Citros'], culturas: ['Coco'] },
+      'HLB / Greening': { familias: ['Citros'] }, 'Cancro Cítrico': { familias: ['Citros'] }, 'Diaphorina citri (vetor do HLB)': { familias: ['Citros'] },
+      'Pinta Preta dos Citros': { familias: ['Citros'] }, 'Leprose dos Citros': { familias: ['Citros'] },
+      'Phakopsora pachyrhizi': { familias: ['Soja'] }, 'Amaranthus palmeri': { familias: ['Soja'], culturas: ['Milho', 'Algodão'] },
+      'Fusarium R4T': { familias: ['Bananeira'] }, 'Moko da Bananeira': { familias: ['Bananeira'] }, 'Sigatoka Negra': { familias: ['Bananeira'] },
+      'Monilíase do Cacaueiro': { familias: ['Cacau e cupuaçu'] }, 'Vassoura de Bruxa da Mandioca': { familias: ['Mandioca'] }
+    },
+    // Cadastros por programa, como os modelos de papel (um formulário e um PDF por modelo; numeração própria por programa). Citros e monilíase têm
+    // código e modelo próprios; estes usam o formulário genérico. Culturas sem família caem no cadastro geral ("propriedade").
+    // tipo: texto | num | sn (sim/não) | opcao (uma) | varios | tabela. se: {k, v} = só aparece com aquela resposta. Códigos vão para a planilha: não mudam.
+    // deteccao: resposta "tem" (sim/não) vem do resultado no levantamento (Detectada ou Suspeita = sim); o resto se pergunta aqui.
+    // reaproveita: campos copiados do cadastro mais recente da mesma propriedade, de qualquer programa, ao abrir um cadastro novo.
+    cadastros: {
+      reaproveita: ['situacao', 'situacaoOutras', 'rt', 'viaAcesso', 'viaOutra', 'origemMaterial', 'destino'],
+      propriedade: { nome: 'Cadastro geral da propriedade', modelo: 'pce-cadastro-propriedade.html', campos: [
+        { k: 'viaAcesso', rot: 'Principal via de acesso', tipo: 'opcao', ops: [['fluvial', 'Fluvial'], ['terrestre', 'Terrestre'], ['outra', 'Outra']] },
+        { k: 'viaOutra', rot: 'Outra via (qual)', tipo: 'texto', se: { k: 'viaAcesso', v: 'outra' } },
+        { k: 'situacao', rot: 'Situação fundiária', tipo: 'opcao', ops: 'situacoes' },
+        { k: 'situacaoOutras', rot: 'Outras (especificar)', tipo: 'texto', se: { k: 'situacao', v: 'outras' } },
+        { k: 'areaTotal', rot: 'Área total da propriedade (ha)', tipo: 'num' }, { k: 'areaAgricola', rot: 'Área agrícola da propriedade (ha)', tipo: 'num' },
+        { k: 'sementes', rot: 'Sementes e mudas?', tipo: 'sn' }, { k: 'sementesTipo', rot: 'Tipo', tipo: 'texto', se: { k: 'sementes', v: 'sim' } },
+        { k: 'tipos', rot: 'Tipo de cultura', tipo: 'varios', ops: [['abacaxi', 'Abacaxi'], ['acerola', 'Acerola'], ['acai', 'Açaí'], ['arroz', 'Arroz'], ['banana', 'Banana'],
+          ['cana', 'Cana-de-açúcar'], ['coco', 'Coco'], ['goiaba', 'Goiaba'], ['hortalicas', 'Hortaliças'], ['maracuja', 'Maracujá'], ['milho', 'Milho'], ['outros', 'Outros']] },
+        { k: 'tiposOutros', rot: 'Outras culturas (quais)', tipo: 'texto', se: { k: 'tipos', v: 'outros' } },
+        { k: 'culturas', rot: 'Área plantada', tipo: 'tabela', colunas: [['cultura', 'Cultura'], ['area', 'Área (ha)'], ['producao', 'Produção (t/ano ou sacas/ha/ano)']] },
+        { k: 'destino', rot: 'Destino da produção', tipo: 'texto' },
+        { k: 'ocorrencia', rot: 'Há ocorrência de pragas na(s) cultura(s)?', tipo: 'sn' }, { k: 'ocorrenciaQuais', rot: 'Quais', tipo: 'texto', se: { k: 'ocorrencia', v: 'sim' } },
+        { k: 'manipula', rot: 'Produz e/ou manipula produtos de origem vegetal para fins comerciais?', tipo: 'sn' },
+        { k: 'natureza', rot: 'Natureza operativa do estabelecimento', tipo: 'varios', ops: [['natura', 'In natura'], ['doces', 'Doces/geleias'], ['outros', 'Outros']], se: { k: 'manipula', v: 'sim' } },
+        { k: 'naturezaOutros', rot: 'Outros (quais)', tipo: 'texto', se: { k: 'natureza', v: 'outros' } },
+        { k: 'instalacoes', rot: 'Existem instalações próprias?', tipo: 'sn' }, { k: 'instalacoesTipos', rot: 'Quais tipos', tipo: 'texto', se: { k: 'instalacoes', v: 'sim' } }
+      ] },
+      banana: { nome: 'Cadastro de banana', modelo: 'pce-cadastro-banana.html', comercial: true, campos: [
+        { k: 'culturas', rot: 'Dados da cultura', tipo: 'tabela', colunas: [['cultivar', 'Cultivar'], ['area', 'Área (ha)'], ['idade', 'Idade do plantio (ano)'], ['plantas', 'Quantidade (plantas)'], ['producao', 'Produção (t/ano)']] },
+        { k: 'compradores', rot: 'Com quem comercializa', tipo: 'varios', ops: 'compradores' },
+        { k: 'origemMaterial', rot: 'Origem do material genético', tipo: 'texto' }, { k: 'destino', rot: 'Destino da produção', tipo: 'texto' }
+      ], deteccao: [{ k: 'moko', praga: 'Moko da Bananeira', rot: 'Moko da Bananeira', extra: ['tempo', 'controle', 'qual'] }, { k: 'sigatoka', praga: 'Sigatoka Negra', rot: 'Sigatoka Negra', extra: ['tempo', 'controle', 'qual'] }] },
+      mandioca: { nome: 'Cadastro de mandioca', modelo: 'pce-cadastro-mandioca.html', campos: [
+        { k: 'situacao', rot: 'Situação fundiária', tipo: 'opcao', ops: 'situacoes' }, { k: 'situacaoOutras', rot: 'Outras (especificar)', tipo: 'texto', se: { k: 'situacao', v: 'outras' } },
+        { k: 'culturas', rot: 'Cultura da mandioca', tipo: 'tabela', colunas: [['cultivar', 'Cultivar/variedade'], ['area', 'Área (ha)'], ['espacamento', 'Espaçamento'], ['producao', 'Estimativa de produção (t/ano ou sacas/ha/ano)']] },
+        { k: 'estagio', rot: 'Estágio da planta', tipo: 'opcao', ops: [['plantio', 'Plantio e emergência (15-30 dias)'], ['vegetativo', 'Desenvolvimento vegetativo (60-90 dias)'],
+          ['raizes', 'Formação e desenvolvimento de raízes (90-180 dias)'], ['maturacao', 'Maturação das raízes (180-270 dias)'], ['colheita', 'Colheita (270-360 dias)']] },
+        { k: 'destino', rot: 'Destino da produção', tipo: 'texto' },
+        { k: 'materialDe', rot: 'Origem do material de propagação', tipo: 'opcao', ops: [['proprio', 'Próprio'], ['terceiros', 'Terceiros']] }, { k: 'origemMaterial', rot: 'Origem', tipo: 'texto' },
+        { k: 'assistencia', rot: 'Assistência técnica?', tipo: 'sn' }, { k: 'assistenciaEmpresa', rot: 'Nome da empresa', tipo: 'texto', se: { k: 'assistencia', v: 'sim' } },
+        { k: 'limpeza', rot: 'Limpeza realizada dos utensílios/ferramentas?', tipo: 'sn' }, { k: 'limpezaForma', rot: 'De que forma', tipo: 'texto', se: { k: 'limpeza', v: 'sim' } }
+      ], deteccao: [{ k: 'vassoura', praga: 'Vassoura de Bruxa da Mandioca', rot: 'Vassoura-de-bruxa da mandioca', extra: ['tempo'] }] },
+      soja: { nome: 'Cadastro de soja', modelo: 'pce-cadastro-soja.html', campos: [
+        { k: 'situacao', rot: 'Situação fundiária', tipo: 'opcao', ops: 'situacoes' }, { k: 'situacaoOutras', rot: 'Outras (especificar)', tipo: 'texto', se: { k: 'situacao', v: 'outras' } },
+        { k: 'culturas', rot: 'Cultura da soja', tipo: 'tabela', colunas: [['cultivar', 'Cultivar'], ['area', 'Área (ha)'], ['espacamento', 'Espaçamento'], ['producao', 'Produção (t/ano ou sacas/ha/ano)']] },
+        { k: 'destino', rot: 'Destino da produção', tipo: 'texto' },
+        { k: 'maquinario', rot: 'Maquinário oriundo ou se desloca para outra UF?', tipo: 'sn' }, { k: 'maquinarioLocal', rot: 'Local', tipo: 'texto', se: { k: 'maquinario', v: 'sim' } },
+        { k: 'limpeza', rot: 'Limpeza realizada no maquinário antes do uso?', tipo: 'sn' }, { k: 'limpezaForma', rot: 'De que forma', tipo: 'texto', se: { k: 'limpeza', v: 'sim' } },
+        { k: 'fornecedor', rot: 'Fornecedor das sementes', tipo: 'texto' }
+      ], deteccao: [{ k: 'ferrugem', praga: 'Phakopsora pachyrhizi', rot: 'Ferrugem asiática', extra: ['tempo'] }, { k: 'amaranthus', praga: 'Amaranthus palmeri', rot: 'Amaranthus palmeri', extra: ['qual'] }] }
     },
     // dados gerais da visita (opcionais): comercial (sim/não), tipo de local e origem da visita. "Outro" abre um campo para digitar.
     // Comercial é pergunta à parte: o tipo de local não diz se é comercial (quintal pode ser comercial). Registros antigos guardam o texto da lista anterior.

@@ -263,7 +263,8 @@ const PCECads = (() => {
   /** Mostra/esconde o que depende de outra resposta (ficha: "se ... sim"). */
   function atualizar() {
     const f = $('#monCadForm'); if (!f || !f.classList.contains('mon-cadgen')) return;
-    const n = N(), st = n.estado(), M = CAD[st.programa], campo = k => M.campos.find(c => c.k === k);
+    const n = N(), st = n.estado(); if (!st || !CAD[st.programa]) return;
+    const M = CAD[st.programa], campo = k => M.campos.find(c => c.k === k);
     f.querySelectorAll('.pc-campo[data-sek]').forEach(w => {
       const ctl = f.querySelector(`.pc-campo[data-k="${w.dataset.sek}"]`), c = campo(w.dataset.sek);
       const v = ctl && c ? valorCampo(c) : '';

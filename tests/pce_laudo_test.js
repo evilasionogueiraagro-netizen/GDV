@@ -1,5 +1,6 @@
 const amb = require('./lib/amb');
 const U = require('./lib/usuarios');
+const F = require('./lib/pce-form');
 // PCE — campos novos do levantamento (tipo de local e origem da visita, com "Outro" digitável) e resultado de laboratório do Termo de Colheita.
 // App: salvar, reabrir, sincronizar ida e volta, linha "Local: … · Origem: …" na ficha (PDF); listas com Soja, Amaranthus palmeri e Diaphorina
 // citri; resultado do laboratório no termo (app) → planilha; painel: colunas "Tipo de local"/"Origem" (tabela e CSV), coluna "Resultado" dos
@@ -30,7 +31,10 @@ const linhaDe = async (aba, id) => { const t = await get('/__aba?nome=' + aba); 
   await p.selectOption('#pce-s-cargo', { index: 1 }); await p.selectOption('#pce-s-lotacao', 'Manaus'); await p.click('#pce-s-salvar'); await p.waitForSelector('#pce-novolev');
   await p.click('#pce-novolev'); await p.waitForSelector('#pceLevForm');
   const opcoes = sel => p.$$eval(sel + ' option', os => os.map(o => o.textContent));
-  const pragas = await opcoes('.pce-praga >> nth=0 >> .p-praga'), culturas = await opcoes('.pce-praga >> nth=0 >> .pce-cult >> nth=0 >> .c-cultura');
+  const culturas = await opcoes('.pce-cultura >> nth=0 >> .c-cultura');
+  await p.click('.pce-cultura >> nth=0 >> .pce-addpraga');                       // "+ Outra praga/doença": a lista de pragas que se pode somar à cultura
+  const pragas = await opcoes('.pce-cultura >> nth=0 >> .pce-pr >> .r-praga');
+  await p.click('.pce-cultura >> nth=0 >> .pce-pr >> [data-pce=delpraga]');
   ok(pragas.includes('Amaranthus palmeri') && pragas.includes('Diaphorina citri (vetor do HLB)') && culturas.includes('Soja'), 'listas: Soja nas culturas; Amaranthus palmeri e Diaphorina citri nas pragas');
   const tipos = await opcoes('#pce-tipolocal'), origens = await opcoes('#pce-origem');
   ok(tipos.includes('Viveiro') && tipos.includes('Unidade de Consolidação (UC)') && tipos.includes('Outro') && origens.includes('Notificação voluntária do produtor') && origens.includes('Delimitação de foco'),
@@ -39,8 +43,7 @@ const linhaDe = async (aba, id) => { const t = await get('/__aba?nome=' + aba); 
     'tipo de local sem "comercial/não comercial" misturado: Quintal, Área urbana e Plantio abandonado são opções separadas', tipos);
   ok((await opcoes('#pce-comercial')).join() === 'Não informado,Sim,Não', '"Plantio comercial?" é pergunta à parte (opcional)');
   await p.fill('#pce-doc', '52998224725'); await p.fill('#pce-nome', 'Raimundo Nonato'); await p.fill('#pce-propriedade', 'Sítio Esperança'); await p.fill('#pce-codigo', 'PRP-90');
-  await p.selectOption('.pce-praga >> nth=0 >> .p-praga', 'Monilíase do Cacaueiro'); await p.selectOption('.pce-praga >> nth=0 >> .pce-cult >> nth=0 >> .c-cultura', 'Cacau');
-  await p.click('.pce-praga >> nth=0 >> .pce-cult >> nth=0 >> .pce-res-suspeita');
+  await F.cultura(p, 0, 'Cacau'); await F.responder(p, 0, 'Monilíase do Cacaueiro', 'suspeita');
   ok(await p.isHidden('#pce-tipolocal-outro-l'), '"Qual?" escondido até escolher "Outro"');
   await p.selectOption('#pce-tipolocal', 'Outro'); ok(await p.isVisible('#pce-tipolocal-outro'), '"Outro" mostra o campo para digitar');
   await p.fill('#pce-tipolocal-outro', 'Escola agrícola'); await p.selectOption('#pce-origem', 'Delimitação de foco'); await p.selectOption('#pce-comercial', 'sim');

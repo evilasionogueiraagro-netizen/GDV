@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Ficha de cadastro e levantamento de banana</title>
+<link rel="stylesheet" href="pce.css">
+<style>
+/* Ficha de cadastro e levantamento de banana: layout do modelo de papel da ADAF/GDV (1 folha A4). As regras .doc-cp estão em pce.css (compartilhadas pelos cadastros por programa). */
+@page{ size:A4 portrait; margin:8mm 7mm; }
+</style>
+</head>
+<body>
+<div class="a4 doc-cp">
+  <div class="via"></div>
+  <div class="cab"><img src="../img/brasao.png" alt="">
+    <div>GOVERNO DO ESTADO DO AMAZONAS</div>
+    <div>Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM</div>
+    <div>Gerência de Defesa Vegetal – GDV</div></div>
+  <div class="cq">
+  <table class="ln"><tr><td class="tit" style="font-size:14px">FICHA DE CADASTRO E LEVANTAMENTO DE BANANA</td></tr>
+    <tr><td class="tit2">Nº <span class="num" data-c="numeroTxt"></span>
+      <div class="leg">Nº sequencial &nbsp;&nbsp; Ano &nbsp;&nbsp;&nbsp; Unidade</div></td></tr>
+    <tr><td class="atend">(ATENDIMENTO A IN N°17 DE 27/05/2009 – Moko da Bananeira e Portaria Nº 17 de 31/05/2005 – Sigatoka Negra)<br>LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS DA BANANA</td></tr>
+    <tr><td style="height:2mm"></td></tr></table>
+  <table class="ln "><tr><td class="b" style="width:30%">PROPRIEDADE COMERCIAL?</td><td style="width:22%"><span class="m" data-m="d.comercial=sim"></span> SIM &nbsp;<span class="m" data-m="d.comercial=nao"></span> NÃO</td><td >Marcada opção “NÃO” preencher apenas itens 1, 4 e 5.</td></tr></table>
+  <table class="ln "><tr><td style="font-size:8.6px">Propriedade não comercial: <span class="m" data-m="d.tipoNaoComercial=sitio"></span> sítio; <span class="m" data-m="d.tipoNaoComercial=residencia"></span> residência; <span class="m" data-m="d.tipoNaoComercial=vegetacao"></span> vegetação espontânea; <span class="m" data-m="d.tipoNaoComercial=publica"></span> área pública; <span class="m" data-m="d.tipoNaoComercial=outros"></span> outros: <span class="tx" data-c="d.tipoOutros"></span></td></tr></table>
+  <table class="ln "><tr><td class="sec">1. &nbsp; DADOS DO PRODUTOR/PROPRIETÁRIO</td></tr></table>
+  <table class="ln dados"><tr><td >NOME DO PRODUTOR: <span class="v l" data-c="nome"></span> CPF: <span class="v m2" data-c="cpf"></span><br>
+      NOME DA PROPRIEDADE: <span class="v l" data-c="propriedade"></span> CNPJ: <span class="v m2" data-c="cnpjTxt"></span><br>
+      CÓDIGO DA PROPRIEDADE (CONFORME IN N°33/2016): <span class="v m2" data-c="d.codigoPropriedade"></span><br>
+      GEORREFERENCIAMENTO: Lat.: <span class="v c" data-c="latTxt"></span> Lon.: <span class="v c" data-c="lonTxt"></span><br>
+      ENDEREÇO: <span class="v l" data-c="d.endereco"></span> MUNICÍPIO: <span class="v m2" data-c="municipio"></span> UF: <span class="v s" data-c="uf"></span></td></tr></table>
+  <table class="ln "><tr><td class="sec">2. &nbsp; DADOS DA CULTURA</td></tr></table>
+  <table class="ln cult"><colgroup><col style="width:28%"><col style="width:14%"><col style="width:18%"><col style="width:18%"><col style="width:22%"></colgroup><thead><tr><th>CULTIVAR</th><th>ÁREA<br>(ha)</th><th>IDADE DO PLANTIO<br>(Ano)</th><th>QUANTIDADE<br>(plantas)</th><th>PRODUÇÃO<br>(tonelada/Ano)</th></tr></thead><tbody data-tabela="culturas" data-cols="cultivar,area,idade,plantas,producao" data-min="3"></tbody></table>
+  <table class="ln op"><tr><td >Com quem comercializa: <span class="m" data-m="d.compradores=atravessador"></span> atravessador &nbsp; <span class="m" data-m="d.compradores=supermercado"></span> supermercado &nbsp; <span class="m" data-m="d.compradores=feira"></span> feira &nbsp; <span class="m" data-m="d.compradores=cooperativa"></span> cooperativa &nbsp; <span class="m" data-m="d.compradores=outros"></span> outros</td></tr></table>
+  <table class="ln op"><tr><td style="width:30%">Origem do material genético:</td><td ><span class="tx" data-c="d.origemMaterial"></span></td></tr></table>
+  <table class="ln op"><tr><td style="width:30%">Destino da Produção:</td><td ><span class="tx" data-c="d.destino"></span></td></tr></table>
+  <table class="ln "><tr><td class="sec">3. &nbsp; LEVANTAMENTO DE DELIMITAÇÃO</td></tr></table>
+  <table class="ln op det"><tr><td style="width:34%"><b>MOKO DA BANANEIRA</b></td><td style="width:16%"><span class="m" data-m="d.deteccao.moko.tem=sim"></span> sim &nbsp;<span class="m" data-m="d.deteccao.moko.tem=nao"></span> não</td><td >Há quanto tempo: <span class="tx" data-c="d.deteccao.moko.tempo"></span></td></tr><tr><td >Utiliza met. controle:</td><td ><span class="m" data-m="d.deteccao.moko.controle=sim"></span> sim &nbsp;<span class="m" data-m="d.deteccao.moko.controle=nao"></span> não</td><td >Qual: <span class="tx" data-c="d.deteccao.moko.qual"></span></td></tr><tr><td style="width:34%"><b>SIGATOKA NEGRA</b></td><td style="width:16%"><span class="m" data-m="d.deteccao.sigatoka.tem=sim"></span> sim &nbsp;<span class="m" data-m="d.deteccao.sigatoka.tem=nao"></span> não</td><td >Há quanto tempo: <span class="tx" data-c="d.deteccao.sigatoka.tempo"></span></td></tr><tr><td >Utiliza met. controle:</td><td ><span class="m" data-m="d.deteccao.sigatoka.controle=sim"></span> sim &nbsp;<span class="m" data-m="d.deteccao.sigatoka.controle=nao"></span> não</td><td >Qual: <span class="tx" data-c="d.deteccao.sigatoka.qual"></span></td></tr></table>
+  <table class="ln op"><tr><td style="width:70%">NOME DO RESPONSÁVEL TÉCNICO: <span class="tx" data-c="d.rt.nome"></span></td><td >N° CONSELHO: <span class="tx" data-c="d.rt.conselho"></span></td></tr></table>
+  <table class="ln assin"><tr><td>
+    <div class="cols">
+      <div class="col" data-ass="servidor"><div class="ass-img"></div><div class="linha">SERVIDOR DA ADAF-AM</div>
+        <div class="serv"><b data-c="servidor"></b><br><span data-c="servCargo"></span><br><span data-c="servMat"></span> <span data-c="servLot"></span></div></div>
+      <div class="col" data-ass="produtor"><div class="ass-img"></div><div class="linha">PRODUTOR/PROPRIETÁRIO</div><div class="serv" data-c="nome"></div></div></div>
+    <div class="data">DATA: <span class="v m2" data-c="dataTxt"></span></div></td></tr></table>
+  </div>
+  <div class="vias"><span>1ª via: Unidade Local</span><span>2ª via: ADAF Central (E-mail)</span></div>
+  <div class="rodape">
+    <div class="rodape-esquerda" style="font-size:10px">Avenida Carlos Drummond de Andrade, 1460 Japiim<br>Conj. Atílio Andreazza. ULBRA, Bloco G, 1º andar<br>
+      Fone: (92) 99192-3067 / 99983-1176<br>Manaus-AM-CEP 69077-730<br>E-mail: gabinete@adaf.am.gov.br</div>
+    <div class="rodape-centro"><img src="../img/logo-adaf.png" alt="ADAF"></div>
+    <div class="rodape-direita"><img class="logo-sepror" src="../img/sepror.png" alt="SEPROR – Secretaria de Produção Rural do Estado do Amazonas"></div>
+  </div>
+</div>
+<script src="pce-docs.js"></script>
+</body>
+</html>

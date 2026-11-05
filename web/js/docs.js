@@ -540,8 +540,11 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
      preenchidos por documentos/pce-docs.js (o mesmo script do painel). modo 'arquivo': devolve o PDF gerado no aparelho (pdf.js) em vez de abrir a impressão.
      opcoes.extras: outras páginas no mesmo PDF (citros: Cadastro de citros + Termo de Fiscalização da visita). */
   const MODELO_MON = { termo: 'pce-termo.html', cadastro: 'pce-cadastro-moniliase.html', relatorio: 'pce-relatorio.html',
-    termoCitros: 'pce-termo-citros.html', cadastroCitros: 'pce-cadastro-citros.html' };
+    termoCitros: 'pce-termo-citros.html', cadastroCitros: 'pce-cadastro-citros.html', cadastroBanana: 'pce-cadastro-banana.html', cadastroMandioca: 'pce-cadastro-mandioca.html',
+    cadastroSoja: 'pce-cadastro-soja.html', cadastroPropriedade: 'pce-cadastro-propriedade.html' };
   function nomePdfMon(tipo, r) {
+    const gen = /^cadastro(Banana|Mandioca|Soja|Propriedade)$/.exec(tipo);
+    if (gen) return nomeArquivo(`Cadastro_${gen[1]}_` + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));
     if (tipo === 'termo') return nomeArquivo('Termo_Fiscalizacao_' + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));
     if (tipo === 'termoCitros') return nomeArquivo('TF_Citros_' + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));
     if (tipo === 'cadastroCitros') return nomeArquivo('Cadastro_Citros_' + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));

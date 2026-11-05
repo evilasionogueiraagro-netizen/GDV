@@ -28,37 +28,37 @@ const pragasDe = (cat, culturaId) => {
     'Limão herda as pragas da família Citros', pragasDe(base, 'limao'));
   ok(base.familias.find(f => f.id === 'cacau-e-cupuacu').modeloCadastro === 'moniliase' && base.culturas.find(c => c.id === 'cupuacu').familiaId === 'cacau-e-cupuacu',
     'família define o modelo de cadastro (Cacau e cupuaçu → monilíase)');
-  ok(base.pragas.find(p => p.id === 'hlb-greening').nomeNoTF === 'HLB' && /1326/.test(base.pragas.find(p => p.id === 'hlb-greening').enquadramentoLegal),
+  ok(base.pragas.find(p => p.id === 'hlb-greening').nomeNoTF === 'HLB' && /1\.326/.test(base.pragas.find(p => p.id === 'hlb-greening').enquadramentoLegal),
     'praga traz o nome no quadro do TF e o enquadramento legal');
   ok(!(await linhas('Pragas')).length, 'ler não grava nada na planilha');
   r = await post({ action: 'painelPceCatalogo', key: gSemPce.token });
   ok(!r.ok && /módulo PCE/.test(r.erro), 'sem o módulo PCE: não lê (nem a gerência)', r.erro);
 
   console.log('2) gravar: só gerência + PCE; a primeira gravação copia a base');
-  r = await post({ action: 'painelPceCatalogoSalvar', key: leitor.token, tipo: 'cultura', item: { nome: 'Acerola' } });
+  r = await post({ action: 'painelPceCatalogoSalvar', key: leitor.token, tipo: 'cultura', item: { nome: 'Pitaia' } });
   ok(!r.ok && /Só a gerência/.test(r.erro), 'painel só leitura: recusa', r.erro);
-  r = await post({ action: 'painelPceCatalogoSalvar', key: gSemPce.token, tipo: 'cultura', item: { nome: 'Acerola' } });
+  r = await post({ action: 'painelPceCatalogoSalvar', key: gSemPce.token, tipo: 'cultura', item: { nome: 'Pitaia' } });
   ok(!r.ok && /módulo PCE/.test(r.erro), 'gerência sem PCE: recusa', r.erro);
-  r = await post({ action: 'painelPceCatalogoSalvar', key: g.token, tipo: 'cultura', item: { nome: '  Acerola ', nomeCientifico: 'Malpighia emarginata' } });
-  ok(r.ok && r.item.id === 'acerola' && r.catalogo.culturas.some(c => c.id === 'acerola'), 'nova cultura com id estável a partir do nome', r);
+  r = await post({ action: 'painelPceCatalogoSalvar', key: g.token, tipo: 'cultura', item: { nome: '  Pitaia ', nomeCientifico: 'Hylocereus undatus' } });
+  ok(r.ok && r.item.id === 'pitaia' && r.catalogo.culturas.some(c => c.id === 'pitaia'), 'nova cultura com id estável a partir do nome', r);
   ok((await linhas('Pragas')).length === 14 && (await linhas('Culturas')).length === base.culturas.length + 1, 'a base foi copiada para as abas na primeira gravação');
-  r = await post({ action: 'painelPceCatalogoSalvar', key: g.token, tipo: 'cultura', item: { nome: 'acerola' } });
+  r = await post({ action: 'painelPceCatalogoSalvar', key: g.token, tipo: 'cultura', item: { nome: 'pitaia' } });
   ok(!r.ok && /Já existe/.test(r.erro), 'nome repetido (sem diferença de maiúscula/acento): recusa', r.erro);
   r = await post({ action: 'painelPceCatalogoSalvar', key: g.token, tipo: 'praga', item: { nomePopular: 'X' } });
   ok(!r.ok && /nome/.test(r.erro), 'sem nome: recusa', r.erro);
 
   console.log('3) ligações: praga × família e praga × cultura');
   r = await post({ action: 'painelPceCatalogoSalvar', key: g.token, tipo: 'praga', item: { id: 'bactrocera-carambolae', nomePopular: 'Mosca-da-carambola',
-    nomeCientifico: 'Bactrocera carambolae', tipo: 'praga', nomeNoTF: 'Mosca-da-Carambola', familias: [], culturas: ['acerola'] } });
-  ok(r.ok && pragasDe(r.catalogo, 'acerola').join() === 'bactrocera-carambolae', 'mosca-da-carambola ligada só à acerola', r.ok ? pragasDe(r.catalogo, 'acerola') : r);
+    nomeCientifico: 'Bactrocera carambolae', tipo: 'praga', nomeNoTF: 'Mosca-da-Carambola', familias: [], culturas: ['pitaia'] } });
+  ok(r.ok && pragasDe(r.catalogo, 'pitaia').join() === 'bactrocera-carambolae', 'mosca-da-carambola ligada só à pitaia', r.ok ? pragasDe(r.catalogo, 'pitaia') : r);
   r = await post({ action: 'painelPceCatalogoSalvar', key: g.token, tipo: 'praga', item: { id: 'pinta-preta-dos-citros', nomePopular: 'Pinta Preta dos Citros',
     nomeCientifico: 'Phyllosticta citricarpa', tipo: 'doenca', familias: [], culturas: ['laranja'] } });
   ok(r.ok && !pragasDe(r.catalogo, 'limao').includes('pinta-preta-dos-citros') && pragasDe(r.catalogo, 'laranja').includes('pinta-preta-dos-citros'),
     'pinta preta sai da família Citros e fica só na laranja');
   const lf = (await linhas('PragasDasFamilias')).find(l => l.id === 'pinta-preta-dos-citros|citros');
   ok(lf && Number(lf.ativo) === 0, 'ligação desfeita fica na planilha com ativo 0 (nada se apaga)', lf);
-  r = await post({ action: 'painelPceCatalogoSalvar', key: g.token, tipo: 'cultura', item: { id: 'acerola', nome: 'Acerola', pragas: [] } });
-  ok(r.ok && !pragasDe(r.catalogo, 'acerola').length, 'cultura: a lista de pragas ligadas só a ela substitui a anterior');
+  r = await post({ action: 'painelPceCatalogoSalvar', key: g.token, tipo: 'cultura', item: { id: 'pitaia', nome: 'Pitaia', pragas: [] } });
+  ok(r.ok && !pragasDe(r.catalogo, 'pitaia').length, 'cultura: a lista de pragas ligadas só a ela substitui a anterior');
   r = await post({ action: 'painelPceCatalogoSalvar', key: g.token, tipo: 'praga', item: { id: 'leprose-dos-citros', nomePopular: 'Leprose dos Citros', ativo: false, familias: ['citros'] } });
   ok(r.ok && !pragasDe(r.catalogo, 'limao').includes('leprose-dos-citros'), 'praga desativada sai da lista da cultura');
   const h = (await linhas('HistoricoDeAlteracoes')).filter(x => /catálogo do PCE/.test(x.acao));
@@ -67,7 +67,7 @@ const pragasDe = (cat, culturaId) => {
   console.log('4) app: catálogo no sync só com o módulo PCE');
   const f = await U.fiscal('Fiscal Catalogo Teste'), t = await U.fiscal('Fiscal Sem Pce Teste', { permissoes: ['campo', 'fiscalizacaoDeTransito'] });
   r = await post({ action: 'sync', key: f.token, since: 0 });
-  ok(r.ok && r.catalogoPce && r.catalogoPce.culturas.some(c => c.id === 'acerola') && r.catalogoPce.modelosCadastro.includes('banana'), 'fiscal com PCE recebe o catálogo atual');
+  ok(r.ok && r.catalogoPce && r.catalogoPce.culturas.some(c => c.id === 'pitaia') && r.catalogoPce.modelosCadastro.includes('banana'), 'fiscal com PCE recebe o catálogo atual');
   r = await post({ action: 'sync', key: t.token, since: 0 });
   ok(r.ok && r.catalogoPce === null, 'sem o módulo PCE: o sync não manda o catálogo', r.catalogoPce);
 
@@ -95,7 +95,7 @@ const pragasDe = (cat, culturaId) => {
   ok(/só Limão/.test(await G.textContent('#pn-cat-ps')), 'ligar uma praga só ao limão');
   await G.click('[data-pce-visao=pragas]'); await G.waitForSelector('#pn-cat-chips');
   await G.click('[data-cat-sel=cancro-citrico]'); await G.waitForTimeout(200);
-  ok(/1326/.test(await G.inputValue('#pn-cat-enq')) && /família Citros/.test(await G.textContent('#pn-cat-chips')), 'Cancro Cítrico: enquadramento legal e culturas afetadas');
+  ok(/21\/2018/.test(await G.inputValue('#pn-cat-enq')) && /família Citros/.test(await G.textContent('#pn-cat-chips')), 'Cancro Cítrico: enquadramento legal e culturas afetadas');
   await G.screenshot({ path: amb.saida('pce_catalogo_pragas.png'), fullPage: true });
   await cg.close();
   ({ pg: G, cx: cg } = await abrir(leitor));

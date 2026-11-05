@@ -413,7 +413,7 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
   }
   const listaIds = v => { const a = jsonPce(v, []); return Array.isArray(a) ? a.filter(x => typeof x === 'string' && x) : []; };
 
-  /* Levantamento por praga/doença: cada card de praga vira um PDF (dados gerais + só as culturas e fotos daquela praga + assinaturas). */
+  /* Levantamento por programa: cada grupo (g.praga = nome do programa, ver levPorPrograma em pce.js) vira um PDF (dados gerais + só as culturas e fotos dele + assinaturas). */
   const RES_PCE = { detectada: 'Detectada', nao_detectada: 'Não detectada', suspeita: 'Suspeita' };
   const SEM_PRAGA = 'Sem praga informada';
   const objeto = x => x && typeof x === 'object';
@@ -449,7 +449,7 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     const n = k => culturas.filter(c => c.resultado === k).length;
     return [['detectada', 'detectada(s)'], ['suspeita', 'suspeita(s)'], ['nao_detectada', 'não detectada(s)']].filter(([k]) => n(k)).map(([k, t]) => `${n(k)} ${t}`).join(', ');
   };
-  /** Nome sugerido do PDF de uma praga: Levantamento_<produtor>_<praga>_<data>. */
+  /** Nome sugerido do PDF de um programa: Levantamento_<produtor>_<programa>_<data>. */
   const nomePdfPce = (reg, praga) => nomeArquivo(`Levantamento_${reg.nome || 'SEM_NOME'}_${nomePraga(praga)}_${dataPce(reg.data).replace(/\//g, '-')}`);
 
   /**

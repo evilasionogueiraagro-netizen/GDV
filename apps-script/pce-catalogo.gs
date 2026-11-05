@@ -1,6 +1,6 @@
 /* ---------- Catálogo do PCE: famílias, culturas e pragas (painel, gerência) ----------
- * Modelo (docs/arquitetura.md, seção do PCE): a praga é o programa (um Termo por programa), menos quando várias dividem um (Citros: HLB,
- * cancro, ácaro...; campo "programa" da praga). Programas = os grupos do relatório do convênio: Pragas dos Citros, Pragas da Soja, Monilíase do
+ * Modelo (docs/arquitetura.md, seção do PCE): cada praga pertence a um programa (campo "programa"; um Termo e um PDF por programa, e várias pragas
+ * podem dividir um: Citros com HLB, cancro, ácaro...). Programas = os grupos do relatório do convênio: Pragas dos Citros, Pragas da Soja, Monilíase do
  * Cacaueiro e Cupuaçuzeiro, Mosca-da-Carambola, Pragas da Bananeira e Pragas da Mandioca. Praga "opcional" (Moko, Pinta Preta...) é campo opcional: sem resposta obrigatória e sem Termo próprio; a família agrupa culturas e define o modelo de cadastro;
  * pragas de uma cultura = as ligadas à família dela + as ligadas só a ela (PragasDasFamilias, PragasDasCulturas).
  * Fonte única = abas da planilha. Enquanto ninguém editou, vale a base abaixo (CATALOGO_PCE_BASE_, igual ao CONFIG.PCE do app);

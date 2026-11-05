@@ -566,7 +566,7 @@ const PCEUI = (() => {
   // Dados gerais (servidor, produtor, propriedade, localização, data/hora, assinaturas) uma vez por visita; depois um card por cultura
   // avaliada (área, espaçamento e fotos), com as pragas/doenças avaliadas nela (resultado e coleta de amostra de cada uma).
   // As pragas ligadas à cultura no catálogo (pela família ou direto) aparecem sozinhas e exigem resultado; outras podem ser somadas.
-  // Gravado em culturasAvaliadas e resultados (uma linha por cultura e por cultura × praga) e, para os PDFs (um por praga), o painel e
+  // Gravado em culturasAvaliadas e resultados (uma linha por cultura e por cultura × praga) e, para os PDFs (um por programa), o painel e
   // os relatórios, também em "pragas" (praga → culturas, JSON), "culturas" e "fotos", como antes.
   const SEM_PRAGA = 'Sem praga informada', OUTRA = '__outra';
   const RES = Object.fromEntries(P.resultados || [['detectada', 'Detectada'], ['nao_detectada', 'Não detectada'], ['suspeita', 'Suspeita']]);
@@ -577,9 +577,10 @@ const PCEUI = (() => {
   async function carregarCatalogo() { const c = await Store.meta('catalogoPce'); CAT = c && Array.isArray(c.culturas) && Array.isArray(c.pragas) ? c : null; }
   const culturasCat = () => (CAT ? CAT.culturas.filter(c => Number(c.ativo) !== 0).map(c => c.nome) : P.culturas);
   const pragasCat = () => (CAT ? CAT.pragas.filter(p => Number(p.ativo) !== 0) : P.pragas.map(n => ({ id: idCat(n), nomePopular: n })));
+  /** levantamento = 0: praga ausente no Brasil (só educação sanitária), fora do levantamento. */
   const temLevantamento = p => Number(p.levantamento) !== 0;
   /** Praga opcional (Moko, Pinta Preta...): resposta não obrigatória e sem Termo próprio (entra no Termo do programa, se tiver um). */
-  const opcional = nome => { const p = pragaPorNome(nome); return !!(p && Number(p.opcional) === 1); };              // 0 = praga ausente no Brasil (só educação sanitária): fora do levantamento
+  const opcional = nome => { const p = pragaPorNome(nome); return !!(p && Number(p.opcional) === 1); };
   /** Nome gravado em "pragas": o da lista antiga (config.js) quando é a mesma praga, porque PDF, citros e Termo reconhecem por ele; senão o popular. */
   const nomeDaPraga = p => P.pragas.find(n => idCat(n) === p.id) || p.nomePopular;
   const pragaPorNome = nome => { const k = idCat(nome); return k ? pragasCat().find(p => p.id === k || idCat(p.nomePopular) === k) || null : null; };
@@ -598,6 +599,17 @@ const PCEUI = (() => {
     const ids = new Set([...(CAT.pragasDasFamilias || []).filter(l => c.familiaId && l.familiaId === c.familiaId).map(l => l.pragaId),
       ...(CAT.pragasDasCulturas || []).filter(l => l.culturaId === c.id).map(l => l.pragaId)]);
     return pragasCat().filter(p => ids.has(p.id) && temLevantamento(p));
+  }
+  /**
+   * Restrição praga × cultura (CONFIG.PCE.hospedeiros, docs/modulos/pce-hospedeiros.md): praga listada só é oferecida nas culturas e famílias dela e
+   * nas ligadas a ela no catálogo. Praga fora da lista, cultura ainda não escolhida e aparelho sem catálogo (sem famílias para conferir): sem restrição.
+   */
+  function pragaServeCultura(p, nomeCultura) {
+    const H = P.hospedeiros || {}, k = Object.keys(H).find(n => idCat(n) === p.id);
+    const c = CAT && nomeCultura ? CAT.culturas.find(x => idCat(x.nome) === idCat(nomeCultura)) : null;
+    if (!k || !c) return true;
+    const fam = CAT.familias.find(f => f.id === c.familiaId), h = H[k];
+    return (h.culturas || []).some(n => idCat(n) === c.id) || (!!fam && (h.familias || []).some(n => idCat(n) === fam.id)) || pragasLigadas(c.nome).some(x => x.id === p.id);
   }
   const pragaVazia = (p, ligada) => ({ uid: novoUid(), pragaId: p ? p.id : '', praga: p ? nomeDaPraga(p) : '', ligada: !!ligada, outra: false, legado: false,
     resultado: '', coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '' });
@@ -663,7 +675,7 @@ const PCEUI = (() => {
     await carregarCatalogo();
     return Docs.pceGrupos(lev).pragas.filter(g => String(g.praga || '').trim() && programaDaPraga(g.praga).programa === programa).flatMap(g => g.culturas.map(c => {
       const p = pragaPorNome(g.praga);
-      return { praga: g.praga, resultado: c.resultado, enquadramento: (p && p.enquadramentoLegal) || '' };
+      return { praga: g.praga, resultado: c.resultado, enquadramento: (p && p.enquadramentoLegal) || (P.legislacao || {})[g.praga] || '' };   // sem catálogo no aparelho: a planilha da GDV em CONFIG.PCE.legislacao
     }));
   }
   /** No levantamento, F.fotos = todas as fotos do formulário (gerais + de cada cultura): rascunho, descarte e limite contam todas. */
@@ -714,10 +726,10 @@ const PCEUI = (() => {
    *  Registro anterior sem unidade: o texto antigo aparece como estava e o seletor fica sem escolha até a pessoa marcar. */
   const UNIDADES_ESP = ['m', 'cm'], NOME_UNIDADE = { m: 'Metros', cm: 'Centímetros' }, ESP_NUM = 'inputmode="decimal" maxlength="8" autocomplete="off"';
   const espNumero = v => /^\d+([.,]\d+)?$/.test(v) && Number(v.replace(',', '.')) > 0;
-  function blocoPraga(g) {
+  function blocoPraga(g, cultura) {
     const u = esc(g.uid), amostra = g.coleta === 'Sim' ? '' : 'disabled';   // sem coleta: campos da amostra escondidos
     const inp = (cls, rot) => `<label>${rot}<input class="r-${cls}" value="${esc(g[cls])}" maxlength="60" ${amostra}></label>`;
-    const lista = pragasCat().filter(p => temLevantamento(p) || p.id === chavePraga(g)), outra = g.outra || (!!g.praga && !g.ligada && !lista.some(p => p.id === chavePraga(g)));
+    const lista = pragasCat().filter(p => p.id === chavePraga(g) || (temLevantamento(p) && pragaServeCultura(p, cultura))), outra = g.outra || (!!g.praga && !g.ligada && !lista.some(p => p.id === chavePraga(g)));
     const topo = g.ligada
       ? `<b>${icone('praga')} ${esc(g.praga)}</b><small class="pce-pr-cat">${opcional(g.praga) ? 'opcional' : 'do catálogo'}</small>`
       : `<label class="pce-pr-nome">Praga/doença *<select class="r-praga"><option value="">${esc(g.legado ? SEM_PRAGA + ' (registro anterior)' : 'Selecione')}</option>
@@ -746,7 +758,7 @@ const PCEUI = (() => {
       <div class="pce-prs"><h4>Pragas e doenças avaliadas nesta cultura</h4>
         ${!c.cultura ? '<p class="dica" style="text-align:left">Escolha a cultura: as pragas e doenças dela no catálogo aparecem aqui.</p>'
           : semLig ? '<p class="dica" style="text-align:left">Nenhuma praga ligada a esta cultura no catálogo. Some abaixo a que foi avaliada.</p>' : ''}
-        ${c.pragas.map(blocoPraga).join('')}
+        ${c.pragas.map(g => blocoPraga(g, c.cultura)).join('')}
         <button type="button" class="botao sec pce-addpraga" data-pce="addpraga" data-uid="${u}">+ Outra praga/doença nesta cultura</button></div>
       <label class="pce-arquivo pce-arquivo-cult">${icone('camera')} Fotos desta cultura<input type="file" class="c-fotos" data-uid="${u}" accept="image/*" multiple></label>
       <div id="pce-fotos-${u}" class="pce-fotos pce-fotos-cult"></div></div>`;
@@ -1037,8 +1049,8 @@ const PCEUI = (() => {
         cnpj, empresa: D.empresa.trim().replace(/\s+/g, ' ').slice(0, 120), endereco: D.endereco.trim().replace(/\s+/g, ' ').slice(0, 200),
         uf: D.uf.trim().toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2) };
       if (F.antigo || F.docs.length) Object.assign(rec, { registroAntigo: F.antigo ? 1 : 0, documentos: JSON.stringify(F.docs) });   // campos técnicos (não aparecem no painel nem na ficha)
+      await gravarLinhasDaVisita(F.id, V.cults);                                       // linhas antes do levantamento: uma sincronização no meio nunca manda o levantamento sem elas
       await Store.salvar('levantamentos', rec);
-      await gravarLinhasDaVisita(F.id, V.cults);
       if (sv) await lembrarServidor(sv);
       await apagarSeNaoEnviado([...antes].filter(id => !depois.has(id)));               // removidos antes do envio somem do aparelho
       await Store.salvar('pessoas', await montarPessoa(doc, { nome: rec.nome, telefone: rec.telefone, email: rec.email, endereco: rec.endereco, uf: rec.uf }));
@@ -1053,7 +1065,7 @@ const PCEUI = (() => {
     } catch (e) { F.salvando = false; btn.disabled = false; if (btn2) btn2.disabled = false; toast('Erro ao salvar: ' + e.message, true); }
   }
 
-  /* ---------- PDFs do levantamento: um por praga/doença ---------- */
+  /* ---------- PDFs do levantamento: um por programa (como o Termo) ---------- */
   const ORDEM_RES = { detectada: 0, suspeita: 1, nao_detectada: 2 };
   /** Pior resultado da praga (detectada > suspeita > não detectada). */
   const resultadoPraga = g => g.culturas.map(c => c.resultado).sort((a, b) => ORDEM_RES[a] - ORDEM_RES[b])[0] || 'nao_detectada';
@@ -1131,7 +1143,7 @@ const PCEUI = (() => {
         : `<button class="${grande ? (cad || i ? 'botao sec' : 'botao') : 'tfbtn'}" data-pce="tfvisita" data-id="${esc(r.id)}" data-programa="${esc(x.programa)}" ${grande ? id('pce-pronto-tf-' + i) : curto('TF ' + x.nome, 'Fazer o Termo de Fiscalização – ' + rot)}>${icone('formulario')} ${grande ? 'Termo de Fiscalização – ' + esc(rot) : 'TF ' + esc(x.nome)}</button>`;
     }).join('');
   }
-  /** Tela depois de salvar: resumo por praga e os PDFs (um por praga). */
+  /** Tela depois de salvar: resumo por praga e os PDFs (um por programa). */
   async function levPronto(id) {
     const r = id ? await Store.obter('levantamentos', id) : null; if (!r || r.excluido) return go('pce');
     await carregarCatalogo();
@@ -1251,6 +1263,8 @@ const PCEUI = (() => {
   async function excluirLev(id) {
     const r = await Store.obter('levantamentos', id); if (!r) return;
     if (!confirm(`Excluir o levantamento de ${r.nome} (${dBR(r.data)})?`)) return;
+    for (const store of ['culturasAvaliadas', 'resultados'])                         // exclusão lógica das linhas da visita, antes do levantamento (como ao salvar)
+      for (const x of (await Store.todos(store)).filter(x => x && x.levantamentoId === id && !Number(x.excluido))) await Store.salvar(store, { ...x, excluido: 1 });
     await Store.salvar('levantamentos', { ...r, excluido: 1 });
     await apagarSeNaoEnviado([...idsArquivos(r)]);
     Sync.sincronizar(); toast('Levantamento excluído.'); lista();

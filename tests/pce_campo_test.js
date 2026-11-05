@@ -1,5 +1,6 @@
 const amb = require('./lib/amb');
 const U = require('./lib/usuarios');
+const F = require('./lib/pce-form');
 // PCE em campo: "Baixar dados para o campo" (action pceBaixarMunicipio), consulta sem internet (CPF, nome, código), mapa "Perto de mim"
 // (pontos, cores pelo histórico, lista por distância), "Fazer levantamento aqui", rota com link do Google Maps, "Enviar ao produtor"
 // (PDF gerado no aparelho + navigator.share), permissão do módulo PCE e "Apagar do aparelho".
@@ -152,13 +153,12 @@ const EU = [-2.63, -56.74];
     ok(/Escolhido na busca/.test(await C.textContent('#pce-st-doc')) && (await C.inputValue('#pce-busca-prop')) === '', 'aviso de preenchimento e busca limpa');
     await C.fill('#pce-busca-prop', 'ninguém assim'); await C.waitForFunction(() => /Nada encontrado/.test(document.querySelector('#pce-busca-res').textContent)); ok(true, 'busca sem resultado avisa');
     await C.fill('#pce-busca-prop', '');
-    const PR = i => `.pce-praga >> nth=${i}`, CU = (i, k) => `.pce-praga >> nth=${i} >> .pce-cult >> nth=${k}`;
-    await C.selectOption(PR(0) + ' >> .p-praga', 'Bactrocera carambolae'); await C.selectOption(CU(0, 0) + ' >> .c-cultura', 'Banana'); await C.click(CU(0, 0) + ' >> .pce-res-nao_detectada');
+    await F.preencherCultura(C, 0, 'Carambola');
     const foto = await C.evaluate(() => { const c = document.createElement('canvas'); c.width = 1200; c.height = 800; const x = c.getContext('2d');
       x.fillStyle = '#2a7'; x.fillRect(0, 0, 1200, 800); x.fillStyle = '#fff'; x.fillRect(300, 200, 600, 400); return c.toDataURL('image/jpeg', 0.8).split(',')[1]; }).then(b => Buffer.from(b, 'base64'));
-    await C.setInputFiles(CU(0, 0) + ' >> .c-fotos', Array.from({ length: 14 }, (_, i) => ({ name: `f${i}.jpg`, mimeType: 'image/jpeg', buffer: foto })));
-    await C.waitForFunction(() => document.querySelectorAll('.pce-praga .pce-foto img').length === 14, null, { timeout: 20000 });
-    await C.click('#pce-addpraga'); await C.selectOption(PR(1) + ' >> .p-praga', 'HLB / Greening'); await C.selectOption(CU(1, 0) + ' >> .c-cultura', 'Laranja'); await C.click(CU(1, 0) + ' >> .pce-res-nao_detectada');
+    await C.setInputFiles('.pce-cultura >> nth=0 >> .c-fotos', Array.from({ length: 14 }, (_, i) => ({ name: `f${i}.jpg`, mimeType: 'image/jpeg', buffer: foto })));
+    await C.waitForFunction(() => document.querySelectorAll('.pce-cultura .pce-foto img').length === 14, null, { timeout: 20000 });
+    await F.preencherCultura(C, 1, 'Laranja');
     for (const k of ['hlb', 'acaro', 'cancro']) await C.click(`#pce-citros label:has(input[name="pce-ci-det-${k}-tem"][value="nao"])`);   // praga de citros: detecção obrigatória
     await C.click('#pce-salvar'); await C.waitForSelector('#pce-lev-pronto');
     const levLocal = await C.evaluate(async () => (await Store.todos('levantamentos')).map(l => ({ cod: l.codigoPropriedade, doc: l.doc, pend: l.pendente, prop: l.propriedade })));
@@ -170,7 +170,7 @@ const EU = [-2.63, -56.74];
     console.log('4) Enviar ao produtor: PDF gerado no aparelho (sem internet) + compartilhamento');
     ok(await C.locator('#pce-enviar').count() === 1, 'botão "📤 Enviar ao produtor" na tela do levantamento salvo');
     await C.click('#pce-enviar'); await C.waitForSelector('#pce-modal-enviar');
-    ok(await C.locator('input[name=pce-env]').count() === 2, 'escolha das fichas (uma por praga)');
+    ok(await C.locator('input[name=pce-env]').count() === 2, 'escolha das fichas (uma por programa)');
     await C.click('#pce-env-gerar'); await C.waitForSelector('#pce-env-share', { timeout: 60000 });
     ok(/2 PDF\(s\) prontos/.test(await C.textContent('#pce-env-st')), 'PDFs gerados: ' + (await C.textContent('#pce-env-st')).trim());
     await C.screenshot({ path: amb.saida('pce_campo_enviar.png') });
@@ -179,7 +179,7 @@ const EU = [-2.63, -56.74];
     ok(sh.files.length === 2 && sh.files.every(f => f.type === 'application/pdf' && f.ini === '%PDF-' && /%%EOF/.test(f.fim) && f.paginas >= 1 && f.size > 20000 && f.size < 3e6),
       'navigator.share recebeu 2 arquivos PDF válidos: ' + sh.files.map(f => `${f.name} (${Math.round(f.size / 1024)} KB, ${f.paginas} pág.)`).join(', '));
     ok(sh.files[0].paginas >= 2 && sh.files[1].paginas === 1, `ficha com 14 fotos em ${sh.files[0].paginas} páginas (quebra sem cortar fotos); a outra em 1`);
-    ok(/Bactrocera/.test(sh.files[0].name) && /HLB/.test(sh.files[1].name) && /Levantamento fitossanitário/.test(sh.title), 'um PDF por praga, com o nome de cada praga');
+    ok(/Mosca-da-Carambola/.test(sh.files[0].name) && /Pragas_dos_Citros|Pragas-dos-Citros|Pragas dos Citros/.test(sh.files[1].name) && /Levantamento fitossanitário/.test(sh.title), 'um PDF por programa, com o nome de cada programa: ' + sh.files.map(f => f.name).join(', '));
     const pdfs = await C.evaluate(async () => Promise.all(window.__arqs.map(async f => ({ nome: f.name, b64: await new Promise(ok => { const r = new FileReader(); r.onload = () => ok(String(r.result).split(',')[1]); r.readAsDataURL(f); }) }))));
     pdfs.forEach((f, i) => fs.writeFileSync(amb.saida(`pce_campo_produtor_${i + 1}.pdf`), Buffer.from(f.b64, 'base64')));
     try {
@@ -197,7 +197,7 @@ const EU = [-2.63, -56.74];
     await C.click('#pce-enviar'); await C.click('input[name=pce-env] >> nth=1'); await C.click('#pce-env-gerar'); await C.waitForSelector('#pce-env-baixar', { timeout: 60000 });
     ok(await C.locator('#pce-env-share').count() === 0 && /Downloads/.test(await C.textContent('.pce-env-semshare')), 'sem compartilhamento de arquivo: botão Baixar + instrução (anexar → Documento)');
     const [dl] = await Promise.all([C.waitForEvent('download'), C.click('#pce-env-baixar')]);
-    ok(/^Levantamento_JOSE_DA_SILVA_Bactrocera_carambolae_\d\d-\d\d-\d{4}\.pdf$/.test(dl.suggestedFilename()), 'baixa só o PDF escolhido: ' + dl.suggestedFilename());
+    ok(/^Levantamento_JOSE_DA_SILVA_Mosca-da-Carambola_\d\d-\d\d-\d{4}\.pdf$/.test(dl.suggestedFilename()), 'baixa só o PDF escolhido: ' + dl.suggestedFilename());
     await C.click('#pce-env-fechar'); await C.evaluate(() => { window.__semShare = false; });
 
     console.log('5) mapa "Perto de mim" (sem internet)');

@@ -211,13 +211,21 @@ const Envio = (() => {
     const vai = {}; NOMES.forEach(n => { vai[n] = storePermitido(n, perm) ? p[n].filter(r => !ret[n].has(r.id)) : []; });
     // registro antigo (do papel) sem a permissão "antigo": também fica guardado (pendente) até a gerência liberar
     if (!podeAntigo(perm)) ANTIGO_NOS.forEach(n => { vai[n] = vai[n].filter(r => !ehAntigo(r)); });
+    // Linhas da visita (culturasAvaliadas e resultados) pendentes sobem junto com o levantamento delas: o servidor recusa linha sem
+    // levantamento no mesmo envio. Linha pendente cujo levantamento não está pendente (envio interrompido, edição só das linhas): o
+    // levantamento vai de novo junto, para a linha nunca ficar pendente para sempre.
+    const linhas = { culturasAvaliadas: [], resultados: [] };
+    if (storePermitido('g', perm)) {
+      for (const k of Object.keys(linhas)) linhas[k] = (await Store.todos(k)).filter(x => x && x.pendente && x.levantamentoId);
+      const tem = new Set(vai.g.map(l => l.id)), soltos = new Set([...linhas.culturasAvaliadas, ...linhas.resultados].map(x => x.levantamentoId).filter(id => !tem.has(id) && !ret.g.has(id)));
+      if (soltos.size) vai.g = [...(await Store.todos('levantamentos')).filter(l => soltos.has(l.id) && (podeAntigo(perm) || !ehAntigo(l))), ...vai.g];
+    }
     const env = {}; NOMES.forEach(n => { env[n] = vai[n].slice(0, LIMITES[n]); });
     const since = (await Store.meta('lastSync')) || 0;
     const corpo = { action: 'sync', since, aparelho: await sinal(p, origem) }; NOMES.forEach(n => { corpo[CAMPOS[n]] = env[n].map(limpo); });
     if (env.g.length) {
       const levIds = new Set(env.g.map(l => l.id));
-      const ca = (await Store.todos('culturasAvaliadas')).filter(x => x && levIds.has(x.levantamentoId) && x.pendente);
-      const rs = (await Store.todos('resultados')).filter(x => x && levIds.has(x.levantamentoId) && x.pendente);
+      const ca = linhas.culturasAvaliadas.filter(x => levIds.has(x.levantamentoId)), rs = linhas.resultados.filter(x => levIds.has(x.levantamentoId));
       if (ca.length) corpo.culturasAvaliadas = ca.map(limpo);
       if (rs.length) corpo.resultados = rs.map(limpo);
     }

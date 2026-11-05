@@ -1037,8 +1037,8 @@ const PCEUI = (() => {
         cnpj, empresa: D.empresa.trim().replace(/\s+/g, ' ').slice(0, 120), endereco: D.endereco.trim().replace(/\s+/g, ' ').slice(0, 200),
         uf: D.uf.trim().toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2) };
       if (F.antigo || F.docs.length) Object.assign(rec, { registroAntigo: F.antigo ? 1 : 0, documentos: JSON.stringify(F.docs) });   // campos técnicos (não aparecem no painel nem na ficha)
+      await gravarLinhasDaVisita(F.id, V.cults);                                       // linhas antes do levantamento: uma sincronização no meio nunca manda o levantamento sem elas
       await Store.salvar('levantamentos', rec);
-      await gravarLinhasDaVisita(F.id, V.cults);
       if (sv) await lembrarServidor(sv);
       await apagarSeNaoEnviado([...antes].filter(id => !depois.has(id)));               // removidos antes do envio somem do aparelho
       await Store.salvar('pessoas', await montarPessoa(doc, { nome: rec.nome, telefone: rec.telefone, email: rec.email, endereco: rec.endereco, uf: rec.uf }));
@@ -1251,6 +1251,8 @@ const PCEUI = (() => {
   async function excluirLev(id) {
     const r = await Store.obter('levantamentos', id); if (!r) return;
     if (!confirm(`Excluir o levantamento de ${r.nome} (${dBR(r.data)})?`)) return;
+    for (const store of ['culturasAvaliadas', 'resultados'])                         // exclusão lógica das linhas da visita, antes do levantamento (como ao salvar)
+      for (const x of (await Store.todos(store)).filter(x => x && x.levantamentoId === id && !Number(x.excluido))) await Store.salvar(store, { ...x, excluido: 1 });
     await Store.salvar('levantamentos', { ...r, excluido: 1 });
     await apagarSeNaoEnviado([...idsArquivos(r)]);
     Sync.sincronizar(); toast('Levantamento excluído.'); lista();

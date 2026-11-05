@@ -38,6 +38,14 @@ function turnosCompartilhados_(usuario, agora) {
   return { turnos: turnos, veiculos: veiculos };
 }
 
+/** TFs do sync: os do próprio login e os ligados aos turnos compartilhados (`ids`). TF de colega com dados do fiscalizado: registro de
+ *  leitura de dados pessoais (AcessosADados, no máximo 1 vez por hora, como as demais leituras). */
+function tfsDoSync_(since, usuario, ids) {
+  const tfs = lerMudancasTurnos_('TFs', since, usuario, ids, 'turnoId');
+  if (tfs.some(function (t) { return t.usuario !== usuario; })) lido_({ action: 'tfsTurnoCompartilhado' }, { ok: true });
+  return tfs;
+}
+
 /** Mudanças desde `since` do próprio login e das linhas cujo `campo` está em `ids` (turno compartilhado). */
 function lerMudancasTurnos_(nome, since, usuario, ids, campo) {
   if (!Object.keys(ids).length) return lerMudancas_(nome, since, usuario);
@@ -86,31 +94,120 @@ function turnoParear_(req, usuario) {
   if (erros >= PAREAR_TENTATIVAS) throw new Error('Muitos códigos errados. Aguarde 15 minutos e peça um código novo ao colega.');
   const errou = function (msg) { cacheGravar_(chave, erros + 1, PAREAR_VALIDADE_MS / 1000); return new Error(msg); };
   if (!RE_CODIGO_PAREAR_.test(codigo)) throw errou('Digite o código de 6 números que aparece no aparelho do colega.');
-  return comLock_(function () {
+  const r = comLock_(function () {
     const agora = Date.now();
     const p = lerLinhas_('Pareamentos').filter(function (x) { return x.codigo === codigo && !x.colega && x.expiraEm > agora; })[0];
     if (!p) throw errou('Código inválido ou vencido. Peça um código novo ao colega (vale 15 minutos).');
     const turnos = lerLinhas_('Turnos'), t = turnoAbertoPorId_(turnos, p.turnoId);
     if (t.usuario === usuario) throw new Error('Este turno já é seu: os seus aparelhos já entram nele sozinhos.');
+    if (ehFixa_(t)) exigirEscalaNaBva_(t.local);
     atualizar_('Pareamentos', p._linha, { colega: usuario, entrouEm: agora });
-    const colegas = lerJSONSeguro_(t.colegas, []);
-    if (!colegas.some(function (n) { return nomeChave_(n) === nomeChave_(usuario); })) colegas.push(usuario);
-    atualizar_('Turnos', t._linha, { colegas: JSON.stringify(colegas), srv_ts: agora });
-    t.colegas = JSON.stringify(colegas); t.srv_ts = agora; delete t._linha;
-    const veiculos = lerLeitura_('Veiculos').filter(function (v) { return v.turnoId === t.id; });
-    return { ok: true, turno: t, veiculos: veiculos, dono: t.usuario };
+    return juntarAoTurno_(t, usuario, agora);
   });
+  if (r.tfs.length) lido_({ action: 'tfsTurnoCompartilhado' }, r);   // fora do lock (lido_ grava com o próprio lock)
+  return r;
 }
 
-/** turnoSair {turnoId}: o colega deixa o turno compartilhado (o que ele lançou fica). O nome continua no turno: ele participou. */
+/** Dentro do lock: põe o colega em Turnos.colegas e devolve o turno, os veículos e (módulo TF) os TFs já lançados nele. */
+function juntarAoTurno_(t, usuario, agora) {
+  const colegas = lerJSONSeguro_(t.colegas, []);
+  if (!colegas.some(function (n) { return nomeChave_(n) === nomeChave_(usuario); })) colegas.push(usuario);
+  atualizar_('Turnos', t._linha, { colegas: JSON.stringify(colegas), srv_ts: agora });
+  t.colegas = JSON.stringify(colegas); t.srv_ts = agora; delete t._linha;
+  const veiculos = lerLeitura_('Veiculos').filter(function (v) { return v.turnoId === t.id; });
+  // TFs já lavrados no turno (o colega passa a ver o TF completo, como o dono)
+  const tfs = USUARIO_ATUAL_ && USUARIO_ATUAL_.modulos && USUARIO_ATUAL_.modulos.tf ? lerLeitura_('TFs').filter(function (f) { return f.turnoId === t.id; }) : [];
+  return { ok: true, turno: t, veiculos: veiculos, tfs: tfs, dono: t.usuario };
+}
+
+/** Turno de BVA fixa aberto agora (início nas últimas 12 h), que conta veículos e não foi cancelado: dá para entrar sem código. */
+function turnoAbertoNaBva_(t, agora) {
+  if (!t.id || t.encerrado === 1 || Number(t.cancelado) === 1 || t.soPessoas === 1 || !ehFixa_(t)) return false;
+  const ini = tsManaus_(t.data, t.inicio);
+  return ini !== null && agora - ini <= TURNO_MAX_MS && ini - agora <= ENCERRAR_TOLERANCIA_MS;
+}
+
+/**
+ * turnosAbertos {}: turnos em andamento nas BVAs fixas abertos por outros logins, para o fiscal entrar com um toque (turnoEntrar)
+ * em vez de abrir outro turno na mesma BVA. Só o que aparece no cartão do turno: nº, BVA, fiscais, início.
+ */
+function turnosAbertos_(req, usuario) {
+  const agora = Date.now(), dentro = turnosCompartilhados_(usuario, agora).turnos;
+  const turnos = lerLeitura_('Turnos').filter(function (t) { return t.usuario !== usuario && !dentro[t.id] && turnoAbertoNaBva_(t, agora) && podeNaBva_(t.local); })
+    .map(function (t) { return { id: t.id, numeroTF: t.numeroTF, local: t.local, fiscal: t.fiscal, dono: t.usuario, data: t.data, inicio: t.inicio }; });
+  return { ok: true, turnos: turnos };
+}
+
+const podeNaBva_ = function (local) { try { exigirEscalaNaBva_(local); return true; } catch (e) { return false; } };
+
+/**
+ * turnoEntrar {turnoId}: o fiscal entra, sem código, num turno em andamento de BVA fixa (turnosAbertos). Fica registrado na aba
+ * Pareamentos como um pareamento sem código (dono, colega, entrouEm), igual ao do código: sync, Termo e painel não mudam.
+ */
+function turnoEntrar_(req, usuario) {
+  const id = String(req.turnoId || '').trim();
+  if (!id || id.length > 64) throw new Error('Turno não informado.');
+  const r = comLock_(function () {
+    const agora = Date.now(), t = turnoAbertoPorId_(lerLinhas_('Turnos'), id);
+    if (t.usuario === usuario) throw new Error('Este turno já é seu: os seus aparelhos já entram nele sozinhos.');
+    if (!turnoAbertoNaBva_(t, agora)) throw new Error('Este turno não aceita entrada direta. Peça o código ao colega que abriu o turno.');
+    exigirEscalaNaBva_(t.local);
+    const ja = lerLeitura_('Pareamentos').some(function (p) { return p.turnoId === id && p.colega === usuario && !p.saiuEm; });
+    if (!ja) inserir_('Pareamentos', [{ id: uuid_(), turnoId: id, dono: t.usuario, codigo: '', criadoEm: agora, expiraEm: agora,
+                                         colega: usuario, entrouEm: agora }]);
+    return juntarAoTurno_(t, usuario, agora);
+  });
+  if (r.tfs.length) lido_({ action: 'tfsTurnoCompartilhado' }, r);   // fora do lock (lido_ grava com o próprio lock)
+  return r;
+}
+
+/** Veículos (não excluídos) e TFs que o login lançou no turno. */
+function lancamentosNoTurno_(turnoId, usuario) {
+  const v = lerLeitura_('Veiculos').filter(function (x) { return x.turnoId === turnoId && x.usuario === usuario && x.excluido !== 1; }).length;
+  const f = lerLeitura_('TFs').filter(function (x) { return x.turnoId === turnoId && x.usuario === usuario; }).length;
+  return { veiculos: v, tfs: f, total: v + f };
+}
+
+/**
+ * Dentro do lock: o colega deixa o turno (saiuEm). Se não lançou nada, entrou por engano: o nome sai de Turnos.colegas e o
+ * pareamento fica com removidoPor (Termo, painel e relatório da equipe deixam de contá-lo). Se lançou, o nome fica: ele participou.
+ */
+function tirarDoTurno_(id, colega, quem, agora) {
+  const ps = lerLinhas_('Pareamentos').filter(function (p) { return p.turnoId === id && p.colega === colega && !p.saiuEm; });
+  const l = lancamentosNoTurno_(id, colega), removido = l.total === 0;
+  ps.forEach(function (p) { atualizar_('Pareamentos', p._linha, removido ? { saiuEm: agora, removidoPor: quem } : { saiuEm: agora }); });
+  if (removido) {
+    const t = lerLinhas_('Turnos').filter(function (x) { return x.id === id; })[0];
+    const colegas = t ? lerJSONSeguro_(t.colegas, []) : [], resto = colegas.filter(function (n) { return nomeChave_(n) !== nomeChave_(colega); });
+    if (t && resto.length !== colegas.length) atualizar_('Turnos', t._linha, { colegas: resto.length ? JSON.stringify(resto) : '', srv_ts: agora });
+  }
+  return { ok: true, saiu: ps.length, removido: removido, lancamentos: l };
+}
+
+/** turnoSair {turnoId}: o colega deixa o turno compartilhado. O que ele lançou fica; sem lançamento, o nome sai do turno. */
 function turnoSair_(req, usuario) {
   const id = String(req.turnoId || '').trim();
   if (!id || id.length > 64) throw new Error('Turno não informado.');
+  return comLock_(function () { return tirarDoTurno_(id, usuario, usuario, Date.now()); });
+}
+
+/**
+ * turnoRemoverColega {turnoId, colega}: o dono tira do turno um colega que entrou por engano. Só se o colega não lançou nada
+ * no turno (senão ele participou: o nome fica, e ele mesmo sai pelo app). Fica registrado em Pareamentos (removidoPor).
+ */
+function turnoRemoverColega_(req, usuario) {
+  const id = String(req.turnoId || '').trim(), colega = String(req.colega || '').trim();
+  if (!id || id.length > 64 || !colega || colega.length > 120) throw new Error('Turno ou colega não informado.');
   return comLock_(function () {
-    const agora = Date.now();
-    const ps = lerLinhas_('Pareamentos').filter(function (p) { return p.turnoId === id && p.colega === usuario && !p.saiuEm; });
-    ps.forEach(function (p) { atualizar_('Pareamentos', p._linha, { saiuEm: agora }); });
-    return { ok: true, saiu: ps.length };
+    const t = lerLeitura_('Turnos').filter(function (x) { return x.id === id; })[0];
+    if (!t) throw new Error('Turno não encontrado na planilha. Sincronize e tente de novo.');
+    if (t.usuario !== usuario) throw new Error('Só quem abriu o turno pode tirar um colega.');
+    const p = lerLeitura_('Pareamentos').filter(function (x) { return x.turnoId === id && x.colega && nomeChave_(x.colega) === nomeChave_(colega); })[0];
+    if (!p) throw new Error('Este fiscal não entrou no turno pelo app (código ou "Entrar neste turno").');
+    const l = lancamentosNoTurno_(id, p.colega);
+    if (l.total) throw new Error(p.colega + ' já lançou ' + (l.veiculos ? l.veiculos + ' veículo(s)' : '') + (l.veiculos && l.tfs ? ' e ' : '') + (l.tfs ? l.tfs + ' TF(s)' : '') +
+      ' neste turno: o nome fica no turno. Se ele não está no plantão, ele mesmo toca em "Sair do turno" no app dele.');
+    return tirarDoTurno_(id, p.colega, textoAutor_(usuario), Date.now());
   });
 }
 
@@ -190,7 +287,7 @@ function turnoRecuperar_(req, usuario) {
   if (!diaValido_(de) || !diaValido_(ate) || ate < de) throw new Error('Informe o período (de e até).');
   if (somarDias_(de, 62) < ate) throw new Error('Período longo demais (até 62 dias).');
   const eu = nomeChave_(usuario), colega = {};
-  lerLeitura_('Pareamentos').forEach(function (p) { if (p.id && p.colega && p.entrouEm && nomeChave_(p.colega) === eu) colega[p.turnoId] = true; });
+  lerLeitura_('Pareamentos').forEach(function (p) { if (p.id && p.colega && p.entrouEm && !p.removidoPor && nomeChave_(p.colega) === eu) colega[p.turnoId] = true; });
   const limpo = function (o) { delete o._linha; return o; }, ids = {};
   const turnos = lerLinhas_('Turnos').filter(function (t) {
     const d = String(t.data).slice(0, 10);
@@ -198,7 +295,8 @@ function turnoRecuperar_(req, usuario) {
   }).map(function (t) { ids[t.id] = true; return limpo(t); });
   return { ok: true, turnos: turnos,
     veiculos: lerLinhas_('Veiculos').filter(function (v) { return ids[v.turnoId]; }).map(limpo),
-    tfs: lerLinhas_('TFs').filter(function (t) { return ids[t.turnoId] && nomeChave_(t.usuario) === eu; }).map(limpo),   // só os TFs do próprio login
+    // TFs dos turnos do período: os do login e, com o módulo TF, os dos colegas no turno compartilhado
+    tfs: lerLinhas_('TFs').filter(function (t) { return ids[t.turnoId] && (nomeChave_(t.usuario) === eu || (USUARIO_ATUAL_ && USUARIO_ATUAL_.modulos && USUARIO_ATUAL_.modulos.tf)); }).map(limpo),
     compartilhados: turnos.filter(function (t) { return nomeChave_(t.usuario) !== eu; }).map(function (t) { return t.id; }) };
 }
 
@@ -213,7 +311,7 @@ function turnoTFs_(req, usuario) {
   const t = lerLeitura_('Turnos').filter(function (x) { return x.id === id; })[0];
   if (!t) return { ok: true, tfs: [] };
   const part = {}; part[nomeChave_(t.usuario)] = true;
-  lerLeitura_('Pareamentos').forEach(function (p) { if (p.turnoId === id && p.colega && p.entrouEm) part[nomeChave_(p.colega)] = true; });
+  lerLeitura_('Pareamentos').forEach(function (p) { if (p.turnoId === id && p.colega && p.entrouEm && !p.removidoPor) part[nomeChave_(p.colega)] = true; });
   if (!part[nomeChave_(usuario)]) throw new Error('Este turno é de outro fiscal.');
   const d = String(t.data).slice(0, 10), ini = String(t.inicio || '00:00'), fim = String(t.fim || '');
   const noHorario = function (f) {                    // turno que passa da meia-noite (fim < início): até o fim, no dia seguinte

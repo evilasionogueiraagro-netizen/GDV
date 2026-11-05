@@ -737,15 +737,17 @@ const TFUI = (() => {
     btn.disabled = true; btn.textContent = 'Consultando a planilha…';
     const fim = () => { btn.disabled = false; btn.textContent = rot; };
     let sug; try { sug = await Sync.proximoNumero(bar.id, a); } catch (e) { fim(); return toast(e.semPermissao ? e.message : 'Sem resposta da planilha: ' + e.message + ' Tente de novo.', true); }
-    const efeito = n > sug.ultimo ? `${sug.ultimo ? `O último nº usado nesta barreira em ${a} é ${num4(sug.ultimo)}.` : `Nenhum TF desta barreira em ${a} na planilha.`} Gravando o ${num4(n)}, a sequência desta barreira continua a partir dele: o próximo TF sugerido (também para os fiscais em campo) será o ${num4(n + 1)}.`
+    const papel = !!sug.inicioApp && D.data < sug.inicioApp;                  // série do papel: talão que começou do 0001 junto com o app
+    const efeito = papel ? `Data anterior ao 1º TF do app nesta barreira (${dBR(sug.inicioApp)}): o TF entra na série do papel, como ${num4(n)}/${a} - ${bar.sufixo} (papel). Pode repetir número de TF do app e não muda a sequência do app.`
+      : n > sug.ultimo ? `${sug.ultimo ? `O último nº usado nesta barreira em ${a} é ${num4(sug.ultimo)}.` : `Nenhum TF desta barreira em ${a} na planilha.`} Gravando o ${num4(n)}, a sequência desta barreira continua a partir dele: o próximo TF sugerido (também para os fiscais em campo) será o ${num4(n + 1)}.`
       : `O último nº usado nesta barreira em ${a} é ${num4(sug.ultimo)}: o ${num4(n)} é menor e a sequência não muda.`;
-    if (!confirm(`Gravar o TF ${num4(n)}/${a} - ${bar.sufixo} (digitado do papel)?\n\n${efeito}`)) return fim();
+    if (!confirm(`Gravar o TF ${num4(n)}/${a} - ${bar.sufixo}${papel ? ' (papel)' : ''} (digitado do papel)?\n\n${efeito}`)) return fim();
     const t0 = Date.now(), nome = (D.nome.trim() || 'NÃO IDENTIFICADO').toUpperCase(), hist = reincDe(st.hist);
     const prods = D.produtos.filter(p => p.p && p.q).map(p => `${p.p} - ${p.q} ${p.u}`);
     const pessoa = doc ? { id: doc, tipo: doc.length === 14 ? 'PJ' : 'PF', nome, rg: D.rg.trim(), endereco: D.endereco.trim(), municipio: D.municipio.trim(), uf: D.uf.trim().toUpperCase(), telefone: D.telefone.trim(), criadoEm: t0, atualizadoEm: t0 } : null;
     const placa = docOk(doc) && D.placa.length >= 7 ? { id: D.placa, doc, nome, criadoEm: t0, atualizadoEm: t0 } : null;   // documento padrão: sem vínculo
     const rec = {
-      id: st.id, criadoEm: t0, atualizadoEm: t0, barreira: bar.id, ano: a, numero: n, numeroTxt: `${num4(n)}/${a} - ${bar.sufixo}`, turnoId: '', veiculoId: '',
+      id: st.id, criadoEm: t0, atualizadoEm: t0, barreira: bar.id, ano: a, numero: n, numeroTxt: `${num4(n)}/${a} - ${bar.sufixo}${papel ? ' (papel)' : ''}`, turnoId: '', veiculoId: '',
       data: D.data, hora: D.hora, fiscal: servidor, local: D.local.trim(), placa: D.placa, origem: D.origem.trim(), destino: D.destino.trim(),
       ufOrigem: CONFIG.ufs.includes(D.ufOrigem) ? D.ufOrigem : '', ufDestino: CONFIG.ufs.includes(D.ufDestino) ? D.ufDestino : '',
       doc, nome, rg: D.rg.trim(), endereco: D.endereco.trim(), municipio: D.municipio.trim(), uf: D.uf.trim().toUpperCase(), telefone: D.telefone.trim(), relacao: D.relacao,
@@ -758,12 +760,13 @@ const TFUI = (() => {
     btn.textContent = 'Gravando…';
     let r; try { r = await Sync.emitirTF(rec, docOk(doc) ? pessoa : null, placa); } catch (e) { fim(); return toast((e.semPermissao ? '' : 'Não gravou: ') + e.message, true); }
     if (r.emitido === false) { fim(); return toast(`O nº ${num4(n)}/${a} já está na planilha: ${r.ocupadoPor.numeroTxt} (${r.ocupadoPor.usuario}, ${dBR(r.ocupadoPor.data)} ${r.ocupadoPor.hora}). Confira o número do papel.`, true); }
+    if (r.numeroTxt) rec.numeroTxt = r.numeroTxt;                                  // a planilha decide a série (papel ou sequência única)
     await Store.gravar('tfs', { ...rec, pendente: 0, emitidoEm: r.emitidoEm });     // os PDFs sobem ao Drive na sincronização
     if (pessoa && docOk(doc)) await Store.gravar('pessoas', { ...pessoa, pendente: 0 });
     if (placa) await Store.gravar('placas', { ...placa, pendente: 0 });
-    await Sync.lembrarUltimos({ [chave(bar.id, a)]: Math.max(n, sug.ultimo) });
+    if (!r.seriePapel) await Sync.lembrarUltimos({ [chave(bar.id, a)]: Math.max(n, sug.ultimo) });
     clearTimeout(tRasc); await Store.setMeta(chaveRasc(true), null); localStorage.setItem('gdv.barreira', bar.id); lembrarServidor(servidor);
-    S = null; Sync.sincronizar(); toast(`TF ${num4(n)}/${a} do papel gravado ✓`); go('tfpronto', rec.id);
+    S = null; Sync.sincronizar(); toast(`TF ${rec.numeroTxt} do papel gravado ✓`); go('tfpronto', rec.id);
   }
 
   /* ---------- telas: pronto (detalhes do TF, antes de imprimir) e lista ---------- */
@@ -782,13 +785,14 @@ const TFUI = (() => {
       ${t.cancelado ? `<div class="tf-alerta">${icone('proibido')} CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
       ${nF ? `<p class="dica" style="text-align:left">${icone('camera')} ${nF} foto(s): saem no anexo fotográfico, no fim do PDF.</p>` : ''}
       ${temAuto(t) ? `<div class="tf-novo" id="tf-auto-info">${icone('documento')} Auto de infração nº <b>${esc(t.autoNumeroTxt)}</b>${t.autoNumeroOrigem === 'provisorio' ? ' (provisório: conferido na planilha ao sincronizar)' : ''}${Number(t.autoConflito) === 1 ? ' · número repetido na planilha: confira com a coordenação' : ''}</div>` : ''}</div>
-      ${pap ? `<div class="card"><h3>${icone('documento')} PDF escaneado</h3><div id="tf-pdfs-pronto"></div></div>` : t.cancelado ? '' : assCardHTML(PR)}
+      ${doColega(t) ? `<div class="tf-novo">${icone('pessoa')} Lavrado por <b>${esc(t.usuario)}</b> no turno compartilhado: aqui dá para ver e imprimir; assinar, cancelar ou mudar, só no aparelho de quem lavrou.</div>` : ''}
+      ${pap ? `<div class="card"><h3>${icone('documento')} PDF escaneado</h3><div id="tf-pdfs-pronto"></div></div>` : t.cancelado || doColega(t) ? '' : assCardHTML(PR)}
       <button class="botao" data-tf="imprimir" data-id="${esc(t.id)}">${icone('imprimir')} Imprimir / PDF (2 vias)</button>
       ${temAuto(t) ? `<button class="botao" data-tf="imprimirauto" data-id="${esc(t.id)}">${icone('imprimir')} Imprimir auto de infração (3 vias)</button>` : ''}
       <button class="botao sec" data-tf="novo">${icone('mais')} Novo TF</button>
       ${MODULO === 'veiculos' ? '<button class="botao sec" data-go="lista">↩ Voltar à lista de veículos</button>' : '<button class="botao sec" data-go="tf">Ver lista de TFs</button>'}
       <p class="dica">Na janela de impressão, escolha “Salvar como PDF” ou imprima direto. As 2 vias saem em páginas separadas${nF ? '; o anexo fotográfico vai uma vez, no fim' : ''}.</p>`);
-    if (pap) await renderPDFs(pdfs, '#tf-pdfs-pronto', false); else await desenharAss(PR);
+    if (pap) await renderPDFs(pdfs, '#tf-pdfs-pronto', false); else if (!doColega(t)) await desenharAss(PR);
     const rc = $('#tf-recusa');
     if (rc) rc.onchange = async () => { const r = PR; await gravarAssinatura(r, 'fiscalizado', null, rc.checked); };
   }
@@ -807,6 +811,8 @@ const TFUI = (() => {
     toast(recusa !== undefined ? (rec ? 'Recusa registrada.' : 'Recusa desmarcada.') : img ? 'Assinatura salva.' : 'Assinatura removida.');
   }
   let verRemovidos = false;
+  /** TF lavrado por um colega do turno compartilhado (chega no sync para todos do turno): só quem lavrou cancela. */
+  const doColega = t => !!(t && t.usuario && !Sync.mesmoNome(t.usuario, Sync.nome()));
   async function lista() {
     if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());
     const mostrar = tela();
@@ -824,12 +830,13 @@ const TFUI = (() => {
       $('#tfItens').innerHTML = v.length ? v.map(t => `<div class="item"><div class="topo"><div><div class="placa">${esc(t.numeroTxt)}</div><div class="tipo">${esc(t.nome)}</div></div>
         <div class="hora">${dBR(t.data)}</div></div>
         <div class="info">${esc(PROC[t.procedimento] || 'Sem procedimento')}${t.placa ? ' · ' + esc(t.placa) : ''}${t.reincidente ? ' · reincidente' : ''}${Number(t.registroAntigo) === 1 ? ' · do papel' : ''}</div>
+        ${doColega(t) ? `<div class="info">${icone('pessoa')} Lavrado por ${esc(t.usuario)} (turno compartilhado)</div>` : ''}
         ${t.cancelado ? `<div class="info pend">${icone('proibido')} CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
         ${t.conflito ? '<div class="info pend">Número duplicado na planilha: confira com a coordenação.</div>' : ''}
         ${t.pendente ? `<div class="info pend">${icone('sincronizar')} ${t.provisorio ? 'número provisório, será conferido ao sincronizar' : 'aguardando envio'}</div>` : ''}
         <div class="botoes"><button class="editar" data-tf="abrir" data-id="${esc(t.id)}">Abrir</button><button class="editar" data-tf="imprimir" data-id="${esc(t.id)}">Imprimir</button>
         ${temAuto(t) ? `<button class="editar" data-tf="imprimirauto" data-id="${esc(t.id)}">Auto de infração</button>` : ''}
-        ${t.cancelado ? '' : `<button class="excluir" data-tf="cancelar" data-id="${esc(t.id)}">Cancelar TF</button>`}
+        ${t.cancelado || doColega(t) ? '' : `<button class="excluir" data-tf="cancelar" data-id="${esc(t.id)}">Cancelar TF</button>`}
         ${t.cancelado && !t.pendente ? (removidos.has(t.id) ? `<button class="editar" data-tf="restaurar" data-id="${esc(t.id)}">Voltar para a lista</button>`
           : `<button class="excluir" data-tf="tirar" data-id="${esc(t.id)}">Excluir da lista</button>`) : ''}</div></div>`).join('') : '<div class="vazio">Nenhum TF neste aparelho.</div>';
     };
@@ -865,6 +872,7 @@ const TFUI = (() => {
         await Store.setMeta('tfsRemovidos', [...r]); toast(a === 'tirar' ? 'TF excluído da lista.' : 'TF de volta à lista.'); lista();
       }
       else if (a === 'cancelar') {
+        if (doColega(await Store.obter('tfs', id))) return toast('Só quem lavrou o TF pode cancelar.', true);
         const motivo = prompt('Motivo do cancelamento (o número do TF continua usado):'); if (motivo == null) return;
         const t = await Store.obter('tfs', id); await Store.salvar('tfs', { ...t, cancelado: 1, motivoCancel: motivo.trim().slice(0, 300) });
         Sync.sincronizar(); toast('TF cancelado.'); lista();

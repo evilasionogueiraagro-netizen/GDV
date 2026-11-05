@@ -66,6 +66,47 @@ const hoje = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10);
     const pr = (await aba('Pareamentos')).find(x => x.codigo === codigo);
     ok(pr && pr.dono === A.nome && pr.colega === B.nome && Number(pr.entrouEm) > 0 && !pr.saiuEm, 'aba Pareamentos registra quem convidou, quem entrou e quando', pr);
 
+    console.log('3b) terceiro fiscal na mesma BVA: entra no turno em andamento com um toque (sem código)');
+    const F3 = await U.fiscal('Deltrano Ficticio Teste');
+    r = await post({ action: 'turnosAbertos', key: B.token });
+    ok(r.ok && !r.turnos.some(x => x.id === turnoId), 'turnosAbertos: quem já está no turno não o vê de novo', r.turnos);
+    r = await post({ action: 'turnoEntrar', key: A.token, turnoId });
+    ok(!r.ok && /já é seu/.test(r.erro), 'turnoEntrar: o dono não "entra" no próprio turno', r.erro);
+    const pd = await abrirApp(F3.ls);
+    await pd.waitForSelector('#fTurno'); await pd.selectOption('#nPosto', 'Fixa'); await pd.selectOption('#nLocal', 'BVA - CEASA');
+    await pd.waitForSelector('[data-entrar]', { timeout: 15000 });
+    const cartao = await pd.textContent('#abertosBox'); await pd.screenshot({ path: amb.saida('pareamento_entrar_direto.png') });
+    ok(/Turno em andamento nesta BVA/.test(cartao) && /Fulano Ficticio Teste/.test(cartao) && /Beltrano Ficticio Teste/.test(cartao) && !/52998224725/.test(cartao),
+      'novo turno na BVA com turno aberto: cartão "Turno em andamento nesta BVA" com os fiscais e "Entrar neste turno"', cartao);
+    await pd.click('[data-entrar]'); await pd.waitForSelector('.contador h1', { timeout: 25000 });
+    ok(/Turno de Fulano Ficticio Teste/.test(await pd.textContent('main')) && (await pd.textContent('.contador h1')).trim() === '2', 'terceiro fiscal: entra no turno do dono e já vê os 2 veículos');
+    const pDir = (await aba('Pareamentos')).find(x => x.turnoId === turnoId && x.colega === F3.nome);
+    const tD = (await aba('Turnos')).find(t => t.id === turnoId);
+    ok(pDir && pDir.dono === A.nome && !pDir.codigo && Number(pDir.entrouEm) > 0 && JSON.parse(tD.colegas).includes(F3.nome) && JSON.parse(tD.colegas).includes(B.nome),
+      'Pareamentos registra a entrada sem código (quem, de quem, quando); os dois colegas no turno', [pDir, tD.colegas]);
+    r = await post({ action: 'turnoSair', key: F3.token, turnoId });
+    let tX = (await aba('Turnos')).find(t => t.id === turnoId), pX = (await aba('Pareamentos')).find(x => x.turnoId === turnoId && x.colega === F3.nome);
+    ok(r.ok && r.removido && !JSON.parse(tX.colegas).includes(F3.nome) && JSON.parse(tX.colegas).includes(B.nome) && pX.removidoPor === F3.nome && Number(pX.saiuEm) > 0,
+      'terceiro fiscal sai sem ter lançado nada: o nome sai do turno (removidoPor registrado); o colega que lançou fica', [r, tX.colegas, pX]);
+    console.log('3c) dono tira do turno quem entrou por engano');
+    const F4 = await U.fiscal('Quarto Ficticio Teste');
+    r = await post({ action: 'turnoEntrar', key: F4.token, turnoId }); ok(r.ok, 'quarto fiscal entra por engano', r.erro);
+    r = await post({ action: 'turnoRemoverColega', key: B.token, turnoId, colega: F4.nome });
+    ok(!r.ok && /Só quem abriu/.test(r.erro), 'quem não é dono não tira colega', r.erro);
+    await sinc(pa); await pa.evaluate(() => go('home')); await pa.waitForSelector(`[data-tirar="${F4.nome}"]`, { timeout: 15000 });
+    ok(/Colegas no turno/.test(await pa.textContent('#colegasBox')) && await pa.locator(`[data-tirar="${B.nome}"]`).count() === 1, 'dono: cartão "Colegas no turno" com "Tirar do turno" para cada colega');
+    await pa.click(`[data-tirar="${F4.nome}"]`); await pa.waitForFunction(n => !document.querySelector(`[data-tirar="${n}"]`), F4.nome, { timeout: 15000 });
+    tX = (await aba('Turnos')).find(t => t.id === turnoId); pX = (await aba('Pareamentos')).find(x => x.turnoId === turnoId && x.colega === F4.nome);
+    ok(!JSON.parse(tX.colegas).includes(F4.nome) && pX.removidoPor === A.nome, 'dono tirou o quarto fiscal: nome fora do turno, Pareamentos registra quem tirou', [tX.colegas, pX]);
+    r = await post({ action: 'turnoRemoverColega', key: A.token, turnoId, colega: B.nome });
+    ok(!r.ok && /já lançou 1 veículo/.test(r.erro) && JSON.parse((await aba('Turnos')).find(t => t.id === turnoId).colegas).includes(B.nome), 'colega que já lançou não sai pelo dono (o nome fica)', r.erro);
+    r = await post({ action: 'sync', key: F4.token, since: 0, aparelho: 'x', veiculos: [{ id: 'veic-f4', turnoId, placa: 'ABC1D26', data: hoje, hora: '09:00', criadoEm: Date.now(), atualizadoEm: Date.now() }] });
+    ok(r.ok && (r.recusados.veiculos || []).includes('veic-f4'), 'quem foi tirado não lança mais no turno (veículo recusado)', r.recusados);
+    ok(r.ok && !(r.turnos || []).some(t => t.id === turnoId), 'quem foi tirado não recebe mais o turno', (r.turnos || []).map(t => t.id));
+    ok(!pd.erros.length, 'sem erros de página (terceiro fiscal)', pd.erros);
+    await pd.context().close();
+    await pa.click('nav [data-v=home]');
+
     console.log('4) só o dono grava e encerra o turno');
     const t0 = ts[0];
     r = await post({ action: 'sync', key: B.token, since: 9e15, turnos: [{ ...t0, encerrado: 1, fim: '10:00', fiscal: 'Outro Nome', atualizadoEm: Date.now() + 5000 }], veiculos: [] });
@@ -80,6 +121,19 @@ const hoje = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10);
     r = await post({ action: 'tfEmitir', key: B.token, tf: { id: 'tf-colega-1', barreira: 'BVA-CEASA', ano, numero: 5, numeroTxt: `0005/${ano} - BVA - CEASA`, turnoId,
       data: hoje, hora: agoraHM, fiscal: B.nome, local: 'BVA - CEASA', placa: 'ABC1D23', doc: '52998224725', nome: 'FULANO FICTICIO TESTE', procedimento: 'rechaco', criadoEm: Date.now(), atualizadoEm: Date.now() } });
     ok(r.ok && r.emitido, 'colega lavra TF de rechaço no turno do dono', r);
+    // TF completo visível para todos do turno: o do colega chega no aparelho do dono (sync), marcado, sem "Cancelar"; quem não é do turno não recebe
+    await sinc(pa);
+    const tfA = await pa.evaluate(() => Store.obter('tfs', 'tf-colega-1'));
+    ok(tfA && tfA.usuario === B.nome && tfA.doc === '52998224725' && tfA.nome === 'FULANO FICTICIO TESTE' && !tfA.pendente, 'dono recebe o TF completo do colega (sync)', tfA);
+    r = await post({ action: 'sync', key: C.token, since: 0 });
+    ok(r.ok && !(r.tfs || []).some(x => x.id === 'tf-colega-1'), 'quem não é do turno não recebe o TF');
+    ok((await aba('AcessosADados')).some(x => x.acao === 'tfsTurnoCompartilhado' && x.nome === A.nome), 'leitura do TF do colega registrada (AcessosADados)');
+    await pa.evaluate(() => go('tf')); await pa.waitForSelector('#tfItens .item');
+    const itemCol = pa.locator('#tfItens .item', { hasText: '0005/' });
+    ok(/Lavrado por Beltrano Ficticio Teste/.test(await itemCol.textContent()) && !(await itemCol.locator('[data-tf=cancelar]').count()), 'lista de TFs do dono: o do colega aparece como "Lavrado por…", sem "Cancelar"');
+    r = await post({ action: 'sync', key: A.token, since: 9e15, tfs: [{ ...tfA, cancelado: 1, motivoCancel: 'teste', atualizadoEm: Date.now() + 5000 }] });
+    ok(r.ok && (r.recusados && (r.recusados.tfs || []).includes('tf-colega-1')) && String((await aba('TFs')).find(x => x.id === 'tf-colega-1').cancelado) === '0', 'o dono não cancela o TF do colega (servidor recusa)', r.recusados);
+    await pa.evaluate(() => go('home')); await pa.waitForSelector('#encerrar');
     r = await post({ action: 'turnoTFs', key: C.token, turnoId }); ok(!r.ok && /outro fiscal/.test(r.erro), 'turnoTFs: quem não participou do turno é recusado', r.erro);
     // TF do dono sem ligação com o turno (aberto fora dele), no dia e no horário do turno: também é do turno; o de outro fiscal, não
     await post({ action: 'tfEmitir', key: A.token, tf: { id: 'tf-solto-1', barreira: 'BVA-CEASA', ano, numero: 6, numeroTxt: `0006/${ano} - BVA - CEASA`, turnoId: '',

@@ -274,7 +274,8 @@ async function home() {
       <p><b>Início do turno:</b> ${esc(t.inicio)}</p>
       <p><small>${Number(t.semPlaca) ? 'Placa do veículo opcional neste turno.' : 'Placa do veículo obrigatória neste turno.'}</small></p>
       ${souColega(t) ? `<p class="dica">Turno de <b>${esc(t.usuario)}</b>: você está colaborando com o seu login. Os veículos e TFs que você lançar entram neste turno; só quem abriu encerra.</p>` : ''}</div>
-    <div id="conviteBox"></div>
+    ${colegasHTML(t)}
+    <div id="conviteBox">${CONVITE && CONVITE.turnoId === t.id && CONVITE.expiraEm > Date.now() ? conviteHTML(CONVITE) : ''}</div>
     <div class="card contador"><h1>${v.length}</h1><p>Veículos registrados</p></div>
     <button class="botao" data-go="registrar">${icone('mais')} Registrar veículo</button>
     <button class="botao" data-go="lista">${icone('lista')} Lista de veículos</button>
@@ -283,42 +284,78 @@ async function home() {
     ${botaoFim(t)}`);
   $('#encerrar').onclick = () => encerrarTurno(t); ligarCancelar(t);
   if ($('#convidar')) $('#convidar').onclick = () => convidarColega(t);
+  document.querySelectorAll('[data-tirar]').forEach(b => { b.onclick = () => tirarColega(t, b.dataset.tirar, b); });
+}
+const listaJSON = s => { try { const v = JSON.parse(s || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
+/** Dono: os colegas que entraram no turno pelo app, com "Tirar do turno" (quem entrou por engano e não lançou nada). */
+function colegasHTML(t) {
+  const l = souColega(t) ? [] : listaJSON(t.colegas).filter(Boolean);
+  if (!l.length) return '';
+  return `<div class="card" id="colegasBox"><h3>${icone('pessoa')} Colegas no turno</h3>
+    ${l.map(n => `<div class="linha-acoes"><span>${esc(n)}</span><button type="button" class="botao sec mini" data-tirar="${esc(n)}">Tirar do turno</button></div>`).join('')}
+    <p class="dica">Entrou por engano? Tire do turno: só vale se ele ainda não lançou veículo nem TF neste turno.</p></div>`;
+}
+async function tirarColega(t, nome, b) {
+  if (!navigator.onLine) return toast('Sem internet: para tirar o colega do turno é preciso conexão.', true);
+  if (!confirm(`Tirar ${nome} do turno?\n\nO nome dele sai do turno (Termo, painel e relatório). Fica registrado que você tirou.`)) return;
+  b.disabled = true; b.textContent = 'Tirando…';
+  try {
+    await Sync.removerColega(t.id, nome);
+    const x = await Store.obter('turnos', t.id);
+    if (x) await Store.gravar('turnos', { ...x, colegas: JSON.stringify(listaJSON(x.colegas).filter(n => !Sync.mesmoNome(n, nome))) });
+    toast(`${nome} saiu do turno.`); go('home');
+  } catch (e) { toast(e.message || 'Não foi possível tirar o colega do turno.', true); b.disabled = false; b.textContent = 'Tirar do turno'; }
 }
 /** Dono do turno: código de 6 números (15 min) para um colega entrar com o próprio login. Precisa de internet. */
+/** Último código gerado (fica na tela mesmo se a sincronização redesenhar o turno; some quando vence ou o turno muda). */
+let CONVITE = null;
+function conviteHTML(r) {
+  const hora = new Date(r.expiraEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+  return `<div class="card aviso" id="convite"><h3>${icone('pessoa')} Convite para o colega</h3>
+      <div class="codigo-par" aria-label="Código ${esc(r.codigo.split('').join(' '))}">${esc(r.codigo.slice(0, 3))} ${esc(r.codigo.slice(3))}</div>
+      <p>Vale até <b>${esc(hora)}</b> e para uma pessoa. No app do colega, com o login dele: <b>Turno → Entrar no turno de um colega</b> e digite o código.</p>
+      <p class="dica">Ele passa a lançar veículos e TFs neste turno e o nome dele entra no Termo. Para mais de um colega, gere um código para cada.</p></div>`;
+}
 async function convidarColega(t) {
   if (!navigator.onLine) return toast('Sem internet: o convite precisa de conexão (nos dois aparelhos).', true);
   const b = $('#convidar'); b.disabled = true; b.textContent = 'Gerando o código…';
   try {
     await Sync.sincronizar();                                    // o turno precisa estar no servidor
     const r = await Sync.convidarColega(t.id);
+    CONVITE = { turnoId: t.id, codigo: r.codigo, expiraEm: r.expiraEm };
     const box = $('#conviteBox'); if (!box) return;
-    const hora = new Date(r.expiraEm).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-    box.innerHTML = `<div class="card aviso" id="convite"><h3>${icone('pessoa')} Convite para o colega</h3>
-      <div class="codigo-par" aria-label="Código ${esc(r.codigo.split('').join(' '))}">${esc(r.codigo.slice(0, 3))} ${esc(r.codigo.slice(3))}</div>
-      <p>Vale até <b>${esc(hora)}</b> e para uma pessoa. No app do colega, com o login dele: <b>Turno → Entrar no turno de um colega</b> e digite o código.</p>
-      <p class="dica">Ele passa a lançar veículos e TFs neste turno e o nome dele entra no Termo. Para mais de um colega, gere um código para cada.</p></div>`;
+    box.innerHTML = conviteHTML(CONVITE);
   } catch (e) { toast(e.message || 'Não foi possível gerar o código.', true); }
   finally { const b2 = $('#convidar'); if (b2) { b2.disabled = false; b2.innerHTML = `${icone('pessoa')} Convidar outro colega`; } }
 }
 /** Colega: sai do turno compartilhado (o que lançou continua no turno). Sem internet, sai só deste aparelho. */
 async function sairDoTurno(t) {
-  if (!confirm(`Sair do turno de ${t.usuario}?\n\nO que você lançou continua no turno. Para voltar, peça um código novo.`)) return;
+  if (!confirm(`Sair do turno de ${t.usuario}?\n\nO que você lançou continua no turno (se não lançou nada, seu nome sai do turno). Para voltar, entre de novo.`)) return;
   await Store.setMeta('turnoAtual', '');
   Sync.sincronizar().catch(() => {}).then(() => Sync.sairDoTurno(t.id)).catch(() => {});   // pendentes sobem; o servidor registra a saída
   toast('Você saiu do turno do colega.'); go('home');
 }
 /** Colega: entra no turno do dono com o código. */
-async function entrarComCodigo(codigo) {
+function entrarComCodigo(codigo) {
+  return entrarNoTurno(() => Sync.parearTurno(codigo), '#fParear button[type=submit]', `${icone('pessoa')} Entrar no turno`);
+}
+/** Colega: entra no turno em andamento da BVA (turnosAbertos), com o código (parearTurno) ou com um toque (entrarNoTurno). */
+async function entrarNoTurno(pedir, sel, rotulo) {
   if (!navigator.onLine) return toast('Sem internet: para entrar no turno do colega é preciso conexão.', true);
-  const b = $('#fParear button[type=submit]'); if (b) { b.disabled = true; b.textContent = 'Entrando…'; }
+  const b = $(sel); if (b) { b.disabled = true; b.textContent = 'Entrando…'; }
   try {
-    const r = await Sync.parearTurno(codigo);
+    const r = await pedir();
     await Store.setMeta('turnoAtual', r.turno.id);
     const comp = (await Store.meta('turnosCompartilhados')) || [];             // o turno do colega fica no Histórico (Termo) depois de encerrado
     if (!comp.includes(r.turno.id)) await Store.setMeta('turnosCompartilhados', comp.concat([r.turno.id]).slice(-200));
     try { localStorage.removeItem(LS_AVISO_ENC); } catch (e) { /* sem armazenamento */ }
     toast(`Você entrou no turno de ${r.dono}.`); Sync.sincronizar(); go('home');
-  } catch (e) { toast(e.message || 'Não foi possível entrar no turno.', true); const b2 = $('#fParear button[type=submit]'); if (b2) { b2.disabled = false; b2.innerHTML = `${icone('pessoa')} Entrar no turno`; } }
+  } catch (e) { toast(e.message || 'Não foi possível entrar no turno.', true); const b2 = $(sel); if (b2) { b2.disabled = false; b2.innerHTML = rotulo; } }
+}
+/** Turnos em andamento de outros logins nas BVAs fixas (servidor); [] sem internet ou sem resposta. */
+async function turnosAbertosNaBva() {
+  if (!navigator.onLine) return [];
+  try { return (await Sync.turnosAbertos()).turnos || []; } catch (e) { return []; }
 }
 /** Turno de BVA sem contagem de veículos: contador de pessoas orientadas (educação sanitária), gravado no turno. */
 function homePessoas(t, mostrar) {
@@ -385,8 +422,7 @@ window.addEventListener('gdv-sync-fim', async () => {
  * aparelho conhece (os turnos do login e os compartilhados); o servidor confere com os de todos e corrige na sincronização.
  */
 async function letraProposta(n, local, ano) {
-  const nl = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, '');
-  const usadas = new Set((await Store.todos('turnos')).filter(t => !Number(t.excluido) && !Number(t.cancelado) && nl(t.local) === nl(local))
+  const usadas = new Set((await Store.todos('turnos')).filter(t => !Number(t.excluido) && !Number(t.cancelado) && nlLocal(t.local) === nlLocal(local))
     .map(t => /^TF-(\d+)-([A-Z])-(\d{4})$/.exec(String(t.numeroTF || ''))).filter(m => m && Number(m[1]) === n && m[3] === ano).map(m => m[2]));
   let i = 0; while (usadas.has(String.fromCharCode(65 + i)) && i < 25) i++;
   return String.fromCharCode(65 + i);
@@ -394,7 +430,7 @@ async function letraProposta(n, local, ano) {
 function novoTurno() {
   if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());   // turno só depois de entrar
   const ls = k => esc(localStorage.getItem('gdv.' + k) || '');
-  view(`${avisoAtivacao()}${avisoTurnoEncerrado()}<details class="card parear" id="parearBox"><summary>${icone('pessoa')} Entrar no turno de um colega (código)</summary><form id="fParear">
+  view(`${avisoAtivacao()}${avisoTurnoEncerrado()}<div id="abertosBox"></div><details class="card parear" id="parearBox"><summary>${icone('pessoa')} Entrar no turno de um colega (código)</summary><form id="fParear">
       <p class="dica">O colega que abriu o turno toca em "Convidar colega" e te passa o código. Você lança com o seu login no turno dele.</p>
       <label>Código de 6 números<input id="pCodigo" inputmode="numeric" autocomplete="off" maxlength="7" placeholder="000 000"></label>
       <button class="botao sec" type="submit">${icone('pessoa')} Entrar no turno</button></form></details>
@@ -405,6 +441,7 @@ function novoTurno() {
     <div id="nLocalBox"></div>
     <label>Unidade (Termo) <small id="nUnidadeInfo"></small><input id="nUnidade" required autocomplete="off"></label>
     <label>Fiscal — nome completo *${Sync.nome() ? ` <small>(${Sync.usuario() ? 'da sua conta' : 'vinculado a este aparelho'})</small>` : ''}<input id="nFiscal1" autocomplete="off" ${Sync.nome() ? 'readonly' : ''} value="${Sync.nome() ? esc(Sync.nome()) : ls('fiscal1')}" placeholder="Nome e sobrenome"></label>
+    <div class="card aviso" id="nForaEscala" hidden>${icone('calendario')} Você não está na escala de plantão desta BVA para hoje: só os fiscais escalados abrem ou entram em turno aqui. Se você vai cobrir o plantão, peça à coordenação de barreira para ajustar a escala e sincronize.</div>
     <button class="botao" type="submit">Iniciar turno</button></form>`);
   $('#fParear').onsubmit = e => { e.preventDefault(); const c = $('#pCodigo').value.replace(/\D/g, '');
     if (c.length !== 6) return toast('Digite os 6 números do código.', true); entrarComCodigo(c); };
@@ -436,7 +473,7 @@ function novoTurno() {
          <div class="linha-acoes"><small id="nLocalSt"></small><button type="button" class="botao sec mini" id="nLocalGps">${icone('local')} Atualizar pela localização</button></div>
          <label class="chk" id="nSoPesBox"><input type="checkbox" id="nSoPessoas"> Só educação sanitária: contar as pessoas orientadas (sem registrar veículos)</label>
          <p class="dica" id="nPlacaInfo"></p>`;
-    $('#nLocal').addEventListener(fixa ? 'change' : 'input', () => { if (!fixa) $('#nLocal').dataset.editado = '1'; avisoPlaca(); unidadeDoLocal(); });
+    $('#nLocal').addEventListener(fixa ? 'change' : 'input', () => { if (!fixa) $('#nLocal').dataset.editado = '1'; avisoPlaca(); unidadeDoLocal(); mostrarAbertos(); });
     // Unidade (Termo): na BVA fixa é a própria BVA escolhida (não edita); no volante, o município da barreira (vem da localização, editável)
     const un = $('#nUnidade'); delete un.dataset.editado;
     un.readOnly = fixa; un.placeholder = fixa ? '' : 'município da barreira volante';
@@ -455,12 +492,31 @@ function novoTurno() {
   }
   $('#nUnidade').addEventListener('input', e => { e.target.dataset.editado = '1'; soPessoasDoMunicipio(); });
   $('#fTurno').addEventListener('change', e => { if (e.target && e.target.id === 'nSoPessoas') e.target.dataset.mexeu = '1'; });
-  $('#nPosto').onchange = montarLocal; montarLocal();
+  $('#nPosto').onchange = () => { montarLocal(); mostrarAbertos(); }; montarLocal();
+  // Turno já em andamento na BVA escolhida (aberto por outro login): entrar nele com um toque em vez de abrir outro
+  let abertos = [];
+  const abertosAqui = () => $('#nPosto') && $('#nPosto').value === 'Fixa' && $('#nLocal') ? abertos.filter(a => nlLocal(a.local) === nlLocal($('#nLocal').value)) : [];
+  /** BVA fixa com escala publicada para hoje: só quem está nela abre turno (coordenação e gerência, livres). */
+  async function conferirEscala() {
+    const aviso = $('#nForaEscala'), btn = $('#fTurno button[type=submit]'); if (!aviso || !btn) return true;
+    const diaManaus = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10);   // a escala é pelo dia de Manaus (como no servidor)
+    const pode = !($('#nPosto').value === 'Fixa' && $('#nLocal')) || await Sync.podeTurnoNaBva($('#nLocal').value, diaManaus);
+    aviso.hidden = pode; btn.disabled = !pode; return pode;
+  }
+  function mostrarAbertos() {
+    conferirEscala();
+    const box = $('#abertosBox'); if (!box) return;
+    box.innerHTML = abertosAqui().map(a => `<div class="card aviso turno-aberto"><h3>${icone('pessoa')} Turno em andamento nesta BVA</h3>
+      <p><b>${esc(a.local)}</b> · ${esc(a.numeroTF || '')}</p><p>${esc(a.fiscal || a.dono)}</p><p class="dica">Aberto às ${esc(a.inicio || '')}. Entre para lançar no mesmo turno, com o seu login.</p>
+      <button class="botao" data-entrar="${esc(a.id)}">${icone('pessoa')} Entrar neste turno</button></div>`).join('');
+    box.querySelectorAll('[data-entrar]').forEach(b => { b.onclick = () => entrarNoTurno(() => Sync.entrarNoTurno(b.dataset.entrar), `[data-entrar="${b.dataset.entrar}"]`, `${icone('pessoa')} Entrar neste turno`); });
+  }
+  turnosAbertosNaBva().then(l => { abertos = l; mostrarAbertos(); });
   // escala de plantão publicada (o aviso "Sua escala" aparece na tela inicial): a BVA já vem escolhida; o fiscal ainda pode trocar
   EscalaUI.minha().then(es => {
     if (!es || !$('#fTurno') || es.inicio > hojeISO() || !CONFIG.bvas.some(b => b.nome === es.bva)) return;
     if ($('#nPosto').value !== 'Fixa' && CONFIG.postos.includes('Fixa')) { $('#nPosto').value = 'Fixa'; montarLocal(); }
-    const sel = $('#nLocal'); if (sel && sel.tagName === 'SELECT' && sel.value !== es.bva) { sel.value = es.bva; avisoPlaca(); unidadeDoLocal(); }
+    const sel = $('#nLocal'); if (sel && sel.tagName === 'SELECT' && sel.value !== es.bva) { sel.value = es.bva; avisoPlaca(); unidadeDoLocal(); mostrarAbertos(); }
   }).catch(() => {});
   $('#fTurno').onsubmit = async e => {
     e.preventDefault();
@@ -469,11 +525,17 @@ function novoTurno() {
     if (!nomes.length) { toast('Informe o nome completo do fiscal.', true); $('#nFiscal1').focus(); return; }
     const curto = nomes.find(n => n.split(' ').length < 2);
     if (curto) { toast(`Informe o nome completo (nome e sobrenome): "${curto}"`, true); return; }
+    if (!(await conferirEscala())) { toast('Você não está na escala de plantão desta BVA para hoje.', true); return; }
     const data = hojeISO(), inicio = agoraHM();                                  // horário = instante do clique
     const btn = $('#fTurno button[type=submit]'); btn.disabled = true; btn.textContent = 'Obtendo localização…';
     // o outro aparelho abriu o turno enquanto este formulário estava na tela: entra nele em vez de abrir outro
     // (depois da validação e com o botão já travado: dois toques seguidos não abrem dois turnos)
     if ((await turnosAbertosOutros()).length) { toast('Turno em andamento no outro aparelho com o seu login: continue lançando por aqui.'); return go('home'); }
+    abertos = await turnosAbertosNaBva(); mostrarAbertos();              // outro login pode ter aberto turno aqui depois que a tela abriu
+    const aqui = abertosAqui()[0];
+    if (aqui && !confirm(`Já tem turno em andamento em ${aqui.local} (${aqui.fiscal || aqui.dono}).\n\nO melhor é entrar nele ("Entrar neste turno"). Abrir um turno separado mesmo assim?`)) {
+      btn.disabled = false; btn.textContent = 'Iniciar turno'; return;
+    }
     const nTF = parseInt($('#nTF').value, 10), letra = await letraProposta(nTF, $('#nLocal').value.trim(), data.slice(0, 4));
     const gps = (await pegarLocal()) || gpsVolante;
     if (!gps) toast('Turno iniciado sem coordenadas (GPS indisponível ou permissão negada).', true);

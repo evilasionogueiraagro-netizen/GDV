@@ -42,10 +42,10 @@ const uuid = () => crypto.randomUUID();
 // todas as actions do doPost, por quem pode chamá-las
 const CAMPO = ['ping', 'sync', 'tfConsultar', 'tfProximoNumero', 'tfEmitir', 'pceProximoNumero', 'pceEmitir', 'pceConsultar', 'pceDocNumero',
   'pceDocRegistrar', 'pceBaixarMunicipio', 'pceMapaGeral', 'arquivoEnviar', 'tfAndamento', 'tfIndiceReincidencia', 'turnoConvidar', 'turnoParear',
-  'turnoSair', 'turnoPapelRegistrar', 'turnoNumero'];
+  'turnoSair', 'turnoPapelRegistrar', 'turnoNumero', 'turnosAbertos', 'turnoEntrar', 'turnoRemoverColega'];
 const MODULO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf', tfIndiceReincidencia: 'tf', pceProximoNumero: 'pce',
   pceEmitir: 'pce', pceConsultar: 'pce', pceBaixarMunicipio: 'pce', pceMapaGeral: 'pce', arquivoEnviar: 'pce', pceDocNumero: 'pce', pceDocRegistrar: 'pce',
-  turnoConvidar: 'veiculos', turnoParear: 'veiculos', turnoSair: 'veiculos', turnoPapelRegistrar: 'veiculos', turnoNumero: 'veiculos' };
+  turnoConvidar: 'veiculos', turnoParear: 'veiculos', turnoSair: 'veiculos', turnoPapelRegistrar: 'veiculos', turnoNumero: 'veiculos', turnosAbertos: 'veiculos', turnoEntrar: 'veiculos', turnoRemoverColega: 'veiculos' };
 // catálogo do PCE (pce-catalogo.gs): ler exige o módulo pce; gravar, gerência + pce (nem a gerência sem pce passa)
 const PCE_CATALOGO = ['painelPceCatalogo', 'painelPceCatalogoSalvar'];
 const PAINEL_LER = ['painelDados', 'painelPublicoConfig', 'painelConvenios', 'painelConvApuracao', 'painelRelGdv', 'painelRelGdvApuracao', 'painelVigDados'];

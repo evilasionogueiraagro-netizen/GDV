@@ -540,7 +540,8 @@ function periodoPainel_(filtro) {
 function auditarRegs_(tipo, grupo, ano, todos, numeracao) {
   const s = SEQUENCIAS[tipo];
   ano = Number(ano);
-  const regs = todos.filter(function (r) { return grupoSeq_(tipo, r) === grupo && r.ano === ano && (tipo === 'TF' || numSeq_(tipo, r) > 0) && r.excluido !== 1 && (tipo !== 'AI' || Number(r.auto) === 1); });
+  const ini = tipo === 'TF' ? inicioAppTF_(todos) : {};                         // TF da série do papel: sequência à parte (fora da auditoria do app)
+  const regs = todos.filter(function (r) { return grupoSeq_(tipo, r) === grupo && r.ano === ano && (tipo === 'TF' || numSeq_(tipo, r) > 0) && r.excluido !== 1 && (tipo !== 'AI' || Number(r.auto) === 1) && !(tipo === 'TF' && seriePapelTF_(r, ini)); });
   const usos = {};
   regs.forEach(function (r) { const n = numSeq_(tipo, r); (usos[n] = usos[n] || []).push(r); });
   const nums = Object.keys(usos).map(Number).sort(function (a, b) { return a - b; });

@@ -109,7 +109,7 @@ function mesmoDono_(dono, usuario) { return !dono || nomeChave_(dono) === nomeCh
 function podeLancarNoTurno_(usuario) {
   const dono = {}, colega = {};
   lerLeitura_('Turnos').forEach(function (t) { if (t.id) dono[t.id] = t.usuario; });
-  lerLeitura_('Pareamentos').forEach(function (p) { if (p.id && p.colega && p.entrouEm && nomeChave_(p.colega) === nomeChave_(usuario)) colega[p.turnoId] = true; });
+  lerLeitura_('Pareamentos').forEach(function (p) { if (p.id && p.colega && p.entrouEm && !p.removidoPor && nomeChave_(p.colega) === nomeChave_(usuario)) colega[p.turnoId] = true; });
   return function (turnoId) { return !(turnoId in dono) || mesmoDono_(dono[turnoId], usuario) || !!colega[turnoId]; };
 }
 

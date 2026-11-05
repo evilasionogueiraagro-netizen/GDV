@@ -1,5 +1,6 @@
 const amb = require('./lib/amb');
 const U = require('./lib/usuarios');
+const PF = require('./lib/pce-form');
 // PCE — modo "Registro antigo (digitação do papel)": app real (Chromium) + Code.gs real (fakegas, Drive falso).
 const { chromium } = require('playwright-core');
 const { API, APP } = amb;
@@ -134,7 +135,7 @@ const uuid = () => require('crypto').randomUUID();
   await A.fill('#pce-snome', 'Maria Souza Lima'); await A.selectOption('#pce-scargo', { index: 1 }); await A.fill('#pce-smatricula', '777'); await A.selectOption('#pce-slotacao', 'Itacoatiara');
   await A.fill('#pce-doc', '52998224725'); await A.waitForTimeout(600); await A.fill('#pce-nome', 'josé da silva'); await A.fill('#pce-propriedade', 'Sítio Esperança');
   await A.selectOption('#pce-municipio', 'Itacoatiara');
-  await A.selectOption('.pce-praga >> nth=0 >> .p-praga', 'Fusarium R4T'); await A.selectOption('.pce-praga >> nth=0 >> .pce-cult >> nth=0 >> .c-cultura', 'Banana'); await A.click('.pce-praga >> nth=0 >> .pce-cult >> nth=0 >> .pce-res-detectada');
+  await PF.cultura(A, 0, 'Banana'); await PF.responder(A, 0, 'Fusarium R4T', 'detectada');
   await A.fill('#pce-coord', `3°07'08,4"S 60°01'18,1"W`);
   ok(/Latitude -3\.119 · Longitude -60\.021694(?!\d)/.test(await A.innerText('#pce-coord-st')) && /3°07'08,4" S/.test(await A.innerText('#pce-coord-st')), 'conversão mostrada: ' + (await A.innerText('#pce-coord-st')).trim());
   await A.fill('#pce-coord', '-60.0217, -3.1190'); ok(/trocadas/.test(await A.textContent('#pce-coord-st')) && (await A.inputValue('#pce-lat')) === '', 'coordenada fora do AM: aviso e nada nos campos');
@@ -170,13 +171,13 @@ const uuid = () => require('crypto').randomUUID();
     'mantém servidor (nome, cargo, matrícula, lotação)');
   ok((await A.inputValue('#pce-municipio')) === 'Itacoatiara' && (await A.inputValue('#pce-data')) === `${ANO}-03-15`, 'mantém município e data');
   ok((await A.inputValue('#pce-hora')) === '' && (await A.inputValue('#pce-nome')) === '' && (await A.inputValue('#pce-coord')) === '' && await A.locator('#pce-pdfs-lista .pce-doc').count() === 0
-    && (await A.inputValue('.pce-praga >> nth=0 >> .pce-cult >> nth=0 >> .c-cultura')) === '' && (await A.inputValue('.pce-praga >> nth=0 >> .p-praga')) === '', 'limpa o resto (hora, produtor, coordenadas, culturas, PDFs)');
+    && (await A.inputValue('.pce-cultura >> nth=0 >> .c-cultura')) === '' && await A.locator('.pce-cultura').count() === 1 && await A.locator('.pce-pr').count() === 0, 'limpa o resto (hora, produtor, coordenadas, culturas, PDFs)');
   ok(await A.evaluate(() => document.activeElement && document.activeElement.id) === 'pce-hora', 'foco na hora (próximo campo a digitar)');
   ok(await A.locator('#pce-snome-servs option, #pce-servs option').count() >= 1 && await A.evaluate(() => [...document.querySelectorAll('datalist option')].some(o => o.value === 'Maria Souza Lima')), 'datalist lembra "Maria Souza Lima"');
   // 2º registro: outro servidor escolhido da lista, sem coordenada (confirma)
   await A.fill('#pce-snome', 'João Pereira Alves'); await A.selectOption('#pce-scargo', { index: 2 }); await A.fill('#pce-smatricula', ''); await A.selectOption('#pce-slotacao', 'Manaus');
   await A.fill('#pce-hora', '14:10'); await A.fill('#pce-doc', '11144477735'); await A.waitForTimeout(600); await A.fill('#pce-nome', 'Maria Produtora');
-  await A.selectOption('.pce-praga >> nth=0 >> .p-praga', 'Monilíase do Cacaueiro'); await A.selectOption('.pce-praga >> nth=0 >> .pce-cult >> nth=0 >> .c-cultura', 'Cacau'); await A.click('.pce-praga >> nth=0 >> .pce-cult >> nth=0 >> .pce-res-nao_detectada');
+  await PF.preencherCultura(A, 0, 'Cacau');
   A.dialogs.length = 0;
   await A.click('#pce-salvar'); await A.waitForSelector('#pce-lev-pronto'); await A.click('#pce-pronto-lista'); await A.waitForSelector('.item.pce-lev');
   ok(A.dialogs.some(m => /Sem coordenadas/.test(m)), 'sem coordenadas: pediu confirmação antes de salvar');
@@ -193,7 +194,7 @@ const uuid = () => require('crypto').randomUUID();
   ok(l1 && l1.servidor === 'Maria Souza Lima' && l1.matricula === '777' && l1.lotacao === 'Itacoatiara' && l1.usuario === 'Carla Mendes Estagiaria', 'servidor digitado gravado (não o perfil); usuario = quem digitou');
   ok(l1.data === `${ANO}-03-15` && l1.hora === '08:30' && Math.abs(Number(l1.lat) - GLA) < 1e-6 && Math.abs(Number(l1.lon) - GLO) < 1e-6 && l1.precisao === '', 'data/hora do papel, coordenada convertida, sem precisão: ' + l1.lat + ', ' + l1.lon);
   ok(l1.registroAntigo === 1 && JSON.parse(l1.documentos).length === 1 && JSON.parse(l1.fotos).length === 0 && l1.assinaturas === '{}', 'campos técnicos: registroAntigo=1, documentos=[1 PDF]');
-  ok(JSON.stringify(JSON.parse(l1.pragas).map(g => [g.praga, g.culturas.map(c => c.cultura + ':' + c.resultado).join()])) === '[["Fusarium R4T","Banana:detectada"]]', 'registro do papel no formulário novo: card da praga com cultura e resultado');
+  ok(JSON.stringify(JSON.parse(l1.pragas).map(g => [g.praga, g.culturas.map(c => c.cultura + ':' + c.resultado).join()])) === '[["Fusarium R4T","Banana:detectada"]]', 'registro do papel no formulário novo: cultura com a praga e o resultado');
   ok(l2 && l2.servidor === 'João Pereira Alves' && l2.lat === '' && l2.registroAntigo === 1, '2º registro: outro servidor, sem coordenada');
   const arqs = await ler('Arquivos'), aPdf = arqs.find(a => a.id === JSON.parse(l1.documentos)[0]);
   drive = await get('/__drive'); const dLev = drive.arquivos.find(a => aPdf && a.nome === aPdf.nome);
@@ -213,7 +214,7 @@ const uuid = () => require('crypto').randomUUID();
 
   console.log('7) ficha impressa sem marca de registro antigo');
   let pr = await imprimir(A, `.item.pce-lev[data-lev="${l1.id}"] [data-pce=imprimirlev]`);
-  ok(/Praga\/doença avaliada Fusarium R4T/.test(pr.texto) && /_Fusarium_R4T_15-03-/.test(pr.titulo), 'ficha do papel: PDF por praga (' + pr.titulo + ')');
+  ok(/PROGRAMA Pragas da Bananeira/.test(pr.texto) && /LEVANTAMENTO DE DETECÇÃO – Pragas da Bananeira/.test(pr.texto) && /1 Banana Detectada/.test(pr.texto) && /_Pragas_da_Bananeira_15-03-/.test(pr.titulo), 'ficha do papel: PDF por programa, com a cultura e o resultado (' + pr.titulo + ')');
   ok(pr.texto.includes('Maria Souza Lima') && pr.texto.includes('JOSÉ DA SILVA') && /3°07'08,4" S/.test(pr.texto), 'ficha: servidor do papel, produtor e coordenada');
   ok(!/antig|papel|digitad|escanead|registroAntigo/i.test(pr.texto) && !/±/.test(pr.texto), 'ficha sem "registro antigo"/"papel"/"digitado" e sem precisão de GPS');
 
@@ -287,7 +288,7 @@ const uuid = () => require('crypto').randomUUID();
   await Fp.evaluate(() => Store.setMeta('pceServidor', { nome: 'Fiscal Ana Paula Lima', cargo: 'Fiscal Agropecuário Engenheiro Agrônomo', matricula: '1', lotacao: 'Manaus' }));
   await Fp.click('nav [data-v=modulos]').catch(() => {}); await Fp.waitForSelector('.modulo[data-v=pce]'); await Fp.click('.modulo[data-v=pce]'); await Fp.waitForSelector('#pce-novolev');
   ok(await Fp.locator('#pce-novolevantigo').count() === 1, 'fiscal também vê "Registro antigo (digitar do papel)"');
-  await Fp.click('nav [data-v=pcetermo]'); await Fp.waitForSelector('#pceTermoForm:not(.pce-antigo)');
+  await Fp.click('nav [data-v=pcetermos]'); await Fp.waitForSelector('#pce-novotermo'); await Fp.click('#pce-novotermo'); await Fp.waitForSelector('#pceTermoForm:not(.pce-antigo)');   // "Novo termo" saiu do menu: fica na lista de termos de colheita
   await Fp.fill('#pce-t-doc', '52998224725'); await Fp.waitForTimeout(500); await Fp.fill('#pce-t-nome', 'Jose'); await Fp.selectOption('#pce-t-cultura', 'Banana'); await Fp.fill('#pce-t-quantidade', '1');
   await Fp.click('#pce-t-gerar'); await Fp.waitForSelector('#pce-num-m', { timeout: 15000 });
   ok(+(await Fp.inputValue('#pce-num-m')) === 6, 'termo novo do fiscal: sugestão 006');
@@ -322,7 +323,7 @@ const uuid = () => require('crypto').randomUUID();
   await A.click('nav [data-v=pce]'); await A.waitForSelector('#pce-novolevantigo'); await A.click('#pce-novolevantigo'); await A.waitForSelector('#pceLevForm.pce-antigo');
   await A.fill('#pce-snome', 'Maria Souza Lima'); await A.dispatchEvent('#pce-snome', 'change'); await A.waitForTimeout(200);
   await A.fill('#pce-hora', '07:45'); await A.fill('#pce-data', `${ANO}-02-20`); await A.fill('#pce-doc', '11144477735'); await A.waitForTimeout(600); await A.fill('#pce-nome', 'Produtor Pendente');
-  await A.selectOption('#pce-municipio', 'Manaus'); await A.selectOption('.pce-praga >> nth=0 >> .p-praga', 'Fusarium R4T'); await A.selectOption('.pce-praga >> nth=0 >> .pce-cult >> nth=0 >> .c-cultura', 'Banana'); await A.click('.pce-praga >> nth=0 >> .pce-cult >> nth=0 >> .pce-res-suspeita'); await A.fill('#pce-coord', '-3.1190, -60.0217');
+  await A.selectOption('#pce-municipio', 'Manaus'); await PF.cultura(A, 0, 'Banana'); await PF.responder(A, 0, 'Fusarium R4T', 'suspeita'); await A.fill('#pce-coord', '-3.1190, -60.0217');
   r = await U.permissoes(UIDS['Carla Mendes Estagiaria'], U.lista({ veiculos: 0, tf: 0, pce: 1, antigo: 0 })); ok(r.ok && !r.permissoes.includes('digitarDoPapel'), 'painel: tirou "Digitar do papel"');
   await A.click('#pce-salvar'); await A.waitForSelector('#pce-lev-pronto'); await A.click('#pce-pronto-lista'); await A.waitForSelector('.item.pce-lev');
   await A.waitForFunction(() => !Sync.pode('antigo'), null, { timeout: 10000 });

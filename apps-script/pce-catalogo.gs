@@ -10,7 +10,18 @@
  */
 const MODELOS_CADASTRO_PCE_ = ['citros', 'banana', 'moniliase', 'mandioca', 'soja', 'propriedade'];   // um formulário e um PDF por modelo
 const TIPOS_PRAGA_PCE_ = ['doenca', 'praga'];
-const ENQ_CITROS_PCE_ = 'PORTARIA MAPA SDA Nº 1326, DE 4 DE JULHO DE 2025, ART. 23, INCISOS I E II, E ART. 26.';
+// Enquadramento legal por praga: planilha da GDV (docs/modulos/pce-legislacao.csv); igual a CONFIG.PCE.legislacao (o teste pce_legislacao_test confere).
+const LEGISLACAO_PCE_ = {
+      'Monilíase do Cacaueiro': 'IN 112 DE 11/12/2020; SDA Nº 703 DE 21/11/2022; PORTARIA Nº 337/23 DE 11 DE AGOSTO DE 2023; PORTARIA Nº 263/2024; MAPA 818/2025',
+      'HLB / Greening': 'Portaria SDA/MAPA nº 1.326, de 4 de julho de 2025; IN SDA/MAPA nº 38',
+      'Cancro Cítrico': 'IN MAPA nº 21/2018; IN SDA/MAPA nº 38',
+      'Schizotetranychus hindustanicus': 'IN MAPA nº 8/2012; IN SDA/MAPA nº 38, de 1º de outubro de 2018',
+      'Bactrocera carambolae': 'Instrução Normativa SDA/MAPA nº 38; Portaria SDA/MAPA n° 1.545; PORTARIA SDA/MAPA nº 1.569, de 13 de março de 2026; Portaria SDA/MAPA n° 1.675 de 26 de agosto de 2026; Portaria MAPA n° 855, de 7 de novembro de 2025; Portaria MAPA nº 627, de 10 de novembro de 2023; Portaria SDA/MAPA n° 859, de 19 de julho de 2023; Portaria SDA/MAPA nº 780, de 06 de abril de 2023',
+      'Phakopsora pachyrhizi': 'Portaria SDA/MAPA nº 1.124, de 25 de junho de 2024; Portaria SDA/MAPA nº 1.579, de 9 de abril de 2026',
+      'Amaranthus palmeri': 'Instrução Normativa SDA/MAPA nº 38; Portaria SDA/MAPA nº 1.119',
+      'Vassoura de Bruxa da Mandioca': 'Instrução Normativa SDA/MAPA nº 38; Portaria SDA/MAPA nº 1.257; Portaria MAPA nº 769',
+      'Fusarium R4T': 'Portaria SDA/MAPA nº 1.291, de 22 de maio de 2025; Instrução Normativa SDA/MAPA nº 131 de 27 de junho de 2019; Instrução Normativa SDA/MAPA nº 30 de 05 de junho de 2020'
+};
 
 // Base do catálogo: as culturas e pragas de CONFIG.PCE (web/js/config.js) + os hospedeiros da monilíase e as pragas dos modelos de cadastro
 // (Moko, Sigatoka). Nome científico e enquadramento ficam vazios onde não há fonte segura: a gerência completa no painel.
@@ -23,18 +34,20 @@ const CATALOGO_PCE_BASE_ = {
     { nome: 'Soja', modeloCadastro: 'soja', culturas: ['Soja'] }
   ],
   culturasSemFamilia: ['Açaí', 'Guaraná', 'Pimenta-do-reino', 'Milho', 'Feijão', 'Arroz', 'Café', 'Coco', 'Abacaxi', 'Mamão', 'Melancia',
-    'Maracujá', 'Castanha-do-Brasil', 'Pupunha', 'Dendê', 'Urucum', 'Seringueira', 'Hortaliças diversas'],
+    'Maracujá', 'Castanha-do-Brasil', 'Pupunha', 'Dendê', 'Urucum', 'Seringueira', 'Hortaliças diversas', 'Algodão', 'Cana-de-açúcar',
+    'Carambola', 'Goiaba', 'Manga', 'Acerola', 'Caju', 'Jaca', 'Pitanga', 'Jambo', 'Taperebá', 'Sapotilha', 'Abiu', 'Araçá-boi', 'Biribá', 'Fruta-pão', 'Tomate', 'Pimenta de cheiro'],
   // nomeAntigo = o texto de CONFIG.PCE.pragas que os levantamentos gravaram (dá o id); nomeNoTF = quadro do Termo de Fiscalização
   pragas: [
-    { nomeAntigo: 'Bactrocera carambolae', nomePopular: 'Mosca-da-carambola', nomeCientifico: 'Bactrocera carambolae', tipo: 'praga', nomeNoTF: 'Mosca-da-Carambola', programa: 'Mosca-da-Carambola' },
+    { nomeAntigo: 'Bactrocera carambolae', nomePopular: 'Mosca-da-carambola', nomeCientifico: 'Bactrocera carambolae', tipo: 'praga', nomeNoTF: 'Mosca-da-Carambola', programa: 'Mosca-da-Carambola',
+      culturas: ['Carambola', 'Goiaba', 'Manga', 'Acerola', 'Caju', 'Jaca', 'Pitanga', 'Jambo', 'Taperebá', 'Sapotilha', 'Abiu', 'Araçá-boi', 'Biribá', 'Fruta-pão', 'Tomate', 'Pimenta de cheiro', 'Mamão'] },   // hospedeiros: docs/modulos/pce-hospedeiros.md; citros é hospedeiro sem resposta obrigatória (CONFIG.PCE.hospedeiros)
     { nomeAntigo: 'Schizotetranychus hindustanicus', nomePopular: 'Ácaro Hindustânico', nomeCientifico: 'Schizotetranychus hindustanicus', tipo: 'praga',
-      nomeNoTF: 'Ácaro Hindustânico', enquadramentoLegal: ENQ_CITROS_PCE_, familias: ['Citros'], programa: 'Pragas dos Citros' },
+      nomeNoTF: 'Ácaro Hindustânico', familias: ['Citros'], programa: 'Pragas dos Citros' },
     { nomeAntigo: 'Phakopsora pachyrhizi', nomePopular: 'Ferrugem asiática da soja', nomeCientifico: 'Phakopsora pachyrhizi', tipo: 'doenca',
       nomeNoTF: 'Ferrugem Asiática da soja', familias: ['Soja'], programa: 'Pragas da Soja' },
     { nomeAntigo: 'HLB / Greening', nomePopular: 'HLB / Greening', nomeCientifico: 'Candidatus Liberibacter spp.', tipo: 'doenca', nomeNoTF: 'HLB',
-      enquadramentoLegal: ENQ_CITROS_PCE_, familias: ['Citros'], programa: 'Pragas dos Citros' },
+      familias: ['Citros'], programa: 'Pragas dos Citros' },
     { nomeAntigo: 'Cancro Cítrico', nomePopular: 'Cancro Cítrico', nomeCientifico: 'Xanthomonas citri subsp. citri', tipo: 'doenca', nomeNoTF: 'Cancro Cítrico',
-      enquadramentoLegal: ENQ_CITROS_PCE_, familias: ['Citros'], programa: 'Pragas dos Citros' },
+      familias: ['Citros'], programa: 'Pragas dos Citros' },
     { nomeAntigo: 'Fusarium R4T', nomePopular: 'Fusariose (FOC R4T)', nomeCientifico: 'Fusarium oxysporum f. sp. cubense raça 4 tropical', tipo: 'doenca',
       nomeNoTF: 'Fusariose FOC R4T', familias: ['Bananeira'], opcional: true, programa: 'Pragas da Bananeira' },   // ausente no Brasil: ação é educação sanitária; no levantamento, opcional (identificada ou não)
     { nomeAntigo: 'Monilíase do Cacaueiro', nomePopular: 'Monilíase do Cacaueiro', nomeCientifico: 'Moniliophthora roreri', tipo: 'doenca', nomeNoTF: 'Monilíase',
@@ -44,7 +57,7 @@ const CATALOGO_PCE_BASE_ = {
     { nomeAntigo: 'Amaranthus palmeri', nomePopular: 'Amaranthus palmeri', nomeCientifico: 'Amaranthus palmeri', tipo: 'praga', nomeNoTF: 'Amaranthus palmeri',
       familias: ['Soja'], opcional: true, programa: 'Pragas da Soja' },
     { nomeAntigo: 'Diaphorina citri (vetor do HLB)', nomePopular: 'Diaphorina citri (vetor do HLB)', nomeCientifico: 'Diaphorina citri', tipo: 'praga',
-      nomeNoTF: 'Diaphorina citri', enquadramentoLegal: ENQ_CITROS_PCE_, familias: ['Citros'], opcional: true, programa: 'Pragas dos Citros' },
+      nomeNoTF: 'Diaphorina citri', familias: ['Citros'], opcional: true, programa: 'Pragas dos Citros' },
     { nomeAntigo: 'Pinta Preta dos Citros', nomePopular: 'Pinta Preta dos Citros', nomeCientifico: 'Phyllosticta citricarpa', tipo: 'doenca', familias: ['Citros'], opcional: true, programa: 'Pragas dos Citros' },
     { nomeAntigo: 'Leprose dos Citros', nomePopular: 'Leprose dos Citros', nomeCientifico: '', tipo: 'doenca', familias: ['Citros'], opcional: true, programa: 'Pragas dos Citros' },
     { nomeAntigo: 'Moko da Bananeira', nomePopular: 'Moko da Bananeira', nomeCientifico: 'Ralstonia solanacearum raça 2', tipo: 'doenca', familias: ['Bananeira'], opcional: true, programa: 'Pragas da Bananeira' },
@@ -66,10 +79,11 @@ function catalogoPceBase_() {
   B.culturasSemFamilia.forEach(function (c) { cat.culturas.push({ id: pceId_(c), nome: c, nomeCientifico: '', familiaId: '', cultivares: '', ativo: 1 }); });
   B.pragas.forEach(function (p) {
     const id = pceId_(p.nomeAntigo);
-    cat.pragas.push({ id: id, nomePopular: p.nomePopular, nomeCientifico: p.nomeCientifico || '', tipo: p.tipo, enquadramentoLegal: p.enquadramentoLegal || '',
+    cat.pragas.push({ id: id, nomePopular: p.nomePopular, nomeCientifico: p.nomeCientifico || '', tipo: p.tipo, enquadramentoLegal: LEGISLACAO_PCE_[p.nomeAntigo] || '',
                       nomeNoTF: p.nomeNoTF || '', ativo: 1, programa: p.programa || '',
                       levantamento: p.semLevantamento ? 0 : 1, opcional: p.opcional ? 1 : 0 });
     (p.familias || []).forEach(function (f) { cat.pragasDasFamilias.push({ id: id + '|' + pceId_(f), pragaId: id, familiaId: pceId_(f), ativo: 1 }); });
+    (p.culturas || []).forEach(function (c) { cat.pragasDasCulturas.push({ id: id + '|' + pceId_(c), pragaId: id, culturaId: pceId_(c), ativo: 1 }); });
   });
   return cat;
 }

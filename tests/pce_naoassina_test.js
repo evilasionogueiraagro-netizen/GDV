@@ -1,5 +1,6 @@
 const amb = require('./lib/amb');
 const U = require('./lib/usuarios');
+const F = require('./lib/pce-form');
 // PCE: produtor que não assina — foto dele segurando um documento de identificação no lugar da assinatura (tela, rascunho, PDF, Drive, edição).
 const { API, APP } = amb;
 const get = p => fetch(API + p).then(r => r.json());
@@ -25,7 +26,7 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== und
   await p.selectOption('#pce-s-cargo', { index: 1 }); await p.selectOption('#pce-s-lotacao', 'Manaus'); await p.click('#pce-s-salvar'); await p.waitForSelector('#pce-novolev');
   await p.click('#pce-novolev'); await p.waitForSelector('#pceLevForm');
   await p.fill('#pce-doc', '52998224725'); await p.fill('#pce-nome', 'Raimundo Nonato'); await p.fill('#pce-propriedade', 'Sítio Esperança');
-  await p.selectOption('.pce-praga >> nth=0 >> .p-praga', 'Fusarium R4T'); await p.selectOption('.pce-cult >> nth=0 >> .c-cultura', 'Banana'); await p.click('.pce-cult >> nth=0 >> .pce-res-nao_detectada');
+  await F.cultura(p, 0, 'Banana'); await F.responder(p, 0, 'Fusarium R4T', 'nao_detectada');   // Banana: Fusariose, Moko e Sigatoka são opcionais; ao menos uma precisa de resposta
 
   ok(await p.isVisible('#pce-ass-produtor') && await p.isHidden('#pce-docprod') && !(await p.isChecked('#pce-naoassina')), 'começa com a assinatura na tela; opção "não assina" desmarcada');
   await p.check('#pce-naoassina');

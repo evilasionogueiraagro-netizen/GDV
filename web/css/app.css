@@ -206,6 +206,11 @@ nav button span { font-size:9.5px; } nav button.on { color:var(--link); font-wei
 .mon-total { display:block; font-size:22px; font-weight:700; color:var(--destaque); padding:8px 0; }
 .mon-cks { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:0 10px; } .mon-cks .chk { margin:6px 0; font-size:14.5px; }
 .mon-fito { border-top:1px solid var(--grade); padding-top:8px; margin-top:8px; } .mon-fito > b { color:var(--destaque); }
+/* cadastros por programa (pce-cadastros.js): tabelas editáveis e listas de opção */
+.pc-campo[hidden], .pc-det [hidden] { display:none; }
+.pc-lin { display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:0 10px; align-items:end; border:1px solid var(--grade); border-radius:var(--r-sm); padding:6px 8px; margin:6px 0; }
+.pc-lin .mini { justify-self:end; margin-bottom:6px; }
+.pc-lista { grid-template-columns:1fr; }
 .mon-mun { grid-template-columns:1fr 80px; }
 .mon-extras { border:1px dashed var(--grade); box-shadow:none; background:var(--sf2); }
 .mon-previa { background:var(--sf2); box-shadow:none; border:1px solid var(--grade); } .mon-rel-lista { margin:6px 0; padding-left:18px; } .mon-rel-lista li { margin:4px 0; }

@@ -214,7 +214,7 @@ const uuid = () => require('crypto').randomUUID();
 
   console.log('7) ficha impressa sem marca de registro antigo');
   let pr = await imprimir(A, `.item.pce-lev[data-lev="${l1.id}"] [data-pce=imprimirlev]`);
-  ok(/PROGRAMA Pragas da Bananeira/.test(pr.texto) && /LEVANTAMENTO DE DETECÇÃO – Pragas da Bananeira/.test(pr.texto) && /1 Banana Detectada/.test(pr.texto) && /_Pragas_da_Bananeira_15-03-/.test(pr.titulo), 'ficha do papel: PDF por programa, com a cultura e o resultado (' + pr.titulo + ')');
+  ok(/PROGRAMA Pragas da Bananeira/.test(pr.texto) && /LEVANTAMENTO DE DETECÇÃO – Pragas da Bananeira/.test(pr.texto) && /1 Banana – Fusarium R4T Detectada/.test(pr.texto) && /_Pragas_da_Bananeira_15-03-/.test(pr.titulo), 'ficha do papel: PDF por programa, com a cultura, a praga (o programa tem várias) e o resultado (' + pr.titulo + ')');
   ok(pr.texto.includes('Maria Souza Lima') && pr.texto.includes('JOSÉ DA SILVA') && /3°07'08,4" S/.test(pr.texto), 'ficha: servidor do papel, produtor e coordenada');
   ok(!/antig|papel|digitad|escanead|registroAntigo/i.test(pr.texto) && !/±/.test(pr.texto), 'ficha sem "registro antigo"/"papel"/"digitado" e sem precisão de GPS');
 

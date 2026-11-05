@@ -566,7 +566,7 @@ const PCEUI = (() => {
   // Dados gerais (servidor, produtor, propriedade, localização, data/hora, assinaturas) uma vez por visita; depois um card por cultura
   // avaliada (área, espaçamento e fotos), com as pragas/doenças avaliadas nela (resultado e coleta de amostra de cada uma).
   // As pragas ligadas à cultura no catálogo (pela família ou direto) aparecem sozinhas e exigem resultado; outras podem ser somadas.
-  // Gravado em culturasAvaliadas e resultados (uma linha por cultura e por cultura × praga) e, para os PDFs (um por praga), o painel e
+  // Gravado em culturasAvaliadas e resultados (uma linha por cultura e por cultura × praga) e, para os PDFs (um por programa), o painel e
   // os relatórios, também em "pragas" (praga → culturas, JSON), "culturas" e "fotos", como antes.
   const SEM_PRAGA = 'Sem praga informada', OUTRA = '__outra';
   const RES = Object.fromEntries(P.resultados || [['detectada', 'Detectada'], ['nao_detectada', 'Não detectada'], ['suspeita', 'Suspeita']]);
@@ -577,9 +577,10 @@ const PCEUI = (() => {
   async function carregarCatalogo() { const c = await Store.meta('catalogoPce'); CAT = c && Array.isArray(c.culturas) && Array.isArray(c.pragas) ? c : null; }
   const culturasCat = () => (CAT ? CAT.culturas.filter(c => Number(c.ativo) !== 0).map(c => c.nome) : P.culturas);
   const pragasCat = () => (CAT ? CAT.pragas.filter(p => Number(p.ativo) !== 0) : P.pragas.map(n => ({ id: idCat(n), nomePopular: n })));
+  /** levantamento = 0: praga ausente no Brasil (só educação sanitária), fora do levantamento. */
   const temLevantamento = p => Number(p.levantamento) !== 0;
   /** Praga opcional (Moko, Pinta Preta...): resposta não obrigatória e sem Termo próprio (entra no Termo do programa, se tiver um). */
-  const opcional = nome => { const p = pragaPorNome(nome); return !!(p && Number(p.opcional) === 1); };              // 0 = praga ausente no Brasil (só educação sanitária): fora do levantamento
+  const opcional = nome => { const p = pragaPorNome(nome); return !!(p && Number(p.opcional) === 1); };
   /** Nome gravado em "pragas": o da lista antiga (config.js) quando é a mesma praga, porque PDF, citros e Termo reconhecem por ele; senão o popular. */
   const nomeDaPraga = p => P.pragas.find(n => idCat(n) === p.id) || p.nomePopular;
   const pragaPorNome = nome => { const k = idCat(nome); return k ? pragasCat().find(p => p.id === k || idCat(p.nomePopular) === k) || null : null; };
@@ -1064,7 +1065,7 @@ const PCEUI = (() => {
     } catch (e) { F.salvando = false; btn.disabled = false; if (btn2) btn2.disabled = false; toast('Erro ao salvar: ' + e.message, true); }
   }
 
-  /* ---------- PDFs do levantamento: um por praga/doença ---------- */
+  /* ---------- PDFs do levantamento: um por programa (como o Termo) ---------- */
   const ORDEM_RES = { detectada: 0, suspeita: 1, nao_detectada: 2 };
   /** Pior resultado da praga (detectada > suspeita > não detectada). */
   const resultadoPraga = g => g.culturas.map(c => c.resultado).sort((a, b) => ORDEM_RES[a] - ORDEM_RES[b])[0] || 'nao_detectada';
@@ -1142,7 +1143,7 @@ const PCEUI = (() => {
         : `<button class="${grande ? (cad || i ? 'botao sec' : 'botao') : 'tfbtn'}" data-pce="tfvisita" data-id="${esc(r.id)}" data-programa="${esc(x.programa)}" ${grande ? id('pce-pronto-tf-' + i) : curto('TF ' + x.nome, 'Fazer o Termo de Fiscalização – ' + rot)}>${icone('formulario')} ${grande ? 'Termo de Fiscalização – ' + esc(rot) : 'TF ' + esc(x.nome)}</button>`;
     }).join('');
   }
-  /** Tela depois de salvar: resumo por praga e os PDFs (um por praga). */
+  /** Tela depois de salvar: resumo por praga e os PDFs (um por programa). */
   async function levPronto(id) {
     const r = id ? await Store.obter('levantamentos', id) : null; if (!r || r.excluido) return go('pce');
     await carregarCatalogo();

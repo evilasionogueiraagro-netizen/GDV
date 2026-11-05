@@ -802,7 +802,7 @@ const PCEMon = (() => {
     if (lev && !lev.excluido && levEhCitros(lev)) return { citros: lev.citros, culturas: culturasCitrosDoLev(lev), lev, cad };
     return dc ? { citros: dc, culturas: dc.culturasAvaliadas || [], lev: null, cad } : null;
   }
-  /** Termo de citros novo: identificação, data e hora da visita, local, frases de ausência/presença, enquadramento padrão e números do relatório. */
+  /** Termo de citros novo: identificação, data e hora da visita, local, frases de ausência/presença e números do relatório (o enquadramento legal já vem do catálogo em D). */
   function preencherTfCitros(D, fo) {
     const L0 = fo.lev || {}, c = fo.cad || {}, dc = fo.cad ? lerJSON(fo.cad.dados, {}) : {};
     const v = (a, b) => (a !== '' && a != null ? a : b), coord = x => (x === '' || x == null ? '' : String(x).replace('.', ','));
@@ -812,7 +812,7 @@ const PCEMon = (() => {
       lat: coord(v(L0.lat, c.lat)), lon: coord(v(L0.lon, c.lon)), data: v(L0.data, c.data) || D.data, hora: String(v(L0.hora, c.hora) || D.hora || '').slice(0, 5),
       atividade: PCECitros.atividadesTexto(fo.citros),
       localAcao: fo.lev ? localDoLev(fo.lev) : [c.propriedade ? 'Propriedade ' + c.propriedade : '', dc.endereco, c.municipio ? `${c.municipio}/${c.uf || 'AM'}` : ''].filter(Boolean).join(', '),
-      constatacao: PCECitros.frases(fo.citros, fo.culturas).join('\n'), enquadramento: CI.enquadramento || '',
+      constatacao: PCECitros.frases(fo.citros, fo.culturas).join('\n'),   // enquadramento: o do catálogo (planilha da GDV), já em D; nunca sobrescrito aqui
       pragas: [...new Set([...(CI.deteccao || []).map(x => x[1]), ...(fo.lev ? pragasDoLevantamento(fo.lev, fo.so) : [])])], acoes: ['Fiscalização'],
       plantas: String(PCECitros.totalPlantas(fo.citros) || ''), sintomas: PCECitros.temPresenca(fo.citros) ? 'sim' : 'nao',
       amostra: fo.lev ? (G.some(x => x.culturas.some(k => k.coleta === 'Sim')) ? 'sim' : 'nao') : (dc.amostra || '') });

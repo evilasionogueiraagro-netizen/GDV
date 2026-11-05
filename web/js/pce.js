@@ -674,7 +674,7 @@ const PCEUI = (() => {
     await carregarCatalogo();
     return Docs.pceGrupos(lev).pragas.filter(g => String(g.praga || '').trim() && programaDaPraga(g.praga).programa === programa).flatMap(g => g.culturas.map(c => {
       const p = pragaPorNome(g.praga);
-      return { praga: g.praga, resultado: c.resultado, enquadramento: (p && p.enquadramentoLegal) || '' };
+      return { praga: g.praga, resultado: c.resultado, enquadramento: (p && p.enquadramentoLegal) || (P.legislacao || {})[g.praga] || '' };   // sem catálogo no aparelho: a planilha da GDV em CONFIG.PCE.legislacao
     }));
   }
   /** No levantamento, F.fotos = todas as fotos do formulário (gerais + de cada cultura): rascunho, descarte e limite contam todas. */

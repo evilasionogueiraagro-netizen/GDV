@@ -100,7 +100,7 @@ const TABELAS = {
   Resultados: ['id', 'levantamentoId', 'culturaId', 'pragaId', 'praga', 'resultado', 'coleta', 'tipoMaterial', 'codigoAmostra', 'destinoAmostra',
                'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario', 'excluido'],
   Arquivos: ['id', 'dono', 'donoId', 'tipo', 'papel', 'nome', 'mime', 'tamanho', 'driveId', 'url', 'usuario', 'criadoEm',  // fotos/assinaturas/PDFs no Drive
-             'rotulo'],   // rotulo = "praga – cultura" da foto do levantamento (vai também no nome do arquivo)
+             'rotulo'],   // rotulo = cultura da foto do levantamento (vai também no nome do arquivo)
   // TF de Barreira em preenchimento no aparelho (alerta "apreensão em andamento" no painel). id = usuario|rascunhoId. Sem CPF/nome do fiscalizado.
   Andamento: ['id', 'usuario', 'fiscal', 'turnoId', 'placa', 'procedimento', 'local', 'barreira', 'lat', 'lon', 'estado', 'inicioTs', 'atualizadoTs'],
   // HISTÓRICO (não vale mais): módulos por nome do servidor. Hoje os módulos vêm de PermissoesDosUsuarios.
@@ -178,7 +178,7 @@ const TABELAS = {
          'escalaRegime', 'escalaDias', 'escalaTroca'],   // regime da escala de plantão (dias | 12x36 | 8h | ajustavel; vazio = o do config.js) e dias do período
   // Quem leu dados pessoais (LGPD): uma linha por usuário + action a cada 1 h (acessos.gs lido_). resumo = filtros, sem dado pessoal.
   AcessosADados: ['id', 'em', 'usuarioId', 'nome', 'acao', 'resumo'],
-  // Catálogo do PCE (pce-catalogo.gs): a gerência edita no painel; vazio = vale a base do código. A praga é o programa (1:1); a família define o
+  // Catálogo do PCE (pce-catalogo.gs): a gerência edita no painel; vazio = vale a base do código. A praga pertence a um programa (várias podem dividir um: Citros); a família define o
   // modelo de cadastro; ligações praga × família e praga × cultura (id = pragaId|alvo; ativo 0 = desfeita, nada se apaga)
   FamiliasDeCulturas: ['id', 'nome', 'modeloCadastro', 'ativo', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor'],
   Culturas: ['id', 'nome', 'nomeCientifico', 'familiaId', 'cultivares', 'ativo', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor'],

@@ -267,9 +267,10 @@ const Campo = (() => {
   }
   async function posicaoSilenciosa() { try { return await pegarLocalSilencioso(); } catch (e) { return null; } }
 
+  /** Submenu das telas de gestão do PCE (propriedades, termos, relatório, mapa, dados offline); também usado por moniliase.js. */
   function subnavHTML(v) {
-    return `<div class="pce-subnav" role="tablist" aria-label="Submenu de navegação">
-      <button class="pce-subnav-btn ${v === 'pcecads' ? 'on' : ''}" data-v="pcecads" id="pce-cads">${icone('propriedade')} <span>Propriedades</span></button>
+    return `<div class="pce-subnav" role="tablist" aria-label="Submenu do PCE">
+      <button class="pce-subnav-btn ${v === 'pcecads' ? 'on' : ''}" data-v="pcecads" id="pce-subnav-cads">${icone('propriedade')} <span>Propriedades</span></button>
       <button class="pce-subnav-btn ${v === 'pcetfs' ? 'on' : ''}" data-v="pcetfs" id="pce-tfs">${icone('formulario')} <span>Termos</span></button>
       <button class="pce-subnav-btn ${v === 'pcerel' ? 'on' : ''}" data-v="pcerel" id="pce-rel">${icone('resumo')} <span>Relatório</span></button>
       <button class="pce-subnav-btn ${v === 'pcemapa' ? 'on' : ''}" data-v="pcemapa" id="pce-mapa">${icone('mapa')} <span>Perto de mim</span></button>
@@ -557,5 +558,5 @@ const Campo = (() => {
     return m.length ? m.map(x => `${x.municipio} (${x.nProps}) — ${fmtDH(x.baixadoEm)}`).join(' · ') : '';
   }
 
-  return { telaBaixar, telaMapa, telaRota, baixar, apagar, atualizarSozinho, buscar, textoOffline, dadosPara, resumo, haversine, ordenar, urlsGoogle, historico, norm };
+  return { subnavHTML, telaBaixar, telaMapa, telaRota, baixar, apagar, atualizarSozinho, buscar, textoOffline, dadosPara, resumo, haversine, ordenar, urlsGoogle, historico, norm };
 })();

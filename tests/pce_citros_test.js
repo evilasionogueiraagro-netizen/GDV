@@ -18,6 +18,8 @@ const get = p => fetch(API + p).then(r => r.json());
 const linhaDe = async (aba, id) => { const t = await get('/__aba?nome=' + aba); const i = t[0].indexOf('id'); const l = t.find(r => r[i] === id); return l ? Object.fromEntries(t[0].map((c, k) => [c, l[k]])) : null; };
 const linhas = async aba => { const t = await get('/__aba?nome=' + aba); return t.slice(1).map(l => Object.fromEntries(t[0].map((c, k) => [c, l[k]]))); };
 const json = v => { try { return JSON.parse(v); } catch (e) { return null; } };
+// Enquadramento legal que o Termo traz (planilha da GDV, LEGISLACAO_PCE_): só o das pragas detectadas ou suspeitas; aqui só o Cancro Cítrico foi detectado.
+const ENQ_CANCRO = 'IN MAPA nº 21/2018; IN SDA/MAPA nº 38';
 const COPIA = process.env.GDV_SAIDA_CITROS;
 const guardar = nome => { if (COPIA) { fs.mkdirSync(COPIA, { recursive: true }); fs.copyFileSync(amb.saida(nome), path.join(COPIA, nome)); } };
 
@@ -182,7 +184,7 @@ const guardar = nome => { if (COPIA) { fs.mkdirSync(COPIA, { recursive: true });
   const desc = await t('constatacao');
   ok(desc.split('\n')[0] === 'Ausência de sintomas de HLB nos frutos e folhas da cultura Laranja e Limão.' && /^Ausência de sintomas de Ácaro Hindustânico nos frutos e folhas da cultura/m.test(desc)
     && /^Presença de sintomas de Cancro Cítrico nos frutos e folhas da cultura Laranja e Limão\.$/m.test(desc), 'Termo: uma frase por doença (ausência/presença), com as culturas de citros', desc);
-  ok(await t('enquadramento') === 'PORTARIA MAPA SDA Nº 1326, DE 4 DE JULHO DE 2025, ART. 23, INCISOS I E II, E ART. 26.', 'Termo: enquadramento legal padrão de citros (editável)', await t('enquadramento'));
+  ok(await t('enquadramento') === ENQ_CANCRO, 'Termo: enquadramento legal da planilha da GDV, só da praga detectada (Cancro Cítrico; HLB e Ácaro ausentes ficam de fora) (editável)', await t('enquadramento'));
   ok(await t('atividade') === 'Produção comercial de frutos; Pomar experimental' && await t('plantas') === '550' && await p.isChecked('input[name="mt-sintomas"][value="sim"]'),
     'Termo: atividade, plantas (soma da cultura do citros) e "presença de sintomas" para o relatório', [await t('atividade'), await t('plantas')]);
   ok(await p.isHidden('input[name="mt-pragas"]') && (await p.$$eval('input[name="mt-pragas"]:checked', l => l.map(x => x.value).sort())).join() === 'Cancro Cítrico,HLB,Ácaro Hindustânico',
@@ -193,7 +195,7 @@ const guardar = nome => { if (COPIA) { fs.mkdirSync(COPIA, { recursive: true });
   await p.click('#mt-salvar'); await p.waitForTimeout(300);
   ok(/local da fiscalização/.test(await toast()), 'Termo de citros: local obrigatório', await toast());
   await p.fill('#mt-localAcao', 'Propriedade Sítio Ficticio, Ramal Ficticio, km 3, Manaus/AM');
-  await p.fill('#mt-enquadramento', 'PORTARIA MAPA SDA Nº 1326, DE 4 DE JULHO DE 2025, ART. 23, INCISOS I E II, E ART. 26.');
+  await p.fill('#mt-enquadramento', ENQ_CANCRO);
   await p.click('[data-mon=frasescitros]');
   ok((await t('constatacao')).split('\n').length === 4 && /Orientado o produtor/.test(await t('constatacao')), '"Refazer as frases": troca só as frases (o texto do fiscal continua)', await t('constatacao'));
   await p.click('#mt-salvar'); await confirmarNumeros('#mon-pronto');
@@ -221,7 +223,7 @@ const guardar = nome => { if (COPIA) { fs.mkdirSync(COPIA, { recursive: true });
   ok(new RegExp(`Em ${dd}/${mm}/${aa} às ${lev.hora.slice(0, 2)} : ${lev.hora.slice(3, 5)} hora\\(s\\) ao realizar fiscalização no\\(a\\) Propriedade Sítio Ficticio, Ramal Ficticio, km 3, Manaus/AM constatei`).test(T0),
     'Termo: "Em data às hora ao realizar fiscalização no(a) local constatei"', T0.slice(T0.indexOf('Em '), T0.indexOf('Em ') + 200));
   ok(/Ausência de sintomas de HLB nos frutos e folhas da cultura/.test(T0) && /Presença de sintomas de Cancro Cítrico nos frutos e folhas da cultura/.test(T0) && /Orientado o produtor/.test(T0)
-    && /PORTARIA MAPA SDA Nº 1326, DE 4 DE JULHO DE 2025, ART\. 23, INCISOS I E II, E ART\. 26\./.test(T0), 'Termo: frases de ausência/presença, texto do fiscal e enquadramento');
+    && T0.includes(ENQ_CANCRO) && !/Portaria SDA\/MAPA nº 1\.326/.test(T0.slice(T0.indexOf('TERMO DE FISCALIZAÇÃO'))), 'Termo: frases de ausência/presença, texto do fiscal e enquadramento só da praga detectada');
   ok(/4 – Testemunhas/.test(T0) && /Recebi a 2ª via deste Termo em:/.test(T0) && /1ª via: Interessado 2ª via: ADAF Central 3ª via: Unidade Local/.test(T0), 'Termo: testemunhas, "Recebi a 2ª via" e as 3 vias');
   ok(!/Monilíase|Mosca-da-Carambola|ao realizar ações de/.test(T0.slice(T0.indexOf('TERMO DE FISCALIZAÇÃO'))), 'Termo de citros: sem o quadro de pragas/ações do Termo de monilíase');
   // páginas renderizadas (para comparar com o modelo) e o PDF do Chromium

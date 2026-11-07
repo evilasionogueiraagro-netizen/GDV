@@ -166,11 +166,12 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
     if (o.relogio) await p.clock.install({ time: Date.now() });
     await p.goto(o.url || WEB); return p;
   }
-  const esperarTV = p => p.waitForSelector('#tv-palco .tv-kpi', { timeout: 20000 }).then(() => p.waitForTimeout(700));
-  const esperarDados = p => p.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 20000 }).then(() => p.waitForTimeout(400));
+  const semAnimacao = p => p.waitForFunction(() => !document.querySelector('#tv-palco').getAnimations().length, null, { timeout: 5000 });   // entrada da tela (.4 s) terminou
+  const esperarTV = p => p.waitForSelector('#tv-palco .tv-kpi', { timeout: 20000 }).then(() => semAnimacao(p));
+  const esperarDados = p => p.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 20000 });
   const tela = p => p.evaluate(() => { const r = document.getElementById('tv-raiz'); return r ? { tela: r.dataset.tela, i: +r.dataset.indice, pausado: r.dataset.pausado } : null; });
   const kpiTV = (p, chave) => p.locator(`#tv-palco .tv-kpi[data-chave="${chave}"] .tv-kpi-val`).first().textContent().then(s => s.trim()).catch(() => null);
-  const irTela = async (p, id) => { await p.evaluate(i => PainelTV.ir(i), id); await p.waitForTimeout(700); };
+  const irTela = async (p, id) => { await p.evaluate(i => PainelTV.ir(i), id); await semAnimacao(p); };
   const avanca = async (p, ms) => { await p.clock.fastForward(ms); await esperaReal(250); };
   /** Espera (tempo real) até a condição na página; a página tem relógio falso, então o polling é feito daqui. */
   async function ate(p, fn, arg, ms = 15000) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (await p.evaluate(fn, arg)) return true; } catch (e) { /* navegando */ } await esperaReal(150); } return false; }
@@ -274,7 +275,7 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   /* ================= 1. ?tv=1 — telas, números, layout 1080p ================= */
   console.log('1. Modo TV por ?tv=1 (1920×1080)');
   let p = await abrir({ nome: 'tv1080', url: WEB + '?tv=1&rotacao=300&rotacaoAoVivo=300', ls: sessao(TV) });
-  await esperarTV(p); await p.waitForFunction(() => document.body.classList.contains('tv-ocioso'), null, { timeout: 8000 }); await p.waitForTimeout(400);
+  await esperarTV(p); await p.waitForFunction(() => document.body.classList.contains('tv-ocioso'), null, { timeout: 8000 });
   ok(await p.evaluate(() => document.body.classList.contains('tv') && localStorage.getItem('gdv.painel.tv') === '1'), '?tv=1 liga o modo TV e lembra no aparelho (gdv.painel.tv=1)');
   ok(await p.isHidden('#pn-sair') && await p.isHidden('#pn-app') && await p.isHidden('#pn-login'), 'no modo TV: botão Sair (logout) escondido, sem filtros nem login');
   ok(/Sala de Situação — e-GDV/.test(await p.textContent('.tv-topo h1')) && await p.isVisible('.tv-logo'), 'topo: logo ADAF e "Sala de Situação — e-GDV"');
@@ -371,7 +372,7 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   /* ================= 2. 4K ================= */
   console.log('2. 3840×2160');
   p = await abrir({ nome: 'tv4k', viewport: { width: 3840, height: 2160 }, url: WEB + '?tv=1&rotacao=300&rotacaoAoVivo=300', ls: sessao(TV) });
-  await esperarTV(p); await p.waitForFunction(() => document.body.classList.contains('tv-ocioso'), null, { timeout: 8000 }); await p.waitForTimeout(400);
+  await esperarTV(p); await p.waitForFunction(() => document.body.classList.contains('tv-ocioso'), null, { timeout: 8000 });
   for (const id of ['aovivo', 'alertas', 'barreiras', 'tf', 'pce']) {
     await irTela(p, id); await checarLayout(p, '4K ' + id);
     if (id === 'aovivo') { await checarVivo(p, '4K aovivo'); await p.screenshot({ path: amb.saida('tv_aovivo_4k.png') }); }
@@ -382,7 +383,7 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   console.log('2b. Ao vivo: mapa na altura toda, em várias resoluções');
   for (const [w, h] of [[1366, 620], [1366, 768], [1920, 1080], [3840, 2160]]) {
     p = await abrir({ nome: `vivo${w}x${h}`, viewport: { width: w, height: h }, url: WEB + '?tv=1&rotacao=300&rotacaoAoVivo=300', ls: sessao(TV) });
-    await esperarTV(p); await p.waitForFunction(() => document.body.classList.contains('tv-ocioso'), null, { timeout: 8000 }); await p.waitForTimeout(400);
+    await esperarTV(p); await p.waitForFunction(() => document.body.classList.contains('tv-ocioso'), null, { timeout: 8000 });
     await checarLayout(p, `${w}×${h} aovivo`); await checarVivo(p, `${w}×${h} aovivo`);
     ok(await kpiTV(p, 'andamento') === '3' && await kpiTV(p, 'veiculos') === String(vHojeEsp.length), `${w}×${h}: barreiras ativas e veículos hoje`, [await kpiTV(p, 'andamento'), await kpiTV(p, 'veiculos')]);
     if (w < 3840) await p.screenshot({ path: amb.saida(`tv_aovivo_novo_${w}x${h}.png`) });
@@ -554,7 +555,7 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   // achado: a recarga tira da tela cheia e ninguém está na sala → a dica fica fixa até alguém clicar
   ok(await p.isVisible('#tv-dica') && (await p.getAttribute('#tv-dica', 'class')).includes('fixa') && /voltar à tela cheia/.test(await p.textContent('#tv-dica')), 'depois da recarga automática: dica fixa para voltar à tela cheia', await p.textContent('#tv-dica'));
   await avanca(p, 60000); ok(await p.isVisible('#tv-dica'), 'a dica fixa não some sozinha (60 s depois continua)');
-  await p.mouse.click(800, 500); await p.waitForTimeout(200); ok(await p.isHidden('#tv-dica'), 'um clique na tela tira a dica (e pede a tela cheia)');
+  await p.mouse.click(800, 500); await p.waitForSelector('#tv-dica', { state: 'hidden', timeout: 3000 }).catch(() => {}); ok(await p.isHidden('#tv-dica'), 'um clique na tela tira a dica (e pede a tela cheia)');
   ok(!p.erros.length, 'tv6h: sem erros de console', p.erros);
   await p.context().close();
 
@@ -643,7 +644,7 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   ok((await post({ action: 'sync', key: SEMEADOR, since: 0, turnos: extras, veiculos: vExtra })).ok, '+9 barreiras abertas perto de Manaus');
   for (const [vp, nm] of [[{ width: 1920, height: 1080 }, '1080p'], [{ width: 3840, height: 2160 }, '4K']]) {
     p = await abrir({ nome: 'tvmuitas' + nm, viewport: vp, url: WEB + '?tv=1&rotacao=300&rotacaoAoVivo=300', ls: sessao(TV) });
-    await esperarTV(p); await p.waitForFunction(() => document.body.classList.contains('tv-ocioso'), null, { timeout: 8000 }); await p.waitForTimeout(400);
+    await esperarTV(p); await p.waitForFunction(() => document.body.classList.contains('tv-ocioso'), null, { timeout: 8000 });
     ok(await kpiTV(p, 'andamento') === '12', `${nm}: 12 barreiras ativas`, await kpiTV(p, 'andamento'));
     const nL = await p.evaluate(() => { const l = document.querySelector('.tv-lista'); const vis = [...l.children].filter(e => !e.hidden && !e.classList.contains('tv-mais')).length; const m = l.querySelector('.tv-mais'); return { vis, mais: m ? +(m.textContent.match(/\+(\d+)/) || [0, 0])[1] : 0, compacta: l.classList.contains('compacta') }; });
     ok(nL.vis + nL.mais === 12 && nL.compacta, `${nm}: lista compacta, ${nL.vis} visíveis + "+${nL.mais}" = 12`, nL);

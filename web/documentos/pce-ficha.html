@@ -3,30 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <title>Ficha oficial do PCE</title>
-<link rel="stylesheet" href="pce.css">
-<style>
-/* Ficha oficial do PCE: um único modelo para os 6 formulários de papel (citros, banana, cacau e cupuaçu, mandioca, soja e propriedade).
-   O miolo (título, seções, perguntas) é montado por pce-docs.js a partir de CONFIG.PCE.fichas; o estilo é o de pce.css (.pce-doc). 1 folha A4. */
-@page{ size:A4 portrait; margin:8mm 7mm; }
-</style>
+<link rel="stylesheet" href="documento-base.css">
+<link rel="stylesheet" href="pce-ficha.css">
 </head>
 <body>
-<div class="a4 pce-doc ficha">
-  <div class="via"></div>
-  <div class="cab"><img src="../img/brasao.png" alt="">
-    <div class="gov">GOVERNO DO ESTADO DO AMAZONAS</div>
-    <div>Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM</div>
-    <div>Gerência de Defesa Vegetal – GDV</div></div>
+<div class="a4 doc ficha">
+  <div data-cabecalho data-gdv></div>
   <div class="cq" data-ficha></div>
-  <div class="vias"><span>1ª via: Unidade Local</span><span>2ª via: ADAF Central (E-mail)</span></div>
-  <div class="rodape">
-    <div class="rodape-esquerda" style="font-size:10px">Avenida Carlos Drummond de Andrade, 1460 Japiim<br>Conj. Atílio Andreazza, ULBRA, Bloco G, 1º andar<br>
-      Fone: (92) 99192-3067 / 99983-1176<br>Manaus-AM-CEP 69077-730<br>E-mail: gabinete@adaf.am.gov.br</div>
-    <div class="rodape-centro"><img src="../img/logo-adaf.png" alt="ADAF"></div>
-    <div class="rodape-direita"><img class="logo-sepror" src="../img/sepror.png" alt="SEPROR – Secretaria de Produção Rural do Estado do Amazonas"></div>
-  </div>
+  <div data-rodape data-vias="1ª via: Unidade Local|2ª via: ADAF Central (E-mail)"></div>
 </div>
 <script src="../js/config.js"></script>
+<script src="documento-base.js"></script>
 <script src="pce-docs.js"></script>
 </body>
 </html>

@@ -286,7 +286,7 @@ const CONFIG = {
         mandioca: { nome: 'Mandioca', titulo: 'FICHA DE CADASTRO E LEVANTAMENTO DE MANDIOCA', numero: 'Nº', base: ['LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS'],
           culturaTitulo: 'CULTURA DA MANDIOCA', colunas: { cultivar: 'CULTIVAR/VARIEDADE', producao: 'ESTIMATIVA DE PRODUÇÃO (tonelada/Ano – sacas/ha/ano)' },
           perguntas: [
-            { k: 'estagio', rot: 'ESTÁGIO DA PLANTA:', tipo: 'opcao', layout: 'coluna', ops: [['plantio', 'Plantio e Emergência - 15-30 dias'], ['vegetativo', 'Desenvolvimento Vegetativo - 60-90 dias'],
+            { k: 'estagio', rot: 'ESTÁGIO DA PLANTA:', tipo: 'opcao', layout: 'colunas2', ops: [['plantio', 'Plantio e Emergência - 15-30 dias'], ['vegetativo', 'Desenvolvimento Vegetativo - 60-90 dias'],
               ['raizes', 'Formação e Desenvolvimento de Raízes - 90-180 dias'], ['maturacao', 'Maturação das Raízes - 180-270 dias'], ['colheita', 'Colheita - 270-360 dias']] },
             { k: 'materialDe', rot: 'ORIGEM DO MATERIAL DE PROPAGAÇÃO', tipo: 'opcao', ops: [['proprio', 'PRÓPRIO'], ['terceiros', 'TERCEIROS']], compl: { k: 'origemMaterial', rot: 'ORIGEM' } },
             { k: 'assistencia', rot: 'ASSISTÊNCIA TÉCNICA?', tipo: 'sn', compl: { k: 'assistenciaEmpresa', rot: 'NOME DA EMPRESA' } },

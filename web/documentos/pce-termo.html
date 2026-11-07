@@ -3,36 +3,29 @@
 <head>
 <meta charset="UTF-8">
 <title>Termo de Fiscalização (PCE)</title>
-<link rel="stylesheet" href="pce.css">
-<style>
-/* Termo de Fiscalização do PCE: um único modelo (todos os programas, inclusive citros, que acrescenta o local especificado). 1 folha A4.
-   Mesmo estilo da Ficha oficial (pce.css, .pce-doc): cabeçalho, quadro, seções, caixas, assinaturas e rodapé. */
-@page{ size:A4 portrait; margin:8mm 7mm; }
-</style>
+<link rel="stylesheet" href="documento-base.css">
+<link rel="stylesheet" href="pce-ficha.css">
 </head>
 <body>
-<div class="a4 pce-doc termo">
-  <div class="via"></div>
-  <div class="cab"><img src="../img/brasao.png" alt="">
-    <div class="gov">GOVERNO DO ESTADO DO AMAZONAS</div>
-    <div>Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM</div></div>
+<!-- Termo de Fiscalização do PCE: um único modelo para todos os programas (o de citros acrescenta o local especificado). Mesma base da ficha (documento-base.css). -->
+<div class="a4 doc termo">
+  <div data-cabecalho></div>
   <div class="cancelado-faixa" data-c="cancelado"></div>
   <div class="cq">
-  <table class="ln"><tr><td class="tit">TERMO DE FISCALIZAÇÃO Nº <span class="num" data-c="numeroTxt"></span>
-      <div class="leg">Nº sequencial &nbsp;&nbsp; Ano &nbsp;&nbsp;&nbsp; Unidade</div></td></tr>
-    <tr><td class="sec">1 – Identificação</td></tr></table>
+  <table class="ln"><tr><td class="tit">TERMO DE FISCALIZAÇÃO Nº <span data-numero></span></td></tr></table>
+  <table class="ln"><tr><td class="sec">1 – Identificação</td></tr></table>
   <table class="ln"><colgroup><col style="width:46%"><col style="width:26%"><col></colgroup>
     <tr><td><div class="cp"><span class="lbl">Nome:</span><span class="v" data-c="nome"></span></div></td>
-      <td><div class="cp"><span class="lbl">CPF:</span><span class="v" data-c="cpf"></span></div></td>
+      <td><div class="cp"><span class="lbl">CPF:</span><span class="v nw" data-c="cpf"></span></div></td>
       <td><div class="cp"><span class="lbl">Atividade:</span><span class="v" data-c="atividade"></span></div></td></tr>
     <tr><td><div class="cp"><span class="lbl">Empresa / Fantasia:</span><span class="v" data-c="empresa"></span></div></td>
-      <td><div class="cp"><span class="lbl">CNPJ:</span><span class="v" data-c="cnpjTxt"></span></div></td>
+      <td><div class="cp"><span class="lbl">CNPJ:</span><span class="v nw" data-c="cnpjTxt"></span></div></td>
       <td><div class="cp"><span class="lbl">Atividade:</span><span class="v" data-c="atividadeEmpresa"></span></div></td></tr>
     <tr><td colspan="3"><div class="cp"><span class="lbl">Endereço:</span><span class="v" data-c="endereco"></span></div></td></tr>
     <tr><td><div class="cp"><span class="lbl">Município:</span><span class="v" data-c="municipio"></span></div></td>
-      <td><div class="cp"><span class="lbl">UF:</span><span class="v" data-c="uf"></span></div></td>
-      <td><div class="cp"><span class="lbl">Telefone:</span><span class="v" data-c="telefone"></span></div></td></tr>
-    <tr><td colspan="3"><div class="cp"><span class="lbl">Coordenadas Geográficas:</span><span class="v" data-c="coordTxt"></span></div></td></tr></table>
+      <td><div class="cp"><span class="lbl">UF:</span><span class="v nw" data-c="uf"></span></div></td>
+      <td><div class="cp"><span class="lbl">Telefone:</span><span class="v nw" data-c="telefone"></span></div></td></tr>
+    <tr><td colspan="3"><div class="cp"><span class="lbl">Coordenadas Geográficas:</span><span class="v nw" data-c="coordTxt"></span></div></td></tr></table>
   <table class="ln"><tr><td class="sec">2 – Descrição da Ação</td></tr>
     <tr><td class="cxs">
       <span class="op"><span class="cx" data-x="pragas=Ácaro Hindustânico"></span>Ácaro Hindustânico</span>
@@ -68,21 +61,15 @@
         <div class="ass" data-ass="testemunha1"><div class="ass-img"></div><div class="linha">Assinatura</div></div>
         <div class="lin"><span>Nome:</span><u data-c="t2nome"></u></div><div class="lin"><span>CPF/RG:</span><u data-c="t2doc"></u></div>
         <div class="ass" data-ass="testemunha2"><div class="ass-img"></div><div class="linha">Assinatura</div></div></td>
-      <td><div class="b">Recebi a 2ª via deste Termo em:</div><div class="peq" style="text-align:left">(Data, hora e local).</div>
-        <div class="v" style="display:block;font-size:11px" data-c="recebidoEm"></div>
+      <td><div class="b">Recebi a 2ª via deste Termo em:</div><div class="peq esq">(Data, hora e local).</div>
+        <div class="v recebi" data-c="recebidoEm"></div>
         <div class="ass" data-ass="produtor"><div class="ass-img"></div><div class="linha">Assinatura</div></div>
-        <div class="ass" data-ass="servidor" style="margin-top:4mm"><div class="ass-img"></div><div class="linha">Assinatura e Identificação do Servidor da ADAF</div>
+        <div class="ass sv" data-ass="servidor"><div class="ass-img"></div><div class="linha">Assinatura e Identificação do Servidor da ADAF</div>
           <div class="ident" data-c="servidorIdent"></div></div></td></tr></table>
   </div>
-  <div class="vias"><span>1ª via: Interessado</span><span>2ª via: ADAF Central</span><span>3ª via: Unidade Local</span></div>
-  <div class="rodape">
-    <div class="rodape-esquerda" style="font-size:10px">Avenida Carlos Drummond de Andrade, 1460 Japiim<br>Conj. Atílio Andreazza, ULBRA, Bloco G, 1º andar<br>
-      Fone: (92) 99192-3067 / 99983-1176<br>Manaus-AM-CEP 69077-730<br>E-mail: gabinete@adaf.am.gov.br</div>
-    <div class="rodape-centro"><img src="../img/logo-adaf.png" alt="ADAF"></div>
-    <div class="rodape-direita"><img class="logo-sepror" src="../img/sepror.png" alt="SEPROR – Secretaria de Produção Rural do Estado do Amazonas"></div>
-  </div>
-  <div class="extras">e-GDV · <span data-c="extras"></span></div>
+  <div data-rodape data-vias="1ª via: Interessado|2ª via: ADAF Central|3ª via: Unidade Local"></div>
 </div>
+<script src="documento-base.js"></script>
 <script src="pce-docs.js"></script>
 </body>
 </html>

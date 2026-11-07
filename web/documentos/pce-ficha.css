@@ -1,0 +1,39 @@
+/* Ficha oficial e Termo de Fiscalização do PCE: só o que é próprio dos dois, sobre documento-base.css (fonte, margens, quadros, caixas, assinaturas, rodapé). */
+.doc.ficha table.ln.perg td { height: var(--rh); }
+.doc.ficha .aviso td { font-size: 9pt; }
+.doc.ficha .coluna .op { display: block; margin-right: 0; }
+.doc.ficha .colunas2 { display: flex; flex-wrap: wrap; }
+.doc.ficha .colunas2 .op { width: 50%; margin-right: 0; white-space: normal; padding-right: 1mm; }
+.doc.ficha .grupo { font-weight: bold; }
+.doc.ficha .compl { margin-left: 1mm; white-space: nowrap; }
+.doc.ficha .compl .v { white-space: normal; }
+/* tabela de cultura (frutos) e quadro do levantamento; o cabeçalho repete se a tabela continuar em outra folha */
+.doc.ficha table.ln.cult th, .doc.ficha table.ln.lev th { font-weight: bold; text-align: center; font-size: var(--fh); padding: 0.3mm; line-height: 1.15; }
+.doc.ficha table.ln.cult td { height: var(--rh); text-align: center; font-weight: bold; overflow-wrap: anywhere; padding: 0 0.6mm; }
+.doc.ficha table.ln.cult td small { display: block; font-weight: normal; font-size: var(--fn); }
+.doc.ficha table.ln.lev td { height: var(--rh); }
+.doc.ficha table.ln.lev td.c { text-align: center; }
+.doc.ficha table.ln.lev td.na { text-align: center; color: #777; }
+.doc.ficha table.ln.lev td .v { display: block; min-width: 0; border-bottom: 0; }
+.doc.ficha .resp { text-align: center; font-weight: bold; padding: 0.6mm 0; }
+.doc.ficha table.ln.assin td { padding: 1mm 4mm; }
+.doc.ficha .assin .data { text-align: center; margin-top: 1mm; }
+.doc.ficha .assin .serv { font-size: var(--fh); }
+/* Termo de Fiscalização */
+.doc.termo { --rh: 6mm; }
+.doc.termo table.ln td.tit { font-size: 17pt; text-align: left; white-space: nowrap; padding: 1.2mm 1.6mm; }
+.doc.termo .cxs { line-height: 1.8; }
+.doc.termo .cxs .op { margin-right: 2mm; }
+.doc.termo .em { line-height: 2; }
+.doc.termo .em u { text-decoration: none; border-bottom: 0.6pt dotted #000; padding: 0 1.6mm; font-weight: bold; }
+.doc.termo .peq { font-size: var(--fn); text-align: center; line-height: 1.2; }
+.doc.termo .peq.esq { text-align: left; padding-left: 12mm; }
+.doc.termo .tst td { padding-bottom: 3mm; }
+.doc.termo .tst .lin { margin-top: 1.2mm; display: flex; align-items: flex-end; gap: 1mm; }
+.doc.termo .tst .lin u { text-decoration: none; flex: 1; border-bottom: 0.6pt solid #000; font-weight: bold; min-height: 4mm; }
+.doc.termo .ass { text-align: center; font-weight: bold; margin-top: 0.5mm; }
+.doc.termo .ass.sv { margin-top: 3mm; }
+.doc.termo .ass .linha { margin: 0 4mm; }
+.doc.termo .ass .ident { font-size: var(--fh); font-weight: normal; }
+.doc.termo .recebi { display: block; font-weight: bold; }
+.doc.termo .cancelado-faixa { border: 0.8pt solid #b00020; color: #b00020; font-weight: bold; text-align: center; padding: 0.8mm; margin-bottom: 1mm; }

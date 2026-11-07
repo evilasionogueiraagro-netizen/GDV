@@ -68,8 +68,6 @@ const PCEDocs = (() => {
       cnpjTxt: fmtDoc(t.cnpj || (digitos(t.doc).length === 14 ? t.doc : '')), dataTxt: dataBR(t.data), coordTxt: coordTxt(t.lat, t.lon),
       pragas: lerJSON(t.pragas, []), tipoLocal: local, acoes: citros && !acoes.length ? ['Fiscalização'] : acoes, localEspecificado: especifico, hora: String(t.hora || '').slice(0, 5),
       t1nome: T(0).nome || '', t1doc: T(0).doc || '', t2nome: T(1).nome || '', t2doc: T(1).doc || '', servidorIdent: ident,
-      extras: [`plantas inspecionadas: ${num(t.plantasInspecionadas)}`,
-        `amostra coletada: ${t.amostra === 'sim' ? 'sim' : 'não'}`, `sintomas: ${t.sintomas === 'sim' ? 'sim' : 'não'}`].join(' · '),
       cancelado: c ? 'TERMO CANCELADO' + (t.motivoCancel ? ' – ' + t.motivoCancel : '') : '' };
   }
 
@@ -237,7 +235,7 @@ const PCEDocs = (() => {
     const rot = txt => el('span', 'lbl', txt);
     const cx = on => el('span', 'cx' + (on ? ' on' : ''));
     const op = (on, txt, ...mais) => el('span', 'op', cx(on), txt, ...mais);
-    const cp = (r, valor, cls) => el('div', 'cp' + (cls ? ' ' + cls : ''), rot(r), v(valor));
+    const cp = (r, valor, cls, vcls) => el('div', 'cp' + (cls ? ' ' + cls : ''), rot(r), v(valor, vcls));
     const tabela = (cls, cols, ...linhas) => { const t = el('table', 'ln' + (cls ? ' ' + cls : '')); if (cols) { const cg = el('colgroup'); cols.forEach(w => { const c = el('col'); if (w) c.style.width = w; cg.append(c); }); t.append(cg); } linhas.flat().forEach(l => { if (l) t.append(l); }); return t; };
     const tr = (...tds) => el('tr', '', ...tds);
     const td = (cls, ...filhos) => el('td', cls, ...filhos);
@@ -270,13 +268,14 @@ const PCEDocs = (() => {
     };
     const perguntas = lista_ => {
       const ls = lista_.filter(p => !p.legado || !vazioV(V.r[p.k]) || (p.compl && !vazioV(V.r[p.compl.k])));
-      return ls.length ? tabela('perg', ['36%', ''], ls.map(linhaPerg)) : null;
+      const pct = 32;                                                                  // mesma coluna de texto em todas as tabelas de todas as fichas
+      return ls.length ? tabela('perg', [pct + '%', ''], ls.map(linhaPerg)) : null;
     };
     const corpo = [];
 
     // título oficial com Nº, base legal
     corpo.push(tabela('', null, tr(td('tit', V.titulo)),
-      tr(td('num-l', V.numeroRot + ' ', el('span', 'num', V.numeroTxt), el('div', 'leg', 'Nº sequencial    Ano     Unidade'))),
+      tr(td('tit', V.numeroRot + ' ', (() => { const n = el('span'); n.setAttribute('data-numero', ''); return n; })())),
       V.base.length ? tr(td('base', ...V.base.flatMap((l, i) => (i ? [el('br'), l] : [l])))) : null));
     // propriedade comercial?
     corpo.push(tabela('aviso', ['31%', '15%', ''],
@@ -285,13 +284,13 @@ const PCEDocs = (() => {
     // 1. produtor/proprietário (o mesmo em todas as fichas)
     const i = V.id;
     corpo.push(sec('1.   DADOS DO PRODUTOR/PROPRIETÁRIO'));
-    corpo.push(tabela('dados', ['55%', ''],
-      tr(td('', cp('NOME DO PRODUTOR:', i.nome)), td('', cp('CPF:', i.cpf))),
-      tr(td('', cp('NOME DA PROPRIEDADE:', i.propriedade)), td('', cp('CNPJ:', i.cnpj))),
-      tr(td('', cp('TELEFONE:', i.telefone)), td('', cp('CÓDIGO DA PROPRIEDADE (CONFORME IN Nº33/2016):', i.codigo))),
-      tr(td('', cp('ENDEREÇO:', i.endereco)), td('', el('div', 'cp duplo', rot('MUNICÍPIO:'), v(i.municipio), rot('UF:'), v(i.uf, 's')))),
-      tr(td('', el('div', 'cp duplo', rot('GEORREFERENCIAMENTO: Lat.:'), v(i.lat), rot('Lon.:'), v(i.lon))),
-        td('', rot('PRINCIPAL VIA DE ACESSO À PROPRIEDADE: '), ...cfg.vias.map(([c, tx]) => op(i.via === c, tx, c === 'outra' ? el('span', '', ': ') : null, c === 'outra' ? v(i.viaOutra, 'curto') : null))))));
+    // cada linha é uma tabela com as próprias larguras (nada quebra à toa); as bordas se juntam como num quadro só
+    corpo.push(tabela('dados', ['60%', ''], tr(td('', cp('NOME DO PRODUTOR:', i.nome)), td('', cp('CPF:', i.cpf, '', 'nw'))),
+      tr(td('', cp('NOME DA PROPRIEDADE:', i.propriedade)), td('', cp('CNPJ:', i.cnpj, '', 'nw')))));
+    corpo.push(tabela('dados', ['36%', ''], tr(td('', cp('TELEFONE:', i.telefone, '', 'nw')), td('', cp('CÓDIGO DA PROPRIEDADE (CONFORME IN Nº33/2016):', i.codigo, '', 'nw')))));
+    corpo.push(tabela('dados', ['60%', ''], tr(td('', cp('ENDEREÇO:', i.endereco)), td('', el('div', 'cp duplo', rot('MUNICÍPIO:'), v(i.municipio), rot('UF:'), v(i.uf, 's nw'))))));
+    corpo.push(tabela('dados', ['60%', ''], tr(td('', el('div', 'cp duplo', rot('GEORREFERENCIAMENTO: Lat.:'), v(i.lat, 'nw'), rot('Lon.:'), v(i.lon, 'nw'))),
+      td('', rot('PRINCIPAL VIA DE ACESSO À PROPRIEDADE: '), ...cfg.vias.map(([c, tx]) => op(i.via === c, tx, c === 'outra' ? el('span', '', ': ') : null, c === 'outra' ? v(i.viaOutra, 'curto') : null))))));
     // 2. dados da propriedade: situação fundiária + o que é do modelo
     const situacao = { k: 'situacao', rot: 'SITUAÇÃO FUNDIÁRIA:', tipo: 'opcao', ops: cfg.situacoes, outro: 'situacaoOutras', outroOp: 'outras' };
     V.r.situacao = V.situacao; V.r.situacaoOutras = V.situacaoOutras;
@@ -299,7 +298,7 @@ const PCEDocs = (() => {
     corpo.push(perguntas([situacao, ...arr(M.propriedade)]));
     // 3. cultura: tabela padrão dos frutos + perguntas do modelo
     corpo.push(sec('3.   ' + M.culturaTitulo));
-    const colunas = cfg.colunas.map(([c, tx]) => [c, (M.colunas && M.colunas[c]) || tx]), W = { cultura: 14, cultivar: 14, area: 8, espacamento: 10, idade: 9, quantidade: 11, producao: 18, destino: 16 };
+    const colunas = cfg.colunas.map(([c, tx]) => [c, (M.colunas && M.colunas[c]) || tx]), W = { cultura: 10, cultivar: 13, area: 8, espacamento: 14, idade: 8, quantidade: 12, producao: 19, destino: 16 };
     const cheias = V.frutos, vazias = Math.max(0, (cfg.linhasCultura || 3) - cheias.length);
     const soma = k => cheias.reduce((s, x) => s + num(x[k]), 0), somaTxt = k => (cheias.some(x => num(x[k])) ? numTxt(Math.round(soma(k) * 1000) / 1000) : '');
     const celula = (x, c) => { const t = td('', str(x[c])); if (c === 'cultura' && x.atividade) t.append(el('small', '', x.atividade)); return t; };
@@ -315,27 +314,92 @@ const PCEDocs = (() => {
     if (L.length) {
       const tipoTxt = { delimitacao: 'Delimitação', deteccao: 'Detecção' };
       const aplica = (l, c) => l.cols.includes(c);
-      corpo.push(tabela('lev', ['25%', '12%', '5%', '5%', '21%', '13%', ''],
+      corpo.push(tabela('lev', ['23%', '15%', '5%', '5%', '17%', '16%', ''],
         el('thead', '', tr(...['PRAGA', 'LEVANTAMENTO', 'SIM', 'NÃO', 'HÁ QUANTO TEMPO', 'UTILIZA MÉT. CONTROLE', 'QUAL'].map(tx => el('th', '', tx)))),
         el('tbody', '', ...L.map(l => el('tr', '', td('b', l.rot), td('c', tipoTxt[l.tipo]), td('c', cx(l.tem === 'sim')), td('c', cx(l.tem === 'nao')),
-          aplica(l, 'tempo') ? td('', v(l.tempo)) : td('na'),
-          aplica(l, 'controle') ? td('c', op(l.controle === 'sim', 'sim'), op(l.controle === 'nao', 'não')) : td('na'),
-          aplica(l, 'controle') || aplica(l, 'qual') ? td('', v(l.qual)) : td('na'))))));
+          aplica(l, 'tempo') ? td('', v(l.tempo)) : td('na', '—'),
+          aplica(l, 'controle') ? td('c', op(l.controle === 'sim', 'sim'), op(l.controle === 'nao', 'não')) : td('na', '—'),
+          aplica(l, 'controle') || aplica(l, 'qual') ? td('', v(l.qual)) : td('na', '—'))))));
     }
     if (arr(LV.perguntas).length) corpo.push(perguntas(arr(LV.perguntas)));
     // responsável técnico, assinaturas
+    const fim = [];
     const rt = V.rt;
-    corpo.push(tabela('', ['70%', ''], tr(td('', cp('NOME DO RESPONSÁVEL TÉCNICO (SE HOUVER):', rt.nome)), td('', cp('Nº CONSELHO:', rt.conselho)))));
-    if (V.declaracao) corpo.push(el('div', 'resp', V.declaracao));
+    fim.push(tabela('', ['68%', ''], tr(td('', cp('NOME DO RESPONSÁVEL TÉCNICO (SE HOUVER):', rt.nome)), td('', cp('Nº CONSELHO:', rt.conselho, '', 'nw')))));
+    if (V.declaracao) fim.push(el('div', 'resp', V.declaracao));
     const s = V.servidor;
-    corpo.push(tabela('assin', null, tr(td('', el('div', 'cols',
+    fim.push(tabela('assin', null, tr(td('', el('div', 'cols',
       el('div', 'col', el('div', 'ass-img'), el('div', 'linha', 'SERVIDOR DA ADAF-AM'),
         el('div', 'serv', el('b', '', s.nome), el('br'), s.cargo, el('br'), [s.matricula, s.lotacao].filter(Boolean).join(' '))),
       el('div', 'col', el('div', 'ass-img'), el('div', 'linha', 'PRODUTOR/PROPRIETÁRIO'), el('div', 'serv', i.nome))),
       el('div', 'data', 'LOCAL E DATA: ', v(V.local, 'curto'), ', ', v(V.dataTxt, 'curto'))))));
-    const [colS, colP] = corpo[corpo.length - 1].querySelectorAll('.col'); colS.setAttribute('data-ass', 'servidor'); colP.setAttribute('data-ass', 'produtor');
+    const [colS, colP] = fim[fim.length - 1].querySelectorAll('.col'); colS.setAttribute('data-ass', 'servidor'); colP.setAttribute('data-ass', 'produtor');
+    corpo.push(el('div', 'fim', ...fim));
     const alvo = pg.querySelector('[data-ficha]'); alvo.textContent = ''; alvo.append(...corpo.filter(Boolean));
     pg.setAttribute('data-modelo', V.modelo);
+  }
+
+  /* ---------- ajuste de folha: o corpo nunca passa do rodapé (preso à base da folha por documento-base.css) ---------- */
+  /**
+   * Cada ficha cabe numa folha: se o corpo passar do rodapé, a classe .compacta (8,5pt); se ainda assim não couber, o corpo continua numa segunda folha
+   * completa (com o próprio rodapé), distribuído por seções e, na tabela de cultura, por linhas com o cabeçalho repetido; responsável técnico e
+   * assinaturas ficam juntos na última folha. Só o JS distribui: o navegador não fragmenta nada (cada folha mede 297 mm).
+   */
+  function ajustarFolhas(doc) {
+    [...doc.querySelectorAll('.a4.ficha, .a4.termo')].forEach(pg => {
+      if (DocumentoBase.cabe(pg)) return;
+      pg.classList.add('compacta');
+      if (DocumentoBase.cabe(pg) || pg.classList.contains('termo')) return;      // o Termo é de uma folha só: só fica compacto
+      pg.classList.remove('compacta');
+      paginarFicha(pg);
+    });
+  }
+  function paginarFicha(pg) {
+    const cq = pg.querySelector('[data-ficha]'), molde = pg.cloneNode(true);
+    const ehSec = x => x.matches('table.ln') && x.querySelector('td.sec');
+    // unidades que não se separam: título+comercial, cada seção (título e primeira tabela), as demais tabelas, o bloco final
+    const un = [];
+    [...cq.children].forEach(x => {
+      const ult = un[un.length - 1];
+      if (ehSec(x)) un.push({ els: [x], aberta: true });
+      else if (ult && ult.aberta) { ult.els.push(x); ult.aberta = false; }
+      else if (ult && ult.cabeca) ult.els.push(x);
+      else un.push({ els: [x], cabeca: !ult });
+    });
+    cq.textContent = '';
+    const nova = () => {                                                         // folha de continuação: o título do documento e o rodapé de sempre
+      const c = molde.cloneNode(true), q = c.querySelector('[data-ficha]'), titulo = q.firstElementChild;
+      const base = titulo.querySelector('td.base'); if (base) base.parentElement.remove();
+      titulo.querySelector('td.tit').append(' (continuação)');
+      q.textContent = ''; q.append(titulo); atual.after(c); atual = c; return q;
+    };
+    let atual = pg, q = cq;
+    const cabe = () => DocumentoBase.cabe(atual);
+    un.forEach(u => {
+      q.append(...u.els);
+      if (cabe()) return;
+      const cult = u.els.find(x => x.matches('table.cult'));
+      if (cult) {                                                                 // tabela de cultura: reparte as linhas e repete o cabeçalho
+        const sec = u.els[0], linhas = [...cult.tBodies[0].querySelectorAll('tr:not(.vazia)')];
+        cult.tBodies[0].textContent = '';
+        cult.tBodies[0].append(linhas[0]);
+        if (cabe()) {
+          let corpo = cult.tBodies[0], k = 1;
+          while (k < linhas.length) {
+            corpo.append(linhas[k]);
+            if (!cabe()) {
+              linhas[k].remove(); q = nova();
+              const s2 = sec.cloneNode(true), t2 = cult.cloneNode(true); t2.tBodies[0].textContent = ''; q.append(s2, t2); corpo = t2.tBodies[0];
+              corpo.append(linhas[k]);
+            }
+            k++;
+          }
+          return;
+        }
+        cult.tBodies[0].textContent = ''; linhas.forEach(l => cult.tBodies[0].append(l));
+      }
+      u.els.forEach(x => x.remove()); q = nova(); q.append(...u.els);
+    });
   }
 
   /* ---------- Adaptadores: registros antigos (CadastrosPCE) abrem na ficha nova, sem alterar o dado ---------- */
@@ -421,7 +485,7 @@ const PCEDocs = (() => {
     if (nat === 'ficha') {
       const antigo = tipo !== 'ficha', entrada = antigo ? entradaDeCadastro(dados) : dados;
       desenharFicha(pg, valoresFicha(antigo ? modeloDoCadastro(tipo, dados) : dados.modelo, entrada));
-      assinaturas(pg, lerJSON(obj(entrada.ficha).assinaturas, {}), arquivos);
+      assinaturas(pg, lerJSON(obj(entrada.ficha).assinaturas, {}), arquivos); DocumentoBase.montar(pg, { numero: obj(entrada.ficha).numeroTxt });
       return pg;
     }
     const r = VALORES[nat](dados);
@@ -431,6 +495,7 @@ const PCEDocs = (() => {
       if (ul) { ul.textContent = ''; (dados.servidores || []).forEach(s => { const li = pg.ownerDocument.createElement('div'); li.textContent = [s.nome, s.funcao].filter(Boolean).join(' - '); ul.append(li); }); }
     } else assinaturas(pg, lerJSON(dados.assinaturas, {}), arquivos);
     const cf = pg.querySelector('.cancelado-faixa'); if (cf && !r.cancelado) cf.remove();
+    if (nat === 'termo') { DocumentoBase.montar(pg, { numero: r.numeroTxt }); pg.querySelectorAll('.linhas.l6').forEach(x => DocumentoBase.pautar(x, 6)); pg.querySelectorAll('.linhas.l3').forEach(x => DocumentoBase.pautar(x, 3)); }
     return pg;
   }
   /**
@@ -454,6 +519,7 @@ const PCEDocs = (() => {
       if (x.antes) { prim.before(n); prim = n; } else { ult.after(n); ult = n; }
     }
     await Promise.all([...doc.images].map(im => (im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; }))));
+    ajustarFolhas(doc);
     return doc.querySelectorAll('.a4').length;
   }
 

@@ -212,7 +212,7 @@ const CONFIG = {
       culturaModelo: { 'Laranja': 'citros', 'Limão': 'citros', 'Tangerina': 'citros', 'Banana': 'banana', 'Cacau': 'moniliase', 'Cupuaçu': 'moniliase', 'Herrania': 'moniliase',
         'Cacauí': 'moniliase', 'Cupuí': 'moniliase', 'Macambo': 'moniliase', 'Mandioca': 'mandioca', 'Soja': 'soja' },
       reaproveita: ['situacao', 'situacaoOutras', 'rt', 'viaAcesso', 'viaOutra', 'origemMaterial', 'destino'],
-      propriedade: { nome: 'Cadastro geral da propriedade', modelo: 'pce-cadastro-propriedade.html', telefone: true, rt: true, campos: [
+      propriedade: { nome: 'Cadastro geral da propriedade', telefone: true, rt: true, campos: [
         { k: 'viaAcesso', rot: 'Principal via de acesso', tipo: 'opcao', ops: [['fluvial', 'Fluvial'], ['terrestre', 'Terrestre'], ['outra', 'Outra']] },
         { k: 'viaOutra', rot: 'Outra via (qual)', tipo: 'texto', se: { k: 'viaAcesso', v: 'outra' } },
         { k: 'situacao', rot: 'Situação fundiária', tipo: 'opcao', ops: 'situacoes' },
@@ -230,12 +230,12 @@ const CONFIG = {
         { k: 'naturezaOutros', rot: 'Outros (quais)', tipo: 'texto', se: { k: 'natureza', v: 'outros' } },
         { k: 'instalacoes', rot: 'Existem instalações próprias?', tipo: 'sn' }, { k: 'instalacoesTipos', rot: 'Quais tipos', tipo: 'texto', se: { k: 'instalacoes', v: 'sim' } }
       ] },
-      banana: { nome: 'Cadastro de banana', modelo: 'pce-cadastro-banana.html', comercial: true, rt: true, campos: [
+      banana: { nome: 'Cadastro de banana', comercial: true, rt: true, campos: [
         { k: 'culturas', rot: 'Dados da cultura', tipo: 'tabela', colunas: [['cultivar', 'Cultivar'], ['area', 'Área (ha)'], ['idade', 'Idade do plantio (ano)'], ['plantas', 'Quantidade (plantas)'], ['producao', 'Produção (t/ano)']] },
         { k: 'compradores', rot: 'Com quem comercializa', tipo: 'varios', ops: 'compradores' },
         { k: 'origemMaterial', rot: 'Origem do material genético', tipo: 'texto' }, { k: 'destino', rot: 'Destino da produção', tipo: 'texto' }
       ], deteccao: [{ k: 'moko', praga: 'Moko da Bananeira', rot: 'Moko da Bananeira', extra: ['tempo', 'controle', 'qual'] }, { k: 'sigatoka', praga: 'Sigatoka Negra', rot: 'Sigatoka Negra', extra: ['tempo', 'controle', 'qual'] }] },
-      mandioca: { nome: 'Cadastro de mandioca', modelo: 'pce-cadastro-mandioca.html', telefone: true, amostra: true, campos: [
+      mandioca: { nome: 'Cadastro de mandioca', telefone: true, amostra: true, campos: [
         { k: 'situacao', rot: 'Situação fundiária', tipo: 'opcao', ops: 'situacoes' }, { k: 'situacaoOutras', rot: 'Outras (especificar)', tipo: 'texto', se: { k: 'situacao', v: 'outras' } },
         { k: 'culturas', rot: 'Cultura da mandioca', tipo: 'tabela', colunas: [['cultivar', 'Cultivar/variedade'], ['area', 'Área (ha)'], ['espacamento', 'Espaçamento'], ['producao', 'Estimativa de produção (t/ano ou sacas/ha/ano)']] },
         { k: 'estagio', rot: 'Estágio da planta', tipo: 'opcao', ops: [['plantio', 'Plantio e emergência (15-30 dias)'], ['vegetativo', 'Desenvolvimento vegetativo (60-90 dias)'],
@@ -245,7 +245,7 @@ const CONFIG = {
         { k: 'assistencia', rot: 'Assistência técnica?', tipo: 'sn' }, { k: 'assistenciaEmpresa', rot: 'Nome da empresa', tipo: 'texto', se: { k: 'assistencia', v: 'sim' } },
         { k: 'limpeza', rot: 'Limpeza realizada dos utensílios/ferramentas?', tipo: 'sn' }, { k: 'limpezaForma', rot: 'De que forma', tipo: 'texto', se: { k: 'limpeza', v: 'sim' } }
       ], deteccao: [{ k: 'vassoura', praga: 'Vassoura de Bruxa da Mandioca', rot: 'Vassoura-de-bruxa da mandioca', extra: ['tempo'] }] },
-      soja: { nome: 'Cadastro de soja', modelo: 'pce-cadastro-soja.html', telefone: true, rt: true, campos: [
+      soja: { nome: 'Cadastro de soja', telefone: true, rt: true, campos: [
         { k: 'situacao', rot: 'Situação fundiária', tipo: 'opcao', ops: 'situacoes' }, { k: 'situacaoOutras', rot: 'Outras (especificar)', tipo: 'texto', se: { k: 'situacao', v: 'outras' } },
         { k: 'culturas', rot: 'Cultura da soja', tipo: 'tabela', colunas: [['cultivar', 'Cultivar'], ['area', 'Área (ha)'], ['espacamento', 'Espaçamento'], ['producao', 'Produção (t/ano ou sacas/ha/ano)']] },
         { k: 'destino', rot: 'Destino da produção', tipo: 'texto' },
@@ -253,6 +253,122 @@ const CONFIG = {
         { k: 'limpeza', rot: 'Limpeza realizada no maquinário antes do uso?', tipo: 'sn' }, { k: 'limpezaForma', rot: 'De que forma', tipo: 'texto', se: { k: 'limpeza', v: 'sim' } },
         { k: 'fornecedor', rot: 'Fornecedor das sementes', tipo: 'texto' }
       ], deteccao: [{ k: 'ferrugem', praga: 'Phakopsora pachyrhizi', rot: 'Ferrugem asiática', extra: ['tempo'] }, { k: 'amaranthus', praga: 'Amaranthus palmeri', rot: 'Amaranthus palmeri', extra: ['qual'] }] }
+    },
+    // Fichas oficiais do PCE: UM modelo de documento (documentos/pce-ficha.html) guiado por esta configuração, para os 6 modelos de papel.
+    // Mesma estrutura em todas: cabeçalho e título oficial com Nº; propriedade comercial?; 1. dados do produtor/proprietário (igual em todas);
+    // 2. dados da propriedade (situação fundiária + o que é do modelo); 3. cultura (tabela padrão vinda dos frutos da propriedade + perguntas do modelo);
+    // 4. levantamento (quadro padrão praga / sim-não / há quanto tempo / controle, da visita mais recente; delimitação e detecção no mesmo formato);
+    // responsável técnico e assinaturas. Título, normas e perguntas são os do papel (conteudo_gdv/modulos/pce/fichas-de-papel). Códigos não mudam.
+    // Pergunta: {k, rot, tipo: texto | num | sn | opcao | varios | coord, ops: [[código, texto, grupo?]], compl: {k, rot, tipo?, ops?} (complemento na mesma
+    // linha), outro: k do texto da opção "outro", layout: 'coluna' | 'colunas2', legado: true (só aparece em registro antigo que já traz a resposta; o
+    // app não pergunta), fonte: 'coleta' | 'ocorrencia' (resposta vem da visita) ou deVisita: [nomes de praga] (sim se Detectada ou Suspeita)}.
+    // Linha do levantamento: {k, rot, tipo: delimitacao | deteccao, pragas: [nomes do catálogo], cols: [tempo, controle, qual], legado?}.
+    // O comercial, a situação fundiária, a via de acesso, o telefone, o código, o endereço e o responsável técnico não aparecem em "perguntas":
+    // são comuns a todas as fichas (perguntados uma vez, no cadastro do produtor e da propriedade).
+    fichas: {
+      situacoes: [['proprietario', 'PROPRIETÁRIO'], ['arrendatario', 'ARRENDATÁRIO'], ['cooperativa', 'COOPERATIVA'], ['outras', 'OUTRAS (ESPECIFICAR)']],
+      naoComercial: [['sitio', 'sítio'], ['residencia', 'residência'], ['vegetacao', 'vegetação espontânea'], ['publica', 'área pública'], ['outros', 'outros']],
+      vias: [['fluvial', 'FLUVIAL'], ['terrestre', 'TERRESTRE'], ['outra', 'OUTRA']],
+      avisoNaoComercial: 'Marcada opção “NÃO” preencher apenas itens 1 e 4.',
+      linhasCultura: 3,                              // linhas em branco da tabela de cultura, no mínimo (como no papel)
+      // colunas da tabela de cultura (campos de frutos); cada modelo pode trocar o texto do cabeçalho em "colunas"
+      colunas: [['cultura', 'CULTURA'], ['cultivar', 'CULTIVAR'], ['area', 'ÁREA (ha)'], ['espacamento', 'ESPAÇAMENTO'], ['idade', 'IDADE (Ano)'],
+        ['quantidade', 'QUANTIDADE (plantas)'], ['producao', 'PRODUÇÃO (tonelada/Ano – sacas/ha/ano)'], ['destino', 'DESTINO DA PRODUÇÃO']],
+      // cultura (catálogo) → modelo de ficha, para escolher os frutos de cada ficha; fruto com "modelo" próprio vale por ele; sem lista = "propriedade"
+      culturaModelo: { 'Laranja': 'citros', 'Limão': 'citros', 'Tangerina': 'citros', 'Banana': 'banana', 'Cacau': 'moniliase', 'Cupuaçu': 'moniliase', 'Herrania': 'moniliase',
+        'Cacauí': 'moniliase', 'Cupuí': 'moniliase', 'Macambo': 'moniliase', 'Mandioca': 'mandioca', 'Soja': 'soja' },
+      // modelo → nome da cultura quando o registro antigo não a traz (tabela sem coluna de cultura)
+      culturaPadrao: { citros: 'Citros', banana: 'Banana', mandioca: 'Mandioca', soja: 'Soja' },
+      modelos: {
+        citros: { nome: 'Citros', titulo: 'CADASTRO DE IMÓVEIS DE PRODUÇÃO COMERCIAL DE CÍTRICOS', numero: 'CADASTRO DA PROPRIEDADE Nº',
+          base: ['(ATENDIMENTO A IN Nº21 DE 25/04/2018 - Cancro cítrico e Portaria Nº 317 de 21/05/2021 - HLB)', 'LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS DE CITROS'],
+          culturaTitulo: 'CULTURA DO CITROS',
+          propriedade: [
+            { k: 'atividades', rot: 'TIPO DE ATIVIDADE', tipo: 'varios', layout: 'colunas2', outro: 'atividadeOutros', ops: [['viveiro_mudas', 'Produção de Mudas', 'VIVEIRO'],
+              ['frutos', 'Produção comercial de Frutos'], ['viveiro_semorigem', 'Fornecedor de Material de Propagação sem origem genética comprovada', 'VIVEIRO'],
+              ['outros', 'Outros (especificar)'], ['viveiro_portaenxerto', 'Campos de Produção de Porta-Enxerto', 'VIVEIRO'], ['viveiro_clonal', 'Jardins Clonais e Borbulheiras', 'VIVEIRO']] }],
+          perguntas: [
+            { k: 'entrega', rot: 'Entrega na propriedade:', tipo: 'sn', compl: { k: 'formasEntrega', rot: 'De que forma', tipo: 'varios', ops: [['saco', 'saco'], ['caixa', 'caixa'], ['granel', 'a granel']] } },
+            { k: 'compradores', rot: 'Com quem comercializa:', tipo: 'varios', outro: 'compradorOutros', ops: [['atravessador', 'atravessador'], ['supermercado', 'supermercado'], ['feira', 'feira'], ['cooperativa', 'cooperativa'], ['outros', 'outros']] },
+            { k: 'beneficia', rot: 'Beneficia o fruto:', tipo: 'sn', compl: { k: 'beneficiaTipo', rot: 'Tipo' } },
+            { k: 'materiais', rot: 'Material de propagação:', tipo: 'varios', ops: [['muda', 'muda'], ['borbulha', 'borbulha'], ['cavalinho', 'cavalinho'], ['semente', 'semente']] },
+            { k: 'origemMaterial', rot: 'Origem do material genético:', tipo: 'texto' }],
+          levantamento: { linhas: [
+            { k: 'pintapreta', rot: 'Pinta Preta', tipo: 'delimitacao', pragas: ['Pinta Preta dos Citros', 'Pinta Preta'], cols: ['tempo', 'controle'] },
+            { k: 'cancro', rot: 'Cancro Cítrico', tipo: 'deteccao', pragas: ['Cancro Cítrico', 'Cancro'], cols: ['tempo'] },
+            { k: 'hlb', rot: 'HLB', tipo: 'deteccao', pragas: ['HLB / Greening', 'HLB', 'Greening'], cols: ['tempo'] },
+            { k: 'acaro', rot: 'Ácaro Hindustânico', tipo: 'deteccao', pragas: ['Schizotetranychus hindustanicus', 'Ácaro Hindustânico'], cols: ['tempo'] }] } },
+        banana: { nome: 'Banana', titulo: 'FICHA DE CADASTRO E LEVANTAMENTO DE BANANA', numero: 'Nº',
+          base: ['(ATENDIMENTO A IN Nº17 DE 27/05/2009 – Moko da Bananeira e Portaria Nº 17 de 31/05/2005 – Sigatoka Negra)', 'LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS DA BANANA'],
+          culturaTitulo: 'DADOS DA CULTURA', colunas: { idade: 'IDADE DO PLANTIO (Ano)', producao: 'PRODUÇÃO (tonelada/Ano)' },
+          perguntas: [
+            { k: 'compradores', rot: 'Com quem comercializa:', tipo: 'varios', ops: [['atravessador', 'atravessador'], ['supermercado', 'supermercado'], ['feira', 'feira'], ['cooperativa', 'cooperativa'], ['outros', 'outros']] },
+            { k: 'origemMaterial', rot: 'Origem do material genético:', tipo: 'texto' }],
+          levantamento: { linhas: [
+            { k: 'moko', rot: 'MOKO DA BANANEIRA', tipo: 'delimitacao', pragas: ['Moko da Bananeira', 'Moko'], cols: ['tempo', 'controle'] },
+            { k: 'sigatoka', rot: 'SIGATOKA NEGRA', tipo: 'delimitacao', pragas: ['Sigatoka Negra', 'Sigatoka'], cols: ['tempo', 'controle'] }] } },
+        moniliase: { nome: 'Cacau e cupuaçu', titulo: 'FICHA DE CADASTRO E LEVANTAMENTO DE CACAU E CUPUAÇU', numero: 'Nº', base: [],
+          culturaTitulo: 'CULTURA – TIPO DE ATIVIDADE', colunas: { quantidade: 'QUANTIDADE (Nº de plantas)', producao: 'PRODUÇÃO (sacas ou kg)' },
+          perguntas: [
+            { k: 'areaAbandonada', rot: 'Existe área abandonada com as culturas:', tipo: 'sn' },
+            { k: 'areaProducao', rot: 'Área em produção (ha):', tipo: 'texto', compl: { k: 'idadeProducao', rot: 'Idade do Plantio' } },
+            { k: 'mumificados', rot: 'Retirada de frutos mumificados:', tipo: 'sn' },
+            { k: 'origem', rot: 'Origem das sementes/mudas:', tipo: 'opcao', ops: [['proprias', 'próprias'], ['terceiros', 'terceiros – informar fonte']], outro: 'origemFonte', outroOp: 'terceiros' },
+            { k: 'sacaria', rot: 'Sacaria utilizada:', tipo: 'opcao', ops: [['nova', 'nova'], ['reutilizada', 'reutilizada']] },
+            { k: 'controlePraga', rot: 'Utiliza algum controle de Praga:', tipo: 'sn' },
+            { k: 'assistencia', rot: 'Assistência Técnica:', tipo: 'opcao', ops: [['nao', 'Não possui'], ['privada', 'privada'], ['publica', 'pública/órgão']], outro: 'assistenciaOrgao', outroOp: 'publica' },
+            { k: 'frutosSaem', rot: 'Frutos Inteiros saem da propriedade?', tipo: 'opcao', ops: [['nao', 'Não'], ['sim', 'Sim: Qual o destino?']], outro: 'frutosDestino', outroOp: 'sim' },
+            // só em registro antigo (a tabela de cultura já tem área, idade, produção e destino de cada fruto)
+            { k: 'areaTotal', rot: 'Área total plantada (ha):', tipo: 'texto', legado: true, compl: { k: 'idadePlantio', rot: 'Idade do Plantio' } },
+            { k: 'producaoTxt', rot: 'Produção (sacas ou kg):', tipo: 'texto', legado: true }],
+          levantamento: { linhas: [
+            // informações fitossanitárias da versão antiga do cadastro (não estão no papel): só aparecem em registro antigo que já traz a resposta
+            { k: 'vassoura', rot: 'Vassoura de Bruxa', tipo: 'delimitacao', pragas: ['Vassoura de Bruxa do Cacaueiro'], cols: ['tempo', 'controle'], legado: true, antigo: 'fito' },
+            { k: 'podridao', rot: 'Podridão Parda', tipo: 'delimitacao', pragas: ['Podridão Parda'], cols: ['tempo', 'controle'], legado: true, antigo: 'fito' },
+            { k: 'lazio', rot: 'Lazio', tipo: 'delimitacao', pragas: ['Lazio'], cols: ['tempo', 'controle'], legado: true, antigo: 'fito' }],
+            perguntas: [
+              { k: 'sintomas', rot: 'FRUTO COM SINTOMAS VISUAIS DE Moniliophthora roreri:', tipo: 'sn', deVisita: ['Monilíase do Cacaueiro', 'Moniliophthora roreri'] },
+              { k: 'sintomaLat', k2: 'sintomaLon', rot: 'Em caso de planta com sintoma visual, informar coordenada da planta:', tipo: 'coord' },
+              { k: 'camaraUmida', rot: 'Realizada Câmara Úmida:', tipo: 'sn' },
+              { k: 'camaraMr', rot: 'Câmara Úmida apresenta comportamento de Moniliophthora roreri:', tipo: 'sn' },
+              { k: 'suspeitos', rot: 'HOSPEDEIRO SUSPEITO:', tipo: 'varios', ops: [['cupuacu', 'Cupuaçu'], ['cacau', 'Cacau'], ['herrania', 'Herrania'], ['cupui', 'Cupuí'], ['cacaui', 'Cacauí'], ['macambo', 'Macambo']] },
+              { k: 'amostra', rot: 'COLHEITA DE AMOSTRA:', tipo: 'sn', fonte: 'coleta' },
+              { k: 'diagnostico', rot: 'DIAGNÓSTICO:', tipo: 'opcao', ops: [['positivo', 'Positivo para M. roreri'], ['negativo', 'Negativo para M. roreri']] }] } },
+        mandioca: { nome: 'Mandioca', titulo: 'FICHA DE CADASTRO E LEVANTAMENTO DE MANDIOCA', numero: 'Nº', base: ['LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS'],
+          culturaTitulo: 'CULTURA DA MANDIOCA', colunas: { cultivar: 'CULTIVAR/VARIEDADE', producao: 'ESTIMATIVA DE PRODUÇÃO (tonelada/Ano – sacas/ha/ano)' },
+          perguntas: [
+            { k: 'estagio', rot: 'ESTÁGIO DA PLANTA:', tipo: 'opcao', layout: 'coluna', ops: [['plantio', 'Plantio e Emergência - 15-30 dias'], ['vegetativo', 'Desenvolvimento Vegetativo - 60-90 dias'],
+              ['raizes', 'Formação e Desenvolvimento de Raízes - 90-180 dias'], ['maturacao', 'Maturação das Raízes - 180-270 dias'], ['colheita', 'Colheita - 270-360 dias']] },
+            { k: 'materialDe', rot: 'ORIGEM DO MATERIAL DE PROPAGAÇÃO', tipo: 'opcao', ops: [['proprio', 'PRÓPRIO'], ['terceiros', 'TERCEIROS']], compl: { k: 'origemMaterial', rot: 'ORIGEM' } },
+            { k: 'assistencia', rot: 'ASSISTÊNCIA TÉCNICA?', tipo: 'sn', compl: { k: 'assistenciaEmpresa', rot: 'NOME DA EMPRESA' } },
+            { k: 'limpeza', rot: 'LIMPEZA REALIZADA DOS UTENSÍLIOS/FERRAMENTAS?', tipo: 'sn', compl: { k: 'limpezaForma', rot: 'DE QUE FORMA' } }],
+          levantamento: { linhas: [
+            { k: 'vassoura', rot: 'VASSOURA-DE-BRUXA DA MANDIOCA', tipo: 'deteccao', pragas: ['Vassoura de Bruxa da Mandioca'], cols: ['tempo'] }],
+            perguntas: [{ k: 'amostra', rot: 'COLHEITA DE AMOSTRAS', tipo: 'sn', fonte: 'coleta', compl: { k: 'amostraTipo', rot: 'Tipo de material coletado' } }] } },
+        soja: { nome: 'Soja', titulo: 'FICHA DE CADASTRO E LEVANTAMENTO DE SOJA', numero: 'Nº',
+          base: ['(ATENDIMENTO A PORTARIA Nº 865, DE 2 DE AGOSTO DE 2023)', 'LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS'],
+          culturaTitulo: 'CULTURA DA SOJA',
+          perguntas: [
+            { k: 'maquinario', rot: 'MAQUINÁRIO ORIUNDO OU SE DESLOCA PARA OUTRA UF?', tipo: 'sn', compl: { k: 'maquinarioLocal', rot: 'LOCAL' } },
+            { k: 'limpeza', rot: 'LIMPEZA REALIZADA NO MAQUINÁRIO ANTES DO USO?', tipo: 'sn', compl: { k: 'limpezaForma', rot: 'DE QUE FORMA' } },
+            { k: 'fornecedor', rot: 'FORNECEDOR DAS SEMENTES:', tipo: 'texto' }],
+          levantamento: { linhas: [
+            { k: 'ferrugem', rot: 'FERRUGEM ASIÁTICA', tipo: 'deteccao', pragas: ['Phakopsora pachyrhizi', 'Ferrugem Asiática'], cols: ['tempo'] },
+            { k: 'amaranthus', rot: 'Amaranthus palmeri', tipo: 'deteccao', pragas: ['Amaranthus palmeri'], cols: ['qual'] }] } },
+        propriedade: { nome: 'Propriedade', titulo: 'FICHA DE CADASTRO E LEVANTAMENTO DE PROPRIEDADE DE INTERESSE DA DEFESA VEGETAL', numero: 'Nº', base: [],
+          culturaTitulo: 'ÁREA PLANTADA', colunas: { producao: 'PRODUÇÃO (tonelada/Ano – sacas/ha/ano)' }, declaracao: 'ASSUMO TOTAL RESPONSABILIDADE PELAS INFORMAÇÕES AQUI PRESTADAS',
+          propriedade: [
+            { k: 'areaTotal', rot: 'ÁREA TOTAL DA PROPRIEDADE (HA):', tipo: 'num' }, { k: 'areaAgricola', rot: 'ÁREA AGRÍCOLA DA PROPRIEDADE (HA):', tipo: 'num' },
+            { k: 'sementes', rot: 'EXPLORAÇÃO DA PROPRIEDADE', tipo: 'varios', ops: [['sim', 'SEMENTE E MUDAS']], compl: { k: 'sementesTipo', rot: 'TIPO' } },
+            { k: 'tipos', rot: 'TIPO DE CULTURA', tipo: 'varios', deFrutos: true, outro: 'tiposOutros', ops: [['abacaxi', 'ABACAXI'], ['arroz', 'ARROZ'], ['coco', 'COCO'], ['maracuja', 'MARACUJÁ'],
+              ['acerola', 'ACEROLA'], ['banana', 'BANANA'], ['goiaba', 'GOIABA'], ['milho', 'MILHO'], ['acai', 'AÇAÍ'], ['cana', 'CANA DE AÇÚCAR'], ['hortalicas', 'HORTALIÇAS'], ['outros', 'OUTROS']] }],
+          perguntas: [
+            { k: 'manipula', rot: 'Produzem e/ou Manipulam produtos e subprodutos de origem vegetal para fins comerciais:', tipo: 'sn' },
+            { k: 'natureza', rot: 'Natureza operativa do estabelecimento:', tipo: 'varios', outro: 'naturezaOutros', ops: [['natura', 'In natura'], ['doces', 'DOCES/GELEIAS'], ['outros', 'Outros']] },
+            { k: 'instalacoes', rot: 'Existem instalações próprias:', tipo: 'sn', compl: { k: 'instalacoesTipos', rot: 'Quais tipos' } }],
+          levantamento: { linhas: [],
+            perguntas: [{ k: 'ocorrencia', rot: 'Há ocorrência de Pragas (Insetos, Fungos, Bactérias e Ervas Daninhas) na(s) cultura(s)?', tipo: 'sn', fonte: 'ocorrencia', compl: { k: 'ocorrenciaQuais', rot: 'Em caso positivo, Quais?' } }] } }
+      }
     },
     // dados gerais da visita (opcionais): comercial (sim/não), tipo de local e origem da visita. "Outro" abre um campo para digitar.
     // Comercial é pergunta à parte: o tipo de local não diz se é comercial (quintal pode ser comercial). Registros antigos guardam o texto da lista anterior.

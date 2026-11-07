@@ -1,330 +1,91 @@
 const amb = require('./lib/amb');
-const U = require('./lib/usuarios');
-const F = require('./lib/pce-form');
-// PCE — citros no levantamento por cultura (cadastro de cítricos: IN 21/2018 e Portaria 317/2021) e a visita completa:
-// CPF/CNPJ primeiro (produtor já cadastrado no servidor: autopreenche produtor e propriedade, inclusive CNPJ, empresa, endereço e UF; CPF novo:
-// libera os campos), ordem dos cards (Dados do produtor → Localização → Local e origem → Culturas avaliadas), bloco "Cultura do citros" único
-// dentro de "Culturas avaliadas" (só com praga de citros, um só com duas culturas de citros), detecção de HLB, Ácaro Hindustânico e Cancro Cítrico
-// obrigatória (ausência/presença; praga detectada pré-marca presença), Cadastro de citros (numeração do programa "citros") e Termo de Fiscalização
-// da visita já preenchido (identificação, data/hora, local, frases de ausência/presença, enquadramento), PDF no modelo do papel (cadastro + TF),
-// planilha (Levantamentos, CadastrosPCE, TermosPCE), reabrir, sem internet e validação do servidor. Só dados fictícios.
-// Com GDV_SAIDA_CITROS=<pasta> copia as capturas (formulário a 400 px e as páginas do PDF).
-const fs = require('fs'), path = require('path');
-const { API, APP } = amb;
-let falhas = 0;
-const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x === undefined ? '' : ' → ' + (typeof x === 'string' ? x : JSON.stringify(x)).slice(0, 700))); if (!c) falhas++; };
-const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
-const get = p => fetch(API + p).then(r => r.json());
-const linhaDe = async (aba, id) => { const t = await get('/__aba?nome=' + aba); const i = t[0].indexOf('id'); const l = t.find(r => r[i] === id); return l ? Object.fromEntries(t[0].map((c, k) => [c, l[k]])) : null; };
-const linhas = async aba => { const t = await get('/__aba?nome=' + aba); return t.slice(1).map(l => Object.fromEntries(t[0].map((c, k) => [c, l[k]]))); };
-const json = v => { try { return JSON.parse(v); } catch (e) { return null; } };
-// Enquadramento legal que o Termo traz (planilha da GDV, LEGISLACAO_PCE_): só o das pragas detectadas ou suspeitas; aqui só o Cancro Cítrico foi detectado.
-const ENQ_CANCRO = 'IN MAPA nº 21/2018; IN SDA/MAPA nº 38';
-const COPIA = process.env.GDV_SAIDA_CITROS;
-const guardar = nome => { if (COPIA) { fs.mkdirSync(COPIA, { recursive: true }); fs.copyFileSync(amb.saida(nome), path.join(COPIA, nome)); } };
-
+const A = require('./lib/pce-app');
+// PCE — citros na visita (IN 21/2018 cancro cítrico e Portaria 317/2021 HLB): HLB, ácaro hindustânico e cancro obrigatórios; a Diaphorina (vetor) é opcional
+// e não marca o HLB; Termo do programa com as frases de ausência/presença, o enquadramento só do que foi detectado e o local especificado; ficha oficial
+// de citros gerada do cadastro (frutos e levantamento da visita). Sem internet e planilha. App real + Code.gs real no fakegas. Dados fictícios.
+// Com GDV_SAIDA_CITROS=<pasta> copia as capturas (telas a 400 px e as páginas dos PDFs).
+const fs = require('fs');
+const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x === undefined ? '' : ' -> ' + JSON.stringify(x).slice(0, 400))); if (!c) throw new Error(m); };
+const ANO = new Date().getFullYear();
+const CAN = 'IN MAPA nº 21/2018; IN SDA/MAPA nº 38', HLB = 'Portaria SDA/MAPA nº 1.326';
 (async () => {
-  const b = await amb.lancar(), err = [];
-  const TOKF = (await U.fiscal('Ciclano Ficticio Teste')).token;
-  const agora = Date.now();
-  // produtor e propriedade já no banco (cadastro anterior): o levantamento novo autopreenche pelo CPF
-  let r = await post({ action: 'sync', key: TOKF, since: 0,
-    pessoas: [{ id: '52998224725', tipo: 'PF', nome: 'FULANO FICTICIO TESTE', telefone: '92 90000-0000', endereco: 'Ramal Ficticio, km 3', municipio: 'Manaus', uf: 'AM', criadoEm: agora, atualizadoEm: agora }],
-    propriedades: [{ id: 'PRP-CIT-1', codigo: 'PRP-CIT-1', nome: 'Sítio Ficticio', doc: '52998224725', municipio: 'Manaus', situacaoFundiaria: 'Posse', cnpj: '11222333000181',
-      empresa: 'Citros Ficticio Ltda', endereco: 'Ramal Ficticio, km 3', uf: 'AM', criadoEm: agora, atualizadoEm: agora }] });
-  ok(r.ok, 'servidor: produtor e propriedade fictícios cadastrados', r.erro);
-  r = await post({ action: 'pceConsultar', key: TOKF, doc: '529.982.247-25' });
-  ok(r.ok && r.pessoa && r.propriedades.length === 1 && r.propriedades[0].cnpj === '11222333000181' && r.propriedades[0].empresa === 'Citros Ficticio Ltda' && r.propriedades[0].endereco === 'Ramal Ficticio, km 3',
-    'pceConsultar devolve também CNPJ, empresa e endereço da propriedade', r.propriedades);
+  const b = await amb.lancar();
+  const p = await A.aparelho(b, 'Paulo Citros Ficticio');
+  await A.identificar(p);
+  const tira = nome => { if (process.env.GDV_SAIDA_CITROS) { fs.mkdirSync(process.env.GDV_SAIDA_CITROS, { recursive: true }); return p.screenshot({ path: process.env.GDV_SAIDA_CITROS + '/' + nome + '.png', fullPage: true }); } };
 
-  const c = await b.newContext({ viewport: { width: 400, height: 900 }, permissions: ['geolocation'], geolocation: { latitude: -3.12, longitude: -60.02, accuracy: 9 }, timezoneId: 'America/Manaus' });
-  await c.addInitScript(([t]) => {
-    if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', 'Ciclano Ficticio Teste'); localStorage.setItem('gdv.semInstalar', '1'); }
-    if (window !== window.top) window.print = () => { const d = document; window.top.__prints = window.top.__prints || [];
-      window.top.__prints.push({ texto: d.body.innerText.replace(/\s+/g, ' '), html: d.documentElement.outerHTML, paginas: d.querySelectorAll('.a4').length, titulo: window.top.document.title,
-        classes: [...d.querySelectorAll('.a4')].map(x => x.className),
-        marcas: [...d.querySelectorAll('.a4')].map(pg => [...pg.querySelectorAll('.on')].map(e => e.getAttribute('data-x') || e.getAttribute('data-m')).filter(Boolean)) }); };
-  }, [TOKF]);
-  const p = await c.newPage(); p.on('pageerror', e => err.push(e.message)); p.on('dialog', d => d.accept());
-  const sync = async () => { await p.evaluate(() => Sync.sincronizar()); await p.waitForTimeout(900); };
-  const toast = () => p.textContent('#toast');
-  const visivel = () => p.isVisible('#pce-citros');
-  const op = (k, v) => p.click(`#pce-citros label:has(input[name="pce-ci-${k}"][value="${v}"])`);
-  const marcado = (k, v) => p.isChecked(`input[name="pce-ci-${k}"][value="${v}"]`);
-  const confirmarNumeros = async alvo => { for (let i = 0; i < 50 && !(await p.locator(alvo).count()); i++) { if (await p.locator('#mon-m-ok').count()) await p.click('#mon-m-ok'); await p.waitForTimeout(250); } };
-  const imprimir = async fn => { await p.evaluate(() => { window.__prints = []; }); await fn(); await p.waitForFunction(() => window.__prints && window.__prints.length, null, { timeout: 15000 }); return p.evaluate(() => window.__prints[0]); };
+  console.log('1) cadastro: produtor de citros com os frutos da propriedade');
+  await A.novoProdutor(p, { doc: '123.456.789-09', nome: 'Paulo Ficticio Citricultor', propriedade: 'Sitio Laranjal', codigo: 'PRP-CIT-1', municipio: 'Presidente Figueiredo',
+    frutos: [{ cultura: 'Laranja', cultivar: 'Laranja Pera', area: 4, quantidade: 1200 }, { cultura: 'Limão', cultivar: 'Limão Tahiti', area: 1.5, quantidade: 300 }] });
+  await tira('01-produtor-citros');
+  ok(await p.locator('.pce-visita-termo[data-modelo=citros]').count() === 1 && await p.locator('.pce-visita-termo[data-modelo]').count() === 1, 'uma só ficha na tela: a de citros (os dois frutos são de citros)');
 
-  await p.goto(APP); await p.waitForSelector('.modulo[data-v=pce]'); await p.click('.modulo[data-v=pce]'); await p.waitForSelector('#pceServForm');
-  await p.selectOption('#pce-s-cargo', { index: 1 }); await p.selectOption('#pce-s-lotacao', 'Manaus'); await p.click('#pce-s-salvar'); await p.waitForSelector('#pce-novolev');
+  console.log('2) visita: obrigatórias; Diaphorina detectada não marca o HLB; cancro detectado');
+  await p.locator('#pce-novavisita').click(); await p.waitForSelector('#pceVisitaForm');
+  await p.locator('label.vi-fruto', { hasText: 'Laranja' }).locator('input').check(); await p.locator('label.vi-fruto', { hasText: 'Limão' }).locator('input').check();
+  await p.click('#vi-continuar'); await p.waitForSelector('.pce-pr');
+  const lar = A.bloco(p, 'Laranja'), lim = A.bloco(p, 'Limão');
+  ok(await lar.locator('.pce-pr').count() === 6 && await lim.locator('.pce-pr').count() === 6, 'os dois frutos de citros trazem as mesmas 6 pragas do catálogo');
+  for (const fruto of [lar, lim]) for (const n of ['HLB / Greening', 'Schizotetranychus hindustanicus', 'Cancro Cítrico'])
+    ok(/\*/.test(await fruto.locator(`.pce-pr[data-nome="${n}"] legend`).textContent()), 'obrigatória: ' + n);
+  await p.click('#vi-continuar'); ok(/Informe o resultado de (HLB|Schizotetranychus|Cancro)/.test(await p.textContent('#toast')), 'sem responder as três obrigatórias não avança', await p.textContent('#toast'));
+  const r = (f, n, res) => f.locator(`.pce-pr[data-nome="${n}"] .pce-res-${res}`).click();
+  await r(lar, 'HLB / Greening', 'nao_detectada'); await r(lar, 'Schizotetranychus hindustanicus', 'nao_detectada'); await r(lar, 'Cancro Cítrico', 'detectada');
+  await lar.locator('.r-tempo').fill('1 mês'); await r(lar, 'Diaphorina citri (vetor do HLB)', 'detectada');
+  for (const n of ['HLB / Greening', 'Schizotetranychus hindustanicus', 'Cancro Cítrico']) await r(lim, n, 'nao_detectada');
+  await tira('02-pragas-citros');
+  await p.click('#vi-continuar'); await p.waitForSelector('.v-plantas');
+  await lar.locator('.v-plantas').fill('200');
+  await p.click('#vi-continuar'); await p.waitForSelector('#vi-local');
+  const txt = await p.inputValue('textarea[data-prog]');
+  ok(/Presença de sintomas de Cancro Cítrico nos frutos e folhas da cultura Laranja e Limão\./.test(txt) && /Ausência de sintomas de HLB nos frutos e folhas/.test(txt) && /Ausência de sintomas de Ácaro Hindustânico/.test(txt), 'frases de ausência/presença das três doenças', txt);
+  ok(!/Presença de sintomas de HLB/.test(txt) && /Praga opcional Diaphorina citri \(vetor do HLB\): Detectada em Laranja\./.test(txt), 'Diaphorina detectada NÃO marca presença de HLB e entra como praga opcional', txt);
+  const enq = await p.textContent('.vi-enq');
+  ok(enq.includes(CAN) && !enq.includes(HLB), 'enquadramento: só o das pragas detectadas (cancro), sem o do HLB', enq);
+  await tira('03-constatacao-citros');
+  await p.click('#vi-continuar'); await p.waitForSelector('#vi-resumo'); await p.click('#vi-concluir'); await p.waitForSelector('#pce-visita-pronta');
+  ok(await p.locator('.pce-termo-pronto').count() === 1 && /Pragas dos Citros/.test(await p.textContent('.pce-termo-pronto')), 'um Termo só: o programa Pragas dos Citros (com Laranja e Limão)');
+  await tira('04-visita-pronta');
 
-  console.log('1. CPF novo: campos liberados para preencher');
-  await p.click('#pce-novolev'); await p.waitForSelector('#pceLevForm');
-  ok(await p.locator('#pce-prod[disabled]').count() === 1 && await p.isDisabled('#pce-nome') && await p.isEnabled('#pce-doc'), 'formulário novo: só o CPF/CNPJ aberto; dados do produtor fechados');
-  ok(/Informe o CPF\/CNPJ/.test(await p.textContent('#pce-st-doc')), 'dica: informar o CPF/CNPJ para buscar o cadastro');
-  const ordem = await p.$$eval('#pceLevForm > .card > h3', hs => hs.map(h => h.textContent.trim()));
-  const ix = t => ordem.findIndex(x => x.startsWith(t));
-  ok(ix('Dados do produtor') >= 0 && ix('Dados do produtor') < ix('Localização') && ix('Localização') < ix('Local e origem da visita') && ix('Local e origem da visita') < ix('Culturas avaliadas'),
-    'ordem: Dados do produtor → Localização → Local e origem da visita → Culturas avaliadas', ordem);
-  ok(await p.$eval('#pce-prod-card', el => el.firstElementChild.nextElementSibling.contains(document.querySelector('#pce-doc'))), 'CPF/CNPJ é o primeiro campo dos dados do produtor');
-  await p.fill('#pce-doc', '11144477735');
-  await p.waitForFunction(() => /Novo cadastro/.test(document.querySelector('#pce-st-doc').textContent), null, { timeout: 10000 });
-  ok(await p.isEnabled('#pce-nome') && await p.isEnabled('#pce-cnpj') && await p.isEnabled('#pce-empresa') && (await p.inputValue('#pce-nome')) === '', 'CPF sem cadastro: "Novo cadastro" e campos liberados (vazios)');
-  await p.click('[data-pce=descartarlev]'); await p.waitForSelector('#pce-novolev');
+  console.log('3) Termo de citros: PDF, planilha e sem internet');
+  const pr = await A.imprimir(p, '.pce-termo-pronto [data-mon=imprimir]');
+  ok(/TERMO DE FISCALIZAÇÃO Nº 001/.test(pr.texto) && /Sitio Laranjal/.test(pr.texto) && /Presença de sintomas de Cancro Cítrico/.test(pr.texto) && /IN MAPA nº 21\/2018/.test(pr.texto), 'PDF no modelo único: número, local, frases e enquadramento', pr.texto.slice(0, 500));
+  await A.salvarPdf(p, pr, 'pce-termo.html', 'pce_citros_termo');
+  if (process.env.GDV_SAIDA_CITROS) fs.copyFileSync(amb.saida('pce_citros_termo.png'), process.env.GDV_SAIDA_CITROS + '/05-termo-citros.png');
+  await A.sync(p);
+  const t = (await A.aba('TermosPCE'))[0];
+  ok(t.programa === 'citros' && t.programaVisita === 'Pragas dos Citros' && t.numeroTxt === `001.${ANO}.MANAUS` && JSON.parse(t.culturas).length === 2 && JSON.parse(t.tipoLocal)[0].startsWith('Propriedade Sitio Laranjal'), 'planilha: programa citros, 2 culturas, local especificado', { p: t.programa, n: t.numeroTxt });
+  ok(JSON.parse(t.pragas).includes('HLB') && JSON.parse(t.pragas).includes('Cancro Cítrico') && JSON.parse(t.pragas).includes('Ácaro Hindustânico'), 'planilha: quadro de pragas do Termo com HLB, ácaro e cancro', t.pragas);
+  await p.ctx.setOffline(true); await p.evaluate(() => window.dispatchEvent(new Event('offline')));
+  await A.abrirProdutor(p, '12345678909');
+  await A.visita(p, { frutos: ['Limão'], padrao: 'nao_detectada' });
+  ok((await p.locator('.pce-termo-pronto .tf-num-inline').first().textContent()) === `002.${ANO}.MANAUS` && /provisório/.test(await p.textContent('#pce-visita-pronta')), 'sem internet: Termo 002 provisório (visita negativa de citros)');
+  const neg = await p.evaluate(async () => (await Store.todos('termosPce')).find(x => x.numeroTxt && x.pendente));
+  ok(/Ausência de sintomas de HLB/.test(neg.constatacao) && !/Presença/.test(neg.constatacao) && neg.sintomas === 'nao', 'visita negativa de citros: só ausência');
+  ok(neg.enquadramento.includes(CAN) && neg.enquadramento.includes(HLB) && /IN MAPA nº 8\/2012/.test(neg.enquadramento), 'sem detecção: enquadramento de todas as avaliadas do programa (HLB, cancro e ácaro)', neg.enquadramento);
+  await p.ctx.setOffline(false); await p.evaluate(() => window.dispatchEvent(new Event('online'))); await A.sync(p);
 
-  console.log('2. CPF já cadastrado: autopreenche produtor e propriedade');
-  await p.click('#pce-novolev'); await p.waitForSelector('#pceLevForm');
-  await p.fill('#pce-doc', '52998224725');
-  await p.waitForFunction(() => /Cadastro encontrado/.test(document.querySelector('#pce-st-doc').textContent) && document.querySelector('#pce-propriedade').value, null, { timeout: 10000 });
-  const v = async id => p.inputValue('#pce-' + id);
-  ok(await p.isEnabled('#pce-nome') && await v('nome') === 'FULANO FICTICIO TESTE' && await v('telefone') === '92 90000-0000', 'produtor preenchido (nome, telefone) e campos liberados', [await v('nome'), await v('telefone')]);
-  ok(await v('propriedade') === 'Sítio Ficticio' && await v('codigo') === 'PRP-CIT-1' && await v('situacao') === 'Posse' && await v('municipio') === 'Manaus',
-    'propriedade preenchida (nome, código IN 33/2016, situação, município)');
-  ok(await v('cnpj') === '11.222.333/0001-81' && await v('empresa') === 'Citros Ficticio Ltda' && await v('endereco') === 'Ramal Ficticio, km 3' && await v('uf') === 'AM',
-    'CNPJ, empresa/nome fantasia, endereço e UF preenchidos do banco', [await v('cnpj'), await v('empresa'), await v('endereco'), await v('uf')]);
-  await p.waitForFunction(() => document.querySelector('#pce-lat').value !== '', null, { timeout: 5000 }).catch(() => {});
-  const tira0 = await p.addStyleTag({ content: 'header, #nav, nav, #toast { visibility:hidden !important; }' });
-  await p.locator('#pce-prod-card').screenshot({ path: amb.saida('citros_1_produtor_autopreenchido.png') }); guardar('citros_1_produtor_autopreenchido.png');
-  await tira0.evaluate(e => e.remove());
-
-  console.log('3. Culturas: bloco de citros só com cultura de citros (praga de citros), um só para o levantamento');
-  await F.preencherCultura(p, 0, 'Carambola');
-  ok(await p.locator('#pce-citros').count() === 1 && !(await visivel()), 'cultura sem praga de citros (Carambola, Mosca-da-carambola): sem bloco de citros');
-  await F.cultura(p, 1, 'Laranja');
-  ok(await visivel(), 'cultura de citros (Laranja, com HLB, cancro e ácaro do catálogo): bloco "Cultura do citros" aparece');
-  ok(await p.locator('.pce-cultura >> nth=1 >> .pce-pr').count() === 6 && (await p.locator('.pce-cultura >> nth=1 >> .pce-pr small.pce-pr-cat').allTextContents()).filter(t => t === 'opcional').length === 3,
-    'Laranja traz as 3 pragas obrigatórias (HLB, cancro, ácaro) e as 3 opcionais (Diaphorina, Pinta Preta, Leprose)');
-  await F.responder(p, 1, 'HLB / Greening', 'nao_detectada'); await F.responder(p, 1, 'Cancro Cítrico', 'nao_detectada'); await F.responder(p, 1, 'Schizotetranychus hindustanicus', 'nao_detectada');
-  ok(!(await marcado('comercial', 'sim')) && !(await marcado('comercial', 'nao')), 'visita sem "Plantio comercial?": a pergunta do citros fica em branco');
-  await p.selectOption('#pce-comercial', 'sim');
-  ok(await marcado('comercial', 'sim'), '"Plantio comercial?" da visita preenche a mesma pergunta do bloco de citros (o fiscal responde uma vez só)');
-  ok(await p.$eval('#pce-citros', el => !!el.closest('#pce-culturas-card') && !el.closest('.pce-cultura')), 'o bloco fica dentro do card "Culturas avaliadas" (não é um card solto)');
-  await F.cultura(p, 2, 'Limão');
-  ok(await p.locator('.pce-citros').count() === 1 && await visivel(), 'duas culturas de citros (Laranja e Limão): continua UM bloco só');
-  ok(!(await marcado('det-cancro-tem', 'sim')) && !(await marcado('det-cancro-tem', 'nao')), 'antes do resultado do cancro: detecção do cancro em branco');
-  await F.responder(p, 2, 'Cancro Cítrico', 'detectada');
-  ok(await marcado('det-cancro-tem', 'sim') && !(await marcado('det-hlb-tem', 'sim')) && await p.isVisible('#pce-ci-det-cancro-tempo'), 'Cancro detectado: "Presença" pré-marcada (com "há quanto tempo"); HLB continua em branco');
-  ok(/Ausência/.test(await p.textContent('#pce-ci-det')) && /Presença/.test(await p.textContent('#pce-ci-det')) && /obrigatório/.test(await p.textContent('#pce-citros')), 'detecção: botões Ausência/Presença, obrigatória');
-  await F.responder(p, 2, 'HLB / Greening', 'nao_detectada'); await F.responder(p, 2, 'Schizotetranychus hindustanicus', 'nao_detectada');
-  await F.responder(p, 2, 'Pinta Preta dos Citros', 'nao_detectada');
-  ok(await p.locator('.pce-cultura >> nth=2 >> .pce-pr[data-nome="Pinta Preta dos Citros"] .r-res:checked').count() === 1, 'praga opcional (Pinta Preta) pode ser respondida, mas não é obrigatória');
-
-  console.log('4. Obrigatórias: HLB, Ácaro Hindustânico e Cancro Cítrico');
-  await p.click('#pce-salvar'); await p.waitForTimeout(300);
-  ok(/HLB e Ácaro Hindustânico/.test(await toast()) && await p.locator('#pceLevForm').count() === 1, 'sem HLB e ácaro: não salva (mensagem cita as que faltam)', await toast());
-  await op('det-hlb-tem', 'nao');
-  await p.click('#pce-salvar'); await p.waitForTimeout(300);
-  ok(/Ácaro Hindustânico/.test(await toast()) && !/HLB/.test(await toast()) && await p.locator('#pceLevForm').count() === 1, 'só o ácaro faltando: ainda não salva', await toast());
-  await op('det-acaro-tem', 'nao'); await p.fill('#pce-ci-det-cancro-tempo', '3 semanas');
-
-  console.log('5. Particularidades do cadastro (dados fictícios)');
-  ok(await marcado('comercial', 'sim'), 'propriedade comercial já veio marcada da visita');
-  for (const x of ['frutos', 'outros']) await p.check(`input[name="pce-ci-atividades"][value="${x}"]`);
-  await p.fill('#pce-ci-atividadeOutros', 'Pomar experimental');
-  await op('situacao', 'proprietario');
-  await p.click('#pce-ci-addcult'); await p.click('#pce-ci-addcult');
-  const lin = (i, k) => `#pce-ci-culturas .pce-ci-cult >> nth=${i} >> .ci-${k}`;
-  const linha = async (i, a, cv, ar, id, pl, pr) => { await p.selectOption(lin(i, 'atividade'), a); await p.fill(lin(i, 'cultivar'), cv); await p.fill(lin(i, 'area'), ar);
-    await p.fill(lin(i, 'idade'), id); await p.fill(lin(i, 'plantas'), pl); await p.fill(lin(i, 'producao'), pr); };
-  await linha(0, 'frutos', 'Laranja Pera', '2,5', '6', '400', '12,5');
-  await linha(1, 'frutos', 'Limão Tahiti', '1', '3', '150', '4');
-  await op('entrega', 'sim'); await p.check('input[name="pce-ci-formasEntrega"][value="caixa"]');
-  for (const x of ['feira', 'outros']) await p.check(`input[name="pce-ci-compradores"][value="${x}"]`);
-  await p.fill('#pce-ci-compradorOutros', 'Restaurante Ficticio');
-  await op('beneficia', 'nao');
-  for (const x of ['muda', 'borbulha']) await p.check(`input[name="pce-ci-materiais"][value="${x}"]`);
-  await p.fill('#pce-ci-origemMaterial', 'Viveiro Ficticio Registrado');
-  await op('del-pintapreta-tem', 'nao');
-  await p.fill('#pce-ci-rt-nome', 'Beltrano Ficticio Teste'); await p.fill('#pce-ci-rt-conselho', 'CREA-AM 00000');
-  ok(await p.locator('#pce-ci-cnpj, #pce-ci-endereco, #pce-ci-uf').count() === 0, 'sem campos repetidos no bloco (CNPJ, endereço e UF ficam nos dados do produtor/localização)');
-  await p.evaluate(() => document.activeElement && document.activeElement.blur());
-  const tira = await p.addStyleTag({ content: 'header, #nav, nav, #toast { visibility:hidden !important; }' });
-  await p.locator('#pce-culturas-card').screenshot({ path: amb.saida('citros_2_bloco_nas_pragas.png') }); guardar('citros_2_bloco_nas_pragas.png');
-  await p.locator('#pce-ci-det').screenshot({ path: amb.saida('citros_3_ausencia_presenca.png') }); guardar('citros_3_ausencia_presenca.png');
-  await p.screenshot({ path: amb.saida('citros_0_formulario_completo.png'), fullPage: true }); guardar('citros_0_formulario_completo.png');
-  await tira.evaluate(e => e.remove());
-
-  console.log('6. Salvar e sincronizar o levantamento');
-  await p.click('#pce-salvar'); await p.waitForSelector('#pce-lev-pronto');
-  const lid = await p.evaluate(async () => (await Store.todos('levantamentos'))[0].id);
-  const lev = await p.evaluate(id => Store.obter('levantamentos', id), lid);
-  await sync();
-  const cab = (await get('/__aba?nome=Levantamentos'))[0];
-  ok(cab.slice(-6).join() === 'citros,cnpj,empresa,endereco,uf,comercial', 'aba Levantamentos: colunas novas no fim (cnpj, empresa, endereco, uf, comercial)', cab.slice(-7));
-  let L = await linhaDe('Levantamentos', lid), J = json(L && L.citros);
-  ok(L && L.cnpj === '11222333000181' && L.empresa === 'Citros Ficticio Ltda' && L.endereco === 'Ramal Ficticio, km 3' && L.uf === 'AM', 'planilha: CNPJ (só dígitos), empresa, endereço e UF do levantamento', L && [L.cnpj, L.empresa, L.endereco, L.uf]);
-  ok(J && J.deteccao.hlb.tem === 'nao' && J.deteccao.acaro.tem === 'nao' && J.deteccao.cancro.tem === 'sim' && J.deteccao.cancro.tempo === '3 semanas' && J.deteccao.hlb.tempo === '',
-    'planilha (citros): detecção HLB ausência, ácaro ausência, cancro presença há 3 semanas', J && J.deteccao);
-  ok(J && J.comercial === 'sim' && J.atividades.join() === 'frutos,outros' && J.situacao === 'proprietario' && J.culturas.length === 2 && J.culturas[0].plantas === 400
-    && J.compradorOutros === 'Restaurante Ficticio' && J.rt.nome === 'Beltrano Ficticio Teste' && !('cnpj' in J), 'planilha (citros): particularidades do cadastro, sem identificação repetida', J);
-  ok(/Cadastro de citros/.test(await p.textContent('#pce-pronto-cad')) && /Cadastro de citros sai deste levantamento/.test(await p.textContent('.pce-visita')), 'próximo passo: "Cadastro de citros e fazer o Termo"');
-
-  const pdfs = (await p.locator('#view [data-pce=imprimirlev]').allTextContents()).map(x => x.trim());
-  ok(pdfs.length === 2 && pdfs.includes('PDF: Pragas dos Citros') && pdfs.includes('PDF: Mosca-da-Carambola'), 'PDF do levantamento: um por programa (Pragas dos Citros e Mosca-da-Carambola), não um por praga', pdfs);
-  const prC = await imprimir(() => p.click('#view [data-pce=imprimirlev]:has-text("Pragas dos Citros")'));
-  ok(/HLB/.test(prC.texto) && /Cancro C/.test(prC.texto) && /hindustanicus|Hindustânico/i.test(prC.texto) && !/carambola/i.test(prC.texto) && prC.paginas >= 1,
-    'PDF de citros: uma ficha só com HLB, cancro e ácaro (sem a mosca, que tem o seu PDF)', prC.texto.slice(0, 400));
-
-  console.log('7. Cadastro de citros (numeração do programa citros) → Termo de Fiscalização da visita');
-  await p.click('#pce-pronto-cad'); await p.waitForSelector('#monCadForm[data-programa=citros]');
-  const telaCad = (await p.innerText('#monCadForm')).replace(/\s+/g, ' ');
-  ok(/FULANO FICTICIO TESTE/.test(telaCad) && /11\.222\.333\/0001-81/.test(telaCad) && /PRP-CIT-1/.test(telaCad) && /Detecção – Cancro Cítrico Presença · há 3 semanas/.test(telaCad) && /Laranja Pera/.test(telaCad),
-    'tela do cadastro de citros: dados do levantamento para conferir (produtor, CNPJ, código, detecção, cultura)', telaCad.slice(0, 400));
-  await p.click('#mc-salvar'); await confirmarNumeros('#pce-lev-pronto');
-  const botoesTf = (await p.locator('.pce-visita [data-pce=tfvisita]').allTextContents()).map(x => x.trim());
-  ok(await p.locator('.pce-visita [data-pce=cadvisita][data-modelo=citros]').count() === 0 && botoesTf.length === 2 && botoesTf.some(x => /Pragas dos Citros \(Laranja, Limão\)/.test(x)) && botoesTf.some(x => /Mosca-da-Carambola \(Carambola\)/.test(x)),
-    'depois do cadastro: volta ao levantamento com um Termo por programa (Pragas dos Citros com Laranja e Limão; Mosca-da-Carambola com Carambola)', botoesTf);
-  await p.click('.pce-visita [data-pce=tfvisita][data-programa="pragas-dos-citros"]'); await p.waitForSelector('#monTfForm');
-  ok(/citros/.test(await p.textContent('#monTfForm h3')) && /Pragas dos Citros/.test(await p.textContent('#mt-programa')) && /Laranja, Limão/.test(await p.textContent('#mt-programa')), 'abre o Termo de Fiscalização de citros, do programa Pragas dos Citros e suas culturas', await p.textContent('#mt-programa'));
-  const t = async id => p.inputValue('#mt-' + id);
-  ok(await t('nome') === 'FULANO FICTICIO TESTE' && /529\.982\.247-25/.test(await t('doc')) && await t('empresa') === 'Citros Ficticio Ltda' && await t('cnpj') === '11.222.333/0001-81'
-    && await t('endereco') === 'Ramal Ficticio, km 3' && await t('municipio') === 'Manaus' && await t('uf') === 'AM' && await t('telefone') === '92 90000-0000',
-    'Termo: identificação vem do levantamento/cadastro (nome, CPF, empresa, CNPJ, endereço, município, UF, telefone)', [await t('nome'), await t('doc'), await t('empresa'), await t('cnpj'), await t('telefone')]);
-  ok(await t('lat') !== '' && await t('lon') !== '' && await t('data') === lev.data && await t('hora') === lev.hora.slice(0, 5), 'Termo: coordenadas, data e hora da visita', [await t('lat'), await t('data'), await t('hora'), lev.data, lev.hora]);
-  ok(/Sítio Ficticio/.test(await t('localAcao')) && /Manaus\/AM/.test(await t('localAcao')), 'Termo: local da fiscalização (especificar o local) preenchido', await t('localAcao'));
-  const desc = await t('constatacao');
-  ok(desc.split('\n')[0] === 'Ausência de sintomas de HLB nos frutos e folhas da cultura Laranja e Limão.' && /^Ausência de sintomas de Ácaro Hindustânico nos frutos e folhas da cultura/m.test(desc)
-    && /^Presença de sintomas de Cancro Cítrico nos frutos e folhas da cultura Laranja e Limão\.$/m.test(desc), 'Termo: uma frase por doença (ausência/presença), com as culturas de citros', desc);
-  ok(/^Praga opcional Pinta Preta dos Citros: Não detectada em \S/m.test(desc) && desc.split('\n').length === 4, 'Termo: a praga opcional respondida (Pinta Preta) entra na descrição, em uma linha (o Termo de citros não tem quadro de pragas)', desc);
-  ok(await t('enquadramento') === ENQ_CANCRO, 'Termo: enquadramento legal da planilha da GDV, só da praga detectada (Cancro Cítrico; HLB e Ácaro ausentes ficam de fora) (editável)', await t('enquadramento'));
-  ok(await t('atividade') === 'Produção comercial de frutos; Pomar experimental' && await t('plantas') === '550' && await p.isChecked('input[name="mt-sintomas"][value="sim"]'),
-    'Termo: atividade, plantas (soma da cultura do citros) e "presença de sintomas" para o relatório', [await t('atividade'), await t('plantas')]);
-  ok(await p.isHidden('input[name="mt-pragas"]') && (await p.$$eval('input[name="mt-pragas"]:checked', l => l.map(x => x.value).sort())).join() === 'Cancro Cítrico,HLB,Ácaro Hindustânico',
-    'Termo de citros: sem o quadro de pragas do outro modelo; pragas guardadas para o relatório são só as do programa (sem a Mosca-da-Carambola, que tem Termo próprio)', await p.$$eval('input[name="mt-pragas"]:checked', l => l.map(x => x.value)));
-  await p.fill('#mt-constatacao', desc + '\nOrientado o produtor sobre o controle do cancro.');
-  await p.fill('#mt-enquadramento', '');
-  await p.fill('#mt-localAcao', '');
-  await p.click('#mt-salvar'); await p.waitForTimeout(300);
-  ok(/local da fiscalização/.test(await toast()), 'Termo de citros: local obrigatório', await toast());
-  await p.fill('#mt-localAcao', 'Propriedade Sítio Ficticio, Ramal Ficticio, km 3, Manaus/AM');
-  await p.fill('#mt-enquadramento', ENQ_CANCRO);
-  await p.click('[data-mon=frasescitros]');
-  ok((await t('constatacao')).split('\n').length === 5 && /Orientado o produtor/.test(await t('constatacao')) && /^Praga opcional Pinta Preta/m.test(await t('constatacao')), '"Refazer as frases": troca só as frases e a linha da praga opcional, sem duplicar (o texto do fiscal continua)', await t('constatacao'));
-  await p.click('#mt-salvar'); await confirmarNumeros('#mon-pronto');
-  ok(await p.locator('#mon-pronto').count() === 1, 'Termo de Fiscalização salvo', await toast());
-
-  console.log('8. PDF: cadastro de citros (modelo do papel) + Termo de Fiscalização da visita');
-  const pr = await imprimir(() => p.click('#mon-imprimir'));
-  ok(pr.paginas === 2 && /doc-cci/.test(pr.classes[0]) && /doc-tci/.test(pr.classes[1]) && /^TF_Citros_\d{3}\.\d{4}\.MANAUS_FULANO_FICTICIO_TESTE/.test(pr.titulo),
-    'imprimir o Termo: 2 páginas (cadastro de citros e o Termo), nome TF_Citros_…', [pr.paginas, pr.classes, pr.titulo]);
-  const T0 = pr.texto;
-  ok(/CADASTRO DE IMÓVEIS DE PRODUÇÃO COMERCIAL DE CÍTRICOS/.test(T0) && /CADASTRO DA PROPRIEDADE Nº \d{3}-\d{4}-MANAUS/.test(T0) && /ATENDIMENTO A IN N°21 DE 25\/04\/2018/.test(T0)
-    && /LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS DE CITROS/.test(T0) && /Marcada opção “NÃO” preencher apenas itens 1, 4 e 5/.test(T0), 'cadastro: títulos do modelo e nº do cadastro (sequência de citros)');
-  ok(/1\. DADOS DO PRODUTOR\/PROPRIETÁRIO/.test(T0) && /2\. TIPO DE ATIVIDADE/.test(T0) && /3\. CULTURA DO CITROS/.test(T0) && /4\. LEVANTAMENTO DE DELIMITAÇÃO/.test(T0) && /5\. LEVANTAMENTO DE DETECÇÃO/.test(T0)
-    && /CÓDIGO DA PROPRIEDADE \(CONFORME IN N°33\/2016\): PRP-CIT-1/.test(T0) && /NOME DO RESPONSAVEL TÉCNICO: Beltrano Ficticio Teste/.test(T0) && /1ª via: Unidade Local 2ª via: ADAF Central \(E-mail\)/.test(T0),
-    'cadastro: itens 1 a 5, código IN 33/2016, responsável técnico e vias');
-  const M = pr.marcas[0];
-  ok(['d.comercial=sim', 'd.atividades=frutos', 'd.atividades=outros', 'd.situacao=proprietario', 'd.entrega=sim', 'd.formasEntrega=caixa', 'd.compradores=feira', 'd.compradores=outros',
-    'd.beneficia=nao', 'd.materiais=muda', 'd.materiais=borbulha', 'd.delimitacao.pintapreta.tem=nao', 'd.deteccao.cancro.tem=sim', 'd.deteccao.hlb.tem=nao', 'd.deteccao.acaro.tem=nao'].every(x => M.includes(x))
-    && !M.includes('d.comercial=nao') && !M.includes('d.deteccao.cancro.tem=nao') && !M.includes('d.atividades=viveiro_mudas'), 'cadastro: marcações (X) do que foi escolhido, e só delas', M);
-  ok(/Laranja Pera/.test(T0) && /Limão Tahiti/.test(T0) && /12,5/.test(T0) && /Restaurante Ficticio/.test(T0) && /Há quanto tempo: 3 semanas/.test(T0), 'cadastro: tabela da cultura do citros e textos');
-  ok(/TERMO DE FISCALIZAÇÃO N° \d{3}\.\d{4}\.MANAUS/.test(T0) && /Nome: FULANO FICTICIO TESTE/.test(T0) && /CPF: 529\.982\.247-25/.test(T0) && /Empresa \/ Fantasia: Citros Ficticio Ltda/.test(T0)
-    && /CNPJ: 11\.222\.333\/0001-81/.test(T0) && /Endereço: Ramal Ficticio, km 3/.test(T0) && /Telefone: 92 90000-0000/.test(T0) && /Coordenadas Geográficas: -3,12/.test(T0),
-    'Termo: identificação (nome, CPF, empresa, CNPJ, endereço, telefone, coordenadas)');
-  const [aa, mm, dd] = lev.data.split('-');
-  ok(new RegExp(`Em ${dd}/${mm}/${aa} às ${lev.hora.slice(0, 2)} : ${lev.hora.slice(3, 5)} hora\\(s\\) ao realizar fiscalização no\\(a\\) Propriedade Sítio Ficticio, Ramal Ficticio, km 3, Manaus/AM constatei`).test(T0),
-    'Termo: "Em data às hora ao realizar fiscalização no(a) local constatei"', T0.slice(T0.indexOf('Em '), T0.indexOf('Em ') + 200));
-  ok(/Ausência de sintomas de HLB nos frutos e folhas da cultura/.test(T0) && /Presença de sintomas de Cancro Cítrico nos frutos e folhas da cultura/.test(T0) && /Orientado o produtor/.test(T0)
-    && T0.includes(ENQ_CANCRO) && !/Portaria SDA\/MAPA nº 1\.326/.test(T0.slice(T0.indexOf('TERMO DE FISCALIZAÇÃO'))), 'Termo: frases de ausência/presença, texto do fiscal e enquadramento só da praga detectada');
-  ok(/4 – Testemunhas/.test(T0) && /Recebi a 2ª via deste Termo em:/.test(T0) && /1ª via: Interessado 2ª via: ADAF Central 3ª via: Unidade Local/.test(T0), 'Termo: testemunhas, "Recebi a 2ª via" e as 3 vias');
-  ok(!/Monilíase|Mosca-da-Carambola|ao realizar ações de/.test(T0.slice(T0.indexOf('TERMO DE FISCALIZAÇÃO'))), 'Termo de citros: sem o quadro de pragas/ações do Termo de monilíase');
-  // páginas renderizadas (para comparar com o modelo) e o PDF do Chromium
-  const pg = await b.newPage({ viewport: { width: 800, height: 1200 } });
-  await pg.setContent(pr.html.replace('<head>', `<head><base href="${APP}documentos/">`), { waitUntil: 'load' });
-  await pg.evaluate(() => Promise.all([...document.images].map(im => (im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; })))));
-  await pg.locator('.a4 >> nth=0').screenshot({ path: amb.saida('citros_4_pdf_cadastro.png') }); guardar('citros_4_pdf_cadastro.png');
-  await pg.locator('.a4 >> nth=1').screenshot({ path: amb.saida('citros_5_pdf_termo.png') }); guardar('citros_5_pdf_termo.png');
-  await pg.emulateMedia({ media: 'print' });
-  const altura = await pg.evaluate(() => [...document.querySelectorAll('.a4')].map(x => x.getBoundingClientRect().height));
-  ok(altura.every(h => h < 1065), 'cada página cabe numa folha A4 (281 mm de área útil)', altura);
-  await pg.pdf({ path: amb.saida('citros_cadastro_e_tf.pdf'), format: 'A4', printBackground: true, preferCSSPageSize: true }); guardar('citros_cadastro_e_tf.pdf');
-  await pg.close();
-  // imprimir o cadastro (lista de cadastros): cadastro + o Termo do mesmo dia
-  await p.evaluate(() => go('pcecads')); await p.waitForSelector('.mon-item');
-  ok(/Citros/.test(await p.textContent('.mon-item')), 'lista de cadastros: cadastro de citros marcado "Citros"');
-  const pc = await imprimir(() => p.click('.mon-item [data-mon=imprimir]'));
-  ok(pc.paginas === 2 && /doc-cci/.test(pc.classes[0]) && /doc-tci/.test(pc.classes[1]) && /^Cadastro_Citros_\d{3}-\d{4}-MANAUS_FULANO_FICTICIO_TESTE/.test(pc.titulo), 'imprimir o cadastro: cadastro + Termo da visita, nome Cadastro_Citros_…', [pc.paginas, pc.titulo]);
-  // enviar ao produtor: só o Termo (PDF gerado no aparelho)
-  const so = await p.evaluate(async () => { const t = (await Store.todos('termosPce'))[0]; const f = await PCEMon.imprimir('termo', t.id, 'arquivo'); return { nome: f.name, tam: f.size }; });
-  ok(/^TF_Citros_.*\.pdf$/.test(so.nome) && so.tam > 1000, 'enviar ao produtor: PDF do Termo gerado no aparelho', so);
-
-  console.log('9. Planilha: CadastrosPCE (programa citros) e TermosPCE');
-  await sync();
-  const cads = (await linhas('CadastrosPCE')).filter(x => x.programa === 'citros'), tfs = (await linhas('TermosPCE')).filter(x => x.programa === 'citros');
-  const CD = cads[0] && json(cads[0].dados), TF0 = tfs[0];
-  ok(cads.length === 1 && /^001-\d{4}-MANAUS$/.test(cads[0].numeroTxt) && cads[0].doc === '52998224725' && cads[0].cnpj === '11222333000181' && cads[0].totalPlantas === 550,
-    'CadastrosPCE: 1 cadastro de citros nº 001 (sequência própria), CPF, CNPJ e total de plantas', cads[0] && [cads[0].numeroTxt, cads[0].cnpj, cads[0].totalPlantas]);
-  ok(CD && CD.levantamentoId === lid && CD.codigoPropriedade === 'PRP-CIT-1' && CD.deteccao.cancro.tem === 'sim' && CD.culturas.length === 2 && CD.culturasAvaliadas.join() === 'Laranja,Limão',
-    'CadastrosPCE.dados: cópia do bloco de citros + levantamento, código e culturas avaliadas', CD);
-  ok(tfs.length === 1 && TF0.cadastroId === cads[0].id && json(TF0.tipoLocal)[0] === 'Propriedade Sítio Ficticio, Ramal Ficticio, km 3, Manaus/AM' && /Presença de sintomas de Cancro Cítrico/.test(TF0.constatacao)
-    && TF0.enquadramento === ENQ_CANCRO && TF0.empresa === 'Citros Ficticio Ltda' && TF0.sintomas === 'sim' && TF0.plantasInspecionadas === 550, 'TermosPCE: termo de citros ligado ao cadastro, local, frases, enquadramento, empresa e números do relatório',
-    TF0 && [TF0.cadastroId, TF0.tipoLocal, TF0.sintomas, TF0.plantasInspecionadas]);
-
-  console.log('10. Reabrir');
-  await p.evaluate(id => go('pcelev', id), lid); await p.waitForSelector('#pceLevForm');
-  ok(await p.isEnabled('#pce-nome') && await v('cnpj') === '11.222.333/0001-81' && await v('empresa') === 'Citros Ficticio Ltda' && await v('endereco') === 'Ramal Ficticio, km 3', 'levantamento reaberto: campos liberados com CNPJ, empresa e endereço');
-  ok(await visivel() && await marcado('det-cancro-tem', 'sim') && await marcado('det-hlb-tem', 'nao') && await marcado('det-acaro-tem', 'nao') && await p.inputValue('#pce-ci-det-cancro-tempo') === '3 semanas'
-    && await p.locator('#pce-ci-culturas .pce-ci-cult').count() === 2 && await marcado('situacao', 'proprietario'), 'levantamento reaberto: bloco de citros com detecção e cultura');
-  await p.click('[data-pce=descartarlev]'); await p.waitForSelector('#pce-novolev');
-  await p.evaluate(() => go('pcetfs')); await p.waitForSelector('.mon-item');
-  await p.click('.mon-item [data-mon=abrir]'); await p.waitForSelector('#monTfForm');
-  ok(await p.locator('#mt-desc-citros').count() === 1 && await t('localAcao') === 'Propriedade Sítio Ficticio, Ramal Ficticio, km 3, Manaus/AM' && /Orientado o produtor/.test(await t('constatacao')), 'Termo reaberto: modo citros com local e descrição');
-  await p.click('#monTfForm [data-mon=descartar]'); await p.waitForTimeout(300);
-  await p.evaluate(id => PCEUI.levPronto(id), lid); await p.waitForSelector('#pce-lev-pronto');
-  ok(await p.locator('.pce-visita [data-pce=cadvisita][data-modelo=citros]').count() === 0 && /cadastro de citros \d{3}-\d{4}-MANAUS/.test(await p.textContent('.pce-visita')) && /Termo \d{3}\.\d{4}\.MANAUS – Pragas dos Citros/.test(await p.textContent('.pce-visita [data-pce=abrirtfvisita]')) && await p.locator('.pce-visita [data-pce=tfvisita]').count() === 1,
-    'visita: cadastro de citros e Termo de citros já feitos (sem pedir de novo); falta só o da Mosca-da-Carambola', (await p.textContent('.pce-visita')).replace(/\s+/g, ' '));
-
-  console.log('11. Sem internet: o CPF busca no aparelho; praga só de outro programa sem bloco');
-  await c.setOffline(true); await p.evaluate(() => window.dispatchEvent(new Event('offline')));
-  await p.evaluate(() => go('pcelev')); await p.waitForSelector('#pceLevForm');
-  await p.fill('#pce-doc', '529.982.247-25');
-  await p.waitForFunction(() => /Cadastro encontrado/.test(document.querySelector('#pce-st-doc').textContent), null, { timeout: 10000 });
-  ok(/Sem conexão/.test(await p.textContent('#pce-st-doc')) && await v('nome') === 'FULANO FICTICIO TESTE' && await v('cnpj') === '11.222.333/0001-81' && await v('empresa') === 'Citros Ficticio Ltda',
-    'sem internet: produtor e propriedade (com CNPJ e empresa) do aparelho', (await p.textContent('#pce-st-doc')).replace(/\s+/g, ' '));
-  await F.preencherCultura(p, 0, 'Cacau');
-  ok(!(await visivel()), 'cultura só de monilíase (Cacau): sem bloco de citros');
-  await p.click('#pce-salvar'); await p.waitForSelector('#pce-lev-pronto');
-  ok(/Cadastrar a propriedade/.test(await p.textContent('#pce-pronto-cad')), 'levantamento de monilíase: o cadastro sugerido é o de monilíase (não o de citros)');
-  const lid2 = await p.evaluate(async () => (await Store.todos('levantamentos')).find(x => /Moni/.test(x.pragas)).id);
-  await c.setOffline(false); await p.evaluate(() => window.dispatchEvent(new Event('online'))); await sync();
-  ok((await linhaDe('Levantamentos', lid2)).citros === '', 'levantamento sem praga de citros: coluna "citros" vazia');
-
-  console.log('12. Validação do servidor (identificação do levantamento)');
-  const VELHO = { id: 'lev-citros-ident', data: '2026-03-10', hora: '09:00', servidor: 'Ciclano Ficticio Teste', cargo: 'Fiscal Agropecuário Engenheiro Agrônomo', lotacao: 'Manaus', doc: '52998224725',
-    nome: 'FULANO FICTICIO TESTE', municipio: 'Manaus', culturas: '[]', fotos: '[]', assinaturas: '{}', excluido: 0, criadoEm: agora, atualizadoEm: Date.now(),
-    pragas: JSON.stringify([{ praga: 'Cancro Cítrico', culturas: [{ cultura: 'Limão', resultado: 'nao_detectada', coleta: 'Não', fotos: [] }] }]),
-    cnpj: '11.222.333/0001', uf: 'amazonas', empresa: '=' + 'x'.repeat(200), endereco: 'Rua\nFicticia' };
-  r = await post({ action: 'sync', key: TOKF, since: 0, levantamentos: [VELHO] });
-  const V = await linhaDe('Levantamentos', VELHO.id);
-  ok(r.ok && V.cnpj === '' && V.uf === 'AM' && V.empresa.length === 120 && !/^=/.test(V.empresa) && V.endereco === 'Rua Ficticia', 'CNPJ incompleto vazio, UF com 2 letras, textos curtos (sem "=" no início nem quebra de linha)', V && [V.cnpj, V.uf, V.empresa.length, V.endereco]);
-  const { cnpj: _c, uf: _u, empresa: _e, endereco: _d, ...semIdent } = VELHO;
-  r = await post({ action: 'sync', key: TOKF, since: 0, levantamentos: [{ ...semIdent, id: 'lev-citros-app-antigo', atualizadoEm: Date.now() }] });
-  ok(r.ok && (await linhaDe('Levantamentos', 'lev-citros-app-antigo')).cnpj === '', 'app antigo (sem os campos novos): grava normalmente');
-  // registro da versão anterior: CNPJ/endereço/UF dentro do JSON de citros aparecem nos dados do produtor ao reabrir
-  const ANT = { ...semIdent, id: 'lev-citros-v1', atualizadoEm: Date.now(), citros: JSON.stringify({ v: 1, comercial: 'sim', cnpj: '11222333000181', endereco: 'Estrada Ficticia', uf: 'AM' }) };
-  r = await post({ action: 'sync', key: TOKF, since: 0, levantamentos: [ANT] }); await sync();
-  await p.evaluate(id => go('pcelev', id), ANT.id); await p.waitForSelector('#pceLevForm');
-  ok(await v('cnpj') === '11.222.333/0001-81' && await v('endereco') === 'Estrada Ficticia' && await visivel() && !(await marcado('det-hlb-tem', 'sim')) && !(await marcado('det-hlb-tem', 'nao')),
-    'registro da versão anterior: CNPJ/endereço vêm para os dados do produtor; detecção em branco', [await v('cnpj'), await v('endereco')]);
-  await p.click('[data-pce=descartarlev]'); await p.waitForSelector('#pce-novolev');
-  await p.evaluate(id => PCEUI.levPronto(id), ANT.id); await p.waitForSelector('#pce-lev-pronto');
-  await p.click('.pce-visita [data-pce=tfvisita]'); await p.waitForTimeout(400);
-  ok(/marque Ausência ou Presença de sintomas de HLB, Ácaro Hindustânico e Cancro Cítrico/.test(await toast()) && await p.locator('#monTfForm, #monCadForm').count() === 0, 'sem a detecção completa: não gera cadastro/termo de citros', await toast());
-  // app: número negativo e CNPJ incompleto recusados ao salvar
-  await p.evaluate(id => go('pcelev', id), ANT.id); await p.waitForSelector('#pceLevForm');
-  await F.responderObrigatorias(p, 0);
-  for (const k of ['hlb', 'acaro', 'cancro']) await op(`det-${k}-tem`, 'nao');
-  await p.click('#pce-ci-addcult'); await p.fill(lin(0, 'area'), '-2');
-  await p.click('#pce-salvar'); await p.waitForTimeout(300);
-  ok(/não pode ser negativa/.test(await toast()) && await p.locator('#pceLevForm').count() === 1, 'app: área negativa recusada ao salvar', await toast());
-  await p.fill(lin(0, 'area'), '2'); await p.fill('#pce-cnpj', '1234');
-  await p.click('#pce-salvar'); await p.waitForTimeout(300);
-  ok(/14 dígitos/.test(await toast()), 'app: CNPJ incompleto recusado ao salvar', await toast());
-  const lim = await p.evaluate(async () => { for (let i = 0; i < 25; i++) document.querySelector('#pce-ci-addcult').click(); await new Promise(r => setTimeout(r, 100)); return document.querySelectorAll('#pce-ci-culturas .pce-ci-cult').length; });
-  ok(lim === 20, 'app: no máximo 20 linhas na cultura do citros', lim);
-  await p.click('[data-pce=descartarlev]'); await p.waitForSelector('#pce-novolev');
-
-  ok(!err.length, 'sem erros de JavaScript', err.slice(0, 4));
-  await b.close();
-  console.log(falhas ? `FALHOU=${falhas}` : 'OK');
-  process.exit(falhas ? 1 : 0);
-})().catch(e => { console.error(e); console.log('FALHOU=1'); process.exit(1); });
+  console.log('4) ficha oficial de citros: gerada do cadastro, com o levantamento da visita mais recente');
+  await A.abrirProdutor(p, '12345678909');
+  await p.locator('.pce-visita-termo[data-modelo=citros] [data-cad=ficha]').click(); await p.waitForSelector('#pceFichaForm');
+  const perg = await p.locator('#fi-perguntas .mon-sn legend, #fi-perguntas .mon-sub').allTextContents();
+  ok(perg.some(x => /TIPO DE ATIVIDADE/.test(x)) && perg.some(x => /Material de propagação/.test(x)) && perg.some(x => /Entrega na propriedade/.test(x)), 'a ficha pergunta só o que é do citros (atividade, entrega, compradores, material)', perg);
+  ok(!(await p.textContent('#fi-perguntas')).match(/CPF|Telefone|Município|Cultivar|Área \(ha\)/), 'não repete o que já está no cadastro (produtor, propriedade, frutos)');
+  await p.locator('#fi-perguntas input[name="fi-atividades"][value=frutos]').check();
+  await p.locator('#fi-perguntas fieldset[data-k=entrega] label:has(input[value=nao])').click();
+  await p.locator('#fi-perguntas input[name="fi-compradores"][value=feira]').check();
+  await p.fill('#fi-origemMaterial', 'Viveiro fictício credenciado');
+  await tira('06-ficha-citros');
+  await p.click('#fi-salvar'); await p.waitForSelector('#pce-produtor');
+  ok(new RegExp(`Gerada: nº 001-${ANO}-MANAUS`).test(await p.textContent('.pce-visita-termo[data-modelo=citros]')), 'ficha numerada por programa, unidade e ano');
+  const pf = await A.imprimir(p, '.pce-visita-termo[data-modelo=citros] [data-cad=pdfficha]');
+  ok(/CADASTRO DE IMÓVEIS DE PRODUÇÃO COMERCIAL DE CÍTRICOS/.test(pf.texto) && /Laranja Pera/.test(pf.texto) && /Limão Tahiti/.test(pf.texto) && /TOTAL/.test(pf.texto) && /Viveiro fictício credenciado/.test(pf.texto), 'PDF da ficha: título oficial, tabela dos frutos e respostas', pf.texto.slice(0, 600));
+  ok(/Cancro Cítrico/.test(pf.texto) && /HLB/.test(pf.texto), 'quadro do levantamento com cancro, HLB e ácaro');
+  await A.salvarPdf(p, pf, 'pce-ficha.html', 'pce_citros_ficha');
+  if (process.env.GDV_SAIDA_CITROS) fs.copyFileSync(amb.saida('pce_citros_ficha.png'), process.env.GDV_SAIDA_CITROS + '/07-ficha-citros.png');
+  await A.sync(p);
+  const cad = (await A.aba('CadastrosPCE'))[0];
+  ok(cad && cad.programa === 'citros' && cad.numeroTxt === `001-${ANO}-MANAUS` && JSON.parse(cad.dados).fichaNova === 1 && JSON.parse(cad.dados).atividades.includes('frutos'), 'planilha: ficha de citros (programa citros, respostas)', cad && cad.numeroTxt);
+  ok(p.err.length === 0, 'sem erros de JavaScript', p.err);
+  console.log('OK'); await b.close();
+})().catch(e => { console.error('FALHOU', e.message); process.exit(1); });

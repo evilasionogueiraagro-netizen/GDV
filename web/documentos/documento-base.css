@@ -1,0 +1,89 @@
+/* Base única dos documentos do e-GDV impressos em A4 (referência visual: Termo de Fiscalização de barreira, termo.css).
+   Folha de 210 x 297 mm sem margem de @page e com padding 10mm 14mm 0; Arial em tudo (também nos valores preenchidos); quadros de 0,6pt; unidades em pt e mm.
+   Cabeçalho, número, quadros, seções, caixas de marcar, valores, assinaturas, vias e rodapé são montados por documento-base.js a partir de
+   marcadores de HTML: [data-cabecalho], [data-numero], [data-rodape data-vias="a|b"]. Rodapé preso à base útil da folha (bottom 8mm), igual em toda página.
+   Nada depende de "gráficos de fundo". Para criar um documento novo sobre esta base, veja os passos no fim deste arquivo. */
+@page { size: A4 portrait; margin: 0; }
+html, body { margin: 0; padding: 0; background: #fff; }
+@page doc { size: A4 portrait; margin: 0; }
+.a4.doc { page: doc; position: relative; box-sizing: border-box; width: 210mm; height: 297mm; margin: 0; padding: 10mm 14mm 0; overflow: hidden; background: #fff; color: #000;
+  --fs: 9.6pt; --fh: 8pt; --fn: 7pt; --rh: 4.6mm; --pd: 0.4mm;
+  font-family: Arial, Helvetica, 'Liberation Sans', sans-serif; font-size: var(--fs); line-height: 1.25;
+  -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+.a4.doc.compacta { --fs: 8.5pt; --fh: 7.5pt; --rh: 3.9mm; --pd: 0.25mm; }
+.a4.doc * { box-sizing: border-box; }
+.a4.doc + .a4.doc { break-before: page; page-break-before: always; }
+.doc table, .doc td, .doc th { margin: 0; }
+
+/* cabeçalho */
+.doc .doc-cab { text-align: center; margin-bottom: 1mm; }
+.doc .doc-cab img { width: 13mm; height: auto; display: block; margin: 0 auto 0.5mm; }
+.doc .doc-cab div { font-size: 8.6pt; line-height: 1.35; }
+.doc .doc-cab .gov { font-weight: bold; }
+
+/* quadro: moldura e tabelas de linhas */
+.doc .cq { border: 0.8pt solid #000; }
+.doc table.ln { width: 100%; border-collapse: collapse; table-layout: fixed; }
+.doc table.ln + table.ln { margin-top: -0.6pt; }
+.doc table.ln td, .doc table.ln th { border: 0.6pt solid #000; padding: var(--pd) 1.6mm; vertical-align: middle; text-align: left; font-size: inherit; font-weight: normal; line-height: 1.25; background: none; }
+.doc table.ln td.sec { font-weight: bold; font-size: 10.4pt; }
+.doc table.ln td.sec small { font-weight: normal; font-size: var(--fn); }
+.doc table.ln td.tit { font-weight: bold; font-size: 12pt; text-align: center; padding: 1mm 1.6mm; }
+.doc table.ln td.base { text-align: center; font-style: italic; font-size: var(--fh); line-height: 1.35; }
+.doc .b { font-weight: bold; }
+.a4.doc.compacta table.ln td.sec { font-size: 9.5pt; }
+.a4.doc.compacta .ass-img { height: 5mm; }
+
+/* número: três caixas com legenda (Nº sequencial - Ano - Unidade), como no Termo de barreira */
+.doc .doc-num { display: inline-flex; align-items: flex-end; gap: 1mm; vertical-align: bottom; font-weight: normal; }
+.doc .doc-num .nc { display: inline-flex; flex-direction: column; align-items: center; }
+.doc .doc-num .nc > span { display: block; min-width: 16mm; border-bottom: 0.6pt solid #000; font-size: 11pt; font-weight: bold; text-align: center; padding: 0 1mm; min-height: 4mm; }
+.doc .doc-num .nc.un > span { min-width: 24mm; }
+.doc .doc-num .nc > small { font-size: var(--fn); font-weight: bold; padding-top: 0.4mm; }
+.doc .doc-num .sep { font-size: 11pt; padding-bottom: 3mm; }
+
+/* campos: rótulo + valor sublinhado (o valor é sempre Arial negrito) */
+.doc .cp { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0 1mm; min-height: var(--rh); }
+.doc .cp > .lbl { white-space: nowrap; }
+.doc .cp > .v { flex: 1 1 22mm; }
+.doc .v { font-weight: bold; border-bottom: 0.6pt solid #000; display: inline-block; min-width: 14mm; padding: 0 0.6mm; vertical-align: bottom; line-height: 1.25; overflow-wrap: anywhere; }
+.doc .v.curto { min-width: 9mm; }
+.doc .v.nw { white-space: nowrap; overflow-wrap: normal; }          /* CPF, CNPJ, coordenadas, código, conselho: não quebram no meio */
+.doc .cp.duplo { flex-wrap: nowrap; }
+.doc .cp.duplo > .v { flex: 0 0 auto; min-width: 20mm; }
+.doc .cp.duplo > .v.s { flex: 0 0 9mm; }
+
+/* caixas de marcar */
+.doc .cx { display: inline-block; width: 3mm; height: 3mm; border: 0.6pt solid #000; position: relative; vertical-align: -0.5mm; margin: 0 0.9mm 0 0; }
+.doc .cx.on::after { content: 'X'; position: absolute; left: 0; right: 0; top: -0.2mm; text-align: center; font-size: var(--fs); font-weight: bold; line-height: 3mm; }
+.doc .op { display: inline-block; margin-right: 1.5mm; white-space: nowrap; }
+
+/* linhas de escrever: bordas, não fundo; o texto fica sobre elas */
+.doc .linhas { position: relative; line-height: 5.6mm; font-weight: bold; white-space: pre-wrap; overflow-wrap: anywhere; padding: 0 0.6mm; text-align: left; }
+.doc .linhas .tl { position: relative; z-index: 1; }
+.doc .linhas .pl { position: absolute; left: 0; right: 0; height: 0; border-top: 0.6pt solid #777; }
+
+/* assinaturas: duas colunas com a linha de assinatura; a imagem colhida na tela vai sobre a linha */
+.doc .assin .cols { display: flex; justify-content: space-between; align-items: flex-start; }
+.doc .assin .col { width: 38%; text-align: center; font-weight: bold; }
+.doc .ass-img { height: 8mm; display: flex; align-items: flex-end; justify-content: center; }
+.doc .ass-img img { max-height: 12mm; max-width: 95%; }
+.doc .linha { border-top: 0.6pt solid #000; padding-top: 0.3mm; }
+.doc .serv { font-weight: normal; font-size: var(--fh); line-height: 1.25; }
+
+/* rodapé: preso à base útil da folha (igual em toda página): vias numa linha, filete e três colunas (endereço, ADAF, SEPROR) alinhadas ao centro */
+.doc .doc-rodape { position: absolute; left: 14mm; right: 14mm; bottom: 8mm; }
+.doc .doc-vias { display: flex; justify-content: space-around; font-size: 8.6pt; margin-bottom: 2mm; }
+.doc .doc-fim { display: flex; align-items: center; justify-content: space-between; gap: 6mm; border-top: 0.6pt solid #000; padding-top: 1.2mm; }
+.doc .doc-end { flex: 1 1 0; font-size: 7pt; line-height: 1.3; color: #000; }
+.doc .doc-logo { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
+.doc .doc-dir { flex: 1 1 0; display: flex; justify-content: flex-end; align-items: center; }
+.doc .doc-fim img { height: 10mm; width: auto; display: block; }
+
+/* Criar um documento novo sobre a base:
+   1. HTML: <link rel="stylesheet" href="documento-base.css"> e <div class="a4 doc"> com [data-cabecalho] (+ data-gdv se for da GDV), o corpo em <div class="cq"> e
+      <div data-rodape data-vias="1ª via: ...|2ª via: ..."></div>; carregue documento-base.js antes do script do modelo.
+   2. Quadros: <table class="ln"> com <td class="sec"> nas seções; campos <div class="cp"><span class="lbl">Rótulo:</span><span class="v">valor</span></div>; caixas <span class="op"><span class="cx on"></span>texto</span>.
+   3. Tudo o que for próprio do documento vai num CSS pequeno ao lado (pce-ficha.css é o exemplo), usando var(--fs), var(--rh), var(--pd) e nunca fonte abaixo de 7pt.
+   4. Na montagem, chame DocumentoBase.montar(pagina, {numero}) depois de preencher: monta cabeçalho, número e rodapé; DocumentoBase.ajustar(documento) mede se o corpo passa do rodapé.
+   5. Imprimir: @page já está sem margem; PDF do aparelho: PDF.deFrame(frame, nome, '.a4', {margem: 0, escala: 3.125, qualidade: 0.92}). */

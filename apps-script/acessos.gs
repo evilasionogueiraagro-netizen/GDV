@@ -19,7 +19,7 @@ function nomeServidor_(v) {
 const NOME_MODULO = { veiculos: 'Educação Sanitária/Fiscalização de Trânsito', tf: 'TF de Barreira', pce: 'PCE' };
 // actions do app que pertencem a um módulo (o servidor recusa se o módulo não estiver liberado para quem chama)
 const MODULO_DA_ACAO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf', tfIndiceReincidencia: 'tf',
-                         pceProximoNumero: 'pce', pceEmitir: 'pce', pceConsultar: 'pce', pceBaixarMunicipio: 'pce', pceMapaGeral: 'pce', arquivoEnviar: 'pce',
+                         pceProximoNumero: 'pce', pceEmitir: 'pce', pceConsultar: 'pce', pceBaixarMunicipio: 'pce', arquivoEnviar: 'pce',
                          pceDocNumero: 'pce', pceDocRegistrar: 'pce',
                          turnoConvidar: 'veiculos', turnoParear: 'veiculos', turnoSair: 'veiculos', turnosAbertos: 'veiculos', turnoEntrar: 'veiculos', turnoRemoverColega: 'veiculos',
                          turnoPapelRegistrar: 'veiculos', turnoNumero: 'veiculos', turnoRecuperar: 'veiculos', turnoTFs: 'veiculos' };
@@ -61,7 +61,7 @@ function autenticar_(key) {
 /* ---------- Registro de leitura de dados pessoais (LGPD) ---------- */
 
 // actions que devolvem dados pessoais (CPF, nome, endereço, coordenada do produtor/fiscalizado ou a lista de servidores)
-const ACOES_COM_DADOS_PESSOAIS_ = ['painelDados', 'pceConsultar', 'pceBaixarMunicipio', 'pceMapaGeral', 'admDados', 'usuariosListar', 'sessoesListar', 'turnoRecuperar',
+const ACOES_COM_DADOS_PESSOAIS_ = ['painelDados', 'pceConsultar', 'pceBaixarMunicipio', 'admDados', 'usuariosListar', 'sessoesListar', 'turnoRecuperar',
                                    'tfsTurnoCompartilhado'];   // TF completo do colega no turno compartilhado (sync e entrar no turno)
 const LEITURA_INTERVALO_S_ = 3600;   // no máximo uma linha por usuário + action por hora (o painel ao vivo chama painelDados a cada minuto)
 const RESUMO_LEITURA_ = ['de', 'ate', 'aoVivo', 'municipio', 'municipios', 'ano', 'aba'];   // filtros que podem ir para o registro (nunca CPF/nome)

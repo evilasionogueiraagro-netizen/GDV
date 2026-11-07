@@ -97,7 +97,7 @@ function textoPlanilha_(v) {
 function semApostrofo_(v) { return /^'[=+\-@]/.test(v) ? v.slice(1) : v; }
 
 /** Abas em que o registro tem dono: quem não gravou não altera (IDOR). Pessoas, Placas, Propriedades e CadastrosPCE são cadastros comuns. */
-const ABAS_COM_DONO_ = ['TFs', 'Veiculos', 'Levantamentos', 'Colheitas', 'TermosPCE', 'CulturasAvaliadas', 'Resultados'];
+const ABAS_COM_DONO_ = ['TFs', 'Veiculos', 'Levantamentos', 'Colheitas', 'TermosPCE'];
 const MSG_REGISTRO_ALHEIO_ = 'Este registro foi gravado por outro servidor e não pode ser alterado por você.';
 /** Mesmo autor? (nome do login; sem diferença de maiúscula/espaço). Linha sem autor (antiga) não tem dono. */
 function mesmoDono_(dono, usuario) { return !dono || nomeChave_(dono) === nomeChave_(usuario); }
@@ -127,6 +127,7 @@ function gravar_(nome, recebidos, ts, usuario) {
 
   const porId = {}, brutos = {};             // dedup no lote: vale o mais recente
   recebidos.forEach(function (r) {
+    if (nome === 'Propriedades' && r && Array.isArray(r.frutos)) r = Object.assign({}, r, { frutos: JSON.stringify(r.frutos) });   // lista também vale (coluna é JSON)
     const o = limpar_(cols, r);
     if (!o) return;
     // documento padrão/inválido (000.000.000-00…) não identifica ninguém: não vira cadastro nem liga uma placa a um nome
@@ -150,6 +151,7 @@ function gravar_(nome, recebidos, ts, usuario) {
       if (!ok) { recusados.push(id); return; }
     } else if (comDono && atual && !mesmoDono_(atual.usuario, usuario)) { recusados.push(id); return; }
     if (!atual) {
+      if (nome === 'Propriedades' && ('frutos' in r)) linha[cols.indexOf('frutos')] = frutosMesclar_('', o.frutos, true, usuario, ts);   // normaliza e carimba (pce-frutos.gs)
       novas.push(linha);
     } else {
       // turno de outro login (turno compartilhado: o colega tem o turno do dono no aparelho): só o dono grava o turno
@@ -170,6 +172,8 @@ function gravar_(nome, recebidos, ts, usuario) {
         // Termo de Colheita: o resultado laboratorial lançado no painel (ou noutro aparelho) não é apagado por um reenvio do termo
         // com resultado mais velho (ou sem resultado): vale o de atualizadoEm maior
         if (nome === 'Colheitas') { const il = cols.indexOf('laboratorio'); linha[il] = labMaisNovo_(t.valores[idx[id]][il], linha[il]); }
+        // Propriedade: o fruto que a planilha tem e o envio não traz fica (remover = excluido 1 no fruto); fruto novo ou alterado leva quem/quando
+        if (nome === 'Propriedades' && ('frutos' in r)) { const iF = cols.indexOf('frutos'); linha[iF] = frutosMesclar_(t.valores[idx[id]][iF], o.frutos, true, usuario, ts); }
         t.sh.getRange(idx[id] + 2, 1, 1, cols.length).setValues([linha]);
       } else if (nome === 'Turnos' && o.encerrado === 1 && atual.encerrado !== 1) {
         // encerramento com atualizadoEm mais velho que a planilha (relógio do aparelho corrigido para trás depois de abrir o turno):
@@ -178,6 +182,13 @@ function gravar_(nome, recebidos, ts, usuario) {
         ['encerrado', 'fim', 'latFim', 'lngFim', 'precFim'].forEach(function (c) { const i = cols.indexOf(c); if (i >= 0 && (c in r)) l2[i] = o[c]; });
         l2[cols.indexOf('srv_ts')] = ts;
         t.sh.getRange(idx[id] + 2, 1, 1, cols.length).setValues([l2]);
+      } else if (nome === 'Propriedades' && ('frutos' in r)) {
+        // reenvio de aparelho desatualizado: o resto da propriedade não muda, mas o fruto novo que ele traz entra (nunca some)
+        const iF = cols.indexOf('frutos'), atualF = t.valores[idx[id]][iF], novoF = frutosMesclar_(atualF, o.frutos, false, usuario, ts);
+        if (novoF !== String(atualF || '')) {
+          const l4 = t.valores[idx[id]].slice(); l4[iF] = novoF; l4[cols.indexOf('srv_ts')] = ts;
+          t.sh.getRange(idx[id] + 2, 1, 1, cols.length).setValues([l4]);
+        }
       } else if (nome === 'Colheitas' && ('laboratorio' in r)) {
         // termo mais velho que o da planilha, mas com resultado laboratorial mais novo: grava só o resultado
         const il = cols.indexOf('laboratorio'), atualLab = t.valores[idx[id]][il], novo = labMaisNovo_(atualLab, o.laboratorio);

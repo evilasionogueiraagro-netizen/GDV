@@ -605,20 +605,13 @@ function convApurar_(cfg, de, ate) {
       const cod = String(r.codigoPropriedade || '').trim(), doc = digitos_(r.doc), prop = String(r.propriedade || '').trim();
       return normPub_(cod || (doc && prop ? doc + '|' + prop : '')) || 'lev:' + r.id;
     };
-    lerLeitura_('Levantamentos').forEach(function (r) {
-      if (!r.id || r.excluido === 1 || !noPer(r.data)) return;
-      if (!pragasLev_(r).some(function (g) { return casa(g.praga); })) return;
-      marcar(r.municipio, r.data, chaveLev(r));
-    });
-    const cadProp = {};
-    lerLeitura_('CadastrosPCE').forEach(function (c) { if (c.id) cadProp[c.id] = c; });
-    lerLeitura_('TermosPCE').forEach(function (r) {
-      if (!r.id || r.excluido === 1 || r.cancelado === 1 || !noPer(r.data)) return;
-      const pr = lerJSONSeguro_(r.pragas, []);
-      if (!((Array.isArray(pr) && pr.some(casa)) || (!(Array.isArray(pr) && pr.length) && r.programa === 'moniliase'))) return;
-      const cad = cadProp[r.cadastroId], doc = digitos_(r.doc);
-      const k = normPub_(r.propriedadeId || (cad && cad.propriedadeId) || (doc && cad && cad.propriedade ? doc + '|' + cad.propriedade : '')) || 'termo:' + r.id;
-      marcar(r.municipio, r.data, k);
+    // visitas contáveis (pce-visita.gs): levantamentos antigos + Termos do fluxo novo; por programa conta cada Termo da visita
+    visitasPce_().forEach(function (v) {
+      v.partes.forEach(function (r) {
+        if (!noPer(r.data)) return;
+        if (!pragasLev_(r).some(function (g) { return casa(g.praga); })) return;
+        marcar(r.municipio, r.data, chaveLev(r));
+      });
     });
     const meses = {};
     Object.keys(MES).forEach(function (mes) {

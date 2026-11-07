@@ -181,7 +181,7 @@ function limparBackups_(pasta, manterId) {
 //   Turnos     só encerrados (turno aberto nunca sai), pelo campo data
 //   Consultas  pelo campo em (sem id: a chave é a linha inteira)
 //   Andamento  só os finalizados (estado "fim" ou sem batimento há mais de 10 min), pelo atualizadoTs
-// Ficam sempre na principal: TFs, Pessoas, Placas, Levantamentos, CulturasAvaliadas, Resultados, Colheitas, Propriedades, Fiscais, Permissoes, Barreiras, Numeracao
+// Ficam sempre na principal: TFs, Pessoas, Placas, Levantamentos, Colheitas, Propriedades, Fiscais, Permissoes, Barreiras, Numeracao
 // (reincidência, histórico de pragas, numeração e credenciais), Arquivos (links das fotos pelo id) e Aparelhos (uma linha por aparelho).
 // Cada lote, sob o mesmo LockService do sync: copia → confere no arquivo (todas as chaves presentes) → apaga da principal com deleteRows em
 // blocos contíguos, de baixo para cima. Interrompido em qualquer ponto, a próxima execução refaz o lote sem duplicar (chave = id).

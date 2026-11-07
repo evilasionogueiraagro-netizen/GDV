@@ -257,7 +257,7 @@ function publicoCalcular_(cfg, per) {
   });
 
   // ---- PCE ----
-  const levs = lerLeitura_('Levantamentos').filter(function (r) { return r.id && r.excluido !== 1 && noPer(r); });
+  const levs = visitasPce_().filter(noPer);      // visitas contáveis: levantamentos antigos + Termos do fluxo novo (pce-visita.gs)
   const porMun = {}, pragas = {}, calor = {};
   let det = 0, susp = 0, comDet = 0, amostras = 0;
   levs.forEach(function (r) {

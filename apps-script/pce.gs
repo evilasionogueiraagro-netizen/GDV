@@ -117,6 +117,7 @@ function normalizarDocPce_(tipo, r) {
 function pceDocRegistrar_(req, usuario) {
   const tipo = tipoDocPce_(req.tipo), D = DOCS_PCE[tipo], r = normalizarDocPce_(tipo, req.registro || {});
   if (Number(r.registroAntigo) === 1) exigirAntigo_(usuario);                     // digitado do papel: só com a permissão "Digitar do papel"
+  if (tipo === 'termo' && !normalizarTermoPceVisita_(r)) throw new Error('As culturas do Termo ficaram grandes demais.');   // visitaId/programaVisita/culturas (pce-visita.gs)
   const unidade = r.unidade, ano = Number(r.ano) || 0, numero = Number(r.numero) || 0, grupo = grupoDocPce_(tipo, unidade, r.programa);
   if (!r.id || !unidade || !ano || numero < 1) throw new Error('Dados do ' + D.nome + ' incompletos.');
   const lock = LockService.getScriptLock();
@@ -129,6 +130,9 @@ function pceDocRegistrar_(req, usuario) {
       return { ok: true, emitido: false, ocupadoPor: { numeroTxt: ocupante.numeroTxt, data: ocupante.data, hora: ocupante.hora, usuario: ocupante.usuario, nome: ocupante.nome },
                ultimo: u.ultimo, proximo: u.ultimo + 1 };
     }
+    const chaveVisita = tipo === 'termo' && Number(r.excluido) !== 1 && Number(r.cancelado) !== 1 ? chaveTermoVisita_(r) : '';
+    const doVisita = chaveVisita && todos.filter(function (x) { return x.id !== r.id && chaveTermoVisita_(x) === chaveVisita && Number(x.excluido) !== 1 && Number(x.cancelado) !== 1; })[0];
+    if (doVisita) return { ok: true, emitido: false, termoDaVisita: { id: doVisita.id, numeroTxt: doVisita.numeroTxt, programaVisita: doVisita.programaVisita } };   // um Termo por programa da visita
     const agora = Date.now(), antes = todos.filter(function (x) { return x.id === r.id; })[0];
     if (antes && ABAS_COM_DONO_.indexOf(D.aba) >= 0 && !mesmoDono_(antes.usuario, usuario)) throw new Error(MSG_REGISTRO_ALHEIO_);   // IDOR
     r.emitidoEm = (antes && antes.emitidoEm) || agora;
@@ -146,10 +150,12 @@ function pceConsultar_(req, usuario) {
   const doc = digitos_(req.doc);
   if (doc.length !== 11 && doc.length !== 14) throw new Error('Informe um CPF/CNPJ completo.');
   const pessoa = docValido_(doc) ? lerLeitura_('Pessoas').filter(function (p) { return p.id === doc; })[0] : null;   // documento padrão: sem cadastro
+  const visitas = visitasPce_(), levsDe = indiceVisitasPorPropriedade_(visitas.filter(function (v) { return v.origem === 'levantamento'; }));
   const propriedades = lerLeitura_('Propriedades').filter(function (p) { return digitos_(p.doc) === doc; })
     .map(function (p) { return { id: p.id, codigo: p.codigo, nome: p.nome, doc: p.doc, municipio: p.municipio, situacaoFundiaria: p.situacaoFundiaria, lat: p.lat, lon: p.lon,
-                                 cnpj: p.cnpj, empresa: p.empresa, endereco: p.endereco, uf: p.uf, viaAcesso: p.viaAcesso, comercial: p.comercial, tipoPropriedade: p.tipoPropriedade }; });
-  const levantamentos = lerLeitura_('Levantamentos').filter(function (r) { return digitos_(r.doc) === doc && r.excluido !== 1; }).length;
+                                 cnpj: p.cnpj, empresa: p.empresa, endereco: p.endereco, uf: p.uf, viaAcesso: p.viaAcesso, comercial: p.comercial, tipoPropriedade: p.tipoPropriedade,
+                                 frutos: frutosParaApp_(p.frutos), frutosSugeridos: frutosSugeridos_(p.frutos, levsDe(p)) }; });
+  const levantamentos = visitas.filter(function (r) { return digitos_(r.doc) === doc; }).length;
   const colheitas = lerLeitura_('Colheitas').filter(function (r) { return digitos_(r.doc) === doc && r.excluido !== 1 && r.cancelado !== 1; }).length;
   const cadastros = lerLeitura_('CadastrosPCE').filter(function (r) { return digitos_(r.doc) === doc && r.excluido !== 1; })
     .map(function (r) { const o = {}; TABELAS.CadastrosPCE.forEach(function (c) { if (c !== 'srv_ts' && c !== 'usuario') o[c] = r[c]; }); o.pendente = 0; return o; });
@@ -229,10 +235,12 @@ function pceBaixarMunicipio_(req, usuario) {
     throw new Error('São ' + props.length + ' propriedades nesse(s) município(s); o limite é ' + CAMPO_MAX_PROPS.toLocaleString('pt-BR') +
       ' por vez. Baixe menos municípios de cada vez.');
   }
-  const resumoLev = resumidorLevantamentos_();
+  const visitas = visitasPce_(), resumoLev = resumidorLevantamentos_(visitas), levsDe = indiceVisitasPorPropriedade_(visitas.filter(function (v) { return v.origem === 'levantamento'; }));
   const docs = {}, porMun = {};
   props.forEach(function (p) {
     p.resumoLev = resumoLev(p);
+    p.frutosSugeridos = frutosSugeridos_(p.frutos, levsDe(p));      // só leitura no app até salvar; só para propriedade sem frutos
+    p.frutos = frutosParaApp_(p.frutos);
     const k = normPub_(p.municipio);
     p.campoMun = alvo[k];
     const d = digitos_(p.doc);
@@ -266,45 +274,15 @@ function pceBaixarMunicipio_(req, usuario) {
 }
 
 /**
- * Resumo do histórico de cada propriedade: levantamentos ligados a ela pelo código ou por produtor (doc) + nome da propriedade.
- * Lê a aba Levantamentos uma vez e devolve a função p → {n, ultimo, ultimoHora, pragas}.
+ * Resumo do histórico de cada propriedade: visitas (levantamentos antigos e Termos do fluxo novo) ligadas a ela pelo código ou por produtor (doc) +
+ * nome da propriedade. Recebe as visitas contáveis (visitasPce_) e devolve a função p → {n, ultimo, ultimoHora, pragas}.
  */
-function resumidorLevantamentos_() {
-  const chaveCod = function (c) { const s = normPub_(c); return s ? 'C:' + s : ''; };
-  const chaveNome = function (doc, nome) { const d = digitos_(doc), n = normPub_(nome); return d && n ? 'N:' + d + '|' + n : ''; };
-  const levs = {};
-  lerLeitura_('Levantamentos').forEach(function (r) {
-    if (!r.id || r.excluido === 1) return;
-    [chaveCod(r.codigoPropriedade), chaveNome(r.doc, r.propriedade)].forEach(function (k) { if (k) (levs[k] = levs[k] || []).push(r); });
-  });
+function resumidorLevantamentos_(visitas) {
+  const de = indiceVisitasPorPropriedade_(visitas);
   return function (p) {
-    const vistos = {}, lista = [];
-    [chaveCod(p.codigo), chaveNome(p.doc, p.nome)].forEach(function (k) {
-      (levs[k] || []).forEach(function (r) { if (!vistos[r.id]) { vistos[r.id] = 1; lista.push(r); } });
-    });
-    lista.sort(function (a, b) { return String(b.data + ' ' + b.hora).localeCompare(String(a.data + ' ' + a.hora)); });
-    const ult = lista[0];
+    const lista = de(p), ult = lista[0];
     return { n: lista.length, ultimo: ult ? ult.data : '', ultimoHora: ult ? ult.hora : '', pragas: ult ? deteccoesLev_(ult) : [] };
   };
-}
-
-/**
- * Mapa "Perto de mim" com internet: todas as propriedades com coordenadas, para os municípios que o servidor ainda não baixou.
- * Só o que o mapa precisa (id, código, nome, município, lat/lon e o resumo do histórico): sem produtor, CPF/CNPJ ou telefone —
- * esses só vêm no download do município. O app não guarda esta resposta. Só módulo PCE; cada consulta fica na aba Consultas.
- */
-function pceMapaGeral_(req, usuario) {
-  const num = function (v) { const s = String(v == null ? '' : v).trim().replace(',', '.'), n = Number(s); return s !== '' && isFinite(n) ? n : null; };
-  const resumoLev = resumidorLevantamentos_(), out = [];
-  lerLeitura_('Propriedades').forEach(function (p) {
-    if (!p.id) return;
-    const lat = num(p.lat), lon = num(p.lon);
-    if (lat == null || lon == null || Math.abs(lat) > 90 || Math.abs(lon) > 180 || (lat === 0 && lon === 0)) return;
-    out.push({ id: p.id, codigo: p.codigo, nome: p.nome, municipio: p.municipio, lat: lat, lon: lon, resumoLev: resumoLev(p) });
-  });
-  const c = aba_('Consultas');
-  c.getRange(c.getLastRow() + 1, 1, 1, 5).setValues([[Date.now(), usuario, '', '', 'PCE mapa geral: ' + out.length + ' propriedade(s)']]);
-  return { ok: true, agora: Date.now(), propriedades: out };
 }
 
 const ARQ_MIMES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'application/pdf': 'pdf' };
@@ -650,9 +628,9 @@ function dadosPainel_(admin, filtro) {
              criadoEm: r.criadoEm, srv_ts: r.srv_ts, usuario: r.usuario };
   });
 
-  // PCE: levantamentos (período e 365 dias anteriores, para "novo foco" e cobertura) e Termos de Colheita
+  // PCE: visitas contáveis (levantamentos antigos + Termos do fluxo novo, visitasPce_; período e 365 dias anteriores, para "novo foco" e cobertura) e Termos de Colheita
   const iniHist = somarDias_(de, -365), fimHist = somarDias_(de, -1);
-  const levLidos = lerLeitura_('Levantamentos').filter(function (r) { return r.id && r.excluido !== 1; });
+  const levLidos = visitasPce_();
   const historicoPce = [], levantamentos = [];
   levLidos.forEach(function (r) {
     if (r.data >= iniHist && r.data <= fimHist) { historicoPce.push({ municipio: r.municipio, data: r.data, pragas: pragasDe_(culturasLev_(r)) }); return; }
@@ -664,7 +642,7 @@ function dadosPainel_(admin, filtro) {
                          lat: numOuNulo_(r.lat), lon: numOuNulo_(r.lon), precisao: numOuNulo_(r.precisao),
                          culturas: cult, pragas: pragasDe_(cult), pragasLev: pragasPainel_(r), nFotos: contarFotos_(r.fotos), nAssinaturas: contarAssinaturas_(r.assinaturas),
                          nDocumentos: contarFotos_(r.documentos), tipoLocal: r.tipoLocal, origemVisita: r.origemVisita, comercial: r.comercial,
-                         criadoEm: r.criadoEm, srv_ts: r.srv_ts, usuario: r.usuario });
+                         origem: r.origem, programas: r.programas, criadoEm: r.criadoEm, srv_ts: r.srv_ts, usuario: r.usuario });
   });
   const todasColheitas = lerLeitura_('Colheitas').filter(function (r) { return r.id && r.excluido !== 1; });
   const colPer = todasColheitas.filter(noPeriodo);
@@ -691,7 +669,7 @@ function dadosPainel_(admin, filtro) {
              municipio: r.municipio, uf: r.uf, lat: numOuNulo_(r.lat), lon: numOuNulo_(r.lon), data: r.data, hora: r.hora,
              servidor: r.servidor, cargo: r.cargo, matricula: r.matricula, lotacao: r.lotacao,
              pragas: lerJSONSeguro_(r.pragas, []), tipoLocal: lerJSONSeguro_(r.tipoLocal, []), acoes: lerJSONSeguro_(r.acoes, []),
-             constatacao: r.constatacao, enquadramento: r.enquadramento, plantasInspecionadas: r.plantasInspecionadas,
+             constatacao: r.constatacao, enquadramento: r.enquadramento, plantasInspecionadas: r.plantasInspecionadas, visitaId: r.visitaId, programaVisita: r.programaVisita,
              amostra: r.amostra, sintomas: r.sintomas, hospedeiros: lerJSONSeguro_(r.hospedeiros, []), cancelado: r.cancelado, motivoCancel: r.motivoCancel,
              nDocumentos: contarFotos_(r.documentos), criadoEm: r.criadoEm, srv_ts: r.srv_ts, usuario: r.usuario };
   });

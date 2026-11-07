@@ -77,14 +77,19 @@ const TABELAS = {
                                 // registrado depois (app ou painel → painelPceLaudo); o sync mescla pelo atualizadoEm do resultado (nunca apaga um mais novo)
   Propriedades: ['id', 'codigo', 'nome', 'doc', 'municipio', 'situacaoFundiaria', 'lat', 'lon', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
                  'cnpj', 'viaAcesso', 'comercial', 'tipoPropriedade', 'endereco', 'uf',   // campos comuns do Cadastro de imóvel (PCE): CNPJ, via de acesso, propriedade comercial (sim/nao) e tipo
-                 'empresa'],   // empresa / nome fantasia (levantamento e Termo de Fiscalização do PCE)
+                 'empresa',   // empresa / nome fantasia (levantamento e Termo de Fiscalização do PCE)
+                 // frutos da propriedade (PCE): JSON [{id, cultura, cultivar, area, espLinha, espPlanta, espUnidade, idade, quantidade, producao, destino,
+                 // excluido, em, por}]. O app salva pelo sync; o servidor normaliza (pce-frutos.gs) e mescla por id: fruto nunca some por reenvio
+                 // desatualizado (remover = excluido 1). Fonte única da tabela de cultura das fichas.
+                 'frutos'],
   // Cadastro de imóvel do PCE (1x por propriedade e programa: monilíase e citros). Numeração por programa + unidade + ano ("001-2026-AUTAZES").
   // dados = JSON com os campos do programa (monilíase: culturas/plantas, informações fitossanitárias, levantamento de detecção…; citros: o bloco
   // "Cultura do citros" do levantamento + levantamentoId, codigoPropriedade, endereco, telefone, empresa, culturasAvaliadas); totalPlantas = soma das plantas.
   CadastrosPCE: ['id', 'programa', 'unidade', 'ano', 'numero', 'numeroTxt', 'numeroSugerido', 'numeroOrigem', 'conflito', 'emitidoEm', 'propriedadeId',
                  'doc', 'nome', 'propriedade', 'cnpj', 'data', 'hora', 'municipio', 'uf', 'lat', 'lon', 'servidor', 'cargo', 'matricula', 'lotacao', 'local',
                  'dados', 'totalPlantas', 'fotos', 'assinaturas', 'documentos', 'registroAntigo', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
-  // Termo de Fiscalização do PCE (1 por visita; NÃO é o TF de Barreira). Numeração por unidade + ano ("001.2026.AUTAZES").
+  // Termo de Fiscalização do PCE (NÃO é o TF de Barreira). Numeração por unidade + ano ("001.2026.AUTAZES"). A visita gera UM Termo por programa:
+  // visitaId (id da visita, do app) + programaVisita (programa do catálogo) formam a chave única (pce-visita.gs); culturas = JSON das culturas avaliadas.
   // pragas/acoes/tipoLocal/testemunhas = JSON (programa "citros": tipoLocal = [o local especificado, "ao realizar fiscalização no(a)…"]);
   // plantasInspecionadas, amostra e sintomas (sim/nao) alimentam o Relatório de atividades
   // (folders/flyers da Educação Sanitária não são anotados por visita: são digitados na geração do relatório); hospedeiros = JSON das culturas do cadastro com plantas (copiado ao salvar).
@@ -93,12 +98,7 @@ const TABELAS = {
               'servidor', 'cargo', 'matricula', 'lotacao', 'pragas', 'tipoLocal', 'acoes', 'constatacao', 'enquadramento', 'testemunhas', 'recebidoEm',
               'plantasInspecionadas', 'amostra', 'sintomas', 'hospedeiros', 'fotos', 'assinaturas', 'documentos', 'registroAntigo',
               'cancelado', 'motivoCancel', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
-              'levantamentoId', 'programaVisita', 'culturas'],   // 1 TF por programa da visita (como o papel), com as culturas dele: chave única (levantamentoId, programaVisita)
-  // Visita do PCE por cultura (pce-visita.gs): culturas avaliadas na visita e resultado de cada praga na cultura
-  CulturasAvaliadas: ['id', 'levantamentoId', 'culturaId', 'cultura', 'area', 'espLinha', 'espPlanta', 'espUnidade', 'fotos',
-                      'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario', 'excluido'],
-  Resultados: ['id', 'levantamentoId', 'culturaId', 'pragaId', 'praga', 'resultado', 'coleta', 'tipoMaterial', 'codigoAmostra', 'destinoAmostra',
-               'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario', 'excluido'],
+              'visitaId', 'programaVisita', 'culturas'],   // culturas = JSON [{cultura, area, pragas:[{praga, resultado, haQuantoTempo, controle, qualControle}], coleta, tipoMaterial, codigoAmostra, destinoAmostra, fotos:[ids]}]
   Arquivos: ['id', 'dono', 'donoId', 'tipo', 'papel', 'nome', 'mime', 'tamanho', 'driveId', 'url', 'usuario', 'criadoEm',  // fotos/assinaturas/PDFs no Drive
              'rotulo'],   // rotulo = cultura da foto do levantamento (vai também no nome do arquivo)
   // TF de Barreira em preenchimento no aparelho (alerta "apreensão em andamento" no painel). id = usuario|rascunhoId. Sem CPF/nome do fiscalizado.
@@ -202,13 +202,13 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'cuidado', 'semPlaca', 'exclui
                           'entrouEm', 'saiuEm'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, pragas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000,
-                        dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000, citros: 20000, cargaPapel: 3000, autoDados: 10000 };   // demais colunas: 500
+                        frutos: 30000, dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000, citros: 20000, cargaPapel: 3000, autoDados: 10000 };   // demais colunas: 500
 // culturas/fotos/assinaturas são JSON: cortar o texto invalidaria o JSON (e apagaria as referências no aparelho). Os limites acima
 // cabem numa célula (50.000 caracteres) e o app limita a quantidade de culturas/fotos e o tamanho dos campos para nunca chegar neles.
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-11-05a';
+const VERSAO_CODIGO = '2026-11-06a';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -273,7 +273,6 @@ function doPost(e) {
     if (req.action === 'pceDocNumero') return json_(pceDocNumero_(req));
     if (req.action === 'pceDocRegistrar') return json_(pceDocRegistrar_(req, usuario));
     if (req.action === 'pceBaixarMunicipio') return json_(lido_(req, pceBaixarMunicipio_(req, usuario)));
-    if (req.action === 'pceMapaGeral') return json_(lido_(req, pceMapaGeral_(req, usuario)));
     if (req.action === 'arquivoEnviar') return json_(arquivoEnviar_(req, usuario));
     if (req.action === 'tfAndamento') return json_(tfAndamento_(req, usuario));
     if (req.action === 'tfIndiceReincidencia') return json_(tfIndiceReincidencia_(req));
@@ -316,8 +315,6 @@ function sincronizar_(req, usuario) {
   const propriedades = lista_(req.propriedades);
   const cadastrosPce = lista_(req.cadastrosPce);
   const termosPce = lista_(req.termosPce);
-  const culturasAvaliadas = lista_(req.culturasAvaliadas);
-  const resultados = lista_(req.resultados);
   const since = Number(req.since) || 0;
   // Módulos sem autorização: os registros NÃO são gravados e voltam em "recusados" (o app os mantém pendentes no aparelho).
   // Pessoas (cadastro do fiscalizado/produtor) servem ao TF e ao PCE: entram se qualquer um dos dois estiver liberado.
@@ -332,9 +329,7 @@ function sincronizar_(req, usuario) {
     tfs: filtrar('tfs', tfs, perm.tf), placas: filtrar('placas', placas, perm.tf), pessoas: filtrar('pessoas', pessoas, perm.tf || perm.pce),
     levantamentos: filtrar('levantamentos', levantamentos, perm.pce), colheitas: filtrar('colheitas', colheitas, perm.pce),
     propriedades: filtrar('propriedades', propriedades, perm.pce),
-    cadastrosPce: filtrar('cadastrosPce', cadastrosPce, perm.pce), termosPce: filtrar('termosPce', termosPce, perm.pce),
-    culturasAvaliadas: filtrar('culturasAvaliadas', culturasAvaliadas, perm.pce),
-    resultados: filtrar('resultados', resultados, perm.pce)
+    cadastrosPce: filtrar('cadastrosPce', cadastrosPce, perm.pce), termosPce: filtrar('termosPce', termosPce, perm.pce)
   };
   // registros antigos (digitados do papel) só com a permissão "antigo": os demais do mesmo lote entram normalmente
   if (!perm.antigo) {
@@ -379,7 +374,7 @@ function sincronizar_(req, usuario) {
     if (T.tfs.length) { const g = gravados_(T.tfs, recusados.tfs); marcarConflitosTFs_(g, agora); marcarConflitos_('AI', g, agora); }   // auto de infração: nº repetido = autoConflito
     gravar_('Pessoas', T.pessoas, agora, usuario);
     gravar_('Placas', T.placas, agora, usuario);
-    sincronizarVisitasPce_(T, agora, usuario, alheios, recusados);       // levantamentos + culturas avaliadas + resultados (pce-visita.gs)
+    alheios('levantamentos', gravar_('Levantamentos', T.levantamentos, agora, usuario));   // aparelho com levantamento pendente continua enviando
     const jaGravadas = {};                                                            // termos que a planilha já tem: mantêm o emitidoEm gravado
     if (T.colheitas.length) lerLeitura_('Colheitas').forEach(function (l) { jaGravadas[l.id] = true; });
     T.colheitas.forEach(function (c) {
@@ -419,6 +414,10 @@ function sincronizar_(req, usuario) {
         levantamentos: T.levantamentos.length, colheitas: T.colheitas.length, encerrados: encerrados });
     } catch (e) { /* aba Aparelhos com problema: o envio dos registros continua valendo */ }
     const comp = turnosCompartilhados_(usuario, agora);
+    // propriedades deste envio como ficaram na planilha (frutos mesclados com os de outros aparelhos): o app adota estes frutos
+    const idsProp = {}; T.propriedades.forEach(function (p) { if (p && p.id) idsProp[String(p.id).slice(0, 64)] = true; });
+    const propriedadesGravadas = T.propriedades.length ? lerLeitura_('Propriedades').filter(function (p) { return idsProp[p.id]; })
+      .map(function (p) { const o = {}; TABELAS.Propriedades.forEach(function (c) { if (c !== 'srv_ts' && c !== 'usuario') o[c] = c === 'frutos' ? frutosParaApp_(p[c]) : p[c]; }); return o; }) : [];
     return {
       ok: true,
       agora: agora,
@@ -434,14 +433,13 @@ function sincronizar_(req, usuario) {
       ultimosPce: ultimosPce_(),                        // último nº de Termo de Colheita por "UNIDADE|ano"
       cadastrosPce: lerMudancas_('CadastrosPCE', since, usuario),   // Cadastro de imóvel e Termo de Fiscalização do PCE (só os do próprio servidor)
       termosPce: lerMudancas_('TermosPCE', since, usuario),
-      culturasAvaliadas: lerMudancas_('CulturasAvaliadas', since, usuario),
-      resultados: lerMudancas_('Resultados', since, usuario),
       ultimosDocPce: ultimosDocPce_(),                  // último nº de Termo de Fiscalização ("T|UNIDADE|ano") e de Cadastro ("C|PROGRAMA|UNIDADE|ano")
       permissoes: perm,                                 // módulos liberados para este servidor (o app guarda e esconde o que não pode)
       bvas: bvasCadastro_(),                            // BVAs cadastradas no painel (o app junta com CONFIG.bvas)
       catalogoPce: perm.pce ? catalogoPce_() : null,    // culturas, famílias e pragas do PCE (pce-catalogo.gs); sem o módulo, nada
       minhasEscalas: minhasEscalas_(),                  // escalas de plantão publicadas do fiscal que ainda não acabaram (escalas.gs)
       escalasDaBva: escalasDaBva_(),                    // turno em BVA fixa só para quem está na escala do dia (sem nomes; escalas.gs)
+      propriedadesGravadas: propriedadesGravadas,       // PCE: as propriedades do envio já mescladas (frutos; sem srv_ts e usuario)
       recusados: recusados                              // ids NÃO gravados por falta de autorização no módulo ou para registro antigo (ficam pendentes no aparelho)
     };
   } finally {

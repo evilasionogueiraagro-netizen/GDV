@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const sincronizar = require('./lib/sincronizar');
 const U = require('./lib/usuarios');
 // Envio em segundo plano (Background Sync): o service worker envia os pendentes com o app FECHADO quando a rede volta.
 const { chromium } = require('playwright-core');
@@ -46,7 +47,7 @@ const gravarIDB = (pg, store, rec) => pg.evaluate(([s, r]) => new Promise((ok, n
     await p.click('#fVeic > button');
     await p.waitForFunction(pl => document.querySelector('#toast').textContent.includes(pl), placa, { timeout: 8000 }).catch(async e => { console.log('TOAST', await p.textContent('#toast'), await p.inputValue('#placa').catch(()=>'?'), await p.evaluate(() => VIEW), erros); throw e; }); };
   const encerrar = async p => { await p.click('nav [data-v=resumo]'); await p.waitForSelector('#encerrar'); await p.click('#encerrar'); await p.waitForSelector('[data-doc=termo]'); };
-  const syncApp = p => p.evaluate(async () => { for (let i = 0; i < 40 && Sync.estado().tipo === 'sync'; i++) await new Promise(r => setTimeout(r, 150)); await Sync.sincronizar(); return Sync.estado(); });
+  const syncApp = p => sincronizar(p);
 
   /* ================= 1. Android: encerra offline, fecha o app, a rede volta, o SW envia ================= */
   console.log('1. Envio em segundo plano com o app fechado');

@@ -7,8 +7,8 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | Órgão | Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM |
 | Unidade responsável | Gerência de Defesa Vegetal – GDV |
 | Produto | e-GDV (app de campo, painel gerencial, Portal do Administrativo, dashboard público e serviço de dados) |
-| Versão do sistema descrita | 2026-11-04d |
-| Versão deste Termo | 1.9, de 04/11/2026 |
+| Versão do sistema descrita | 2026-11-07a |
+| Versão deste Termo | 2.0, de 07/11/2026 |
 
 ## 1. Objeto
 
@@ -211,3 +211,4 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | 1.7 | 04/11/2026 | 2026-11-04b | RF-21: série do papel para TFs anteriores ao aplicativo na barreira |
 | 1.8 | 04/11/2026 | 2026-11-04c | RF-06: tirar do turno compartilhado o fiscal que entrou por engano |
 | 1.9 | 04/11/2026 | 2026-11-04d | Turno em BVA fixa só para os fiscais da escala de plantão publicada do dia |
+| 2.0 | 07/11/2026 | 2026-11-07a | RF-06: o fiscal que entrou no turno do colega continua nele mesmo se a resposta da entrada se perder |

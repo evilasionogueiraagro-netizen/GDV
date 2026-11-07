@@ -307,7 +307,7 @@ const Sync = (() => {
   const turnosAbertos = () => chamar({ action: 'turnosAbertos' }, 6000);
   const entrarNoTurno = turnoId => entrada({ action: 'turnoEntrar', turnoId });
   async function entrada(req) {
-    const r = await chamar(req, 20000);
+    const r = await chamar(req, 45000);                              // a planilha pode estar ocupada (vários aparelhos ao mesmo tempo)
     await Store.gravar('turnos', { ...r.turno, pendente: 0 });
     for (const v of r.veiculos || []) await Store.gravar('veiculos', { ...v, pendente: 0 });
     if ((r.tfs || []).length) await aplicar('tfs', r.tfs);          // TFs já lavrados no turno (dono e colegas)
@@ -410,7 +410,10 @@ const Sync = (() => {
     const atual = await Store.meta('turnoAtual'), comp = new Set((await Store.meta('turnosCompartilhados')) || []);
     const todosV = await Store.todos('veiculos');
     todosV.forEach(v => { if (v.usuario && mesmoNome(v.usuario, eu)) comp.add(v.turnoId); });
-    const turnos = (await Store.todos('turnos')).filter(t => t.usuario && !mesmoNome(t.usuario, eu) && !t.pendente && t.id !== atual && !comp.has(t.id));
+    const todosT = await Store.todos('turnos');
+    // turno de colega em que este login entrou (está em "colegas"): fica, mesmo se a resposta do "Entrar" se perdeu (app.js adota)
+    todosT.forEach(t => { let c = []; try { c = JSON.parse(t.colegas || '[]'); } catch (e) { c = []; } if (Array.isArray(c) && c.some(n => mesmoNome(n, eu))) comp.add(t.id); });
+    const turnos = todosT.filter(t => t.usuario && !mesmoNome(t.usuario, eu) && !t.pendente && t.id !== atual && !comp.has(t.id));
     const fora = new Set(turnos.map(t => t.id));
     const veic = todosV.filter(v => !v.pendente && fora.has(v.turnoId));   // só os veículos dos turnos removidos
     await Store.apagar('turnos', [...fora]);

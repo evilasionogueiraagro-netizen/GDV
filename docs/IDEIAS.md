@@ -61,7 +61,7 @@ Decisões: [Relatório GDV](decisoes/anteriores.md#relatório-gdv)
 Falta:
 - Medida aplicada com quantidade, por visita (hoje: linhas e coluna próprias no painel).
 - Vazio sanitário da soja. Hoje: coluna "Fiscalizações do vazio sanitário" por município.
-- Educação sanitária no app (ações, público atingido). Hoje: tabela da Seção V no painel. A linha de veículos orientados já é automática.
+- Educação sanitária no app (ações, público). Hoje: Seção V no painel; veículos orientados já automáticos.
 - Importação de CFO/CFOC, PTV e UP/UC (CSV dos sistemas de certificação). Hoje: tabelas das Seções III e IV no painel.
 - Armadilhas (mosca-da-carambola e Diaphorina citri). Hoje: coluna e linha próprias no painel (Seção VI).
 - Avisos de consistência: coordenada fora do município (exige a malha); importar relatórios anteriores ao e-GDV.

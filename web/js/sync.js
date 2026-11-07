@@ -410,7 +410,10 @@ const Sync = (() => {
     const atual = await Store.meta('turnoAtual'), comp = new Set((await Store.meta('turnosCompartilhados')) || []);
     const todosV = await Store.todos('veiculos');
     todosV.forEach(v => { if (v.usuario && mesmoNome(v.usuario, eu)) comp.add(v.turnoId); });
-    const turnos = (await Store.todos('turnos')).filter(t => t.usuario && !mesmoNome(t.usuario, eu) && !t.pendente && t.id !== atual && !comp.has(t.id));
+    const todosT = await Store.todos('turnos');
+    // turno de colega em que este login entrou (está em "colegas"): fica, mesmo se a resposta do "Entrar" se perdeu (app.js adota)
+    todosT.forEach(t => { let c = []; try { c = JSON.parse(t.colegas || '[]'); } catch (e) { c = []; } if (Array.isArray(c) && c.some(n => mesmoNome(n, eu))) comp.add(t.id); });
+    const turnos = todosT.filter(t => t.usuario && !mesmoNome(t.usuario, eu) && !t.pendente && t.id !== atual && !comp.has(t.id));
     const fora = new Set(turnos.map(t => t.id));
     const veic = todosV.filter(v => !v.pendente && fora.has(v.turnoId));   // só os veículos dos turnos removidos
     await Store.apagar('turnos', [...fora]);

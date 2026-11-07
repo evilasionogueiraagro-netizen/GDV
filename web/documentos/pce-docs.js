@@ -349,9 +349,45 @@ const PCEDocs = (() => {
     [...doc.querySelectorAll('.a4.ficha, .a4.termo')].forEach(pg => {
       if (DocumentoBase.cabe(pg)) return;
       pg.classList.add('compacta');
-      if (DocumentoBase.cabe(pg) || pg.classList.contains('termo')) return;      // o Termo é de uma folha só: só fica compacto
+      if (DocumentoBase.cabe(pg)) return;
       pg.classList.remove('compacta');
-      paginarFicha(pg);
+      (pg.classList.contains('termo') ? paginarTermo : paginarFicha)(pg);
+    });
+  }
+  /**
+   * Termo que não cabe numa folha: a folha corta o que passa do rodapé, então nada pode ficar de fora. A constatação continua em folhas completas
+   * (com número e rodapé), repartida por palavras; enquadramento e testemunhas seguem depois dela, com as assinaturas juntas na última folha.
+   */
+  function paginarTermo(pg) {
+    const molde = pg.cloneNode(true), texto = pg.querySelector('.linhas.l6'), desc = texto.closest('table');
+    const depois = []; for (let x = desc.nextElementSibling; x; x = x.nextElementSibling) depois.push(x);
+    depois.forEach(x => x.remove());
+    let pedacos = texto.textContent.match(/\s*\S{1,200}\s*/g) || [], atual = pg;
+    /** Põe na folha o máximo de texto que cabe (busca binária) e devolve quantos pedaços entraram. */
+    const encher = (folha, min) => {
+      const el = folha.querySelector('.linhas.l6');
+      const tenta = n => { el.textContent = pedacos.slice(0, n).join(''); DocumentoBase.pautar(el, min); return DocumentoBase.cabe(folha); };
+      let a = 0, b = pedacos.length;
+      while (a < b) { const m = Math.ceil((a + b) / 2); if (tenta(m)) a = m; else b = m - 1; }
+      tenta(a); pedacos = pedacos.slice(a);
+      return a;
+    };
+    const nova = () => {
+      const c = molde.cloneNode(true), q = c.querySelector('.cq'), titulo = q.firstElementChild;
+      q.textContent = ''; q.append(titulo); atual.after(c); atual = c; return q;
+    };
+    encher(pg, 6);
+    while (pedacos.length) {
+      const q = nova(), t = atual.ownerDocument.importNode(molde.querySelector('.linhas.l6').closest('table'), true), cel = t.querySelector('td.cxs');
+      const linhas = cel.querySelector('.linhas'), nota = cel.querySelector('.linhas ~ .peq');
+      t.querySelector('td.sec').textContent = '2 – Descrição da Ação (continuação)';
+      cel.textContent = ''; cel.append(linhas, nota); q.append(t);
+      if (!encher(atual, 1)) break;
+    }
+    depois.forEach(x => {
+      atual.querySelector('.cq').append(x);
+      if (DocumentoBase.cabe(atual)) return;
+      x.remove(); nova().append(x);
     });
   }
   function paginarFicha(pg) {

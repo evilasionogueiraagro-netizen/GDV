@@ -173,7 +173,7 @@ const contem = (texto, lista) => lista.filter(x => !norm(texto).includes(norm(x)
     }
     const texto = execFileSync('pdftotext', [pdf, '-']).toString().replace(/\s+/g, ' ');   // texto vetorial: o PDF do navegador tem de ter texto selecionável
     const r = await p.evaluate(() => ({ secoes: [...document.querySelectorAll('td.sec')].map(x => x.textContent.replace(/\s+/g, ' ').trim()), modelo: document.querySelector('.a4').getAttribute('data-modelo'), largura: document.documentElement.scrollWidth,
-      txt: document.body.innerText.replace(/\s+/g, ' ') }));
+      txt: document.body.innerText.replace(/\s+/g, ' '), longo: document.body.getAttribute('data-longo') }));
     await c.close();
     return { ...r, texto: r.txt, textoPdf: texto, folhas, pags, semFundo };
   }
@@ -304,6 +304,18 @@ const contem = (texto, lista) => lista.filter(x => !norm(texto).includes(norm(x)
   const TC = await gerar('pce-termo.html', 'termo-citros', { fn: termoFn, args: ['termoCitros', TERMOS.citros] });
   const TM = await gerar('pce-termo.html', 'termo-moniliase', { fn: termoFn, args: ['termo', TERMOS.moniliase] });
   ok(TC.folhas === 1 && TM.folhas === 1, 'Termo de citros e Termo de outro programa: uma folha A4 cada', [TC.folhas, TM.folhas]);
+  // constatação longa: a folha corta o que passa do rodapé, então o texto inteiro tem de ficar dentro das folhas, sem cortar nada
+  const PALAVRAS = Array.from({ length: 900 }, (_, i) => `ocorrencia${i}`);
+  const TL = await gerar('pce-termo.html', 'termo-constatacao-longa', { fn: async ([tipo, t]) => {
+    await PCEDocs.montar(document, tipo, t, {});
+    window.__termoLongo = [...document.querySelectorAll('.a4')].map(f => ({ cabe: DocumentoBase.cabe(f), texto: [...f.querySelectorAll('.linhas.l6 .tl')].map(x => x.textContent).join(' '),
+      assina: !!f.querySelector('[data-ass=servidor]'), enq: !!f.querySelector('.linhas.l3') }));
+    document.body.setAttribute('data-longo', JSON.stringify(window.__termoLongo));
+  }, args: ['termo', { ...TERMOS.moniliase, constatacao: PALAVRAS.join(' ') }] });
+  const longo = JSON.parse(TL.longo || '[]'), juntos = longo.map(f => f.texto).join(' ').split(/\s+/).filter(Boolean);
+  ok(TL.folhas >= 2 && TL.folhas === longo.length && longo.every(f => f.cabe), 'Termo com constatação longa: continua em folhas completas, com o corpo acima do rodapé em todas', longo.map(f => f.cabe));
+  ok(juntos.join(' ') === PALAVRAS.join(' '), 'Termo com constatação longa: nenhuma palavra cortada, repetida ou fora de ordem', juntos.length);
+  ok(longo.filter(f => f.assina).length === 1 && longo[longo.length - 1].assina && longo[longo.length - 1].enq, 'Termo com constatação longa: enquadramento e assinaturas juntos na última folha', longo.map(f => f.assina));
   const OF_TERMO = ['TERMO DE FISCALIZAÇÃO Nº', 'Nº sequencial', '1 – Identificação', 'Nome', 'CPF', 'Atividade', 'Empresa / Fantasia', 'CNPJ', 'Endereço', 'Município', 'UF', 'Telefone', 'Coordenadas Geográficas', '2 – Descrição da Ação',
     'Ácaro Hindustânico', 'Cancro Cítrico', 'HLB', 'Ferrugem Asiática da soja', 'Fusariose FOC R4T', 'Monilíase', 'Mosca-da-Carambola', 'Vassoura-de-bruxa da Mandioca', 'Amaranthus palmeri', 'Diaphorina citri', 'Evento Agropecuário', 'Unidade de Produção (UP)',
     'Unidade de Consolidação (UC)', 'ao realizar ações de', 'Controle/Erradicação', 'Levantamento', 'Monitoramento', 'Educação Sanitária', 'Fiscalização', '(descrever a situação constatada)', '3 – Enquadramento Legal', '4 – Testemunhas',

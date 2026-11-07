@@ -14,7 +14,7 @@ const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).
   const sinc = async () => { await p.evaluate(() => Sync.sincronizar()); await p.waitForFunction(() => ['ok', 'idle'].includes(Sync.estado().tipo) && !Sync.estado().pend, null, { timeout: 15000 }); };
   await p.goto(APP); await p.waitForSelector('.modulo', { timeout: 15000 });
   await p.click('.modulo[data-v=home]'); await p.waitForSelector('#fTurno');
-  await p.fill('#nTF', '30'); await p.selectOption('#nPosto', 'Fixa').catch(() => {}); await p.selectOption('#nLocal', 'BVA - CEASA').catch(() => p.fill('#nLocal', 'BVA - CEASA')); await p.fill('#nUnidade', 'MANAUS').catch(() => {});
+  await p.fill('#nTF', '30'); await p.selectOption('#nPosto', 'Fixa').catch(() => {}); await p.selectOption('#nLocal', 'BVA - CEASA').catch(() => p.fill('#nLocal', 'BVA - CEASA'));
   await p.click('#fTurno button[type=submit]'); await p.waitForSelector('.contador');
   // registra um veículo por vez: depois de salvar, o app redesenha o formulário (limpo); só então a próxima placa
   const nVeic = () => p.evaluate(async () => (await Store.todos('veiculos')).filter(x => !x.excluido).length);

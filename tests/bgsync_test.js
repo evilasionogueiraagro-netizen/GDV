@@ -41,7 +41,7 @@ const gravarIDB = (pg, store, rec) => pg.evaluate(([s, r]) => new Promise((ok, n
     await p.fill('#nTF', String(n)); await p.selectOption('#nPosto', 'Fixa'); await p.click('#fTurno button[type=submit]'); await p.waitForSelector('.contador');
     return p.evaluate(() => Store.meta('turnoAtual'));
   };
-  const registrar = async (p, placa) => { await p.waitForTimeout(400); await p.click('nav [data-v=registrar]'); await p.waitForSelector('#fVeic'); await p.waitForTimeout(500);
+  const registrar = async (p, placa) => { await p.click('nav [data-v=registrar]'); await p.waitForSelector('#fVeic');
     for (let i = 0; i < 5 && await p.inputValue('#placa').catch(() => '') !== placa; i++) { await p.fill('#placa', placa); await p.waitForTimeout(300); }
     await p.click('#fVeic > button');
     await p.waitForFunction(pl => document.querySelector('#toast').textContent.includes(pl), placa, { timeout: 8000 }).catch(async e => { console.log('TOAST', await p.textContent('#toast'), await p.inputValue('#placa').catch(()=>'?'), await p.evaluate(() => VIEW), erros); throw e; }); };
@@ -115,7 +115,7 @@ const gravarIDB = (pg, store, rec) => pg.evaluate(([s, r]) => new Promise((ok, n
 
   // reabrir o app SEM internet: o selo já mostra 0 pendentes (o que o SW enviou)
   await A.c.setOffline(true); await fetch(API + '/__off');
-  await p.goto(APP); await p.waitForSelector('.modulo'); await p.waitForTimeout(500);
+  await p.goto(APP); await p.waitForSelector('.modulo');
   const selo = await p.textContent('#sync');
   ok(/Offline/.test(selo) && !/a enviar/.test(selo), 'app reaberto (offline): selo sem pendentes', selo);
   ok(await p.evaluate(async () => (await Envio.pendentes()).total) === 0, 'reaberto: 0 pendentes');
@@ -151,11 +151,11 @@ const gravarIDB = (pg, store, rec) => pg.evaluate(([s, r]) => new Promise((ok, n
   await new Promise(r => setTimeout(r, 800));
   ok((await aba('Veiculos')).length === n0 && (await lerIDB(p, 'veiculos')).some(v => v.placa === 'BGR1A11' && v.pendente === 1), 'nada enviado; o registro continua guardado no aparelho');
   await p.goto(APP); await p.waitForSelector('#view');
-  await p.click('.modulo[data-v=home]').catch(() => {}); await p.waitForTimeout(400);
+  await p.waitForFunction(() => /Acesso revogado/.test(document.querySelector('#view').textContent), null, { timeout: 15000 }).catch(() => {});
   ok(/Acesso revogado/.test(await p.textContent('#view')), 'app reaberto: acesso revogado, pede para entrar de novo (revogação vista pelo service worker)', (await p.textContent('#view')).slice(0, 80));
   ok(await p.evaluate(() => localStorage.getItem('gdv.revogado')) === '1', 'localStorage gdv.revogado = 1');
   // sair do aparelho (o servidor já recusa o acesso: limpa só aqui) apaga a cópia da credencial
-  await p.evaluate(() => Sync.sair()); await p.waitForTimeout(300);
+  await p.evaluate(() => Sync.sair()); await p.waitForFunction(() => Store.meta('cred').then(c => !c));
   ok(!(await p.evaluate(() => Store.meta('cred'))), 'sair: meta "cred" apagada');
   const r3 = await sw.evaluate(() => enviarEmSegundoPlano());
   ok(r3.motivo === 'sem acesso neste aparelho', 'SW sem credencial: não envia', r3);
@@ -171,7 +171,7 @@ const gravarIDB = (pg, store, rec) => pg.evaluate(([s, r]) => new Promise((ok, n
   await registrar(p, 'IPH1A11'); await encerrar(p);
   const txtB = await p.textContent('#encPend');
   ok(/ainda não enviado à planilha — abra o app com internet para enviar/.test(txtB), 'aviso: "— abra o app com internet para enviar"', txtB);
-  await B.c.setOffline(false); await fetch(API + '/__on'); await syncApp(p); await p.waitForTimeout(500);
+  await B.c.setOffline(false); await fetch(API + '/__on'); await syncApp(p);
   ok((await aba('Turnos')).find(t => t.id === idB).encerrado === 1 && /Turno encerrado, bom descanso!/.test(await p.textContent('#encPend').catch(() => '')), 'com o app aberto e internet: enviado normalmente');
   await B.c.close();
 

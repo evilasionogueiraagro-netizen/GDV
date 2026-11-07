@@ -72,17 +72,6 @@ const EU = [-2.63, -56.74];
   ok(!r.ok && r.semPermissao === 'pce' && /Sem autorização para o módulo PCE/.test(r.erro), 'fiscal sem o módulo PCE: servidor recusa (' + r.erro + ')');
   r = await post({ action: 'pceBaixarMunicipio', key: fC.token, municipios: [] }); ok(!r.ok && /município/.test(r.erro), 'sem município: recusado');
 
-  console.log('1b) servidor: pceMapaGeral (mapa com todas as propriedades)');
-  r = await post({ action: 'pceMapaGeral', key: fC.token });
-  const idsG = (r.propriedades || []).map(p => p.id).sort();
-  ok(r.ok && JSON.stringify(idsG) === JSON.stringify(['MAN-001', 'PRP-001', 'PRP-002', 'PRP-003', 'PRP-004']), 'todas as propriedades com coordenadas, de todos os municípios (a sem GPS fica de fora): ' + idsG.join(', '));
-  ok(!r.propriedades.some(p => 'doc' in p || 'telefone' in p) && !/52998224725|71428793860|JOSÉ DA SILVA|ANA MANAUARA/.test(JSON.stringify(r)), 'sem produtor, CPF/CNPJ nem telefone');
-  const man = r.propriedades.find(p => p.id === 'MAN-001');
-  ok(man.lat === -3.1 && man.lon === -60 && man.municipio === 'Manaus' && man.resumoLev.n === 1 && man.resumoLev.pragas[0].praga === 'Fusarium R4T', 'coordenadas em número e histórico junto (MAN-001: Fusarium R4T)');
-  ok((await get('/__aba?nome=Consultas')).some(l => l[1] === fC.nome && /PCE mapa geral: 5 propriedade/.test(l[4])), 'consulta registrada na aba Consultas');
-  r = await post({ action: 'pceMapaGeral', key: fD.token });
-  ok(!r.ok && r.semPermissao === 'pce', 'fiscal sem o módulo PCE: recusado');
-
   // ---------- app ----------
   const b = await amb.lancar();
   const aparelho = async ({ token, nome }) => {

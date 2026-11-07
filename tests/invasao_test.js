@@ -41,10 +41,10 @@ const uuid = () => crypto.randomUUID();
 
 // todas as actions do doPost, por quem pode chamá-las
 const CAMPO = ['ping', 'sync', 'tfConsultar', 'tfProximoNumero', 'tfEmitir', 'pceProximoNumero', 'pceEmitir', 'pceConsultar', 'pceDocNumero',
-  'pceDocRegistrar', 'pceBaixarMunicipio', 'pceMapaGeral', 'arquivoEnviar', 'tfAndamento', 'tfIndiceReincidencia', 'turnoConvidar', 'turnoParear',
+  'pceDocRegistrar', 'pceBaixarMunicipio', 'arquivoEnviar', 'tfAndamento', 'tfIndiceReincidencia', 'turnoConvidar', 'turnoParear',
   'turnoSair', 'turnoPapelRegistrar', 'turnoNumero', 'turnosAbertos', 'turnoEntrar', 'turnoRemoverColega'];
 const MODULO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf', tfIndiceReincidencia: 'tf', pceProximoNumero: 'pce',
-  pceEmitir: 'pce', pceConsultar: 'pce', pceBaixarMunicipio: 'pce', pceMapaGeral: 'pce', arquivoEnviar: 'pce', pceDocNumero: 'pce', pceDocRegistrar: 'pce',
+  pceEmitir: 'pce', pceConsultar: 'pce', pceBaixarMunicipio: 'pce', arquivoEnviar: 'pce', pceDocNumero: 'pce', pceDocRegistrar: 'pce',
   turnoConvidar: 'veiculos', turnoParear: 'veiculos', turnoSair: 'veiculos', turnoPapelRegistrar: 'veiculos', turnoNumero: 'veiculos', turnosAbertos: 'veiculos', turnoEntrar: 'veiculos', turnoRemoverColega: 'veiculos' };
 // catálogo do PCE (pce-catalogo.gs): ler exige o módulo pce; gravar, gerência + pce (nem a gerência sem pce passa)
 const PCE_CATALOGO = ['painelPceCatalogo', 'painelPceCatalogoSalvar'];
@@ -350,11 +350,11 @@ const corpo = (acao, extra = {}) => ({ action: acao, since: 0, doc: CPF, placa: 
 
   await post({ action: 'painelDados', key: G.token, de: hoje, ate: hoje });
   await post({ action: 'painelDados', key: G.token, de: hoje, ate: hoje, aoVivo: true });
-  await post({ action: 'pceMapaGeral', key: FA.token });
+  await post({ action: 'pceBaixarMunicipio', key: FA.token, municipios: ['Manaus'] });
   await post({ action: 'admDados', sessao: AD.token });
   const lidos = await linhasDe('AcessosADados');
   const de = (u, a) => lidos.filter(l => l.usuarioId === u.usuario.id && l.acao === a);
-  ok(de(G, 'painelDados').length === 1 && de(FA, 'pceMapaGeral').length === 1 && de(AD, 'admDados').length === 1,
+  ok(de(G, 'painelDados').length === 1 && de(FA, 'pceBaixarMunicipio').length === 1 && de(AD, 'admDados').length === 1,
     'leitura de dados pessoais registra quem leu (uma linha por usuário e action por hora)', lidos.map(l => l.nome + ':' + l.acao));
   ok(!JSON.stringify(lidos).includes(CPF) && !JSON.stringify(lidos).includes(FISCALIZADO), 'registro de leitura sem dado pessoal');
   r = await post({ action: 'painelDados', key: PL.token, de: hoje });

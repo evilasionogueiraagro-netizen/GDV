@@ -307,7 +307,7 @@ const Sync = (() => {
   const turnosAbertos = () => chamar({ action: 'turnosAbertos' }, 6000);
   const entrarNoTurno = turnoId => entrada({ action: 'turnoEntrar', turnoId });
   async function entrada(req) {
-    const r = await chamar(req, 20000);
+    const r = await chamar(req, 45000);                              // a planilha pode estar ocupada (vários aparelhos ao mesmo tempo)
     await Store.gravar('turnos', { ...r.turno, pendente: 0 });
     for (const v of r.veiculos || []) await Store.gravar('veiculos', { ...v, pendente: 0 });
     if ((r.tfs || []).length) await aplicar('tfs', r.tfs);          // TFs já lavrados no turno (dono e colegas)

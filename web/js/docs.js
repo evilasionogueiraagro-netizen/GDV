@@ -535,14 +535,16 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     imprimir(f, nomeT);
   }
 
-  /* ---------- PCE: Cadastro de imóvel (monilíase), Cadastro de citros, Termo de Fiscalização do PCE e Relatório de atividades ----------
-     Modelos declarativos (documentos/pce-termo.html, pce-termo-citros.html, pce-cadastro-moniliase.html, pce-cadastro-citros.html, pce-relatorio.html)
-     preenchidos por documentos/pce-docs.js (o mesmo script do painel). modo 'arquivo': devolve o PDF gerado no aparelho (pdf.js) em vez de abrir a impressão.
-     opcoes.extras: outras páginas no mesmo PDF (citros: Cadastro de citros + Termo de Fiscalização da visita). */
-  const MODELO_MON = { termo: 'pce-termo.html', cadastro: 'pce-cadastro-moniliase.html', relatorio: 'pce-relatorio.html',
-    termoCitros: 'pce-termo-citros.html', cadastroCitros: 'pce-cadastro-citros.html', cadastroBanana: 'pce-cadastro-banana.html', cadastroMandioca: 'pce-cadastro-mandioca.html',
-    cadastroSoja: 'pce-cadastro-soja.html', cadastroPropriedade: 'pce-cadastro-propriedade.html' };
+  /* ---------- PCE: Ficha oficial, Termo de Fiscalização e Relatório de atividades ----------
+     Três modelos declarativos (documentos/pce-ficha.html, pce-termo.html, pce-relatorio.html) preenchidos por documentos/pce-docs.js (o mesmo script do painel).
+     A ficha é uma só para os 6 formulários de papel (citros, banana, moniliase, mandioca, soja, propriedade), guiada por CONFIG.PCE.fichas.
+     modo 'arquivo': devolve o PDF gerado no aparelho (pdf.js) em vez de abrir a impressão.
+     opcoes.extras: outras páginas no mesmo PDF (ficha + Termo da mesma visita). Os tipos antigos (cadastro, cadastroCitros, cadastroBanana..., termoCitros)
+     continuam aceitos por pceMon: o pce-docs.js os adapta para os modelos novos sem alterar o registro. */
+  const MODELO_MON = { ficha: 'pce-ficha.html', termo: 'pce-termo.html', relatorio: 'pce-relatorio.html' };
+  const modeloMon = tipo => MODELO_MON[/^termo/.test(tipo) ? 'termo' : /^(ficha|cadastro)/.test(tipo) ? 'ficha' : 'relatorio'];
   function nomePdfMon(tipo, r) {
+    if (tipo === 'ficha') { const e = r.ficha || {}; return nomeArquivo(`Ficha_${(r.modelo || '').replace(/^./, c => c.toUpperCase())}_` + (e.numeroTxt || 'SEM_NUMERO') + '_' + ((r.produtor || {}).nome || '')); }
     const gen = /^cadastro(Banana|Mandioca|Soja|Propriedade)$/.exec(tipo);
     if (gen) return nomeArquivo(`Cadastro_${gen[1]}_` + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));
     if (tipo === 'termo') return nomeArquivo('Termo_Fiscalizacao_' + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));
@@ -553,7 +555,7 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
   }
   async function pceMon(tipo, dados, opcoes, modo) {
     if (!dados) throw new Error('Registro não encontrado.');
-    const f = await abrirModelo(MODELO_MON[tipo]), w = f.contentWindow;
+    const f = await abrirModelo(modeloMon(tipo)), w = f.contentWindow;
     for (let i = 0; i < 50 && !w.PCEDocs; i++) await new Promise(r => setTimeout(r, 50));   // script do modelo ainda carregando
     if (!w.PCEDocs) { f.remove(); throw new Error('Modelo de impressão indisponível nesta versão do app.'); }
     await w.PCEDocs.montar(f.contentDocument, tipo, dados, opcoes || {});
@@ -563,6 +565,15 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     imprimir(f, nome);
     return folhas;
   }
+
+  /**
+   * Ficha oficial do PCE (um modelo por propriedade). entrada = {produtor, propriedade (com frutos), dados (próprios do modelo), visita (Termo mais recente) ou nada,
+   * frutos (opcional), ficha: {numeroTxt, data, local, servidor, cargo, matricula, lotacao, assinaturas, rt}}: ver PCEDocs.valoresFicha em documentos/pce-docs.js.
+   * modelo: citros | banana | moniliase | mandioca | soja | propriedade. Registro antigo (CadastrosPCE): PCEDocs.entradaDeCadastro(registro).
+   */
+  const fichaPce = (modelo, entrada, opcoes, modo) => pceMon('ficha', { ...entrada, modelo }, opcoes, modo);
+  /** Termo de Fiscalização do PCE (um só modelo, todos os programas; aceita o Termo novo, o antigo e o de citros antigo, como gravados). */
+  const termoPce = (termo, opcoes, modo) => pceMon('termo', termo, opcoes, modo);
 
   /** Relatório da equipe (prestação de contas do convênio): modelo rel-equipe.html preenchido por documentos/rel-equipe-docs.js. */
   async function relEquipe(R) {
@@ -581,5 +592,5 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     return imprimir(f, `Termo_de_${r.tipo.normalize('NFD').replace(/[\u0300-\u036f]/g, '')}_${String(r.numero).replace(/[^\w]+/g, '_')}_${String(R.escala.bva).replace(/[^\w]+/g, '_')}`);
   }
 
-  return { ficha, termo, tf, auto, limparImpressao, relEquipe, termoRepasse, fiscaisDoTurno, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, nomePdfMon, ordenar, esc };
+  return { ficha, termo, tf, auto, limparImpressao, relEquipe, termoRepasse, fiscaisDoTurno, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, fichaPce, termoPce, nomePdfMon, ordenar, esc };
 })();

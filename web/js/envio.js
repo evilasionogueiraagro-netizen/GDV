@@ -3,7 +3,7 @@
 // e faz o envio "só de subida" que o service worker executa quando o Android devolve a conexão (Background Sync).
 // Não usa window/document/localStorage: roda também dentro do service worker. Depende de Store (store.js) e CONFIG (config.js).
 const Envio = (() => {
-  // k = Cadastro de imóvel do PCE (monilíase…), m = Termo de Fiscalização do PCE
+  // k = Ficha oficial do PCE (CadastrosPCE), m = Termo de Fiscalização do PCE, r = produtor/propriedade com os frutos
   const NOMES = ['t', 'v', 'f', 'p', 'l', 'g', 'c', 'r', 'k', 'm'];
   const STORES = { t: 'turnos', v: 'veiculos', f: 'tfs', p: 'pessoas', l: 'placas', g: 'levantamentos', c: 'colheitas', r: 'propriedades', k: 'cadastrosPce', m: 'termosPce' };
   const CAMPOS = { t: 'turnos', v: 'veiculos', f: 'tfs', p: 'pessoas', l: 'placas', g: 'levantamentos', c: 'colheitas', r: 'propriedades', k: 'cadastrosPce', m: 'termosPce' };   // nome no corpo da requisição
@@ -26,7 +26,8 @@ const Envio = (() => {
   const ANTIGO_NOS = ['g', 'c', 'k', 'm', 'f'];                               // stores que podem ter registros antigos (f = TF digitado do papel)
   const TAG = 'gdv-enviar', TAG_PERIODICO = 'gdv-enviar-periodico';
 
-  const limpo = ({ pendente, provisorio, ...r }) => r;
+  // campos só do aparelho (controle local e sugestões) não vão para a planilha
+  const limpo = ({ pendente, provisorio, frutosSugeridos, resumoLev, ultimoTermoPce, campoMun, baixadoEm, recusadoEm, ...r }) => r;
   const lerJSON = (v, pad) => { try { return JSON.parse(v) || pad; } catch (e) { return pad; } };
 
   /** Erro de conexão (sem internet, servidor fora do ar, tempo esgotado): vale tentar de novo depois. */
@@ -211,29 +212,12 @@ const Envio = (() => {
     const vai = {}; NOMES.forEach(n => { vai[n] = storePermitido(n, perm) ? p[n].filter(r => !ret[n].has(r.id)) : []; });
     // registro antigo (do papel) sem a permissão "antigo": também fica guardado (pendente) até a gerência liberar
     if (!podeAntigo(perm)) ANTIGO_NOS.forEach(n => { vai[n] = vai[n].filter(r => !ehAntigo(r)); });
-    // Linhas da visita (culturasAvaliadas e resultados) pendentes sobem junto com o levantamento delas: o servidor recusa linha sem
-    // levantamento no mesmo envio. Linha pendente cujo levantamento não está pendente (envio interrompido, edição só das linhas): o
-    // levantamento vai de novo junto, para a linha nunca ficar pendente para sempre.
-    const linhas = { culturasAvaliadas: [], resultados: [] };
-    if (storePermitido('g', perm)) {
-      for (const k of Object.keys(linhas)) linhas[k] = (await Store.todos(k)).filter(x => x && x.pendente && x.levantamentoId);
-      const tem = new Set(vai.g.map(l => l.id)), soltos = new Set([...linhas.culturasAvaliadas, ...linhas.resultados].map(x => x.levantamentoId).filter(id => !tem.has(id) && !ret.g.has(id)));
-      if (soltos.size) vai.g = [...(await Store.todos('levantamentos')).filter(l => soltos.has(l.id) && (podeAntigo(perm) || !ehAntigo(l))), ...vai.g];
-    }
     const env = {}; NOMES.forEach(n => { env[n] = vai[n].slice(0, LIMITES[n]); });
     const since = (await Store.meta('lastSync')) || 0;
     const corpo = { action: 'sync', since, aparelho: await sinal(p, origem) }; NOMES.forEach(n => { corpo[CAMPOS[n]] = env[n].map(limpo); });
-    if (env.g.length) {
-      const levIds = new Set(env.g.map(l => l.id));
-      const ca = linhas.culturasAvaliadas.filter(x => levIds.has(x.levantamentoId)), rs = linhas.resultados.filter(x => levIds.has(x.levantamentoId));
-      if (ca.length) corpo.culturasAvaliadas = ca.map(limpo);
-      if (rs.length) corpo.resultados = rs.map(limpo);
-    }
     const r = await chamar(corpo);
     const rec = r.recusados || {};
     for (const n of NOMES) await marcarEnviados(STORES[n], env[n], rec[CAMPOS[n]], Number(r.agora) || 0);
-    if (corpo.culturasAvaliadas) await marcarEnviados('culturasAvaliadas', corpo.culturasAvaliadas, rec.culturasAvaliadas, Number(r.agora) || 0);
-    if (corpo.resultados) await marcarEnviados('resultados', corpo.resultados, rec.resultados, Number(r.agora) || 0);
     return { r, rec, recusouAlgo: Object.keys(rec).some(k => (rec[k] || []).length),
       resta: NOMES.some(n => vai[n].length > env[n].length), enviados: NOMES.reduce((s, n) => s + env[n].length, 0) };
   }

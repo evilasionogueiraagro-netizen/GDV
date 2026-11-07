@@ -34,7 +34,7 @@ async function veiculosDe(turnoId) {
 /* ---------- localização (GPS funciona sem internet) ---------- */
 /* Localização. O pedido de permissão do celular só deve aparecer quando o fiscal faz algo que precisa dela
    (entrar, iniciar/encerrar turno, posto volante, botão "Atualizar GPS"). Leituras automáticas
-   (TF em preenchimento, GPS ao abrir o levantamento) usam pegarLocalSilencioso, que nunca abre o pedido. */
+   (TF em preenchimento, GPS ao abrir a visita) usam pegarLocalSilencioso, que nunca abre o pedido. */
 let ultimaLocal = null;                                         // reaproveita uma leitura recente (evita pedidos seguidos)
 function pegarLocal() {
   if (ultimaLocal && Date.now() - ultimaLocal.em < 2 * 60 * 1000) return Promise.resolve(ultimaLocal.g);
@@ -89,7 +89,7 @@ const NAVS = {
   veiculos: [['modulos', 'inicio', 'Módulos'], ['home', 'caminhao-bau', 'Turno'], ['registrar', 'mais', 'Registrar'], ['lista', 'lista', 'Lista'], ['resumo', 'resumo', 'Resumo'], ['historico', 'historico', 'Histórico']],
   tf: [['modulos', 'inicio', 'Módulos'], ['tf', 'documento', 'Meus TFs'], ['tfnovo', 'mais', 'Novo TF']],
   escala: [['modulos', 'inicio', 'Módulos'], ['escalas', 'calendario', 'Escalas']],
-  pce: [['modulos', 'inicio', 'Módulos'], ['pce', 'broto', 'Levantamentos'], ['pcecads', 'propriedade', 'Propriedades'], ['pcelev', 'mais', 'Novo levantamento'], ['pcemapa', 'mapa', 'Perto de mim'], ['pcetermos', 'amostra', 'Termos de colheita']]
+  pce: [['modulos', 'inicio', 'Módulos'], ['pce', 'pessoa', 'Produtores'], ['pcetermos', 'formulario', 'Termos']]
 };
 const VIEWS_VEICULOS = ['home', 'registrar', 'editar', 'lista', 'resumo', 'fechado', 'historico', 'turnopapel'];
 /** Módulo (permissão) de cada tela: veiculos, tf ou pce; '' = livre (módulos, status). */
@@ -105,8 +105,8 @@ function semPermissaoPara(view) {
 }
 function renderNav(view) {
   const ativo = ({ editar: 'lista', fechado: 'home', tfpronto: MODULO === 'tf' ? 'tf' : 'lista', tfnovo: MODULO === 'tf' ? 'tfnovo' : 'lista',
-    pcepronto: 'pcetermos', pcelevpronto: 'pce', pceservidor: 'pce', pcecampo: 'pce', pcerota: 'pcemapa',
-    pcecads: 'pcecads', pcecad: 'pcecads', pcecadpronto: 'pcecads', pcetfs: 'pcecads', pcetf: 'pcecads', pcetfpronto: 'pcecads', pcerel: 'pcecads', escala: 'escalas', escalagerar: 'escalas' })[view] || view;
+    pceservidor: 'pce', pcecampo: 'pce', pceprodutor: 'pce', pceprodform: 'pce', pcevisita: 'pce', pcevisitapronto: 'pce', pceficha: 'pce', pcelevver: 'pce',
+    pcepronto: 'pcetermos', pcetermo: 'pcetermos', pcetf: 'pcetermos', pcetfpronto: 'pcetermos', pcerel: 'pcetermos', escala: 'escalas', escalagerar: 'escalas' })[view] || view;
   $('#nav').innerHTML = NAVS[MODULO].map(([v, i, t]) => `<button data-v="${v}" class="${v === ativo ? 'on' : ''}">${icone(i)}<span>${t}</span></button>`).join('');
 }
 /** Abre a tela. o.manterRolagem: redesenho da mesma tela (sincronização), sem voltar ao topo. Devolve a promessa do desenho. */
@@ -125,12 +125,11 @@ function go(view, arg, o) {
   else if (/^tf/.test(view) && MODULO === 'hub') MODULO = 'tf';          // TF aberto a partir do veículo continua no módulo de veículos (embutido)
   renderNav(view); GER++;
   const r = ({ modulos, home, registrar, editar: registrar, lista, resumo, fechado, historico, config, turnopapel, tf: () => TFUI.lista(), tfnovo: () => TFUI.novo(EDIT), tfpronto: () => TFUI.pronto(EDIT),
-    pce: () => PCEUI.lista(), pcelev: () => PCEUI.levantamento(EDIT), pcetermos: () => PCEUI.termos(), pcetermo: () => PCEUI.termo(EDIT),
-    pcepronto: () => PCEUI.pronto(EDIT), pcelevpronto: () => PCEUI.levPronto(EDIT), pceservidor: () => PCEUI.servidor(EDIT),
-    pcecampo: () => Campo.telaBaixar(), pcemapa: () => Campo.telaMapa(), pcerota: () => Campo.telaRota(),
-    // PCE monilíase: Cadastro de imóvel, Termo de Fiscalização do PCE e Relatório de atividades (moniliase.js)
-    pcecads: () => PCEMon.lista('cadastro'), pcecad: () => PCEMon.cadastro(EDIT), pcecadpronto: () => PCEMon.pronto('cadastro', EDIT),
-    pcetfs: () => PCEMon.lista('termo'), pcetf: () => PCEMon.termo(EDIT), pcetfpronto: () => PCEMon.pronto('termo', EDIT), pcerel: () => PCEMon.relatorio(),
+    // PCE: produtores (busca e dados offline), cadastro com frutos, tela do produtor, fichas, nova visita e Termos
+    pce: () => Campo.telaProdutores(), pcecampo: () => Campo.telaBaixar(), pceprodutor: () => PCECads.produtor(EDIT), pceprodform: () => PCECads.produtorForm(EDIT),
+    pceficha: () => PCECads.ficha(EDIT), pcevisita: () => PCEMon.visita(EDIT), pcevisitapronto: () => PCEMon.visitaPronta(EDIT), pcelevver: () => PCEUI.verLev(EDIT),
+    pcetermos: () => PCEUI.termos(), pcetermo: () => PCEUI.termo(EDIT), pcepronto: () => PCEUI.pronto(EDIT), pceservidor: () => PCEUI.servidor(EDIT),
+    pcetf: () => PCEMon.termo(EDIT), pcetfpronto: () => PCEMon.pronto(EDIT), pcerel: () => PCEMon.relatorio(),
     escalas: () => EscalaUI.lista(), escala: () => EscalaUI.form(EDIT), escalagerar: () => EscalaUI.gerar(EDIT),
     relequipes: () => EscalaUI.relLista(), relequipe: () => EscalaUI.rel(EDIT) }[view])();
   if (!(o && o.manterRolagem)) window.scrollTo(0, 0);
@@ -164,7 +163,7 @@ async function modulos() {
     ${MODS_LIBERADOS() ? '' : '<div class="card aviso" id="semModulos"><h3>Nenhum módulo liberado</h3><p>O seu acesso não libera nenhum módulo do app de campo. Fale com a gerência. Os registros que estão neste aparelho continuam guardados.</p></div>'}
     <div class="modulos">${cartao('veiculos', 'home', 'caminhao-bau', 'Educação Sanitária/Fiscalização de Trânsito', `<small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)` : 'Registro das informações, por ação'}</small>`)}
     ${cartao('tf', 'tf', 'documento', 'Termo de Fiscalização de Barreira', `<small>${tfs.length} TF(s) neste aparelho${pend ? ` · ${icone('pendente')} ${pend} aguardando envio` : ''}</small>`)}
-    ${cartao('pce', 'pce', 'broto', 'PCE', `<small>Programa de Controle e Erradicação — levantamento fitossanitário e Termo de Colheita de Amostras</small><small class="pce-status">${esc(stPce)}</small>`)}
+    ${cartao('pce', 'pce', 'broto', 'PCE', `<small>Programa de Controle e Erradicação — produtores, visitas e Termos de Fiscalização e de Colheita</small><small class="pce-status">${esc(stPce)}</small>`)}
     ${cartao('escala', 'escalas', 'calendario', 'Escalas de plantão', '<small>Coordenação de barreira e trânsito: quem fica em cada BVA em cada período</small>')}</div>
     ${Sync.pode('veiculos') && Sync.pode('tf') ? '<p class="dica">Dentro da Educação Sanitária/Fiscalização de Trânsito também dá para lavrar o TF de um veículo (botão “Lavrar TF”).</p>' : ''}
     <a class="botao sec" href="manual.html">${icone('manual')} Manual do fiscal</a>`);
@@ -986,13 +985,13 @@ Sync.onEstado(e => {
   b.innerHTML = icone(ic) + ' ' + esc(txt + (e.tipo === 'sync' ? '' : pend));
   atualizarStatusEnc().catch(() => {});
 });
-window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'resumo', 'historico', 'tf', 'pce', 'pcetermos', 'pcecads', 'pcetfs', 'fechado'].includes(VIEW)) redesenhar(); });
+window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'resumo', 'historico', 'tf', 'pce', 'pcetermos', 'fechado'].includes(VIEW)) redesenhar(); });
 // permissões mudaram no sync: se a tela aberta é de um módulo que deixou de ser autorizado, volta para os módulos (nada é apagado);
 // na tela de módulos (ou em telas livres) só redesenha
 window.addEventListener('gdv-permissoes', () => {
   if (semPermissaoPara(VIEW)) go(VIEW);                                   // go() avisa e leva para a tela de módulos
   else if (VIEW === 'modulos') go('modulos');
-  else if (['home', 'lista', 'pce', 'pcetermos', 'pcepronto', 'pcelevpronto'].includes(VIEW)) redesenhar();   // botões "Lavrar TF" / "do papel" aparecem/somem
+  else if (['home', 'lista', 'pce', 'pcetermos', 'pcepronto'].includes(VIEW)) redesenhar();   // botões "Lavrar TF" / "do papel" aparecem/somem
 });
 window.addEventListener('online', () => Sync.atualizarContagem());
 window.addEventListener('gdv-sync-fim', () => { atualizarStatusEnc().catch(() => {}); });

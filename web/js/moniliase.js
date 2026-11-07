@@ -1,11 +1,11 @@
-// PCE — monilíase: Cadastro de imóvel com hospedeiros (1x por propriedade), Termo de Fiscalização do PCE (1 por programa em cada visita; não é o TF de
-// Barreira) e Relatório de atividades (prestação de contas do convênio). Formulários na mesma ordem do papel, com o modo "digitar do papel"
-// (número, data e PDF escaneado do papel; sem assinaturas) para a estagiária e o modo de campo (GPS, assinaturas, número do sistema).
-// Usa funções do app.js (view, go, tela, toast, $, esc, dBR, hojeISO, agoraHM, pegarLocal, avisoAtivacao), do pce.js (PCEUI), do campo.js,
-// do docs.js (impressão/PDF) e do documentos/pce-docs.js (agregados do relatório).
+// PCE — Termo de Fiscalização: a visita (nova visita em passos, um Termo por programa), o Termo digitado do papel, o envio do PDF ao produtor e o
+// Relatório de atividades (prestação de contas do convênio). Não é o TF de Barreira. A visita é o fluxo de campo: frutos avaliados -> pragas do
+// catálogo e hospedeiros -> amostra, sintomas, plantas e fotos -> ações e constatação -> assinaturas; ao concluir sai UM Termo por programa (e o Termo
+// de Colheita, quando houve coleta), com número por unidade e ano (sem internet o número é provisório e a planilha confere ao sincronizar).
+// Usa funções do app.js (view, go, tela, toast, $, esc, dBR, hojeISO, agoraHM, pegarLocalSilencioso, avisoAtivacao), do pce.js (PCEUI), do
+// pce-cadastros.js (PCECads: catálogo, frutos), do docs.js (impressão/PDF) e do documentos/pce-docs.js (agregados do relatório).
 const PCEMon = (() => {
-  const P = CONFIG.PCE, MO = P.moniliase || {}, TC = P.termo || {};
-  const HOSP = MO.hospedeiros || PCEDocs.HOSP;
+  const P = CONFIG.PCE, TC = P.termo || {};
   const digitos = v => String(v || '').replace(/\D/g, '');
   const semAcento = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
   const norm = s => semAcento(s).toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
@@ -13,7 +13,7 @@ const PCEMon = (() => {
   const unid = u => Sync.unidadePce(u);
   const num3 = n => String(n).padStart(3, '0');
   const numTxt = (tipo, n, a, u) => (tipo === 'termo' ? `${num3(n)}.${a}.${unid(u)}` : `${num3(n)}-${a}-${unid(u)}`);
-  const NOME = { termo: 'Termo de Fiscalização', cadastro: 'Cadastro de propriedade' };
+  const NOME = { termo: 'Termo de Fiscalização', cadastro: 'Ficha oficial' };
   const STORE = { termo: 'termosPce', cadastro: 'cadastrosPce' };
   const bloqueado = () => !Sync.ativado() || localStorage.getItem('gdv.revogado');
   const U = () => PCEUI;
@@ -28,7 +28,6 @@ const PCEMon = (() => {
     const n = Number(t); return isFinite(n) ? n : '';
   }
   const inteiro = v => { const n = numero(v); return n === '' ? '' : Math.round(n); };
-  const area = v => { const n = numero(v); return n === '' ? '' : String(n).replace('.', ','); };
 
   /* ---------- coordenadas: latitude e longitude em campos separados (como no papel) ---------- */
   /** "-3,60033", "-3.60033", "3,60033S", "-59,15044W", "3°36'01,2\"S", "S 3 36 1.2"… → {v} | {vazio} | {erro}. Longitude sem sinal nem letra = Oeste. */
@@ -99,8 +98,7 @@ const PCEMon = (() => {
   document.addEventListener('click', e => {
     const i = e.target; if (!(i instanceof HTMLInputElement) || i.type !== 'radio' || !i.closest('.mon-op')) return;
     if (i.dataset.on === '1') { i.checked = false; i.dataset.on = ''; } else { document.querySelectorAll(`input[name="${i.name}"]`).forEach(x => { x.dataset.on = ''; }); i.dataset.on = '1'; }
-    if (i.closest('#monCadForm')) ligarVisibilidade(PC);
-    agendar();
+    if (i.closest('#pceVisitaForm')) visitaMudou(i, 'click').catch(() => {}); else agendar();
   });
 
   /* ---------- número do papel: "001.2026.AUTAZES", "001-2026-AUTAZES", "001/2026/Autazes", "Nº 1", "1" ---------- */
@@ -118,16 +116,14 @@ const PCEMon = (() => {
   const unidadeDaLista = t => P.municipios.find(x => norm(x) === norm(t)) || '';
 
   /* ---------- servidor, rascunho e estado ---------- */
-  let F = null, tR = null;                                                // formulário aberto (cadastro ou termo)
-  const RASC = { cadastro: 'pceCadRascunho', termo: 'pceTfRascunho' };
+  let F = null, tR = null;                                                // Termo do papel aberto
+  const RASC = { termo: 'pceTfRascunho' };
   function agendar(atraso = 500) {
     clearTimeout(tR);
-    const f = $('#monCadForm') || $('#monTfForm'), st = F; if (!f || !st || !st.vivo) return;
+    const f = $('#monTfForm'), st = F; if (!f || !st || !st.vivo) return;
     tR = setTimeout(() => {
       if (F !== st || !f.isConnected) return;
-      Store.setMeta(RASC[st.tipo], { dados: st.tipo === 'cadastro' ? (st.coletar ? st.coletar() : st.programa === 'citros' ? coletarCadCi() : coletarCad()) : coletarTf(), id: st.id, novo: st.novo, antigo: st.antigo ? 1 : 0, docs: st.docs,
-        assNovas: st.assNovas, cadastroId: st.cadastroId || '', propriedadeId: st.propriedadeId || '', hospedeiros: st.hospedeiros || [], deTermo: st.deTermo ? 1 : 0, levId: st.levId || '',
-        programaVisita: st.programaVisita || '', nomePrograma: st.nomePrograma || '', culturas: st.culturas || [], programa: st.programa || '', em: Date.now() });
+      Store.setMeta(RASC.termo, { dados: coletarTf(), id: st.id, novo: st.novo, antigo: 1, docs: st.docs, assNovas: st.assNovas, em: Date.now() });
     }, atraso);
   }
   function fechar() { if (F) F.vivo = false; clearTimeout(tR); F = null; }
@@ -204,21 +200,6 @@ const PCEMon = (() => {
     const m = document.createElement('div'); m.className = 'tf-modal'; m.id = 'mon-modal'; m.innerHTML = `<div class="tf-modal-box">${html}</div>`;
     document.body.append(m); return m;
   }
-  /** Popup do número (modo de campo): número sugerido, editável. */
-  function pedirNumero(o) {
-    return new Promise(ok => {
-      const ult = o.ultimoReg && o.ultimoReg.numeroTxt ? `Último número usado: <b>${esc(o.ultimoReg.numeroTxt)}</b>${o.ultimoReg.usuario ? ` (${esc(o.ultimoReg.usuario)}, ${esc(dBR(o.ultimoReg.data))})` : ''}.`
-        : o.ultimo ? `Último número usado: <b>${esc(numTxt(o.tipo, o.ultimo, o.ano, o.unidade))}</b>.` : `Nenhum ${NOME[o.tipo]} anterior nesta unidade em ${o.ano}.`;
-      const m = modal(`<h3>Número do ${esc(NOME[o.tipo])}</h3>${o.aviso ? `<div class="tf-alerta">${esc(o.aviso)}</div>` : ''}
-        ${o.offline ? '<div class="tf-novo">Sem conexão: número <b>provisório</b>, conferido na planilha ao sincronizar.</div>' : '<div class="tf-ok">✓ Número obtido na planilha agora.</div>'}
-        <p class="dica">${ult}</p><input id="mon-num-m" type="number" inputmode="numeric" min="1" value="${o.numero}"><div id="mon-num-prev" class="tf-num"></div>
-        <div class="duas"><button class="botao sec" id="mon-m-cancel" type="button">Cancelar</button><button class="botao" id="mon-m-ok" type="button">Confirmar e salvar</button></div>`);
-      const i = m.querySelector('input'), prev = () => { m.querySelector('#mon-num-prev').innerHTML = `<b>${esc(numTxt(o.tipo, +i.value || 0, o.ano, o.unidade))}</b>`; };
-      i.oninput = prev; prev(); i.focus();
-      m.querySelector('#mon-m-cancel').onclick = () => { m.remove(); ok(null); };
-      m.querySelector('#mon-m-ok').onclick = () => { const n = parseInt(i.value, 10); if (!(n > 0)) return toast('Informe o número.', true); m.remove(); ok(n); };
-    });
-  }
   /** Popup do registro do papel: número do papel e o efeito na sequência (como no Termo de Colheita antigo). */
   function confirmarPapel(o) {
     return new Promise(ok => {
@@ -234,52 +215,52 @@ const PCEMon = (() => {
     });
   }
   /**
-   * Define o número e grava o registro (novo). rec já montado (sem número). Devolve true se gravou.
-   * Online: a planilha confirma (pceDocRegistrar); sem internet: provisório/papel pendente, conferido no sync.
+   * Termo digitado do papel: o número é o do papel; a planilha só confere se está livre (pceDocRegistrar). Devolve true se gravou.
    */
   async function numerarEGravar(tipo, rec, pessoa, prop, papel) {
-    const u = unid(rec.unidade), prog = rec.programa || 'moniliase';
-    if (papel) {
-      const a = papel.ano, n = papel.n;
-      const dup = (await Store.todos(STORE[tipo])).find(r => r.id !== rec.id && !Number(r.excluido) && unid(r.unidade) === u && Number(r.ano) === a && Number(r.numero) === n && (tipo === 'termo' || (r.programa || 'moniliase') === prog));
-      if (dup) { toast(`O nº ${numTxt(tipo, n, a, u)} já está neste aparelho (${dup.nome || ''}, ${dBR(dup.data)}). Confira o papel.`, true); return false; }
-      let info = null;
-      if (online()) { try { info = await Sync.pceDocNumero(tipo, u, a, prog); } catch (e) { if (e.semPermissao || /revogado|inv[aá]lido/i.test(e.message)) { toast(e.message, true); return false; } } }
-      if (!F || !(await confirmarPapel({ tipo, n, ano: a, unidade: u, info }))) return false;
-      Object.assign(rec, { ano: a, numero: n, numeroTxt: numTxt(tipo, n, a, u), numeroSugerido: info ? info.proximo : '', numeroOrigem: 'papel', conflito: 0 });
-      if (info) {
-        let r;
-        try { r = await Sync.pceDocRegistrar(tipo, rec, pessoa, prop); }
-        catch (e) { if (e.semPermissao || /revogado|inv[aá]lido/i.test(e.message)) { toast(e.message, true); return false; } r = null; }
-        if (r && r.emitido === false) { const oc = r.ocupadoPor || {}; toast(`O nº ${numTxt(tipo, n, a, u)} já está registrado na planilha${oc.usuario ? ` (${oc.usuario}, ${dBR(oc.data)}${oc.nome ? ', ' + oc.nome : ''})` : ''}. Confira o papel.`, true); return false; }
-        if (r) { await gravarLocal(tipo, { ...rec, emitidoEm: r.emitidoEm }, pessoa, prop, 0); return true; }
-      }
-      await gravarLocal(tipo, rec, pessoa, prop, 1); return true;                // sem conexão: sobe no sync
+    const u = unid(rec.unidade), prog = rec.programa || 'moniliase', a = papel.ano, n = papel.n;
+    const dup = (await Store.todos(STORE[tipo])).find(r => r.id !== rec.id && !Number(r.excluido) && unid(r.unidade) === u && Number(r.ano) === a && Number(r.numero) === n && (tipo === 'termo' || (r.programa || 'moniliase') === prog));
+    if (dup) { toast(`O nº ${numTxt(tipo, n, a, u)} já está neste aparelho (${dup.nome || ''}, ${dBR(dup.data)}). Confira o papel.`, true); return false; }
+    let info = null;
+    if (online()) { try { info = await Sync.pceDocNumero(tipo, u, a, prog); } catch (e) { if (e.semPermissao || /revogado|inv[aá]lido/i.test(e.message)) { toast(e.message, true); return false; } } }
+    if (!F || !(await confirmarPapel({ tipo, n, ano: a, unidade: u, info }))) return false;
+    Object.assign(rec, { ano: a, numero: n, numeroTxt: numTxt(tipo, n, a, u), numeroSugerido: info ? info.proximo : '', numeroOrigem: 'papel', conflito: 0 });
+    if (info) {
+      let r;
+      try { r = await Sync.pceDocRegistrar(tipo, rec, pessoa, prop); }
+      catch (e) { if (e.semPermissao || /revogado|inv[aá]lido/i.test(e.message)) { toast(e.message, true); return false; } r = null; }
+      if (r && r.emitido === false) { const oc = r.ocupadoPor || {}; toast(`O nº ${numTxt(tipo, n, a, u)} já está registrado na planilha${oc.usuario ? ` (${oc.usuario}, ${dBR(oc.data)}${oc.nome ? ', ' + oc.nome : ''})` : ''}. Confira o papel.`, true); return false; }
+      if (r) { await gravarLocal(tipo, { ...rec, emitidoEm: r.emitidoEm }, pessoa, prop, 0); return true; }
     }
-    const a = Number(String(rec.data).slice(0, 4)) || new Date().getFullYear();
+    await gravarLocal(tipo, rec, pessoa, prop, 1); return true;                // sem conexão: sobe no sync
+  }
+  /**
+   * Número do Termo de campo (visita) ou da ficha oficial, sem perguntar: online a planilha dá o próximo e confirma (pceDocRegistrar); sem internet o
+   * número é provisório (último que o aparelho conhece + 1) e a planilha confere ao sincronizar (repetido = conflito). rec já montado (sem número).
+   * Devolve {rec} (gravado no aparelho) ou {duplicado: {numeroTxt, programaVisita}} quando a planilha já tem Termo desse programa nesta visita.
+   */
+  async function numerar(tipo, rec, pessoa, prop) {
+    const u = unid(rec.unidade), prog = rec.programa || 'moniliase', a = Number(String(rec.data).slice(0, 4)) || new Date().getFullYear();
     let sug = null;
-    if (online()) { try { const r = await Sync.pceDocNumero(tipo, u, a, prog); sug = { numero: Math.max(r.proximo, (await ultimoLocal(tipo, u, a, prog)) + 1), ultimo: r.ultimo, ultimoReg: r.ultimoReg, origem: 'servidor' }; }
-      catch (e) { if (e.semPermissao || /revogado|inv[aá]lido/i.test(e.message)) { toast(e.message, true); return false; } } }
-    if (!sug) { const u0 = await ultimoLocal(tipo, u, a, prog); sug = { numero: u0 + 1, ultimo: u0, ultimoReg: null, origem: 'offline' }; }
-    let n0 = sug.numero, aviso = '';
-    for (let t = 0; t < 6; t++) {
-      const n = await pedirNumero({ tipo, numero: n0, ano: a, unidade: u, ultimo: sug.ultimo, ultimoReg: sug.ultimoReg, offline: sug.origem !== 'servidor', aviso });
-      if (n == null || !F) return false;
-      if ((await Store.todos(STORE[tipo])).some(r => r.id !== rec.id && unid(r.unidade) === u && Number(r.ano) === a && Number(r.numero) === n && (tipo === 'termo' || (r.programa || 'moniliase') === prog))) {
-        n0 = n; aviso = `Este aparelho já tem o nº ${numTxt(tipo, n, a, u)}. Escolha outro.`; continue;
-      }
-      Object.assign(rec, { ano: a, numero: n, numeroTxt: numTxt(tipo, n, a, u), numeroSugerido: sug.numero, conflito: 0,
-        numeroOrigem: sug.origem !== 'servidor' ? 'provisorio' : (n === sug.numero ? 'sistema' : 'editado') });
+    if (online()) { try { const r = await Sync.pceDocNumero(tipo, u, a, prog); sug = { numero: Math.max(r.proximo, (await ultimoLocal(tipo, u, a, prog)) + 1), origem: 'servidor' }; }
+      catch (e) { if (e.semPermissao || /revogado|inv[aá]lido/i.test(e.message)) throw e; } }
+    if (!sug) sug = { numero: (await ultimoLocal(tipo, u, a, prog)) + 1, origem: 'offline' };
+    let n = sug.numero;
+    for (let t = 0; t < 8; t++) {
+      const locais = (await Store.todos(STORE[tipo])).filter(r => r.id !== rec.id && unid(r.unidade) === u && Number(r.ano) === a && (tipo === 'termo' || (r.programa || 'moniliase') === prog));
+      while (locais.some(r => Number(r.numero) === n)) n++;
+      Object.assign(rec, { ano: a, numero: n, numeroTxt: numTxt(tipo, n, a, u), numeroSugerido: sug.numero, conflito: 0, numeroOrigem: sug.origem === 'servidor' ? (n === sug.numero ? 'sistema' : 'editado') : 'provisorio' });
       if (sug.origem === 'servidor') {
         let r = null;
-        try { r = await Sync.pceDocRegistrar(tipo, rec, pessoa, prop); } catch (e) { if (e.semPermissao || /revogado|inv[aá]lido/i.test(e.message)) { toast(e.message, true); return false; } }
-        if (r && r.emitido === false) { const oc = r.ocupadoPor || {}; sug = { ...sug, numero: r.proximo, ultimo: r.ultimo, ultimoReg: oc }; n0 = r.proximo;
-          aviso = `O nº ${numTxt(tipo, n, a, u)} acabou de ser usado${oc.usuario ? ' por ' + oc.usuario : ''}. Nova sugestão: ${num3(r.proximo)}.`; continue; }
-        if (r) { await gravarLocal(tipo, { ...rec, emitidoEm: r.emitidoEm }, pessoa, prop, 0); return true; }
+        try { r = await Sync.pceDocRegistrar(tipo, rec, pessoa, prop); } catch (e) { if (e.semPermissao || /revogado|inv[aá]lido/i.test(e.message)) throw e; }
+        if (r && r.emitido === false && r.termoDaVisita) return { duplicado: r.termoDaVisita };           // um Termo por programa em cada visita: não cria outro
+        if (r && r.emitido === false) { n = Math.max(n + 1, Number(r.proximo) || 0); continue; }          // outro servidor usou este número agora
+        if (r) { const gravado = { ...rec, emitidoEm: r.emitidoEm }; await gravarLocal(tipo, gravado, pessoa, prop, 0); return { rec: gravado }; }
       }
-      await gravarLocal(tipo, { ...rec, provisorio: sug.origem !== 'servidor' ? 1 : 0 }, pessoa, prop, 1); return true;
+      const gravado = { ...rec, provisorio: sug.origem !== 'servidor' ? 1 : 0 };
+      await gravarLocal(tipo, gravado, pessoa, prop, 1); return { rec: gravado };
     }
-    toast('Não foi possível definir o número. Tente de novo.', true); return false;
+    throw new Error('Não foi possível definir o número do ' + NOME[tipo] + '. Tente de novo.');
   }
   async function gravarLocal(tipo, rec, pessoa, prop, pendente) {
     const t = Date.now();
@@ -297,11 +278,6 @@ const PCEMon = (() => {
     const base = n(prop) || n(endereco) || 'PROPRIEDADE';
     return ((doc ? doc : 'SEMDOC ' + n(nomeProd)) + '|' + base).slice(0, 64).trim();
   }
-  async function montarProp(id, o) {
-    const l = await Store.obter('propriedades', id), t = Date.now(), b = { ...(l || {}) }; delete b.pendente;
-    const set = {}; Object.keys(o).forEach(k => { if (o[k] !== '' && o[k] != null) set[k] = o[k]; });
-    return { ...b, ...set, id, codigo: b.codigo || '', nome: o.nome || b.nome || '', criadoEm: b.criadoEm || t, atualizadoEm: t };
-  }
   async function montarPessoa(doc, campos) { return doc && (doc.length === 11 || doc.length === 14) ? U().montarPessoa(doc, campos) : null; }
   /** CPF/CNPJ: no papel é opcional (avisa se inválido); em campo, obrigatório. false = parar. */
   function docConfere(doc, papel) {
@@ -310,96 +286,9 @@ const PCEMon = (() => {
     return U().docOk(doc) || confirm(`O ${doc.length === 11 ? 'CPF' : 'CNPJ'} informado tem dígitos inválidos. Continuar mesmo assim?`);
   }
 
-  /* ================= Cadastro de imóvel (monilíase) ================= */
-  const PC = 'mc-';
-  const cadVazio = (s, m = {}) => ({ unidade: m.unidade || (s && s.lotacao) || '', numPapel: '', data: m.data || '', local: m.local || '', sNome: m.sNome || '', sCargo: m.sCargo || '',
-    sMatricula: m.sMatricula || '', sLotacao: m.sLotacao || '', comercial: '', tipoNaoComercial: '', tipoOutros: '', nome: '', doc: '', propriedade: '', cnpj: '',
-    lat: '', lon: '', viaAcesso: '', viaOutra: '', endereco: '', municipio: m.municipio || '', uf: 'AM', plantas: {}, areaAbandonada: '', areaTotal: '', idadePlantio: '',
-    areaProducao: '', idadeProducao: '', mumificados: '', origem: '', origemFonte: '', producao: '', producaoUnidade: '', destino: '', sacaria: '', controlePraga: '',
-    assistencia: '', assistenciaOrgao: '', frutosSaem: '', frutosDestino: '', fito: {}, sintomas: '', sintomaLat: '', sintomaLon: '', camaraUmida: '', camaraMr: '',
-    suspeitos: [], amostra: '', diagnostico: '' });
-  const cadDeRegistro = r => { const d = lerJSON(r.dados, {});
-    return { ...cadVazio(null), ...d, unidade: r.unidade || '', numPapel: r.numeroTxt || '', data: r.data || '', local: r.local || '', sNome: r.servidor || '', sCargo: r.cargo || '',
-      sMatricula: r.matricula || '', sLotacao: r.lotacao || '', nome: r.nome || '', doc: PCEDocs.fmtDoc(r.doc), propriedade: r.propriedade || '', cnpj: r.cnpj || '',
-      lat: r.lat === '' || r.lat == null ? '' : String(r.lat).replace('.', ','), lon: r.lon === '' || r.lon == null ? '' : String(r.lon).replace('.', ','),
-      municipio: r.municipio || '', uf: r.uf || 'AM', plantas: d.plantas || {}, fito: d.fito || {}, suspeitos: d.suspeitos || [] }; };
-  function coletarCad() {
-    const p = PC, fito = {};
-    (MO.doencas || []).forEach(([k]) => { fito[k] = { tem: rv(p, 'f-' + k + '-tem'), tempo: g(p, 'f-' + k + '-tempo'), controle: rv(p, 'f-' + k + '-controle'), qual: g(p, 'f-' + k + '-qual') }; });
-    const plantas = {}; HOSP.forEach(([k]) => { plantas[k] = g(p, 'pl-' + k); });
-    return { unidade: g(p, 'unidade'), numPapel: g(p, 'numpapel'), data: g(p, 'data'), local: g(p, 'local'), sNome: g(p, 'snome'), sCargo: U().cargoValor(p + 'scargo'), sMatricula: g(p, 'smatricula'),
-      sLotacao: g(p, 'slotacao'), comercial: rv(p, 'comercial'), tipoNaoComercial: rv(p, 'tipoNaoComercial'), tipoOutros: g(p, 'tipoOutros'), nome: g(p, 'nome'), doc: g(p, 'doc'),
-      propriedade: g(p, 'propriedade'), cnpj: g(p, 'cnpj'), lat: g(p, 'lat'), lon: g(p, 'lon'), viaAcesso: rv(p, 'viaAcesso'), viaOutra: g(p, 'viaOutra'), endereco: g(p, 'endereco'),
-      municipio: g(p, 'municipio'), uf: g(p, 'uf'), plantas, areaAbandonada: rv(p, 'areaAbandonada'), areaTotal: g(p, 'areaTotal'), idadePlantio: g(p, 'idadePlantio'),
-      areaProducao: g(p, 'areaProducao'), idadeProducao: g(p, 'idadeProducao'), mumificados: rv(p, 'mumificados'), origem: rv(p, 'origem'), origemFonte: g(p, 'origemFonte'),
-      producao: g(p, 'producao'), producaoUnidade: rv(p, 'producaoUnidade'), destino: g(p, 'destino'), sacaria: rv(p, 'sacaria'), controlePraga: rv(p, 'controlePraga'),
-      assistencia: rv(p, 'assistencia'), assistenciaOrgao: g(p, 'assistenciaOrgao'), frutosSaem: rv(p, 'frutosSaem'), frutosDestino: g(p, 'frutosDestino'), fito,
-      sintomas: rv(p, 'sintomas'), sintomaLat: g(p, 'sintomaLat'), sintomaLon: g(p, 'sintomaLon'), camaraUmida: rv(p, 'camaraUmida'), camaraMr: rv(p, 'camaraMr'),
-      suspeitos: cv(p, 'suspeitos'), amostra: rv(p, 'amostra'), diagnostico: rv(p, 'diagnostico') };
-  }
-  const totalDe = pl => HOSP.reduce((s, [k]) => s + (Number(inteiro(pl[k])) || 0), 0);
-  function formCadHTML(D, st) {
-    const p = PC, A = st.antigo, num = 'inputmode="numeric" autocomplete="off"';
-    const fito = k => { const f = D.fito[k] || {}; const nm = (MO.doencas.find(x => x[0] === k) || [k, k])[1];
-      return `<div class="mon-fito"><b>${esc(nm)}</b>${sn(p, 'f-' + k + '-tem', 'Presença', f.tem || '')}${inp(p, 'f-' + k + '-tempo', 'Há quanto tempo', f.tempo || '')}
-        ${sn(p, 'f-' + k + '-controle', 'Utiliza método de controle', f.controle || '')}${inp(p, 'f-' + k + '-qual', 'Qual', f.qual || '')}</div>`; };
-    return `<form id="monCadForm" class="${A ? 'pce-antigo' : ''}" autocomplete="off" novalidate>
-      ${A ? topoPapel(st.novo ? 'Cadastro de propriedade — digitar do papel' : 'Editar cadastro (do papel)', st.novo) + U().servAntigoHTML(p, D, st.lembrados)
-        : `<div class="card mon-topo"><h3>${icone('propriedade')} ${st.novo ? 'Cadastro de propriedade (imóvel com hospedeiros)' : 'Editar cadastro da propriedade'}</h3>
-          <p class="dica" style="text-align:left">Servidor: <b>${esc(st.serv.servidor)}</b> · ${esc(st.serv.cargo)} · ${esc(st.serv.lotacao)}</p></div>`}
-      <div class="card"><h3>Nº do cadastro</h3>
-        <label>Unidade (numeração) *<select id="${p}unidade">${opts(P.municipios, D.unidade, 'Selecione')}</select></label>
-        ${A ? `${st.novo || !st.rec ? inp(p, 'numpapel', 'Nº do cadastro (como está no papel) *', D.numPapel, 'placeholder="ex.: 001-2025-AUTAZES ou 1" autocomplete="off"') : `<div class="tf-num"><b>${esc(st.rec.numeroTxt)}</b></div>`}
-          <div id="${p}numpapel-st" class="tf-status" aria-live="polite"></div>
-          <div class="duas">${inp(p, 'data', 'Data (do papel) *', D.data, `type="date" min="2000-01-01" max="${hojeISO()}"`)}${inp(p, 'local', 'Local', D.local, 'placeholder="ex.: Autazes"')}</div>`
-          : `<div class="tf-num">${st.rec ? `<b>${esc(st.rec.numeroTxt)}</b>` : '<small>Nº definido ao salvar (consulta a planilha; sem internet, provisório).</small>'}</div>`}
-        ${st.deTermo ? '<p class="dica" style="text-align:left">Ao salvar, volta para o Termo de Fiscalização com este cadastro ligado.</p>' : ''}</div>
-      <div class="card">${sn(p, 'comercial', 'Propriedade comercial?', D.comercial)}
-        <div id="${p}naocom" ${D.comercial === 'sim' ? 'hidden' : ''}>${sn(p, 'tipoNaoComercial', 'Propriedade não comercial', D.tipoNaoComercial, MO.tiposNaoComercial)}
-        ${inp(p, 'tipoOutros', 'Outros (qual)', D.tipoOutros)}</div></div>
-      <div class="card"><h3>1. Dados do produtor/proprietário</h3>
-        <div class="campo-busca"><label>Buscar produtor/propriedade já cadastrados (nome, CPF ou código)<input id="${p}busca" type="search" autocomplete="off"></label><div id="${p}busca-res"></div></div>
-        ${inp(p, 'nome', 'Nome do produtor *', D.nome, 'autocapitalize="characters"')}
-        <div class="duas">${inp(p, 'doc', A ? 'CPF (opcional no papel)' : 'CPF *', D.doc, 'inputmode="numeric" placeholder="000.000.000-00"')}${inp(p, 'cnpj', 'CNPJ', D.cnpj, 'inputmode="numeric"')}</div>
-        <div id="${p}st-doc" class="tf-status"></div>
-        ${inp(p, 'propriedade', 'Nome da propriedade', D.propriedade)}
-        <p class="mon-sub">Georreferenciamento</p>${coordHTML(p, D, !A)}
-        ${sn(p, 'viaAcesso', 'Principal via de acesso à propriedade', D.viaAcesso, [['fluvial', 'Fluvial'], ['terrestre', 'Terrestre'], ['outra', 'Outra']])}
-        <div id="${p}via-outra" ${D.viaAcesso === 'outra' ? '' : 'hidden'}>${inp(p, 'viaOutra', 'Outra via (qual)', D.viaOutra)}</div>
-        ${inp(p, 'endereco', 'Endereço', D.endereco)}
-        <div class="duas mon-mun"><label>Município *<select id="${p}municipio">${opts(P.municipios, D.municipio, 'Selecione')}</select></label>${inp(p, 'uf', 'UF', D.uf, 'maxlength="2" autocapitalize="characters"')}</div></div>
-      <div class="card"><h3>2. Tipo de atividade</h3>
-        <p class="mon-sub">Cultura (nº de plantas)</p>
-        <div class="mon-cult">${HOSP.map(([k, t]) => inp(p, 'pl-' + k, t, (D.plantas || {})[k], num)).join('')}<label>Total<output id="${p}total" class="mon-total">${totalDe(D.plantas || {})}</output></label></div>
-        ${sn(p, 'areaAbandonada', 'Existe área abandonada com as culturas?', D.areaAbandonada)}
-        <div class="duas">${inp(p, 'areaTotal', 'Área total plantada (ha)', D.areaTotal, 'inputmode="decimal"')}${inp(p, 'idadePlantio', 'Idade do plantio (anos)', D.idadePlantio, num)}</div>
-        <div class="duas">${inp(p, 'areaProducao', 'Área em produção (ha)', D.areaProducao, 'inputmode="decimal"')}${inp(p, 'idadeProducao', 'Idade do plantio em produção (anos)', D.idadeProducao, num)}</div>
-        ${sn(p, 'mumificados', 'Retirada de frutos mumificados?', D.mumificados)}
-        ${sn(p, 'origem', 'Origem das sementes/mudas', D.origem, [['proprias', 'Próprias'], ['terceiros', 'Terceiros']])}
-        <div id="${p}fonte" ${D.origem === 'terceiros' ? '' : 'hidden'}>${inp(p, 'origemFonte', 'Fonte (terceiros)', D.origemFonte)}</div>
-        <div class="duas">${inp(p, 'producao', 'Produção', D.producao, 'inputmode="decimal"')}<div>${sn(p, 'producaoUnidade', 'Unidade', D.producaoUnidade, [['sacas', 'Sacas'], ['kg', 'Kg']])}</div></div>
-        ${inp(p, 'destino', 'Destino da produção', D.destino)}
-        ${sn(p, 'sacaria', 'Sacaria utilizada', D.sacaria, [['nova', 'Nova'], ['reutilizada', 'Reutilizada']])}
-        ${sn(p, 'controlePraga', 'Utiliza algum controle de praga?', D.controlePraga)}
-        ${sn(p, 'assistencia', 'Assistência técnica', D.assistencia, [['nao', 'Não possui'], ['privada', 'Privada'], ['publica', 'Pública']])}
-        <div id="${p}orgao" ${D.assistencia === 'publica' || D.assistencia === 'privada' ? '' : 'hidden'}>${inp(p, 'assistenciaOrgao', 'Órgão / empresa', D.assistenciaOrgao)}</div>
-        ${sn(p, 'frutosSaem', 'Frutos inteiros saem da propriedade?', D.frutosSaem, [['nao', 'Não'], ['sim', 'Sim']])}
-        <div id="${p}fdest" ${D.frutosSaem === 'sim' ? '' : 'hidden'}>${inp(p, 'frutosDestino', 'Qual o destino?', D.frutosDestino)}</div></div>
-      <div class="card"><h3>3. Informações fitossanitárias</h3>${(MO.doencas || []).map(([k]) => fito(k)).join('')}</div>
-      <div class="card"><h3>4. Levantamento de detecção</h3>
-        ${sn(p, 'sintomas', 'Fruto com sintomas visuais de Moniliophthora roreri?', D.sintomas)}
-        <div id="${p}sint" ${D.sintomas === 'sim' ? '' : 'hidden'}><p class="mon-sub">Coordenada da planta com sintoma</p>
-          <div class="duas">${inp(p, 'sintomaLat', 'Latitude', D.sintomaLat, 'autocomplete="off"')}${inp(p, 'sintomaLon', 'Longitude', D.sintomaLon, 'autocomplete="off"')}</div></div>
-        ${sn(p, 'camaraUmida', 'Realizada câmara úmida?', D.camaraUmida)}
-        ${sn(p, 'camaraMr', 'Câmara úmida apresenta comportamento de M. roreri?', D.camaraMr)}
-        <p class="mon-sub">Hospedeiro suspeito</p>${cks(p, 'suspeitos', HOSP, D.suspeitos)}
-        ${sn(p, 'amostra', 'Colheita de amostra?', D.amostra)}
-        ${sn(p, 'diagnostico', 'Diagnóstico', D.diagnostico, [['positivo', 'Positivo p/ M. roreri'], ['negativo', 'Negativo p/ M. roreri']])}</div>
-      ${A ? pdfHTML(p) : !CONFIG.assinaturaNaTela ? '' : `<div class="card"><h3>Assinaturas (opcional)</h3>${assHTML('servidor', 'Servidor da ADAF')}${assHTML('produtor', 'Produtor/proprietário')}</div>`}
-      <button class="botao" type="submit" id="${p}salvar">${icone('salvar')} Salvar cadastro</button>
-      ${A && st.novo ? `<button class="botao" type="button" data-mon="salvaroutro" id="${p}salvar-outro">${icone('salvar')} Salvar e digitar outro</button>` : ''}
-      <button class="botao sec" type="button" data-mon="descartar">Descartar</button></form>`;
-  }
+
+  /* ================= Termo de Fiscalização digitado do papel ================= */
+  const PT = 'mt-';
   function mostrarNumPapel(pref, tipo) {
     const st = $('#' + pref + 'numpapel-st'), el = $('#' + pref + 'numpapel'); if (!st || !el) return null;
     if (!el.value.trim()) { st.replaceChildren(); return null; }
@@ -409,276 +298,16 @@ const PCEMon = (() => {
       : `<div class="tf-ok">${icone('check')} Será gravado como <b>${esc(numTxt(tipo, r.n, r.ano, r.unidade || g(pref, 'unidade')))}</b>.</div>`;
     return r;
   }
-  function ligarVisibilidade(p) {
-    const vis = (id, cond) => { const e = $('#' + p + id); if (e) e.hidden = !cond; };
-    vis('naocom', rv(p, 'comercial') !== 'sim'); vis('via-outra', rv(p, 'viaAcesso') === 'outra'); vis('fonte', rv(p, 'origem') === 'terceiros');
-    vis('orgao', ['publica', 'privada'].includes(rv(p, 'assistencia'))); vis('fdest', rv(p, 'frutosSaem') === 'sim'); vis('sint', rv(p, 'sintomas') === 'sim');
-    const t = $('#' + p + 'total'); if (t) t.textContent = totalDe(coletarCad().plantas);
-  }
-
-  async function cadastro(arg) {
-    if (bloqueado()) return view(avisoAtivacao());
-    const id = typeof arg === 'string' ? arg : '', o = arg && typeof arg === 'object' ? arg : {};
-    const rec0 = id ? await Store.obter('cadastrosPce', id) : null, s0 = await U().servidorAtual();
-    const querAntigo = !!(o.antigo || (rec0 && Number(rec0.registroAntigo) === 1) || (!id && U().soDigitador(s0) && U().podeAntigo()));
-    if (querAntigo && !U().podeAntigo()) { toast(U().SEM_ANTIGO, true); return go('pcecads'); }
-    const s = await U().exigirServidor('pcecad', arg, querAntigo); if (!s) return;
-    fechar();
-    if (id && (!rec0 || rec0.excluido)) { toast('Cadastro não encontrado.', true); return go('pcecads'); }
-    const t = await tratarRascunho('cadastro', id, false); if (!t) return go('pcecads');
-    // Cadastro de citros: sai do levantamento (rascunho retomado vale o programa dele)
-    const prog = t.rasc ? t.rasc.programa : rec0 ? rec0.programa : o.programa;
-    if (prog === 'citros') return cadastroCitros(o, rec0, t.rasc, s);
-    if (PCECads.ehGenerico(prog)) return PCECads.abrir({ ...o, antigo: querAntigo }, rec0, t.rasc, s);       // banana, mandioca, soja e cadastro geral (pce-cadastros.js)
-    let st, D;
-    if (t.rasc) {
-      const r = t.rasc, rec = r.id ? await Store.obter('cadastrosPce', r.id) : null;
-      st = { tipo: 'cadastro', id: r.id, novo: !rec, rec, antigo: !!r.antigo, docs: r.docs || [], ass: rec ? lerJSON(rec.assinaturas, {}) : {}, assNovas: r.assNovas || {}, deTermo: !!r.deTermo, propriedadeId: r.propriedadeId || '', levId: r.levId || '' };
-      D = { ...cadVazio(s), ...r.dados };
-    } else if (rec0) {
-      st = { tipo: 'cadastro', id: rec0.id, novo: false, rec: rec0, antigo: Number(rec0.registroAntigo) === 1, docs: lerJSON(rec0.documentos, []), ass: lerJSON(rec0.assinaturas, {}), assNovas: {} };
-      D = cadDeRegistro(rec0);
-    } else {
-      st = { tipo: 'cadastro', id: Store.novoId(), novo: true, rec: null, antigo: querAntigo, docs: [], ass: {}, assNovas: {}, deTermo: !!o.deTermo, propriedadeId: o.propId || o.propIdLig || '', levId: o.levId || '' };
-      D = cadVazio(querAntigo ? null : s, o.manter || {});
-      if (!querAntigo) Object.assign(D, { data: hojeISO(), municipio: s.lotacao || '', local: s.lotacao || '' });
-      if (o.prefill) Object.assign(D, Object.fromEntries(Object.entries(o.prefill).filter(([, v]) => v !== '' && v != null)));
-      if (o.propId) { const pd = await dadosDaPropriedade(o.propId); delete pd.propriedadeId; delete pd.telefone; Object.assign(D, pd); }
-    }
-    st.vivo = true; st.serv = st.rec && !st.antigo ? { servidor: st.rec.servidor, cargo: st.rec.cargo, matricula: st.rec.matricula, lotacao: st.rec.lotacao } : U().dadosServidor(s);
-    if (st.antigo) st.lembrados = await U().servidoresLembrados();
-    F = st;
-    view(formCadHTML(D, st));
-    mostrarCoord(PC); mostrarNumPapel(PC, 'cadastro');
-    if (st.antigo) await renderDocs(PC); else { await ligarAss('servidor'); await ligarAss('produtor'); }
-    const f = $('#monCadForm');
-    f.addEventListener('input', e => {
-      const tid = e.target.id;
-      if (tid === PC + 'busca') { clearTimeout(tR); return buscarProdutor(PC); }
-      if (tid === PC + 'lat' || tid === PC + 'lon') mostrarCoord(PC);
-      if ([PC + 'numpapel', PC + 'unidade', PC + 'data'].includes(tid)) mostrarNumPapel(PC, 'cadastro');
-      if (/^mc-pl-/.test(tid)) ligarVisibilidade(PC);
-      agendar();
-    });
-    f.addEventListener('change', async e => {
-      const el = e.target;
-      if (el.id === PC + 'pdfs') return adicionarPDFs(el, PC);
-      if (el.id === PC + 'snome') await U().completarServidor(PC);
-      if (el.id === PC + 'doc' || el.id === PC + 'cnpj') { el.value = PCEDocs.fmtDoc(digitos(el.value)) || el.value; avisoDoc(PC); }
-      if (el.id === PC + 'municipio' && !g(PC, 'local') && st.antigo) $('#' + PC + 'local').value = el.value;
-      if ([PC + 'numpapel', PC + 'unidade', PC + 'data'].includes(el.id)) mostrarNumPapel(PC, 'cadastro');
-      ligarVisibilidade(PC); agendar();
-    });
-    f.onsubmit = ev => { ev.preventDefault(); salvarCad(false); };
-    const p1 = $(st.antigo ? (D.sNome ? '#mc-numpapel' : '#mc-snome') : '#mc-nome'); if (p1 && st.novo) p1.focus();
-  }
   function avisoDoc(pref) {
     const el = $('#' + pref + 'st-doc'), d = digitos(g(pref, 'doc')); if (!el) return;
     el.innerHTML = !d ? '' : d.length !== 11 && d.length !== 14 ? '<div class="tf-alerta">CPF/CNPJ incompleto.</div>'
       : U().docOk(d) ? '' : `<div class="tf-alerta">${icone('alerta')} ${d.length === 11 ? 'CPF' : 'CNPJ'} com dígitos inválidos: confira a digitação.</div>`;
   }
-  /** Produtor/propriedade já no aparelho (inclusive dados do município baixados): preenche o cadastro. */
-  async function buscarProdutor(pref) {
-    const q = g(pref, 'busca').trim(), out = $('#' + pref + 'busca-res'); if (!out) return;
-    if (q.length < 2) { out.replaceChildren(); return; }
-    const r = await Campo.buscar(q, 10); if (g(pref, 'busca').trim() !== q || !F) return;
-    F.busca = r;
-    out.innerHTML = r.length ? `<ul class="campo-res">${r.map((x, i) => `<li><button type="button" class="campo-res-item" data-mon="usarbusca" data-i="${i}"><b>${esc((x.pessoa && x.pessoa.nome) || 'Produtor')}</b>
-      <small>${esc([x.prop ? x.prop.nome || 'propriedade sem nome' : 'sem propriedade', x.prop && x.prop.municipio, PCEDocs.fmtDoc((x.prop && x.prop.doc) || (x.pessoa && x.pessoa.id))].filter(Boolean).join(' · '))}</small></button></li>`).join('')}</ul>`
-      : '<div class="tf-novo">Nada encontrado neste aparelho.</div>';
-  }
-  async function dadosDaPropriedade(propId) {
-    const x = await Campo.dadosPara(propId); if (!x) return {};
-    const p = x.prop, pe = x.pessoa || {};
-    return { nome: pe.nome || '', doc: PCEDocs.fmtDoc(p.doc), propriedade: p.nome || '', cnpj: p.cnpj || '', municipio: p.municipio || '', uf: p.uf || 'AM',
-      endereco: p.endereco || pe.endereco || '', lat: p.lat === '' || p.lat == null ? '' : String(p.lat).replace('.', ','), lon: p.lon === '' || p.lon == null ? '' : String(p.lon).replace('.', ','),
-      viaAcesso: p.viaAcesso || '', comercial: p.comercial || '', tipoNaoComercial: p.tipoPropriedade || '', telefone: pe.telefone || '', propriedadeId: p.id };
-  }
-  function aplicarBusca(pref, x) {
-    const set = (id, v) => { const el = $('#' + pref + id); if (el && v != null && v !== '') el.value = el.tagName === 'SELECT' && ![...el.options].some(o => o.value === v) ? (el.add(new Option(v, v)), v) : v; };
-    const p = x.prop || {}, pe = x.pessoa || {};
-    set('nome', pe.nome); set('doc', PCEDocs.fmtDoc(p.doc || pe.id)); set('propriedade', p.nome); set('municipio', p.municipio); set('endereco', p.endereco || pe.endereco);
-    set('cnpj', p.cnpj); if (p.lat !== '' && p.lat != null) { set('lat', String(p.lat).replace('.', ',')); set('lon', String(p.lon).replace('.', ',')); }
-    set('telefone', pe.telefone); set('codigo', p.codigo);
-    if (x.prop && x.prop.id && F) F.propriedadeId = x.prop.id;                // mesma propriedade do levantamento/mapa
-    const r = $('#' + pref + 'busca-res'), b = $('#' + pref + 'busca'); if (r) r.replaceChildren(); if (b) b.value = '';
-    mostrarCoord(pref); avisoDoc(pref); agendar(0);
-  }
-
-  async function salvarCad(outro) {
-    const st = F; if (!st || !st.vivo || st.salvando || st.tipo !== 'cadastro') return;
-    const D = coletarCad(), A = st.antigo, doc = digitos(D.doc), cnpj = digitos(D.cnpj);
-    let sv = null, papel = null;
-    if (A && !(sv = U().servidorDigitado(PC))) return;
-    if (!D.unidade) return toast('Escolha a unidade da numeração.', true);
-    if (!D.nome.trim()) return toast('Informe o nome do produtor.', true);
-    if (!docConfere(doc, A)) return;
-    if (!D.municipio) return toast('Escolha o município.', true);
-    const co = lerPar(D.lat, D.lon); if (co.erro) return toast('Coordenadas: ' + co.erro, true);
-    const sc = lerPar(D.sintomaLat, D.sintomaLon); if (sc.erro) return toast('Coordenada da planta com sintoma: ' + sc.erro, true);
-    if (A) {
-      if (!/^\d{4}-\d{2}-\d{2}$/.test(D.data)) return toast('Informe a data que está no papel.', true);
-      if (D.data > hojeISO()) return toast('A data não pode estar no futuro. Confira o papel.', true);
-      if (st.novo) { papel = lerNumeroDoc(D.numPapel, D.unidade, D.data); if (papel.erro) { mostrarNumPapel(PC, 'cadastro'); return toast(papel.erro, true); } }
-    }
-    const btns = [$('#mc-salvar'), $('#mc-salvar-outro')].filter(Boolean); btns.forEach(b => { b.disabled = true; }); st.salvando = true;
-    try {
-      const nome = D.nome.trim().replace(/\s+/g, ' ').toUpperCase(), plantas = {};
-      HOSP.forEach(([k]) => { const n = inteiro(D.plantas[k]); plantas[k] = n === '' ? '' : n; });
-      const dados = { comercial: D.comercial, tipoNaoComercial: D.comercial === 'sim' ? '' : D.tipoNaoComercial, tipoOutros: D.tipoOutros.trim(), viaAcesso: D.viaAcesso,
-        viaOutra: D.viaAcesso === 'outra' ? D.viaOutra.trim() : '', endereco: D.endereco.trim(), plantas, areaAbandonada: D.areaAbandonada, areaTotal: area(D.areaTotal),
-        idadePlantio: inteiro(D.idadePlantio), areaProducao: area(D.areaProducao), idadeProducao: inteiro(D.idadeProducao), mumificados: D.mumificados, origem: D.origem,
-        origemFonte: D.origem === 'terceiros' ? D.origemFonte.trim() : '', producao: area(D.producao), producaoUnidade: D.producaoUnidade, destino: D.destino.trim(),
-        sacaria: D.sacaria, controlePraga: D.controlePraga, assistencia: D.assistencia, assistenciaOrgao: D.assistencia === 'nao' ? '' : D.assistenciaOrgao.trim(),
-        frutosSaem: D.frutosSaem, frutosDestino: D.frutosSaem === 'sim' ? D.frutosDestino.trim() : '', fito: D.fito, sintomas: D.sintomas,
-        sintomaLat: sc.vazio ? '' : sc.lat, sintomaLon: sc.vazio ? '' : sc.lon, camaraUmida: D.camaraUmida, camaraMr: D.camaraMr, suspeitos: D.suspeitos, amostra: D.amostra, diagnostico: D.diagnostico };
-      const { mapa, novos } = Anexos.prepararAssinaturas({ ...st, dono: 'cadastrosPce' });
-      await Store.gravarVarios('arquivos', novos);
-      const propriedadeId = (st.rec && st.rec.propriedadeId) || st.propriedadeId || propIdDe(doc, nome, D.propriedade, D.endereco);
-      const base = { ...(st.rec || {}) }; delete base.pendente; delete base.provisorio;
-      const rec = { ...base, id: st.id, programa: 'moniliase', unidade: unid(D.unidade), propriedadeId, doc, nome, propriedade: D.propriedade.trim(), cnpj,
-        data: A ? D.data : (base.data || hojeISO()), hora: A ? '' : (base.hora || agoraHM()), municipio: D.municipio, uf: (D.uf || 'AM').trim().toUpperCase(),
-        lat: co.vazio ? '' : co.lat, lon: co.vazio ? '' : co.lon, ...(sv || st.serv), local: (A ? D.local : (base.local || D.municipio)).trim(), dados: JSON.stringify(dados),
-        totalPlantas: totalDe(plantas), fotos: base.fotos || '[]', assinaturas: JSON.stringify(mapa), documentos: JSON.stringify(st.docs),
-        registroAntigo: A ? 1 : 0, excluido: 0 };
-      const pessoa = await montarPessoa(doc, { nome, endereco: dados.endereco, municipio: D.municipio, uf: rec.uf });
-      const prop = await montarProp(propriedadeId, { nome: rec.propriedade, doc, municipio: D.municipio, lat: rec.lat, lon: rec.lon, cnpj, viaAcesso: D.viaAcesso,
-        comercial: D.comercial, tipoPropriedade: dados.tipoNaoComercial, endereco: dados.endereco, uf: rec.uf });
-      if (st.novo) {
-        if (!(await numerarEGravar('cadastro', rec, pessoa, prop, papel))) return;
-      } else {
-        await Store.salvar('cadastrosPce', rec);
-        if (pessoa) await Store.salvar('pessoas', pessoa);
-        await Store.salvar('propriedades', prop);
-      }
-      if (sv) await U().lembrarServidor(sv);
-      const antes = Anexos.idsArquivos(st.rec), depois = new Set([...st.docs, ...Object.values(mapa)]);
-      await Anexos.apagarSeNaoEnviado([...antes].filter(x => !depois.has(x)));
-      const deTermo = st.deTermo, levId = st.levId; fechar(); await Store.setMeta(RASC.cadastro, null);
-      Sync.sincronizar();
-      if (deTermo) { toast('Cadastro salvo. Voltando ao Termo de Fiscalização.'); return go('pcetf', { retomar: true, cadastroId: rec.id }); }
-      if (levId) { toast('Cadastro salvo. Agora os Termos de Fiscalização da visita (um por programa).'); return go('pcelevpronto', levId); }
-      if (outro) { toast(`Cadastro ${rec.numeroTxt || ''} salvo. Digite o próximo.`); return go('pcecad', { antigo: true, manter: { sNome: sv.servidor, sCargo: sv.cargo, sMatricula: sv.matricula, sLotacao: sv.lotacao, unidade: D.unidade, municipio: D.municipio, data: D.data, local: D.local.trim() } }); }
-      go('pcecadpronto', rec.id);
-    } catch (e) { toast('Erro ao salvar: ' + e.message, true); }
-    finally { st.salvando = false; btns.forEach(b => { if (b.isConnected) b.disabled = false; }); }
-  }
-
-  /* ================= Cadastro de citros (programa "citros"): sai do levantamento ================= */
-  // Os dados (produtor, propriedade, localização e o bloco "Cultura do citros") são os do levantamento da visita, copiados para "dados" ao salvar:
-  // aqui só a unidade/número (papel: o número do papel), as assinaturas (ou o PDF escaneado) e a conferência. Para corrigir, edita-se o levantamento.
-  const CI = (P.citros || {});
-  /** Culturas avaliadas nos cards de praga de citros do levantamento (nomes, sem repetir). */
-  const culturasCitrosDoLev = lev => [...new Set(Docs.pceGrupos(lev).pragas.filter(g => PCECitros.ehCitros(g.praga)).flatMap(g => g.culturas.map(c => c.cultura)).filter(Boolean))];
-  const levEhCitros = lev => !!lev && Docs.pceGrupos(lev).pragas.some(g => PCECitros.ehCitros(g.praga));
-  /** "Propriedade comercial Sítio X, Ramal Y, Manaus/AM": o local da fiscalização (Termo de citros), a partir do levantamento. */
-  function localDoLev(lev) {
-    const tl = String(lev.tipoLocal || '').trim(), base = tl && !/^outro$/i.test(tl) ? tl : 'Propriedade';
-    return [base + (lev.propriedade ? ' ' + String(lev.propriedade).trim() : ''), String(lev.endereco || '').trim(), lev.municipio ? `${lev.municipio}/${lev.uf || 'AM'}` : ''].filter(Boolean).join(', ');
-  }
-  /** "dados" do Cadastro de citros: o bloco "Cultura do citros" do levantamento + o que o modelo de papel pede além das colunas do cadastro. */
-  function dadosCitrosDoLev(lev) {
-    const ci = PCECitros.deValor(lev.citros), G = Docs.pceGrupos(lev).pragas.filter(g => PCECitros.ehCitros(g.praga));
-    return { ...ci, v: 1, levantamentoId: lev.id, codigoPropriedade: lev.codigoPropriedade || '', endereco: lev.endereco || '', telefone: lev.telefone || '', email: lev.email || '',
-      empresa: lev.empresa || '', culturasAvaliadas: culturasCitrosDoLev(lev), amostra: G.some(g => g.culturas.some(c => c.coleta === 'Sim')) ? 'sim' : 'nao' };
-  }
-  const coletarCadCi = () => ({ unidade: g(PC, 'unidade'), numPapel: g(PC, 'numpapel') });
-  /** Conferência na tela: [rótulo, texto] da identificação + resumo do bloco de citros e a tabela da cultura do citros. */
-  function resumoCadCiHTML(base, d) {
-    const R = PCECitros.resumo(d) || { campos: [], culturas: [] }, li = ([r, v]) => (String(v || '').trim() ? `<div><dt>${esc(r)}</dt><dd>${esc(v)}</dd></div>` : '');
-    const coord = base.lat !== '' && base.lat != null ? `${String(base.lat).replace('.', ',')} / ${String(base.lon).replace('.', ',')}` : '';
-    const ident = [['Produtor', base.nome], ['CPF/CNPJ', PCEDocs.fmtDoc(base.doc)], ['Propriedade', base.propriedade], ['CNPJ', PCEDocs.fmtDoc(base.cnpj)],
-      ['Código da propriedade (IN 33/2016)', d.codigoPropriedade], ['Coordenadas', coord], ['Endereço', d.endereco], ['Município/UF', [base.municipio, base.uf].filter(Boolean).join(' / ')],
-      ['Data da visita', [dBR(base.data), base.hora].filter(Boolean).join(' ')]];
-    return `<div class="card"><h3>1. Dados do produtor/proprietário</h3><dl class="pce-ci-resumo">${ident.map(li).join('')}</dl></div>
-      <div class="card"><h3>${icone('citros')} Cultura do citros (do levantamento)</h3><dl class="pce-ci-resumo" id="mc-ci-resumo">${R.campos.map(li).join('') || '<div><dd>Nada preenchido além da detecção.</dd></div>'}</dl>
-        ${R.culturas.length ? `<table class="pce-ci-tab"><thead><tr><th>Cultivar</th><th>Área (ha)</th><th>Idade</th><th>Plantas</th><th>t/ano</th></tr></thead><tbody>${R.culturas.map(c =>
-          `<tr><td>${esc(c.cultivar || c.atividade)}</td><td>${esc(c.area)}</td><td>${esc(c.idade)}</td><td>${esc(c.plantas)}</td><td>${esc(c.producao)}</td></tr>`).join('')}</tbody></table>` : ''}</div>`;
-  }
-  function formCadCiHTML(D, st) {
-    const p = PC, A = st.antigo, b = st.base;
-    return `<form id="monCadForm" class="mon-cadci ${A ? 'pce-antigo' : ''}" data-programa="citros" autocomplete="off" novalidate>
-      <div class="card mon-topo"><h3>${icone('citros')} ${st.novo ? 'Cadastro de citros' : 'Cadastro de citros ' + esc(st.rec.numeroTxt || '')}</h3>
-        <p class="dica" style="text-align:left">Cadastro de imóveis de produção comercial de cítricos (IN 21/2018 e Portaria 317/2021). Os dados vêm do levantamento da visita
-          (${esc(dBR(b.data))}${b.servidor ? ', ' + esc(b.servidor) : ''}); para corrigir, edite o levantamento.${st.levId ? ' Ao salvar, abre o Termo de Fiscalização da visita.' : ''}</p></div>
-      <div class="card"><h3>Nº do cadastro</h3>
-        <label>Unidade (numeração) *<select id="${p}unidade">${opts(P.municipios, D.unidade, 'Selecione')}</select></label>
-        <input type="hidden" id="${p}data" value="${esc(b.data || '')}">
-        ${A && st.novo ? `${inp(p, 'numpapel', 'Nº do cadastro (como está no papel) *', D.numPapel, 'placeholder="ex.: 001-2026-AUTAZES ou 1" autocomplete="off"')}<div id="${p}numpapel-st" class="tf-status" aria-live="polite"></div>`
-          : `<div class="tf-num">${st.rec ? `<b>${esc(st.rec.numeroTxt)}</b>` : '<small>Nº definido ao salvar (sequência dos cadastros de citros da unidade; sem internet, provisório).</small>'}</div>`}</div>
-      ${resumoCadCiHTML(b, st.dados)}
-      ${A ? pdfHTML(p) : !CONFIG.assinaturaNaTela ? '' : `<div class="card"><h3>Assinaturas (opcional)</h3><p class="dica" style="text-align:left">O PDF sempre traz as linhas para assinar no papel.</p>${assHTML('servidor', 'Servidor da ADAF')}${assHTML('produtor', 'Produtor/proprietário')}</div>`}
-      <button class="botao" type="submit" id="${p}salvar">${icone('salvar')} Salvar cadastro de citros</button>
-      <button class="botao sec" type="button" data-mon="descartar">Descartar</button></form>`;
-  }
-  async function cadastroCitros(o, rec0, rasc, s) {
-    let st;
-    if (rasc) {
-      const rec = rasc.id ? await Store.obter('cadastrosPce', rasc.id) : null;
-      st = { tipo: 'cadastro', programa: 'citros', id: rasc.id, novo: !rec, rec, antigo: !!rasc.antigo, docs: rasc.docs || [], ass: rec ? lerJSON(rec.assinaturas, {}) : {}, assNovas: rasc.assNovas || {},
-        propriedadeId: rasc.propriedadeId || '', levId: rasc.levId || '', deTermo: !!rasc.deTermo };
-    } else if (rec0) st = { tipo: 'cadastro', programa: 'citros', id: rec0.id, novo: false, rec: rec0, antigo: Number(rec0.registroAntigo) === 1, docs: lerJSON(rec0.documentos, []), ass: lerJSON(rec0.assinaturas, {}), assNovas: {}, levId: '' };
-    else st = { tipo: 'cadastro', programa: 'citros', id: Store.novoId(), novo: true, rec: null, antigo: !!o.antigo, docs: [], ass: {}, assNovas: {}, propriedadeId: o.propId || '', levId: o.levId || '', deTermo: !!o.deTermo };
-    const lev = st.novo && st.levId ? await Store.obter('levantamentos', st.levId) : null;
-    if (st.novo && (!lev || lev.excluido || !levEhCitros(lev))) { await Store.setMeta(RASC.cadastro, null); toast('O Cadastro de citros sai do levantamento com praga de citros: abra o levantamento e use “Cadastro de citros”.', true); return go('pce'); }
-    if (st.novo) {
-      const f = PCECitros.faltaDeteccao(lev.citros);
-      if (f.length) { toast(`Abra o levantamento e marque Ausência ou Presença de sintomas de ${PCECitros.listaE(f)}.`, true); return go('pcelev', lev.id); }
-      st.base = { doc: digitos(lev.doc), nome: lev.nome || '', propriedade: lev.propriedade || '', cnpj: digitos(lev.cnpj), data: lev.data || '', hora: lev.hora || '', municipio: lev.municipio || '',
-        uf: lev.uf || 'AM', lat: lev.lat, lon: lev.lon, servidor: lev.servidor || '', cargo: lev.cargo || '', matricula: lev.matricula || '', lotacao: lev.lotacao || '' };
-      st.dados = dadosCitrosDoLev(lev);
-      st.propriedadeId = st.propriedadeId || propIdDe(st.base.doc, st.base.nome, st.base.propriedade, lev.endereco);
-    } else {
-      const r = st.rec; st.base = { doc: r.doc, nome: r.nome, propriedade: r.propriedade, cnpj: r.cnpj, data: r.data, hora: r.hora, municipio: r.municipio, uf: r.uf, lat: r.lat, lon: r.lon,
-        servidor: r.servidor, cargo: r.cargo, matricula: r.matricula, lotacao: r.lotacao }; st.dados = lerJSON(r.dados, {});
-    }
-    const D = { unidade: (rasc && rasc.dados && rasc.dados.unidade) || (st.rec && st.rec.unidade) || st.base.lotacao || (s && s.lotacao) || '', numPapel: (rasc && rasc.dados && rasc.dados.numPapel) || '' };
-    st.vivo = true; F = st;
-    view(formCadCiHTML(D, st));
-    mostrarNumPapel(PC, 'cadastro');
-    if (st.antigo) await renderDocs(PC); else { await ligarAss('servidor'); await ligarAss('produtor'); }
-    const f = $('#monCadForm');
-    f.addEventListener('input', e => { if ([PC + 'numpapel', PC + 'unidade'].includes(e.target.id)) mostrarNumPapel(PC, 'cadastro'); agendar(); });
-    f.addEventListener('change', e => { if (e.target.id === PC + 'pdfs') return adicionarPDFs(e.target, PC); if (e.target.id === PC + 'unidade') mostrarNumPapel(PC, 'cadastro'); agendar(); });
-    f.onsubmit = ev => { ev.preventDefault(); salvarCadCitros(); };
-  }
-  async function salvarCadCitros() {
-    const st = F; if (!st || !st.vivo || st.salvando || st.programa !== 'citros') return;
-    const D = coletarCadCi(), A = st.antigo, b = st.base;
-    let papel = null;
-    if (!D.unidade) return toast('Escolha a unidade da numeração.', true);
-    if (A && st.novo) { papel = lerNumeroDoc(D.numPapel, D.unidade, b.data); if (papel.erro) { mostrarNumPapel(PC, 'cadastro'); return toast(papel.erro, true); } }
-    const btn = $('#mc-salvar'); btn.disabled = true; st.salvando = true;
-    try {
-      const { mapa, novos } = Anexos.prepararAssinaturas({ ...st, dono: 'cadastrosPce' });
-      await Store.gravarVarios('arquivos', novos);
-      const base = { ...(st.rec || {}) }; delete base.pendente; delete base.provisorio;
-      const rec = { ...base, id: st.id, programa: 'citros', unidade: unid(D.unidade), propriedadeId: (st.rec && st.rec.propriedadeId) || st.propriedadeId, doc: b.doc, nome: b.nome,
-        propriedade: b.propriedade, cnpj: b.cnpj, data: b.data, hora: b.hora, municipio: b.municipio, uf: b.uf || 'AM', lat: b.lat === '' || b.lat == null ? '' : b.lat,
-        lon: b.lon === '' || b.lon == null ? '' : b.lon, servidor: b.servidor, cargo: b.cargo, matricula: b.matricula, lotacao: b.lotacao, local: base.local || b.municipio,
-        dados: JSON.stringify(st.dados), totalPlantas: PCECitros.totalPlantas(st.dados), fotos: base.fotos || '[]', assinaturas: JSON.stringify(mapa), documentos: JSON.stringify(st.docs),
-        registroAntigo: A ? 1 : 0, excluido: 0 };
-      if (st.novo) { if (!(await numerarEGravar('cadastro', rec, null, null, papel))) return; }
-      else await Store.salvar('cadastrosPce', rec);
-      const antes = Anexos.idsArquivos(st.rec), depois = new Set([...st.docs, ...Object.values(mapa)]);
-      await Anexos.apagarSeNaoEnviado([...antes].filter(x => !depois.has(x)));
-      const levId = st.levId, deTermo = st.deTermo; fechar(); await Store.setMeta(RASC.cadastro, null);
-      Sync.sincronizar();
-      if (deTermo) { toast('Cadastro de citros salvo. Voltando ao Termo de Fiscalização.'); return go('pcetf', { retomar: true, cadastroId: rec.id }); }
-      if (levId) { toast(`Cadastro de citros ${rec.numeroTxt || ''} salvo. Agora os Termos de Fiscalização da visita (um por programa).`); return go('pcelevpronto', levId); }
-      go('pcecadpronto', rec.id);
-    } catch (e) { toast('Erro ao salvar: ' + e.message, true); }
-    finally { st.salvando = false; if (btn.isConnected) btn.disabled = false; }
-  }
-
-  /* ================= Termo de Fiscalização do PCE ================= */
-  const PT = 'mt-';
-  // a frase pronta de "não constatei" fala da monilíase: só aparece com ela marcada, para não entrar no Termo de outro programa
   const mostrarNegativa = () => { const b = $('#' + PT + 'negativa'); if (b) b.hidden = !cv(PT, 'pragas').includes('Monilíase'); };
   const tfVazio = (s, m = {}) => ({ unidade: m.unidade || (s && s.lotacao) || '', numPapel: '', sNome: m.sNome || '', sCargo: m.sCargo || '', sMatricula: m.sMatricula || '', sLotacao: m.sLotacao || '',
     nome: '', doc: '', atividade: '', empresa: '', cnpj: '', atividadeEmpresa: '', endereco: '', municipio: m.municipio || (s && s.lotacao) || '', uf: 'AM', telefone: '', lat: '', lon: '',
     pragas: ['Monilíase'], tipoLocal: [], data: m.data || '', hora: '', acoes: [], constatacao: '', enquadramento: '', t1nome: '', t1doc: '', t2nome: '', t2doc: '', recebidoEm: '',
-    plantas: '', amostra: '', sintomas: '', localAcao: '' });
+    plantas: '', amostra: '', sintomas: '' });
   const tfDeRegistro = r => { const tt = lerJSON(r.testemunhas, []);
     return { ...tfVazio(null), unidade: r.unidade || '', numPapel: r.numeroTxt || '', sNome: r.servidor || '', sCargo: r.cargo || '', sMatricula: r.matricula || '', sLotacao: r.lotacao || '',
       nome: r.nome || '', doc: PCEDocs.fmtDoc(r.doc), atividade: r.atividade || '', empresa: r.empresa || '', cnpj: PCEDocs.fmtDoc(r.cnpj), atividadeEmpresa: r.atividadeEmpresa || '',
@@ -687,7 +316,7 @@ const PCEMon = (() => {
       pragas: lerJSON(r.pragas, []), tipoLocal: lerJSON(r.tipoLocal, []), data: r.data || '', hora: r.hora || '', acoes: lerJSON(r.acoes, []), constatacao: r.constatacao || '',
       enquadramento: r.enquadramento || '', t1nome: (tt[0] || {}).nome || '', t1doc: (tt[0] || {}).doc || '', t2nome: (tt[1] || {}).nome || '', t2doc: (tt[1] || {}).doc || '',
       recebidoEm: r.recebidoEm || '', plantas: r.plantasInspecionadas === '' || r.plantasInspecionadas == null ? '' : String(r.plantasInspecionadas),
-      amostra: r.amostra || '', sintomas: r.sintomas || '', localAcao: r.programa === 'citros' ? String(lerJSON(r.tipoLocal, [])[0] || '') : '' }; };
+      amostra: r.amostra || '', sintomas: r.sintomas || '' }; };
   function coletarTf() {
     const p = PT;
     return { unidade: g(p, 'unidade'), numPapel: g(p, 'numpapel'), sNome: g(p, 'snome'), sCargo: U().cargoValor(p + 'scargo'), sMatricula: g(p, 'smatricula'), sLotacao: g(p, 'slotacao'),
@@ -695,247 +324,78 @@ const PCEMon = (() => {
       endereco: g(p, 'endereco'), municipio: g(p, 'municipio'), uf: g(p, 'uf'), telefone: g(p, 'telefone'), lat: g(p, 'lat'), lon: g(p, 'lon'),
       pragas: cv(p, 'pragas'), tipoLocal: cv(p, 'tipoLocal'), data: g(p, 'data'), hora: g(p, 'hora'), acoes: cv(p, 'acoes'), constatacao: g(p, 'constatacao'),
       enquadramento: g(p, 'enquadramento'), t1nome: g(p, 't1nome'), t1doc: g(p, 't1doc'), t2nome: g(p, 't2nome'), t2doc: g(p, 't2doc'), recebidoEm: g(p, 'recebido'),
-      plantas: g(p, 'plantas'), amostra: rv(p, 'amostra'), sintomas: rv(p, 'sintomas'), localAcao: g(p, 'localAcao') };
+      plantas: g(p, 'plantas'), amostra: rv(p, 'amostra'), sintomas: rv(p, 'sintomas') };
   }
   const lst = l => l.map(x => [x, x]);
-  function cadLigadoHTML(st) {
-    const c = st.cad;
-    if (!c) return `<div class="tf-novo" id="mt-semcad">${st.propriedadeId ? 'Esta propriedade ainda não tem cadastro.' : 'Nenhum cadastro ligado.'}
-      <button type="button" class="mini" data-mon="criarcad" id="mt-criarcad">${st.programa === 'citros' ? 'Criar o cadastro de citros' : 'Criar cadastro desta propriedade'}</button></div>`;
-    return `<div class="tf-ok" id="mt-cadinfo">${icone('anexo')} Cadastro <b>${esc(c.numeroTxt || '(sem nº)')}</b> — ${esc(c.nome || '')}${c.propriedade ? ' · ' + esc(c.propriedade) : ''} · ${esc(c.totalPlantas || 0)} planta(s)
-      <button type="button" class="mini" data-mon="desligarcad">Trocar</button></div>`;
-  }
   function formTfHTML(D, st) {
-    const p = PT, A = st.antigo, CIT = st.programa === 'citros';
-    return `<form id="monTfForm" class="${A ? 'pce-antigo' : ''}" autocomplete="off" novalidate>
-      ${A ? topoPapel(st.novo ? 'Termo de Fiscalização (PCE) — digitar do papel' : 'Editar Termo de Fiscalização (do papel)', st.novo) + U().servAntigoHTML(p, D, st.lembrados)
-        : `<div class="card mon-topo"><h3>${icone('formulario')} ${st.novo ? 'Termo de Fiscalização (PCE)' : 'Editar Termo de Fiscalização'}${CIT ? ' — citros' : ''}</h3>
-          <p class="dica" style="text-align:left">Não é o TF de Barreira. Servidor: <b>${esc(st.serv.servidor)}</b> · ${esc(st.serv.cargo)}</p>
-          ${st.culturas && st.culturas.length ? `<p class="dica" style="text-align:left" id="mt-programa">${icone('broto')} Programa ${esc(st.nomePrograma || st.programaVisita)}: <b>${esc(st.culturas.join(', '))}</b></p>` : ''}</div>`}
+    const p = PT;
+    return `<form id="monTfForm" class="pce-antigo" autocomplete="off" novalidate>
+      ${topoPapel(st.novo ? 'Termo de Fiscalização (PCE) — digitar do papel' : 'Editar Termo de Fiscalização (do papel)', st.novo)}${U().servAntigoHTML(p, D, st.lembrados)}
       <div class="card"><h3>Nº do termo</h3>
         <label>Unidade (numeração) *<select id="${p}unidade">${opts(P.municipios, D.unidade, 'Selecione')}</select></label>
-        ${A && st.novo ? `${inp(p, 'numpapel', 'Nº do termo (como está no papel) *', D.numPapel, 'placeholder="ex.: 001.2026.AUTAZES ou 1" autocomplete="off"')}<div id="${p}numpapel-st" class="tf-status" aria-live="polite"></div>`
-          : `<div class="tf-num">${st.rec ? `<b>${esc(st.rec.numeroTxt)}</b>` : '<small>Nº definido ao salvar (consulta a planilha; sem internet, provisório).</small>'}</div>`}</div>
-      <div class="card"><h3>Cadastro da propriedade</h3>
-        <div class="campo-busca"><label>Buscar cadastro (CPF, nome, propriedade ou nº do cadastro)<input id="${p}busca" type="search" autocomplete="off" placeholder="ex.: CPF, nome do produtor ou nº do cadastro"></label><div id="${p}busca-res"></div></div>
-        <div id="${p}cad">${cadLigadoHTML(st)}</div></div>
+        ${st.novo ? `${inp(p, 'numpapel', 'Nº do termo (como está no papel) *', D.numPapel, 'placeholder="ex.: 001.2026.AUTAZES ou 1" autocomplete="off"')}<div id="${p}numpapel-st" class="tf-status" aria-live="polite"></div>`
+          : `<div class="tf-num"><b>${esc(st.rec.numeroTxt)}</b></div>`}</div>
       <div class="card"><h3>1 – Identificação</h3>
         ${inp(p, 'nome', 'Nome *', D.nome, 'autocapitalize="characters"')}
-        <div class="duas">${inp(p, 'doc', A ? 'CPF (opcional no papel)' : 'CPF/CNPJ *', D.doc, 'inputmode="numeric" placeholder="000.000.000-00"')}${inp(p, 'atividade', 'Atividade', D.atividade)}</div>
+        <div class="duas">${inp(p, 'doc', 'CPF (opcional no papel)', D.doc, 'inputmode="numeric" placeholder="000.000.000-00"')}${inp(p, 'atividade', 'Atividade', D.atividade)}</div>
         <div id="${p}st-doc" class="tf-status"></div>
         <div class="duas">${inp(p, 'empresa', 'Empresa / Fantasia', D.empresa)}${inp(p, 'cnpj', 'CNPJ', D.cnpj, 'inputmode="numeric"')}</div>
         ${inp(p, 'atividadeEmpresa', 'Atividade (empresa)', D.atividadeEmpresa)}
         ${inp(p, 'endereco', 'Endereço', D.endereco)}
         <div class="duas mon-mun"><label>Município *<select id="${p}municipio">${opts(P.municipios, D.municipio, 'Selecione')}</select></label>${inp(p, 'uf', 'UF', D.uf, 'maxlength="2" autocapitalize="characters"')}</div>
         ${inp(p, 'telefone', 'Telefone', D.telefone, 'type="tel"')}
-        <p class="mon-sub">Coordenadas geográficas</p>${coordHTML(p, D, !A)}</div>
-      ${CIT ? `<div class="card" id="mt-desc-citros"><h3>2 – Descrição da ação</h3>
-        <div hidden>${cks(p, 'pragas', lst(TC.pragas || []), D.pragas)}${cks(p, 'acoes', lst(TC.acoes || []), D.acoes)}</div>
-        <div class="duas">${inp(p, 'data', 'Em (data) *', D.data, `type="date" min="2000-01-01" max="${hojeISO()}"`)}${inp(p, 'hora', 'às (hora) *', D.hora, 'type="time"')}</div>
-        <label>ao realizar fiscalização no(a) * <small>(especificar o local)</small><input id="${p}localAcao" value="${esc(D.localAcao)}" maxlength="200" autocomplete="off"></label>
-        <label>constatei <small>(descrever a situação constatada)</small><textarea id="${p}constatacao" rows="5">${esc(D.constatacao)}</textarea></label>
-        <p class="dica" style="text-align:left">As frases de ausência/presença vêm do bloco “Cultura do citros” do levantamento. Pode acrescentar texto.</p>
-        <button type="button" class="mini" data-mon="frasescitros" id="${p}frases">${icone('citros')} Refazer as frases de ausência/presença</button></div>`
-      : `<div class="card"><h3>2 – Descrição da ação</h3>
+        <p class="mon-sub">Coordenadas geográficas</p>${coordHTML(p, D, false)}</div>
+      <div class="card"><h3>2 – Descrição da ação</h3>
         <p class="mon-sub">Praga(s)</p>${cks(p, 'pragas', lst(TC.pragas || []), D.pragas)}
         ${cks(p, 'tipoLocal', lst(TC.locais || []), D.tipoLocal)}
         <div class="duas">${inp(p, 'data', 'Em (data) *', D.data, `type="date" min="2000-01-01" max="${hojeISO()}"`)}${inp(p, 'hora', 'às (hora) *', D.hora, 'type="time"')}</div>
         <p class="mon-sub">ao realizar ações de *</p>${cks(p, 'acoes', lst(TC.acoes || []), D.acoes)}
         <label>Situação constatada<textarea id="${p}constatacao" rows="4">${esc(D.constatacao)}</textarea></label>
-        <button type="button" class="mini" data-mon="negativa" id="${p}negativa">${icone('assinatura')} “${esc(TC.constatacaoNegativa || '')}”</button></div>`}
+        <button type="button" class="mini" data-mon="negativa" id="${p}negativa">${icone('assinatura')} “${esc(TC.constatacaoNegativa || '')}”</button></div>
       <div class="card"><h3>3 – Enquadramento legal</h3><label><textarea id="${p}enquadramento" rows="3" aria-label="Enquadramento legal" placeholder="citar leis, decretos, resoluções, portarias, instruções normativas, artigos, incisos e alíneas">${esc(D.enquadramento)}</textarea></label></div>
       <div class="card"><h3>4 – Testemunhas</h3><p class="dica" style="text-align:left">Só quando o autuado se nega a assinar ou está ausente.</p>
         <div class="duas">${inp(p, 't1nome', 'Testemunha 1 – nome', D.t1nome)}${inp(p, 't1doc', 'CPF/RG', D.t1doc)}</div>
         <div class="duas">${inp(p, 't2nome', 'Testemunha 2 – nome', D.t2nome)}${inp(p, 't2doc', 'CPF/RG', D.t2doc)}</div>
         ${inp(p, 'recebido', 'Recebi a 2ª via deste Termo em (data, hora e local)', D.recebidoEm)}</div>
-      <div class="card mon-extras"><h3>${icone('resumo')} Para o relatório de atividades</h3><p class="dica" style="text-align:left">Não aparece no papel. Plantas: total do cadastro (pode editar).</p>
+      <div class="card mon-extras"><h3>${icone('resumo')} Para o relatório de atividades</h3><p class="dica" style="text-align:left">Não aparece no papel.</p>
         ${inp(p, 'plantas', 'Plantas inspecionadas', D.plantas, 'inputmode="numeric" autocomplete="off"')}
         ${sn(p, 'amostra', 'Amostra coletada?', D.amostra)}${sn(p, 'sintomas', 'Presença de sintomas?', D.sintomas)}</div>
-      ${A ? pdfHTML(p) : !CONFIG.assinaturaNaTela ? '' : `<div class="card"><h3>Assinaturas (opcional)</h3>${assHTML('produtor', 'Interessado (recebi a 2ª via)')}${assHTML('servidor', 'Servidor da ADAF')}
-        ${assHTML('testemunha1', 'Testemunha 1')}${assHTML('testemunha2', 'Testemunha 2')}</div>`}
+      ${pdfHTML(p)}
       <button class="botao" type="submit" id="${p}salvar">${icone('salvar')} Salvar termo</button>
-      ${A && st.novo ? `<button class="botao" type="button" data-mon="salvaroutro" id="${p}salvar-outro">${icone('salvar')} Salvar e digitar outro</button>` : ''}
+      ${st.novo ? `<button class="botao" type="button" data-mon="salvaroutro" id="${p}salvar-outro">${icone('salvar')} Salvar e digitar outro</button>` : ''}
       <button class="botao sec" type="button" data-mon="descartar">Descartar</button></form>`;
-  }
-  async function cadastrosLocais() { return (await Store.todos('cadastrosPce')).filter(c => !Number(c.excluido)); }
-  async function buscarCadastro() {
-    const q = g(PT, 'busca').trim(), out = $('#' + PT + 'busca-res'); if (!out) return;
-    if (q.length < 2) { out.replaceChildren(); return; }
-    const t = norm(q), d = digitos(q), pal = t.split(' ').filter(Boolean);
-    const r = (await cadastrosLocais()).filter(c => { const txt = norm([c.nome, c.propriedade, c.numeroTxt, c.municipio].join(' '));
-      return pal.every(w => txt.includes(w)) || (d.length >= 3 && (digitos(c.doc).includes(d) || digitos(c.numeroTxt).includes(d))); }).slice(0, 12);
-    if (g(PT, 'busca').trim() !== q || !F) return;
-    F.buscaCad = r;
-    out.innerHTML = r.length ? `<ul class="campo-res">${r.map((c, i) => `<li><button type="button" class="campo-res-item" data-mon="usarcad" data-i="${i}"><b>${esc(c.nome)}</b>
-      <small>${esc(['Cadastro ' + (c.numeroTxt || ''), c.propriedade, c.municipio, PCEDocs.fmtDoc(c.doc), (c.totalPlantas || 0) + ' planta(s)'].filter(Boolean).join(' · '))}</small></button></li>`).join('')}</ul>`
-      : '<div class="tf-novo">Nenhum cadastro encontrado neste aparelho. Use “Criar cadastro desta propriedade”.</div>';
-  }
-  const hospDe = c => { const pl = lerJSON(c && c.dados, {}).plantas || {}; return HOSP.filter(([k]) => Number(pl[k]) > 0).map(h => h[1]); };
-  /** Liga o cadastro ao termo e preenche produtor, endereço, município, coordenadas e plantas (só o que está vazio, exceto as plantas). */
-  function ligarCadastro(c, sobrescrever) {
-    if (!F || !c) return;
-    F.cad = c; F.cadastroId = c.id; F.propriedadeId = c.propriedadeId || F.propriedadeId; F.hospedeiros = hospDe(c);
-    const d = lerJSON(c.dados, {}), set = (id, v, forca) => { const el = $('#' + PT + id); if (el && v != null && v !== '' && (forca || sobrescrever || !el.value.trim())) el.value = v; };
-    set('nome', c.nome); set('doc', PCEDocs.fmtDoc(c.doc)); set('endereco', d.endereco); set('uf', c.uf); set('cnpj', PCEDocs.fmtDoc(c.cnpj));
-    const mun = $('#' + PT + 'municipio'); if (mun && c.municipio && (sobrescrever || !mun.value)) { if (![...mun.options].some(o => o.value === c.municipio)) mun.add(new Option(c.municipio, c.municipio)); mun.value = c.municipio; }
-    if (c.lat !== '' && c.lat != null) { set('lat', String(c.lat).replace('.', ',')); set('lon', String(c.lon).replace('.', ',')); }
-    set('plantas', String(c.totalPlantas || PCEDocs.totalPlantas(d) || ''), true);
-    $('#' + PT + 'cad').innerHTML = cadLigadoHTML(F);
-    const r = $('#' + PT + 'busca-res'), b = $('#' + PT + 'busca'); if (r) r.replaceChildren(); if (b) b.value = '';
-    mostrarCoord(PT); avisoDoc(PT); agendar(0);
-  }
-
-  /** Pragas do levantamento (nomes da lista do levantamento) → nomes do quadro do Termo (config PCE.termo.pragaDoLevantamento). */
-  function pragasDoLevantamento(lev, so) {
-    const mapa = TC.pragaDoLevantamento || {}, quadro = TC.pragas || [], n = x => semAcento(String(x || '')).toLowerCase();
-    const out = [];
-    Docs.pceGrupos(lev).pragas.forEach(g => {
-      const nome = String(g.praga || '').trim(); if (!nome || (so && !so.includes(g.praga))) return;   // so = só estas pragas (Termo de um programa)
-      const alvo = mapa[nome] || quadro.find(q => n(q) === n(nome)) || '';
-      if (alvo && !out.includes(alvo)) out.push(alvo);
-    });
-    return out;
-  }
-  /**
-   * Pragas opcionais respondidas no levantamento (Pinta Preta, Leprose, Moko, Sigatoka...) que não têm caixa no quadro do Termo: o papel só tem a
-   * descrição livre, então entram nela, uma linha por praga e resultado ("Praga opcional Moko da Bananeira: Detectada em Banana."). dasPragas = saída de
-   * pragasDoProgramaNaVisita (as do programa do Termo). O Termo de citros não tem o quadro de pragas: nele entram todas as opcionais (inclusive Diaphorina).
-   */
-  function linhasOpcionais(dasPragas, citros) {
-    const mapa = TC.pragaDoLevantamento || {}, quadro = TC.pragas || [], n = x => semAcento(String(x || '')).toLowerCase(), res = Object.fromEntries(P.resultados || []);
-    const porLinha = new Map();
-    (dasPragas || []).filter(x => x.opcional && (citros || (!mapa[x.praga] && !quadro.some(q => n(q) === n(x.praga))))).forEach(x => {
-      const k = x.praga + '|' + x.resultado; if (!porLinha.has(k)) porLinha.set(k, { praga: x.praga, resultado: x.resultado, culturas: [] });
-      const c = String(x.cultura || '').trim(); if (c && !porLinha.get(k).culturas.includes(c)) porLinha.get(k).culturas.push(c);
-    });
-    return [...porLinha.values()].map(x => `Praga opcional ${x.praga}: ${res[x.resultado] || x.resultado}${x.culturas.length ? ' em ' + PCEDocs.listaE(x.culturas) : ''}.`);
-  }
-  const ehLinhaOpcional = l => /^\s*Praga opcional /i.test(l);
-  /** De onde vêm os dados do Termo de citros: o levantamento da visita (se está no aparelho) ou a cópia guardada no Cadastro de citros. */
-  async function fonteCitros(st, lev, cad) {
-    cad = cad || (st.cadastroId ? await Store.obter('cadastrosPce', st.cadastroId) : null);
-    const dc = cad && cad.programa === 'citros' ? lerJSON(cad.dados, {}) : null;
-    lev = lev || (st.levId ? await Store.obter('levantamentos', st.levId) : null) || (dc && dc.levantamentoId ? await Store.obter('levantamentos', dc.levantamentoId) : null);
-    if (lev && !lev.excluido && levEhCitros(lev)) return { citros: lev.citros, culturas: culturasCitrosDoLev(lev), lev, cad };
-    return dc ? { citros: dc, culturas: dc.culturasAvaliadas || [], lev: null, cad } : null;
-  }
-  /** Termo de citros novo: identificação, data e hora da visita, local, frases de ausência/presença e números do relatório (o enquadramento legal já vem do catálogo em D). */
-  function preencherTfCitros(D, fo) {
-    const L0 = fo.lev || {}, c = fo.cad || {}, dc = fo.cad ? lerJSON(fo.cad.dados, {}) : {};
-    const v = (a, b) => (a !== '' && a != null ? a : b), coord = x => (x === '' || x == null ? '' : String(x).replace('.', ','));
-    const G = fo.lev ? Docs.pceGrupos(fo.lev).pragas.filter(x => PCECitros.ehCitros(x.praga)) : [];
-    Object.assign(D, { nome: v(L0.nome, c.nome) || '', doc: PCEDocs.fmtDoc(v(L0.doc, c.doc)), empresa: v(L0.empresa, dc.empresa) || '', cnpj: PCEDocs.fmtDoc(v(L0.cnpj, c.cnpj)),
-      endereco: v(L0.endereco, dc.endereco) || '', municipio: v(L0.municipio, c.municipio) || D.municipio, uf: v(L0.uf, c.uf) || 'AM', telefone: v(L0.telefone, dc.telefone) || '',
-      lat: coord(v(L0.lat, c.lat)), lon: coord(v(L0.lon, c.lon)), data: v(L0.data, c.data) || D.data, hora: String(v(L0.hora, c.hora) || D.hora || '').slice(0, 5),
-      atividade: PCECitros.atividadesTexto(fo.citros),
-      localAcao: fo.lev ? localDoLev(fo.lev) : [c.propriedade ? 'Propriedade ' + c.propriedade : '', dc.endereco, c.municipio ? `${c.municipio}/${c.uf || 'AM'}` : ''].filter(Boolean).join(', '),
-      constatacao: [...PCECitros.frases(fo.citros, fo.culturas), ...(fo.opc || [])].join('\n'),   // enquadramento: o do catálogo (planilha da GDV), já em D; nunca sobrescrito aqui
-      pragas: [...new Set([...(CI.deteccao || []).map(x => x[1]), ...(fo.lev ? pragasDoLevantamento(fo.lev, fo.so) : [])])], acoes: ['Fiscalização'],
-      plantas: String(PCECitros.totalPlantas(fo.citros) || ''), sintomas: PCECitros.temPresenca(fo.citros) ? 'sim' : 'nao',
-      amostra: fo.lev ? (G.some(x => x.culturas.some(k => k.coleta === 'Sim')) ? 'sim' : 'nao') : (dc.amostra || '') });
-  }
-  /**
-   * Identificação do Termo a partir do levantamento da visita (monilíase; o de citros usa preencherTfCitros): nome, CPF, empresa, CNPJ,
-   * endereço, município, UF, telefone e coordenadas; atividade = culturas avaliadas (ex.: "Cultivo de cacau e cupuaçu"), também para a
-   * empresa quando há CNPJ/empresa. Só preenche o que veio do levantamento; o cadastro ligado depois completa o resto.
-   */
-  function identDoLev(lev, D, culturas) {
-    const coord = x => (x === '' || x == null ? '' : String(x).replace('.', ','));
-    const cult = culturas && culturas.length ? culturas.map(x => String(x).toLowerCase()) : [...new Set(Docs.pceGrupos(lev).pragas.flatMap(g => g.culturas.map(c => String(c.cultura || '').trim().toLowerCase())).filter(Boolean))];
-    const ativ = cult.length ? 'Cultivo de ' + PCEDocs.listaE(cult) : '';
-    const temEmpresa = !!(lev.empresa || digitos(lev.cnpj).length === 14 || digitos(lev.doc).length === 14);
-    const o = { nome: lev.nome || '', doc: PCEDocs.fmtDoc(lev.doc || ''), empresa: lev.empresa || '', cnpj: PCEDocs.fmtDoc(lev.cnpj || ''), endereco: lev.endereco || '',
-      municipio: lev.municipio || D.municipio, uf: lev.uf || 'AM', telefone: lev.telefone || '', lat: coord(lev.lat), lon: coord(lev.lon),
-      atividade: ativ, atividadeEmpresa: temEmpresa ? ativ : '' };
-    return Object.fromEntries(Object.entries(o).filter(([, v]) => v !== '' && v != null));
-  }
-  /** Botão "Refazer as frases": troca as linhas de ausência/presença da descrição (o texto acrescentado pelo fiscal continua). */
-  async function refazerFrases() {
-    const fo = await fonteCitros(F); if (!fo) return toast('Levantamento/cadastro de citros não encontrado neste aparelho.', true);
-    const el = $('#' + PT + 'constatacao'), resto = el.value.split('\n').filter(l => !/^\s*(Ausência|Presença) de sintomas de /i.test(l) && !ehLinhaOpcional(l)).join('\n').trim();
-    const opc = fo.lev && F.programaVisita ? linhasOpcionais(await U().pragasDoProgramaNaVisita(fo.lev, F.programaVisita), true) : [];
-    el.value = [...PCECitros.frases(fo.citros, fo.culturas), ...opc, resto].filter(Boolean).join('\n'); agendar(0);
   }
   async function termoForm(arg) {
     if (bloqueado()) return view(avisoAtivacao());
     const id = typeof arg === 'string' ? arg : '', o = arg && typeof arg === 'object' ? arg : {};
     const rec0 = id ? await Store.obter('termosPce', id) : null, s0 = await U().servidorAtual();
-    const querAntigo = !!(o.antigo || (rec0 && Number(rec0.registroAntigo) === 1) || (!id && !o.retomar && U().soDigitador(s0) && U().podeAntigo()));
-    if (querAntigo && !U().podeAntigo()) { toast(U().SEM_ANTIGO, true); return go('pcetfs'); }
-    const s = await U().exigirServidor('pcetf', arg, querAntigo || (o.retomar && U().soDigitador(s0))); if (!s) return;
+    const querAntigo = !!(o.antigo || (rec0 && Number(rec0.registroAntigo) === 1) || (!id && U().soDigitador(s0) && U().podeAntigo()));
+    if (!querAntigo) { toast('O Termo de Fiscalização de campo nasce da visita, na tela do produtor. Aqui só se digita o Termo do papel.', true); return go('pcetermos'); }
+    if (!U().podeAntigo()) { toast(U().SEM_ANTIGO, true); return go('pcetermos'); }
+    const s = await U().exigirServidor('pcetf', arg, true); if (!s) return;
     fechar();
-    if (id && (!rec0 || rec0.excluido)) { toast('Termo não encontrado.', true); return go('pcetfs'); }
-    const t = await tratarRascunho('termo', id, !!o.retomar); if (!t) return go('pcetfs');
+    if (id && (!rec0 || rec0.excluido)) { toast('Termo não encontrado.', true); return go('pcetermos'); }
+    if (rec0 && rec0.visitaId) { toast('Termo de visita não se edita: cancele e refaça a visita se estiver errado.', true); return go('pcetermos'); }
+    const t = await tratarRascunho('termo', id, false); if (!t) return go('pcetermos');
     let st, D;
     if (t.rasc) {
       const r = t.rasc, rec = r.id ? await Store.obter('termosPce', r.id) : null;
-      st = { tipo: 'termo', id: r.id, novo: !rec, rec, antigo: !!r.antigo, docs: r.docs || [], ass: rec ? lerJSON(rec.assinaturas, {}) : {}, assNovas: r.assNovas || {},
-        cadastroId: r.cadastroId || '', propriedadeId: r.propriedadeId || '', hospedeiros: r.hospedeiros || [], levId: r.levId || '', programaVisita: r.programaVisita || '', nomePrograma: r.nomePrograma || '', culturas: r.culturas || [], programa: r.programa || (rec && rec.programa) || '' };
+      st = { tipo: 'termo', id: r.id, novo: !rec, rec, antigo: true, docs: r.docs || [], ass: {}, assNovas: {} };
       D = { ...tfVazio(s), ...r.dados };
     } else if (rec0) {
-      st = { tipo: 'termo', id: rec0.id, novo: false, rec: rec0, antigo: Number(rec0.registroAntigo) === 1, docs: lerJSON(rec0.documentos, []), ass: lerJSON(rec0.assinaturas, {}), assNovas: {},
-        cadastroId: rec0.cadastroId || '', propriedadeId: rec0.propriedadeId || '', hospedeiros: lerJSON(rec0.hospedeiros, []), programa: rec0.programa || '',
-        levId: rec0.levantamentoId || '', programaVisita: rec0.programaVisita || '', culturas: lerJSON(rec0.culturas, []) };
+      st = { tipo: 'termo', id: rec0.id, novo: false, rec: rec0, antigo: true, docs: lerJSON(rec0.documentos, []), ass: lerJSON(rec0.assinaturas, {}), assNovas: {} };
       D = tfDeRegistro(rec0);
     } else {
-      st = { tipo: 'termo', id: Store.novoId(), novo: true, rec: null, antigo: querAntigo, docs: [], ass: {}, assNovas: {}, cadastroId: '', propriedadeId: o.propId || '', hospedeiros: [], levId: '',
-        programaVisita: o.programaVisita || '', nomePrograma: o.nomePrograma || '', culturas: o.culturas || [] };
-      D = tfVazio(querAntigo ? null : s, o.manter || {});
-      if (!querAntigo) Object.assign(D, { data: hojeISO(), hora: agoraHM(), acoes: ['Fiscalização'] });
-      let daCultCitros = null, opc = [], opcCit = [];                                                    // Termo de um programa: pragas das culturas dele (também no de citros)
-      const lev = o.levId ? await Store.obter('levantamentos', o.levId) : null;   // Termo da visita: pragas do levantamento já marcadas
-      if (lev) {
-        st.levId = lev.id;
-        // Termo de um programa da visita: só as pragas dele; enquadramento = o das detectadas/suspeitas ou, sem nenhuma, o de todas as avaliadas
-        const daCult = st.programaVisita ? await U().pragasDoProgramaNaVisita(lev, st.programaVisita) : null;
-        daCultCitros = daCult && [...new Set(daCult.map(x => x.praga))];
-        opc = linhasOpcionais(daCult); opcCit = linhasOpcionais(daCult, true);                                                        // opcionais sem caixa no quadro: vão na descrição
-        if (opc.length) D.constatacao = [D.constatacao, ...opc].filter(Boolean).join('\n');
-        D.pragas = pragasDoLevantamento(lev, daCultCitros);
-        const pos = daCult ? daCult.filter(x => (x.resultado === 'detectada' || x.resultado === 'suspeita') && x.enquadramento) : [];
-        const baseEnq = pos.length ? pos : (daCult ? daCult.filter(x => x.resultado && x.enquadramento) : []);
-        const enq = [...new Set(baseEnq.map(x => x.enquadramento))];
-        if (enq.length) D.enquadramento = enq.join('\n');
-        if (querAntigo) Object.assign(D, { data: lev.data || D.data, hora: lev.hora || D.hora });
-        Object.assign(D, identDoLev(lev, D, st.culturas));                                     // identificação do produtor já digitada no levantamento
-      }
-      // Termo de citros (levantamento com praga de citros ou cadastro de citros): identificação, data/hora, local, frases e enquadramento já preenchidos
-      const cad0 = o.cadastroId ? await Store.obter('cadastrosPce', o.cadastroId) : null;
-      // Termo de um programa: é de citros só se as pragas dele são de citros (monilíase ou mosca da mesma visita não)
-      const citrosDaCultura = !daCultCitros || daCultCitros.some(x => PCECitros.ehCitros(x));
-      if ((cad0 && cad0.programa === 'citros') || (levEhCitros(lev) && citrosDaCultura)) {
-        st.programa = 'citros';
-        const fo = await fonteCitros(st, lev, cad0);
-        if (fo) { if (!st.levId && fo.lev) st.levId = fo.lev.id; preencherTfCitros(D, { ...fo, so: daCultCitros, opc: opcCit }); }
-      }
+      st = { tipo: 'termo', id: Store.novoId(), novo: true, rec: null, antigo: true, docs: [], ass: {}, assNovas: {} };
+      D = tfVazio(null, o.manter || {});
     }
-    st.cad = st.cadastroId ? await Store.obter('cadastrosPce', st.cadastroId) : null;
-    st.vivo = true; st.serv = st.rec && !st.antigo ? { servidor: st.rec.servidor, cargo: st.rec.cargo, matricula: st.rec.matricula, lotacao: st.rec.lotacao } : U().dadosServidor(s);
-    if (st.antigo) st.lembrados = await U().servidoresLembrados();
+    st.vivo = true; st.serv = U().dadosServidor(s); st.lembrados = await U().servidoresLembrados();
     F = st;
     view(formTfHTML(D, st));
-    // vindo do cadastro recém-criado, do mapa ("Termo aqui") ou de um cadastro da lista
-    const cadId = o.cadastroId || '';
-    if (cadId) { const c = await Store.obter('cadastrosPce', cadId); if (c) ligarCadastro(c, true); }
-    else if (o.propId && st.novo && !t.rasc && st.programa === 'citros') {          // Termo de citros sem cadastro: liga o cadastro de citros da propriedade, se houver
-      st.propriedadeId = o.propId;
-      const c = (await cadastrosLocais()).find(x => x.propriedadeId === o.propId && x.programa === 'citros');
-      if (c) ligarCadastro(c, true); else $('#' + PT + 'cad').innerHTML = cadLigadoHTML(st);
-    }
-    else if (o.propId && st.novo && !t.rasc) {
-      const pd = await dadosDaPropriedade(o.propId), c = (await cadastrosLocais()).find(x => x.propriedadeId === o.propId && (x.programa || 'moniliase') === 'moniliase');
-      st.propriedadeId = o.propId;
-      const set = (k, v) => { const el = $('#' + PT + k); if (el && v) el.value = v; };
-      set('nome', pd.nome); set('doc', pd.doc); set('endereco', pd.endereco); set('telefone', pd.telefone); set('lat', pd.lat); set('lon', pd.lon);
-      if (pd.municipio) { const m = $('#' + PT + 'municipio'); if (![...m.options].some(x => x.value === pd.municipio)) m.add(new Option(pd.municipio, pd.municipio)); m.value = pd.municipio; }
-      if (c) ligarCadastro(c, true); else $('#' + PT + 'cad').innerHTML = cadLigadoHTML(st);
-    }
-    mostrarCoord(PT); mostrarNumPapel(PT, 'termo'); avisoDoc(PT); mostrarNegativa();
-    if (st.antigo) await renderDocs(PT); else for (const pp of ['produtor', 'servidor', 'testemunha1', 'testemunha2']) await ligarAss(pp);
+    mostrarCoord(PT); mostrarNumPapel(PT, 'termo'); avisoDoc(PT); mostrarNegativa(); await renderDocs(PT);
     const f = $('#monTfForm');
     f.addEventListener('input', e => {
       const tid = e.target.id;
-      if (tid === PT + 'busca') { clearTimeout(tR); return buscarCadastro(); }
       if (tid === PT + 'lat' || tid === PT + 'lon') mostrarCoord(PT);
       if ([PT + 'numpapel', PT + 'unidade', PT + 'data'].includes(tid)) mostrarNumPapel(PT, 'termo');
       agendar();
@@ -950,56 +410,44 @@ const PCEMon = (() => {
       agendar();
     });
     f.onsubmit = ev => { ev.preventDefault(); salvarTf(false); };
-    const p1 = $(st.antigo ? (D.sNome ? '#mt-numpapel' : '#mt-snome') : '#mt-busca'); if (p1 && st.novo && !cadId) p1.focus();
+    const p1 = $(D.sNome ? '#mt-numpapel' : '#mt-snome'); if (p1 && st.novo) p1.focus();
   }
-
   async function salvarTf(outro) {
     const st = F; if (!st || !st.vivo || st.salvando || st.tipo !== 'termo') return;
-    const D = coletarTf(), A = st.antigo, doc = digitos(D.doc);
-    let sv = null, papel = null;
-    if (A && !(sv = U().servidorDigitado(PT))) return;
+    const D = coletarTf(), doc = digitos(D.doc);
+    const sv = U().servidorDigitado(PT); if (!sv) return;
     if (!D.unidade) return toast('Escolha a unidade da numeração.', true);
     if (!D.nome.trim()) return toast('Informe o nome do interessado.', true);
-    if (!docConfere(doc, A)) return;
+    if (!docConfere(doc, true)) return;
     if (!D.municipio) return toast('Escolha o município.', true);
     const co = lerPar(D.lat, D.lon); if (co.erro) return toast('Coordenadas: ' + co.erro, true);
-    const CIT = st.programa === 'citros';
-    if (!D.pragas.length && !D.constatacao.split('\n').some(ehLinhaOpcional)) return toast('Marque a praga (ex.: Monilíase).', true);   // só opcional respondida (sem caixa no quadro): vale a linha da descrição
-    if (CIT && !D.localAcao.trim()) { toast('Informe o local da fiscalização (“ao realizar fiscalização no(a)…”).', true); return $('#' + PT + 'localAcao').focus(); }
-    if (CIT && !D.constatacao.trim()) { toast('Descreva a situação constatada (frases de ausência/presença de HLB, Ácaro Hindustânico e Cancro Cítrico).', true); return $('#' + PT + 'constatacao').focus(); }
+    if (!D.pragas.length && !D.constatacao.trim()) return toast('Marque a praga (ex.: Monilíase).', true);
     if (!D.acoes.length) return toast('Marque a ação realizada (ex.: Fiscalização).', true);
-    if (A ? !U().dataHoraPassadaOk(D) : !/^\d{4}-\d{2}-\d{2}$/.test(D.data) || !/^\d{2}:\d{2}/.test(D.hora)) { if (!A) toast('Informe a data e a hora.', true); return; }
-    if (A && st.novo) { papel = lerNumeroDoc(D.numPapel, D.unidade, D.data); if (papel.erro) { mostrarNumPapel(PT, 'termo'); return toast(papel.erro, true); } }
+    if (!U().dataHoraPassadaOk(D)) return;
+    let papel = null;
+    if (st.novo) { papel = lerNumeroDoc(D.numPapel, D.unidade, D.data); if (papel.erro) { mostrarNumPapel(PT, 'termo'); return toast(papel.erro, true); } }
     const btns = [$('#mt-salvar'), $('#mt-salvar-outro')].filter(Boolean); btns.forEach(b => { b.disabled = true; }); st.salvando = true;
     try {
       const nome = D.nome.trim().replace(/\s+/g, ' ').toUpperCase();
-      const { mapa, novos } = Anexos.prepararAssinaturas({ ...st, dono: 'termosPce' });
-      await Store.gravarVarios('arquivos', novos);
-      const c = st.cad, propriedadeId = (c && c.propriedadeId) || st.propriedadeId || propIdDe(doc, nome, '', D.endereco);
       const base = { ...(st.rec || {}) }; delete base.pendente; delete base.provisorio;
-      const plantas = inteiro(D.plantas);
-      const rec = { ...base, id: st.id, unidade: unid(D.unidade), propriedadeId, cadastroId: (c && c.id) || '', programa: CIT ? 'citros' : 'moniliase', doc, nome, atividade: D.atividade.trim(),
+      const plantas = inteiro(D.plantas), propriedadeId = base.propriedadeId || propIdDe(doc, nome, '', D.endereco);
+      const rec = { ...base, id: st.id, unidade: unid(D.unidade), propriedadeId, cadastroId: base.cadastroId || '', programa: base.programa || 'moniliase', doc, nome, atividade: D.atividade.trim(),
         empresa: D.empresa.trim(), cnpj: digitos(D.cnpj), atividadeEmpresa: D.atividadeEmpresa.trim(), endereco: D.endereco.trim(), municipio: D.municipio,
         uf: (D.uf || '').trim().toUpperCase(), telefone: D.telefone.trim(), lat: co.vazio ? '' : co.lat, lon: co.vazio ? '' : co.lon, data: D.data, hora: D.hora.slice(0, 5),
-        ...(sv || st.serv), pragas: JSON.stringify(D.pragas), tipoLocal: JSON.stringify(CIT ? [D.localAcao.trim().replace(/\s+/g, ' ').slice(0, 200)] : D.tipoLocal),   // citros: o local especificado
-        acoes: JSON.stringify(D.acoes), constatacao: D.constatacao.trim(),
+        ...sv, pragas: JSON.stringify(D.pragas), tipoLocal: JSON.stringify(D.tipoLocal), acoes: JSON.stringify(D.acoes), constatacao: D.constatacao.trim(),
         enquadramento: D.enquadramento.trim(), testemunhas: JSON.stringify([{ nome: D.t1nome.trim(), doc: D.t1doc.trim() }, { nome: D.t2nome.trim(), doc: D.t2doc.trim() }].filter(x => x.nome || x.doc)),
         recebidoEm: D.recebidoEm.trim(), plantasInspecionadas: plantas === '' ? 0 : plantas, amostra: D.amostra, sintomas: D.sintomas,
-        hospedeiros: JSON.stringify(st.hospedeiros || []), fotos: base.fotos || '[]', assinaturas: JSON.stringify(mapa), documentos: JSON.stringify(st.docs),
-        registroAntigo: A ? 1 : 0, cancelado: Number(base.cancelado) || 0, motivoCancel: base.motivoCancel || '', excluido: 0,
-        levantamentoId: st.levId || base.levantamentoId || '', programaVisita: st.programaVisita || base.programaVisita || '',
-        culturas: st.culturas && st.culturas.length ? JSON.stringify(st.culturas) : base.culturas || '' };
+        hospedeiros: base.hospedeiros || '[]', fotos: base.fotos || '[]', assinaturas: '{}', documentos: JSON.stringify(st.docs),
+        registroAntigo: 1, cancelado: Number(base.cancelado) || 0, motivoCancel: base.motivoCancel || '', excluido: 0 };
       const pessoa = await montarPessoa(doc, { nome, endereco: rec.endereco, municipio: D.municipio, uf: rec.uf, telefone: rec.telefone });
-      const prop = c ? null : await montarProp(propriedadeId, { doc, municipio: D.municipio, lat: rec.lat, lon: rec.lon, endereco: rec.endereco, uf: rec.uf, cnpj: rec.cnpj, empresa: rec.empresa });
       if (st.novo) {
-        if (!(await numerarEGravar('termo', rec, pessoa, prop, papel))) return;
+        if (!(await numerarEGravar('termo', rec, pessoa, null, papel))) return;
       } else {
         await Store.salvar('termosPce', rec);
         if (pessoa) await Store.salvar('pessoas', pessoa);
-        if (prop) await Store.salvar('propriedades', prop);
       }
-      if (sv) await U().lembrarServidor(sv);
-      const antes = Anexos.idsArquivos(st.rec), depois = new Set([...st.docs, ...Object.values(mapa)]);
+      await U().lembrarServidor(sv);
+      const antes = Anexos.idsArquivos(st.rec), depois = new Set(st.docs);
       await Anexos.apagarSeNaoEnviado([...antes].filter(x => !depois.has(x)));
       fechar(); await Store.setMeta(RASC.termo, null);
       Sync.sincronizar();
@@ -1008,115 +456,23 @@ const PCEMon = (() => {
     } catch (e) { toast('Erro ao salvar: ' + e.message, true); }
     finally { st.salvando = false; btns.forEach(b => { if (b.isConnected) b.disabled = false; }); }
   }
-
-  /* ================= telas de "salvo" e listas ================= */
-  const situacao = r => [Number(r.cancelado) === 1 ? `<div class="info pend">${icone('proibido')} CANCELADO${r.motivoCancel ? ': ' + esc(r.motivoCancel) : ''}</div>` : '',
-    Number(r.conflito) === 1 ? '<div class="info pend">Número repetido na planilha: confira com a coordenação.</div>' : '',
-    r.pendente ? `<div class="info pend">${icone('sincronizar')} ${r.provisorio ? 'número provisório, conferido ao sincronizar' : 'aguardando envio'}</div>` : ''].join('');
-  async function pronto(tipo, id) {
-    const r = await Store.obter(STORE[tipo], id); if (!r) return go(tipo === 'termo' ? 'pcetfs' : 'pcecads');
-    const papel = Number(r.registroAntigo) === 1 && U().podeAntigo();
-    view(`<div class="card" id="mon-pronto"><h3>${icone('ok')} ${esc(NOME[tipo])} salvo</h3><div class="tf-num"><b id="mon-pronto-num">${esc(r.numeroTxt || '')}</b></div>
-      <p><b>${esc(r.nome)}</b>${r.propriedade ? ' · ' + esc(r.propriedade) : ''}</p><p>${esc(dBR(r.data))} ${esc(r.hora || '')} · ${esc(r.municipio)}</p>
-      ${r.pendente ? `<div class="tf-novo">${icone('sincronizar')} Aguardando envio / número provisório: conferido na planilha ao sincronizar.</div>` : '<div class="tf-ok">✓ Número confirmado na planilha.</div>'}
-      ${r.numeroOrigem === 'papel' ? '<p class="dica">Número do papel.</p>' : ''}${situacao({ ...r, pendente: 0 })}</div>
-      <button class="botao" data-mon="imprimir" data-tipo="${tipo}" data-id="${esc(r.id)}" id="mon-imprimir">${icone('imprimir')} Imprimir / PDF</button>
-      ${tipo === 'termo' ? `<button class="botao sec" data-mon="enviar" data-id="${esc(r.id)}" id="mon-enviar">${icone('enviar')} Enviar ao produtor (WhatsApp, e-mail…)</button>`
-        : `<button class="botao sec" data-mon="termodocad" data-id="${esc(r.id)}" id="mon-termodocad">${icone('formulario')} Termo de Fiscalização desta propriedade</button>`}
-      ${papel ? `<button class="botao sec" data-mon="novo" data-tipo="${tipo}" data-antigo="1" data-programa="${esc(tipo === 'cadastro' ? r.programa || '' : '')}">${icone('documento')} Digitar outro do papel</button>` : `<button class="botao sec" data-mon="novo" data-tipo="${tipo}" data-programa="${esc(tipo === 'cadastro' ? r.programa || '' : '')}">${icone('mais')} Novo</button>`}
-      <button class="botao sec" data-v="${tipo === 'termo' ? 'pcetfs' : 'pcecads'}">${icone('formulario')} Ver lista</button>`);
-  }
-  async function lista(tipo) {
-    if (bloqueado()) return view(avisoAtivacao());
-    const mostrar = tela();
-    const s = await U().exigirServidor(tipo === 'termo' ? 'pcetfs' : 'pcecads', null, true); if (!s || !mostrar.viva()) return;
-    fechar();
-    const podeAnt = U().podeAntigo(), dig = U().soDigitador(s) && podeAnt;
-    const todos = (await Store.todos(STORE[tipo])).filter(x => !Number(x.excluido))
-      .sort((a, b) => (Number(b.ano) - Number(a.ano)) || (Number(b.numero) - Number(a.numero)) || (b.criadoEm || 0) - (a.criadoEm || 0));
-    const propsOffline = (await Store.todos('propriedades')).filter(p => !p.excluido);
-    const munsOffline = new Set(propsOffline.map(p => p.campoMun).filter(Boolean));
-    const produtoresOffline = (await Store.todos('pessoas')).filter(p => !p.excluido);
-    if (!mostrar.viva()) return;
-    const T = tipo === 'termo';
-    if (T) {
-      mostrar(`${Campo.subnavHTML('pcetfs')}
-        <div class="card pce-stats">
-          <div class="pce-stats-topo">
-            <b>${icone('formulario')} Panorama de Termos (PCE)</b>
-            <small>Termos de fiscalização emitidos</small>
-          </div>
-          <div class="pce-stats-grid">
-            <div class="pce-stat-item"><span class="pce-stat-num">${todos.length}</span><span class="pce-stat-rot">Termos no aparelho</span></div>
-            <div class="pce-stat-item"><span class="pce-stat-num">${todos.filter(x => !x.pendente).length}</span><span class="pce-stat-rot">Confirmados</span></div>
-            <div class="pce-stat-item"><span class="pce-stat-num">${todos.filter(x => x.pendente).length}</span><span class="pce-stat-rot">Aguardando envio</span></div>
-          </div>
-        </div>
-        <div class="card"><h3>Termos de Fiscalização (PCE)</h3>
-          <p class="dica" style="text-align:left">Um termo por programa em cada visita; ligado ao cadastro da propriedade. Não é o TF de Barreira.</p></div>
-        <div class="duas" style="margin-bottom:10px">
-          ${dig ? '' : `<button class="botao" data-mon="novo" data-tipo="${tipo}" id="mon-novo">${icone('mais')} Novo termo</button>`}
-          ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-mon="novo" data-tipo="${tipo}" data-antigo="1" id="mon-novo-papel">${icone('documento')} Digitar do papel</button>` : ''}
-        </div>
-        <button class="botao sec" data-v="pcerel" id="mon-ir-rel">${icone('resumo')} Relatório de atividades</button>
-        <div class="card"><label>Pesquisar (nº, nome, CPF, propriedade, município)<input id="monQ" autocomplete="off"></label></div><div id="monItens"></div>`);
-    } else {
-      mostrar(`${Campo.subnavHTML('pcecads')}
-        <div class="card pce-stats">
-          <div class="pce-stats-topo">
-            <b>${icone('resumo')} Panorama de Propriedades</b>
-            <small>Base do aparelho e dados sincronizados</small>
-          </div>
-          <div class="pce-stats-grid">
-            <div class="pce-stat-item"><span class="pce-stat-num">${todos.length}</span><span class="pce-stat-rot">Cadastros no aparelho</span></div>
-            <div class="pce-stat-item"><span class="pce-stat-num">${propsOffline.length}</span><span class="pce-stat-rot">Propriedades salvas</span></div>
-            <div class="pce-stat-item"><span class="pce-stat-num">${produtoresOffline.length}</span><span class="pce-stat-rot">Produtores salvos</span></div>
-            <div class="pce-stat-item"><span class="pce-stat-num">${munsOffline.size}</span><span class="pce-stat-rot">Municípios baixados</span></div>
-          </div>
-        </div>
-        <div class="card"><h3>Cadastros de propriedades</h3>
-          <p class="dica" style="text-align:left">Um cadastro por propriedade e programa (monilíase, banana, mandioca, soja e cadastro geral); citros a partir do levantamento com praga de citros.</p></div>
-        <div class="card"><label>Modelo do novo cadastro<select id="mon-modelo">${PCECads.modelosAvulsos().map(m => `<option value="${m}">${esc(PCECads.nomeModelo(m))}</option>`).join('')}</select></label>
-          <p class="dica" style="text-align:left">O de citros sai do levantamento com praga de citros. Cada modelo tem a numeração própria.</p></div>
-        <div class="duas" style="margin-bottom:10px">
-          ${dig ? '' : `<button class="botao" data-mon="novo" data-tipo="${tipo}" id="mon-novo">${icone('mais')} Novo cadastro</button>`}
-          ${podeAnt ? `<button class="botao ${dig ? '' : 'sec'}" data-mon="novo" data-tipo="${tipo}" data-antigo="1" id="mon-novo-papel">${icone('documento')} Digitar do papel</button>` : ''}
-        </div>
-        <div class="card"><label>Pesquisar (nº, nome, CPF, propriedade, município)<input id="monQ" autocomplete="off"></label></div><div id="monItens"></div>`);
-    }
-    const desenhar = () => {
-      const q = norm($('#monQ').value), qd = digitos($('#monQ').value);
-      const v = todos.filter(x => !q || norm([x.numeroTxt, x.nome, x.propriedade, x.municipio].join(' ')).includes(q) || (qd.length >= 3 && digitos(x.doc).includes(qd)));
-      $('#monItens').innerHTML = v.length ? v.map(x => `<div class="item mon-item" data-reg="${esc(x.id)}"><div class="topo"><div><div class="placa">${esc(x.numeroTxt || '(sem nº)')}</div>
-          <div class="tipo">${T ? (x.programa === 'citros' ? '<span class="mon-prog">Citros</span> ' : '') : `<span class="mon-prog">${esc(PCECads.rotulo(x.programa))}</span> `}${esc(x.nome)}${x.propriedade ? ' · ' + esc(x.propriedade) : ''}</div></div><div class="hora">${esc(dBR(x.data))}<br>${esc(x.hora || '')}</div></div>
-        <div class="info">${esc(x.municipio)} · ${T ? `${esc(x.plantasInspecionadas || 0)} planta(s)${x.cadastroId ? ' · cadastro' : ''}` : `${esc(PCECads.rotulo(x.programa))}${Number(x.totalPlantas) ? ` · ${esc(x.totalPlantas)} planta(s)` : ''}`}</div>
-        ${situacao(x)}
-        <div class="botoes">${Number(x.registroAntigo) === 1 && !podeAnt ? '' : `<button class="editar" data-mon="abrir" data-tipo="${tipo}" data-id="${esc(x.id)}">Abrir</button>`}
-          <button class="editar" data-mon="imprimir" data-tipo="${tipo}" data-id="${esc(x.id)}">PDF</button>
-          ${T ? `<button class="tfbtn" data-mon="enviar" data-id="${esc(x.id)}">Enviar</button>${Number(x.cancelado) === 1 ? '' : `<button class="excluir" data-mon="cancelar" data-id="${esc(x.id)}">Cancelar</button>`}`
-            : `<button class="tfbtn" data-mon="termodocad" data-id="${esc(x.id)}">Termo</button><button class="excluir" data-mon="excluircad" data-id="${esc(x.id)}">Excluir</button>`}</div></div>`).join('')
-        : `<div class="vazio">Nenhum ${T ? 'termo' : 'cadastro'} neste aparelho.</div>`;
-    };
-    desenhar(); $('#monQ').oninput = desenhar;
+  async function prontoPapel(id) {
+    const r = await Store.obter('termosPce', id); if (!r) return go('pcetermos');
+    view(`<div class="card" id="mon-pronto"><h3>${icone('ok')} ${esc(NOME.termo)} salvo</h3><div class="tf-num"><b id="mon-pronto-num">${esc(r.numeroTxt || '')}</b></div>
+      <p><b>${esc(r.nome)}</b></p><p>${esc(dBR(r.data))} ${esc(r.hora || '')} · ${esc(r.municipio)}</p>
+      ${r.pendente ? `<div class="tf-novo">${icone('sincronizar')} Aguardando envio: a planilha confere o número ao sincronizar.</div>` : '<div class="tf-ok">✓ Número confirmado na planilha.</div>'}
+      <p class="dica">Número do papel.</p></div>
+      <button class="botao" data-mon="imprimir" data-tipo="termo" data-id="${esc(r.id)}" id="mon-imprimir">${icone('imprimir')} Imprimir / PDF</button>
+      <button class="botao sec" data-mon="novo" data-tipo="termo" data-antigo="1">${icone('documento')} Digitar outro do papel</button>
+      <button class="botao sec" data-v="pcetermos">${icone('formulario')} Ver termos</button>`);
   }
 
   /* ================= impressão, PDF e envio ao produtor ================= */
-  /**
-   * Citros: o PDF sai como os modelos de papel — Cadastro de citros + o Termo de Fiscalização da visita (imprimindo o termo, o cadastro ligado vem
-   * antes; imprimindo o cadastro, os termos ligados do mesmo dia vêm depois). modo 'arquivo' (enviar ao produtor): só o documento escolhido.
-   */
+  /** PDF do Termo de Fiscalização (um modelo só, todos os programas; aceita os já gravados) ou da ficha oficial. modo 'arquivo': devolve o PDF. */
   async function imprimir(tipo, id, modo) {
-    const r = await Store.obter(STORE[tipo], id); if (!r) throw new Error('Registro não encontrado.');
-    const arquivos = await Anexos.arquivosPorId(r);
-    if (r.programa !== 'citros') return Docs.pceMon(PCEDocs.tipoDoRegistro(tipo, r), r, { arquivos }, modo);      // cadastro de banana, mandioca, soja e propriedade: modelo próprio
-    const extras = [];
-    if (modo !== 'arquivo') {
-      const outros = tipo === 'termo' ? [r.cadastroId ? await Store.obter('cadastrosPce', r.cadastroId) : null].filter(c => c && !Number(c.excluido) && c.programa === 'citros')
-        : (await Store.todos('termosPce')).filter(t => t.cadastroId === r.id && !Number(t.excluido) && !Number(t.cancelado) && t.data === r.data)
-          .sort((a, b) => (Number(a.ano) - Number(b.ano)) || (Number(a.numero) - Number(b.numero)));
-      for (const x of outros) extras.push({ tipo: tipo === 'termo' ? 'cadastroCitros' : 'termoCitros', dados: x, arquivos: await Anexos.arquivosPorId(x), antes: tipo === 'termo' });
-    }
-    return Docs.pceMon(tipo === 'termo' ? 'termoCitros' : 'cadastroCitros', r, { arquivos, extras }, modo);
+    if (tipo === 'cadastro') return PCECads.imprimirFicha(id, modo);
+    const r = await Store.obter('termosPce', id); if (!r) throw new Error('Termo não encontrado.');
+    return Docs.termoPce(r, { arquivos: await Anexos.arquivosPorId(r) }, modo);
   }
   async function enviar(id) {
     const r = await Store.obter('termosPce', id); if (!r) throw new Error('Termo não encontrado.');
@@ -1139,7 +495,6 @@ const PCEMon = (() => {
       add('<button class="botao sec" type="button" id="mon-env-baixar">Baixar PDF</button>').onclick = () => PDF.baixar(file);
     };
   }
-
   /* ================= Relatório de atividades ================= */
   const REL_META = 'pceRelatorio';
   function filtroPadrao() { const h = hojeISO(); return { de: h.slice(0, 8) + '01', ate: h }; }
@@ -1152,8 +507,7 @@ const PCEMon = (() => {
     const servs = [...new Set(termos.map(t => String(t.servidor || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     const fp = filtroPadrao(), pr = TC.pragas || [];
     if (!mostrar.viva()) return;
-    mostrar(`${Campo.subnavHTML('pcerel')}
-      <form id="monRelForm" class="card" autocomplete="off"><h3>${icone('resumo')} Relatório de atividades</h3>
+    mostrar(`      <form id="monRelForm" class="card" autocomplete="off"><h3>${icone('resumo')} Relatório de atividades</h3>
       <p class="dica" style="text-align:left">Prestação de contas do convênio, a partir dos Termos de Fiscalização (PCE) deste aparelho. Os números são calculados; os textos podem ser editados.</p>
       <div class="duas"><label>De<input id="mr-de" type="date" value="${esc(m.de || fp.de)}"></label><label>Até<input id="mr-ate" type="date" value="${esc(m.ate || fp.ate)}"></label></div>
       <div class="duas"><label>Município<select id="mr-mun">${opts(P.municipios, m.municipio || '', 'Todos')}</select></label>
@@ -1168,10 +522,11 @@ const PCEMon = (() => {
       <label>Educação Sanitária: nº de folders e flyers distribuídos no período<input id="mr-folders-n" inputmode="numeric" autocomplete="off" placeholder="ex.: 72"></label>
       <label>OBS<textarea id="mr-obs" rows="2">${esc(m.obs != null ? m.obs : 'Anexo Termo de Fiscalização e Cadastro de imóveis')}</textarea></label>
       <label class="chk"><input type="checkbox" id="mr-anexo-t" ${m.anexoT === false ? '' : 'checked'}> Anexar os Termos de Fiscalização do período</label>
-      <label class="chk"><input type="checkbox" id="mr-anexo-c" ${m.anexoC === false ? '' : 'checked'}> Anexar os Cadastros de imóvel ligados</label>
+      <label class="chk"><input type="checkbox" id="mr-anexo-c" ${m.anexoC === false ? '' : 'checked'}> Anexar as fichas oficiais ligadas</label>
       <div id="mr-previa" class="card mon-previa" aria-live="polite"></div>
       <button class="botao" type="button" data-mon="relimprimir" id="mr-imprimir">${icone('imprimir')} Imprimir / PDF</button>
-      <button class="botao sec" type="button" data-mon="relarquivo" id="mr-arquivo">${icone('documento')} Gerar arquivo PDF (enviar/guardar)</button></form>`);
+      <button class="botao sec" type="button" data-mon="relarquivo" id="mr-arquivo">${icone('documento')} Gerar arquivo PDF (enviar/guardar)</button>
+      <button class="botao sec" type="button" data-v="pcetermos">${icone('voltar')} Voltar aos termos</button></form>`);
     const f = $('#monRelForm');
     let auto = {};
     const atualizar = async () => {
@@ -1238,67 +593,500 @@ const PCEMon = (() => {
     return r;
   }
 
+  /* ================= Nova visita ================= */
+  // Passos: 1 frutos avaliados · 2 pragas de cada fruto (catálogo e hospedeiros) · 3 plantas, sintomas, amostra e fotos · 4 ações e constatação ·
+  // 5 assinaturas. Cada dado é perguntado uma vez (produtor, propriedade e frutos vêm do cadastro). O rascunho é automático (meta "pceVisitaRascunho").
+  const RV = 'pceVisitaRascunho', PASSOS = ['Frutos', 'Pragas', 'Plantas, amostra e fotos', 'Ações e constatação', 'Assinaturas'];
+  const RES = Object.fromEntries(P.resultados || [['detectada', 'Detectada'], ['nao_detectada', 'Não detectada'], ['suspeita', 'Suspeita']]);
+  const COM_DETECCAO = ['detectada', 'suspeita'];
+  const CA = () => PCECads;
+  let V = null, tV = null;
+  const idCat = s => CA().idCat(s);
+  const listaE = l => PCEDocs.listaE(l);
+  const novoF = () => ({ pragas: {}, extras: [], coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '', qtd: '1', sint: '', plantas: '', fotos: [], dados: {} });
+  const fruto = fid => V.F[fid] || (V.F[fid] = novoF());
+  const frutoDe = fid => CA().frutosDe(V.p).find(f => f.id === fid) || null;
+  const salvarRascunho = (atraso = 400) => {
+    clearTimeout(tV); const st = V; if (!st || !st.vivo) return;
+    tV = setTimeout(() => { if (V === st && st.vivo) { const { p, pe, serv, vivo, salvando, ...resto } = st; Store.setMeta(RV, { ...resto, em: Date.now() }); } }, atraso);
+  };
+  /** Pragas que o fruto avalia: as do catálogo para a cultura dele (família e hospedeiros) e as que o fiscal acrescentou. */
+  function pragasDoFruto(fid) {
+    const f = frutoDe(fid), st = fruto(fid); if (!f) return [];
+    const lig = CA().pragasLigadas(f.cultura).map(p => ({ id: p.id, nome: CA().nomeDaPraga(p), ligada: true, opcional: Number(p.opcional) === 1 }));
+    const extras = st.extras.map(id => CA().pragasCat().find(p => p.id === id)).filter(Boolean).filter(p => !lig.some(l => l.id === p.id))
+      .map(p => ({ id: p.id, nome: CA().nomeDaPraga(p), ligada: false, opcional: Number(p.opcional) === 1 }));
+    return [...lig, ...extras];
+  }
+  const respondidas = fid => pragasDoFruto(fid).filter(p => (fruto(fid).pragas[p.id] || {}).resultado);
+
+  /* ---------- leitura da tela do passo para o estado ---------- */
+  function coletarPasso() {
+    if (!V || !$('#pceVisitaForm')) return;
+    const q = (s, r = document) => r.querySelector(s);
+    if (V.passo === 1) V.sel = [...document.querySelectorAll('input[name=vi-fruto]:checked')].map(c => c.value);
+    else if (V.passo === 2) {
+      document.querySelectorAll('.pce-pr[data-fruto]').forEach(e => {
+        const r = q('.r-res:checked', e), st = fruto(e.dataset.fruto);
+        st.pragas[e.dataset.praga] = { resultado: r ? r.value : '', haQuantoTempo: (q('.r-tempo', e) || {}).value || '', controle: rv('vi-ctl-' + e.dataset.fruto + '-' + e.dataset.praga + '-', 'c'), qualControle: (q('.r-qual', e) || {}).value || '' };
+      });
+    } else if (V.passo === 3) {
+      document.querySelectorAll('.pce-cultura[data-fruto]').forEach(b => {
+        const fid = b.dataset.fruto, st = fruto(fid), v = c => (q('.' + c, b) || {}).value;
+        st.plantas = (v('v-plantas') || '').trim(); st.sint = rv(`vi-sint-${fid}-`, 's'); const col = rv(`vi-col-${fid}-`, 'c'); st.coleta = col === 'sim' ? 'Sim' : 'Não';
+        ['tipoMaterial', 'codigoAmostra', 'destinoAmostra', 'qtd'].forEach(c => { if (q('.v-' + c, b)) st[c] = v('v-' + c).trim(); });
+        const d = {};
+        detecaoDoFruto(fid).forEach(qq => { const o = CA().lerPergunta(qq, `vq-${fid}-`); Object.entries(o).forEach(([k, x]) => { const t = Array.isArray(x) ? (x.length ? JSON.stringify(x) : '') : String(x == null ? '' : x); if (t) d[k] = t; }); });
+        st.dados = d;
+      });
+    } else if (V.passo === 4) {
+      V.acoes = cv('vi-', 'acoes'); V.local = g('vi-', 'local').trim(); V.data = g('vi-', 'data') || V.data; V.hora = g('vi-', 'hora') || V.hora;
+      document.querySelectorAll('textarea[data-prog]').forEach(t => {
+        if (t.value !== (V.constAuto || {})[t.dataset.prog + '|c']) V.constEdit[t.dataset.prog] = 1;
+        V.const[t.dataset.prog] = t.value;
+      });
+    } else if (V.passo === 5) {
+      V.naoAssina = !!($('#pce-naoassina') || {}).checked; V.t1nome = g('vi-', 't1nome'); V.t1doc = g('vi-', 't1doc'); V.t2nome = g('vi-', 't2nome'); V.t2doc = g('vi-', 't2doc');
+    }
+  }
+  /** Perguntas de detecção do programa (monilíase): só quando uma praga do programa foi detectada ou suspeita neste fruto. */
+  function detecaoDoFruto(fid) {
+    const f = frutoDe(fid); if (!f) return [];
+    const modelo = CA().modeloDaCultura(f.cultura), cfg = ((P.visita || {}).deteccao || {})[modelo]; if (!cfg) return [];
+    const alvo = new Set(cfg.pragas.map(idCat));
+    if (!pragasDoFruto(fid).some(p => alvo.has(idCat(p.nome)) && COM_DETECCAO.includes((fruto(fid).pragas[p.id] || {}).resultado))) return [];
+    const defs = CA().perguntasDoModelo(modelo);
+    return cfg.perguntas.map(k => defs.find(d => d.k === k)).filter(Boolean);
+  }
+
+  /* ---------- programas e Termos ---------- */
+  /** Um programa do catálogo por grupo de pragas respondidas: {programa, nome, frutos:[fid], itens:[{fid, cultura, praga, resultado, ...}]}. */
+  function programas() {
+    const mapa = new Map();
+    V.sel.forEach(fid => {
+      const f = frutoDe(fid); if (!f) return;
+      respondidas(fid).forEach(p => {
+        const pg = CA().programaDaPraga(p.nome), r = fruto(fid).pragas[p.id];
+        if (!mapa.has(pg.programa)) mapa.set(pg.programa, { programa: pg.programa, nome: pg.nome, frutos: [], itens: [] });
+        const x = mapa.get(pg.programa); if (!x.frutos.includes(fid)) x.frutos.push(fid);
+        x.itens.push({ fid, cultura: f.cultura, praga: p.nome, opcional: p.opcional, ...r });
+      });
+    });
+    return [...mapa.values()];
+  }
+  const ehProgramaCitros = pg => pg.itens.some(i => PCECitros.ehCitros(i.praga)) && /citro/i.test(pg.nome);
+  const enquadramentoDe = pg => {
+    const txt = i => { const p = CA().pragaPorNome(i.praga); return (p && p.enquadramentoLegal) || (P.legislacao || {})[i.praga] || ''; };
+    const pos = pg.itens.filter(i => COM_DETECCAO.includes(i.resultado) && txt(i)), base = pos.length ? pos : pg.itens.filter(i => txt(i));
+    return [...new Set(base.map(txt))].join('\n');
+  };
+  /** Texto pronto da situação constatada (o fiscal pode editar): citros usa as frases de ausência/presença; os outros dizem o resultado de cada praga. */
+  function constatacaoDe(pg) {
+    const linhas = [], porLinha = new Map();
+    const opcionais = pg.itens.filter(i => i.opcional);
+    opcionais.forEach(i => { const k = i.praga + '|' + i.resultado; if (!porLinha.has(k)) porLinha.set(k, { praga: i.praga, resultado: i.resultado, culturas: [] }); const c = porLinha.get(k).culturas; if (!c.includes(i.cultura)) c.push(i.cultura); });
+    const opc = [...porLinha.values()].map(x => `Praga opcional ${x.praga}: ${RES[x.resultado] || x.resultado}${x.culturas.length ? ' em ' + listaE(x.culturas) : ''}.`);
+    if (ehProgramaCitros(pg)) {
+      const cit = pg.itens.filter(i => !i.opcional || PCECitros.chaveDaPraga(i.praga)), culturas = [...new Set(cit.map(i => i.cultura))];
+      return [...PCECitros.frases(cit, culturas), ...opc].join('\n');
+    }
+    const obrig = pg.itens.filter(i => !i.opcional), porPraga = new Map();
+    obrig.forEach(i => { const k = i.praga + '|' + i.resultado; if (!porPraga.has(k)) porPraga.set(k, { ...i, culturas: [] }); const c = porPraga.get(k).culturas; if (!c.includes(i.cultura)) c.push(i.cultura); });
+    const todosNeg = obrig.length && obrig.every(i => i.resultado === 'nao_detectada');
+    if (todosNeg && obrig.every(i => /monil/i.test(i.praga))) linhas.push(TC.constatacaoNegativa || '');
+    else porPraga.forEach(x => {
+      const em = x.culturas.length ? ' em ' + listaE(x.culturas) : '';
+      linhas.push(x.resultado === 'detectada' ? `Constatei a presença de ${x.praga}${em}.` : x.resultado === 'suspeita' ? `Constatei suspeita de ${x.praga}${em}.` : `Não constatei a presença de ${x.praga}${em}.`);
+    });
+    return [...linhas, ...opc].filter(Boolean).join('\n');
+  }
+  /** Constatação de cada programa: o texto do fiscal (se editou) ou o texto pronto, atualizado com as respostas. */
+  function atualizarConstatacoes(pgs) {
+    V.constAuto = V.constAuto || {};
+    pgs.forEach(pg => {
+      const novo = constatacaoDe(pg);
+      if (!V.constEdit[pg.programa]) V.const[pg.programa] = novo;
+      V.constAuto[pg.programa + '|c'] = novo;
+    });
+  }
+
+  /* ---------- telas dos passos ---------- */
+  const cabecalho = () => `<div class="card pce-passos"><div class="pce-passos-topo"><b>Nova visita</b><small>Passo ${V.passo} de ${PASSOS.length}: ${esc(PASSOS[V.passo - 1])}</small></div>
+      <div class="pce-passos-barra" role="progressbar" aria-valuemin="1" aria-valuemax="${PASSOS.length}" aria-valuenow="${V.passo}">${PASSOS.map((_, i) => `<span class="${i < V.passo ? 'on' : ''}"></span>`).join('')}</div>
+      <p class="dica" style="text-align:left"><b>${esc(V.pe ? V.pe.nome : '')}</b> · ${esc(V.p.nome || V.p.codigo || '')} · ${esc(V.p.municipio || '')}<br>Servidor: ${esc(V.serv.servidor)}</p></div>`;
+  function passo1() {
+    const lista = CA().frutosDe(V.p);
+    return `<div class="card"><h3>${icone('broto')} Frutos avaliados nesta visita</h3>
+      <p class="dica" style="text-align:left">Marque os frutos que você avaliou. Se faltar algum, acrescente: ele vai para o cadastro da propriedade.</p>
+      ${lista.length ? lista.map(f => `<label class="chk vi-fruto"><input type="checkbox" name="vi-fruto" value="${esc(f.id)}" ${V.sel.includes(f.id) ? 'checked' : ''}> ${esc(CA().resumoFruto(f))}</label>`).join('')
+        : '<div class="tf-novo" id="vi-semfrutos">Esta propriedade ainda não tem frutos cadastrados. Acrescente abaixo o que será avaliado.</div>'}
+      <details class="vi-novo-fruto" ${lista.length ? '' : 'open'}><summary>+ Acrescentar fruto ao cadastro</summary>
+        <label>Cultura<select id="vi-nf-cultura">${opts(CA().culturas(), '', 'Selecione')}</select></label>
+        <div class="duas"><label>Cultivar<input id="vi-nf-cultivar" maxlength="80" autocomplete="off"></label><label>Área (ha)<input id="vi-nf-area" inputmode="decimal" maxlength="12" autocomplete="off"></label></div>
+        <button type="button" class="botao sec" data-mon="addfruto" id="vi-addfruto">${icone('mais')} Acrescentar e marcar</button></details></div>`;
+  }
+  function blocoPraga(fid, p) {
+    const st = fruto(fid).pragas[p.id] || {}, u = fid + '-' + p.id, det = COM_DETECCAO.includes(st.resultado);
+    return `<div class="pce-pr" data-fruto="${esc(fid)}" data-praga="${esc(p.id)}" data-nome="${esc(p.nome)}"><div class="pce-pr-topo"><b>${icone('praga')} ${esc(p.nome)}</b>
+        <small class="pce-pr-cat">${p.opcional ? 'opcional' : p.ligada ? 'do catálogo' : 'acrescentada'}</small>
+        ${p.ligada ? '' : `<button type="button" class="mini" data-mon="delpraga" data-fruto="${esc(fid)}" data-praga="${esc(p.id)}" aria-label="Remover ${esc(p.nome)}">Remover</button>`}</div>
+      <fieldset class="pce-res"><legend>Resultado${p.opcional ? ' (opcional)' : ' *'}</legend><div class="pce-res-op">${Object.keys(RES).map(v => `<label class="pce-res-${v}"><input type="radio" class="r-res" name="res-${esc(u)}" value="${v}" ${st.resultado === v ? 'checked' : ''}><span>${esc(RES[v])}</span></label>`).join('')}</div></fieldset>
+      ${det ? `<div class="vi-det"><label>Há quanto tempo<input class="r-tempo" maxlength="60" value="${esc(st.haQuantoTempo || '')}" autocomplete="off"></label>
+        ${sn('vi-ctl-' + u + '-', 'c', 'Utiliza método de controle?', st.controle || '')}
+        <label>Qual controle<input class="r-qual" maxlength="120" value="${esc(st.qualControle || '')}" autocomplete="off"></label></div>` : ''}</div>`;
+  }
+  function passo2() {
+    if (!V.sel.length) return '<div class="card tf-alerta">Marque ao menos um fruto no passo 1.</div>';
+    return V.sel.map(fid => {
+      const f = frutoDe(fid); if (!f) return '';
+      const ps = pragasDoFruto(fid), extras = CA().pragasExtras(f.cultura).filter(p => !ps.some(x => x.id === p.id));
+      return `<div class="pce-cultura" data-fruto="${esc(fid)}"><div class="pce-cultura-topo"><b>${icone('broto')} ${esc(f.cultura)}${f.cultivar ? ' (' + esc(f.cultivar) + ')' : ''}</b></div>
+        <div class="pce-prs"><h4>Pragas e doenças desta cultura</h4>
+        ${ps.length ? ps.map(p => blocoPraga(fid, p)).join('') : '<p class="dica" style="text-align:left">Nenhuma praga do catálogo ligada a esta cultura. Acrescente a avaliada abaixo.</p>'}
+        ${extras.length ? `<label>Outra praga do catálogo<select class="vi-extra" data-fruto="${esc(fid)}">${opts(extras.map(p => p.nomePopular), '', 'Selecione')}</select></label>
+          <button type="button" class="botao sec" data-mon="addpraga" data-fruto="${esc(fid)}">+ Acrescentar praga/doença</button>` : ''}</div></div>`;
+    }).join('');
+  }
+  function passo3() {
+    return V.sel.map(fid => {
+      const f = frutoDe(fid); if (!f) return '';
+      const st = fruto(fid), temDet = respondidas(fid).some(p => COM_DETECCAO.includes(fruto(fid).pragas[p.id].resultado));
+      const sint = st.sint || (temDet ? 'sim' : 'nao'), qs = detecaoDoFruto(fid), v = st.dados || {};
+      const amostra = st.coleta === 'Sim';
+      return `<div class="pce-cultura" data-fruto="${esc(fid)}"><div class="pce-cultura-topo"><b>${icone('broto')} ${esc(f.cultura)}${f.cultivar ? ' (' + esc(f.cultivar) + ')' : ''}</b></div>
+        <label>Plantas inspecionadas<input class="v-plantas" inputmode="numeric" maxlength="9" autocomplete="off" value="${esc(st.plantas !== '' ? st.plantas : (f.quantidade || ''))}"></label>
+        ${sn(`vi-sint-${fid}-`, 's', 'Presença de sintomas?', sint)}
+        ${sn(`vi-col-${fid}-`, 'c', 'Coleta de amostra?', st.coleta === 'Sim' ? 'sim' : 'nao', [['sim', 'Sim'], ['nao', 'Não']])}
+        <div class="vi-amostra" ${amostra ? '' : 'hidden'}>
+          <label>Tipo de material<input class="v-tipoMaterial" maxlength="60" value="${esc(st.tipoMaterial)}" autocomplete="off" placeholder="ex.: folhas, frutos"></label>
+          <div class="duas"><label>Código da amostra<input class="v-codigoAmostra" maxlength="60" value="${esc(st.codigoAmostra)}" autocomplete="off"></label>
+            <label>Quantidade de amostras<input class="v-qtd" inputmode="numeric" maxlength="4" value="${esc(st.qtd)}" autocomplete="off"></label></div>
+          <label>Destino da amostra<input class="v-destinoAmostra" maxlength="120" value="${esc(st.destinoAmostra)}" autocomplete="off"></label></div>
+        ${qs.length ? `<div class="vi-deteccao"><p class="mon-sub">Detecção</p>${qs.map(q => CA().perguntaHTML(q, v, `vq-${fid}-`)).join('')}</div>` : ''}
+        <label class="pce-arquivo pce-arquivo-cult">${icone('camera')} Fotos deste fruto<input type="file" class="v-fotos" data-fruto="${esc(fid)}" accept="image/*" multiple></label>
+        <div id="vi-fotos-${esc(fid)}" class="pce-fotos pce-fotos-cult"></div></div>`;
+    }).join('');
+  }
+  function passo4(pgs) {
+    return `<div class="card"><h3>${icone('formulario')} Ação realizada</h3>
+        <p class="mon-sub">ao realizar ações de *</p>${cks('vi-', 'acoes', (TC.acoes || []).map(x => [x, x]), V.acoes)}
+        <label>Local da fiscalização *<input id="vi-local" maxlength="200" value="${esc(V.local)}" autocomplete="off" placeholder="ex.: Propriedade Sítio Boa Vista, Ramal do Km 3"></label>
+        <div class="duas">${inp('vi-', 'data', 'Data', V.data, `type="date" max="${hojeISO()}"`)}${inp('vi-', 'hora', 'Hora', V.hora, 'type="time"')}</div></div>
+      ${pgs.map(pg => `<div class="card pce-prog" data-prog="${esc(pg.programa)}"><h3>${icone('praga')} ${esc(pg.nome)}</h3>
+        <p class="dica" style="text-align:left">${esc(listaE([...new Set(pg.itens.map(i => i.cultura))]))}</p>
+        <label>Situação constatada<textarea data-prog="${esc(pg.programa)}" rows="4">${esc(V.const[pg.programa] || '')}</textarea></label>
+        <div class="mon-sub">Enquadramento legal (da planilha da GDV)</div><p class="vi-enq" data-prog="${esc(pg.programa)}">${esc(enquadramentoDe(pg) || 'Sem enquadramento cadastrado para as pragas deste programa.').replace(/\n/g, '<br>')}</p></div>`).join('')}`;
+  }
+  function passo5(pgs) {
+    const col = V.sel.filter(fid => fruto(fid).coleta === 'Sim');
+    return `<div class="card"><h3>${icone('assinatura')} Assinaturas</h3>
+      ${U().naoAssinaHTML(V)}
+      ${CONFIG.assinaturaNaTela ? `<p class="dica" style="text-align:left">Assine com o dedo, se quiser. Os documentos impressos sempre trazem as linhas para assinar no papel.</p>${U().assHTML('servidor', 'Servidor')}${U().assHTML('produtor', 'Produtor')}` : '<p class="dica" style="text-align:left">As assinaturas são feitas no papel, na impressão dos Termos.</p>'}
+      <div id="vi-testemunhas" ${V.naoAssina ? '' : 'hidden'}><p class="mon-sub">Testemunhas (quando o produtor não assina)</p>
+        <div class="duas">${inp('vi-', 't1nome', 'Testemunha 1 – nome', V.t1nome)}${inp('vi-', 't1doc', 'CPF/RG', V.t1doc)}</div>
+        <div class="duas">${inp('vi-', 't2nome', 'Testemunha 2 – nome', V.t2nome)}${inp('vi-', 't2doc', 'CPF/RG', V.t2doc)}</div></div></div>
+      <div class="card" id="vi-resumo"><h3>${icone('resumo')} Ao concluir saem</h3><ul class="mon-rel-lista">
+        ${pgs.map(pg => `<li><b>${esc(pg.nome)}</b> — Termo de Fiscalização (${esc(listaE([...new Set(pg.itens.map(i => i.cultura))]))})</li>`).join('')}
+        ${col.map(fid => `<li>Termo de Colheita de Amostras — ${esc((frutoDe(fid) || {}).cultura || '')}</li>`).join('')}</ul></div>`;
+  }
+  async function desenhar() {
+    if (!V || VIEW !== 'pcevisita') return;
+    const pgs = programas();
+    if (V.passo === 4) atualizarConstatacoes(pgs);
+    const corpo = [passo1, passo2, passo3, () => passo4(pgs), () => passo5(pgs)][V.passo - 1]();
+    view(`<form id="pceVisitaForm" autocomplete="off" novalidate>${cabecalho()}${corpo}
+      <div class="vi-nav ${V.passo > 1 ? 'duas' : ''}">${V.passo > 1 ? `<button class="botao sec" type="button" data-mon="vi-voltar" id="vi-voltar">${icone('voltar')} Voltar</button>` : ''}
+        ${V.passo < PASSOS.length ? `<button class="botao" type="submit" id="vi-continuar">Continuar</button>` : `<button class="botao" type="submit" id="vi-concluir">${icone('ok')} Concluir visita e gerar os Termos</button>`}</div>
+      <button class="botao sec" type="button" data-mon="vi-cancelar" id="vi-cancelar">Cancelar visita</button></form>`);
+    $('#pceVisitaForm').onsubmit = ev => { ev.preventDefault(); proximo().catch(e => toast(e.message || String(e), true)); };
+    if (V.passo === 3) for (const fid of V.sel) await Anexos.miniaturas($('#vi-fotos-' + fid), fruto(fid).fotos, `data-mon="delfoto" data-fruto="${fid}"`);
+    if (V.passo === 5 && CONFIG.assinaturaNaTela) { await U().ligarAss(V, 'servidor', salvarRascunho); await U().ligarAss(V, 'produtor', salvarRascunho); if (V.naoAssina && $('#pce-ass-produtor')) { $('#pce-ass-produtor').closest('.pce-ass').hidden = true; } }
+    if (V.passo === 5) await U().renderDocProdutor(V);
+  }
+  /** Valida o passo atual; devolve a mensagem do que falta ou ''. */
+  function faltaNoPasso(n) {
+    if (n === 1) { if (!V.sel.length) return 'Marque ao menos um fruto avaliado (ou acrescente um).'; return ''; }
+    if (n === 2) {
+      for (const fid of V.sel) {
+        const f = frutoDe(fid);
+        for (const p of pragasDoFruto(fid)) {
+          const r = fruto(fid).pragas[p.id] || {};
+          if (!r.resultado && !p.opcional) return `Informe o resultado de ${p.nome} em ${f.cultura} (detectada, não detectada ou suspeita).`;
+          if (COM_DETECCAO.includes(r.resultado) && r.controle === 'sim' && !String(r.qualControle).trim()) return `Informe qual controle é usado para ${p.nome} em ${f.cultura}.`;
+        }
+      }
+      if (!programas().length) return 'Responda ao menos uma praga ou doença avaliada: o Termo é feito pelo programa dela.';
+      return '';
+    }
+    if (n === 3) {
+      for (const fid of V.sel) {
+        const f = frutoDe(fid), st = fruto(fid);
+        if (st.plantas !== '' && !/^\d+$/.test(st.plantas)) return `${f.cultura}: plantas inspecionadas só aceita número inteiro.`;
+        if (st.coleta === 'Sim' && !st.tipoMaterial.trim()) return `${f.cultura}: informe o tipo de material da amostra.`;
+        if (st.coleta === 'Sim' && !(Number(st.qtd) > 0)) return `${f.cultura}: informe a quantidade de amostras.`;
+        const co = [st.dados.sintomaLat, st.dados.sintomaLon].filter(Boolean);
+        if (co.length === 1) return `${f.cultura}: informe latitude e longitude da planta com sintoma.`;
+        if (co.length === 2) { const r = PCEMon.lerPar(st.dados.sintomaLat, st.dados.sintomaLon); if (r.erro) return `${f.cultura}: coordenada da planta: ${r.erro}`; }
+      }
+      return '';
+    }
+    if (n === 4) {
+      if (!V.acoes.length) return 'Marque a ação realizada (ex.: Fiscalização).';
+      if (!V.local) return 'Informe o local da fiscalização.';
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(V.data) || !/^\d{2}:\d{2}/.test(V.hora)) return 'Informe a data e a hora.';
+      if (programas().some(pg => !String(V.const[pg.programa] || '').trim())) return 'Descreva a situação constatada de cada programa.';
+      return '';
+    }
+    if (n === 5) { if (V.naoAssina && !V.ass.produtorDoc) return 'Produtor não assina: tire a foto dele segurando o documento de identificação (ou desmarque a opção).'; return ''; }
+    return '';
+  }
+  async function proximo() {
+    if (!V || V.salvando) return;
+    coletarPasso();
+    const falta = faltaNoPasso(V.passo); if (falta) return toast(falta, true);
+    salvarRascunho(0);
+    if (V.passo < PASSOS.length) { V.passo++; await desenhar(); window.scrollTo(0, 0); return; }
+    for (let n = 1; n < PASSOS.length; n++) { const f = faltaNoPasso(n); if (f) { V.passo = n; await desenhar(); return toast(f, true); } }
+    await concluirVisita();
+  }
+
+  /* ---------- fotos e produtor que não assina ---------- */
+  const reduzirFoto = file => Anexos.reduzirFoto(file, P.fotoLado, P.fotoQualidade);
+  async function adicionarFotos(fid, input) {
+    const files = [...(input.files || [])]; input.value = '';
+    const st = fruto(fid), f = frutoDe(fid);
+    for (const file of files) {
+      const total = V.sel.reduce((n, x) => n + fruto(x).fotos.length, 0);
+      if (total >= (P.maxFotos || 60)) { toast(`Limite de ${P.maxFotos || 60} fotos por visita.`, true); break; }
+      if (!/^image\//.test(file.type || 'image/')) { toast(`"${file.name}" não é uma imagem.`, true); continue; }
+      let a; try { a = Anexos.novoArquivo('termosPce', V.id, 'foto', '', 'image/jpeg', await reduzirFoto(file)); } catch (e) { toast(e.message, true); continue; }
+      if (!V || !V.vivo) return;
+      Object.assign(a, { praga: '', cultura: f.cultura, rotulo: f.cultura });
+      await Store.gravar('arquivos', a); st.fotos.push(a.id);
+    }
+    await Anexos.miniaturas($('#vi-fotos-' + fid), st.fotos, `data-mon="delfoto" data-fruto="${fid}"`);
+    salvarRascunho(0);
+  }
+
+  /* ---------- abrir, rascunho e cancelar ---------- */
+  async function visita(arg) {
+    if (bloqueado()) return view(avisoAtivacao());
+    const o = arg && typeof arg === 'object' ? arg : {};
+    const s = await U().exigirServidor('pcevisita', o, false); if (!s) return;
+    if (!U().servidorOk(s)) { toast('Complete cargo e lotação em “Meus dados” para fazer visitas.', true); return go('pce'); }
+    await CA().carregarCatalogo();
+    const rasc = await Store.meta(RV);
+    let retomar = null;
+    if (rasc && rasc.id) {
+      const mesma = !o.propId || rasc.propId === o.propId;
+      if (mesma && confirm(`Há uma visita não concluída (${rasc.nomeProdutor || 'produtor'}), iniciada em ${new Date(rasc.em).toLocaleString('pt-BR')}.\n\nContinuar de onde parou? (Cancelar descarta o rascunho.)`)) retomar = rasc;
+      else if (!mesma && !confirm(`Há uma visita não concluída de ${rasc.nomeProdutor || 'outro produtor'}, iniciada em ${new Date(rasc.em).toLocaleString('pt-BR')}.\n\nDescartar essa visita e começar a nova? (Cancelar volta sem perder o rascunho.)`)) return go('pceprodutor', rasc.doc);
+      else await descartarVisita(rasc);
+    }
+    const p = await Store.obter('propriedades', retomar ? retomar.propId : o.propId);
+    if (!p || p.excluido) { toast('Propriedade não encontrada neste aparelho.', true); return go('pce'); }
+    const pe = await Store.obter('pessoas', digitos(p.doc));
+    fechar(); if (V) V.vivo = false;
+    const base = retomar ? { ...retomar } : { id: Store.novoId(), doc: digitos(p.doc), propId: p.id, passo: 1, sel: [], F: {}, acoes: ['Fiscalização'],
+      local: [p.nome ? 'Propriedade ' + p.nome : '', p.endereco, p.municipio ? `${p.municipio}/${p.uf || 'AM'}` : ''].filter(Boolean).join(', '),
+      const: {}, constEdit: {}, constAuto: {}, data: hojeISO(), hora: agoraHM(), ass: {}, assNovas: {}, naoAssina: false, t1nome: '', t1doc: '', t2nome: '', t2doc: '', termoIds: {}, colheitaIds: {},
+      lat: '', lon: '', prec: '' };
+    const nova = Object.assign(base, { p, pe, nomeProdutor: (pe && pe.nome) || p.nome || '', serv: U().dadosServidor(s), vivo: true, salvando: false, dono: 'termosPce' });
+    V = nova;
+    const frutos = CA().frutosDe(p);
+    if (!retomar && frutos.length === 1) V.sel = [frutos[0].id];
+    await desenhar();
+    salvarRascunho(0);
+    if (!retomar) pegarLocalSilencioso().then(gps => { if (V === nova && gps) { const r = U().validarCoord(gps.lat, gps.lng); if (!r.erro) { V.lat = r.lat; V.lon = r.lon; V.prec = gps.prec; salvarRascunho(); } } }).catch(() => {});
+  }
+  async function descartarVisita(rasc) {
+    const fotos = Object.values((rasc && rasc.F) || {}).flatMap(f => f.fotos || []);
+    await Anexos.apagarSeNaoEnviado([...fotos, ...(rasc && rasc.ass && rasc.ass.produtorDoc ? [rasc.ass.produtorDoc] : [])]);
+    await Store.setMeta(RV, null);
+  }
+  async function cancelarVisita() {
+    if (!V) return;
+    if (!confirm('Cancelar esta visita? Os dados e as fotos desta visita serão perdidos (o cadastro do produtor e dos frutos fica).')) return;
+    const d = V.doc; clearTimeout(tV); V.vivo = false; await descartarVisita(V); V = null; go('pceprodutor', d);
+  }
+  async function acrescentarFruto() {
+    const cultura = g('vi-nf-', 'cultura'); if (!cultura) return toast('Escolha a cultura do fruto.', true);
+    const area = g('vi-nf-', 'area').trim().replace(',', '.');
+    if (area && !/^\d+(\.\d+)?$/.test(area)) return toast('Área só aceita números.', true);
+    coletarPasso();
+    const p = await Store.obter('propriedades', V.propId), lista = JSON.parse(p.frutos || '[]');
+    if (lista.filter(f => !Number(f.excluido)).length >= 60) return toast('Limite de 60 frutos por propriedade.', true);
+    const f = { id: Store.novoId(), cultura, cultivar: g('vi-nf-', 'cultivar').trim(), area, espLinha: '', espPlanta: '', espUnidade: '', idade: '', quantidade: '', producao: '', destino: '', excluido: 0 };
+    const nova = await Store.salvar('propriedades', { ...p, frutos: JSON.stringify([...lista, f]) });
+    delete nova.pendente; V.p = await Store.obter('propriedades', V.propId); V.sel.push(f.id);
+    Sync.sincronizar(); toast(`${cultura} acrescentado ao cadastro da propriedade.`);
+    salvarRascunho(0); await desenhar();
+  }
+
+  /* ---------- concluir: um Termo por programa e o Termo de Colheita ---------- */
+  const textoCurto = (v, n) => String(v == null ? '' : v).trim().replace(/\s+/g, ' ').slice(0, n);
+  function culturasDoPrograma(pg) {
+    return pg.frutos.map(fid => {
+      const f = frutoDe(fid), st = fruto(fid), area = f.area === '' || f.area == null ? '' : Number(f.area);
+      const pragas = pg.itens.filter(i => i.fid === fid).map(i => ({ praga: i.praga, resultado: i.resultado, haQuantoTempo: COM_DETECCAO.includes(i.resultado) ? textoCurto(i.haQuantoTempo, 60) : '',
+        controle: COM_DETECCAO.includes(i.resultado) && i.controle ? (i.controle === 'sim' ? 'Sim' : 'Não') : '', qualControle: COM_DETECCAO.includes(i.resultado) && i.controle === 'sim' ? textoCurto(i.qualControle, 120) : '' }));
+      const coleta = st.coleta === 'Sim';
+      const dados = { ...st.dados }; if (st.plantas !== '') dados.plantas = st.plantas; if (st.sint) dados.sintomas = st.sint; if (coleta) dados.qtdAmostras = st.qtd;
+      return { cultura: f.cultura, area: area === '' || !isFinite(area) ? '' : area, pragas, coleta: coleta ? 'Sim' : 'Não', tipoMaterial: coleta ? st.tipoMaterial : '', codigoAmostra: coleta ? st.codigoAmostra : '',
+        destinoAmostra: coleta ? st.destinoAmostra : '', fotos: st.fotos.slice(0, 20), dados };
+    });
+  }
+  function montarTermo(pg, ctx) {
+    const cs = culturasDoPrograma(pg), p = V.p, pe = V.pe || {}, culturasTxt = [...new Set(pg.itens.map(i => i.cultura))];
+    const quadro = TC.pragas || [], mapa = TC.pragaDoLevantamento || {}, n = x => idCat(x);
+    const pragasQuadro = [...new Set(pg.itens.filter(i => !i.opcional || mapa[i.praga]).map(i => mapa[i.praga] || (quadro.find(q => n(q) === n(i.praga)) || '')).filter(Boolean))];
+    const citros = ehProgramaCitros(pg), plantas = pg.frutos.reduce((s, fid) => s + (Number(fruto(fid).plantas) || 0), 0);
+    const nome = textoCurto(pe.nome || '', 120).toUpperCase(), doc = digitos(p.doc), pj = doc.length === 14;
+    const temSint = pg.frutos.some(fid => fruto(fid).sint === 'sim' || (fruto(fid).sint === '' && pg.itens.some(i => i.fid === fid && COM_DETECCAO.includes(i.resultado))));
+    const ativ = culturasTxtAtividade(culturasTxt);
+    const lat = V.lat !== '' ? V.lat : (p.lat == null ? '' : p.lat), lon = V.lon !== '' ? V.lon : (p.lon == null ? '' : p.lon);
+    const testemunhas = [{ nome: V.t1nome.trim(), doc: V.t1doc.trim() }, { nome: V.t2nome.trim(), doc: V.t2doc.trim() }].filter(x => x.nome || x.doc);
+    return { id: V.termoIds[pg.programa], unidade: unid(V.serv.lotacao || p.municipio), propriedadeId: p.id, cadastroId: '', programa: citros ? 'citros' : CA().modeloDaCultura(culturasTxt[0]),
+      doc, nome, atividade: ativ, empresa: p.empresa || '', cnpj: digitos(p.cnpj), atividadeEmpresa: p.empresa || pj ? ativ : '', endereco: p.endereco || '', municipio: p.municipio, uf: p.uf || 'AM',
+      telefone: pe.telefone || '', lat, lon, data: V.data, hora: V.hora.slice(0, 5), ...V.serv, pragas: JSON.stringify(citros ? [...new Set([...PCECitros.nomesDeteccao(), ...pragasQuadro])] : pragasQuadro),
+      tipoLocal: JSON.stringify([V.local]), acoes: JSON.stringify(V.acoes), constatacao: String(V.const[pg.programa] || '').trim(), enquadramento: enquadramentoDe(pg),
+      testemunhas: JSON.stringify(testemunhas), recebidoEm: '', plantasInspecionadas: plantas, amostra: cs.some(c => c.coleta === 'Sim') ? 'sim' : 'nao', sintomas: temSint ? 'sim' : 'nao',
+      hospedeiros: JSON.stringify(culturasTxt), fotos: JSON.stringify([...new Set(cs.flatMap(c => c.fotos))]), assinaturas: JSON.stringify(ctx.mapa), documentos: '[]', registroAntigo: 0, cancelado: 0, motivoCancel: '', excluido: 0,
+      visitaId: V.id, programaVisita: pg.nome, culturas: JSON.stringify(cs) };
+  }
+  const culturasTxtAtividade = cult => (cult.length ? 'Cultivo de ' + listaE(cult.map(x => String(x).toLowerCase())) : '');
+  function montarColheita(fid, ctx) {
+    const f = frutoDe(fid), st = fruto(fid), p = V.p, pe = V.pe || {};
+    const partes = U().partesDoMaterial(st.tipoMaterial), nomeServ = V.serv.servidor;
+    const D = { data: V.data, hora: V.hora, quantidade: st.qtd, partes, cultura: f.cultura, analise: '' };
+    return { id: V.colheitaIds[fid], criadoEm: Date.now(), atualizadoEm: Date.now(), unidade: unid(V.serv.lotacao || p.municipio), levantamentoId: V.id, data: V.data, hora: V.hora.slice(0, 5), ...V.serv,
+      municipio: p.municipio, doc: digitos(p.doc), nome: textoCurto(pe.nome || '', 120).toUpperCase(), endereco: [p.nome, p.codigo && 'cód. ' + p.codigo].filter(Boolean).join(' – '),
+      lat: V.lat !== '' ? V.lat : (p.lat == null ? '' : p.lat), lon: V.lon !== '' ? V.lon : (p.lon == null ? '' : p.lon), precisao: V.prec === '' ? '' : V.prec,
+      cultura: f.cultura, quantidade: Number(st.qtd) || 1, analise: '', partes: partes.join(', '), descricao: U().textoOficial(D, nomeServ), fotos: JSON.stringify(st.fotos),
+      testemunha1Nome: V.t1nome.trim(), testemunha1Doc: V.t1doc.trim(), testemunha2Nome: V.t2nome.trim(), testemunha2Doc: V.t2doc.trim(), assinaturas: JSON.stringify(ctx.mapa),
+      local: (V.serv.lotacao || p.municipio || '') + '/AM', cancelado: 0, motivoCancel: '', excluido: 0 };
+  }
+  async function concluirVisita() {
+    const st = V; if (!st || st.salvando) return;
+    const btn = $('#vi-concluir'); st.salvando = true; if (btn) btn.disabled = true;
+    try {
+      const pgs = programas();
+      const col = st.sel.filter(fid => fruto(fid).coleta === 'Sim');
+      pgs.forEach(pg => { st.termoIds[pg.programa] = st.termoIds[pg.programa] || Store.novoId(); });
+      col.forEach(fid => { st.colheitaIds[fid] = st.colheitaIds[fid] || Store.novoId(); });
+      if (!st.assMapa) { const { mapa, novos } = Anexos.prepararAssinaturas({ ass: st.ass, assNovas: st.assNovas, dono: 'termosPce', id: st.id }); await Store.gravarVarios('arquivos', novos); st.assMapa = mapa; }
+      const ctx = { mapa: st.assMapa };
+      await Store.setMeta(RV, { ...(({ p, pe, serv, vivo, salvando, ...r }) => r)(st), em: Date.now() });           // ids dos Termos guardados: repetir não cria outro
+      const avisos = [];
+      for (const pg of pgs) {
+        const rec = montarTermo(pg, ctx);
+        if (await Store.obter('termosPce', rec.id)) continue;                                                          // já numerado numa tentativa anterior
+        const r = await numerar('termo', rec, null, null);
+        if (r.duplicado) avisos.push(`${pg.nome}: a planilha já tem o Termo ${r.duplicado.numeroTxt} desta visita; não foi criado outro.`);
+      }
+      for (const fid of col) {
+        const rec = montarColheita(fid, ctx);
+        if (await Store.obter('colheitas', rec.id)) continue;
+        await U().numerarColheita(rec);
+      }
+      clearTimeout(tV); st.vivo = false; V = null; await Store.setMeta(RV, null);
+      if (avisos.length) toast(avisos.join(' '), true);
+      Sync.sincronizar();
+      go('pcevisitapronto', st.id);
+    } catch (e) { st.salvando = false; if (btn && btn.isConnected) btn.disabled = false; toast('Erro ao concluir: ' + (e.message || e), true); }
+  }
+
+  /** Tela depois de concluir: os Termos da visita (um por programa), o Termo de Colheita e os PDFs. */
+  async function visitaPronta(id) {
+    const termos = (await Store.todos('termosPce')).filter(t => t.visitaId === id && !Number(t.excluido)).sort((a, b) => (Number(a.numero) || 0) - (Number(b.numero) || 0));
+    const cols = (await Store.todos('colheitas')).filter(c => c.levantamentoId === id && !Number(c.excluido));
+    if (!termos.length) return go('pce');
+    const t0 = termos[0], pendente = termos.some(t => t.pendente) || cols.some(c => c.pendente), doc = digitos(t0.doc);
+    view(`<div class="card" id="pce-visita-pronta"><h3>${icone('ok')} Visita concluída</h3>
+      <p><b>${esc(t0.nome)}</b> · ${esc(dBR(t0.data))} ${esc(t0.hora)} · ${esc(t0.municipio)}</p>
+      ${pendente ? `<div class="tf-novo">${icone('sincronizar')} Aguardando envio / número provisório: a planilha confere os números ao sincronizar.</div>` : '<div class="tf-ok">✓ Números confirmados na planilha.</div>'}</div>
+      ${termos.map(t => `<div class="card pce-termo-pronto" data-termo="${esc(t.id)}"><h3>${icone('formulario')} Termo de Fiscalização <span class="tf-num-inline">${esc(t.numeroTxt)}</span></h3>
+        <p>${esc(t.programaVisita)} · ${esc(culturasTermo(t))}</p>${PCECads.selo(t)}
+        <button class="botao" data-mon="imprimir" data-tipo="termo" data-id="${esc(t.id)}">${icone('imprimir')} Imprimir / PDF</button>
+        <button class="botao sec" data-mon="enviar" data-id="${esc(t.id)}">${icone('enviar')} Enviar ao produtor</button></div>`).join('')}
+      ${cols.map(c => `<div class="card pce-colheita-pronta" data-colheita="${esc(c.id)}"><h3>${icone('amostra')} Termo de Colheita <span class="tf-num-inline">${esc(c.numeroTxt)}</span></h3>
+        <p>${esc(c.cultura)} · ${esc(c.quantidade)} amostra(s)</p>${PCECads.selo(c)}
+        <button class="botao" data-pce="imprimirtermo" data-id="${esc(c.id)}">${icone('imprimir')} Imprimir / PDF (${P.vias || 2} vias)</button>
+        <button class="botao sec" data-pce="enviartermo" data-id="${esc(c.id)}">${icone('enviar')} Enviar via do produtor</button></div>`).join('')}
+      <button class="botao sec" id="vi-voltar-produtor" data-mon="produtor" data-cpf="${esc(doc)}">${icone('pessoa')} Voltar ao produtor</button>
+      <button class="botao sec" data-v="pcetermos">${icone('formulario')} Ver todos os termos</button>
+      <p class="dica">Na janela de impressão, escolha “Salvar como PDF” ou imprima direto.</p>`);
+  }
+  const culturasTermo = t => arr(lerJSON(t.culturas, [])).map(c => c.cultura).join(', ');
+  const arr = x => (Array.isArray(x) ? x : []);
+
+  /* ================= eventos da visita ================= */
+  /** Mudança num campo da visita: guarda no estado e, se o passo muda de aparência (resultado, coleta, sem assinatura), redesenha. */
+  async function visitaMudou(el, tipo) {
+    if (!V || !V.vivo || !el.closest || !el.closest('#pceVisitaForm')) return;
+    coletarPasso();
+    if (el.classList && el.classList.contains('r-res') && tipo !== 'input') {
+      const y = window.scrollY; await desenhar(); window.scrollTo(0, y);
+    } else if (el.name && /^vi-col-/.test(el.name)) {
+      const b = el.closest('.pce-cultura'), sim = rv(el.name.replace(/c$/, ''), 'c') === 'sim', am = b && b.querySelector('.vi-amostra');
+      if (am) am.hidden = !sim;
+      fruto(b.dataset.fruto).coleta = sim ? 'Sim' : 'Não';
+    } else if (el.id === 'pce-naoassina') await U().naoAssina(V, el.checked, salvarRascunho, () => { const t = $('#vi-testemunhas'); if (t) t.hidden = !el.checked; });
+    else if (el.id === 'pce-docprod-in') await U().fotoDocProdutor(V, el, salvarRascunho);
+    else if (el.classList && el.classList.contains('v-fotos')) await adicionarFotos(el.dataset.fruto, el);
+    salvarRascunho();
+  }
+  document.addEventListener('input', e => { if (e.target.closest && e.target.closest('#pceVisitaForm')) { if (e.target.classList.contains('r-res')) return; visitaMudou(e.target, 'input').catch(() => {}); } });
+  document.addEventListener('change', e => { if (e.target.closest && e.target.closest('#pceVisitaForm')) visitaMudou(e.target, 'change').catch(err => toast(err.message || String(err), true)); });
+
   /* ================= ações (cliques) ================= */
   document.addEventListener('click', async e => {
     const el = e.target.closest('[data-mon]'); if (!el) return;
     const a = el.dataset.mon, id = el.dataset.id, tipo = el.dataset.tipo;
     try {
-      if (a === 'novo') {
-        const prog = tipo === 'termo' ? '' : el.dataset.programa || ($('#mon-modelo') || {}).value || '';           // modelo escolhido na lista ("moniliase" = o de sempre)
-        go(tipo === 'termo' ? 'pcetf' : 'pcecad', el.dataset.antigo || (prog && prog !== 'moniliase') ? { ...(el.dataset.antigo ? { antigo: true } : {}), ...(prog && prog !== 'moniliase' ? { programa: prog } : {}) } : null);
-      }
-      else if (a === 'abrir') go(tipo === 'termo' ? 'pcetf' : 'pcecad', id);
+      if (a === 'novo') go('pcetf', el.dataset.antigo ? { antigo: true } : null);
+      else if (a === 'abrir') go('pcetf', id);
       else if (a === 'imprimir') await imprimir(tipo, id);
       else if (a === 'enviar') await enviar(id);
-      else if (a === 'termodocad') { const c = await Store.obter('cadastrosPce', id); go('pcetf', { cadastroId: id, antigo: !!(c && Number(c.registroAntigo) === 1 && U().podeAntigo()) }); }
+      else if (a === 'produtor') go('pceprodutor', el.dataset.cpf);
       else if (a === 'cancelar') {
         const motivo = prompt('Motivo do cancelamento (o número do termo continua usado):'); if (motivo == null) return;
         const t = await Store.obter('termosPce', id); await Store.salvar('termosPce', { ...t, cancelado: 1, motivoCancel: motivo.trim().slice(0, 300) });
-        Sync.sincronizar(); toast('Termo cancelado.'); lista('termo');
-      } else if (a === 'excluircad') {
-        const c = await Store.obter('cadastrosPce', id); if (!c || !confirm(`Excluir o cadastro ${c.numeroTxt || ''} de ${c.nome}?`)) return;
-        await Store.salvar('cadastrosPce', { ...c, excluido: 1 }); await Anexos.apagarSeNaoEnviado([...Anexos.idsArquivos(c)]);
-        Sync.sincronizar(); toast('Cadastro excluído.'); lista('cadastro');
-      } else if (a === 'relimprimir') await gerarRelatorio();
+        Sync.sincronizar(); toast('Termo cancelado.'); U().termos();
+      }
+      else if (a === 'relimprimir') await gerarRelatorio();
       else if (a === 'relarquivo') await gerarRelatorio('arquivo');
+      else if (a === 'vi-voltar') { coletarPasso(); if (V && V.passo > 1) { V.passo--; salvarRascunho(0); await desenhar(); window.scrollTo(0, 0); } }
+      else if (a === 'vi-cancelar') await cancelarVisita();
+      else if (a === 'addfruto') await acrescentarFruto();
+      else if (a === 'addpraga') {
+        const fid = el.dataset.fruto, sel = document.querySelector(`.vi-extra[data-fruto="${fid}"]`), p = sel && CA().pragasCat().find(x => x.nomePopular === sel.value);
+        if (!p) return toast('Escolha a praga/doença a acrescentar.', true);
+        coletarPasso(); const st = fruto(fid); if (!st.extras.includes(p.id)) st.extras.push(p.id);
+        salvarRascunho(0); await desenhar();
+      }
+      else if (a === 'delpraga') { coletarPasso(); const st = fruto(el.dataset.fruto); st.extras = st.extras.filter(x => x !== el.dataset.praga); delete st.pragas[el.dataset.praga]; salvarRascunho(0); await desenhar(); }
+      else if (a === 'delfoto') {
+        const fid = el.dataset.fruto, st = fruto(fid); st.fotos = st.fotos.filter(x => x !== id);
+        await Anexos.apagarSeNaoEnviado([id]); await Anexos.miniaturas($('#vi-fotos-' + fid), st.fotos, `data-mon="delfoto" data-fruto="${fid}"`); salvarRascunho(0);
+      }
+      else if (a === 'limparass' && V && V.vivo) U().limparAssinatura(V, el.dataset.papel, salvarRascunho);
+      else if (a === 'deldocprod' && V && V.vivo) { await PCEUI.soltarDocProdutor(V); await U().renderDocProdutor(V); salvarRascunho(0); }
       else if (!F) return;
       else if (a === 'gps') await usarGPS(el.dataset.pref);
-      else if (a === 'deldoc') { F.docs = F.docs.filter(x => x !== id); if (!Anexos.idsArquivos(F.rec).has(id)) await Anexos.apagarSeNaoEnviado([id]); await renderDocs(F.tipo === 'termo' ? PT : PC); agendar(0); }
-      else if (a === 'limparass') { Anexos.limparCanvas($('#mon-ass-' + el.dataset.papel)); delete F.assNovas[el.dataset.papel]; F.ass[el.dataset.papel] = ''; agendar(); }
-      else if (a === 'usarbusca') { const x = F.busca && F.busca[+el.dataset.i]; if (x) aplicarBusca(PC, x); }
-      else if (a === 'usarcad') { const c = F.buscaCad && F.buscaCad[+el.dataset.i]; if (c) ligarCadastro(c, true); }
-      else if (a === 'desligarcad') { F.cad = null; F.cadastroId = ''; F.hospedeiros = []; $('#' + PT + 'cad').innerHTML = cadLigadoHTML(F); agendar(0); const b = $('#' + PT + 'busca'); if (b) b.focus(); }
+      else if (a === 'deldoc') { F.docs = F.docs.filter(x => x !== id); if (!Anexos.idsArquivos(F.rec).has(id)) await Anexos.apagarSeNaoEnviado([id]); await renderDocs(PT); agendar(0); }
       else if (a === 'negativa') { const t = $('#' + PT + 'constatacao'); t.value = TC.constatacaoNegativa || ''; agendar(0); }
-      else if (a === 'frasescitros') await refazerFrases();
-      else if (a === 'criarcad' && F.programa === 'citros') {                      // Termo de citros: o cadastro sai do levantamento da visita
-        if (!F.levId) return toast('O Cadastro de citros sai do levantamento: abra o levantamento da visita e use “Cadastro de citros”.', true);
-        await Store.setMeta(RASC.termo, { dados: coletarTf(), id: F.id, novo: F.novo, antigo: F.antigo ? 1 : 0, docs: F.docs, assNovas: F.assNovas, cadastroId: '', propriedadeId: F.propriedadeId || '',
-          hospedeiros: [], levId: F.levId, programa: 'citros', em: Date.now() });
-        const o2 = { programa: 'citros', levId: F.levId, propId: F.propriedadeId || '', deTermo: true, antigo: F.antigo }; fechar(); go('pcecad', o2);
-      }
-      else if (a === 'criarcad') {
-        const D = coletarTf(), co = lerPar(D.lat, D.lon);
-        await Store.setMeta(RASC.termo, { dados: D, id: F.id, novo: F.novo, antigo: F.antigo ? 1 : 0, docs: F.docs, assNovas: F.assNovas, cadastroId: '', propriedadeId: F.propriedadeId || '', hospedeiros: [], em: Date.now() });
-        const antigo = F.antigo, pre = { nome: D.nome, doc: D.doc, municipio: D.municipio, endereco: D.endereco, uf: D.uf, lat: co.lat == null ? D.lat : String(co.lat).replace('.', ','),
-          lon: co.lon == null ? D.lon : String(co.lon).replace('.', ','), unidade: D.unidade };
-        if (antigo) Object.assign(pre, { sNome: D.sNome, sCargo: D.sCargo, sMatricula: D.sMatricula, sLotacao: D.sLotacao, local: D.municipio });
-        const propIdLig = F.propriedadeId || '';
-        fechar(); go('pcecad', { antigo, deTermo: true, prefill: pre, propIdLig, manter: antigo ? { sNome: D.sNome, sCargo: D.sCargo, sMatricula: D.sMatricula, sLotacao: D.sLotacao, unidade: D.unidade, municipio: D.municipio } : {} });
-      }
-      else if (a === 'salvaroutro') { if (F.tipo === 'termo') await salvarTf(true); else if (F.salvar) await F.salvar(true); else await salvarCad(true); }
+      else if (a === 'salvaroutro') await salvarTf(true);
       else if (a === 'descartar') {
         if (!confirm('Descartar este formulário? Os dados preenchidos serão perdidos.')) return;
-        const tp = F.tipo, salvo = Anexos.idsArquivos(F.rec), docs = F.docs.filter(x => !salvo.has(x)), deTermo = F.deTermo;
-        fechar(); await Anexos.apagarSeNaoEnviado(docs); await Store.setMeta(RASC[tp], null);
-        go(deTermo ? 'pcetf' : tp === 'termo' ? 'pcetfs' : 'pcecads', deTermo ? { retomar: true } : null);
+        const salvo = Anexos.idsArquivos(F.rec), docs = F.docs.filter(x => !salvo.has(x));
+        fechar(); await Anexos.apagarSeNaoEnviado(docs); await Store.setMeta(RASC.termo, null); go('pcetermos');
       }
     } catch (err) { toast(err.message || String(err), true); }
   });
 
-  // peças comuns que o pce-cadastros.js reaproveita (número, servidor, produtor, GPS, assinaturas, PDF do papel e rascunho)
-  const nucleo = { sn, cks, inp, rv, cv, g, opts, coordHTML, mostrarCoord, lerPar, lerNumeroDoc, topoPapel, pdfHTML, assHTML, ligarAss, renderDocs, adicionarPDFs, mostrarNumPapel,
-    numerarEGravar, propIdDe, montarProp, montarPessoa, docConfere, avisoDoc, buscarProdutor, dadosDaPropriedade, agendar, fechar, area, inteiro, unid, RASC, PC,
-    estado: () => F, definir: st => { F = st; } };
+  // peças comuns que o pce-cadastros.js reaproveita (perguntas sim/não, caixas, campos e número da ficha)
+  const nucleo = { sn, cks, inp, rv, cv, g, opts };
 
-  return { cadastro, termo: termoForm, pronto, lista, relatorio, gerarRelatorio, lerEixo, lerPar, lerNumeroDoc, numero, propIdDe, imprimir, nucleo };
+  return { visita, visitaPronta, termo: termoForm, pronto: prontoPapel, relatorio, gerarRelatorio, lerEixo, lerPar, lerNumeroDoc, numero, propIdDe, imprimir, numerar, nucleo };
 })();

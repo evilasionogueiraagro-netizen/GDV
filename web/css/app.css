@@ -216,6 +216,21 @@ nav button span { font-size:9.5px; } nav button.on { color:var(--link); font-wei
 .mon-previa { background:var(--sf2); box-shadow:none; border:1px solid var(--grade); } .mon-rel-lista { margin:6px 0; padding-left:18px; } .mon-rel-lista li { margin:4px 0; }
 .campo-mon { margin:6px 0 0; color:var(--mut); }
 .cargo-outro { margin-top:6px; } .cargo-outro[hidden] { display:none; }
+/* PCE: produtores, tela do produtor e nova visita em passos */
+.pce-passos-topo { display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; } .pce-passos-topo small { color:var(--mut); font-size:13px; }
+.pce-passos-barra { display:grid; grid-template-columns:repeat(5, 1fr); gap:4px; margin:8px 0; } .pce-passos-barra span { height:6px; border-radius:3px; background:var(--grade); } .pce-passos-barra span.on { background:var(--marca2); }
+.vi-fruto { display:flex; flex-direction:row; align-items:center; gap:8px; padding:10px 0; border-bottom:1px solid var(--grade); color:var(--ink); min-height:44px; } .vi-fruto input { width:auto; }
+.vi-novo-fruto { margin-top:12px; border:1px dashed var(--grade); border-radius:10px; padding:8px 10px; } .vi-novo-fruto summary { cursor:pointer; color:var(--link); font-weight:600; padding:6px 0; }
+.vi-det { border-top:1px dashed var(--grade); margin-top:6px; padding-top:6px; } .vi-amostra[hidden] { display:none; }
+.vi-nav { margin:12px 0 6px; } .vi-nav .botao { margin:0 0 8px; } .vi-nav.duas .botao { margin:0; }
+.vi-enq { font-size:13px; color:var(--mut); margin:2px 0 0; overflow-wrap:anywhere; }
+.pce-sub { margin:12px 0 4px; font-size:14px; color:var(--mut); }
+.pce-frutos { margin:0 0 8px; padding-left:20px; } .pce-frutos li { margin:2px 0; }
+.pce-visita-termo { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; padding:8px 0; border-top:1px solid var(--grade); } .pce-visita-termo:first-of-type { border-top:0; }
+.pce-visita-termo > div:first-child { min-width:0; } .pce-visita-termo small { display:block; color:var(--mut); font-size:13px; overflow-wrap:anywhere; }
+.pce-visita-termo .pce-doc-acoes { flex-shrink:0; } .pce-prop .botoes { flex-wrap:wrap; }
+.tf-num-inline { color:var(--destaque); font-weight:700; }
+.pce-papel .duas .botao { margin:0; font-size:14px; padding:12px 8px; }
 /* PCE: produtor que não assina — foto com documento de identificação no lugar da assinatura */
 .pce-naoassina { margin:4px 0 8px; } .pce-docprod .pce-fotos { margin:6px 0; } .pce-ass[hidden], .pce-docprod[hidden] { display:none; }
 

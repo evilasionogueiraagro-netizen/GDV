@@ -260,8 +260,9 @@
     ], cob.linhas, { id: 'pce-cobertura', csv: 'pce-cobertura-municipal.csv', ordenar: 'dias', limite: 15, vazio: 'Nenhum município.' });
 
     /* Levantamentos */
-    const sl = P.secao(c, 'Levantamentos do período', 'Documento do produtor mascarado (LGPD). Busque por propriedade, município, cultura, praga ou servidor.');
+    const sl = P.secao(c, 'Levantamentos do período', 'Levantamentos antigos e visitas dos Termos de Fiscalização (um Termo por programa; a visita conta uma vez). Documento do produtor mascarado (LGPD). Busque por propriedade, município, cultura, praga ou servidor.');
     P.tabela(sl, [
+      { chave: 'origem', rotulo: 'Origem', fmt: v => v === 'termo' ? 'Termo' : 'Levantamento antigo' },
       { chave: 'data', rotulo: 'Data', fmt: (v, l) => `${fmt.data(v)}${l.hora ? ' ' + l.hora : ''}`, csv: v => fmt.data(v), ordem: l => (l.data || '') + (l.hora || '') },
       { chave: 'municipio', rotulo: 'Município' },
       { chave: 'propriedade', rotulo: 'Propriedade', fmt: (v, l) => [v, l.codigoPropriedade].filter(Boolean).join(' · ') || '—' },

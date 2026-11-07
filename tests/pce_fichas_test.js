@@ -128,24 +128,86 @@ const contem = (texto, lista) => lista.filter(x => !norm(texto).includes(norm(x)
   const O = await origem();
   const b = await amb.lancar();
   const err = [];
-  /** Abre o modelo, monta, confere que cabe numa folha A4 e salva PDF + PNG. Devolve {texto, secoes, folhas}. */
-  async function gerar(arquivo, nome, montar) {
+  const medir = () => {
+    const mm = v => v / 96 * 25.4;
+    return [...document.querySelectorAll('.a4.doc')].map(pg => {
+      const r = pg.getBoundingClientRect(), f = pg.querySelector('.doc-rodape').getBoundingClientRect(), cq = pg.querySelector('.cq').getBoundingClientRect(), cab = pg.querySelector('.doc-cab').getBoundingClientRect();
+      let min = 99; const fam = new Set(), w = document.createTreeWalker(pg, NodeFilter.SHOW_TEXT);
+      while (w.nextNode()) {
+        const el = w.currentNode.parentElement; if (!w.currentNode.textContent.trim() || !el.getClientRects().length) continue;
+        const cs = getComputedStyle(el); min = Math.min(min, parseFloat(cs.fontSize)); fam.add(cs.fontFamily.split(',')[0].replace(/['"]/g, '').trim());
+      }
+      const lbl = pg.querySelector('td.lbl, .cp > .lbl');
+      return { alturaMm: mm(r.height), larguraMm: mm(r.width), rodapeBaseMm: mm(r.bottom - f.bottom), rodapeTopoMm: mm(f.top - r.top), rodapeAlturaMm: mm(f.height), folgaMm: mm(f.top - cq.bottom),
+        cqEsqMm: mm(cq.left - r.left), cqDirMm: mm(r.right - cq.right), cabTopoMm: mm(cab.top - r.top), minPx: min, familias: [...fam], corpoPx: lbl ? parseFloat(getComputedStyle(lbl).fontSize) : 0,
+        compacta: pg.classList.contains('compacta'), thead: pg.querySelectorAll('table.cult thead').length, assin: pg.querySelectorAll('.assin').length, linhasPl: pg.querySelectorAll('.pl').length };
+    });
+  };
+  /**
+   * Abre o modelo, monta, mede cada folha, gera o PDF do navegador (p.pdf) e o PNG (300 dpi) e devolve {texto, secoes, folhas, pags}.
+   * o.fonte = fonte forçada em tudo (teste de aparelho sem Arial); o.semFundo = também PDF sem "gráficos de fundo"; o.pdfjs = rota do app (pdf.js).
+   */
+  async function gerar(arquivo, nome, montar, o = {}) {
     const c = await b.newContext({ viewport: { width: 794, height: 1123 } });
     const p = await c.newPage();
     p.on('pageerror', e => err.push(nome + ': ' + e.message)); p.on('console', m => m.type() === 'error' && !/Failed to load resource/.test(m.text()) && err.push(nome + ': ' + m.text()));
     await p.goto(`${O.url}/documentos/${arquivo}`);
     await p.waitForFunction(() => window.PCEDocs);
+    if (o.fonte) await p.addStyleTag({ content: `.a4.doc, .a4.doc * { font-family: '${o.fonte}' !important; }` });
+    await p.emulateMedia({ media: 'print' });
     await p.evaluate(montar.fn, montar.args);
     await p.evaluate(() => Promise.all([...document.images].map(im => (im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; })))));
-    await p.emulateMedia({ media: 'print' });
+    const pags = await p.evaluate(medir);
     const pdf = path.join(SAIDA, nome + '.pdf');
-    await p.pdf({ path: pdf, format: 'A4', printBackground: true, preferCSSPageSize: true });
-    const folhas = (fs.readFileSync(pdf, 'latin1').match(/\/Type\s*\/Page[^s]/g) || []).length;
-    try { execFileSync('pdftoppm', ['-png', '-singlefile', '-r', '110', pdf, path.join(SAIDA, nome)]); } catch (e) { await p.screenshot({ path: path.join(SAIDA, nome + '.png'), fullPage: true }); }
-    const r = await p.evaluate(() => ({ texto: document.body.innerText.replace(/\s+/g, ' '), secoes: [...document.querySelectorAll('td.sec')].map(x => x.textContent.replace(/\s+/g, ' ').trim()),
-      altura: document.querySelector('.a4').scrollHeight, modelo: document.querySelector('.a4').getAttribute('data-modelo'), largura: document.documentElement.scrollWidth }));
+    await p.pdf({ path: pdf, preferCSSPageSize: true, printBackground: true });
+    const folhas = Number(/Pages:\s+(\d+)/.exec(execFileSync('pdfinfo', [pdf]).toString())[1]);
+    if (!o.fonte) {
+      try { execFileSync('pdftoppm', ['-png', '-singlefile', '-r', '300', pdf, path.join(SAIDA, nome)]); } catch (e) { await p.screenshot({ path: path.join(SAIDA, nome + '.png'), fullPage: true }); }
+    }
+    let semFundo = null;
+    if (o.semFundo) {
+      const pdf2 = path.join(SAIDA, nome + '-sem-fundo.pdf');
+      await p.pdf({ path: pdf2, preferCSSPageSize: true, printBackground: false });
+      execFileSync('pdftoppm', ['-png', '-singlefile', '-r', '110', pdf2, path.join(SAIDA, nome + '-sem-fundo')]);
+      semFundo = true;
+    }
+    const texto = execFileSync('pdftotext', [pdf, '-']).toString().replace(/\s+/g, ' ');   // texto vetorial: o PDF do navegador tem de ter texto selecionável
+    const r = await p.evaluate(() => ({ secoes: [...document.querySelectorAll('td.sec')].map(x => x.textContent.replace(/\s+/g, ' ').trim()), modelo: document.querySelector('.a4').getAttribute('data-modelo'), largura: document.documentElement.scrollWidth,
+      txt: document.body.innerText.replace(/\s+/g, ' ') }));
     await c.close();
-    return { ...r, folhas };
+    return { ...r, texto: r.txt, textoPdf: texto, folhas, pags, semFundo };
+  }
+  /** Recortes ampliados (3x) do cabeçalho e do rodapé da primeira folha, para conferir a olho. */
+  async function recortes(arquivo, nome, montar) {
+    const c = await b.newContext({ viewport: { width: 794, height: 1123 }, deviceScaleFactor: 3 }), p = await c.newPage();
+    await p.goto(`${O.url}/documentos/${arquivo}`); await p.waitForFunction(() => window.PCEDocs); await p.emulateMedia({ media: 'print' }); await p.evaluate(montar.fn, montar.args);
+    await p.evaluate(() => Promise.all([...document.images].map(im => (im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; })))));
+    await p.locator('.a4.doc').first().locator('.doc-rodape').screenshot({ path: path.join(SAIDA, 'rodape-' + nome + '.png') });
+    await p.locator('.a4.doc').first().locator('.doc-cab').screenshot({ path: path.join(SAIDA, 'cabecalho-' + nome + '.png') });
+    await c.close();
+  }
+  /** Rota do app: pdf.js (html2canvas, uma imagem por folha). Devolve as folhas (JPEG gravado em tests/saida), PDF montado e as medidas de PDF.ultima. */
+  async function pelaRotaDoApp(arquivo, nome, montar, op) {
+    const c = await b.newContext({ viewport: { width: 794, height: 1123 } }), p = await c.newPage();
+    p.on('pageerror', e => err.push(nome + ' (pdf.js): ' + e.message));
+    await p.goto(`${O.url}/documentos/${arquivo}`); await p.waitForFunction(() => window.PCEDocs);
+    await p.addScriptTag({ url: `${O.url}/vendor/html2canvas.min.js` }); await p.addScriptTag({ url: `${O.url}/js/pdf.js` });
+    await p.evaluate(montar.fn, montar.args);
+    await p.evaluate(() => Promise.all([...document.images].map(im => (im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; })))));
+    const t0 = Date.now();
+    const r = await p.evaluate(async op => {
+      const pags = await PDF.paginasDe(document, '.a4', op), blob = PDF.montar(pags, 'teste'), buf = new Uint8Array(await blob.arrayBuffer());
+      let bin = ''; for (let i = 0; i < buf.length; i += 8192) bin += String.fromCharCode.apply(null, buf.subarray(i, i + 8192));
+      const jp = pags.map(x => { let s = ''; for (let i = 0; i < x.jpeg.length; i += 8192) s += String.fromCharCode.apply(null, x.jpeg.subarray(i, i + 8192)); return btoa(s); });
+      return { ultima: PDF.ultima, pdf: btoa(bin), jp, larguras: pags.map(x => x.pw), kbPdf: Math.round(buf.length / 1024) };
+    }, op);
+    const ms = Date.now() - t0;
+    fs.writeFileSync(path.join(SAIDA, nome + '-pdfjs.pdf'), Buffer.from(r.pdf, 'base64'));
+    r.jp.forEach((j, i) => fs.writeFileSync(path.join(SAIDA, `${nome}-pdfjs-p${i + 1}.jpg`), Buffer.from(j, 'base64')));
+    const folhas = Number(/Pages:\s+(\d+)/.exec(execFileSync('pdfinfo', [path.join(SAIDA, nome + '-pdfjs.pdf')]).toString())[1]);
+    execFileSync('pdftoppm', ['-png', '-singlefile', '-r', '300', path.join(SAIDA, nome + '-pdfjs.pdf'), path.join(SAIDA, nome + '-pdfjs')]);
+    await c.close();
+    return { ...r, folhas, ms };
   }
   const fichaFn = ([tipo, dados]) => PCEDocs.montar(document, tipo, dados, {});
   const R = {}, A = {};
@@ -161,7 +223,8 @@ const contem = (texto, lista) => lista.filter(x => !norm(texto).includes(norm(x)
   for (const m of Object.keys(ANTIGOS)) {
     const antes = JSON.stringify(ANTIGOS[m]);
     A[m] = await gerar('pce-ficha.html', `ficha-${m}-antiga`, { fn: fichaFn, args: [m === 'moniliase' ? 'cadastro' : 'cadastro' + m[0].toUpperCase() + m.slice(1), ANTIGOS[m]] });
-    ok(A[m].folhas === 1, `${m} (antigo): cabe em uma folha A4`, A[m].folhas);
+    const cheio = m === 'citros' || m === 'moniliase';   // formato antigo com muitas respostas legadas: pode pedir 2 folhas (rodapé nas duas)
+    ok(cheio ? A[m].folhas <= 2 && A[m].folhas === A[m].pags.length : A[m].folhas === 1, `${m} (antigo): ${cheio ? 'até 2 folhas, cada uma com rodapé' : 'cabe em uma folha A4'} (${A[m].folhas})`, A[m].folhas);
     ok(A[m].modelo === m, `${m} (antigo): abre no modelo ${m}`, A[m].modelo);
     ok(JSON.stringify(ANTIGOS[m]) === antes, `${m} (antigo): o registro não foi alterado`);
   }
@@ -261,6 +324,87 @@ const contem = (texto, lista) => lista.filter(x => !norm(texto).includes(norm(x)
   ok(/Testemunha Ficticia Um/.test(TM.texto) && /Não constatei a presença da monilíase/.test(TM.texto) && /IN 112/.test(TM.texto) && !/no\(a\) .* constatei/.test(TM.texto.replace(/no\(a\)\s+constatei/, '')) , 'Termo de monilíase: testemunha, constatação e enquadramento');
   ok(JSON.stringify(TERMOS.citros).includes('Pomar de laranja'), 'Termo antigo não foi alterado');
 
+  console.log('Folha fixa de 210 x 297 mm, margens e fonte da base (documento-base.css), rodapé na base de toda folha');
+  const TODAS = [...Object.entries(R).map(([k, v]) => ['ficha ' + k, v]), ...Object.entries(A).map(([k, v]) => ['ficha ' + k + ' (antigo)', v]), ['termo citros', TC], ['termo moniliase', TM]];
+  const folhasTodas = TODAS.flatMap(([n, x]) => x.pags.map((g, i) => ({ n: `${n} f${i + 1}`, ...g })));
+  const perto = (a, b2, t) => Math.abs(a - b2) <= t;
+  ok(folhasTodas.every(g => perto(g.alturaMm, 297, 0.3) && perto(g.larguraMm, 210, 0.3)), 'toda folha mede 210 x 297 mm', folhasTodas.filter(g => !perto(g.alturaMm, 297, 0.3)).map(g => [g.n, g.alturaMm]));
+  ok(folhasTodas.every(g => perto(g.rodapeBaseMm, 8, 0.5)), `rodapé a 8 mm da base em todas as ${folhasTodas.length} folhas`, folhasTodas.filter(g => !perto(g.rodapeBaseMm, 8, 0.5)).map(g => [g.n, g.rodapeBaseMm]));
+  const ref = folhasTodas[0];
+  ok(folhasTodas.every(g => perto(g.rodapeTopoMm, ref.rodapeTopoMm, 0.3) && perto(g.rodapeAlturaMm, ref.rodapeAlturaMm, 0.3)), `rodapé na mesma posição (${ref.rodapeTopoMm.toFixed(1)} mm do topo) e com a mesma altura (${ref.rodapeAlturaMm.toFixed(1)} mm) em todas`,
+    folhasTodas.filter(g => !perto(g.rodapeTopoMm, ref.rodapeTopoMm, 0.3)).map(g => [g.n, g.rodapeTopoMm, g.rodapeAlturaMm]));
+  ok(folhasTodas.every(g => g.folgaMm >= 0), 'o corpo termina acima do topo do rodapé em toda folha (sem sobrepor)', folhasTodas.filter(g => g.folgaMm < 0).map(g => [g.n, g.folgaMm]));
+  ok(folhasTodas.every(g => perto(g.cqEsqMm, 14, 0.3) && perto(g.cqDirMm, 14, 0.3) && perto(g.cabTopoMm, 10, 0.3)), 'margens do Termo de barreira: 14 mm nas laterais e 10 mm em cima', folhasTodas.filter(g => !perto(g.cqEsqMm, 14, 0.3)).map(g => [g.n, g.cqEsqMm, g.cqDirMm, g.cabTopoMm]));
+  ok(folhasTodas.every(g => g.familias.length === 1 && g.familias[0] === 'Arial'), 'fonte Arial em todo o texto (rótulos, valores, rodapé)', [...new Set(folhasTodas.flatMap(g => g.familias))]);
+  const MIN_PX = 7 * 96 / 72 - 0.05;
+  ok(folhasTodas.every(g => g.minPx >= MIN_PX), 'nenhum texto abaixo de 7 pt', folhasTodas.filter(g => g.minPx < MIN_PX).map(g => [g.n, g.minPx]));
+  ok(folhasTodas.every(g => g.corpoPx === 0 || g.corpoPx >= (g.compacta ? 8.5 : 9.6) * 96 / 72 - 0.05), 'corpo de 9,6 pt (8,5 pt só nas folhas compactas)', folhasTodas.map(g => [g.n, g.corpoPx.toFixed(1)]).slice(0, 3));
+  console.log('  · folhas compactas (8,5 pt) nos dados de teste: ' + (Object.entries(R).filter(([, v]) => v.pags.some(g => g.compacta)).map(([k]) => k).join(', ') || 'nenhuma') + '; 2 folhas: ' + (TODAS.filter(([, x]) => x.folhas > 1).map(([n]) => n).join(', ') || 'nenhuma'));
+  console.log('  · folhas por documento: ' + TODAS.map(([n, x]) => `${n}=${x.folhas}`).join('; '));
+  ok(Object.keys(R).concat(['soja', 'banana', 'mandioca', 'propriedade']).every(m => R[m].folhas === 1) && TC.folhas === 1 && TM.folhas === 1, 'soja, banana, mandioca, propriedade, citros, cacau e Termos: exatamente 1 página no PDF do navegador');
+  ok(TODAS.every(([, x]) => /Avenida Carlos Drummond de Andrade, 1460 Japiim/.test(x.textoPdf) && /E-mail: gabinete@adaf\.am\.gov\.br/.test(x.textoPdf) && /via/.test(x.textoPdf)) && !TODAS.some(([, x]) => /e-GDV · plantas/.test(x.textoPdf)), 'rodapé com endereço e vias em todas; nada de "e-GDV · plantas inspecionadas"');
+  ok(TODAS.every(([, x]) => !/\b(null|undefined|NaN)\b/.test(x.textoPdf) && !/\b(null|undefined|NaN)\b/.test(x.texto)), 'nenhum valor vazio vira "null", "undefined" ou "NaN" nos 14 documentos', TODAS.filter(([, x]) => /\b(null|undefined|NaN)\b/.test(x.textoPdf)).map(([n]) => n));
+  ok(Object.values(R).every(x => /Gerência de Defesa Vegetal – GDV/.test(x.textoPdf)) && ![TC, TM].some(x => /Gerência de Defesa Vegetal/.test(x.textoPdf)), 'cabeçalho: ficha com 3 linhas de órgão (com a GDV) e Termo com 2, como no papel');
+  ok(TODAS.every(([, x]) => x.textoPdf.length > 400) && /FICHA DE CADASTRO E LEVANTAMENTO DE SOJA/.test(R.soja.textoPdf) && /Maria Ficticia da Silva Teste/.test(R.soja.textoPdf), 'PDF do navegador com texto vetorial (pdftotext lê o conteúdo)');
+  ok(TC.pags[0].linhasPl >= 9, 'linhas de escrever do Termo são elementos com borda (não fundo)', TC.pags[0].linhasPl);
+
+  console.log('Sem "gráficos de fundo" (printBackground: false)');
+  const arg = { fn: fichaFn, args: ['ficha', { modelo: 'propriedade', produtor: prodBase, propriedade: NOVOS.propriedade.propriedade, dados: NOVOS.propriedade.dados, visita: NOVOS.propriedade.visita, ficha: fichaBase }] };
+  const SF = await gerar('pce-ficha.html', 'ficha-propriedade', arg, { semFundo: true });
+  const SFT = await gerar('pce-termo.html', 'termo-citros', { fn: termoFn, args: ['termoCitros', TERMOS.citros] }, { semFundo: true });
+  ok(SF.semFundo && SFT.semFundo && fs.existsSync(path.join(SAIDA, 'termo-citros-sem-fundo.png')) && SFT.pags[0].linhasPl >= 9, 'PDFs sem fundo gerados (confira os PNG *-sem-fundo)');
+
+  console.log('Aparelho sem Arial: fonte mais larga forçada (DejaVu Sans)');
+  const DJ = {};
+  for (const m of Object.keys(NOVOS)) {
+    DJ[m] = await gerar('pce-ficha.html', `ficha-${m}-dejavu`, { fn: fichaFn, args: ['ficha', { modelo: m, produtor: prodBase, propriedade: NOVOS[m].propriedade, dados: NOVOS[m].dados, visita: NOVOS[m].visita, ficha: fichaBase }] }, { fonte: 'DejaVu Sans' });
+  }
+  ok(Object.values(DJ).every(x => x.folhas === x.pags.length && x.pags.every(g => g.folgaMm >= 0 && perto(g.rodapeBaseMm, 8, 0.5))), 'com fonte mais larga: cada folha com rodapé na base e o corpo acima dele', Object.fromEntries(Object.entries(DJ).map(([k, x]) => [k, [x.folhas, x.pags.map(g => g.folgaMm.toFixed(1))]])));
+  console.log('  · folhas com DejaVu Sans: ' + Object.entries(DJ).map(([k, x]) => `${k}=${x.folhas}`).join(', '));
+  const TDJ = await gerar('pce-termo.html', 'termo-citros-dejavu', { fn: termoFn, args: ['termoCitros', TERMOS.citros] }, { fonte: 'DejaVu Sans' });
+  ok(TDJ.folhas === 1 && TDJ.pags[0].folgaMm >= 0, 'Termo com fonte mais larga: 1 página, sem sobrepor o rodapé', [TDJ.folhas, TDJ.pags[0].folgaMm]);
+
+  console.log('Ficha com 12 frutos: 2 folhas, cabeçalho da tabela repetido, rodapé nas duas, assinatura inteira na última');
+  const F12 = Array.from({ length: 12 }, (_, i) => F('Laranja', 'Cultivar ' + (i + 1), String(i + 1), '4', String(100 * (i + 1)), '9', 'Feira'));
+  const D12 = await gerar('pce-ficha.html', 'ficha-citros-12-frutos', { fn: fichaFn, args: ['ficha', { modelo: 'citros', produtor: prodBase, propriedade: { ...NOVOS.citros.propriedade, frutos: F12 }, dados: NOVOS.citros.dados, visita: NOVOS.citros.visita, ficha: fichaBase }] });
+  ok(D12.folhas === 2 && D12.pags.length === 2, '12 frutos: 2 folhas no PDF', [D12.folhas, D12.pags.length]);
+  ok(D12.pags.every(g => perto(g.rodapeBaseMm, 8, 0.5) && g.folgaMm >= 0), 'rodapé na base das duas folhas, sem sobrepor', D12.pags.map(g => [g.rodapeBaseMm, g.folgaMm]));
+  const F24 = Array.from({ length: 24 }, (_, i) => F('Laranja', 'Cultivar ' + (i + 1), String(i + 1), '4', String(100 * (i + 1)), '9', 'Feira'));
+  const D24 = await gerar('pce-ficha.html', 'ficha-citros-24-frutos', { fn: fichaFn, args: ['ficha', { modelo: 'citros', produtor: prodBase, propriedade: { ...NOVOS.citros.propriedade, frutos: F24 }, dados: NOVOS.citros.dados, visita: NOVOS.citros.visita, ficha: fichaBase }] });
+  ok(D24.folhas === 2 && D24.pags.every(g => g.thead === 1 && perto(g.rodapeBaseMm, 8, 0.5) && g.folgaMm >= 0) && /Cultivar 24/.test(D24.textoPdf) && D24.pags[1].assin === 1 && D24.pags[0].assin === 0, '24 frutos: a tabela continua na 2ª folha com o cabeçalho repetido, rodapé nas duas e assinaturas só na última', D24.pags.map(g => [g.thead, g.assin, g.folgaMm]));
+  ok(D12.pags[1].assin === 1 && D12.pags[0].assin === 0 && /Cultivar 12/.test(D12.textoPdf) && /Cultivar 1 /.test(D12.textoPdf) && /continuação/.test(D12.textoPdf), 'assinaturas só na última folha, com todos os 12 frutos e a marca de continuação');
+  const D12n = await gerar('pce-ficha.html', 'ficha-moniliase-antiga-teste-folhas', { fn: fichaFn, args: ['cadastro', ANTIGOS.moniliase] });
+  ok(D12n.folhas === 2 && D12n.pags.every(g => g.folgaMm >= 0 && perto(g.rodapeBaseMm, 8, 0.5)), 'ficha antiga de cacau (a mais cheia): 2 folhas, rodapé nas duas');
+
+  console.log('Rota do app: pdf.js (html2canvas, 300 dpi)');
+  const PJ = {};
+  for (const [nome, arq, mont] of [['ficha-soja', 'pce-ficha.html', { fn: fichaFn, args: ['ficha', { modelo: 'soja', produtor: prodBase, propriedade: NOVOS.soja.propriedade, dados: NOVOS.soja.dados, visita: NOVOS.soja.visita, ficha: fichaBase }] }],
+    ['ficha-citros', 'pce-ficha.html', { fn: fichaFn, args: ['ficha', { modelo: 'citros', produtor: prodBase, propriedade: NOVOS.citros.propriedade, dados: NOVOS.citros.dados, visita: NOVOS.citros.visita, ficha: fichaBase }] }],
+    ['ficha-moniliase-antiga', 'pce-ficha.html', { fn: fichaFn, args: ['cadastro', ANTIGOS.moniliase] }],
+    ['ficha-citros-12-frutos', 'pce-ficha.html', { fn: fichaFn, args: ['ficha', { modelo: 'citros', produtor: prodBase, propriedade: { ...NOVOS.citros.propriedade, frutos: F12 }, dados: NOVOS.citros.dados, visita: NOVOS.citros.visita, ficha: fichaBase }] }],
+    ['termo-citros', 'pce-termo.html', { fn: termoFn, args: ['termoCitros', TERMOS.citros] }], ['termo-moniliase', 'pce-termo.html', { fn: termoFn, args: ['termo', TERMOS.moniliase] }]]) {
+    PJ[nome] = await pelaRotaDoApp(arq, nome, mont, { escala: 3.125, qualidade: 0.92 });
+    console.log(`  · ${nome}: ${PJ[nome].folhas} página(s), ${PJ[nome].ultima.dpi} dpi, imagem ${PJ[nome].larguras[0]} x ${PJ[nome].ultima.paginas[0].ph} px, ${PJ[nome].ultima.paginas.map(x => x.kb + ' KB').join(' + ')}, PDF ${PJ[nome].kbPdf} KB, ${PJ[nome].ms} ms`);
+  }
+  ok(Object.values(PJ).every(x => x.larguras.every(w => w >= 2400) && x.ultima.dpi >= 295 && x.ultima.escala === 3.125), 'imagem embutida com pelo menos 2400 px de largura (300 dpi) em todas');
+  ok(['ficha-soja', 'ficha-citros', 'termo-citros', 'termo-moniliase'].every(n => PJ[n].folhas === 1) && PJ['ficha-citros-12-frutos'].folhas === 2 && PJ['ficha-moniliase-antiga'].folhas === 2, 'pdf.js: 1 página por folha do modelo (12 frutos e ficha antiga de cacau: 2)', Object.fromEntries(Object.entries(PJ).map(([k, x]) => [k, x.folhas])));
+  ok(Object.values(PJ).every(x => x.ultima.paginas.every(g => g.kb < 3584)), 'cada folha abaixo de 3,5 MB (limite de 4 MB do arquivoEnviar para imagem)', Object.fromEntries(Object.entries(PJ).map(([k, x]) => [k, x.ultima.paginas.map(g => g.kb)])));
+  const PJpadrao = await pelaRotaDoApp('pce-ficha.html', 'ficha-soja-padrao', { fn: fichaFn, args: ['ficha', { modelo: 'soja', produtor: prodBase, propriedade: NOVOS.soja.propriedade, dados: NOVOS.soja.dados, visita: NOVOS.soja.visita, ficha: fichaBase }] }, undefined);
+  ok(PJpadrao.ultima.escala === 2 && PJpadrao.larguras[0] < 2000, 'sem opção, pdf.js mantém a escala 2 de sempre (outros módulos não mudam)', [PJpadrao.ultima.escala, PJpadrao.larguras[0]]);
+
+  console.log('Recortes ampliados do cabeçalho e do rodapé; Termo de barreira em branco para comparar');
+  await recortes('pce-ficha.html', 'ficha-soja', { fn: fichaFn, args: ['ficha', { modelo: 'soja', produtor: prodBase, propriedade: NOVOS.soja.propriedade, dados: NOVOS.soja.dados, visita: NOVOS.soja.visita, ficha: fichaBase }] });
+  await recortes('pce-termo.html', 'termo-citros', { fn: termoFn, args: ['termoCitros', TERMOS.citros] });
+  await recortes('pce-ficha.html', 'ficha-moniliase-antiga', { fn: fichaFn, args: ['cadastro', ANTIGOS.moniliase] });
+  await recortes('pce-ficha.html', 'ficha-citros', { fn: fichaFn, args: ['ficha', { modelo: 'citros', produtor: prodBase, propriedade: NOVOS.citros.propriedade, dados: NOVOS.citros.dados, visita: NOVOS.citros.visita, ficha: fichaBase }] });
+  {
+    const c = await b.newContext({ viewport: { width: 794, height: 1123 } }), p = await c.newPage();
+    await p.goto(`${O.url}/documentos/termo.html`); await p.emulateMedia({ media: 'print' });
+    await p.pdf({ path: path.join(SAIDA, 'barreira-termo-em-branco.pdf'), preferCSSPageSize: true, printBackground: true });
+    execFileSync('pdftoppm', ['-png', '-singlefile', '-r', '110', path.join(SAIDA, 'barreira-termo-em-branco.pdf'), path.join(SAIDA, 'barreira-termo-em-branco')]);
+    await c.close();
+  }
+
   console.log('Relatório de atividades com anexos (termo e ficha antigos)');
   const REL = await (async () => {
     const c = await b.newContext({ viewport: { width: 794, height: 1123 } }); const p = await c.newPage();
@@ -272,7 +416,7 @@ const contem = (texto, lista) => lista.filter(x => !norm(texto).includes(norm(x)
     }, [TERMOS.citros, ANTIGOS.moniliase]);
     await c.close(); return r;
   })();
-  ok(REL.n === 3 && /pce-doc termo/.test(REL.classes[1]) && /pce-doc ficha/.test(REL.classes[2]) && /Quintal fictício/.test(REL.texto) && /Pomar de laranja/.test(REL.texto), 'relatório: termo e ficha anexados com os modelos novos', REL.classes);
+  ok(REL.n >= 3 && /doc termo/.test(REL.classes[1]) && /doc ficha/.test(REL.classes[2]) && /doc ficha/.test(REL.classes[REL.n - 1]) && /Quintal fictício/.test(REL.texto) && /Pomar de laranja/.test(REL.texto), 'relatório: termo e ficha anexados com os modelos novos', REL.classes);
 
   console.log('Mesma aparência: cabeçalho, quadro e rodapé iguais na Ficha e no Termo');
   const todos = [...Object.values(R), TC, TM];

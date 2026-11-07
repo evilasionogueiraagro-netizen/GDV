@@ -94,6 +94,8 @@ const hoje = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10);
     const p5 = await abrirApp(F5.ls);
     await p5.waitForSelector('.contador h1', { timeout: 20000 });
     ok(/Turno de Fulano Ficticio Teste/.test(await p5.textContent('main')) && await p5.evaluate(id => Store.meta('turnoAtual').then(x => x === id), turnoId), 'o app do colega entra sozinho no turno (sem "Iniciar turno")');
+    const fica = await p5.evaluate(async id => { await Store.setMeta('turnoAtual', ''); await Store.setMeta('turnosCompartilhados', []); await Sync.sincronizar(); return !!(await Store.obter('turnos', id)); }, turnoId);
+    ok(fica, 'a limpeza do sync não apaga o turno do colega em que este login entrou (mesmo sem turnoAtual)');
     r = await post({ action: 'turnoEntrar', key: F5.token, turnoId }); ok(r.ok && r.turno.id === turnoId, '"Voltar para este turno" (de novo): aceito sem duplicar', r.erro);
     ok((await aba('Pareamentos')).filter(x => x.turnoId === turnoId && x.colega === F5.nome).length === 1, 'um pareamento só');
     r = await post({ action: 'turnoSair', key: F5.token, turnoId }); await p5.context().close();

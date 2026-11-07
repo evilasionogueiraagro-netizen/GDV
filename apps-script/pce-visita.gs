@@ -3,8 +3,9 @@
  * (visitaId, programaVisita); as culturas avaliadas ficam em `culturas` (JSON, normalizado aqui). Termo antigo (sem visitaId) segue como está.
  * O levantamento deixou de ser criado, mas o servidor continua aceitando os que o aparelho tinha pendentes (Levantamentos intacta).
  *
- * visitasPce_() é a ÚNICA regra do que conta como "visita" nos números do PCE (convênio, Relatório GDV, dashboard público, painel, TV e
- * relatório de rotina): levantamentos antigos + Termos do fluxo novo; sem data de corte.
+ * visitasPce_() é a regra do que conta como "visita" nos números do PCE (Relatório GDV, dashboard público, painel, TV e relatório de rotina):
+ * levantamentos antigos + Termos do fluxo novo; sem data de corte. A etapa 1.4 do convênio (convenios.gs) é à parte: sempre somou levantamentos e
+ * Termos, inclusive os antigos, e o número já apurado não pode mudar.
  */
 const MAX_CULTURAS_TERMO_PCE_ = 40;
 const MAX_PRAGAS_CULTURA_PCE_ = 25;

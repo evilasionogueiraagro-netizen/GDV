@@ -1,11 +1,18 @@
-// PCE — documentos do Cadastro de imóvel (monilíase), do Cadastro de citros, dos Cadastros por programa (banana, mandioca, soja e propriedade: um
-// modelo de papel cada), do Termo de Fiscalização do PCE (o de citros tem modelo próprio) e do Relatório de atividades. Usado em três lugares: dentro
-// dos modelos (pce-cadastro-moniliase.html, pce-cadastro-citros.html, pce-cadastro-{banana,mandioca,soja,propriedade}.html, pce-termo.html,
-// pce-termo-citros.html, pce-relatorio.html), no app de campo
-// (docs.js abre o modelo num iframe e chama PCEDocs.montar) e no painel (relatório). Sem dependências: só DOM e dados.
+// PCE: documentos da Ficha oficial (um só modelo para os 6 formulários de papel: citros, banana, cacau e cupuaçu, mandioca, soja e propriedade),
+// do Termo de Fiscalização (um só modelo, todos os programas) e do Relatório de atividades. Usado em três lugares: dentro dos modelos
+// (pce-ficha.html, pce-termo.html, pce-relatorio.html), no app de campo (docs.js abre o modelo num iframe e chama PCEDocs.montar) e no painel (relatório).
+// Sem dependências: só DOM e dados. A Ficha é guiada por CONFIG.PCE.fichas (js/config.js); os modelos que carregam este script carregam o config antes.
 //
-// Os modelos são HTML declarativo: [data-c="campo"] recebe o texto; [data-m="campo=valor"] vira "(X)" ou "( )" (cadastro, como no papel);
-// [data-x="campo=valor"] ganha a classe "on" (caixa marcada do termo); [data-se="campo"] some quando o campo está vazio.
+// API (o app usa Docs.fichaPce / Docs.termoPce, em js/docs.js):
+//   PCEDocs.valoresFicha(modelo, entrada)   o que a ficha mostra (produtor, propriedade, frutos, dados do modelo, visita mais recente)
+//   PCEDocs.montar(doc, 'ficha', {modelo, ...entrada}, {arquivos})   desenha a ficha no documento do modelo
+//   PCEDocs.montar(doc, 'termo', termo, {arquivos})                  preenche o Termo (novo, antigo e de citros antigo)
+//   PCEDocs.entradaDeCadastro(registro)     adaptador: CadastrosPCE antigo (qualquer modelo) -> entrada da ficha, sem alterar o dado
+// Tipos antigos continuam aceitos em montar: cadastro, cadastroCitros, cadastroBanana, cadastroMandioca, cadastroSoja, cadastroPropriedade,
+// termoCitros (mesmos modelos novos, pelos adaptadores).
+//
+// Os modelos de Termo e de Relatório são HTML declarativo: [data-c="campo"] recebe o texto; [data-m="campo=valor"] vira "(X)" ou "( )";
+// [data-x="campo=valor"] ganha a classe "on" (caixa marcada); [data-se="campo"] some quando o campo está vazio.
 const PCEDocs = (() => {
   const lerJSON = (v, pad) => { if (v && typeof v === 'object') return v; try { const r = JSON.parse(v); return r == null ? pad : r; } catch (e) { return pad; } };
   const digitos = v => String(v || '').replace(/\D/g, '');
@@ -41,88 +48,310 @@ const PCEDocs = (() => {
       if (a && typeof a.dados === 'string' && /^data:image\/(png|jpeg);/.test(a.dados)) { const im = raiz.ownerDocument.createElement('img'); im.src = a.dados; im.alt = 'Assinatura'; area.append(im); }
     });
   }
-
-  /* ---------- valores de cada documento ---------- */
-  function valoresTermo(t) {
-    const tst = lerJSON(t.testemunhas, []), T = i => tst[i] || {};
-    const ident = [t.servidor, t.cargo, t.matricula && 'Mat. ' + t.matricula, t.lotacao].filter(Boolean).join(' · ');
-    return { ...t, cpf: digitos(t.doc).length === 11 ? fmtDoc(t.doc) : (digitos(t.doc).length === 14 ? '' : t.doc || ''),
-      cnpjTxt: fmtDoc(t.cnpj || (digitos(t.doc).length === 14 ? t.doc : '')), dataTxt: dataBR(t.data), coordTxt: coordTxt(t.lat, t.lon),
-      pragas: lerJSON(t.pragas, []), tipoLocal: lerJSON(t.tipoLocal, []), acoes: lerJSON(t.acoes, []),
-      t1nome: T(0).nome || '', t1doc: T(0).doc || '', t2nome: T(1).nome || '', t2doc: T(1).doc || '', servidorIdent: ident,
-      extras: [`plantas inspecionadas: ${num(t.plantasInspecionadas)}`,
-        `amostra coletada: ${t.amostra === 'sim' ? 'sim' : 'não'}`, `sintomas: ${t.sintomas === 'sim' ? 'sim' : 'não'}`].join(' · '),
-      cancelado: Number(t.cancelado) === 1 ? 'TERMO CANCELADO' + (t.motivoCancel ? ' – ' + t.motivoCancel : '') : '' };
-  }
-  function valoresCadastro(c) {
-    const d = lerJSON(c.dados, {}), pl = d.plantas || {}, f = d.fito || {};
-    const plantas = {}; HOSP.forEach(([k]) => { plantas[k] = pl[k] === '' || pl[k] == null ? '' : String(pl[k]); });
-    const total = totalPlantas(d);
-    const fito = {}; ['vassoura', 'podridao', 'lazio'].forEach(k => { fito[k] = { tem: '', tempo: '', controle: '', qual: '', ...(f[k] || {}) }; });
-    return { ...c, d: { ...d, fito, plantas, total: total ? String(total) : '', producaoTxt: [d.producao, d.producao && d.producaoUnidade].filter(Boolean).join(' '),
-      idadePlantioTxt: d.idadePlantio ? d.idadePlantio + ' anos' : '', idadeProducaoTxt: d.idadeProducao ? d.idadeProducao + ' anos' : '',
-      sintomaLatTxt: d.sintomaLat === '' || d.sintomaLat == null ? '' : String(d.sintomaLat).replace('.', ','), sintomaLonTxt: d.sintomaLon === '' || d.sintomaLon == null ? '' : String(d.sintomaLon).replace('.', ','),
-      suspeitos: Array.isArray(d.suspeitos) ? d.suspeitos : [] },
-      cpf: digitos(c.doc).length === 14 ? '' : fmtDoc(c.doc), cnpjTxt: fmtDoc(c.cnpj || (digitos(c.doc).length === 14 ? c.doc : '')),
-      latTxt: c.lat === '' || c.lat == null ? '' : String(c.lat).replace('.', ','), lonTxt: c.lon === '' || c.lon == null ? '' : String(c.lon).replace('.', ','),
-      dataTxt: dataBR(c.data), servCargo: c.cargo || '', servMat: c.matricula ? 'Matrícula: ' + c.matricula : '', servLot: c.lotacao ? 'Lotação: ' + c.lotacao : '' };
-  }
-
-  /* ---------- Citros: Cadastro de imóveis de produção comercial de cítricos e Termo de Fiscalização de citros ---------- */
-  // rótulos da tabela "Cultura do citros" (os códigos são os de CONFIG.PCE.citros.atividades; o modelo roda sem o config do app)
-  const ATIV_CITROS = { viveiro_mudas: 'Viveiro – produção de mudas', viveiro_semorigem: 'Viveiro – material de propagação sem origem genética comprovada',
-    viveiro_portaenxerto: 'Viveiro – porta-enxerto', viveiro_clonal: 'Viveiro – jardins clonais e borbulheiras', frutos: 'Produção comercial de frutos', outros: 'Outros' };
   const obj = x => (x && typeof x === 'object' && !Array.isArray(x) ? x : {});
   const arr = x => (Array.isArray(x) ? x : []);
   const numTxt = v => (v === '' || v == null ? '' : String(v).replace('.', ','));
-  function valoresCadastroCitros(c) {
-    const d = lerJSON(c.dados, {}), dl = obj(d.delimitacao), dt = obj(d.deteccao);
-    const det = {}; ['cancro', 'hlb', 'acaro'].forEach(k => { const x = obj(dt[k]); det[k] = { tem: x.tem || '', tempo: x.tem === 'sim' ? x.tempo || '' : '' }; });
-    const pp = obj(dl.pintapreta);
-    const culturas = arr(d.culturas).filter(x => x && typeof x === 'object').map(x => ({ atividade: x.atividade === 'outros' && d.atividadeOutros ? d.atividadeOutros : ATIV_CITROS[x.atividade] || '',
-      cultivar: x.cultivar || '', area: numTxt(x.area), idade: numTxt(x.idade), plantas: numTxt(x.plantas), producao: numTxt(x.producao) }));
-    return { ...c, d: { ...d, atividades: arr(d.atividades), formasEntrega: arr(d.formasEntrega), compradores: arr(d.compradores), materiais: arr(d.materiais),
-      deteccao: det, delimitacao: { pintapreta: { tem: pp.tem || '', tempo: pp.tempo || '', controle: pp.controle || '', qual: pp.qual || '' } }, rt: { nome: '', conselho: '', ...obj(d.rt) },
-      compradorOutrosTxt: arr(d.compradores).includes('outros') && d.compradorOutros ? '(' + d.compradorOutros + ')' : '' }, culturas,
-      cpf: digitos(c.doc).length === 14 ? '' : fmtDoc(c.doc), cnpjTxt: fmtDoc(c.cnpj || (digitos(c.doc).length === 14 ? c.doc : '')),
-      latTxt: c.lat === '' || c.lat == null ? '' : String(c.lat).replace('.', ','), lonTxt: c.lon === '' || c.lon == null ? '' : String(c.lon).replace('.', ','),
-      dataTxt: dataBR(c.data), servCargo: c.cargo || '', servMat: c.matricula ? 'Matrícula: ' + c.matricula : '', servLot: c.lotacao ? 'Lotação: ' + c.lotacao : '' };
+
+  /* ---------- Termo de Fiscalização (um só modelo: pce-termo.html) ---------- */
+  const LOCAIS_TERMO = ['Evento Agropecuário', 'Unidade de Produção (UP)', 'Unidade de Consolidação (UC)'];   // caixas do modelo (CONFIG.PCE.termo.locais)
+  /**
+   * Valores do Termo. Serve ao Termo novo e aos já gravados (sem alterar o dado): o Termo de citros antigo guardava o local especificado em
+   * tipoLocal[0] e não marcava a ação (o papel dizia "ao realizar fiscalização"); aqui o local vai para a linha "no(a) ___" e a ação para a caixa.
+   */
+  function valoresTermo(t) {
+    const tst = lerJSON(t.testemunhas, []), T = i => tst[i] || {};
+    const ident = [t.servidor, t.cargo, t.matricula && 'Mat. ' + t.matricula, t.lotacao].filter(Boolean).join(' · ');
+    const local = arr(lerJSON(t.tipoLocal, [])).map(String), citros = t.programa === 'citros';
+    const especifico = citros ? local[0] || '' : local.find(x => !LOCAIS_TERMO.some(s => norm(s) === norm(x))) || '';
+    const acoes = arr(lerJSON(t.acoes, [])), c = Number(t.cancelado) === 1;
+    return { ...t, cpf: digitos(t.doc).length === 11 ? fmtDoc(t.doc) : (digitos(t.doc).length === 14 ? '' : t.doc || ''),
+      cnpjTxt: fmtDoc(t.cnpj || (digitos(t.doc).length === 14 ? t.doc : '')), dataTxt: dataBR(t.data), coordTxt: coordTxt(t.lat, t.lon),
+      pragas: lerJSON(t.pragas, []), tipoLocal: local, acoes: citros && !acoes.length ? ['Fiscalização'] : acoes, localEspecificado: especifico, hora: String(t.hora || '').slice(0, 5),
+      t1nome: T(0).nome || '', t1doc: T(0).doc || '', t2nome: T(1).nome || '', t2doc: T(1).doc || '', servidorIdent: ident,
+      extras: [`plantas inspecionadas: ${num(t.plantasInspecionadas)}`,
+        `amostra coletada: ${t.amostra === 'sim' ? 'sim' : 'não'}`, `sintomas: ${t.sintomas === 'sim' ? 'sim' : 'não'}`].join(' · '),
+      cancelado: c ? 'TERMO CANCELADO' + (t.motivoCancel ? ' – ' + t.motivoCancel : '') : '' };
   }
-  /* ---------- Cadastros por programa (banana, mandioca, soja, propriedade): ficha de papel + levantamento ---------- */
-  const MODELOS_CAD = ['banana', 'mandioca', 'soja', 'propriedade'];
+
+  /* ---------- Ficha oficial (um só modelo: pce-ficha.html, guiado por CONFIG.PCE.fichas) ---------- */
+  const cfgFichas = () => {
+    const c = typeof CONFIG !== 'undefined' && CONFIG.PCE && CONFIG.PCE.fichas;
+    if (!c) throw new Error('Configuração das fichas (CONFIG.PCE.fichas) indisponível nesta versão.');
+    return c;
+  };
+  const MODELOS_FICHA = ['citros', 'banana', 'moniliase', 'mandioca', 'soja', 'propriedade'];
   const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
-  function valoresCadastroGen(c) {
-    const d = lerJSON(c.dados, {}), dt = obj(d.deteccao), det = {};
-    Object.keys(dt).forEach(k => { const x = obj(dt[k]); det[k] = { tem: x.tem || '', tempo: x.tempo || '', controle: x.controle || '', qual: x.qual || '' }; });
-    const am = obj(d.amostra), rt = obj(d.rt);
-    const culturas = arr(d.culturas).filter(x => x && typeof x === 'object').map(x => { const o = {}; Object.keys(x).forEach(k => { o[k] = numTxt(x[k]); }); return o; });
-    return { ...c, d: { ...d, deteccao: det, amostra: { tem: am.tem || '', tipo: am.tipo || '' }, rt: { nome: rt.nome || '', conselho: rt.conselho || '' },
-      areaTotal: numTxt(d.areaTotal), areaAgricola: numTxt(d.areaAgricola), tipos: arr(d.tipos), natureza: arr(d.natureza), compradores: arr(d.compradores) }, culturas,
-      cpf: digitos(c.doc).length === 14 ? '' : fmtDoc(c.doc), cnpjTxt: fmtDoc(c.cnpj || (digitos(c.doc).length === 14 ? c.doc : '')),
-      latTxt: c.lat === '' || c.lat == null ? '' : String(c.lat).replace('.', ','), lonTxt: c.lon === '' || c.lon == null ? '' : String(c.lon).replace('.', ','),
-      dataTxt: dataBR(c.data), servCargo: c.cargo || '', servMat: c.matricula ? 'Matrícula: ' + c.matricula : '', servLot: c.lotacao ? 'Lotação: ' + c.lotacao : '' };
+  const str = v => (v == null ? '' : String(v));
+  const vazioV = v => v == null || v === '' || (Array.isArray(v) && !v.length);
+  const primeiro = (...v) => { for (const x of v) if (!vazioV(x)) return x; return ''; };
+  /** sim/não de qualquer forma gravada (sim, Sim, 1, true, não, nao, 0, false) -> 'sim' | 'nao' | ''. */
+  const sn = v => { const t = norm(v); return t === 'SIM' || t === 'TRUE' || t === '1' ? 'sim' : t === 'NAO' || t === 'FALSE' || t === '0' ? 'nao' : ''; };
+  const lista = v => (Array.isArray(v) ? v.map(String) : typeof v === 'string' && v.charAt(0) === '[' ? arr(lerJSON(v, [])).map(String) : vazioV(v) ? [] : [String(v)]);
+  const ATIV_CITROS = { viveiro_mudas: 'Viveiro – produção de mudas', viveiro_semorigem: 'Viveiro – material de propagação sem origem genética comprovada',
+    viveiro_portaenxerto: 'Viveiro – porta-enxerto', viveiro_clonal: 'Viveiro – jardins clonais e borbulheiras', frutos: 'Produção comercial de frutos', outros: 'Outros' };
+  const OUTRO = ['outras', 'outros', 'outra'];
+
+  /** Modelo de ficha de uma cultura (CONFIG.PCE.fichas.culturaModelo); cultura que não está na lista cai na ficha da propriedade. */
+  function modeloDaCultura(cultura) {
+    const k = norm(cultura), m = cfgFichas().culturaModelo || {}, x = Object.keys(m).find(c => norm(c) === k);
+    return x ? m[x] : 'propriedade';
   }
-  /** Tabela do modelo ([data-tabela] com data-cols e data-min = linhas em branco no mínimo, como no papel). */
-  function linhasTabela(pg, linhas) {
-    const tb = pg.querySelector('[data-tabela]'); if (!tb) return;
-    const doc = pg.ownerDocument, cols = tb.getAttribute('data-cols').split(','), l = linhas.slice();
-    while (l.length < (Number(tb.getAttribute('data-min')) || 3)) l.push(null);
-    tb.textContent = '';
-    l.forEach(x => { const tr = doc.createElement('tr'); tr.className = x ? 'cheia' : 'vazia'; cols.forEach(k => { const td = doc.createElement('td'); td.textContent = x ? x[k] || '' : ''; tr.append(td); }); tb.append(tr); });
+  const espTxt = f => {
+    const l = str(f.espLinha).trim(), p = str(f.espPlanta).trim(), u = f.espUnidade == null ? 'm' : f.espUnidade;
+    return f.espacamento ? str(f.espacamento) : !l && !p ? '' : `${[l, p].filter(Boolean).join(' x ')}${u ? ' ' + u : ''}`;
+  };
+  const linhaFruto = f => ({ cultura: str(f.cultura), cultivar: str(f.cultivar), area: numTxt(f.area), espacamento: espTxt(f), idade: numTxt(f.idade), quantidade: numTxt(f.quantidade),
+    producao: numTxt(f.producao), destino: str(f.destino), atividade: str(f.atividade) });
+  /**
+   * Frutos da propriedade que entram na ficha do modelo. Cada fruto vale pelo "modelo" que trouxer ou, sem ele, pela cultura (culturaModelo).
+   * Sem frutos novos, o registro antigo (CadastrosPCE) entra pelo próprio dados: tabela "culturas" (citros, banana, mandioca, soja, propriedade)
+   * ou número de plantas por hospedeiro (monilíase). O dado antigo não é alterado.
+   */
+  function frutosDoModelo(modelo, frutos, dadosAntigos) {
+    const novos = arr(lerJSON(frutos, [])).filter(f => f && typeof f === 'object' && !Number(f.excluido)).filter(f => (f.modelo || modeloDaCultura(f.cultura)) === modelo).map(linhaFruto);
+    if (novos.length) return novos;
+    const d = obj(dadosAntigos), padrao = (cfgFichas().culturaPadrao || {})[modelo] || '';
+    let l;
+    if (modelo === 'moniliase') l = HOSP.filter(([k]) => str(obj(d.plantas)[k]) !== '' && num(obj(d.plantas)[k]) > 0).map(([k, n]) => ({ cultura: n, quantidade: numTxt(obj(d.plantas)[k]) }));
+    else l = arr(d.culturas).filter(x => x && typeof x === 'object').map(x => ({ cultura: x.cultura || padrao, cultivar: x.cultivar, area: x.area, espacamento: x.espacamento, idade: x.idade, quantidade: x.plantas,
+      producao: x.producao, atividade: x.atividade ? (x.atividade === 'outros' && d.atividadeOutros ? d.atividadeOutros : ATIV_CITROS[x.atividade] || '') : '' }));
+    return l.map(x => ({ ...linhaFruto(x), destino: str(x.destino || d.destino) }));
   }
-  function valoresTermoCitros(t) {
-    const v = valoresTermo(t), h = String(t.hora || '').slice(0, 5).split(':');
-    return { ...v, localAcao: String(lerJSON(t.tipoLocal, [])[0] || ''), horaH: h[0] || '', horaM: h[1] || '', coordLat: t.lat === '' || t.lat == null ? '' : String(t.lat).replace('.', ','),
-      coordLon: t.lon === '' || t.lon == null ? '' : String(t.lon).replace('.', ',') };
+
+  const resultadoSN = r => { const t = norm(r); return t === 'DETECTADA' || t === 'SUSPEITA' ? 'sim' : t === 'NAO DETECTADA' ? 'nao' : sn(r); };
+  /** Pragas respondidas na visita (Termo novo: culturas[].pragas[]) que casam com algum dos nomes dados (comparação exata, sem acento nem maiúsculas). */
+  function pragasDaVisita(visita, nomes) {
+    const alvo = new Set(nomes.map(norm));
+    return arr(obj(visita).culturas).flatMap(c => arr(obj(c).pragas).filter(p => p && alvo.has(norm(p.praga))).map(p => ({ ...p, cultura: obj(c).cultura })));
   }
-  /** Linhas da tabela "Cultura do citros" (no mínimo 4, como no papel). */
-  function linhasCulturas(pg, culturas) {
-    const tb = pg.querySelector('[data-lista=culturasCitros]'); if (!tb) return;
-    const doc = pg.ownerDocument, l = culturas.slice();
-    while (l.length < 4) l.push(null);
-    tb.textContent = '';
-    l.forEach(c => { const tr = doc.createElement('tr'); tr.className = c ? 'cheia' : 'vazia';
-      ['atividade', 'cultivar', 'area', 'idade', 'plantas', 'producao'].forEach(k => { const td = doc.createElement('td'); td.textContent = c ? c[k] : ''; tr.append(td); }); tb.append(tr); });
+  /** Resultado da linha do quadro "4. Levantamento": a visita mais recente (se avaliou a praga) e, no registro antigo, o que o dado já traz. */
+  function linhaLevantamento(L, visita, d) {
+    const antigo = obj(obj(d.deteccao)[L.k] || obj(d.delimitacao)[L.k] || obj(d.fito)[L.k]);
+    const r = { tem: sn(antigo.tem), tempo: str(antigo.tempo), controle: sn(antigo.controle), qual: str(antigo.qual) };
+    const ps = pragasDaVisita(visita, L.pragas), res = ps.map(p => resultadoSN(p.resultado)).filter(Boolean);
+    if (res.length) {
+      r.tem = res.includes('sim') ? 'sim' : 'nao';
+      const base = r.tem === 'sim' ? ps.filter(p => resultadoSN(p.resultado) === 'sim') : ps;
+      r.tempo = str(primeiro(...base.map(p => p.haQuantoTempo), r.tempo)); r.controle = sn(primeiro(...ps.map(p => p.controle), r.controle));
+      r.qual = str(primeiro(...ps.map(p => p.qualControle), r.qual));
+    }
+    return r;
+  }
+  const temDado = o => Object.values(o).some(x => x !== '' && x != null);
+  /** Respostas extras que a visita traz por pergunta (culturas[].extras, visita.dados e visita.extras; o mais específico por último). */
+  function extrasDaVisita(visita) {
+    const v = obj(visita), o = {};
+    arr(v.culturas).forEach(c => Object.assign(o, obj(obj(c).extras)));
+    return Object.assign(o, obj(v.dados), obj(v.extras));
+  }
+  const unicos = l => [...new Set(l.map(x => str(x).trim()).filter(Boolean))];
+
+  /** Dados do registro antigo com os nomes de hoje (sem mexer no original): comercial, amostra e idade/produção da monilíase. */
+  function dadosAtuais(d0) {
+    const d = { ...obj(d0) }, am = d.amostra;
+    if (d.naoComercial && !d.tipoNaoComercial) d.tipoNaoComercial = d.naoComercial;
+    if (d.naoComercialOutros && !d.tipoOutros) d.tipoOutros = d.naoComercialOutros;
+    if (am && typeof am === 'object') { d.amostra = am.tem || ''; if (am.tipo && !d.amostraTipo) d.amostraTipo = am.tipo; }
+    const anos = v => (vazioV(v) ? '' : /^[\d.,]+$/.test(str(v).trim()) ? str(v).trim() + ' anos' : str(v));
+    if (d.idadePlantio != null) d.idadePlantio = anos(d.idadePlantio);
+    if (d.idadeProducao != null) d.idadeProducao = anos(d.idadeProducao);
+    if (!d.producaoTxt && d.producao) d.producaoTxt = [d.producao, d.producaoUnidade].filter(Boolean).join(' ');
+    return d;
+  }
+  const ehOpcaoOutro = (p, o) => (p.outroOp ? o === p.outroOp : OUTRO.includes(o));
+
+  /**
+   * Tudo o que a ficha mostra, pronto para desenhar. entrada = {
+   *   produtor:    {nome, doc (CPF/CNPJ), telefone},
+   *   propriedade: {nome, cnpj, codigo, municipio, uf, lat, lon, endereco, viaAcesso, situacaoFundiaria, comercial, tipoPropriedade, frutos},
+   *   dados:       respostas próprias do modelo (chaves de CONFIG.PCE.fichas.modelos[modelo]) e, em registro antigo, as comuns também,
+   *   visita:      Termo mais recente da propriedade ({data, culturas:[{cultura, pragas:[{praga, resultado, haQuantoTempo, controle, qualControle}], coleta, tipoMaterial, extras}], dados}) ou nada,
+   *   frutos:      (opcional) lista pronta de frutos da ficha, no lugar da escolha por modelo,
+   *   ficha:       {numeroTxt, data, local, servidor, cargo, matricula, lotacao, assinaturas, rt}
+   * }. Dado vazio fica em branco. Não grava nem altera nada.
+   */
+  function valoresFicha(modelo, entrada) {
+    const cfg = cfgFichas(), M = cfg.modelos[modelo];
+    if (!M) throw new Error('Modelo de ficha desconhecido: ' + modelo);
+    const e = obj(entrada), pe = obj(e.produtor), pr = obj(e.propriedade), f = obj(e.ficha), d = dadosAtuais(e.dados), ext = extrasDaVisita(e.visita), visita = e.visita;
+    const doc = digitos(pe.doc), todos = arr(lerJSON(pr.frutos, []));
+    const frutos = Array.isArray(e.frutos) ? e.frutos.map(linhaFruto) : frutosDoModelo(modelo, pr.frutos, d);
+    // situação fundiária e tipo da propriedade não comercial: o código da ficha ou, na propriedade, o texto da lista longa do levantamento
+    const t = norm(pr.situacaoFundiaria);
+    const sitProp = !t ? {} : /PROPRIET|TITULAD/.test(t) ? { situacao: 'proprietario' } : /ARREND/.test(t) ? { situacao: 'arrendatario' } : /COOPERATIV/.test(t) ? { situacao: 'cooperativa' } : { situacao: 'outras', situacaoOutras: str(pr.situacaoFundiaria) };
+    const tp = str(primeiro(d.tipoNaoComercial, pr.tipoPropriedade)), tpCod = (cfg.naoComercial.find(([c, r]) => c === tp || norm(r) === norm(tp)) || [])[0];
+    const r = {};   // respostas por pergunta
+    const todasPerguntas = [...arr(M.propriedade), ...arr(M.perguntas), ...arr(obj(M.levantamento).perguntas)];
+    const ler = k => primeiro(ext[k], d[k]);
+    todasPerguntas.forEach(p => {
+      r[p.k] = p.tipo === 'varios' ? lista(ler(p.k)) : p.deFrutos ? lista(ler(p.k)) : str(ler(p.k));
+      if (p.k2) { r[p.k2] = numTxt(ler(p.k2)); r[p.k] = numTxt(ler(p.k)); }
+      if (p.compl) r[p.compl.k] = p.compl.tipo === 'varios' ? lista(ler(p.compl.k)) : str(ler(p.compl.k));
+      if (p.outro) r[p.outro] = str(ler(p.outro));
+    });
+    // respostas que a visita já dá (a ficha não pergunta de novo): praga avaliada, coleta de amostra e ocorrência de praga
+    arr(obj(M.levantamento).perguntas).forEach(p => {
+      if (p.deVisita && !r[p.k]) { const ps = pragasDaVisita(visita, p.deVisita).map(x => resultadoSN(x.resultado)).filter(Boolean); if (ps.length) r[p.k] = ps.includes('sim') ? 'sim' : 'nao'; }
+      const cs = arr(obj(visita).culturas);
+      if (p.fonte === 'coleta' && cs.length) {
+        const col = cs.filter(c => sn(obj(c).coleta) === 'sim');
+        if (!r[p.k]) r[p.k] = col.length ? 'sim' : 'nao';
+        if (p.compl && !r[p.compl.k]) r[p.compl.k] = unicos(col.map(c => obj(c).tipoMaterial)).join(', ');
+      }
+      if (p.fonte === 'ocorrencia' && cs.length) {
+        const det = cs.flatMap(c => arr(obj(c).pragas).filter(x => x && resultadoSN(x.resultado) === 'sim').map(x => x.praga));
+        if (!r[p.k]) r[p.k] = det.length ? 'sim' : 'nao';
+        if (p.compl && !r[p.compl.k]) r[p.compl.k] = unicos(det).join(', ');
+      }
+    });
+    // tipo de cultura da propriedade: marcado também pelos frutos cadastrados (os que não têm caixa vão em "OUTROS")
+    todasPerguntas.filter(p => p.deFrutos).forEach(p => {
+      const marcados = new Set(r[p.k]), fora = [];
+      todos.forEach(fr => {
+        const n = norm(fr.cultura), o = p.ops.find(([c, tx]) => !OUTRO.includes(c) && (norm(tx) === n || n.startsWith(norm(tx) + ' ')));
+        if (o) marcados.add(o[0]); else if (n) fora.push(str(fr.cultura));
+      });
+      if (fora.length) { marcados.add('outros'); if (!r[p.outro]) r[p.outro] = unicos(fora).join(', '); }
+      r[p.k] = [...marcados];
+    });
+    const linhas = arr(obj(M.levantamento).linhas).map(L => ({ ...L, ...linhaLevantamento(L, visita, d) })).filter(L => !L.legado || L.tem || temDado({ a: L.tempo, b: L.controle, c: L.qual }));
+    const comercial = sn(primeiro(pr.comercial, d.comercial));
+    const rt = { nome: '', conselho: '', ...obj(d.rt), ...obj(f.rt) };
+    return {
+      modelo, titulo: M.titulo, numeroRot: M.numero, base: arr(M.base), numeroTxt: str(f.numeroTxt), dataTxt: dataBR(f.data), local: str(f.local),
+      comercial, tipoNaoComercial: tpCod || (tp ? 'outros' : ''), tipoOutros: tpCod && tpCod !== 'outros' ? '' : str(primeiro(d.tipoOutros, tpCod ? '' : tp)),
+      id: { nome: str(pe.nome), cpf: doc.length === 14 ? '' : fmtDoc(pe.doc), propriedade: str(pr.nome), cnpj: fmtDoc(primeiro(pr.cnpj, doc.length === 14 ? pe.doc : '')),
+        telefone: str(primeiro(pe.telefone, d.telefone)), codigo: str(primeiro(pr.codigo, d.codigoPropriedade)), lat: numTxt(pr.lat), lon: numTxt(pr.lon),
+        endereco: str(primeiro(pr.endereco, d.endereco)), municipio: str(pr.municipio), uf: str(primeiro(pr.uf, 'AM')), via: str(primeiro(pr.viaAcesso, d.viaAcesso)), viaOutra: str(d.viaOutra) },
+      situacao: str(primeiro(d.situacao, sitProp.situacao)), situacaoOutras: str(primeiro(d.situacaoOutras, sitProp.situacaoOutras)),
+      frutos, r, linhas, rt, declaracao: str(M.declaracao),
+      servidor: { nome: str(f.servidor), cargo: str(f.cargo), matricula: f.matricula ? 'Matrícula: ' + f.matricula : '', lotacao: f.lotacao ? 'Lotação: ' + f.lotacao : '' }
+    };
+  }
+
+  /* desenho: tudo montado por DOM (texto sempre como texto, nunca HTML) */
+  function desenharFicha(pg, V) {
+    const cfg = cfgFichas(), M = cfg.modelos[V.modelo], doc = pg.ownerDocument;
+    const el = (tag, cls, ...filhos) => { const e = doc.createElement(tag); if (cls) e.className = cls; filhos.flat().forEach(k => { if (k != null) e.append(k); }); return e; };
+    const v = (txt, cls) => el('span', 'v' + (cls ? ' ' + cls : ''), str(txt));
+    const rot = txt => el('span', 'lbl', txt);
+    const cx = on => el('span', 'cx' + (on ? ' on' : ''));
+    const op = (on, txt, ...mais) => el('span', 'op', cx(on), txt, ...mais);
+    const cp = (r, valor, cls) => el('div', 'cp' + (cls ? ' ' + cls : ''), rot(r), v(valor));
+    const tabela = (cls, cols, ...linhas) => { const t = el('table', 'ln' + (cls ? ' ' + cls : '')); if (cols) { const cg = el('colgroup'); cols.forEach(w => { const c = el('col'); if (w) c.style.width = w; cg.append(c); }); t.append(cg); } linhas.flat().forEach(l => { if (l) t.append(l); }); return t; };
+    const tr = (...tds) => el('tr', '', ...tds);
+    const td = (cls, ...filhos) => el('td', cls, ...filhos);
+    const tdc = (n, ...filhos) => { const t = td('', ...filhos); t.colSpan = n; return t; };
+    const sec = txt => tabela('', null, tr(td('sec', txt)));
+    /** Caixas de uma lista de opções; a opção "outro" leva o texto escrito ao lado (sempre, em branco como no papel). */
+    const opcoes = (p, ops, marcados, outroTxt) => ops.map(([c, tx, grupo]) => {
+      const on = marcados.includes(c), filhos = [];
+      if (grupo) filhos.push(el('span', 'grupo', grupo + ' – '));
+      filhos.push(tx);
+      if (p.outro !== undefined && ehOpcaoOutro(p, c)) filhos.push(el('span', '', /[:?]$/.test(tx) ? ' ' : ': '), v(outroTxt, 'curto'));
+      return el('span', 'op', cx(on), ...filhos);
+    });
+    const complemento = (c) => (!c ? null : c.tipo === 'varios'
+      ? el('span', 'compl', rot(/[:?]$/.test(c.rot) ? c.rot : c.rot + ':'), ' ', ...opcoes(c, c.ops, V.r[c.k] || [], ''))
+      : el('span', 'compl', rot(/[:?]$/.test(c.rot) ? c.rot : c.rot + ':'), ' ', v(V.r[c.k], 'curto')));
+    /** Linha de pergunta: texto da pergunta à esquerda e, à direita, as caixas (e o complemento) ou o valor. */
+    const linhaPerg = p => {
+      const val = V.r[p.k];
+      let resp;
+      if (p.tipo === 'texto' || p.tipo === 'num') {
+        resp = el('div', 'cp', v(val), p.compl ? complemento(p.compl) : null);
+      } else if (p.tipo === 'coord') {
+        resp = el('div', 'cp duplo', v(val), '/', v(V.r[p.k2]));
+      } else {
+        const ops = p.tipo === 'sn' ? [['sim', 'sim'], ['nao', 'não']] : p.ops, marcados = p.tipo === 'sn' ? [sn(val)] : p.tipo === 'opcao' ? [str(val)] : lista(val);
+        resp = el('div', p.layout || '', ...opcoes(p, ops, marcados, V.r[p.outro]), complemento(p.compl));
+      }
+      return tr(td('lbl', p.rot), td('', resp));
+    };
+    const perguntas = lista_ => {
+      const ls = lista_.filter(p => !p.legado || !vazioV(V.r[p.k]) || (p.compl && !vazioV(V.r[p.compl.k])));
+      return ls.length ? tabela('perg', ['36%', ''], ls.map(linhaPerg)) : null;
+    };
+    const corpo = [];
+
+    // título oficial com Nº, base legal
+    corpo.push(tabela('', null, tr(td('tit', V.titulo)),
+      tr(td('num-l', V.numeroRot + ' ', el('span', 'num', V.numeroTxt), el('div', 'leg', 'Nº sequencial    Ano     Unidade'))),
+      V.base.length ? tr(td('base', ...V.base.flatMap((l, i) => (i ? [el('br'), l] : [l])))) : null));
+    // propriedade comercial?
+    corpo.push(tabela('aviso', ['31%', '15%', ''],
+      tr(td('b', 'PROPRIEDADE COMERCIAL?'), td('', op(V.comercial === 'sim', 'SIM'), op(V.comercial === 'nao', 'NÃO')), td('', cfg.avisoNaoComercial)),
+      tr(tdc(3, 'Propriedade não comercial: ', ...cfg.naoComercial.map(([c, tx]) => op(V.tipoNaoComercial === c, tx + (c === 'outros' ? ':' : ';'), c === 'outros' ? v(V.tipoOutros, 'curto') : null))))));
+    // 1. produtor/proprietário (o mesmo em todas as fichas)
+    const i = V.id;
+    corpo.push(sec('1.   DADOS DO PRODUTOR/PROPRIETÁRIO'));
+    corpo.push(tabela('dados', ['55%', ''],
+      tr(td('', cp('NOME DO PRODUTOR:', i.nome)), td('', cp('CPF:', i.cpf))),
+      tr(td('', cp('NOME DA PROPRIEDADE:', i.propriedade)), td('', cp('CNPJ:', i.cnpj))),
+      tr(td('', cp('TELEFONE:', i.telefone)), td('', cp('CÓDIGO DA PROPRIEDADE (CONFORME IN Nº33/2016):', i.codigo))),
+      tr(td('', cp('ENDEREÇO:', i.endereco)), td('', el('div', 'cp duplo', rot('MUNICÍPIO:'), v(i.municipio), rot('UF:'), v(i.uf, 's')))),
+      tr(td('', el('div', 'cp duplo', rot('GEORREFERENCIAMENTO: Lat.:'), v(i.lat), rot('Lon.:'), v(i.lon))),
+        td('', rot('PRINCIPAL VIA DE ACESSO À PROPRIEDADE: '), ...cfg.vias.map(([c, tx]) => op(i.via === c, tx, c === 'outra' ? el('span', '', ': ') : null, c === 'outra' ? v(i.viaOutra, 'curto') : null))))));
+    // 2. dados da propriedade: situação fundiária + o que é do modelo
+    const situacao = { k: 'situacao', rot: 'SITUAÇÃO FUNDIÁRIA:', tipo: 'opcao', ops: cfg.situacoes, outro: 'situacaoOutras', outroOp: 'outras' };
+    V.r.situacao = V.situacao; V.r.situacaoOutras = V.situacaoOutras;
+    corpo.push(sec('2.   DADOS DA PROPRIEDADE'));
+    corpo.push(perguntas([situacao, ...arr(M.propriedade)]));
+    // 3. cultura: tabela padrão dos frutos + perguntas do modelo
+    corpo.push(sec('3.   ' + M.culturaTitulo));
+    const colunas = cfg.colunas.map(([c, tx]) => [c, (M.colunas && M.colunas[c]) || tx]), W = { cultura: 14, cultivar: 14, area: 8, espacamento: 10, idade: 9, quantidade: 11, producao: 18, destino: 16 };
+    const cheias = V.frutos, vazias = Math.max(0, (cfg.linhasCultura || 3) - cheias.length);
+    const soma = k => cheias.reduce((s, x) => s + num(x[k]), 0), somaTxt = k => (cheias.some(x => num(x[k])) ? numTxt(Math.round(soma(k) * 1000) / 1000) : '');
+    const celula = (x, c) => { const t = td('', str(x[c])); if (c === 'cultura' && x.atividade) t.append(el('small', '', x.atividade)); return t; };
+    const cult = tabela('cult', colunas.map(([c]) => W[c] + '%'),
+      el('thead', '', tr(...colunas.map(([, tx]) => el('th', '', tx)))),
+      el('tbody', '', ...cheias.map(x => el('tr', 'cheia', ...colunas.map(([c]) => celula(x, c)))), ...Array.from({ length: vazias }, () => el('tr', 'vazia', ...colunas.map(() => td('')))),
+        cheias.length > 1 ? el('tr', 'total', ...colunas.map(([c]) => td('', c === 'cultura' ? 'TOTAL' : c === 'area' || c === 'quantidade' ? somaTxt(c) : ''))) : null));
+    corpo.push(cult);
+    if (arr(M.perguntas).length) corpo.push(perguntas(arr(M.perguntas)));
+    // 4. levantamento: quadro padrão praga / sim-não / há quanto tempo / controle
+    corpo.push(sec('4.   LEVANTAMENTO'));
+    const L = V.linhas, LV = obj(M.levantamento);
+    if (L.length) {
+      const tipoTxt = { delimitacao: 'Delimitação', deteccao: 'Detecção' };
+      const aplica = (l, c) => l.cols.includes(c);
+      corpo.push(tabela('lev', ['25%', '12%', '5%', '5%', '21%', '13%', ''],
+        el('thead', '', tr(...['PRAGA', 'LEVANTAMENTO', 'SIM', 'NÃO', 'HÁ QUANTO TEMPO', 'UTILIZA MÉT. CONTROLE', 'QUAL'].map(tx => el('th', '', tx)))),
+        el('tbody', '', ...L.map(l => el('tr', '', td('b', l.rot), td('c', tipoTxt[l.tipo]), td('c', cx(l.tem === 'sim')), td('c', cx(l.tem === 'nao')),
+          aplica(l, 'tempo') ? td('', v(l.tempo)) : td('na'),
+          aplica(l, 'controle') ? td('c', op(l.controle === 'sim', 'sim'), op(l.controle === 'nao', 'não')) : td('na'),
+          aplica(l, 'controle') || aplica(l, 'qual') ? td('', v(l.qual)) : td('na'))))));
+    }
+    if (arr(LV.perguntas).length) corpo.push(perguntas(arr(LV.perguntas)));
+    // responsável técnico, assinaturas
+    const rt = V.rt;
+    corpo.push(tabela('', ['70%', ''], tr(td('', cp('NOME DO RESPONSÁVEL TÉCNICO (SE HOUVER):', rt.nome)), td('', cp('Nº CONSELHO:', rt.conselho)))));
+    if (V.declaracao) corpo.push(el('div', 'resp', V.declaracao));
+    const s = V.servidor;
+    corpo.push(tabela('assin', null, tr(td('', el('div', 'cols',
+      el('div', 'col', el('div', 'ass-img'), el('div', 'linha', 'SERVIDOR DA ADAF-AM'),
+        el('div', 'serv', el('b', '', s.nome), el('br'), s.cargo, el('br'), [s.matricula, s.lotacao].filter(Boolean).join(' '))),
+      el('div', 'col', el('div', 'ass-img'), el('div', 'linha', 'PRODUTOR/PROPRIETÁRIO'), el('div', 'serv', i.nome))),
+      el('div', 'data', 'LOCAL E DATA: ', v(V.local, 'curto'), ', ', v(V.dataTxt, 'curto'))))));
+    const [colS, colP] = corpo[corpo.length - 1].querySelectorAll('.col'); colS.setAttribute('data-ass', 'servidor'); colP.setAttribute('data-ass', 'produtor');
+    const alvo = pg.querySelector('[data-ficha]'); alvo.textContent = ''; alvo.append(...corpo.filter(Boolean));
+    pg.setAttribute('data-modelo', V.modelo);
+  }
+
+  /* ---------- Adaptadores: registros antigos (CadastrosPCE) abrem na ficha nova, sem alterar o dado ---------- */
+  /** Modelo de ficha de um cadastro antigo: pelo tipo (cadastroCitros...) ou, em "cadastro", pelo programa do registro (sem programa = monilíase). */
+  function modeloDoCadastro(tipo, reg) {
+    const m = /^cadastro(.+)$/.exec(tipo || '');
+    return m ? m[1].toLowerCase() : (reg && reg.programa) || 'moniliase';
+  }
+  /** CadastrosPCE antigo (citros, monilíase, banana, mandioca, soja, propriedade) -> entrada de valoresFicha. */
+  function entradaDeCadastro(c) {
+    const d = lerJSON(c.dados, {});
+    return { produtor: { nome: c.nome, doc: c.doc, telefone: d.telefone },
+      propriedade: { nome: c.propriedade, cnpj: c.cnpj, codigo: d.codigoPropriedade, municipio: c.municipio, uf: c.uf, lat: c.lat, lon: c.lon, endereco: d.endereco,
+        viaAcesso: d.viaAcesso, comercial: d.comercial, tipoPropriedade: d.tipoNaoComercial || d.naoComercial || '' },
+      dados: d, visita: null,
+      ficha: { numeroTxt: c.numeroTxt, data: c.data, local: c.local, servidor: c.servidor, cargo: c.cargo, matricula: c.matricula, lotacao: c.lotacao, assinaturas: c.assinaturas } };
   }
 
   /* ---------- Relatório de atividades ---------- */
@@ -169,30 +398,35 @@ const PCEDocs = (() => {
   }
 
   /* ---------- montagem no documento (dentro do iframe do modelo) ---------- */
-  const TEMPLATES = { termo: 'pce-termo.html', cadastro: 'pce-cadastro-moniliase.html', relatorio: 'pce-relatorio.html',
-    termoCitros: 'pce-termo-citros.html', cadastroCitros: 'pce-cadastro-citros.html' };
-  MODELOS_CAD.forEach(m => { TEMPLATES['cadastro' + cap(m)] = `pce-cadastro-${m}.html`; });
-  /** Modelo de um termo/cadastro conforme o programa (citros tem modelo próprio; o cadastro de banana, mandioca, soja e propriedade também). */
+  const ARQUIVO = { termo: 'pce-termo.html', ficha: 'pce-ficha.html', relatorio: 'pce-relatorio.html' };
+  /** Qual dos três modelos serve ao tipo (os tipos antigos termoCitros, cadastro, cadastroCitros... usam os modelos novos). */
+  const natureza = tipo => (/^termo/.test(tipo) ? 'termo' : /^(ficha|cadastro)/.test(tipo) ? 'ficha' : 'relatorio');
+  /** Tipo de um termo/cadastro conforme o programa (nomes antigos, ainda usados em nome de arquivo e no relatório). */
   const tipoDoRegistro = (tipo, reg) => (reg && reg.programa === 'citros' && (tipo === 'termo' || tipo === 'cadastro') ? tipo + 'Citros'
-    : reg && tipo === 'cadastro' && MODELOS_CAD.includes(reg.programa) ? 'cadastro' + cap(reg.programa) : tipo);
-  const VALORES = { termo: valoresTermo, cadastro: valoresCadastro, termoCitros: valoresTermoCitros, cadastroCitros: valoresCadastroCitros, relatorio: valoresRelatorio };
-  MODELOS_CAD.forEach(m => { VALORES['cadastro' + cap(m)] = valoresCadastroGen; });
+    : reg && tipo === 'cadastro' && MODELOS_FICHA.includes(reg.programa) && reg.programa !== 'moniliase' ? 'cadastro' + cap(reg.programa) : tipo);
+  const VALORES = { termo: valoresTermo, relatorio: valoresRelatorio };
   const cacheModelo = {};
-  /** Página modelo (.a4) de outro arquivo de documentos (para anexar termos/cadastros ao relatório); o <style> dele vem junto, uma vez. */
+  /** Página modelo (.a4) de outro arquivo de documentos (para anexar termos/fichas ao relatório); o <style> dele vem junto, uma vez. */
   async function modeloDe(doc, tipo) {
-    if (!cacheModelo[tipo]) cacheModelo[tipo] = fetch(new URL(TEMPLATES[tipo], doc.baseURI).href).then(r => { if (!r.ok) throw new Error('Modelo indisponível: ' + TEMPLATES[tipo]); return r.text(); })
+    const arquivo = ARQUIVO[natureza(tipo)];
+    if (!cacheModelo[arquivo]) cacheModelo[arquivo] = fetch(new URL(arquivo, doc.baseURI).href).then(r => { if (!r.ok) throw new Error('Modelo indisponível: ' + arquivo); return r.text(); })
       .then(txt => new DOMParser().parseFromString(txt, 'text/html'));
-    const outro = await cacheModelo[tipo];
+    const outro = await cacheModelo[arquivo];
     const pg = outro.querySelector('.a4');
-    if (!doc.querySelector(`style[data-modelo="${tipo}"]`)) outro.querySelectorAll('style').forEach(st => { const n = doc.createElement('style'); n.setAttribute('data-modelo', tipo); n.textContent = st.textContent; doc.head.append(n); });
+    if (!doc.querySelector(`style[data-modelo="${arquivo}"]`)) outro.querySelectorAll('style').forEach(st => { const n = doc.createElement('style'); n.setAttribute('data-modelo', arquivo); n.textContent = st.textContent; doc.head.append(n); });
     return doc.importNode(pg, true);
   }
   function preencherPagina(pg, tipo, dados, arquivos) {
-    const r = VALORES[tipo](dados);
+    const nat = natureza(tipo);
+    if (nat === 'ficha') {
+      const antigo = tipo !== 'ficha', entrada = antigo ? entradaDeCadastro(dados) : dados;
+      desenharFicha(pg, valoresFicha(antigo ? modeloDoCadastro(tipo, dados) : dados.modelo, entrada));
+      assinaturas(pg, lerJSON(obj(entrada.ficha).assinaturas, {}), arquivos);
+      return pg;
+    }
+    const r = VALORES[nat](dados);
     preencher(pg, r);
-    if (tipo === 'cadastroCitros') linhasCulturas(pg, r.culturas);
-    else if (MODELOS_CAD.some(m => tipo === 'cadastro' + cap(m))) linhasTabela(pg, r.culturas);
-    if (tipo === 'relatorio') {
+    if (nat === 'relatorio') {
       const ul = pg.querySelector('[data-lista=servidores]');
       if (ul) { ul.textContent = ''; (dados.servidores || []).forEach(s => { const li = pg.ownerDocument.createElement('div'); li.textContent = [s.nome, s.funcao].filter(Boolean).join(' - '); ul.append(li); }); }
     } else assinaturas(pg, lerJSON(dados.assinaturas, {}), arquivos);
@@ -200,11 +434,10 @@ const PCEDocs = (() => {
     return pg;
   }
   /**
-   * Preenche o documento aberto (doc = documento do modelo). tipo: termo | cadastro | termoCitros | cadastroCitros | cadastroBanana | cadastroMandioca |
-   * cadastroSoja | cadastroPropriedade | relatorio.
-   * opcoes.arquivos = {id: arquivo} (assinaturas); no relatório, opcoes.anexos = {termos:[...], cadastros:[...]} vira páginas depois do relatório
-   * (termo/cadastro de citros com o modelo de citros); opcoes.extras = [{tipo, dados, arquivos, antes}] = outras páginas antes/depois (citros:
-   * Cadastro de citros + Termo de Fiscalização da visita no mesmo PDF).
+   * Preenche o documento aberto (doc = documento do modelo). tipo: ficha ({modelo, produtor, propriedade, dados, visita, ficha}: ver valoresFicha) | termo
+   * | relatorio | (antigos, com o registro gravado) termoCitros, cadastro, cadastroCitros, cadastroBanana, cadastroMandioca, cadastroSoja, cadastroPropriedade.
+   * opcoes.arquivos = {id: arquivo} (assinaturas); no relatório, opcoes.anexos = {termos:[...], cadastros:[...]} vira páginas depois do relatório;
+   * opcoes.extras = [{tipo, dados, arquivos, antes}] = outras páginas antes/depois (ficha e Termo da mesma visita no mesmo PDF).
    */
   async function montar(doc, tipo, dados, opcoes) {
     opcoes = opcoes || {};
@@ -224,6 +457,7 @@ const PCEDocs = (() => {
     return doc.querySelectorAll('.a4').length;
   }
 
-  return { montar, preencher, calcularRelatorio, valoresTermo, valoresCadastro, valoresTermoCitros, valoresCadastroCitros, valoresCadastroGen, tipoDoRegistro, totalPlantas, coordTxt, fmtDoc, dataBR, HOSP, nomeHosp, norm, listaE, lerJSON };
+  return { montar, preencher, calcularRelatorio, valoresTermo, valoresFicha, entradaDeCadastro, modeloDoCadastro, frutosDoModelo, modeloDaCultura, tipoDoRegistro, MODELOS_FICHA,
+    totalPlantas, coordTxt, fmtDoc, dataBR, HOSP, nomeHosp, norm, listaE, lerJSON };
 })();
 if (typeof window !== 'undefined') window.PCEDocs = PCEDocs;

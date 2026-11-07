@@ -64,7 +64,7 @@ function csv(txt) {
     const id = Store.novoId(), cult = (resultado) => ({ cultura: 'Limão', area: '', espLinha: '', espPlanta: '', espUnidade: 'm', resultado, coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '', fotos: [] });
     await Store.salvar('levantamentos', { id, data: '2026-10-05', hora: '09:00', doc: '52998224725', nome: 'PRODUTOR FICTICIO LEGISLACAO', propriedade: 'Sitio Ficticio', municipio: 'Manaus', uf: 'AM', excluido: 0,
       servidor: 'Fiscal Legislacao Teste', cargo: 'Fiscal', matricula: '1', lotacao: 'Manaus', fotos: '[]', assinaturas: '{}', culturas: '[]', citros: '',
-      pragas: JSON.stringify([{ praga: 'HLB / Greening', culturas: [cult('detectada')] }, { praga: 'Cancro Cítrico', culturas: [cult('nao_detectada')] }, { praga: 'Schizotetranychus hindustanicus', culturas: [cult('suspeita')] }]) });
+      pragas: JSON.stringify([{ praga: 'HLB / Greening', culturas: [cult('detectada')] }, { praga: 'Cancro Cítrico', culturas: [cult('nao_detectada')] }, { praga: 'Schizotetranychus hindustanicus', culturas: [cult('suspeita')] }, { praga: 'Pinta Preta dos Citros', culturas: [cult('')] }]) });
     return id;
   });
   const termo = async () => {
@@ -76,9 +76,10 @@ function csv(txt) {
   const enq1 = await termo();
   ok(enq1 === [leg('HLB / Greening'), leg('Schizotetranychus hindustanicus')].join('\n'), 'detectada (HLB) e suspeita (ácaro): enquadramento da planilha de cada uma, e só delas', enq1);
   ok(!/ART\. ?2[36]/i.test(enq1) && !/1326, DE 4 DE JULHO/.test(enq1), 'sem o texto próprio antigo do citros');
-  await p.evaluate(async id => { const l = await Store.obter('levantamentos', id), pr = JSON.parse(l.pragas); pr.forEach(g => g.culturas.forEach(x => { x.resultado = 'nao_detectada'; })); await Store.salvar('levantamentos', { ...l, pragas: JSON.stringify(pr) }); }, levId);
+  await p.evaluate(async id => { const l = await Store.obter('levantamentos', id), pr = JSON.parse(l.pragas); pr.forEach(g => g.culturas.forEach(x => { if (x.resultado) x.resultado = 'nao_detectada'; })); await Store.salvar('levantamentos', { ...l, pragas: JSON.stringify(pr) }); }, levId);
   const enq2 = await termo();
-  ok(enq2 === '', 'nada detectado nem suspeito: enquadramento em branco (o fiscal digita se quiser)', enq2);
+  const esp2 = [...new Set([leg('HLB / Greening'), leg('Cancro Cítrico'), leg('Schizotetranychus hindustanicus')])].join('\n');
+  ok(enq2 === esp2 && !enq2.includes(leg('Pinta Preta dos Citros')), 'nada detectado nem suspeito: entra o enquadramento de todas as avaliadas do programa (sem repetir e sem opcional não respondida)', enq2);
   ok(err.length === 0, 'sem erros de JavaScript', err);
   await b.close(); process.exit(falhas ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

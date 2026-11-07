@@ -886,13 +886,15 @@ const PCEMon = (() => {
       const lev = o.levId ? await Store.obter('levantamentos', o.levId) : null;   // Termo da visita: pragas do levantamento já marcadas
       if (lev) {
         st.levId = lev.id;
-        // Termo de um programa da visita: só as pragas dele; enquadramento = o das detectadas e suspeitas (catálogo)
+        // Termo de um programa da visita: só as pragas dele; enquadramento = o das detectadas/suspeitas ou, sem nenhuma, o de todas as avaliadas
         const daCult = st.programaVisita ? await U().pragasDoProgramaNaVisita(lev, st.programaVisita) : null;
         daCultCitros = daCult && [...new Set(daCult.map(x => x.praga))];
         opc = linhasOpcionais(daCult); opcCit = linhasOpcionais(daCult, true);                                                        // opcionais sem caixa no quadro: vão na descrição
         if (opc.length) D.constatacao = [D.constatacao, ...opc].filter(Boolean).join('\n');
         D.pragas = pragasDoLevantamento(lev, daCultCitros);
-        const enq = daCult ? [...new Set(daCult.filter(x => x.resultado !== 'nao_detectada' && x.enquadramento).map(x => x.enquadramento))] : [];
+        const pos = daCult ? daCult.filter(x => (x.resultado === 'detectada' || x.resultado === 'suspeita') && x.enquadramento) : [];
+        const baseEnq = pos.length ? pos : (daCult ? daCult.filter(x => x.resultado && x.enquadramento) : []);
+        const enq = [...new Set(baseEnq.map(x => x.enquadramento))];
         if (enq.length) D.enquadramento = enq.join('\n');
         if (querAntigo) Object.assign(D, { data: lev.data || D.data, hora: lev.hora || D.hora });
         Object.assign(D, identDoLev(lev, D, st.culturas));                                     // identificação do produtor já digitada no levantamento

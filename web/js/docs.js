@@ -493,7 +493,7 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
       grade.querySelectorAll('figcaption').forEach((fc, k) => { fc.textContent = `${legenda} – foto ${k + 1}`; });
       g.append(h, grade); alvo.append(g);
     };
-    culturas.forEach((c, k) => { if (c.fotos.length) grupoFotos(`Cultura ${k + 1}: ${c.cultura}`, `· ${RES_PCE[c.resultado]} · ${c.fotos.length} foto(s)`, c.fotos, c.cultura); });
+    culturas.forEach((c, k) => { const leg = c.culturaBase || c.cultura; if (c.fotos.length) grupoFotos(`Cultura ${k + 1}: ${leg}`, `· ${RES_PCE[c.resultado]} · ${c.fotos.length} foto(s)`, c.fotos, leg); });
     if (G.gerais.length) grupoFotos('Fotos gerais (registro anterior)', '· do levantamento inteiro, antes da separação por praga', G.gerais, 'Geral');
     if (!nFotos) { alvo.className = 'vazio'; alvo.textContent = 'Nenhuma foto registrada.'; }
     montarAssinaturas(d, jsonPce(reg.assinaturas, {}), arquivos);

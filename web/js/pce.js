@@ -1092,7 +1092,7 @@ const PCEUI = (() => {
       if (alvo) alvo.itens.push(g); else progs.set('opc-' + idCat(g.praga), { praga: g.praga, itens: [g] });
     });
     // O nome do programa identifica a praga sozinho (Monilíase, Mosca-da-Carambola)? Senão (Pragas da Bananeira, Pragas dos Citros...) a linha leva "Cultura – praga" mesmo com uma só praga.
-    const sozinho = p => p.itens.length === 1 && [nomePraga(p.itens[0].praga), (pragaPorNome(p.itens[0].praga) || {}).nomePopular, (pragaPorNome(p.itens[0].praga) || {}).nomeNoTF].some(n => n && idCat(n) === idCat(p.praga));
+    const sozinho = p => p.itens.length === 1 && [nomePraga(p.itens[0].praga), (pragaPorNome(p.itens[0].praga) || {}).nomePopular, (pragaPorNome(p.itens[0].praga) || {}).nomeNoTF].some(n => n && (idCat(n) === idCat(p.praga) || idCat(p.praga).startsWith(idCat(n) + '-')));
     const pragas = [...progs.values()].map(p => {
       const linhas = p.itens.flatMap(g => g.culturas.map(c => ({ ...c, pragaDaLinha: g.praga }))), ordem = [...new Set(linhas.map(c => c.cultura))], comFoto = new Set();
       linhas.sort((a, b) => ordem.indexOf(a.cultura) - ordem.indexOf(b.cultura));

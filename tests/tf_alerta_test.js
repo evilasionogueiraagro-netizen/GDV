@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const sincronizar = require('./lib/sincronizar');
 const U = require('./lib/usuarios');
 // E2E do alerta "TF em preenchimento / Apreensão em andamento": aparelho do fiscal (app em 8081) → Code.gs real (fakegas, 8082)
 // → e-GDV Painel (normal e modo TV, outros contextos). Rode com ./rodar.sh tf_alerta_test.js (um fakegas novo).
@@ -9,6 +10,8 @@ const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).
 let falhas = 0;
 const ok = (cond, msg, extra) => { console.log((cond ? '  ✓ ' : '  ✗ ') + msg + (extra !== undefined ? ' -> ' + (typeof extra === 'string' ? extra : JSON.stringify(extra)) : '')); if (!cond) falhas++; };
 const espera = ms => new Promise(r => setTimeout(r, ms));
+const assentar = p => p.waitForFunction(() => { const el = document.querySelector('#pn-conteudo'); return !el || !el.classList.contains('carregando'); });   // carga do painel terminou
+const semAnimacao = p => p.waitForFunction(() => !document.querySelector('#tv-palco').getAnimations().length, null, { timeout: 5000 });   // entrada da tela da TV terminou
 async function ate(fn, ms = 15000) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { const v = await fn(); if (v) return v; } catch (e) { /* tenta de novo */ } await espera(200); } return null; }
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
 // verificador de layout da TV: o mesmo do tv_test.js (sem rolagem, sem texto fora da tela, cortado ou sobreposto)
@@ -37,7 +40,7 @@ const geoVivo = eval(fonteTV.slice(fonteTV.indexOf('const geoVivo = p =>') + 'co
     if (relogio) await p.clock.install({ time: Date.now() });
     await p.goto(APP); await p.waitForSelector('#view *', { state: 'attached' }); await p.waitForTimeout(600); return p;
   }
-  const sync = async p => { await p.evaluate(() => Sync.sincronizar()); await p.waitForFunction(() => ['ok', 'idle'].includes(Sync.estado().tipo) && !Sync.estado().pend, null, { timeout: 15000 }); };
+  const sync = async p => { await sincronizar(p); await p.waitForFunction(() => ['ok', 'idle'].includes(Sync.estado().tipo) && !Sync.estado().pend, null, { timeout: 15000 }); };
 
   /* ---------- painel do gestor ---------- */
   const adminCred = async nome => { const a = await amb.gerente(nome); return { 'gdv.painel.token': a.token, 'gdv.painel.nome': a.nome }; };
@@ -65,7 +68,7 @@ const geoVivo = eval(fonteTV.slice(fonteTV.indexOf('const geoVivo = p =>') + 'co
 
   const sessaoGestor = await adminCred('Gestor Teste');
   const G = await painel('painel', sessaoGestor, { permissoes: ['notifications'] });
-  await G.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 20000 }); await G.waitForTimeout(500);
+  await G.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 20000 }); await assentar(G);
   ok(JSON.stringify(await pinos(G)) === '["ok"]', 'painel: barreira em andamento verde (pulso verde), sem TF', await pinos(G));
   ok(await G.isHidden('#pn-tfaviso').catch(() => true) && (await G.evaluate(() => Painel.alertaTF())).ativos.length === 0, 'painel: nenhum aviso de TF');
   ok(await G.evaluate(() => Notification.permission) === 'granted' && await G.isHidden('#pn-notif'), 'notificação já permitida: botão "Ativar notificações" some');
@@ -98,7 +101,7 @@ const geoVivo = eval(fonteTV.slice(fonteTV.indexOf('const geoVivo = p =>') + 'co
   await G.screenshot({ path: amb.saida('alerta_painel.png') });
   // outro gestor, sem permissão de notificação: o botão discreto aparece e nada é pedido sozinho
   const G2 = await painel('painel2', await adminCred('Gestor Dois'));
-  await G2.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 20000 }); await G2.waitForTimeout(400);
+  await G2.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 20000 }); await assentar(G2);
   const perm2 = await G2.evaluate(() => Notification.permission);
   ok(perm2 !== 'default' || await G2.isVisible('#pn-notif'), 'sem permissão ainda: botão "Ativar notificações" visível (nunca pede sozinho)', perm2);
   const st2 = await G2.evaluate(() => Painel.alertaTF());
@@ -187,7 +190,7 @@ const geoVivo = eval(fonteTV.slice(fonteTV.indexOf('const geoVivo = p =>') + 'co
   await B.ctx.setOffline(true); await B.evaluate(() => window.dispatchEvent(new Event('offline')));
   const nAntes = (await andamento()).length;
   await B.click('button[data-tf=novo]'); await B.waitForSelector('#tfForm'); await B.check('input[name=tf-proc][value=rechaco]'); await B.fill('#tf-placa', 'XYZ9A88'); await B.waitForTimeout(2500);
-  await B.click('nav [data-v=tf]'); await B.waitForSelector('button[data-tf=novo]'); await B.waitForTimeout(500);
+  await B.click('nav [data-v=tf]'); await B.waitForSelector('button[data-tf=novo]');
   ok((await andamento()).length === nAntes && (await doUsuario('Bruno Costa Souza')).every(x => x.estado === 'fim'), 'offline: nenhum sinal chega ao servidor (e nada fica em fila)');
   ok(!/\berro\b/.test(await B.getAttribute('#toast', 'class') || '') && !B.dialogos.some(m => /erro|falh/i.test(m)), 'offline: nenhum erro na tela do fiscal');
   await B.ctx.setOffline(false); await B.evaluate(() => window.dispatchEvent(new Event('online'))); await B.waitForTimeout(1500);
@@ -196,15 +199,14 @@ const geoVivo = eval(fonteTV.slice(fonteTV.indexOf('const geoVivo = p =>') + 'co
   console.log('9. Modo TV: faixa vermelha e salto para "Ao vivo"');
   const TVs = await adminCred('TV Sala da Gerência');
   const T = await painel('tv', TVs, { viewport: { width: 1920, height: 1080 }, url: WEB + '?tv=1&rotacao=300&rotacaoAoVivo=300', semTiles: true });
-  await T.waitForSelector('#tv-palco .tv-kpi', { timeout: 20000 }); await T.waitForTimeout(800);
+  await T.waitForSelector('#tv-palco .tv-kpi', { timeout: 20000 }); await semAnimacao(T);
   ok(await T.isHidden('#tv-tf'), 'TV sem TF em preenchimento: sem faixa vermelha');
   ok(/TF em preenchimento \(0\)/.test(await T.textContent('.tv-leg')), 'legenda do mapa da TV com o estado TF');
-  await T.evaluate(() => PainelTV.ir('alertas')); await T.waitForTimeout(500);
+  await T.evaluate(() => PainelTV.ir('alertas')); await semAnimacao(T);
   ok((await T.evaluate(() => PainelTV.estado())).tela === 'alertas', 'TV na tela Alertas');
   await A.evaluate(() => go('tfnovo')); await A.waitForSelector('#tfForm'); await A.check('input[name=tf-proc][value=apreensao]'); await A.fill('#tf-placa', 'QWE4R56');
   ok(await ate(async () => (await doUsuario('Ana Paula Lima')).find(x => x.estado === 'preenchendo' && x.procedimento === 'apreensao' && x.placa === 'QWE4R56')), 'servidor: apreensão em andamento (Ana, com turno)');
   ok(await atualizar(T, () => !document.querySelector('#tv-tf').hidden), 'TV: faixa vermelha no topo');
-  await T.waitForTimeout(600);
   const tvE = await T.evaluate(() => PainelTV.estado());
   ok(tvE.tela === 'aovivo' && tvE.restaMs > 300000 * 1.5, 'TV pula para "Ao vivo" e fica nela por pelo menos um ciclo (2 períodos)', tvE);
   const faixa = (await T.textContent('#tv-tf')).replace(/\s+/g, ' ');
@@ -220,14 +222,12 @@ const geoVivo = eval(fonteTV.slice(fonteTV.indexOf('const geoVivo = p =>') + 'co
   await A.click('nav [data-v=home]'); await A.waitForSelector('.contador');
   ok(await ate(async () => (await doUsuario('Ana Paula Lima')).every(x => x.estado === 'fim')), 'Ana saiu do TF: "fim"');
   ok(await atualizar(T, () => document.querySelector('#tv-tf').hidden && !document.querySelector('.tv-mapa .tv-pin.tf')), 'TV: faixa some e o marcador volta ao normal');
-  await T.waitForTimeout(500);
   L = await layout(T); ok(!L.probs.length, 'TV sem faixa: layout ok', L.probs.slice(0, 6));
   await T.screenshot({ path: amb.saida('alerta_tv_fim.png') });
   // TF sem turno (Bruno, online de novo) na TV + 4K
   await B.click('button[data-tf=novo]'); await B.waitForSelector('#tfForm');
   ok(await ate(async () => (await doUsuario('Bruno Costa Souza')).find(x => x.estado === 'preenchendo')), 'Bruno (online de novo) abre TF sem turno');
   ok(await atualizar(T, () => !document.querySelector('#tv-tf').hidden && document.querySelectorAll('.tv-mapa .tv-pin.tf').length === 1), 'TV: faixa + marcador do TF sem turno');
-  await T.waitForTimeout(500);
   ok(/sem turno aberto/i.test(await T.textContent('.tv-lista')), 'lista da TV: linha "sem turno aberto"');
   L = await layout(T); ok(!L.probs.length, 'TV (TF sem turno): layout ok', L.probs.slice(0, 6));
   await T.screenshot({ path: amb.saida('alerta_tv_semturno.png') });

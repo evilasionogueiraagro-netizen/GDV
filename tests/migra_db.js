@@ -31,13 +31,13 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   await abrirApp(p);
   let r = await p.evaluate(async () => ({ turnos: (await Store.todos('turnos')).map(t => t.id), veic: (await Store.todos('veiculos')).map(v => v.placa), atual: await Store.meta('turnoAtual') }));
   let e = await estrutura(p);
-  ok(e.v === 4 && ['levantamentos', 'colheitas', 'propriedades', 'arquivos', 'tfs', 'pessoas', 'placas', 'cadastrosPce', 'termosPce'].every(s => e.stores.includes(s)) && e.indices.includes('enviado'), 'v1 → v4: stores novas e índice "enviado": ' + JSON.stringify(e));
+  ok(e.v === 5 && ['levantamentos', 'colheitas', 'propriedades', 'arquivos', 'tfs', 'pessoas', 'placas', 'cadastrosPce', 'termosPce', 'culturasAvaliadas', 'resultados'].every(s => e.stores.includes(s)) && e.indices.includes('enviado'), 'v1 → v5: stores novas e índice "enviado": ' + JSON.stringify(e));
   ok(r.turnos.includes('t-antigo') && r.veic.includes('AAA1A11') && r.atual === 't-antigo', 'turno, veículo e turno atual preservados');
   await p.click('.modulo[data-v=home]'); await p.waitForTimeout(500);
   const tela = await p.evaluate(() => document.querySelector('#view').innerText.replace(/\s+/g, ' ')); ok(/Turno em andamento|TF-001-A-2026|CEASA/.test(tela), 'turno aberto continua na tela inicial: ' + tela.slice(0, 160));
   ok(!p.err.length, 'sem erros: ' + JSON.stringify(p.err)); await p.context().close();
 
-  console.log('2) banco v2 (veículos + TF) → v4');
+  console.log('2) banco v2 (veículos + TF) → v5');
   p = await nova();
   const tf = { id: 'tf-antigo', barreira: 'BVA-CEASA', ano: 2026, numero: 7, numeroTxt: '0007/2026 - BVA - CEASA', nome: 'JOSE', doc: '52998224725', pendente: 1, criadoEm: 2, atualizadoEm: 2 };
   await criar(p, 2, ['turnos', 'veiculos', 'tfs', 'pessoas', 'placas', 'meta'], { turnos: [turno], veiculos: [veic], tfs: [tf],
@@ -48,7 +48,7 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   r = await p.evaluate(async () => ({ tfs: await Store.todos('tfs'), pes: await Store.todos('pessoas'), pla: await Store.todos('placas'), uv: await Store.meta('ultimoVisto'), ls: await Store.meta('lastSync'),
     rasc: await Store.meta('tfRascunho'), veic: await Store.todos('veiculos'), lev: await Store.todos('levantamentos'), arq: (await Sync.arquivosPendentes()).length }));
   e = await estrutura(p);
-  ok(e.v === 4 && ['levantamentos', 'colheitas', 'propriedades', 'arquivos', 'cadastrosPce', 'termosPce'].every(s => e.stores.includes(s)) && e.indices.includes('enviado'), 'v2 → v4: ' + e.stores.join(','));
+  ok(e.v === 5 && ['levantamentos', 'colheitas', 'propriedades', 'arquivos', 'cadastrosPce', 'termosPce', 'culturasAvaliadas', 'resultados'].every(s => e.stores.includes(s)) && e.indices.includes('enviado'), 'v2 → v5: ' + e.stores.join(','));
   ok(r.tfs.length === 1 && r.tfs[0].numeroTxt === '0007/2026 - BVA - CEASA' && r.tfs[0].pendente === 1, 'TF antigo preservado (ainda pendente)');
   ok(r.pes.length === 1 && r.pes[0].nome === 'JOSE' && r.pla.length === 1 && r.veic.length === 1, 'pessoas, placas e veículos preservados');
   ok(r.uv['BVA-CEASA|2026'] === 7 && r.ls === 123 && r.rasc && r.rasc.dados.nome === 'RASC', 'meta (último nº visto, lastSync, rascunho do TF) preservada');

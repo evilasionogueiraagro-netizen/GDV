@@ -40,7 +40,7 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== und
   await p.click('#pce-salvar'); await p.waitForSelector('#pce-lev-pronto');
   ok(await p.locator('#pce-pronto-res tbody').count() === 2 && await p.locator('#pce-pronto-res .pce-res-cultura').count() === 2 && await p.locator('#pce-pronto-res td .pce-selo-res').count() === 2,
     'resumo em tabela: um bloco por cultura, com uma linha por praga e o resultado');
-  ok(await p.locator('.pce-visita #pce-pronto-cad').count() === 1 && await p.locator('.pce-visita [data-pce=tfvisita]').count() === 2 && /Propriedade nova/.test(await p.textContent(".pce-visita")),
+  ok(await p.locator('.pce-visita #pce-pronto-cad').count() === 1 && await p.locator('.pce-visita [data-pce=tfvisita]').count() === 2 && /Propriedade nova|mais de um cadastro/.test(await p.textContent(".pce-visita")),
     'depois de salvar: "Próximo passo da visita" com Cadastrar a propriedade e um Termo de Fiscalização por programa (2)');
   await p.screenshot({ path: amb.saida('pce_visita_pronto.png'), fullPage: true });
 
@@ -53,6 +53,15 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== und
   for (let i = 0; i < 40 && !(await p.locator('#pce-lev-pronto').count()); i++) {           // número do cadastro (popup) e depois a tela do levantamento
     if (await p.locator('#mon-m-ok').count()) await p.click('#mon-m-ok');
     await p.waitForTimeout(300);
+  }
+  if (await p.locator('#pce-pronto-cad').count()) {
+    await p.click('#pce-pronto-cad'); await p.waitForSelector('#monCadForm');
+    if (!(await p.inputValue('#mc-municipio'))) await p.selectOption('#mc-municipio', 'Manaus');
+    await p.click('#mc-salvar');
+    for (let i = 0; i < 40 && !(await p.locator('#pce-lev-pronto').count()); i++) {
+      if (await p.locator('#mon-m-ok').count()) await p.click('#mon-m-ok');
+      await p.waitForTimeout(300);
+    }
   }
   ok(await p.locator('#pce-lev-pronto').count() === 1 && await p.locator('#pce-pronto-cad').count() === 0, 'depois do cadastro: volta ao levantamento, que já não pede o cadastro', await toast());
   const botoesTf = await p.locator('.pce-visita [data-pce=tfvisita]').allTextContents();

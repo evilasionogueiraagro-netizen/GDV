@@ -304,13 +304,13 @@ const ANO = new Date().getFullYear();
   console.log('9) rascunhos automáticos');
   await A.click('nav [data-v=pcelev]'); await A.waitForSelector('#pceLevForm');
   await A.fill('#pce-doc', '12345678909'); await A.fill('#pce-nome', 'RASCUNHO PCE');   // os dados do produtor abrem depois do CPF/CNPJ
-  await F.cultura(A, 0, 'Açaí'); await F.responder(A, 0, 'HLB / Greening', 'suspeita');   // Açaí não tem praga no catálogo: a somada em "+ Outra praga/doença"
+  await F.cultura(A, 0, 'Milho'); await F.responder(A, 0, 'Amaranthus palmeri', 'suspeita');   // Milho não tem praga ligada no catálogo: a somada em "+ Outra praga/doença"
   await A.setInputFiles(CU(0) + ' >> .c-fotos', [{ name: 'r.jpg', mimeType: 'image/jpeg', buffer: await imagem(A, 300, 200, '#33c') }]); await A.waitForSelector(CU(0) + ' >> .pce-foto img');
   await A.waitForTimeout(900);
   ok((await pendentes(A)) === 0, 'foto de rascunho não conta como pendente');
   await A.click('nav [data-v=pce]'); await A.waitForSelector('#pce-novolev'); await A.click('#pce-novolev'); await A.waitForSelector('#pceLevForm');
   await A.waitForSelector(CU(0) + ' >> .pce-foto img');
-  ok((await A.inputValue('#pce-nome')) === 'RASCUNHO PCE' && (await A.inputValue(CU(0) + ' >> .c-cultura')) === 'Açaí' && (await A.inputValue(OUTRA(0) + ' >> .r-praga')) === 'hlb-greening'
+  ok((await A.inputValue('#pce-nome')) === 'RASCUNHO PCE' && (await A.inputValue(CU(0) + ' >> .c-cultura')) === 'Milho' && (await A.inputValue(OUTRA(0) + ' >> .r-praga')) === 'amaranthus-palmeri'
     && await A.locator(OUTRA(0) + ' >> .r-res:checked').getAttribute('value') === 'suspeita' && await A.locator(CU(0) + ' >> .pce-foto img').count() === 1, 'rascunho do levantamento restaurado (nome, cultura, praga somada, resultado e foto da cultura)');
   let nArq = await A.evaluate(async () => (await Store.todos('arquivos')).length);
   await A.click('[data-pce=descartarlev]'); await A.waitForSelector('#pce-novolev');
@@ -386,7 +386,7 @@ const ANO = new Date().getFullYear();
   ok((await Cd.getAttribute('#pce-obs', 'aria-label')) === 'Observações', 'campo de observações com nome acessível');
   await Cd.fill('#pce-doc', '11.222.333/0001-81'); await statusDoc(Cd, 'pce-', /Novo cadastro/);
   await Cd.fill('#pce-nome', 'Agro Longo Ltda'); await Cd.fill('#pce-propriedade', 'Sítio Nossa Senhora Aparecida do Rio Preto da Eva km 32 ramal do Pau Rosa');
-  await F.cultura(Cd, 0, 'Banana'); await F.responder(Cd, 0, 'Cancro Cítrico', 'nao_detectada');
+  await F.cultura(Cd, 0, 'Coco'); await F.responder(Cd, 0, 'Mosca-negra-dos-citros', 'nao_detectada');
   ok(await Cd.getAttribute(CU(0) + ' >> .c-area', 'maxlength') === '60' && await Cd.getAttribute(OUTRA(0) + ' >> .r-outra', 'maxlength') === '80', 'campos livres das culturas e da praga com tamanho máximo');
   for (const k of ['hlb', 'acaro', 'cancro']) await Cd.click(`#pce-citros label:has(input[name="pce-ci-det-${k}-tem"][value="nao"])`);   // praga de citros: detecção obrigatória
   await Cd.fill('#pce-data', ''); await Cd.click('#pce-salvar'); await Cd.waitForTimeout(300);

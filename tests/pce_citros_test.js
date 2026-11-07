@@ -171,7 +171,7 @@ const guardar = nome => { if (COPIA) { fs.mkdirSync(COPIA, { recursive: true });
     'tela do cadastro de citros: dados do levantamento para conferir (produtor, CNPJ, código, detecção, cultura)', telaCad.slice(0, 400));
   await p.click('#mc-salvar'); await confirmarNumeros('#pce-lev-pronto');
   const botoesTf = (await p.locator('.pce-visita [data-pce=tfvisita]').allTextContents()).map(x => x.trim());
-  ok(await p.locator('#pce-pronto-cad').count() === 0 && botoesTf.length === 2 && botoesTf.some(x => /Pragas dos Citros \(Laranja, Limão\)/.test(x)) && botoesTf.some(x => /Mosca-da-Carambola \(Carambola\)/.test(x)),
+  ok(await p.locator('.pce-visita [data-pce=cadvisita][data-modelo=citros]').count() === 0 && botoesTf.length === 2 && botoesTf.some(x => /Pragas dos Citros \(Laranja, Limão\)/.test(x)) && botoesTf.some(x => /Mosca-da-Carambola \(Carambola\)/.test(x)),
     'depois do cadastro: volta ao levantamento com um Termo por programa (Pragas dos Citros com Laranja e Limão; Mosca-da-Carambola com Carambola)', botoesTf);
   await p.click('.pce-visita [data-pce=tfvisita][data-programa="pragas-dos-citros"]'); await p.waitForSelector('#monTfForm');
   ok(/citros/.test(await p.textContent('#monTfForm h3')) && /Pragas dos Citros/.test(await p.textContent('#mt-programa')) && /Laranja, Limão/.test(await p.textContent('#mt-programa')), 'abre o Termo de Fiscalização de citros, do programa Pragas dos Citros e suas culturas', await p.textContent('#mt-programa'));
@@ -256,7 +256,7 @@ const guardar = nome => { if (COPIA) { fs.mkdirSync(COPIA, { recursive: true });
   ok(CD && CD.levantamentoId === lid && CD.codigoPropriedade === 'PRP-CIT-1' && CD.deteccao.cancro.tem === 'sim' && CD.culturas.length === 2 && CD.culturasAvaliadas.join() === 'Laranja,Limão',
     'CadastrosPCE.dados: cópia do bloco de citros + levantamento, código e culturas avaliadas', CD);
   ok(tfs.length === 1 && TF0.cadastroId === cads[0].id && json(TF0.tipoLocal)[0] === 'Propriedade Sítio Ficticio, Ramal Ficticio, km 3, Manaus/AM' && /Presença de sintomas de Cancro Cítrico/.test(TF0.constatacao)
-    && /ART\. 26\./.test(TF0.enquadramento) && TF0.empresa === 'Citros Ficticio Ltda' && TF0.sintomas === 'sim' && TF0.plantasInspecionadas === 550, 'TermosPCE: termo de citros ligado ao cadastro, local, frases, enquadramento, empresa e números do relatório',
+    && TF0.enquadramento === ENQ_CANCRO && TF0.empresa === 'Citros Ficticio Ltda' && TF0.sintomas === 'sim' && TF0.plantasInspecionadas === 550, 'TermosPCE: termo de citros ligado ao cadastro, local, frases, enquadramento, empresa e números do relatório',
     TF0 && [TF0.cadastroId, TF0.tipoLocal, TF0.sintomas, TF0.plantasInspecionadas]);
 
   console.log('10. Reabrir');
@@ -270,7 +270,7 @@ const guardar = nome => { if (COPIA) { fs.mkdirSync(COPIA, { recursive: true });
   ok(await p.locator('#mt-desc-citros').count() === 1 && await t('localAcao') === 'Propriedade Sítio Ficticio, Ramal Ficticio, km 3, Manaus/AM' && /Orientado o produtor/.test(await t('constatacao')), 'Termo reaberto: modo citros com local e descrição');
   await p.click('#monTfForm [data-mon=descartar]'); await p.waitForTimeout(300);
   await p.evaluate(id => PCEUI.levPronto(id), lid); await p.waitForSelector('#pce-lev-pronto');
-  ok(await p.locator('#pce-pronto-cad').count() === 0 && /cadastro de citros \d{3}-\d{4}-MANAUS/.test(await p.textContent('.pce-visita')) && /Termo \d{3}\.\d{4}\.MANAUS – Pragas dos Citros/.test(await p.textContent('.pce-visita [data-pce=abrirtfvisita]')) && await p.locator('.pce-visita [data-pce=tfvisita]').count() === 1,
+  ok(await p.locator('.pce-visita [data-pce=cadvisita][data-modelo=citros]').count() === 0 && /cadastro de citros \d{3}-\d{4}-MANAUS/.test(await p.textContent('.pce-visita')) && /Termo \d{3}\.\d{4}\.MANAUS – Pragas dos Citros/.test(await p.textContent('.pce-visita [data-pce=abrirtfvisita]')) && await p.locator('.pce-visita [data-pce=tfvisita]').count() === 1,
     'visita: cadastro de citros e Termo de citros já feitos (sem pedir de novo); falta só o da Mosca-da-Carambola', (await p.textContent('.pce-visita')).replace(/\s+/g, ' '));
 
   console.log('11. Sem internet: o CPF busca no aparelho; praga só de outro programa sem bloco');

@@ -51,7 +51,7 @@ async function abrirProdutor(p, busca) {
 }
 const bloco = (p, cultura) => p.locator('.pce-cultura', { has: p.locator('b', { hasText: cultura }) }).first();
 /**
- * Visita completa. o = {frutos: [cultura...], resultados: {cultura: {praga: resultado}}, padrao: 'nao_detectada' (obrigatórias sem resposta),
+ * Visita completa. o = {frutos: [cultura...], resultados: {cultura: {praga: resultado}}, padrao: 'nao_detectada' (obrigatórias sem resposta; a opcional já vem marcada "Não tem" e só é tocada se estiver em resultados),
  * amostra: {cultura: {tipo, codigo, destino, qtd}}, plantas: {cultura: n}, fotos: {cultura: [arquivos]}, naoAssina: false, parar: 'passo' (para antes de concluir),
  * aoPasso: async passo => {} (chamado com 1, '2-vazio', 2, 3, 4, 5 e 'pronta', para quem fotografa as telas)}.
  * Parte da tela do produtor (#pce-novavisita) e termina na tela da visita concluída (#pce-visita-pronta).
@@ -65,7 +65,7 @@ async function visita(p, o) {
   const n = await p.locator('.pce-pr').count();
   for (let i = 0; i < n; i++) {
     const e = p.locator('.pce-pr').nth(i), nome = await e.getAttribute('data-nome'), cult = (await e.locator('xpath=ancestor::div[contains(@class,"pce-cultura")]//b').first().textContent()).trim().replace(/\s*\(.*\)$/, '');   // sem a cultivar
-    const res = ((o.resultados || {})[cult] || {})[nome] || (/opcional/.test(await e.locator('.pce-pr-cat').textContent()) ? '' : (o.padrao || 'nao_detectada'));
+    const res = ((o.resultados || {})[cult] || {})[nome] || (await e.getAttribute('data-opcional') ? '' : (o.padrao || 'nao_detectada'));
     if (res) await e.locator('.pce-res-' + res).click();
   }
   if (o.aoPasso) await o.aoPasso(2);

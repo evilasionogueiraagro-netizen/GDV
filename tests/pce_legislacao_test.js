@@ -71,7 +71,7 @@ function csv(txt) {
   await A.abrirProdutor(p, '52998224725');
   const e2 = await visita({ 'HLB / Greening': 'nao_detectada', 'Cancro Cítrico': 'nao_detectada', 'Schizotetranychus hindustanicus': 'nao_detectada' });
   const esp2 = [...new Set([leg('HLB / Greening'), leg('Cancro Cítrico'), leg('Schizotetranychus hindustanicus')])].join('\n');
-  ok(mesmas(e2.tela, esp2) && mesmas(e2.termo, esp2) && e2.termo.split('\n').length === 3 && !e2.termo.includes(leg('Pinta Preta dos Citros')), 'nada detectado nem suspeito: entra o enquadramento de todas as avaliadas do programa (sem repetir e sem opcional não respondida)', e2);
+  ok(mesmas(e2.tela, esp2) && mesmas(e2.termo, esp2) && e2.termo.split('\n').length === 3 && !e2.termo.includes(leg('Pinta Preta dos Citros')), 'nada detectado nem suspeito: entra o enquadramento de todas as avaliadas do programa (sem repetir; a opcional "Não tem" também é avaliada, mas a Pinta Preta não tem texto no catálogo e não acrescenta linha)', e2);
   ok(p.err.length === 0, 'sem erros de JavaScript', p.err);
   await b.close(); process.exit(falhas ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

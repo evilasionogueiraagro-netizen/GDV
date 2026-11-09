@@ -12,8 +12,8 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== und
   const arqsProd = () => p.evaluate(async () => (await Store.todos('arquivos')).filter(a => a.papel === 'produtor').map(a => ({ id: a.id, tipo: a.tipo, mime: a.mime, rotulo: a.rotulo })));
   await A.identificar(p);
   await A.novoProdutor(p, { doc: '52998224725', nome: 'Raimundo Nonato', propriedade: 'Sítio Esperança', codigo: 'PRP-NAS-1', municipio: 'Manaus', frutos: [{ cultura: 'Banana', area: 1 }] });
-  // Banana: Fusariose, Moko e Sigatoka são opcionais; ao menos uma precisa de resposta
-  await A.visita(p, { frutos: ['Banana'], resultados: { Banana: { 'Moko da Bananeira': 'nao_detectada' } }, parar: 5 });
+  // Banana: Fusariose, Moko e Sigatoka são opcionais e já vêm marcadas "Não tem"
+  await A.visita(p, { frutos: ['Banana'], parar: 5 });
 
   ok(await p.isVisible('#pce-ass-produtor') && await p.isHidden('#pce-docprod') && !(await p.isChecked('#pce-naoassina')) && await p.isHidden('#vi-testemunhas'), 'passo 5 começa com a assinatura na tela; opção "não assina" desmarcada, sem testemunhas');
   await p.check('#pce-naoassina');

@@ -22,8 +22,11 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   ok((await nomes('Cacau')).join('|') === 'Monilíase do Cacaueiro', 'Cacau: só a monilíase (catálogo)', await nomes('Cacau'));
   const lar = await nomes('Laranja');
   ok(lar.length === 6 && ['HLB / Greening', 'Cancro Cítrico', 'Schizotetranychus hindustanicus'].every(x => lar.includes(x)) && ['Diaphorina citri (vetor do HLB)', 'Pinta Preta dos Citros', 'Leprose dos Citros'].every(x => lar.includes(x)), 'Laranja: HLB, cancro, ácaro e as opcionais', lar);
-  const obrig = await A.bloco(p, 'Laranja').locator('.pce-pr').evaluateAll(l => l.filter(e => !/opcional/.test(e.querySelector('.pce-pr-cat').textContent)).map(e => e.dataset.nome));
-  ok(obrig.length === 3, 'citros: HLB, ácaro hindustânico e cancro são obrigatórios; as outras 3 são opcionais', obrig);
+  const obrig = await A.bloco(p, 'Laranja').locator('.pce-pr:not([data-opcional])').evaluateAll(l => l.map(e => e.dataset.nome));
+  ok(obrig.length === 3, 'citros: HLB, ácaro hindustânico e cancro têm resultado obrigatório; as outras 3 são campos "Não tem" / "Tem"', obrig);
+  const opc = A.bloco(p, 'Laranja').locator('.pce-pr[data-opcional]');
+  ok(await opc.count() === 3 && await opc.locator('.pce-res-nao_detectada input:checked').count() === 3 && await opc.locator('.pce-res-detectada input:checked').count() === 0, 'as 3 opcionais já vêm marcadas "Não tem", sem a pessoa tocar');
+  ok(await opc.first().locator('.r-res').count() === 2 && (await opc.first().locator('.pce-res-op label').allTextContents()).join('|') === 'Não tem|Tem' && !/opcional/i.test(await opc.first().textContent()), 'opcional: só as duas opções "Não tem" e "Tem", sem "(opcional)" na tela');
   await p.click('#vi-continuar'); ok(/Informe o resultado de .* em (Cacau|Laranja)/.test(await toast()), 'praga obrigatória sem resposta não avança', await toast());
   const extrasCacau = await A.bloco(p, 'Cacau').locator('.vi-extra option').allTextContents(), extrasLar = await A.bloco(p, 'Laranja').locator('.vi-extra option').allTextContents();
   ok(!extrasCacau.some(x => /Moko|Sigatoka|Phakopsora|Ferrugem|Fusari/i.test(x)), 'hospedeiros: Cacau não oferece praga de banana nem de soja', extrasCacau);
@@ -56,7 +59,7 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   await p.click('#vi-continuar'); await p.waitForSelector('#vi-local');
   ok(await p.locator('.pce-prog').count() === 3, 'um bloco de constatação por programa (monilíase, citros, mosca-da-carambola)');
   const cons = await p.locator('textarea[data-prog]').evaluateAll(l => l.map(t => t.value));
-  ok(cons.some(t => /suspeita de Monilíase do Cacaueiro em Cacau/.test(t)) && cons.some(t => /Ausência de sintomas de HLB/.test(t)) && cons.some(t => /Não constatei a presença de Bactrocera carambolae em Laranja/.test(t)), 'constatação pronta de cada programa', cons);
+  ok(cons.some(t => /suspeita de Monilíase do Cacaueiro em Cacau/.test(t)) && cons.some(t => /Ausência de sintomas de HLB/.test(t)) && cons.some(t => /Não constatei a presença de Diaphorina citri \(vetor do HLB\) em Laranja\./.test(t) && !/Praga opcional/.test(t)) && cons.some(t => /Não constatei a presença de Bactrocera carambolae em Laranja/.test(t)), 'constatação pronta de cada programa', cons);
   const enq = await p.locator('.vi-enq').allTextContents();
   ok(enq.some(t => /IN 112/.test(t)) && enq.some(t => /Instrução Normativa SDA\/MAPA nº 38; Portaria SDA\/MAPA n° 1\.545/.test(t)), 'enquadramento da planilha da GDV: suspeita da monilíase; mosca negativa traz o das avaliadas', enq);
   await p.uncheck('input[name=vi-acoes][value="Fiscalização"]'); await p.click('#vi-continuar'); ok(/Marque a ação/.test(await toast()), 'sem ação marcada não avança', await toast());

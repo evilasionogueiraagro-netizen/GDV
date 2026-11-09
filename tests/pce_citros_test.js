@@ -1,6 +1,6 @@
 const amb = require('./lib/amb');
 const A = require('./lib/pce-app');
-// PCE — citros na visita (IN 21/2018 cancro cítrico e Portaria 317/2021 HLB): HLB, ácaro hindustânico e cancro obrigatórios; a Diaphorina (vetor) é opcional
+// PCE — citros na visita (IN 21/2018 cancro cítrico e Portaria 317/2021 HLB): HLB, ácaro hindustânico e cancro obrigatórios; a Diaphorina (vetor) é opcional (campo "Não tem"/"Tem")
 // e não marca o HLB; Termo do programa com as frases de ausência/presença, o enquadramento só do que foi detectado e o local especificado; ficha oficial
 // de citros gerada do cadastro (frutos e levantamento da visita). Sem internet e planilha. App real + Code.gs real no fakegas. Dados fictícios.
 // Com GDV_SAIDA_CITROS=<pasta> copia as capturas (telas a 400 px e as páginas dos PDFs).
@@ -39,7 +39,7 @@ const CAN = 'IN MAPA nº 21/2018; IN SDA/MAPA nº 38', HLB = 'Portaria SDA/MAPA 
   await p.click('#vi-continuar'); await p.waitForSelector('#vi-local');
   const txt = await p.inputValue('textarea[data-prog]');
   ok(/Presença de sintomas de Cancro Cítrico nos frutos e folhas da cultura Laranja e Limão\./.test(txt) && /Ausência de sintomas de HLB nos frutos e folhas/.test(txt) && /Ausência de sintomas de Ácaro Hindustânico/.test(txt), 'frases de ausência/presença das três doenças', txt);
-  ok(!/Presença de sintomas de HLB/.test(txt) && /Praga opcional Diaphorina citri \(vetor do HLB\): Detectada em Laranja\./.test(txt), 'Diaphorina detectada NÃO marca presença de HLB e entra como praga opcional', txt);
+  ok(!/Presença de sintomas de HLB/.test(txt) && /Constatei a presença de Diaphorina citri \(vetor do HLB\) em Laranja\./.test(txt) && /Não constatei a presença de Pinta Preta dos Citros em Laranja e Limão\./.test(txt) && !/Praga opcional/.test(txt), 'Diaphorina "Tem" NÃO marca presença de HLB e entra com a redação das outras pragas; as opcionais intocadas entram como "Não constatei"', txt);
   const enq = await p.textContent('.vi-enq');
   ok(enq.includes(CAN) && !enq.includes(HLB), 'enquadramento: só o das pragas detectadas (cancro), sem o do HLB', enq);
   await tira('03-constatacao-citros');

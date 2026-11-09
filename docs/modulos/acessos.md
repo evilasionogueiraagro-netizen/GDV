@@ -17,6 +17,7 @@ Passo a passo para o gerente: [web/painel/manual.html](../../web/painel/manual.h
 - Senha esquecida: a gerência gera outra provisória (encerra as sessões da pessoa). Gerente: outro gerente ou e-GDV → Redefinir senha de gerente.
 - Tentativas: 10 erros por matrícula ou 50 no total em 15 min bloqueiam a entrada por 15 min.
 - Sessão por aparelho, até sair, ser encerrada pela gerência ou a conta ser desativada. Toda chamada confere a conta na planilha.
+- Aparelho com vários logins: cada um vê o seu e o dos seus turnos (`Sync.visiveis`).
 - Nunca se desativa nem se tira a gerência do último gerente ativo.
 
 ## Permissões

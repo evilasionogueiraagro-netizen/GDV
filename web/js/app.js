@@ -882,8 +882,8 @@ async function historico() {
     <label>Até<input type="date" id="hAte" value="${fim}"></label></div></div><div id="hOut"></div>`);
   const desenhar = async () => {
     const de = $('#hDe').value, ate = $('#hAte').value;
-    const turnos = (await Store.todos('turnos')).filter(t => !Number(t.cancelado) && (!de || t.data >= de) && (!ate || t.data <= ate))
-      .sort((a, b) => b.data.localeCompare(a.data) || b.criadoEm - a.criadoEm);
+    const turnos = (await Sync.visiveis('turnos', await Store.todos('turnos'))).filter(t => !Number(t.cancelado) && (!de || t.data >= de) && (!ate || t.data <= ate))
+      .sort((a, b) => b.data.localeCompare(a.data) || b.criadoEm - a.criadoEm);   // só os do login atual e os turnos de que ele participa
     const ids = new Set(turnos.map(t => t.id));
     const veic = (await Store.todos('veiculos')).filter(v => ids.has(v.turnoId) && !v.excluido);
     const pessoas = veic.reduce((s, x) => s + (Number(x.pessoas) || 0), 0);

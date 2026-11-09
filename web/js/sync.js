@@ -340,6 +340,23 @@ const Sync = (() => {
   const relEquipeLista = () => chamar({ action: 'relEquipeLista' }, 30000);
   const relEquipe = escalaId => chamar({ action: 'relEquipe', escalaId }, 45000);
   const relEquipeSalvar = (escalaId, dados) => chamar({ action: 'relEquipeSalvar', escalaId, dados }, 30000);
+  /**
+   * Aparelho de base com vários logins: as telas mostram só o que é do login atual e o dos turnos de que ele participa (quem abriu e
+   * os colegas). O resto continua guardado no aparelho (escondido); o que outra pessoa deixou sem enviar fica retido até ela entrar.
+   * Registro sem "usuario" ainda não foi à planilha: é deste aparelho e, se não está retido, do login atual.
+   */
+  async function visiveis(store, lista) {
+    const eu = nome(); if (!eu) return lista;
+    const letra = Object.keys(Envio.STORES).find(k => Envio.STORES[k] === store);
+    const R = await Envio.retidosDeOutros(), ret = (letra && R[letra]) || new Set();
+    const participa = t => !!t && ((t.usuario && mesmoNome(t.usuario, eu)) || listaJSON_(t.colegas).some(n => mesmoNome(n, eu)));
+    let meusTurnos = null;
+    if (store !== 'turnos' && lista.some(r => r && r.turnoId)) {
+      meusTurnos = new Set((await Store.todos('turnos')).filter(t => participa(t) && !R.t.has(t.id)).map(t => t.id));
+    }
+    return lista.filter(r => r && !ret.has(r.id) && (!r.usuario || mesmoNome(r.usuario, eu) || (store === 'turnos' ? participa(r) : !!(meusTurnos && r.turnoId && meusTurnos.has(r.turnoId)))));
+  }
+  const listaJSON_ = s => { try { const v = JSON.parse(s || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
   const minhasEscalas = async () => { try { return (await Store.meta('minhasEscalas')) || []; } catch (e) { return []; } };
   /** Turno em BVA fixa: onde há escala publicada cobrindo o dia, só quem está nela (coordenação e gerência, livres). true = pode. */
   async function podeTurnoNaBva(bva, dia) {
@@ -560,7 +577,7 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, turnosAbertos, entrarNoTurno, sairDoTurno, removerColega, podeTurnoNaBva, turnoPapel, mesmoNome, recuperarTurnos, tfsDoTurno, escalaDados, escalaSalvar, escalaExcluir, escalaGerar, relEquipeLista, relEquipe, relEquipeSalvar, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
+  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, turnosAbertos, entrarNoTurno, sairDoTurno, removerColega, podeTurnoNaBva, visiveis, turnoPapel, mesmoNome, recuperarTurnos, tfsDoTurno, escalaDados, escalaSalvar, escalaExcluir, escalaGerar, relEquipeLista, relEquipe, relEquipeSalvar, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
     pceProximoNumero, pceEmitir, pceConsultar, pceBaixarMunicipio, pceMapaGeral, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

@@ -307,7 +307,7 @@ const Sync = (() => {
   const turnosAbertos = () => chamar({ action: 'turnosAbertos' }, 6000);
   const entrarNoTurno = turnoId => entrada({ action: 'turnoEntrar', turnoId });
   async function entrada(req) {
-    const r = await chamar(req, 20000);
+    const r = await chamar(req, 45000);                              // a planilha pode estar ocupada (vários aparelhos ao mesmo tempo)
     await Store.gravar('turnos', { ...r.turno, pendente: 0 });
     for (const v of r.veiculos || []) await Store.gravar('veiculos', { ...v, pendente: 0 });
     if ((r.tfs || []).length) await aplicar('tfs', r.tfs);          // TFs já lavrados no turno (dono e colegas)
@@ -340,6 +340,24 @@ const Sync = (() => {
   const relEquipeLista = () => chamar({ action: 'relEquipeLista' }, 30000);
   const relEquipe = escalaId => chamar({ action: 'relEquipe', escalaId }, 45000);
   const relEquipeSalvar = (escalaId, dados) => chamar({ action: 'relEquipeSalvar', escalaId, dados }, 30000);
+  /**
+   * Aparelho de base com vários logins: as telas mostram só o que é do login atual e o dos turnos de que ele participa (quem abriu e
+   * os colegas). O resto continua guardado no aparelho (escondido); o que outra pessoa deixou sem enviar fica retido até ela entrar.
+   * Registro sem "usuario" ainda não foi à planilha: é deste aparelho e, se não está retido, do login atual.
+   */
+  async function visiveis(store, lista) {
+    const eu = nome(); if (!eu) return lista;
+    const letra = Object.keys(Envio.STORES).find(k => Envio.STORES[k] === store);
+    const R = await Envio.retidosDeOutros(), ret = (letra && R[letra]) || new Set();
+    const meuId = (usuario() || {}).id || '';
+    const participa = t => !!t && ((meuId && t._login === meuId) || (t.usuario && mesmoNome(t.usuario, eu)) || listaJSON_(t.colegas).some(n => mesmoNome(n, eu)));
+    let meusTurnos = null;
+    if (store !== 'turnos' && lista.some(r => r && r.turnoId)) {
+      meusTurnos = new Set((await Store.todos('turnos')).filter(t => participa(t) && !R.t.has(t.id)).map(t => t.id));
+    }
+    return lista.filter(r => r && !ret.has(r.id) && (!r.usuario || (meuId && r._login === meuId) || mesmoNome(r.usuario, eu) || (store === 'turnos' ? participa(r) : !!(meusTurnos && r.turnoId && meusTurnos.has(r.turnoId)))));
+  }
+  const listaJSON_ = s => { try { const v = JSON.parse(s || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
   const minhasEscalas = async () => { try { return (await Store.meta('minhasEscalas')) || []; } catch (e) { return []; } };
   /** Turno em BVA fixa: onde há escala publicada cobrindo o dia, só quem está nela (coordenação e gerência, livres). true = pode. */
   async function podeTurnoNaBva(bva, dia) {
@@ -376,7 +394,9 @@ const Sync = (() => {
   const labAtt = v => { try { const o = typeof v === 'string' ? JSON.parse(v || 'null') : v; return o && Number(o.atualizadoEm) || 0; } catch (e) { return 0; } };
   const labMaisNovo = (a, b) => labAtt(a) > labAtt(b);
   async function aplicar(store, linhas) {
+    const meuId = (usuario() || {}).id || '';                          // o servidor mandou para este login: é dele ver (Sync.visiveis)
     await Store.mesclar(store, linhas, (local, row) => {
+      if (meuId) row = { ...row, _login: meuId };
       if (local && local.pendente && local.atualizadoEm > row.atualizadoEm) {               // edição local mais nova: fica a local…
         // …mas o turno encerrado na planilha (pela gerência, p.ex.) encerra aqui também; o resto da edição local continua pendente
         if (store === 'turnos' && Number(row.encerrado) === 1 && (Number(local.encerrado) !== 1 || row.encerradoPor)) {
@@ -400,21 +420,6 @@ const Sync = (() => {
     if (!t || Number(t.encerrado) !== 1) return;
     await Store.setMeta('turnoAtual', '');
     window.dispatchEvent(new CustomEvent('gdv-turno-encerrado', { detail: { id, numeroTF: t.numeroTF || '', fim: t.fim || '', encerradoPor: t.encerradoPor || '' } }));
-  }
-
-  /** O aparelho guarda só os turnos/veículos do próprio fiscal. Versões antigas do servidor mandavam os de todos;
-   *  apaga do aparelho (nunca da planilha) os já enviados que são de outro fiscal. Ficam os pendentes, o turno atual, os turnos em que
-   *  este login entrou pelo código (meta "turnosCompartilhados") ou lançou veículo: o Termo deles continua no Histórico. */
-  async function limparDeOutros() {
-    const eu = nome(); if (!eu) return;
-    const atual = await Store.meta('turnoAtual'), comp = new Set((await Store.meta('turnosCompartilhados')) || []);
-    const todosV = await Store.todos('veiculos');
-    todosV.forEach(v => { if (v.usuario && mesmoNome(v.usuario, eu)) comp.add(v.turnoId); });
-    const turnos = (await Store.todos('turnos')).filter(t => t.usuario && !mesmoNome(t.usuario, eu) && !t.pendente && t.id !== atual && !comp.has(t.id));
-    const fora = new Set(turnos.map(t => t.id));
-    const veic = todosV.filter(v => !v.pendente && fora.has(v.turnoId));   // só os veículos dos turnos removidos
-    await Store.apagar('turnos', [...fora]);
-    await Store.apagar('veiculos', veic.map(v => v.id));
   }
 
   /**
@@ -455,6 +460,7 @@ const Sync = (() => {
         await aplicar('termosPce', r.termosPce || []);
         await lembrarUltimosDocPce(r.ultimosDocPce);
         if (r.barreiras) await Store.setMeta('barreiras', r.barreiras);
+        if (r.eu && nome() && r.eu !== nome()) { localStorage.setItem('gdv.nome', r.eu); espelharCred(); }   // nome da conta mudou no painel
         if (Array.isArray(r.minhasEscalas)) await Store.setMeta('minhasEscalas', r.minhasEscalas);   // escalas de plantão publicadas do fiscal
         if (r.escalasDaBva && Array.isArray(r.escalasDaBva.escalas)) await Store.setMeta('escalasDaBva', r.escalasDaBva);       // turno em BVA fixa só para quem está na escala
         if (Array.isArray(r.bvas)) { await Store.setMeta('bvas', r.bvas); CONFIG.aplicarBvas(r.bvas); }   // BVAs cadastradas no painel
@@ -470,7 +476,6 @@ const Sync = (() => {
         try { await enviarPendentesArquivos(await arquivosPendentes(null, PERM)); }   // falha numa foto não derruba o sync principal
         catch (e) { erroArq = e.message || String(e); }
       }
-      await limparDeOutros();
       try { await atualizarIndice(); } catch (e) { /* índice de reincidência: melhor esforço (tenta de novo na próxima sincronização) */ }
       // dados do PCE em campo (municípios baixados): atualiza sozinho no máximo 1x a cada 6 h, sem segurar a sincronização
       if (typeof Campo !== 'undefined') Campo.atualizarSozinho().catch(() => {});
@@ -557,7 +562,7 @@ const Sync = (() => {
     sincronizar();
   }
 
-  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, turnosAbertos, entrarNoTurno, sairDoTurno, removerColega, podeTurnoNaBva, turnoPapel, mesmoNome, recuperarTurnos, tfsDoTurno, escalaDados, escalaSalvar, escalaExcluir, escalaGerar, relEquipeLista, relEquipe, relEquipeSalvar, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
+  return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, turnosAbertos, entrarNoTurno, sairDoTurno, removerColega, podeTurnoNaBva, visiveis, turnoPapel, mesmoNome, recuperarTurnos, tfsDoTurno, escalaDados, escalaSalvar, escalaExcluir, escalaGerar, relEquipeLista, relEquipe, relEquipeSalvar, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
     pceProximoNumero, pceEmitir, pceConsultar, pceBaixarMunicipio, pceMapaGeral, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

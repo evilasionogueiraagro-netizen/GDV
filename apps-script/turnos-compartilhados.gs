@@ -133,8 +133,9 @@ function turnoAbertoNaBva_(t, agora) {
  */
 function turnosAbertos_(req, usuario) {
   const agora = Date.now(), dentro = turnosCompartilhados_(usuario, agora).turnos;
-  const turnos = lerLeitura_('Turnos').filter(function (t) { return t.usuario !== usuario && !dentro[t.id] && turnoAbertoNaBva_(t, agora) && podeNaBva_(t.local); })
-    .map(function (t) { return { id: t.id, numeroTF: t.numeroTF, local: t.local, fiscal: t.fiscal, dono: t.usuario, data: t.data, inicio: t.inicio }; });
+  // o turno em que o login já entrou também vem (jaDentro): se a resposta do "Entrar" se perdeu, o fiscal volta para ele com um toque
+  const turnos = lerLeitura_('Turnos').filter(function (t) { return t.usuario !== usuario && turnoAbertoNaBva_(t, agora) && (dentro[t.id] || podeNaBva_(t.local)); })
+    .map(function (t) { return { id: t.id, numeroTF: t.numeroTF, local: t.local, fiscal: t.fiscal, dono: t.usuario, data: t.data, inicio: t.inicio, jaDentro: dentro[t.id] ? 1 : 0 }; });
   return { ok: true, turnos: turnos };
 }
 
@@ -151,8 +152,8 @@ function turnoEntrar_(req, usuario) {
     const agora = Date.now(), t = turnoAbertoPorId_(lerLinhas_('Turnos'), id);
     if (t.usuario === usuario) throw new Error('Este turno já é seu: os seus aparelhos já entram nele sozinhos.');
     if (!turnoAbertoNaBva_(t, agora)) throw new Error('Este turno não aceita entrada direta. Peça o código ao colega que abriu o turno.');
-    exigirEscalaNaBva_(t.local);
     const ja = lerLeitura_('Pareamentos').some(function (p) { return p.turnoId === id && p.colega === usuario && !p.saiuEm; });
+    if (!ja) exigirEscalaNaBva_(t.local);                                       // quem já está no turno só volta (a resposta se perdeu)
     if (!ja) inserir_('Pareamentos', [{ id: uuid_(), turnoId: id, dono: t.usuario, codigo: '', criadoEm: agora, expiraEm: agora,
                                          colega: usuario, entrouEm: agora }]);
     return juntarAoTurno_(t, usuario, agora);

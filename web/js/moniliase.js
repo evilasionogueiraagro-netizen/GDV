@@ -599,6 +599,7 @@ const PCEMon = (() => {
   const RV = 'pceVisitaRascunho', PASSOS = ['Frutos', 'Pragas', 'Plantas, amostra e fotos', 'Ações e constatação', 'Assinaturas'];
   const RES = Object.fromEntries(P.resultados || [['detectada', 'Detectada'], ['nao_detectada', 'Não detectada'], ['suspeita', 'Suspeita']]);
   const COM_DETECCAO = ['detectada', 'suspeita'];
+  const OPC = { nao_detectada: 'Não tem', detectada: 'Tem' };      // praga opcional: só tem ou não tem (em branco vale "Não tem")
   const CA = () => PCECads;
   let V = null, tV = null;
   const idCat = s => CA().idCat(s);
@@ -618,7 +619,9 @@ const PCEMon = (() => {
       .map(p => ({ id: p.id, nome: CA().nomeDaPraga(p), ligada: false, opcional: Number(p.opcional) === 1 }));
     return [...lig, ...extras];
   }
-  const respondidas = fid => pragasDoFruto(fid).filter(p => (fruto(fid).pragas[p.id] || {}).resultado);
+  /** Resposta da praga no fruto. Opcional em branco (rascunho antigo ou fruto recém-marcado) vale "Não tem" (nao_detectada). */
+  const respostaDe = (fid, p) => { const r = fruto(fid).pragas[p.id] || {}; return p.opcional && !r.resultado ? { ...r, resultado: 'nao_detectada' } : r; };
+  const respondidas = fid => pragasDoFruto(fid).filter(p => respostaDe(fid, p).resultado);
 
   /* ---------- leitura da tela do passo para o estado ---------- */
   function coletarPasso() {
@@ -654,7 +657,7 @@ const PCEMon = (() => {
     const f = frutoDe(fid); if (!f) return [];
     const modelo = CA().modeloDaCultura(f.cultura), cfg = ((P.visita || {}).deteccao || {})[modelo]; if (!cfg) return [];
     const alvo = new Set(cfg.pragas.map(idCat));
-    if (!pragasDoFruto(fid).some(p => alvo.has(idCat(p.nome)) && COM_DETECCAO.includes((fruto(fid).pragas[p.id] || {}).resultado))) return [];
+    if (!pragasDoFruto(fid).some(p => alvo.has(idCat(p.nome)) && COM_DETECCAO.includes(respostaDe(fid, p).resultado))) return [];
     const defs = CA().perguntasDoModelo(modelo);
     return cfg.perguntas.map(k => defs.find(d => d.k === k)).filter(Boolean);
   }
@@ -666,7 +669,7 @@ const PCEMon = (() => {
     V.sel.forEach(fid => {
       const f = frutoDe(fid); if (!f) return;
       respondidas(fid).forEach(p => {
-        const pg = CA().programaDaPraga(p.nome), r = fruto(fid).pragas[p.id];
+        const pg = CA().programaDaPraga(p.nome), r = respostaDe(fid, p);
         if (!mapa.has(pg.programa)) mapa.set(pg.programa, { programa: pg.programa, nome: pg.nome, frutos: [], itens: [] });
         const x = mapa.get(pg.programa); if (!x.frutos.includes(fid)) x.frutos.push(fid);
         x.itens.push({ fid, cultura: f.cultura, praga: p.nome, opcional: p.opcional, ...r });
@@ -682,23 +685,16 @@ const PCEMon = (() => {
   };
   /** Texto pronto da situação constatada (o fiscal pode editar): citros usa as frases de ausência/presença; os outros dizem o resultado de cada praga. */
   function constatacaoDe(pg) {
-    const linhas = [], porLinha = new Map();
-    const opcionais = pg.itens.filter(i => i.opcional);
-    opcionais.forEach(i => { const k = i.praga + '|' + i.resultado; if (!porLinha.has(k)) porLinha.set(k, { praga: i.praga, resultado: i.resultado, culturas: [] }); const c = porLinha.get(k).culturas; if (!c.includes(i.cultura)) c.push(i.cultura); });
-    const opc = [...porLinha.values()].map(x => `Praga opcional ${x.praga}: ${RES[x.resultado] || x.resultado}${x.culturas.length ? ' em ' + listaE(x.culturas) : ''}.`);
-    if (ehProgramaCitros(pg)) {
-      const cit = pg.itens.filter(i => !i.opcional || PCECitros.chaveDaPraga(i.praga)), culturas = [...new Set(cit.map(i => i.cultura))];
-      return [...PCECitros.frases(cit, culturas), ...opc].join('\n');
-    }
-    const obrig = pg.itens.filter(i => !i.opcional), porPraga = new Map();
-    obrig.forEach(i => { const k = i.praga + '|' + i.resultado; if (!porPraga.has(k)) porPraga.set(k, { ...i, culturas: [] }); const c = porPraga.get(k).culturas; if (!c.includes(i.cultura)) c.push(i.cultura); });
-    const todosNeg = obrig.length && obrig.every(i => i.resultado === 'nao_detectada');
-    if (todosNeg && obrig.every(i => /monil/i.test(i.praga))) linhas.push(TC.constatacaoNegativa || '');
+    // citros: HLB, ácaro e cancro usam as frases próprias; as demais pragas (opcionais inclusive) dizem o resultado de cada uma
+    const cit = ehProgramaCitros(pg) ? pg.itens.filter(i => !i.opcional || PCECitros.ehDeteccao(i.praga)) : [], resto = pg.itens.filter(i => !cit.includes(i)), porPraga = new Map();
+    resto.forEach(i => { const k = i.praga + '|' + i.resultado; if (!porPraga.has(k)) porPraga.set(k, { ...i, culturas: [] }); const c = porPraga.get(k).culturas; if (!c.includes(i.cultura)) c.push(i.cultura); });
+    const linhas = cit.length ? PCECitros.frases(cit, [...new Set(cit.map(i => i.cultura))]) : [];
+    if (resto.length && resto.every(i => i.resultado === 'nao_detectada' && /monil/i.test(i.praga))) linhas.push(TC.constatacaoNegativa || '');
     else porPraga.forEach(x => {
       const em = x.culturas.length ? ' em ' + listaE(x.culturas) : '';
       linhas.push(x.resultado === 'detectada' ? `Constatei a presença de ${x.praga}${em}.` : x.resultado === 'suspeita' ? `Constatei suspeita de ${x.praga}${em}.` : `Não constatei a presença de ${x.praga}${em}.`);
     });
-    return [...linhas, ...opc].filter(Boolean).join('\n');
+    return linhas.filter(Boolean).join('\n');
   }
   /** Constatação de cada programa: o texto do fiscal (se editou) ou o texto pronto, atualizado com as respostas. */
   function atualizarConstatacoes(pgs) {
@@ -726,11 +722,11 @@ const PCEMon = (() => {
         <button type="button" class="botao sec" data-mon="addfruto" id="vi-addfruto">${icone('mais')} Acrescentar e marcar</button></details></div>`;
   }
   function blocoPraga(fid, p) {
-    const st = fruto(fid).pragas[p.id] || {}, u = fid + '-' + p.id, det = COM_DETECCAO.includes(st.resultado);
-    return `<div class="pce-pr" data-fruto="${esc(fid)}" data-praga="${esc(p.id)}" data-nome="${esc(p.nome)}"><div class="pce-pr-topo"><b>${icone('praga')} ${esc(p.nome)}</b>
-        <small class="pce-pr-cat">${p.opcional ? 'opcional' : p.ligada ? 'do catálogo' : 'acrescentada'}</small>
+    const st = respostaDe(fid, p), u = fid + '-' + p.id, det = COM_DETECCAO.includes(st.resultado), ops = !p.opcional ? RES : st.resultado === 'suspeita' ? { ...OPC, suspeita: 'Suspeita' } : OPC;     // rascunho antigo com "suspeita" não perde a resposta
+    return `<div class="pce-pr" data-fruto="${esc(fid)}" data-praga="${esc(p.id)}" data-nome="${esc(p.nome)}"${p.opcional ? ' data-opcional="1"' : ''}><div class="pce-pr-topo"><b>${icone('praga')} ${esc(p.nome)}</b>
+        <small class="pce-pr-cat">${p.opcional ? 'vigilância' : p.ligada ? 'do catálogo' : 'acrescentada'}</small>
         ${p.ligada ? '' : `<button type="button" class="mini" data-mon="delpraga" data-fruto="${esc(fid)}" data-praga="${esc(p.id)}" aria-label="Remover ${esc(p.nome)}">Remover</button>`}</div>
-      <fieldset class="pce-res"><legend>Resultado${p.opcional ? ' (opcional)' : ' *'}</legend><div class="pce-res-op">${Object.keys(RES).map(v => `<label class="pce-res-${v}"><input type="radio" class="r-res" name="res-${esc(u)}" value="${v}" ${st.resultado === v ? 'checked' : ''}><span>${esc(RES[v])}</span></label>`).join('')}</div></fieldset>
+      <fieldset class="pce-res"><legend>Resultado${p.opcional ? '' : ' *'}</legend><div class="pce-res-op${Object.keys(ops).length === 2 ? ' pce-res-dois' : ''}">${Object.keys(ops).map(v => `<label class="pce-res-${v}"><input type="radio" class="r-res" name="res-${esc(u)}" value="${v}" ${st.resultado === v ? 'checked' : ''}><span>${esc(ops[v])}</span></label>`).join('')}</div></fieldset>
       ${det ? `<div class="vi-det"><label>Há quanto tempo<input class="r-tempo" maxlength="60" value="${esc(st.haQuantoTempo || '')}" autocomplete="off"></label>
         ${sn('vi-ctl-' + u + '-', 'c', 'Utiliza método de controle?', st.controle || '')}
         <label>Qual controle<input class="r-qual" maxlength="120" value="${esc(st.qualControle || '')}" autocomplete="off"></label></div>` : ''}</div>`;
@@ -750,7 +746,7 @@ const PCEMon = (() => {
   function passo3() {
     return V.sel.map(fid => {
       const f = frutoDe(fid); if (!f) return '';
-      const st = fruto(fid), temDet = respondidas(fid).some(p => COM_DETECCAO.includes(fruto(fid).pragas[p.id].resultado));
+      const st = fruto(fid), temDet = respondidas(fid).some(p => COM_DETECCAO.includes(respostaDe(fid, p).resultado));
       const sint = st.sint || (temDet ? 'sim' : 'nao'), qs = detecaoDoFruto(fid), v = st.dados || {};
       const amostra = st.coleta === 'Sim';
       return `<div class="pce-cultura" data-fruto="${esc(fid)}"><div class="pce-cultura-topo"><b>${icone('broto')} ${esc(f.cultura)}${f.cultivar ? ' (' + esc(f.cultivar) + ')' : ''}</b></div>
@@ -812,8 +808,8 @@ const PCEMon = (() => {
       for (const fid of V.sel) {
         const f = frutoDe(fid);
         for (const p of pragasDoFruto(fid)) {
-          const r = fruto(fid).pragas[p.id] || {};
-          if (!r.resultado && !p.opcional) return `Informe o resultado de ${p.nome} em ${f.cultura} (detectada, não detectada ou suspeita).`;
+          const r = respostaDe(fid, p);
+          if (!r.resultado) return `Informe o resultado de ${p.nome} em ${f.cultura} (detectada, não detectada ou suspeita).`;
           if (COM_DETECCAO.includes(r.resultado) && r.controle === 'sim' && !String(r.qualControle).trim()) return `Informe qual controle é usado para ${p.nome} em ${f.cultura}.`;
         }
       }
@@ -945,7 +941,7 @@ const PCEMon = (() => {
   function montarTermo(pg, ctx) {
     const cs = culturasDoPrograma(pg), p = V.p, pe = V.pe || {}, culturasTxt = [...new Set(pg.itens.map(i => i.cultura))];
     const quadro = TC.pragas || [], mapa = TC.pragaDoLevantamento || {}, n = x => idCat(x);
-    const pragasQuadro = [...new Set(pg.itens.filter(i => !i.opcional || mapa[i.praga]).map(i => mapa[i.praga] || (quadro.find(q => n(q) === n(i.praga)) || '')).filter(Boolean))];
+    const pragasQuadro = [...new Set(pg.itens.map(i => mapa[i.praga] || (quadro.find(q => n(q) === n(i.praga)) || '')).filter(Boolean))];
     const citros = ehProgramaCitros(pg), plantas = pg.frutos.reduce((s, fid) => s + (Number(fruto(fid).plantas) || 0), 0);
     const nome = textoCurto(pe.nome || '', 120).toUpperCase(), doc = digitos(p.doc), pj = doc.length === 14;
     const temSint = pg.frutos.some(fid => fruto(fid).sint === 'sim' || (fruto(fid).sint === '' && pg.itens.some(i => i.fid === fid && COM_DETECCAO.includes(i.resultado))));

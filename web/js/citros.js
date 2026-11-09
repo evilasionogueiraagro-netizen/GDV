@@ -15,6 +15,8 @@ const PCECitros = (() => {
     const n = norm(nome); if (!n || (C.naoMarcar || []).some(t => n.includes(norm(t)))) return '';
     return Object.keys(C.marcarPor || {}).find(x => C.marcarPor[x].some(t => n.includes(norm(t)))) || '';
   }
+  /** A praga é um dos itens da detecção do Termo (cancro, hlb, acaro), que têm frase própria? A Pinta Preta tem chave mas não frase: segue a redação padrão. */
+  const ehDeteccao = nome => { const k = chaveDaPraga(nome); return !!k && (C.deteccao || []).some(x => x[0] === k); };
   /** Nomes das doenças de detecção obrigatórias (ordem do Termo). */
   const nomesDeteccao = () => (C.deteccao || []).map(x => x[1]);
   /**
@@ -31,5 +33,5 @@ const PCECitros = (() => {
       return F[tem] ? F[tem].replace('{praga}', t).replace('{culturas}', cs.length ? ' ' + listaE(cs) : '') : '';
     }).filter(Boolean);
   }
-  return { ehCitros, chaveDaPraga, nomesDeteccao, frases, listaE };
+  return { ehCitros, chaveDaPraga, ehDeteccao, nomesDeteccao, frases, listaE };
 })();

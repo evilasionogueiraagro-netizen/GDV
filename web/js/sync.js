@@ -419,24 +419,6 @@ const Sync = (() => {
     window.dispatchEvent(new CustomEvent('gdv-turno-encerrado', { detail: { id, numeroTF: t.numeroTF || '', fim: t.fim || '', encerradoPor: t.encerradoPor || '' } }));
   }
 
-  /** O aparelho guarda só os turnos/veículos do próprio fiscal. Versões antigas do servidor mandavam os de todos;
-   *  apaga do aparelho (nunca da planilha) os já enviados que são de outro fiscal. Ficam os pendentes, o turno atual, os turnos em que
-   *  este login entrou pelo código (meta "turnosCompartilhados") ou lançou veículo: o Termo deles continua no Histórico. */
-  async function limparDeOutros() {
-    const eu = nome(); if (!eu) return;
-    const atual = await Store.meta('turnoAtual'), comp = new Set((await Store.meta('turnosCompartilhados')) || []);
-    const todosV = await Store.todos('veiculos');
-    todosV.forEach(v => { if (v.usuario && mesmoNome(v.usuario, eu)) comp.add(v.turnoId); });
-    const todosT = await Store.todos('turnos');
-    // turno de colega em que este login entrou (está em "colegas"): fica, mesmo se a resposta do "Entrar" se perdeu (app.js adota)
-    todosT.forEach(t => { let c = []; try { c = JSON.parse(t.colegas || '[]'); } catch (e) { c = []; } if (Array.isArray(c) && c.some(n => mesmoNome(n, eu))) comp.add(t.id); });
-    const turnos = todosT.filter(t => t.usuario && !mesmoNome(t.usuario, eu) && !t.pendente && t.id !== atual && !comp.has(t.id));
-    const fora = new Set(turnos.map(t => t.id));
-    const veic = todosV.filter(v => !v.pendente && fora.has(v.turnoId));   // só os veículos dos turnos removidos
-    await Store.apagar('turnos', [...fora]);
-    await Store.apagar('veiculos', veic.map(v => v.id));
-  }
-
   /**
    * Sincroniza (envia pendentes + sinal do aparelho, recebe mudanças). Chamada durante outra sincronização: não é descartada —
    * roda de novo assim que a atual terminar (ex.: o encerramento salvo no meio de uma sincronização automática sai logo em seguida).
@@ -490,7 +472,6 @@ const Sync = (() => {
         try { await enviarPendentesArquivos(await arquivosPendentes(null, PERM)); }   // falha numa foto não derruba o sync principal
         catch (e) { erroArq = e.message || String(e); }
       }
-      await limparDeOutros();
       try { await atualizarIndice(); } catch (e) { /* índice de reincidência: melhor esforço (tenta de novo na próxima sincronização) */ }
       // dados do PCE em campo (municípios baixados): atualiza sozinho no máximo 1x a cada 6 h, sem segurar a sincronização
       if (typeof Campo !== 'undefined') Campo.atualizarSozinho().catch(() => {});

@@ -121,8 +121,11 @@ const TERMO = (visitaId, programaVisita, data, mun, culturas, extra = {}) => { s
 
   const CV = await post({ action: 'painelConvApuracao', key: ADM, convenio: '991272-2025', de: d(1, 1), ate: d(12, 31) });
   const a14 = CV.etapas && CV.etapas['1.4'];
-  ok(a14 && a14.porMunicipio.map(x => x.municipio).sort().join() === 'Manaus,Parintins', 'Convênio 1.4 (monilíase): Manaus (L1 e o Termo da v-x) e Parintins; o Termo antigo de Tabatinga não conta', a14 && a14.porMunicipio);
-  ok(a14 && a14.porMunicipio.find(x => x.municipio === 'Manaus').registros === 2, 'Convênio 1.4: Manaus 2 registros (um levantamento antigo + o Termo do programa)');
+  const reg14 = a14 ? Object.fromEntries(a14.porMunicipio.map(x => [x.municipio, x.registros])) : {};
+  ok(a14 && reg14.Tabatinga === 1 && reg14.Parintins === 1 && reg14.Manaus === 5,
+    'Convênio 1.4 soma levantamentos e TODOS os Termos de monilíase, inclusive o Termo antigo sem visitaId (Tabatinga) e o levantamento de janeiro (Parintins): número já apurado não muda', reg14);
+  ok(a14 && reg14.Manaus === 5 && reg14.Coari === 1 && reg14.Autazes === 1 && reg14.Manacapuru === 2,
+    'Convênio 1.4: Manaus 5 (o levantamento L1 e 4 Termos ativos; o cancelado v-x fica de fora), Coari só o Termo ativo (cancelado e excluído não contam), Autazes 1, Manacapuru 2', reg14);
 
   await post({ action: 'painelPublicoSalvar', key: ADM, config: { ativo: true, blocos: { levantamentos: true, deteccoes: true, municipios: true } } });
   const PUB = await post({ action: 'publicoDados', periodo: 'ano', previa: true, key: ADM });

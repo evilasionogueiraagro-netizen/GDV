@@ -57,11 +57,12 @@ function csv(txt) {
   const mesmas = (a, b) => JSON.stringify(a.split('\n').sort()) === JSON.stringify(b.split('\n').sort());   // a ordem é a das pragas do fruto na visita, não faz parte da regra
   // visita até o passo 4 (para ler o enquadramento na tela) e concluída (para ler o gravado no Termo)
   const visita = async resultados => {
+    const antes = await p.evaluate(async () => (await Store.todos('termosPce')).map(t => t.id));
     await A.visita(p, { frutos: ['Limão'], resultados: { Limão: resultados }, parar: 4 });
     const tela = await p.locator('.vi-enq').evaluate(e => { e.querySelectorAll('br').forEach(br => br.replaceWith('\n')); return e.textContent; });
     await p.click('#vi-continuar'); await p.waitForSelector('#vi-resumo'); await p.click('#vi-concluir'); await p.waitForSelector('#pce-visita-pronta', { timeout: 20000 });
-    const termos = await p.evaluate(async () => (await Store.todos('termosPce')).filter(t => t.visitaId).sort((x, y) => y.criadoEm - x.criadoEm));
-    return { tela, termo: termos[0].enquadramento };
+    const novo = await p.evaluate(async antes => (await Store.todos('termosPce')).find(t => t.visitaId && !antes.includes(t.id)), antes);   // o Termo desta visita
+    return { tela, termo: novo.enquadramento };
   };
   const e1 = await visita({ 'HLB / Greening': 'detectada', 'Cancro Cítrico': 'nao_detectada', 'Schizotetranychus hindustanicus': 'suspeita' });
   const esp1 = [leg('HLB / Greening'), leg('Schizotetranychus hindustanicus')].join('\n');

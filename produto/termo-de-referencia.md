@@ -103,11 +103,11 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 - RF-27. O Portal do Administrativo acompanha as diárias (PCDP) de cada fiscal escalado.
 
 ### 4.5. PCE – Programa de Controle e Erradicação
-- RF-28. Levantamento fitossanitário por praga e cultura, com resultado, coleta de amostra, fotos e PDF por praga.
-- RF-29. Termo de Colheita de Amostras, com numeração por unidade e ano, e lançamento do resultado do laboratório.
-- RF-30. Monilíase: Cadastro de imóvel, Termo de Fiscalização da visita e Relatório de atividades.
-- RF-31. Citros: Cadastro de imóvel de produção comercial e Termo de Fiscalização de citros (HLB, cancro cítrico, ácaro hindustânico).
-- RF-32. Campo sem internet: baixa dos dados dos municípios da viagem, mapa "Perto de mim" e rota de visitas.
+- RF-28. Cadastro do produtor e da propriedade, com os frutos (cultura, cultivar, área, espaçamento, idade, plantas, produção e destino), consultável sem internet com os dados baixados.
+- RF-29. Visita ao produtor: o fiscal marca os frutos avaliados e, por fruto, as pragas do catálogo e o resultado, com coleta de amostra, fotos e assinaturas. A visita gera um Termo de Fiscalização por programa, com numeração por unidade e ano, inclusive quando nada é detectado, e o PDF de cada um. Os levantamentos antigos continuam disponíveis para consulta e PDF.
+- RF-30. Termo de Colheita de Amostras, gerado na visita quando há coleta, com numeração por unidade e ano, e lançamento do resultado do laboratório no painel.
+- RF-31. Fichas oficiais de cadastro (citros, banana, monilíase, mandioca, soja e propriedade), geradas do cadastro e da visita mais recente, em modelo único; não bloqueiam o Termo. Citros exige HLB, ácaro hindustânico e cancro cítrico.
+- RF-32. Campo sem internet: baixa dos dados dos municípios da viagem, busca de produtor e visita sobre os dados baixados, com numeração provisória conferida ao sincronizar.
 - RF-33. Via do produtor em PDF, enviada pelo celular.
 
 ### 4.6. Painel gerencial

@@ -25,8 +25,9 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) proce
   await turno(B, '1', 'BVA - JUNDIÁ', 2);
   await B.evaluate(async () => { await Store.gravar('turnos', { id: 'alheio', numeroTF: 'TF-096-A-2026', data: '2026-10-10', usuario: 'Magda Adegas', local: 'BVA - CEASA', fiscal: 'Magda', encerrado: 0, pendente: 0, atualizadoEm: 1 }); await Store.gravar('veiculos', { id: 'v-alheio', turnoId: 'alheio', placa: 'XXX1X11', tipo: 'PA', pessoas: 3, usuario: 'Magda Adegas', pendente: 0, atualizadoEm: 1 }); });
   await sync(B); await sync(A); await sync(B);
-  const tb = await B.evaluate(async () => ({ t: (await Store.todos('turnos')).map(x => x.numeroTF), v: (await Store.todos('veiculos')).length }));
-  ok(new RegExp(`^TF-001-[AB]-${ANO}$`).test(tb.t.join()) && tb.v === 2, 'aparelho B só tem o próprio turno e os próprios veículos: ' + JSON.stringify(tb));
+  // aparelho com mais de um login: o de outro fiscal fica guardado, mas fora das telas (Sync.visiveis); nada é apagado do aparelho
+  const tb = await B.evaluate(async () => ({ t: (await Sync.visiveis('turnos', await Store.todos('turnos'))).map(x => x.numeroTF), guardado: !!(await Store.obter('turnos', 'alheio')) }));
+  ok(new RegExp(`^TF-001-[AB]-${ANO}$`).test(tb.t.join()) && tb.guardado, 'aparelho B: as telas mostram só o próprio turno; o de outro fiscal fica guardado: ' + JSON.stringify(tb));
   const ta = await A.evaluate(async () => ({ t: (await Store.todos('turnos')).map(x => x.numeroTF), v: (await Store.todos('veiculos')).length }));
   ok(new RegExp(`^TF-096-[AB]-${ANO}$`).test(ta.t.join()) && ta.v === 3, 'aparelho A só tem o próprio: ' + JSON.stringify(ta));
   await B.click('nav [data-v=historico]').catch(() => {}); await B.waitForTimeout(800);

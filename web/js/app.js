@@ -23,9 +23,23 @@ async function turnoAtual() {
   if (t && !t.encerrado) return t;
   // sem turno neste aparelho: o turno aberto com o mesmo login em outro aparelho (o PC e o celular da BVA) é o turno deste também
   const [outro] = await turnosAbertosOutros();
-  if (!outro) return null;
-  await Store.setMeta('turnoAtual', outro.id);
-  return outro;
+  if (outro) { await Store.setMeta('turnoAtual', outro.id); return outro; }
+  // turno de colega em que este login entrou (a resposta do "Entrar" se perdeu, mas a sincronização trouxe o turno): continua nele
+  const comp = await turnoCompartilhadoAberto();
+  if (!comp) return null;
+  await Store.setMeta('turnoAtual', comp.id);
+  const l = (await Store.meta('turnosCompartilhados')) || [];
+  if (!l.includes(comp.id)) await Store.setMeta('turnosCompartilhados', l.concat([comp.id]).slice(-200));
+  return comp;
+}
+/** Turno aberto (últimas 24 h) de outro login com este fiscal em "colegas", do qual ele não saiu neste aparelho. */
+async function turnoCompartilhadoAberto() {
+  const eu = Sync.nome(); if (!eu) return null;
+  const saidos = (await Store.meta('turnosSaidos')) || [], limite = Date.now() - 24 * 3600e3;
+  return (await Store.todos('turnos')).filter(t => !Number(t.encerrado) && !Number(t.cancelado) && !t.excluido && t.usuario && !Sync.mesmoNome(t.usuario, eu) &&
+    !saidos.includes(t.id) && listaJSON(t.colegas).some(n => Sync.mesmoNome(n, eu)) &&
+    (Number(t.criadoEm) || Date.parse(t.data + 'T' + (t.inicio || '00:00') + ':00-04:00') || 0) >= limite)
+    .sort((a, b) => (Number(b.criadoEm) || 0) - (Number(a.criadoEm) || 0))[0] || null;
 }
 async function veiculosDe(turnoId) {
   return Docs.ordenar((await Store.todos('veiculos')).filter(v => v.turnoId === turnoId && !v.excluido));
@@ -331,6 +345,8 @@ async function convidarColega(t) {
 async function sairDoTurno(t) {
   if (!confirm(`Sair do turno de ${t.usuario}?\n\nO que você lançou continua no turno (se não lançou nada, seu nome sai do turno). Para voltar, entre de novo.`)) return;
   await Store.setMeta('turnoAtual', '');
+  const saidos = (await Store.meta('turnosSaidos')) || [];              // não volta sozinho para o turno de que saiu
+  if (!saidos.includes(t.id)) await Store.setMeta('turnosSaidos', saidos.concat([t.id]).slice(-100));
   Sync.sincronizar().catch(() => {}).then(() => Sync.sairDoTurno(t.id)).catch(() => {});   // pendentes sobem; o servidor registra a saída
   toast('Você saiu do turno do colega.'); go('home');
 }
@@ -345,6 +361,8 @@ async function entrarNoTurno(pedir, sel, rotulo) {
   try {
     const r = await pedir();
     await Store.setMeta('turnoAtual', r.turno.id);
+    const saidos = (await Store.meta('turnosSaidos')) || [];
+    if (saidos.includes(r.turno.id)) await Store.setMeta('turnosSaidos', saidos.filter(x => x !== r.turno.id));
     const comp = (await Store.meta('turnosCompartilhados')) || [];             // o turno do colega fica no Histórico (Termo) depois de encerrado
     if (!comp.includes(r.turno.id)) await Store.setMeta('turnosCompartilhados', comp.concat([r.turno.id]).slice(-200));
     try { localStorage.removeItem(LS_AVISO_ENC); } catch (e) { /* sem armazenamento */ }
@@ -507,7 +525,7 @@ function novoTurno() {
     const box = $('#abertosBox'); if (!box) return;
     box.innerHTML = abertosAqui().map(a => `<div class="card aviso turno-aberto"><h3>${icone('pessoa')} Turno em andamento nesta BVA</h3>
       <p><b>${esc(a.local)}</b> · ${esc(a.numeroTF || '')}</p><p>${esc(a.fiscal || a.dono)}</p><p class="dica">Aberto às ${esc(a.inicio || '')}. Entre para lançar no mesmo turno, com o seu login.</p>
-      <button class="botao" data-entrar="${esc(a.id)}">${icone('pessoa')} Entrar neste turno</button></div>`).join('');
+      <button class="botao" data-entrar="${esc(a.id)}">${icone('pessoa')} ${a.jaDentro ? 'Voltar para este turno' : 'Entrar neste turno'}</button></div>`).join('');
     box.querySelectorAll('[data-entrar]').forEach(b => { b.onclick = () => entrarNoTurno(() => Sync.entrarNoTurno(b.dataset.entrar), `[data-entrar="${b.dataset.entrar}"]`, `${icone('pessoa')} Entrar neste turno`); });
   }
   turnosAbertosNaBva().then(l => { abertos = l; mostrarAbertos(); });
@@ -863,8 +881,8 @@ async function historico() {
     <label>Até<input type="date" id="hAte" value="${fim}"></label></div></div><div id="hOut"></div>`);
   const desenhar = async () => {
     const de = $('#hDe').value, ate = $('#hAte').value;
-    const turnos = (await Store.todos('turnos')).filter(t => !Number(t.cancelado) && (!de || t.data >= de) && (!ate || t.data <= ate))
-      .sort((a, b) => b.data.localeCompare(a.data) || b.criadoEm - a.criadoEm);
+    const turnos = (await Sync.visiveis('turnos', await Store.todos('turnos'))).filter(t => !Number(t.cancelado) && (!de || t.data >= de) && (!ate || t.data <= ate))
+      .sort((a, b) => b.data.localeCompare(a.data) || b.criadoEm - a.criadoEm);   // só os do login atual e os turnos de que ele participa
     const ids = new Set(turnos.map(t => t.id));
     const veic = (await Store.todos('veiculos')).filter(v => ids.has(v.turnoId) && !v.excluido);
     const pessoas = veic.reduce((s, x) => s + (Number(x.pessoas) || 0), 0);

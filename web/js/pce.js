@@ -690,7 +690,7 @@ const PCEUI = (() => {
     const s = await exigirServidor('pcetermos', null, true); if (!s || !mostrar.viva()) return;
     fechar(T);
     const podeAnt = podeAntigo(), dig = soDigitador(s) && podeAnt, digSemAut = soDigitador(s) && !podeAnt;
-    const fis = (await Store.todos('termosPce')).filter(x => !Number(x.excluido)).map(t => ({ k: 'f', t })), col = (await Store.todos('colheitas')).filter(x => !x.excluido).map(t => ({ k: 'c', t }));
+    const fis = (await Sync.visiveis('termosPce', await Store.todos('termosPce'))).filter(x => !Number(x.excluido)).map(t => ({ k: 'f', t })), col = (await Sync.visiveis('colheitas', await Store.todos('colheitas'))).filter(x => !x.excluido).map(t => ({ k: 'c', t }));   // só os do login atual
     const todos = [...fis, ...col].sort((a, b) => (b.t.criadoEm || 0) - (a.t.criadoEm || 0));
     if (!mostrar.viva()) return;
     mostrar(`${digSemAut ? avisoSemAntigoHTML() : ''}
@@ -831,8 +831,8 @@ const PCEUI = (() => {
 
   /** Resumo para o cartão do módulo no hub. */
   async function status() {
-    const fis = (await Store.todos('termosPce')).filter(x => !Number(x.excluido)), cols = (await Store.todos('colheitas')).filter(x => !x.excluido);
-    const levs = (await Store.todos('levantamentos')).filter(x => !x.excluido);
+    const fis = (await Sync.visiveis('termosPce', await Store.todos('termosPce'))).filter(x => !Number(x.excluido)), cols = (await Sync.visiveis('colheitas', await Store.todos('colheitas'))).filter(x => !x.excluido);
+    const levs = (await Sync.visiveis('levantamentos', await Store.todos('levantamentos'))).filter(x => !x.excluido);
     const pend = fis.filter(x => x.pendente).length + cols.filter(x => x.pendente).length + levs.filter(x => x.pendente).length + (await Sync.arquivosPendentes(null, null, [])).length;   // só os do PCE
     if (!fis.length && !cols.length && !levs.length) return 'Nenhum registro';
     return `${fis.length} termo(s) de fiscalização · ${cols.length} de colheita${pend ? ` · ${pend} aguardando envio` : ''}`;

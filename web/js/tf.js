@@ -773,7 +773,7 @@ const TFUI = (() => {
   const temAuto = t => Number(t.auto) === 1 && Number(t.autoNumero) > 0 && Number(t.registroAntigo) !== 1;
   let PR = null;                                                                   // TF aberto na tela de detalhes: { id, ass, assNovas, recusa }
   async function pronto(id) {
-    const t = await Store.obter('tfs', id); if (!t) return go('tf');
+    const t = await Store.obter('tfs', id); if (!t || !(await Sync.visiveis('tfs', [t])).length) return go('tf');   // TF de outro login: não abre
     PR = { id: t.id, ass: lerJSON(t.assinaturas, {}) || {}, assNovas: {}, recusa: Number(t.recusaAssinatura) === 1 };
     const nF = (lerJSON(t.fotos, []) || []).length, pap = Number(t.registroAntigo) === 1, pdfs = pap ? lerJSON(t.pdfs, []) || [] : [];
     view(`<div class="card"><h3>${icone('ok')} ${pap ? 'TF do papel gravado' : 'TF gerado'}</h3><div class="tf-num"><b>${esc(t.numeroTxt)}</b></div>
@@ -816,7 +816,7 @@ const TFUI = (() => {
   async function lista() {
     if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());
     const mostrar = tela();
-    const todos = (await Store.todos('tfs')).sort((a, b) => b.criadoEm - a.criadoEm);
+    const todos = (await Sync.visiveis('tfs', await Store.todos('tfs'))).sort((a, b) => b.criadoEm - a.criadoEm);   // só os do login e dos turnos dele
     // TF cancelado e já enviado pode sair da lista deste aparelho (só aqui: na planilha, no painel e na auditoria continua, com o número usado)
     const removidos = new Set((await Store.meta('tfsRemovidos')) || []);
     if (!mostrar.viva()) return;

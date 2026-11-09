@@ -322,7 +322,7 @@ const PCECads = (() => {
     const pe = await Store.obter('pessoas', doc), props = (await Store.todos('propriedades')).filter(p => !p.excluido && digitos(p.doc) === doc);
     if (!pe && !props.length) { toast('Produtor não encontrado neste aparelho.', true); return go('pce'); }
     const mesmo = r => !r.excluido && digitos(r.doc) === doc;
-    const termos = (await Store.todos('termosPce')).filter(mesmo), levs = (await Store.todos('levantamentos')).filter(mesmo), cols = (await Store.todos('colheitas')).filter(mesmo);
+    const termos = (await Sync.visiveis('termosPce', await Store.todos('termosPce'))).filter(mesmo), levs = (await Sync.visiveis('levantamentos', await Store.todos('levantamentos'))).filter(mesmo), cols = (await Sync.visiveis('colheitas', await Store.todos('colheitas'))).filter(mesmo);   // visitas: só as do login atual
     const cads = (await Store.todos('cadastrosPce')).filter(c => mesmo(c) && !Number(c.excluido));
     const pendArq = new Set(await Store.chaves('arquivos', 'enviado', 0)), visitas = visitasDoProdutor(doc, termos, levs, cols);
     if (!mostrar.viva()) return;

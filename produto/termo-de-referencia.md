@@ -7,8 +7,8 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | Órgão | Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM |
 | Unidade responsável | Gerência de Defesa Vegetal – GDV |
 | Produto | e-GDV (app de campo, painel gerencial, Portal do Administrativo, dashboard público e serviço de dados) |
-| Versão do sistema descrita | 2026-11-04d |
-| Versão deste Termo | 1.9, de 04/11/2026 |
+| Versão do sistema descrita | 2026-11-09a |
+| Versão deste Termo | 2.3, de 09/11/2026 |
 
 ## 1. Objeto
 
@@ -60,6 +60,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 - RF-02. Permissões por aplicativo (campo, painel, administração) e por módulo do campo: fiscalização de trânsito, TF de Barreira, PCE e digitar do papel. Há ainda a coordenação de barreiras e a gerência.
 - RF-03. A gerência cria contas, gera senha provisória, encerra sessões e desativa contas pelo painel. Cada ação fica registrada com quem fez.
 - RF-04. Bloqueio temporário após tentativas de senha erradas.
+- RF-04A. Aparelho da base usado por vários fiscais: cada login vê só os próprios registros e os dos turnos de que participa; os de outros ficam guardados e escondidos.
 
 ### 4.2. Turno na barreira e educação sanitária
 - RF-05. Abertura de turno em posto fixo (BVA) ou volante, com número do Termo do turno, horário e localização (GPS) de início e fim.
@@ -84,7 +85,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 - RF-17. Consulta do cadastro do fiscalizado e da placa, e aviso de reincidência.
 - RF-18. Constatação e enquadramento legal sugeridos pela BVA, pelo sentido da rota (entrada ou saída, pela origem e destino) e pelo produto, conforme a tabela de enquadramentos da GDV. O fiscal pode editar os textos.
 - RF-19. Auto de Infração no próprio TF, com numeração própria por barreira e ano e PDF em 3 vias.
-- RF-20. PDF do TF em 2 vias, com QR code de verificação; cancelamento com motivo, mantendo o número.
+- RF-20. PDF do TF em 2 vias, com QR code de verificação (desligado por decisão da gerência desde 09/11/2026; volta por configuração); cancelamento com motivo, mantendo o número.
 - RF-21. Digitação de TFs antigos do papel. O TF de papel anterior ao 1º TF do aplicativo na barreira forma uma série própria, marcada "(papel)", sem conflitar com a numeração do aplicativo.
 - RF-22. Página pública de verificação de autenticidade, sem dados pessoais.
 
@@ -211,3 +212,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | 1.7 | 04/11/2026 | 2026-11-04b | RF-21: série do papel para TFs anteriores ao aplicativo na barreira |
 | 1.8 | 04/11/2026 | 2026-11-04c | RF-06: tirar do turno compartilhado o fiscal que entrou por engano |
 | 1.9 | 04/11/2026 | 2026-11-04d | Turno em BVA fixa só para os fiscais da escala de plantão publicada do dia |
+| 2.0 | 07/11/2026 | 2026-11-07a | RF-06: o fiscal que entrou no turno do colega continua nele mesmo se a resposta da entrada se perder |
+| 2.1 | 09/11/2026 | 2026-11-07a | RF-04A: aparelho com vários logins mostra a cada um só os próprios registros e os dos turnos de que participa |
+| 2.2 | 09/11/2026 | 2026-11-09a | RF-04A: o que o servidor manda a um login é sempre visível para ele, mesmo com o nome da conta alterado |
+| 2.3 | 09/11/2026 | 2026-11-09a | RF-20: QR code e endereço de verificação desligados no TF de Barreira |

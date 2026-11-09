@@ -302,7 +302,7 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     grade('documentos', [[dc('NF Nº', 'nf'), dc('SIF Nº', 'sif'), dc('PTV Nº', 'ptv'), dc('SIE Nº', 'sie')], [dc('SIM Nº', 'sim'), dc('GTA Nº', 'gta'), dc('LACRE', 'lacre'), dc('OUTROS', 'outros')]]);
     set('produtos', prods.join('\n')); set('constatacao', t.constatacao); set('enquadramento', t.enquadramento);
     assinaturasTF(d, t, arquivos);
-    const url = urlVerificar(t.id), svg = qrSVG(url), vf = d.getElementById('verif');
+    const url = urlVerificar(t.id), svg = CONFIG.qrVerificacao ? qrSVG(url) : '', vf = d.getElementById('verif');   // desligado: o bloco fica oculto
     if (svg && vf) {                                                // nas duas vias (clonadas abaixo)
       d.getElementById('verif_qr').innerHTML = svg; vf.setAttribute('data-url', url); vf.hidden = false;
       const u = new URL(url); set('verif_url', u.host + u.pathname); set('verif_cod', 'Código: ' + t.id);

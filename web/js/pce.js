@@ -979,7 +979,7 @@ const PCEUI = (() => {
     const s = await exigirServidor('pce', null, true); if (!s || !mostrar.viva()) return;
     fechar(L); fechar(T);
     const podeAnt = podeAntigo(), dig = soDigitador(s) && podeAnt, digSemAut = soDigitador(s) && !podeAnt;
-    const todos = (await Store.todos('levantamentos')).filter(x => !x.excluido)
+    const todos = (await Sync.visiveis('levantamentos', await Store.todos('levantamentos'))).filter(x => !x.excluido)   // só os do login atual
       .sort((a, b) => ((b.data || '') + (b.hora || '')).localeCompare((a.data || '') + (a.hora || '')) || b.criadoEm - a.criadoEm);
     const pendArq = new Set(await Store.chaves('arquivos', 'enviado', 0)), campoRes = await Campo.resumo();
     if (!mostrar.viva()) return;
@@ -997,7 +997,7 @@ const PCEUI = (() => {
       ${todos.length ? `<div class="pce-ordem"><label for="pce-ordem">Organizar por</label> <select id="pce-ordem"><option value="municipio">Município</option><option value="data">Data (mais recentes primeiro)</option></select></div>` : ''}
       <div id="pceItens"></div>`);
     const G = new Map(todos.map(x => [x.id, Docs.pceGrupos(x)]));
-    const cads = (await Store.todos('cadastrosPce')).filter(c => !Number(c.excluido)), tfsPce = (await Store.todos('termosPce')).filter(t => !Number(t.excluido));
+    const cads = (await Store.todos('cadastrosPce')).filter(c => !Number(c.excluido)), tfsPce = (await Sync.visiveis('termosPce', await Store.todos('termosPce'))).filter(t => !Number(t.excluido));
     const V = new Map(await Promise.all(todos.map(async x => [x.id, await docsDaVisita(x, cads, tfsPce)])));
     let ordem = (await Store.meta('pceOrdem')) === 'data' ? 'data' : 'municipio';
     if (!mostrar.viva()) return;
@@ -1449,7 +1449,7 @@ const PCEUI = (() => {
     const s = await exigirServidor('pcetermos', null, true); if (!s || !mostrar.viva()) return;
     fechar(L); fechar(T);
     const podeAnt = podeAntigo(), dig = soDigitador(s) && podeAnt, digSemAut = soDigitador(s) && !podeAnt;
-    const todos = (await Store.todos('colheitas')).filter(x => !x.excluido).sort((a, b) => b.criadoEm - a.criadoEm);
+    const todos = (await Sync.visiveis('colheitas', await Store.todos('colheitas'))).filter(x => !x.excluido).sort((a, b) => b.criadoEm - a.criadoEm);
     if (!mostrar.viva()) return;
     view(`${digSemAut ? avisoSemAntigoHTML() : ''}
       ${dig ? '' : '<button class="botao" data-pce="novotermo" id="pce-novotermo">Novo termo de colheita</button>'}
@@ -1616,7 +1616,7 @@ const PCEUI = (() => {
 
   /** Resumo para o cartão do módulo no hub. */
   async function status() {
-    const levs = (await Store.todos('levantamentos')).filter(x => !x.excluido), cols = (await Store.todos('colheitas')).filter(x => !x.excluido);
+    const levs = (await Sync.visiveis('levantamentos', await Store.todos('levantamentos'))).filter(x => !x.excluido), cols = (await Sync.visiveis('colheitas', await Store.todos('colheitas'))).filter(x => !x.excluido);
     const pend = levs.filter(x => x.pendente).length + cols.filter(x => x.pendente).length + (await Sync.arquivosPendentes(null, null, [])).length;   // só os do PCE
     if (!levs.length && !cols.length) return 'Nenhum registro';
     return `${levs.length} levantamento(s) · ${cols.length} termo(s)${pend ? ` · ⏳ ${pend} aguardando envio` : ''}`;

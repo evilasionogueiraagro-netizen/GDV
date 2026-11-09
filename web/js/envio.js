@@ -26,7 +26,7 @@ const Envio = (() => {
   const ANTIGO_NOS = ['g', 'c', 'k', 'm', 'f'];                               // stores que podem ter registros antigos (f = TF digitado do papel)
   const TAG = 'gdv-enviar', TAG_PERIODICO = 'gdv-enviar-periodico';
 
-  const limpo = ({ pendente, provisorio, ...r }) => r;
+  const limpo = ({ pendente, provisorio, _login, ...r }) => r;   // _login: só no aparelho (quem recebeu o registro)
   const lerJSON = (v, pad) => { try { return JSON.parse(v) || pad; } catch (e) { return pad; } };
 
   /** Erro de conexão (sem internet, servidor fora do ar, tempo esgotado): vale tentar de novo depois. */

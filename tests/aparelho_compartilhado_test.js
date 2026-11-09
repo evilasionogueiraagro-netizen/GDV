@@ -51,6 +51,12 @@ const hoje = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10), ano =
     ok(guardados, 'os registros de outro login continuam guardados no aparelho (só escondidos)');
     const aposSync = await p.evaluate(async () => { await Sync.sincronizar(); return !!(await Store.obter('turnos', 'turno-outro-01')); });
     ok(aposSync, 'a sincronização não apaga o turno de outro login (continua no aparelho para quando ele voltar)');
+    // nome guardado no aparelho diferente do nome da conta (conta renomeada no painel): o TF que o servidor manda continua visível
+    await p.evaluate(() => localStorage.setItem('gdv.nome', 'Beltrano Antigo Teste'));
+    const r = await fetch(amb.API + '/', { method: 'POST', body: JSON.stringify({ action: 'tfEmitir', key: B.token, tf: { id: 'tf-meu-cel', barreira: 'BVA-CEASA', ano, numero: 950, numeroTxt: `0950/${ano} - BVA - CEASA`,
+      data: hoje, hora: '09:00', fiscal: B.nome, nome: 'NÃO IDENTIFICADO', doc: '', procedimento: 'rechaco', cancelado: 0, criadoEm: Date.now(), atualizadoEm: Date.now(), fotos: '[]', assinaturas: '{}' } }) }).then(x => x.json());
+    const vis = await p.evaluate(async () => { await Sync.sincronizar(); return { ids: (await Sync.visiveis('tfs', await Store.todos('tfs'))).map(t => t.id), nome: Sync.nome() }; });
+    ok(r.ok && r.emitido && vis.ids.includes('tf-meu-cel') && vis.nome === B.nome, 'TF do mesmo login lavrado em outro aparelho aparece mesmo com o nome guardado diferente; o nome é atualizado', vis);
     ok(!erros.length, 'sem erros de página', erros);
   } finally { await b.close(); }
   console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.');

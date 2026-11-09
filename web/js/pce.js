@@ -329,12 +329,12 @@ const PCEUI = (() => {
       <div id="pce-docprod" class="pce-docprod" ${F.naoAssina ? '' : 'hidden'}>
         <p class="dica" style="text-align:left">Tire uma foto do produtor segurando um documento de identificação oficial com foto (RG, CNH, carteira de trabalho…), com o rosto e o documento visíveis. A foto vai no Termo no lugar da assinatura.</p>
         <div id="pce-docprod-prev" class="pce-fotos"></div>
-        <label class="pce-arquivo" id="pce-docprod-btn">${icone('camera')} Foto do produtor com o documento<input type="file" id="pce-docprod-in" accept="image/*" capture="environment"></label></div>`;
+        <label class="pce-arquivo" id="pce-docprod-btn">${icone('camera')} <span id="pce-docprod-txt">Foto do produtor com o documento</span><input type="file" id="pce-docprod-in" accept="image/*" capture="environment"></label></div>`;
   async function renderDocProdutor(F) {
     const el = $('#pce-docprod-prev'); if (!el) return;
     await Anexos.miniaturas(el, F.ass.produtorDoc ? [F.ass.produtorDoc] : [], 'data-mon="deldocprod"');
     if (!F.ass.produtorDoc && el.isConnected) el.innerHTML = '';
-    const b = $('#pce-docprod-btn'); if (b) b.firstChild.textContent = F.ass.produtorDoc ? 'Trocar a foto' : 'Foto do produtor com o documento';
+    const b = $('#pce-docprod-txt'); if (b) b.textContent = F.ass.produtorDoc ? 'Trocar a foto' : 'Foto do produtor com o documento';
   }
   async function soltarDocProdutor(F) {                                  // foto nova deste formulário some já; a já salva no registro, ao salvar
     const id = F.ass.produtorDoc; delete F.ass.produtorDoc;

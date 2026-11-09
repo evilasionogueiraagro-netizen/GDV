@@ -295,7 +295,7 @@ const PCECads = (() => {
         ${pend ? `<div class="info pend">${icone('sincronizar')} aguardando envio</div>` : ''}
         <div class="botoes pce-acoes"><button class="editar" data-pce="verlev" data-id="${esc(v.id)}">Ver</button></div></div>`;
     }
-    const linhas = v.termos.map(t => `<div class="pce-visita-termo"><div><b>${icone('formulario')} Termo de Fiscalização ${esc(t.numeroTxt || '(sem nº)')}</b>
+    const linhas = [...v.termos].sort((a, b) => (Number(a.numero) || 0) - (Number(b.numero) || 0)).map(t => `<div class="pce-visita-termo"><div><b>${icone('formulario')} Termo de Fiscalização ${esc(t.numeroTxt || '(sem nº)')}</b>
         <small>${esc(t.programaVisita || (t.visitaId ? '' : 'do papel'))}${culturasDoTermo(t) ? ' · ' + esc(culturasDoTermo(t)) : ''}</small>${selo(t)}</div>
         <div class="pce-doc-acoes"><button class="mini" data-cad="pdftermo" data-id="${esc(t.id)}">PDF</button></div></div>`).join('');
     const col = v.colheitas.map(c => `<div class="pce-visita-termo"><div><b>${icone('amostra')} Termo de Colheita ${esc(c.numeroTxt || '(sem nº)')}</b><small>${esc(c.cultura || '')} · ${esc(c.quantidade || '')} amostra(s)</small>${selo(c)}</div>

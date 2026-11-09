@@ -73,7 +73,7 @@ const PCEMon = (() => {
   function mostrarCoord(pref) {
     const st = $('#' + pref + 'coord-st'), la = $('#' + pref + 'lat'), lo = $('#' + pref + 'lon'); if (!st || !la) return null;
     const r = lerPar(la.value, lo.value);
-    st.innerHTML = r.vazio ? '<div class="tf-novo">Sem coordenadas: não aparecerá no mapa.</div>' : r.erro ? `<div class="tf-alerta">${icone('alerta')} ${esc(r.erro)}</div>`
+    st.innerHTML = r.vazio ? '<div class="tf-novo">Sem coordenadas: o registro não aparecerá no mapa do painel.</div>' : r.erro ? `<div class="tf-alerta">${icone('alerta')} ${esc(r.erro)}</div>`
       : `<div class="tf-ok">${icone('check')} ${esc(String(r.lat).replace('.', ','))} / ${esc(String(r.lon).replace('.', ','))}${r.oeste ? ' <small>(longitude Oeste)</small>' : ''}<br><small>${esc(U().gms(r.lat, 'N', 'S'))} &nbsp; ${esc(U().gms(r.lon, 'L', 'O'))}</small></div>`;
     return r;
   }
@@ -767,6 +767,8 @@ const PCEMon = (() => {
         <div id="vi-fotos-${esc(fid)}" class="pce-fotos pce-fotos-cult"></div></div>`;
     }).join('');
   }
+  /** Altura do campo da constatação: o texto pronto inteiro à vista (cerca de 38 letras por linha no celular). */
+  const linhasDe = t => Math.min(16, Math.max(4, String(t || '').split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(l.length / 38)), 0) + 1));
   function passo4(pgs) {
     return `<div class="card"><h3>${icone('formulario')} Ação realizada</h3>
         <p class="mon-sub">ao realizar ações de *</p>${cks('vi-', 'acoes', (TC.acoes || []).map(x => [x, x]), V.acoes)}
@@ -774,7 +776,7 @@ const PCEMon = (() => {
         <div class="duas">${inp('vi-', 'data', 'Data', V.data, `type="date" max="${hojeISO()}"`)}${inp('vi-', 'hora', 'Hora', V.hora, 'type="time"')}</div></div>
       ${pgs.map(pg => `<div class="card pce-prog" data-prog="${esc(pg.programa)}"><h3>${icone('praga')} ${esc(pg.nome)}</h3>
         <p class="dica" style="text-align:left">${esc(listaE([...new Set(pg.itens.map(i => i.cultura))]))}</p>
-        <label>Situação constatada<textarea data-prog="${esc(pg.programa)}" rows="4">${esc(V.const[pg.programa] || '')}</textarea></label>
+        <label>Situação constatada<textarea data-prog="${esc(pg.programa)}" rows="${linhasDe(V.const[pg.programa])}">${esc(V.const[pg.programa] || '')}</textarea></label>
         <div class="mon-sub">Enquadramento legal (da planilha da GDV)</div><p class="vi-enq" data-prog="${esc(pg.programa)}">${esc(enquadramentoDe(pg) || 'Sem enquadramento cadastrado para as pragas deste programa.').replace(/\n/g, '<br>')}</p></div>`).join('')}`;
   }
   function passo5(pgs) {

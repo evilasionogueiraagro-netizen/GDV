@@ -1,10 +1,9 @@
 const fs = require('fs'), path = require('path'), vm = require('vm');
 const amb = require('./lib/amb');
-const U = require('./lib/usuarios');
 // PCE — enquadramento legal: a planilha da GDV (docs/modulos/pce-legislacao.csv) é a fonte e tem de ser igual ao CONFIG.PCE.legislacao (app),
 // ao LEGISLACAO_PCE_ (back) e ao catálogo que o back entrega; no Termo de citros o texto é o do catálogo (só das pragas detectadas ou
-// suspeitas), nunca um texto próprio do citros. Dados fictícios.
-const { API, APP, RAIZ } = amb;
+// suspeitas; sem detecção, de todas as avaliadas do programa), nunca um texto próprio do citros. Dados fictícios.
+const { API, RAIZ } = amb;
 let falhas = 0;
 const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x === undefined ? '' : ' → ' + JSON.stringify(x).slice(0, 500))); if (!c) falhas++; };
 
@@ -48,38 +47,30 @@ function csv(txt) {
   ok(Object.keys(planilha).every(k => cat[idDe(k)] === planilha[k]) && Object.keys(cat).length === Object.keys(planilha).length, 'catálogo entregue pelo back = planilha', r.ok ? Object.keys(cat) : r);
   ok(ctx.__CONFIG.PCE.citros.enquadramento === undefined, 'citros não tem enquadramento próprio em CONFIG.PCE');
 
-  console.log('2) Termo de citros: enquadramento do catálogo, só das detectadas ou suspeitas');
+  console.log('2) Termo de citros na Nova visita: enquadramento do catálogo, só das detectadas ou suspeitas');
+  const A = require('./lib/pce-app');
   const b = await amb.lancar();
-  const f = await U.fiscal('Fiscal Legislacao Teste');
-  const c = await b.newContext({ viewport: { width: 400, height: 900 }, permissions: ['geolocation'], geolocation: { latitude: -3.12, longitude: -60.02, accuracy: 9 } });
-  await c.addInitScript(i => { if (!localStorage.getItem('gdv.key')) Object.entries(i).forEach(([k, v]) => localStorage.setItem(k, v)); localStorage.setItem('gdv.url', window.__GDV_API); }, f.ls);
-  const p = await c.newPage(); const err = [];
-  p.on('pageerror', e => err.push(e.message)); p.on('dialog', d => d.accept());
-  await p.goto(APP); await p.waitForSelector('.modulo[data-v=pce]');
-  await p.evaluate(() => Sync.sincronizar()); await p.waitForTimeout(1200);
-  await p.click('.modulo[data-v=pce]'); await p.waitForSelector('#pceServForm');
-  await p.selectOption('#pce-s-cargo', { index: 1 }); await p.selectOption('#pce-s-lotacao', 'Manaus'); await p.click('#pce-s-salvar'); await p.waitForSelector('#pce-novolev');
-  // levantamento de citros gravado direto no banco do aparelho (o formulário de citros tem outro teste)
-  const levId = await p.evaluate(async () => {
-    const id = Store.novoId(), cult = (resultado) => ({ cultura: 'Limão', area: '', espLinha: '', espPlanta: '', espUnidade: 'm', resultado, coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '', fotos: [] });
-    await Store.salvar('levantamentos', { id, data: '2026-10-05', hora: '09:00', doc: '52998224725', nome: 'PRODUTOR FICTICIO LEGISLACAO', propriedade: 'Sitio Ficticio', municipio: 'Manaus', uf: 'AM', excluido: 0,
-      servidor: 'Fiscal Legislacao Teste', cargo: 'Fiscal', matricula: '1', lotacao: 'Manaus', fotos: '[]', assinaturas: '{}', culturas: '[]', citros: '',
-      pragas: JSON.stringify([{ praga: 'HLB / Greening', culturas: [cult('detectada')] }, { praga: 'Cancro Cítrico', culturas: [cult('nao_detectada')] }, { praga: 'Schizotetranychus hindustanicus', culturas: [cult('suspeita')] }, { praga: 'Pinta Preta dos Citros', culturas: [cult('')] }]) });
-    return id;
-  });
-  const termo = async () => {
-    await p.evaluate(id => go('pcetf', { levId: id, programaVisita: 'pragas-dos-citros', nomePrograma: 'Pragas dos Citros', culturas: ['Limão'] }), levId);
-    await p.waitForSelector('#monTfForm'); await p.waitForTimeout(300);
-    return p.inputValue('#mt-enquadramento');
-  };
+  const p = await A.aparelho(b, 'Fiscal Legislacao Teste');
+  await A.identificar(p);
+  await A.novoProdutor(p, { doc: '52998224725', nome: 'Produtor Ficticio Legislacao', propriedade: 'Sitio Ficticio', codigo: 'PRP-LEG-1', municipio: 'Manaus', frutos: [{ cultura: 'Limão', area: 1 }] });
   const leg = n => planilha[n];
-  const enq1 = await termo();
-  ok(enq1 === [leg('HLB / Greening'), leg('Schizotetranychus hindustanicus')].join('\n'), 'detectada (HLB) e suspeita (ácaro): enquadramento da planilha de cada uma, e só delas', enq1);
-  ok(!/ART\. ?2[36]/i.test(enq1) && !/1326, DE 4 DE JULHO/.test(enq1), 'sem o texto próprio antigo do citros');
-  await p.evaluate(async id => { const l = await Store.obter('levantamentos', id), pr = JSON.parse(l.pragas); pr.forEach(g => g.culturas.forEach(x => { if (x.resultado) x.resultado = 'nao_detectada'; })); await Store.salvar('levantamentos', { ...l, pragas: JSON.stringify(pr) }); }, levId);
-  const enq2 = await termo();
+  const mesmas = (a, b) => JSON.stringify(a.split('\n').sort()) === JSON.stringify(b.split('\n').sort());   // a ordem é a das pragas do fruto na visita, não faz parte da regra
+  // visita até o passo 4 (para ler o enquadramento na tela) e concluída (para ler o gravado no Termo)
+  const visita = async resultados => {
+    await A.visita(p, { frutos: ['Limão'], resultados: { Limão: resultados }, parar: 4 });
+    const tela = await p.locator('.vi-enq').evaluate(e => { e.querySelectorAll('br').forEach(br => br.replaceWith('\n')); return e.textContent; });
+    await p.click('#vi-continuar'); await p.waitForSelector('#vi-resumo'); await p.click('#vi-concluir'); await p.waitForSelector('#pce-visita-pronta', { timeout: 20000 });
+    const termos = await p.evaluate(async () => (await Store.todos('termosPce')).filter(t => t.visitaId).sort((x, y) => y.criadoEm - x.criadoEm));
+    return { tela, termo: termos[0].enquadramento };
+  };
+  const e1 = await visita({ 'HLB / Greening': 'detectada', 'Cancro Cítrico': 'nao_detectada', 'Schizotetranychus hindustanicus': 'suspeita' });
+  const esp1 = [leg('HLB / Greening'), leg('Schizotetranychus hindustanicus')].join('\n');
+  ok(mesmas(e1.tela, esp1) && mesmas(e1.termo, esp1), 'detectada (HLB) e suspeita (ácaro): enquadramento da planilha de cada uma, e só delas (na tela do passo 4 e gravado no Termo)', e1);
+  ok(!/ART\. ?2[36]/i.test(e1.termo) && !/1326, DE 4 DE JULHO/.test(e1.termo), 'sem o texto próprio antigo do citros');
+  await A.abrirProdutor(p, '52998224725');
+  const e2 = await visita({ 'HLB / Greening': 'nao_detectada', 'Cancro Cítrico': 'nao_detectada', 'Schizotetranychus hindustanicus': 'nao_detectada' });
   const esp2 = [...new Set([leg('HLB / Greening'), leg('Cancro Cítrico'), leg('Schizotetranychus hindustanicus')])].join('\n');
-  ok(enq2 === esp2 && !enq2.includes(leg('Pinta Preta dos Citros')), 'nada detectado nem suspeito: entra o enquadramento de todas as avaliadas do programa (sem repetir e sem opcional não respondida)', enq2);
-  ok(err.length === 0, 'sem erros de JavaScript', err);
+  ok(mesmas(e2.tela, esp2) && mesmas(e2.termo, esp2) && e2.termo.split('\n').length === 3 && !e2.termo.includes(leg('Pinta Preta dos Citros')), 'nada detectado nem suspeito: entra o enquadramento de todas as avaliadas do programa (sem repetir e sem opcional não respondida)', e2);
+  ok(p.err.length === 0, 'sem erros de JavaScript', p.err);
   await b.close(); process.exit(falhas ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

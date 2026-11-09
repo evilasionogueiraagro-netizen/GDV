@@ -8,7 +8,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | Unidade responsável | Gerência de Defesa Vegetal – GDV |
 | Produto | e-GDV (app de campo, painel gerencial, Portal do Administrativo, dashboard público e serviço de dados) |
 | Versão do sistema descrita | 2026-11-07a |
-| Versão deste Termo | 2.0, de 07/11/2026 |
+| Versão deste Termo | 2.1, de 09/11/2026 |
 
 ## 1. Objeto
 
@@ -60,6 +60,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 - RF-02. Permissões por aplicativo (campo, painel, administração) e por módulo do campo: fiscalização de trânsito, TF de Barreira, PCE e digitar do papel. Há ainda a coordenação de barreiras e a gerência.
 - RF-03. A gerência cria contas, gera senha provisória, encerra sessões e desativa contas pelo painel. Cada ação fica registrada com quem fez.
 - RF-04. Bloqueio temporário após tentativas de senha erradas.
+- RF-04A. Aparelho da base usado por vários fiscais: cada login vê só os próprios registros e os dos turnos de que participa; os de outros ficam guardados e escondidos.
 
 ### 4.2. Turno na barreira e educação sanitária
 - RF-05. Abertura de turno em posto fixo (BVA) ou volante, com número do Termo do turno, horário e localização (GPS) de início e fim.
@@ -212,3 +213,4 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | 1.8 | 04/11/2026 | 2026-11-04c | RF-06: tirar do turno compartilhado o fiscal que entrou por engano |
 | 1.9 | 04/11/2026 | 2026-11-04d | Turno em BVA fixa só para os fiscais da escala de plantão publicada do dia |
 | 2.0 | 07/11/2026 | 2026-11-07a | RF-06: o fiscal que entrou no turno do colega continua nele mesmo se a resposta da entrada se perder |
+| 2.1 | 09/11/2026 | 2026-11-07a | RF-04A: aparelho com vários logins mostra a cada um só os próprios registros e os dos turnos de que participa |

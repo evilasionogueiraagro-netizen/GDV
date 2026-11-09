@@ -165,23 +165,23 @@ async function sincronizar(p) {
     await passo('Produtores (com um produtor)', async () => { await ir(p, 'pce'); await p.waitForSelector('.campo-res-item'); await p.fill('#campoQ', 'ficticio'); await p.waitForSelector('.campo-res-item');
       await foto('app-celular', 'produtores-busca', 'Produtores: busca por nome, CPF/CNPJ ou propriedade (funciona sem internet com os dados baixados)', p); });
 
-    // ---- 3. Nova visita em passos: Cacau (monilíase detectada, com amostra), Laranja (citros negativo) e Banana (Moko suspeita) ----
+    // ---- 3. Nova visita em passos: Cacau (monilíase detectada, com amostra), Laranja (citros negativo) e Banana (Moko, opcional, com Tem) ----
     await ir(p, 'pceprodutor', PRODUTOR.doc); await p.waitForSelector('#pce-novavisita');
     const jpg = await A.imagem(p, 1600, 1200, '#2a7');
-    await A.visita(p, { frutos: ['Cacau', 'Laranja', 'Banana'], padrao: 'nao_detectada', resultados: { Cacau: { 'Monilíase do Cacaueiro': 'detectada' }, Banana: { 'Moko da Bananeira': 'suspeita' } },
+    await A.visita(p, { frutos: ['Cacau', 'Laranja', 'Banana'], padrao: 'nao_detectada', resultados: { Cacau: { 'Monilíase do Cacaueiro': 'detectada' }, Banana: { 'Moko da Bananeira': 'detectada' } },
       amostra: { Cacau: { tipo: 'Folhas e frutos', codigo: 'AM-101', destino: 'Laboratorio Ficticio', qtd: 2 } }, plantas: { Cacau: 120, Laranja: 80, Banana: 60 },
       fotos: { Cacau: [{ name: 'fruto.jpg', mimeType: 'image/jpeg', buffer: jpg }] },
       aoPasso: async n => {
         if (n === 1) return passo('Nova visita, passo 1', () => foto('app-celular', 'visita-passo-1-frutos', 'Nova visita, passo 1: frutos avaliados (marcados entre os do cadastro; dá para acrescentar fruto)', p));
         if (n === '2-vazio') {
-          await passo('Nova visita, passo 2 (vazio)', () => foto('app-celular', 'visita-passo-2-pragas', 'Nova visita, passo 2: pragas do catálogo de cada fruto, resultado a marcar (as opcionais não obrigam)', p));
+          await passo('Nova visita, passo 2 (vazio)', () => foto('app-celular', 'visita-passo-2-pragas', 'Nova visita, passo 2: pragas do catálogo de cada fruto, resultado a marcar (as de vigilância já vêm marcadas Não tem)', p));
           return passo('Nova visita, erro de validação', async () => {
             await p.click('#vi-continuar'); await p.waitForFunction(() => document.querySelector('#toast') && document.querySelector('#toast').textContent.trim(), null, { timeout: 5000 });
             await p.locator('.pce-pr').first().scrollIntoViewIfNeeded();
             await foto('app-celular', 'visita-erro-de-validacao', 'Erro de validação: resultado obrigatório da praga sem resposta (aviso na parte de baixo da tela)', p, { fullPage: false });
           });
         }
-        if (n === 2) return passo('Nova visita, passo 2 (respondido)', async () => { await foto('app-celular', 'visita-passo-2-respondido', 'Nova visita, passo 2 respondido: Monilíase detectada (há quanto tempo, controle) e Moko suspeito', p);
+        if (n === 2) return passo('Nova visita, passo 2 (respondido)', async () => { await foto('app-celular', 'visita-passo-2-respondido', 'Nova visita, passo 2 respondido: Monilíase detectada (há quanto tempo, controle) e Moko com Tem', p);
           await escuro(() => foto('tema-escuro', 'visita-passo-2', 'Nova visita, passo 2, no tema escuro', p)); });
         if (n === 3) return passo('Nova visita, passo 3', () => foto('app-celular', 'visita-passo-3-amostra-e-deteccao', 'Nova visita, passo 3: plantas inspecionadas, sintomas, coleta de amostra, perguntas de detecção da monilíase e fotos do fruto', p));
         if (n === 4) return passo('Nova visita, passo 4', () => foto('app-celular', 'visita-passo-4-acoes-e-constatacao', 'Nova visita, passo 4: ação, local, situação constatada por programa e enquadramento legal da planilha da GDV', p));

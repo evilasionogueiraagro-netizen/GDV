@@ -21,19 +21,23 @@ const DocumentoBase = (() => {
     alvo.textContent = ''; alvo.classList.add('doc-num');
     alvo.append(caixa(p[0], 'Nº sequencial'), e(d, 'span', 'sep', '-'), caixa(p[1], 'Ano'), e(d, 'span', 'sep', '-'), caixa(p.slice(2).join('-'), 'Unidade', 'un'));
   }
-  /** Rodapé único: vias numa linha, filete e três colunas (endereço, ADAF, SEPROR). Preso à base da folha por CSS. */
+  /** Rodapé único: filete e vias numa linha; embaixo, endereço, logo da ADAF e texto da SEPROR/AM (como no papel). Preso à base da folha por CSS. */
   function montarRodape(pg) {
     const a = pg.querySelector('[data-rodape]'); if (!a) return;
     const d = pg.ownerDocument;
     a.textContent = ''; a.classList.add('doc-rodape');
     a.append(e(d, 'div', 'doc-vias', (a.getAttribute('data-vias') || '').split('|').filter(Boolean).map(v => e(d, 'span', '', v))),
       e(d, 'div', 'doc-fim', e(d, 'div', 'doc-end', ENDERECO.flatMap((l, i) => (i ? [d.createElement('br'), l] : [l]))), e(d, 'div', 'doc-logo', img(d, '../img/logo-adaf.png', 'ADAF')),
-        e(d, 'div', 'doc-dir', img(d, '../img/sepror.png', 'SEPROR – Secretaria de Produção Rural do Estado do Amazonas'))));
+        e(d, 'div', 'doc-dir', 'Secretaria de Produção Rural do Estado do Amazonas – SEPROR/AM')));
   }
-  /** Linhas de escrever como bordas (imprimem sem "gráficos de fundo"); o texto fica sobre elas e há no mínimo `min` linhas. */
+  /** Linhas de escrever como bordas pontilhadas (imprimem sem "gráficos de fundo"); o texto fica sobre elas e há no mínimo `min` linhas (guardado em data-min:
+   *  chamar de novo sem `min` refaz as linhas com o passo do nível da folha, --pl). Chamar com `min` maior acrescenta linhas vazias. */
   function pautar(el, min) {
-    const d = el.ownerDocument, txt = el.textContent, mm = 96 / 25.4, passo = 5.6 * mm;
-    el.textContent = ''; el.append(e(d, 'div', 'tl', txt)); el.style.minHeight = min * passo + 'px';
+    const d = el.ownerDocument, tl = el.querySelector(':scope > .tl'), txt = tl ? tl.textContent : el.textContent;
+    if (min == null) min = Number(el.getAttribute('data-min')) || 1; else el.setAttribute('data-min', min);
+    el.textContent = ''; el.append(e(d, 'div', 'tl', txt)); el.style.minHeight = '';
+    const passo = parseFloat(getComputedStyle(el).lineHeight), mm = 96 / 25.4;
+    el.style.minHeight = min * passo + 'px';
     const n = Math.max(min, Math.ceil(el.getBoundingClientRect().height / passo - 0.02));
     for (let i = 1; i <= n; i++) { const l = e(d, 'div', 'pl'); l.style.top = i * passo - 0.7 * mm + 'px'; el.append(l); }
   }

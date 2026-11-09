@@ -349,19 +349,60 @@ const PCEDocs = (() => {
   }
 
   /* ---------- ajuste de folha: o corpo nunca passa do rodapé (preso à base da folha por documento-base.css) ---------- */
+  /** Níveis de tamanho (medidas em documento-base.css): corpo de 11 pt, depois .compacta com c1 (10,5 pt) a c5 (8,5 pt). */
+  const NIVEIS = [[], ['compacta', 'c1'], ['compacta', 'c2'], ['compacta', 'c3'], ['compacta', 'c4'], ['compacta', 'c5']];
+  const NIVEL_FOLHAS = 3;                                                            // o que não cabe em uma folha continua em outras, no corpo de 9,5 pt
+  function nivel(pg, n) {
+    pg.classList.remove('compacta', 'c1', 'c2', 'c3', 'c4', 'c5'); pg.classList.add(...NIVEIS[n]);
+    pg.querySelectorAll('.linhas').forEach(x => DocumentoBase.pautar(x));            // o passo das linhas de escrever muda com o nível
+  }
   /**
-   * Cada ficha cabe numa folha: se o corpo passar do rodapé, a classe .compacta (8,5pt); se ainda assim não couber, o corpo continua numa segunda folha
-   * completa (com o próprio rodapé), distribuído por seções e, na tabela de cultura, por linhas com o cabeçalho repetido; responsável técnico e
-   * assinaturas ficam juntos na última folha. Só o JS distribui: o navegador não fragmenta nada (cada folha mede 297 mm).
+   * Cada ficha cabe numa folha: se o corpo passar do rodapé, desce para o próximo nível de tamanho (até 8,5 pt); se ainda assim não couber, volta ao corpo de 9,5 pt (c3) e continua
+   * numa segunda folha completa (com o próprio rodapé), distribuído por seções e, na tabela de cultura, por linhas com o cabeçalho repetido; responsável técnico e
+   * assinaturas ficam juntos na última folha. Só o JS distribui: o navegador não fragmenta nada (cada folha mede 297 mm). No fim, a sobra de altura da folha
+   * que leva as assinaturas vai para as áreas de escrever (esticarFolha), para o formulário terminar logo acima das vias.
    */
   function ajustarFolhas(doc) {
     [...doc.querySelectorAll('.a4.ficha, .a4.termo')].forEach(pg => {
-      if (DocumentoBase.cabe(pg)) return;
-      pg.classList.add('compacta');
-      if (DocumentoBase.cabe(pg)) return;
-      pg.classList.remove('compacta');
-      (pg.classList.contains('termo') ? paginarTermo : paginarFicha)(pg);
+      const antes = [...doc.querySelectorAll('.a4.ficha, .a4.termo')];
+      if (!NIVEIS.some((_, n) => (nivel(pg, n), DocumentoBase.cabe(pg)))) {
+        nivel(pg, NIVEL_FOLHAS);
+        (pg.classList.contains('termo') ? paginarTermo : paginarFicha)(pg);
+      }
+      const todas = [...doc.querySelectorAll('.a4.ficha, .a4.termo')], i = todas.indexOf(pg), n = todas.length - antes.length;
+      esticarFolha(todas[i + n]);                                                      // a última folha do documento (a das assinaturas)
     });
+  }
+  /**
+   * Distribui a sobra de altura da folha (entre o quadro e as vias, deixando 3 mm) pelas áreas de escrever, em linhas inteiras onde há linhas:
+   * Termo: constatação (50%), enquadramento (15%) e o resto no quadro das testemunhas e assinaturas. Ficha: linhas vazias da tabela de cultura (até 4 mm cada),
+   * últimas perguntas (até 2,5 mm cada) e o resto no espaço das assinaturas.
+   */
+  function esticarFolha(pg) {
+    const mm = 96 / 25.4, db = DocumentoBase, livre = () => db.sobra(pg) - 3 * mm;
+    if (!pg || livre() < 1) return;
+    const px = x => x.getBoundingClientRect().height;
+    if (pg.classList.contains('termo')) {
+      const blk = pg.querySelector('.blk'); if (!blk) return;
+      [['.linhas.l6', 0.5], ['.linhas.l3', 0.15]].forEach(([sel, peso]) => {
+        const L = pg.querySelector(sel); if (!L) return;
+        const passo = parseFloat(getComputedStyle(L).lineHeight), n = Math.floor(livre() * peso / passo);
+        if (n > 0) db.pautar(L, L.querySelectorAll('.pl').length + n);
+      });
+      blk.style.minHeight = Math.max(0, px(blk) + livre()) + 'px';
+      if (livre() < 0) blk.style.minHeight = Math.max(0, px(blk) + livre()) + 'px';
+      return;
+    }
+    const cresce = (linhas, peso, tetoMm) => {
+      if (!linhas.length) return;
+      const total = livre() * peso, cada = Math.min(total / linhas.length, tetoMm * mm);
+      linhas.forEach(l => { l.style.height = px(l) + cada + 'px'; });
+    };
+    cresce([...pg.querySelectorAll('table.cult tr.vazia')], 0.35, 4);
+    const perg = [...pg.querySelectorAll('table.perg')].pop(); if (perg) cresce([...perg.querySelectorAll('tr')], 0.35, 2.5);
+    const imgs = [...pg.querySelectorAll('.assin .ass-img')];
+    if (imgs.length) { const mais = Math.max(0, livre()); imgs.forEach(x => { x.style.height = px(x) + mais + 'px'; }); }
+    if (livre() < 0) { const m = livre(); imgs.forEach(x => { x.style.height = Math.max(0, px(x) + m) + 'px'; }); }
   }
   /**
    * Termo que não cabe numa folha: a folha corta o que passa do rodapé, então nada pode ficar de fora. A constatação continua em folhas completas
@@ -393,11 +434,8 @@ const PCEDocs = (() => {
       cel.textContent = ''; cel.append(linhas, nota); q.append(t);
       if (!encher(atual, 1)) break;
     }
-    depois.forEach(x => {
-      atual.querySelector('.cq').append(x);
-      if (DocumentoBase.cabe(atual)) return;
-      x.remove(); nova().append(x);
-    });
+    atual.querySelector('.cq').append(...depois);                                  // enquadramento e quadro das assinaturas vão juntos para a última folha
+    if (!DocumentoBase.cabe(atual)) { depois.forEach(x => x.remove()); nova().append(...depois); }
   }
   function paginarFicha(pg) {
     const cq = pg.querySelector('[data-ficha]'), molde = pg.cloneNode(true);
@@ -540,7 +578,7 @@ const PCEDocs = (() => {
       if (ul) { ul.textContent = ''; (dados.servidores || []).forEach(s => { const li = pg.ownerDocument.createElement('div'); li.textContent = [s.nome, s.funcao].filter(Boolean).join(' - '); ul.append(li); }); }
     } else assinaturas(pg, lerJSON(dados.assinaturas, {}), arquivos);
     const cf = pg.querySelector('.cancelado-faixa'); if (cf && !r.cancelado) cf.remove();
-    if (nat === 'termo') { DocumentoBase.montar(pg, { numero: r.numeroTxt }); pg.querySelectorAll('.linhas.l6').forEach(x => DocumentoBase.pautar(x, 6)); pg.querySelectorAll('.linhas.l3').forEach(x => DocumentoBase.pautar(x, 3)); }
+    if (nat === 'termo') { DocumentoBase.montar(pg, { numero: r.numeroTxt }); pg.querySelectorAll('.linhas.l6').forEach(x => DocumentoBase.pautar(x, 5)); pg.querySelectorAll('.linhas.l3').forEach(x => DocumentoBase.pautar(x, 2)); }
     return pg;
   }
   /**

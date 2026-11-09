@@ -12,13 +12,13 @@
   <div data-cabecalho></div>
   <div class="cancelado-faixa" data-c="cancelado"></div>
   <div class="cq">
-  <table class="ln"><tr><td class="tit">TERMO DE FISCALIZAÇÃO Nº <span data-numero></span></td></tr></table>
+  <table class="ln"><tr><td class="tit"><div class="tit-l"><span>TERMO DE FISCALIZAÇÃO Nº</span><span data-numero></span></div></td></tr></table>
   <table class="ln"><tr><td class="sec">1 – Identificação</td></tr></table>
   <table class="ln"><colgroup><col style="width:46%"><col style="width:26%"><col></colgroup>
-    <tr><td><div class="cp"><span class="lbl">Nome:</span><span class="v" data-c="nome"></span></div></td>
+    <tr class="alta"><td><div class="cp"><span class="lbl">Nome:</span><span class="v" data-c="nome"></span></div></td>
       <td><div class="cp"><span class="lbl">CPF:</span><span class="v nw" data-c="cpf"></span></div></td>
       <td><div class="cp"><span class="lbl">Atividade:</span><span class="v" data-c="atividade"></span></div></td></tr>
-    <tr><td><div class="cp"><span class="lbl">Empresa / Fantasia:</span><span class="v" data-c="empresa"></span></div></td>
+    <tr class="alta"><td><div class="cp"><span class="lbl">Empresa / Fantasia:</span><span class="v" data-c="empresa"></span></div></td>
       <td><div class="cp"><span class="lbl">CNPJ:</span><span class="v nw" data-c="cnpjTxt"></span></div></td>
       <td><div class="cp"><span class="lbl">Atividade:</span><span class="v" data-c="atividadeEmpresa"></span></div></td></tr>
     <tr><td colspan="3"><div class="cp"><span class="lbl">Endereço:</span><span class="v" data-c="endereco"></span></div></td></tr>
@@ -53,19 +53,20 @@
       <div class="peq">(descrever a situação constatada)</div></td></tr></table>
   <table class="ln"><tr><td class="sec">3 – Enquadramento Legal <small>(citar leis, decretos, resoluções, portarias, instruções normativas, artigos, incisos e alíneas)</small></td></tr>
     <tr><td><div class="linhas l3" data-c="enquadramento"></div></td></tr></table>
-  <table class="ln"><colgroup><col style="width:52%"><col></colgroup>
-    <tr class="tst">
-      <td><div class="b">4 – Testemunhas</div>
-        <div class="peq">(necessário apenas quando o autuado se negar em assinar o documento ou quando estiver ausente).</div>
-        <div class="lin"><span>Nome:</span><u data-c="t1nome"></u></div><div class="lin"><span>CPF/RG:</span><u data-c="t1doc"></u></div>
-        <div class="ass" data-ass="testemunha1"><div class="ass-img"></div><div class="linha">Assinatura</div></div>
-        <div class="lin"><span>Nome:</span><u data-c="t2nome"></u></div><div class="lin"><span>CPF/RG:</span><u data-c="t2doc"></u></div>
-        <div class="ass" data-ass="testemunha2"><div class="ass-img"></div><div class="linha">Assinatura</div></div></td>
-      <td><div class="b">Recebi a 2ª via deste Termo em:</div><div class="peq esq">(Data, hora e local).</div>
-        <div class="v recebi" data-c="recebidoEm"></div>
-        <div class="ass" data-ass="produtor"><div class="ass-img"></div><div class="linha">Assinatura</div></div>
-        <div class="ass sv" data-ass="servidor"><div class="ass-img"></div><div class="linha">Assinatura e Identificação do Servidor da ADAF</div>
-          <div class="ident" data-c="servidorIdent"></div></div></td></tr></table>
+  <div class="blk tst">
+    <div class="esq">
+      <div><div class="b">4 – Testemunhas</div>
+        <div class="peq">(necessário apenas quando o autuado se negar em assinar o documento ou quando estiver ausente).</div></div>
+      <div class="grupo"><div class="lin"><span>Nome:</span><u data-c="t1nome"></u></div><div class="lin"><span>CPF/RG:</span><u data-c="t1doc"></u></div>
+        <div class="ass" data-ass="testemunha1"><div class="ass-img"></div><div class="linha">Assinatura</div></div></div>
+      <div class="grupo"><div class="lin"><span>Nome:</span><u data-c="t2nome"></u></div><div class="lin"><span>CPF/RG:</span><u data-c="t2doc"></u></div>
+        <div class="ass" data-ass="testemunha2"><div class="ass-img"></div><div class="linha">Assinatura</div></div></div></div>
+    <div class="dir">
+      <div class="bl b1"><div class="b">Recebi a 2ª via deste Termo em:</div><div class="peq esq">(Data, hora e local).</div>
+        <div class="v recebi" data-c="recebidoEm"></div></div>
+      <div class="bl b2"><div class="ass" data-ass="produtor"><div class="ass-img"></div><div class="linha">Assinatura</div></div></div>
+      <div class="bl b3"><div class="ass sv" data-ass="servidor"><div class="ass-img"></div><div class="linha">Assinatura e Identificação do Servidor da ADAF</div>
+        <div class="ident" data-c="servidorIdent"></div></div></div></div></div>
   </div>
   <div data-rodape data-vias="1ª via: Interessado|2ª via: ADAF Central|3ª via: Unidade Local"></div>
 </div>

@@ -350,21 +350,21 @@ const contem = (texto, lista) => lista.filter(x => !norm(texto).includes(norm(x)
   ok(folhasTodas.every(g => g.familias.length === 1 && g.familias[0] === 'Arial'), 'fonte Arial em todo o texto (rótulos, valores, rodapé)', [...new Set(folhasTodas.flatMap(g => g.familias))]);
   const MIN_PX = 7 * 96 / 72 - 0.05;
   ok(folhasTodas.every(g => g.minPx >= MIN_PX), 'nenhum texto abaixo de 7 pt', folhasTodas.filter(g => g.minPx < MIN_PX).map(g => [g.n, g.minPx]));
-  ok(folhasTodas.every(g => g.corpoPx === 0 || g.corpoPx >= (g.compacta ? 8.5 : 9.6) * 96 / 72 - 0.05), 'corpo de 9,6 pt (8,5 pt só nas folhas compactas)', folhasTodas.map(g => [g.n, g.corpoPx.toFixed(1)]).slice(0, 3));
-  console.log('  · folhas compactas (8,5 pt) nos dados de teste: ' + (Object.entries(R).filter(([, v]) => v.pags.some(g => g.compacta)).map(([k]) => k).join(', ') || 'nenhuma') + '; 2 folhas: ' + (TODAS.filter(([, x]) => x.folhas > 1).map(([n]) => n).join(', ') || 'nenhuma'));
+  ok(folhasTodas.every(g => g.corpoPx === 0 || g.corpoPx >= (g.compacta ? 8.5 : 11) * 96 / 72 - 0.05), 'corpo de 11 pt (de 10,5 a 8,5 pt só nas folhas compactas, nunca abaixo de 8,5 pt)', folhasTodas.map(g => [g.n, g.corpoPx.toFixed(1)]).slice(0, 3));
+  console.log('  · folhas compactas (10,5 a 8,5 pt) nos dados de teste: ' + (Object.entries(R).filter(([, v]) => v.pags.some(g => g.compacta)).map(([k]) => k).join(', ') || 'nenhuma') + '; 2 folhas: ' + (TODAS.filter(([, x]) => x.folhas > 1).map(([n]) => n).join(', ') || 'nenhuma'));
   console.log('  · folhas por documento: ' + TODAS.map(([n, x]) => `${n}=${x.folhas}`).join('; '));
   ok(Object.keys(R).concat(['soja', 'banana', 'mandioca', 'propriedade']).every(m => R[m].folhas === 1) && TC.folhas === 1 && TM.folhas === 1, 'soja, banana, mandioca, propriedade, citros, cacau e Termos: exatamente 1 página no PDF do navegador');
   ok(TODAS.every(([, x]) => /Avenida Carlos Drummond de Andrade, 1460 Japiim/.test(x.textoPdf) && /E-mail: gabinete@adaf\.am\.gov\.br/.test(x.textoPdf) && /via/.test(x.textoPdf)) && !TODAS.some(([, x]) => /e-GDV · plantas/.test(x.textoPdf)), 'rodapé com endereço e vias em todas; nada de "e-GDV · plantas inspecionadas"');
   ok(TODAS.every(([, x]) => !/\b(null|undefined|NaN)\b/.test(x.textoPdf) && !/\b(null|undefined|NaN)\b/.test(x.texto)), 'nenhum valor vazio vira "null", "undefined" ou "NaN" nos 14 documentos', TODAS.filter(([, x]) => /\b(null|undefined|NaN)\b/.test(x.textoPdf)).map(([n]) => n));
   ok(Object.values(R).every(x => /Gerência de Defesa Vegetal – GDV/.test(x.textoPdf)) && ![TC, TM].some(x => /Gerência de Defesa Vegetal/.test(x.textoPdf)), 'cabeçalho: ficha com 3 linhas de órgão (com a GDV) e Termo com 2, como no papel');
   ok(TODAS.every(([, x]) => x.textoPdf.length > 400) && /FICHA DE CADASTRO E LEVANTAMENTO DE SOJA/.test(R.soja.textoPdf) && /Maria Ficticia da Silva Teste/.test(R.soja.textoPdf), 'PDF do navegador com texto vetorial (pdftotext lê o conteúdo)');
-  ok(TC.pags[0].linhasPl >= 9, 'linhas de escrever do Termo são elementos com borda (não fundo)', TC.pags[0].linhasPl);
+  ok(TC.pags[0].linhasPl >= 7, 'linhas de escrever do Termo são elementos com borda (não fundo)', TC.pags[0].linhasPl);
 
   console.log('Sem "gráficos de fundo" (printBackground: false)');
   const arg = { fn: fichaFn, args: ['ficha', { modelo: 'propriedade', produtor: prodBase, propriedade: NOVOS.propriedade.propriedade, dados: NOVOS.propriedade.dados, visita: NOVOS.propriedade.visita, ficha: fichaBase }] };
   const SF = await gerar('pce-ficha.html', 'ficha-propriedade', arg, { semFundo: true });
   const SFT = await gerar('pce-termo.html', 'termo-citros', { fn: termoFn, args: ['termoCitros', TERMOS.citros] }, { semFundo: true });
-  ok(SF.semFundo && SFT.semFundo && fs.existsSync(path.join(SAIDA, 'termo-citros-sem-fundo.png')) && SFT.pags[0].linhasPl >= 9, 'PDFs sem fundo gerados (confira os PNG *-sem-fundo)');
+  ok(SF.semFundo && SFT.semFundo && fs.existsSync(path.join(SAIDA, 'termo-citros-sem-fundo.png')) && SFT.pags[0].linhasPl >= 7, 'PDFs sem fundo gerados (confira os PNG *-sem-fundo)');
 
   console.log('Aparelho sem Arial: fonte mais larga forçada (DejaVu Sans)');
   const DJ = {};

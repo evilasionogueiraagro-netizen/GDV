@@ -34,6 +34,8 @@
 .doc.termo .ass { text-align: center; font-weight: bold; margin-top: 0.5mm; }
 .doc.termo .ass.sv { margin-top: 3mm; }
 .doc.termo .ass .linha { margin: 0 4mm; }
+.doc .ass-img.doc, .a4.doc.compacta .ass-img.doc { height: 22mm; font-size: var(--fh); font-weight: normal; }   /* produtor que não assina: foto com documento */
+.doc .ass-img.doc img { max-height: 22mm; }
 .doc.termo .ass .ident { font-size: var(--fh); font-weight: normal; }
 .doc.termo .recebi { display: block; font-weight: bold; }
 .doc.termo .cancelado-faixa { border: 0.8pt solid #b00020; color: #b00020; font-weight: bold; text-align: center; padding: 0.8mm; margin-bottom: 1mm; }

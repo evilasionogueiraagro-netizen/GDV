@@ -55,11 +55,7 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== und
   ok(JSON.parse(termo.testemunhas).length >= 1 && /Testemunha Ficticia Um/.test(termo.testemunhas), 'testemunha informada no Termo', termo.testemunhas);
 
   const pr = await A.imprimir(p, '.pce-termo-pronto [data-mon=imprimir]');
-  // DEFEITO CONHECIDO (fora do alcance desta fase: web/documentos/pce-docs.js, função assinaturas): o modelo novo do Termo ainda não imprime
-  // assinaturas.produtorDoc no lugar da linha do produtor. Enquanto não corrigir, a conferência fica como pendência visível, sem derrubar o teste.
-  const imprimiuDoc = pr.docImg && /Não assina: identificado\(a\) por foto com documento de identificação oficial/.test(pr.texto);
-  if (imprimiuDoc) ok(true, 'PDF do Termo: foto com documento no lugar da assinatura do produtor, com o aviso');
-  else console.log('  ! PENDENTE: o PDF do Termo ainda não imprime a foto do produtor que não assina (pce-docs.js, assinaturas())');
+  ok(pr.docImg && /Não assina: identificado\(a\) por foto com documento de identificação oficial/.test(pr.texto), 'PDF do Termo: foto com documento no lugar da assinatura do produtor, com o aviso', pr.texto.slice(-300));
   await A.salvarPdf(p, pr, 'pce-termo.html', 'pce_naoassina');
 
   await A.sync(p);

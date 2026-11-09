@@ -41,11 +41,20 @@ const PCEDocs = (() => {
     raiz.querySelectorAll('[data-se]').forEach(e => { const x = val(e.getAttribute('data-se')); if (x == null || x === '' || (Array.isArray(x) && !x.length)) e.remove(); });
   }
   /** Imagem da assinatura (dataURL guardada no aparelho) sobre a linha correspondente. */
+  // Quem não assina (mapa[papel + 'Doc']): a foto da pessoa com o documento de identificação vai no lugar da assinatura, com o aviso na linha
+  // (mesma regra de montarAssinaturas em js/docs.js).
   function assinaturas(raiz, mapa, arquivos) {
+    const imagem = id => { const a = (arquivos || {})[id]; return a && typeof a.dados === 'string' && /^data:image\/(png|jpeg);/.test(a.dados) ? a.dados : ''; };
     raiz.querySelectorAll('[data-ass]').forEach(b => {
-      const a = (arquivos || {})[(mapa || {})[b.getAttribute('data-ass')]], area = b.querySelector('.ass-img');
+      const papel = b.getAttribute('data-ass'), area = b.querySelector('.ass-img'), docId = (mapa || {})[papel + 'Doc'];
       if (!area) return; area.textContent = '';
-      if (a && typeof a.dados === 'string' && /^data:image\/(png|jpeg);/.test(a.dados)) { const im = raiz.ownerDocument.createElement('img'); im.src = a.dados; im.alt = 'Assinatura'; area.append(im); }
+      const src = imagem(docId || (mapa || {})[papel]);
+      if (docId) {
+        area.classList.add('doc');
+        const linha = b.querySelector('.linha'); if (linha) linha.textContent = 'Não assina: identificado(a) por foto com documento de identificação oficial';
+        if (!src) { area.textContent = '(foto arquivada no Drive)'; return; }
+      }
+      if (src) { const im = raiz.ownerDocument.createElement('img'); im.src = src; im.alt = docId ? 'Foto com documento de identificação' : 'Assinatura'; area.append(im); }
     });
   }
   const obj = x => (x && typeof x === 'object' && !Array.isArray(x) ? x : {});

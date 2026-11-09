@@ -8,7 +8,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | Unidade responsável | Gerência de Defesa Vegetal – GDV |
 | Produto | e-GDV (app de campo, painel gerencial, Portal do Administrativo, dashboard público e serviço de dados) |
 | Versão do sistema descrita | 2026-11-09a |
-| Versão deste Termo | 2.2, de 09/11/2026 |
+| Versão deste Termo | 2.3, de 09/11/2026 |
 
 ## 1. Objeto
 
@@ -85,7 +85,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 - RF-17. Consulta do cadastro do fiscalizado e da placa, e aviso de reincidência.
 - RF-18. Constatação e enquadramento legal sugeridos pela BVA, pelo sentido da rota (entrada ou saída, pela origem e destino) e pelo produto, conforme a tabela de enquadramentos da GDV. O fiscal pode editar os textos.
 - RF-19. Auto de Infração no próprio TF, com numeração própria por barreira e ano e PDF em 3 vias.
-- RF-20. PDF do TF em 2 vias, com QR code de verificação; cancelamento com motivo, mantendo o número.
+- RF-20. PDF do TF em 2 vias, com QR code de verificação (desligado por decisão da gerência desde 09/11/2026; volta por configuração); cancelamento com motivo, mantendo o número.
 - RF-21. Digitação de TFs antigos do papel. O TF de papel anterior ao 1º TF do aplicativo na barreira forma uma série própria, marcada "(papel)", sem conflitar com a numeração do aplicativo.
 - RF-22. Página pública de verificação de autenticidade, sem dados pessoais.
 
@@ -215,3 +215,4 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | 2.0 | 07/11/2026 | 2026-11-07a | RF-06: o fiscal que entrou no turno do colega continua nele mesmo se a resposta da entrada se perder |
 | 2.1 | 09/11/2026 | 2026-11-07a | RF-04A: aparelho com vários logins mostra a cada um só os próprios registros e os dos turnos de que participa |
 | 2.2 | 09/11/2026 | 2026-11-09a | RF-04A: o que o servidor manda a um login é sempre visível para ele, mesmo com o nome da conta alterado |
+| 2.3 | 09/11/2026 | 2026-11-09a | RF-20: QR code e endereço de verificação desligados no TF de Barreira |

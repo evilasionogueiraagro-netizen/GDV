@@ -16,7 +16,7 @@ Falta, nesta ordem:
    - Gerência no TF (GDV, GDA, GIPOA), cada uma com a sua lista de produtos.
    - Dados do fiel depositário no TF e no PDF: nome, RG, CPF, endereço, telefone.
    - Importar cadastros de transportadores da planilha maior do gestor.
-2. Página da BVA: QR dinâmico, check-in (quem, onde, hora, GPS), início do turno e pareamento. Lista dos TFs da BVA, com impressão de 2 vias ou PDF.
+2. Página da BVA: QR dinâmico, check-in (quem, onde, hora, GPS), turno e pareamento; TFs da BVA (2 vias ou PDF).
    - Check-out opcional pelo QR.
 3. Salvar cada PDF automaticamente na pasta TERMOS_EMITIDOS do PC.
 
@@ -61,7 +61,7 @@ Decisões: [Relatório GDV](decisoes/anteriores.md#relatório-gdv)
 Falta:
 - Medida aplicada com quantidade, por visita (hoje: linhas e coluna próprias no painel).
 - Vazio sanitário da soja. Hoje: coluna "Fiscalizações do vazio sanitário" por município.
-- Educação sanitária no app (ações, público atingido). Hoje: tabela da Seção V no painel. A linha de veículos orientados já é automática.
+- Educação sanitária no app (ações, público). Hoje: Seção V no painel; veículos orientados já automáticos.
 - Importação de CFO/CFOC, PTV e UP/UC (CSV dos sistemas de certificação). Hoje: tabelas das Seções III e IV no painel.
 - Armadilhas (mosca-da-carambola e Diaphorina citri). Hoje: coluna e linha próprias no painel (Seção VI).
 - Avisos de consistência: coordenada fora do município (exige a malha); importar relatórios anteriores ao e-GDV.
@@ -70,7 +70,7 @@ Falta:
 
 ## 5. BVAs e portos a confirmar
 
-- A gerência cadastra no painel (Barreiras → Cadastro de BVAs): Humaitá, Guajará, Parintins, portos de Tabatinga e Benjamin Constant, AM-070.
+- A gerência cadastra no painel (Cadastro de BVAs): Humaitá, Guajará, Parintins, Tabatinga, Benjamin Constant, AM-070.
 - Depois, ligar cada BVA nova a um posto em "Postos do VIGIFITO" (painel → Relatórios).
 
 ---
@@ -89,4 +89,4 @@ Falta:
 ## 7. Assinatura na tela (desligada temporariamente)
 
 - **Situação:** desde 28/10/2026 desligada (gerência): linhas em branco para assinar no papel.
-- **Para retomar:** `assinaturaNaTela: true` em `web/js/config.js`. O código e os testes continuam (os testes ligam a chave para conferir).
+- **Para retomar:** `assinaturaNaTela: true` em `web/js/config.js` (código e testes continuam).

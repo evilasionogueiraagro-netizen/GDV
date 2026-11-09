@@ -33,7 +33,7 @@ function dadosPceTermo_(o) {
 
 /**
  * Culturas avaliadas do Termo: texto JSON do app → lista normalizada (só as chaves conhecidas, textos curtos, resultado da lista RESULTADOS_PCE
- * ou '' = sem resposta, que vale para praga opcional). Cultura sem nome é descartada. Devolve [] se inválido.
+ * ou '' = sem resposta: só de aparelho com versão antiga, em praga opcional; o app novo já marca "não tem"). Cultura sem nome é descartada. Devolve [] se inválido.
  */
 function culturasTermoPce_(v) {
   const a = Array.isArray(v) ? v : lerJSONSeguro_(v, []);

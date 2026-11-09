@@ -185,7 +185,7 @@ const TABELAS = {
   Pragas: ['id', 'nomePopular', 'nomeCientifico', 'tipo', 'enquadramentoLegal', 'nomeNoTF', 'ativo', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor',
            'programa',     // nome do programa quando várias pragas dividem um Termo (ex.: Citros); vazio = a praga é o programa
            'levantamento',   // 0 = sem levantamento no campo (praga ausente no Brasil, ex.: Fusariose FOC R4T: só educação sanitária)
-           'opcional'],      // 1 = campo opcional (resposta não obrigatória, sem Termo próprio; entra no Termo do programa, se tiver)
+           'opcional'],      // 1 = campo tem/não tem, já marcado "não tem" no app; entra no Termo do programa, sem Termo próprio
   PragasDasFamilias: ['id', 'pragaId', 'familiaId', 'ativo', 'atualizadoEm', 'atualizadoPor'],
   PragasDasCulturas: ['id', 'pragaId', 'culturaId', 'ativo', 'atualizadoEm', 'atualizadoPor']
 };
@@ -208,7 +208,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-11-09c';
+const VERSAO_CODIGO = '2026-11-09d';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado

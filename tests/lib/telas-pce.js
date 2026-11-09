@@ -174,7 +174,7 @@ async function sincronizar(p) {
       aoPasso: async n => {
         if (n === 1) return passo('Nova visita, passo 1', () => foto('app-celular', 'visita-passo-1-frutos', 'Nova visita, passo 1: frutos avaliados (marcados entre os do cadastro; dá para acrescentar fruto)', p));
         if (n === '2-vazio') {
-          await passo('Nova visita, passo 2 (vazio)', () => foto('app-celular', 'visita-passo-2-pragas', 'Nova visita, passo 2: pragas do catálogo de cada fruto, resultado a marcar (as de vigilância já vêm marcadas Não tem)', p));
+          await passo('Nova visita, passo 2 (vazio)', () => foto('app-celular', 'visita-passo-2-pragas', 'Nova visita, passo 2: pragas do catálogo de cada fruto, resultado a marcar (as de opcionais já vêm marcadas Não tem)', p));
           return passo('Nova visita, erro de validação', async () => {
             await p.click('#vi-continuar'); await p.waitForFunction(() => document.querySelector('#toast') && document.querySelector('#toast').textContent.trim(), null, { timeout: 5000 });
             await p.locator('.pce-pr').first().scrollIntoViewIfNeeded();

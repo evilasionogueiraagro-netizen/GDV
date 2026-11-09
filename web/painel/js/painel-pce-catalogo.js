@@ -147,7 +147,7 @@
         ${campo('pn-cat-tf', 'Nome no quadro do Termo (vazio = fora do quadro)', atual.nomeNoTF, `maxlength="60" ${dis}`)}
         ${campo('pn-cat-prog', 'Programa que divide com outras pragas (vazio = programa próprio)', atual.programa || '', `maxlength="60" list="pn-cat-progs" placeholder="ex.: Citros" ${dis}`)}
         ${selecao('pn-cat-lev', 'Levantamento no campo', [['1', 'Sim (aparece nas culturas do levantamento)'], ['0', 'Não (ausente no Brasil: só educação sanitária)']], Number(atual.levantamento) === 0 ? '0' : '1', dis)}
-        ${selecao('pn-cat-opc', 'No Termo de Fiscalização', [['0', 'Gera Termo (resposta obrigatória no levantamento)'], ['1', 'Campo opcional (sem Termo próprio)']], Number(atual.opcional) === 1 ? '1' : '0', dis)}
+        ${selecao('pn-cat-opc', 'No Termo de Fiscalização', [['0', 'Resposta obrigatória na visita'], ['1', 'Campo tem/não tem, já marcado "Não tem"']], Number(atual.opcional) === 1 ? '1' : '0', dis)}
         <datalist id="pn-cat-progs">${[...new Set(ST.cat.pragas.map(x => x.programa).filter(Boolean))].map(x => `<option value="${esc(x)}">`).join('')}</datalist>
         ${selecao('pn-cat-ativo', 'Situação', [['1', 'Ativa (aparece no app)'], ['0', 'Desativada']], atual.ativo ? '1' : '0', dis)}</div>
       <div class="pn-cat-secao">Enquadramento legal <small>vai no Termo quando detectada ou suspeita</small></div>

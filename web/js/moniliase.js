@@ -724,7 +724,7 @@ const PCEMon = (() => {
   function blocoPraga(fid, p) {
     const st = respostaDe(fid, p), u = fid + '-' + p.id, det = COM_DETECCAO.includes(st.resultado), ops = !p.opcional ? RES : st.resultado === 'suspeita' ? { ...OPC, suspeita: 'Suspeita' } : OPC;     // rascunho antigo com "suspeita" não perde a resposta
     return `<div class="pce-pr" data-fruto="${esc(fid)}" data-praga="${esc(p.id)}" data-nome="${esc(p.nome)}"${p.opcional ? ' data-opcional="1"' : ''}><div class="pce-pr-topo"><b>${icone('praga')} ${esc(p.nome)}</b>
-        <small class="pce-pr-cat">${p.opcional ? 'vigilância' : p.ligada ? 'do catálogo' : 'acrescentada'}</small>
+        <small class="pce-pr-cat">${p.ligada ? 'do catálogo' : 'acrescentada'}</small>
         ${p.ligada ? '' : `<button type="button" class="mini" data-mon="delpraga" data-fruto="${esc(fid)}" data-praga="${esc(p.id)}" aria-label="Remover ${esc(p.nome)}">Remover</button>`}</div>
       <fieldset class="pce-res"><legend>Resultado${p.opcional ? '' : ' *'}</legend><div class="pce-res-op${Object.keys(ops).length === 2 ? ' pce-res-dois' : ''}">${Object.keys(ops).map(v => `<label class="pce-res-${v}"><input type="radio" class="r-res" name="res-${esc(u)}" value="${v}" ${st.resultado === v ? 'checked' : ''}><span>${esc(ops[v])}</span></label>`).join('')}</div></fieldset>
       ${det ? `<div class="vi-det"><label>Há quanto tempo<input class="r-tempo" maxlength="60" value="${esc(st.haQuantoTempo || '')}" autocomplete="off"></label>

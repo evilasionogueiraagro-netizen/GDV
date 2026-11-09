@@ -49,6 +49,8 @@ const hoje = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10), ano =
     ok(!levs.includes('lev-outro'), 'PCE: levantamento de outro login fica fora das telas (Sync.visiveis)', levs);
     const guardados = await p.evaluate(() => Promise.all([Store.obter('tfs', 'tf-outro'), Store.obter('levantamentos', 'lev-outro'), Store.obter('tfs', 'tf-retido')]).then(l => l.every(Boolean)));
     ok(guardados, 'os registros de outro login continuam guardados no aparelho (só escondidos)');
+    const aposSync = await p.evaluate(async () => { await Sync.sincronizar(); return !!(await Store.obter('turnos', 'turno-outro-01')); });
+    ok(aposSync, 'a sincronização não apaga o turno de outro login (continua no aparelho para quando ele voltar)');
     ok(!erros.length, 'sem erros de página', erros);
   } finally { await b.close(); }
   console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.');

@@ -121,6 +121,13 @@ const CONFIG = {
         rechaco: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado SEM a devida documentação fitossanitária obrigatória (PTV); o produto é potencial hospedeiro do Cancro Cítrico e do HLB (Greening). Após os procedimentos o veículo retornou à origem.'
       }
     }, {
+      bva: 'JUNDIÁ', produtos: ['COCO'],                       // coco no Jundiá: ácaro hindustânico (planilha da GDV; enquadramento: grupo "acaro")
+      constatacao: {
+        liberacao: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado COM a devida documentação fitossanitária obrigatória (PTV); o produto é potencial hospedeiro do ácaro hindustânico. Após os procedimentos o veículo foi liberado.',
+        apreensao: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado SEM a devida documentação fitossanitária obrigatória (PTV); o produto é potencial hospedeiro do ácaro hindustânico. Após os procedimentos o veículo foi liberado.',
+        rechaco: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado SEM a devida documentação fitossanitária obrigatória (PTV); o produto é potencial hospedeiro do ácaro hindustânico. Após os procedimentos o veículo retornou à origem.'
+      }
+    }, {
       bva: 'HUMAITÁ',                                         // demais produtos e destinos em Humaitá: sem o texto da mosca (não é prioridade lá)
       constatacao: {
         liberacao: 'Em abordagem ao veículo acima mencionado, foi constatado o trânsito do produto supracitado COM a devida documentação fitossanitária obrigatória (PTV). Após os procedimentos o veículo foi liberado.',

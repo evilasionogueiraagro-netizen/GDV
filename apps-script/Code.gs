@@ -191,7 +191,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-11-07a';
+const VERSAO_CODIGO = '2026-11-09a';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -411,6 +411,7 @@ function sincronizar_(req, usuario) {
       ultimosDocPce: ultimosDocPce_(),                  // último nº de Termo de Fiscalização ("T|UNIDADE|ano") e de Cadastro ("C|PROGRAMA|UNIDADE|ano")
       permissoes: perm,                                 // módulos liberados para este servidor (o app guarda e esconde o que não pode)
       bvas: bvasCadastro_(),                            // BVAs cadastradas no painel (o app junta com CONFIG.bvas)
+      eu: usuario,                                      // nome atual da conta (o app atualiza o nome guardado se mudou no painel)
       minhasEscalas: minhasEscalas_(),                  // escalas de plantão publicadas do fiscal que ainda não acabaram (escalas.gs)
       escalasDaBva: escalasDaBva_(),                    // turno em BVA fixa só para quem está na escala do dia (sem nomes; escalas.gs)
       recusados: recusados                              // ids NÃO gravados por falta de autorização no módulo ou para registro antigo (ficam pendentes no aparelho)

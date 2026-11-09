@@ -56,6 +56,11 @@ const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).
   await p.selectOption('#tf-produtos .prod >> nth=1 >> select >> nth=0', 'LIMÃO'); t = await textos();
   ok(t.e.split('; ').length === n && new Set(t.e.split('; ')).size === n && /IN nº 21/.test(t.e), 'Jundiá, laranja + limão: normas juntas, sem repetir', t.e);
   await p.click('button[data-tf=delprod] >> nth=1');
+  await p.selectOption('#tf-produtos .prod select >> nth=0', 'COCO'); t = await textos();
+  ok(/ácaro hindustânico/.test(t.c) && /retornou à origem/.test(t.c) && /IN nº 8/.test(t.e) && /1\.188/.test(t.e), 'Jundiá, coco: constatação do ácaro hindustânico (modelo) e enquadramento do ácaro', t);
+  await p.selectOption('#tf-barreira', 'BVA-CEASA'); t = await textos();
+  ok(!/ácaro/.test(t.c), 'coco em outra BVA: o modelo do Jundiá não vale', t.c.slice(0, 80));
+  await p.selectOption('#tf-barreira', 'BVA-JUNDIA'); await p.selectOption('#tf-produtos .prod select >> nth=0', 'LARANJA');
 
   await p.selectOption('#tf-barreira', 'BVA-HUMAITA'); await p.fill('#tf-origem', 'Porto Velho/RO');
   await p.fill('#tf-destino', 'Manaus/AM'); await p.dispatchEvent('#tf-destino', 'change');

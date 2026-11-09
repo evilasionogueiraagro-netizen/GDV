@@ -349,12 +349,13 @@ const Sync = (() => {
     const eu = nome(); if (!eu) return lista;
     const letra = Object.keys(Envio.STORES).find(k => Envio.STORES[k] === store);
     const R = await Envio.retidosDeOutros(), ret = (letra && R[letra]) || new Set();
-    const participa = t => !!t && ((t.usuario && mesmoNome(t.usuario, eu)) || listaJSON_(t.colegas).some(n => mesmoNome(n, eu)));
+    const meuId = (usuario() || {}).id || '';
+    const participa = t => !!t && ((meuId && t._login === meuId) || (t.usuario && mesmoNome(t.usuario, eu)) || listaJSON_(t.colegas).some(n => mesmoNome(n, eu)));
     let meusTurnos = null;
     if (store !== 'turnos' && lista.some(r => r && r.turnoId)) {
       meusTurnos = new Set((await Store.todos('turnos')).filter(t => participa(t) && !R.t.has(t.id)).map(t => t.id));
     }
-    return lista.filter(r => r && !ret.has(r.id) && (!r.usuario || mesmoNome(r.usuario, eu) || (store === 'turnos' ? participa(r) : !!(meusTurnos && r.turnoId && meusTurnos.has(r.turnoId)))));
+    return lista.filter(r => r && !ret.has(r.id) && (!r.usuario || (meuId && r._login === meuId) || mesmoNome(r.usuario, eu) || (store === 'turnos' ? participa(r) : !!(meusTurnos && r.turnoId && meusTurnos.has(r.turnoId)))));
   }
   const listaJSON_ = s => { try { const v = JSON.parse(s || '[]'); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
   const minhasEscalas = async () => { try { return (await Store.meta('minhasEscalas')) || []; } catch (e) { return []; } };
@@ -393,7 +394,9 @@ const Sync = (() => {
   const labAtt = v => { try { const o = typeof v === 'string' ? JSON.parse(v || 'null') : v; return o && Number(o.atualizadoEm) || 0; } catch (e) { return 0; } };
   const labMaisNovo = (a, b) => labAtt(a) > labAtt(b);
   async function aplicar(store, linhas) {
+    const meuId = (usuario() || {}).id || '';                          // o servidor mandou para este login: é dele ver (Sync.visiveis)
     await Store.mesclar(store, linhas, (local, row) => {
+      if (meuId) row = { ...row, _login: meuId };
       if (local && local.pendente && local.atualizadoEm > row.atualizadoEm) {               // edição local mais nova: fica a local…
         // …mas o turno encerrado na planilha (pela gerência, p.ex.) encerra aqui também; o resto da edição local continua pendente
         if (store === 'turnos' && Number(row.encerrado) === 1 && (Number(local.encerrado) !== 1 || row.encerradoPor)) {
@@ -457,6 +460,7 @@ const Sync = (() => {
         await aplicar('termosPce', r.termosPce || []);
         await lembrarUltimosDocPce(r.ultimosDocPce);
         if (r.barreiras) await Store.setMeta('barreiras', r.barreiras);
+        if (r.eu && nome() && r.eu !== nome()) { localStorage.setItem('gdv.nome', r.eu); espelharCred(); }   // nome da conta mudou no painel
         if (Array.isArray(r.minhasEscalas)) await Store.setMeta('minhasEscalas', r.minhasEscalas);   // escalas de plantão publicadas do fiscal
         if (r.escalasDaBva && Array.isArray(r.escalasDaBva.escalas)) await Store.setMeta('escalasDaBva', r.escalasDaBva);       // turno em BVA fixa só para quem está na escala
         if (Array.isArray(r.bvas)) { await Store.setMeta('bvas', r.bvas); CONFIG.aplicarBvas(r.bvas); }   // BVAs cadastradas no painel

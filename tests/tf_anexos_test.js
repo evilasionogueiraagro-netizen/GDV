@@ -18,7 +18,7 @@ const h16 = t => crypto.createHash('sha256').update(t, 'utf8').digest('hex').sli
   const aparelho = async ({ token, nome }) => {
     const c = await b.newContext({ viewport: { width: 400, height: 900 } });
     await c.addInitScript(([t, n]) => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } } catch (e) {} }, [token, nome]);
-    await c.addInitScript(() => document.addEventListener('DOMContentLoaded', () => { if (window === window.top && typeof CONFIG !== 'undefined') CONFIG.assinaturaNaTela = true; }));   // assinatura na tela está desligada no app (CONFIG.assinaturaNaTela); o teste liga para seguir conferindo esse código
+    await c.addInitScript(() => document.addEventListener('DOMContentLoaded', () => { if (window === window.top && typeof CONFIG !== 'undefined') CONFIG.assinaturaNaTela = true; if (window === window.top && typeof CONFIG !== 'undefined' && !window.__semQR) CONFIG.qrVerificacao = true; }));   // assinatura na tela está desligada no app (CONFIG.assinaturaNaTela); o teste liga para seguir conferindo esse código
     // impressão: guarda o HTML do documento e um resumo (o PDF de verdade é gerado à parte, com page.pdf)
     await c.addInitScript(() => { if (window !== window.top) window.print = () => { const d = document; window.top.__prints = window.top.__prints || [];
       window.top.__prints.push({ html: d.documentElement.outerHTML, texto: d.body.innerText.replace(/\s+/g, ' '), paginas: d.querySelectorAll('.a4').length, vias: [...d.querySelectorAll('.via')].map(v => v.textContent),
@@ -105,6 +105,8 @@ const h16 = t => crypto.createHash('sha256').update(t, 'utf8').digest('hex').sli
   { const q = qrcode(0, 'M'); q.addData(urlEsperada); q.make(); const caminho = s => (/ d="([^"]+)"/.exec(s) || [])[1];
     ok(caminho(q.createSvgTag({ cellSize: 2, margin: 4, scalable: true })) === caminho(pr.qr[0].svg), 'o desenho do QR é o da URL de verificação (mesma matriz gerada pela biblioteca)'); }
   ok(pr.texto.includes('Verifique a autenticidade:') && pr.texto.includes('localhost:' + amb.PORTA_WEB + '/verificar.html') && pr.texto.includes('Código: ' + t1.id), 'texto "Verifique a autenticidade: <endereço>" e o código do TF');
+  { await A.evaluate(() => { CONFIG.qrVerificacao = false; }); const sem = await imprimir(A); await A.evaluate(() => { CONFIG.qrVerificacao = true; });
+    ok(sem.qr.every(q => !q.vis) && !sem.texto.includes('Verifique a autenticidade') && !sem.texto.includes('verificar.html'), 'QR desligado (padrão do app, CONFIG.qrVerificacao = false): o TF sai sem o QR e sem o endereço do site'); }
   // PDF de verdade: cada via continua numa folha A4, com testemunhas e rodapé; o anexo fica nas folhas seguintes
   { const html = pr.html.replace('<head>', '<head><base href="' + APP + 'documentos/">');
     const q = await A.ctx.newPage(); await q.setContent(html, { waitUntil: 'load' }); await q.waitForTimeout(400);

@@ -24,7 +24,7 @@ function chromiumPath() {
   const base = '/opt/pw-browsers';
   try {
     const d = fs.readdirSync(base).filter(x => /^chromium-\d+$/.test(x)).sort((a, b) => b.split('-')[1] - a.split('-')[1]);
-    for (const x of d) { const p = path.join(base, x, 'chrome-linux', 'chrome'); if (fs.existsSync(p)) return p; }
+    for (const x of d) for (const sub of ['chrome-linux', 'chrome-linux64']) { const p = path.join(base, x, sub, 'chrome'); if (fs.existsSync(p)) return p; }
   } catch (e) {}
   return undefined;   // deixa o Playwright decidir (vai falhar com mensagem clara se não houver navegador)
 }

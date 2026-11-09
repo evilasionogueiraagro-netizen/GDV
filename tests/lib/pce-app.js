@@ -11,7 +11,7 @@ async function aparelho(b, nome, o = {}) {
   if (o.assinaturaNaTela) await c.addInitScript(() => document.addEventListener('DOMContentLoaded', () => { if (window === window.top && typeof CONFIG !== 'undefined') CONFIG.assinaturaNaTela = true; }));
   // captura o que o app manda imprimir (o modelo roda num iframe): texto, HTML e quantidade de folhas
   await c.addInitScript(() => { if (window !== window.top) window.print = () => { const d = document; window.top.__prints = window.top.__prints || [];
-    window.top.__prints.push({ texto: d.body.innerText.replace(/\s+/g, ' '), paginas: d.querySelectorAll('.a4').length, html: d.documentElement.outerHTML, docImg: !!d.querySelector('.assinatura[data-papel=produtor] .area.doc img') }); }; });
+    window.top.__prints.push({ texto: d.body.innerText.replace(/\s+/g, ' '), paginas: d.querySelectorAll('.a4').length, html: d.documentElement.outerHTML, docImg: !!d.querySelector('.assinatura[data-papel=produtor] .area.doc img, [data-ass=produtor] .ass-img.doc img') }); }; });
   const p = await c.newPage(); p.err = []; p.ctx = c; p.conta = f;
   p.on('pageerror', e => p.err.push(e.message)); p.on('console', m => m.type() === 'error' && !/Failed to load resource|net::ERR/.test(m.text()) && p.err.push(m.text()));
   p.on('dialog', d => (d.type() === 'prompt' ? d.accept('digitação errada') : d.accept()));
@@ -113,8 +113,10 @@ async function imprimir(p, sel) {
 /** Grava o HTML impresso como PDF e PNG em saida/, para conferência visual. */
 async function salvarPdf(p, pr, modelo, nome) {
   const pg = await p.context().newPage(); await pg.goto(amb.APP + 'documentos/' + modelo);
-  await pg.setContent(pr.html.replace('<head>', `<head><base href="${amb.APP}documentos/">`)); await pg.waitForTimeout(300);
-  await pg.pdf({ path: amb.saida(nome + '.pdf'), format: 'A4', printBackground: true, margin: { top: '8mm', bottom: '8mm', left: '7mm', right: '7mm' } });
+  // o outerHTML capturado vem sem o doctype: sem ele a cópia abre em modo de compatibilidade e as tabelas perdem a fonte da folha
+  await pg.setContent('<!doctype html>' + pr.html.replace('<head>', `<head><base href="${amb.APP}documentos/">`), { waitUntil: 'load' });
+  await pg.emulateMedia({ media: 'print' });   // como a impressão do app: folha A4 do @page, sem margem extra
+  await pg.pdf({ path: amb.saida(nome + '.pdf'), format: 'A4', printBackground: true, preferCSSPageSize: true }); await pg.emulateMedia({ media: 'screen' });
   await pg.setViewportSize({ width: 800, height: 1100 }); await pg.screenshot({ path: amb.saida(nome + '.png'), fullPage: true }); await pg.close();
 }
 module.exports = { aparelho, identificar, novoProdutor, abrirProdutor, visita, bloco, imagem, sync, imprimir, salvarPdf, aba };

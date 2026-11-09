@@ -64,11 +64,12 @@ const parar = p => { try { process.kill(-p.pid, 'SIGTERM'); } catch (e) { /* já
 
 // ---------------- PDF ----------------
 /** Transforma o HTML capturado em window.print em PDF (A4) e em PNG por página (pdftoppm). */
+// o outerHTML capturado vem sem o doctype: sem ele a cópia abre em modo de compatibilidade e as tabelas perdem a fonte da folha
 async function salvarPdf(b, html, nome, desc) {
   const dir = pasta('pdfs'), base = `${num('pdfs')}-${slug(nome)}`;
   const pg = await b.newPage({ viewport: { width: 800, height: 1200 } });
   try {
-    await pg.setContent(html.replace('<head>', `<head><base href="${APP}documentos/">`), { waitUntil: 'load' });
+    await pg.setContent('<!doctype html>' + html.replace('<head>', `<head><base href="${APP}documentos/">`), { waitUntil: 'load' });
     await pg.evaluate(() => Promise.all([...document.images].map(im => (im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; })))));
     await pg.emulateMedia({ media: 'print' });
     await pg.pdf({ path: path.join(dir, base + '.pdf'), format: 'A4', printBackground: true, preferCSSPageSize: true });

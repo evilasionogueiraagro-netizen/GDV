@@ -26,6 +26,9 @@ const CONFIG = {
   // assinatura com o dedo na tela (TF de Barreira e PCE). Desligada por enquanto (decisão da gerência, 28/10/2026): os documentos saem com as
   // linhas em branco para assinar no papel. Para voltar, troque para true (o código das assinaturas continua todo no app).
   assinaturaNaTela: false,
+  // QR code e endereço de verificação de autenticidade no TF de Barreira (verificar.html). Desligado por enquanto (gerência, 09/11/2026):
+  // o TF sai sem o QR e sem o endereço do site. Para voltar, troque para true (verificar.html e o código continuam).
+  qrVerificacao: false,
   // onde o fiscal pode corrigir o nº do TF do turno (o servidor confere a mesma regra: NUMERO_TURNO_EDITAVEL_)
   turnoNumeroEditavel: [{ local: 'BVA - JUNDIÁ', desde: '2026-10-24' }],
   volantesSoPessoas: {

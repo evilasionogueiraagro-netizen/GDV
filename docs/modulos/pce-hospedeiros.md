@@ -1,6 +1,6 @@
 # PCE: que praga vale em que cultura
 
-Regra usada na escolha de pragas do levantamento: `CONFIG.PCE.hospedeiros` (web/js/config.js) e ligações do catálogo
+Regra usada na escolha de pragas da visita: `CONFIG.PCE.hospedeiros` (web/js/config.js) e ligações do catálogo
 (`CATALOGO_PCE_BASE_`). Praga listada só aparece nas culturas abaixo ou nas que a gerência ligar no painel. Registro antigo
 fora da regra continua abrindo. Pesquisa de 03/11/2026; a [planilha da GDV](pce-legislacao.csv) prevalece sobre a pesquisa e é a fonte da legislação dos Termos. Ao mudar norma ou lista, atualize a tabela e a fonte.
 

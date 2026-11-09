@@ -15,7 +15,7 @@ Ache a linha do assunto e leia só aquele arquivo. Mapa geral e regras curtas: [
 | Montar do zero, ativar e revogar acesso, módulos por servidor | [modulos/acessos.md](modulos/acessos.md) |
 | TF de Barreira, numeração, `verificar.html` | [modulos/tf.md](modulos/tf.md) |
 | Barreiras ao vivo: TF em preenchimento, sinal do aparelho | [modulos/barreiras-ao-vivo.md](modulos/barreiras-ao-vivo.md) |
-| PCE: levantamento, colheita, monilíase, campo sem internet, papel | [modulos/pce.md](modulos/pce.md) |
+| PCE: Termo por programa, frutos, colheita, monilíase, campo sem internet, papel | [modulos/pce.md](modulos/pce.md) |
 | PCE: que praga vale em que cultura, com fontes | [modulos/pce-hospedeiros.md](modulos/pce-hospedeiros.md) |
 | Convênio MAPA/ADAF | [modulos/convenio.md](modulos/convenio.md) |
 | Relatório GDV e motor de indicadores | [modulos/relatorios.md](modulos/relatorios.md) |

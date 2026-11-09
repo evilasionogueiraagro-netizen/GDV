@@ -26,14 +26,13 @@ Com o login (22/10/2026), o QR prova só a **presença** (identidade vem do logi
 
 ---
 
-## 2. PCE em campo: propriedade cadastrada e vários levantamentos por visita
+## 2. PCE em campo: produtor, frutos e Termos
 
-*Em andamento. Levantamento no campo, mapa, rota e cadastro de imóvel já feitos.*
+*Em andamento. Termo por programa, frutos e fichas oficiais já feitos; mapa e rota saíram em 06/11/2026.*
 Feito: veja [modulos/pce.md](modulos/pce.md).
 Decisões: [PCE em campo](decisoes/anteriores.md#pce-em-campo)
 
 Falta:
-- Cadastros dos programas banana, mandioca, soja e propriedade geral (a aba `CadastrosPCE` já tem `programa` e `dados` em JSON).
 - Fotos no termo e no cadastro (a coluna `fotos` existe, sem tela).
 - Relatório no app com os termos de outros servidores (hoje usa os do aparelho; o painel usa todos).
 - Via do produtor por link ou QR.

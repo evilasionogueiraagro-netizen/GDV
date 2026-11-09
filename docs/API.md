@@ -20,7 +20,7 @@ Contrato das actions: ao criar, mudar ou remover uma, atualize esta tabela. Regr
 | action | credencial (módulo) | parâmetros | resposta |
 |---|---|---|---|
 | `ping` | fiscal | `aparelho` | `nome`, `agora` |
-| `sync` | por registro | `since`, `aparelho`; listas `turnos`, `veiculos`, `tfs`, `pessoas`, `placas`, `levantamentos`, `colheitas`, `propriedades`, `cadastrosPce`, `termosPce` (máx. 2.000 cada) | `agora`; mudanças desde `since` (do fiscal e dos turnos compartilhados); `barreiras`, `ultimos`, `ultimosPce`, `ultimosDocPce`, `permissoes`, `recusados`, `catalogoPce` (só com `pce`) |
+| `sync` | por registro | `since`, `aparelho`; listas `turnos`, `veiculos`, `tfs`, `pessoas`, `placas`, `levantamentos` (pendência antiga), `colheitas`, `propriedades`, `cadastrosPce`, `termosPce` (máx. 2.000 cada) | `agora`; mudanças desde `since` (do fiscal e dos turnos compartilhados); `barreiras`, `ultimos`, `ultimosPce`, `ultimosDocPce`, `permissoes`, `recusados` (inclui `termosPce`, `propriedades`), `propriedadesGravadas`, `catalogoPce` (só com `pce`) |
 | `tfConsultar` | tf | `doc` (CPF/CNPJ) e/ou `placa` | `pessoa`, `placa`, `historicoDoc`, `historicoPlaca` |
 | `tfProximoNumero` | tf | `barreira`, `ano` | `ultimo`, `proximo` |
 | `tfEmitir` | tf | `tf`, `pessoa`, `placa` (opc.); do papel: `tf.registroAntigo = 1` (data não futura; ano = `tf.ano`), `tf.pdfs`, `tf.numeroOrigem = 'papel'` | `emitido: true, numero, emitidoEm, srv_ts`; ou `emitido: false, ocupadoPor` |
@@ -37,18 +37,18 @@ Contrato das actions: ao criar, mudar ou remover uma, atualize esta tabela. Regr
 | `turnoNumero` | veiculos | `turnoId`, `numero` | `turno` |
 | `pceProximoNumero` | pce | `unidade`, `ano` | `ultimo`, `proximo` |
 | `pceEmitir` | pce | `colheita`, `pessoa`, `propriedade` | como `tfEmitir`, + `numeroTxt` |
-| `pceConsultar` | pce | `doc` | `pessoa`, `propriedades` (`cnpj`, `empresa`, `endereco`, `uf`, `viaAcesso`, `comercial`, `tipoPropriedade`), contagens, `cadastrosPce` |
+| `pceConsultar` | pce | `doc` | `pessoa`, `propriedades` (`cnpj`, `empresa`, `endereco`, `uf`, `viaAcesso`, `comercial`, `tipoPropriedade`, `frutos`, `frutosSugeridos`), contagens, `cadastrosPce` |
 | `pceDocNumero` | pce | `tipo` (`termo`/`cadastro`), `unidade`, `ano`, `programa` | `ultimo`, `proximo` |
-| `pceDocRegistrar` | pce | `tipo`, `registro`, `pessoa`, `propriedade` | como `pceEmitir` |
-| `pceBaixarMunicipio` | pce | `municipios` (lista) | `agora`, `municipios`, `propriedades`, `pessoas`, `cadastrosPce` |
-| `pceMapaGeral` | pce | — | `propriedades` com coordenadas (`id`, `codigo`, `nome`, `municipio`, `lat`, `lon`, `resumoLev`; sem produtor nem CPF/CNPJ) |
+| `pceDocRegistrar` | pce | `tipo`, `registro`, `pessoa`, `propriedade` | como `pceEmitir`; Termo da visita que já existe: `emitido: false`, `termoDaVisita` {`id`, `numeroTxt`, `programaVisita`} |
+| `pceBaixarMunicipio` | pce | `municipios` (lista) | `agora`, `municipios`, `propriedades` (como em `pceConsultar`), `pessoas`, `cadastrosPce` |
 | `arquivoEnviar` | tf/pce | `arquivo` {`id` (UUID), `dono`, `donoId`, `tipo`, `papel`, `mime`, `rotulo`}, `base64` | `id`, `url`, `driveId`, `existente` |
 
 ### Campos nos registros
 
-- `levantamentos[].citros`: texto JSON (ou `''`) do bloco "Cultura do citros"; formato e limites em `citrosTexto_` (pce.gs).
-- `levantamentos[]`: `cnpj` (14 dígitos), `empresa` (≤ 120), `endereco` (≤ 200), `uf` (2 letras); `identLev_`.
-- `CadastrosPCE` e `TermosPCE` (`programa = 'citros'`): cadastro = `dados` (JSON acima + `levantamentoId`, `codigoPropriedade`, `endereco`, `telefone`, `email`, `empresa`, `culturasAvaliadas[]`, `amostra`); termo = `tipoLocal`, `constatacao`.
+- `levantamentos[]` (antigo): `citros` (texto JSON, `citrosTexto_`), `cnpj` (14 dígitos), `empresa` (≤ 120), `endereco` (≤ 200), `uf`.
+- `propriedades[].frutos`: lista (campos em `pce-frutos.gs`), até 60, mesclada por `id` ([modulos/pce.md](modulos/pce.md)). `propriedadesGravadas`: as do envio já mescladas. `frutosSugeridos` (ids `sug-<cultura>`): só leitura, em propriedade sem frutos.
+- `termosPce[]`: `tipoLocal`, `constatacao`, `visitaId`, `programaVisita`, `culturas` (texto JSON até 45.000: `[{cultura, area, pragas:[{praga, resultado, ...}], coleta, tipoMaterial, codigoAmostra, destinoAmostra, fotos, dados}]`; `resultado`: `detectada`, `nao_detectada`, `suspeita` ou vazio). Chave única (`visitaId`, `programaVisita`); duplicado volta em `recusados.termosPce`.
+- `colheitas[].levantamentoId` recebe o `visitaId`.
 - `tfs[]`, `tf`, `veiculos[]`: `ufOrigem`, `ufDestino` (opcionais, sigla de `CONFIG.ufs`). TF antigo sem a coluna: UF por `ufDoTexto_` (texto de `origem`/`destino`).
 - Colunas novas no fim de `Levantamentos`, `Propriedades`, `TFs` e `Veiculos`; campo não enviado mantém o da planilha. `veiculos[]`: `semEducacao`, `medidaFito`, `carga`, `produtos`, `partida`, `inspecaoFito`, `docConferido` são só histórico.
 

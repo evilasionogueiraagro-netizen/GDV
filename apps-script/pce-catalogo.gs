@@ -1,7 +1,7 @@
 /* ---------- Catálogo do PCE: famílias, culturas e pragas (painel, gerência) ----------
  * Modelo (docs/arquitetura.md, seção do PCE): cada praga pertence a um programa (campo "programa"; um Termo e um PDF por programa, e várias pragas
  * podem dividir um: Citros com HLB, cancro, ácaro...). Programas = os grupos do relatório do convênio: Pragas dos Citros, Pragas da Soja, Monilíase do
- * Cacaueiro e Cupuaçuzeiro, Mosca-da-Carambola, Pragas da Bananeira e Pragas da Mandioca. Praga "opcional" (Moko, Pinta Preta...) é campo opcional: sem resposta obrigatória e sem Termo próprio; a família agrupa culturas e define o modelo de cadastro;
+ * Cacaueiro e Cupuaçuzeiro, Mosca-da-Carambola, Pragas da Bananeira e Pragas da Mandioca. Praga "opcional" (Moko, Pinta Preta...) vem marcada "Não tem" na visita (a pessoa só troca para "Tem"), conta como avaliada no Termo do programa dela e não gera Termo próprio; a família agrupa culturas e define o modelo de cadastro;
  * pragas de uma cultura = as ligadas à família dela + as ligadas só a ela (PragasDasFamilias, PragasDasCulturas).
  * Fonte única = abas da planilha. Enquanto ninguém editou, vale a base abaixo (CATALOGO_PCE_BASE_, igual ao CONFIG.PCE do app);
  * a primeira gravação no painel copia a base para as abas e daí em diante só as abas valem. Ligação desfeita = ativo 0 (nada é apagado).

@@ -10,3 +10,4 @@ O PCE passa a ser produtor, frutos e Termos. Regras em [../modulos/pce.md](../mo
 | 06/11/2026 | Um modelo único de ficha (`pce-ficha.html`) e um de Termo (`pce-termo.html`), no mesmo estilo; registros antigos abrem por adaptadores | seis fichas e dois Termos repetiam estrutura e divergiam em detalhes |
 | 06/11/2026 | Documentos A4 com rodapé na base de toda folha | sai no papel como em editor de texto |
 | 06/11/2026 | Saem Perto de mim, Rota e laudo no app; o laudo continua no painel | fora do escopo: produtor, frutos e Termos |
+| 09/11/2026 | Praga opcional do catálogo deixa de ser campo em branco: vem marcada "Não tem" e a pessoa só troca para "Tem"; conta como avaliada no Termo do programa | a visita só de banana saía sem caixa de praga marcada e sem enquadramento legal |

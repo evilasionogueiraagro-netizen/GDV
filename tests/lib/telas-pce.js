@@ -1,4 +1,5 @@
-// Fotos das telas do módulo PCE do e-GDV (app do campo no celular e no computador, painel, PDFs e tema escuro).
+// Fotos das telas do módulo PCE do e-GDV (app do campo no celular e no computador, painel, PDFs e tema escuro): Produtores, tela do produtor, Nova visita em
+// passos, Termos, fichas oficiais, Termo do papel e levantamento antigo (só leitura).
 // Sobe o fakegas (Code.gs real, planilha em memória, nada toca a produção), cria dados fictícios, gera tudo e encerra.
 //   cd tests && node lib/telas-pce.js
 // Variáveis: GDV_SAIDA_TELAS (pasta de saída; padrão /home/ronald/Documentos/adaf/modulo_pce_telas), GDV_PORTA_WEB (8231), GDV_PORTA_API (8232).
@@ -8,7 +9,7 @@ process.env.GDV_PORTA_API = process.env.GDV_PORTA_API || '8232';
 const fs = require('fs'), path = require('path'), net = require('net'), { spawn, execFileSync } = require('child_process');
 const amb = require('./amb');
 const U = require('./usuarios');
-const F = require('./pce-form');
+const A = require('./pce-app');
 const { APP, PAINEL } = amb;
 
 const SAIDA = path.resolve(process.env.GDV_SAIDA_TELAS || '/home/ronald/Documentos/adaf/modulo_pce_telas');
@@ -35,7 +36,12 @@ async function passo(nome, fn) {
 async function foto(sub, nome, desc, alvo, opc = {}) {
   await estavel(alvo.page ? alvo.page() : alvo);
   const arq = `${num(sub)}-${slug(nome)}.png`;
-  await alvo.screenshot({ path: path.join(pasta(sub), arq), animations: 'disabled', ...(alvo.page ? {} : { fullPage: true }), ...opc });
+  const pag = alvo.page ? alvo.page() : alvo, inteira = !alvo.page && opc.fullPage !== false;
+  // página inteira: o cabeçalho e o menu de baixo são fixos e aparecem no meio da foto; ficam no lugar de origem e o aviso some (só a foto do erro mostra o aviso)
+  const css = inteira ? await pag.addStyleTag({ content: 'header{position:static!important}nav{position:static!important}#toast{display:none!important}' }) : null;
+  if (inteira) { await pag.evaluate(async () => { for (let y = 0; y < document.documentElement.scrollHeight; y += 600) { window.scrollTo(0, y); await new Promise(r => requestAnimationFrame(r)); } window.scrollTo(0, 0); }); await estavel(pag); }   // percorre a página para pintar tudo antes da foto
+  try { await alvo.screenshot({ path: path.join(pasta(sub), arq), animations: 'disabled', ...(alvo.page ? {} : { fullPage: true }), ...opc }); }
+  finally { if (css) await css.evaluate(e => e.remove()).catch(() => {}); }
   fotos.push({ arq: `${sub}/${arq}`, desc });
 }
 const estavel = p => p.evaluate(() => Promise.race([document.fonts ? document.fonts.ready : 0, new Promise(r => setTimeout(r, 1500))]).then(() => new Promise(r => requestAnimationFrame(() => requestAnimationFrame(r)))));
@@ -100,31 +106,6 @@ async function aguardar(p, sel, ms = 20000) {
 }
 const aviso = p => p.textContent('#toast').then(t => (t || '').trim()).catch(() => '');
 
-/** Marca o que falta no formulário do cadastro: um radio por pergunta (prefere "não"), unidade e responsável técnico. */
-async function preencherCadastro(p) {
-  const un = p.locator('#mc-unidade'); if (await un.count()) await un.selectOption('Manaus').catch(() => {});
-  const nomes = await p.$$eval('#monCadForm input[type=radio]', l => [...new Set(l.map(i => i.name))]);
-  for (const n of nomes) {
-    if (await p.locator(`#monCadForm input[name="${n}"]:checked`).count()) continue;
-    const alvo = (await p.locator(`#monCadForm input[name="${n}"][value="nao"]`).count()) ? 'nao' : null;
-    const el = alvo ? p.locator(`#monCadForm label:has(> input[name="${n}"][value="nao"])`) : p.locator(`#monCadForm label:has(> input[name="${n}"])`).first();
-    if (await el.count() && await el.first().isVisible()) await el.first().click().catch(() => {});
-  }
-  for (const [sel, v] of [['#mc-rt-nome', 'Responsavel Tecnico Ficticio'], ['#mc-rt-conselho', 'CREA-AM 00000'], ['#mc-f-destino', 'Feira Ficticia'], ['#mc-f-origemMaterial', 'Viveiro Ficticio'], ['#mc-f-fornecedor', 'Fornecedor Ficticio']]) {
-    const el = p.locator(sel); if (await el.count() && await el.isVisible() && !(await el.inputValue())) await el.fill(v).catch(() => {});
-  }
-  const lin = p.locator('#mc-f-culturas .pc-lin input[data-col=cultivar]'); if (await lin.count()) for (let i = 0; i < await lin.count(); i++) if (!(await lin.nth(i).inputValue())) await lin.nth(i).fill('Cultivar Ficticia').catch(() => {});
-}
-
-async function preencherTermo(p) {
-  const loc = p.locator('#mt-localAcao'); if (await loc.count() && !(await loc.inputValue())) await loc.fill('Propriedade Ficticia Teste, Ramal Ficticio, km 3, Manaus/AM');
-  const un = p.locator('#mt-unidade'); if (await un.count() && !(await un.inputValue())) await un.selectOption('Manaus').catch(() => {});
-  const neg = p.locator('#mt-negativa'); if (await neg.count() && await neg.isVisible()) await neg.click().catch(() => {});
-  const fr = p.locator('[data-mon=frasescitros]'); if (await fr.count() && await fr.isVisible()) await fr.click().catch(() => {});
-  const ac = p.locator('input[name="mt-acoes"][value="Fiscalização"]'); if (await ac.count() && !(await ac.isChecked())) await ac.check().catch(() => {});
-  const cons = p.locator('#mt-constatacao'); if (await cons.count() && !(await cons.inputValue())) await cons.fill('Ausencia de sintomas nas plantas avaliadas. Visita fictícia para fins de demonstração.').catch(() => {});
-}
-
 async function sincronizar(p) {
   for (let i = 0; i < 25; i++) {
     await p.evaluate(() => Sync.sincronizar()).catch(() => {});
@@ -148,8 +129,14 @@ async function sincronizar(p) {
     const p = await c.newPage(); p.on('dialog', d => d.accept()); const errosJs = []; p.on('pageerror', e => errosJs.push(e.message));
     const cel = () => p.setViewportSize({ width: 400, height: 900 }), pc = () => p.setViewportSize({ width: 1280, height: 800 });
     const escuro = async fn => { await p.emulateMedia({ colorScheme: 'dark' }); try { await fn(); } finally { await p.emulateMedia({ colorScheme: 'light' }); } };
+    /** Foto da tela atual no celular e, se pedido, no computador e no tema escuro. */
+    const tela = async (sub, nome, desc, o = {}) => {
+      await foto('app-celular', nome, desc, p, o.opc || {});
+      if (o.pc) await passo(nome + ' (computador)', async () => { await pc(); await foto('app-computador', nome, desc + ' no computador (1280 px)', p); await cel(); });
+      if (o.escuro) await passo(nome + ' (escuro)', () => escuro(() => foto('tema-escuro', nome, desc + ' no tema escuro', p)));
+    };
 
-    // ---- 1. entrada e identificação do servidor ----
+    // ---- 1. entrada, identificação do servidor e lista de produtores ----
     await p.goto(APP); await p.waitForSelector('.modulo[data-v=pce]');
     await p.evaluate(() => Sync.sincronizar()).catch(() => {});
     await p.waitForFunction(() => Store.meta('catalogoPce'), null, { timeout: 10000 }).catch(() => {});
@@ -157,163 +144,133 @@ async function sincronizar(p) {
     await p.click('.modulo[data-v=pce]'); await p.waitForSelector('#pceServForm');
     await passo('Identificação do servidor', () => foto('app-celular', 'identificacao-do-servidor', 'Primeira entrada no PCE: identificação do servidor (cargo, matrícula e lotação)', p));
     await p.selectOption('#pce-s-cargo', { index: 1 }); await p.fill('#pce-s-matricula', '000.000-0'); await p.selectOption('#pce-s-lotacao', 'Manaus');
-    await p.click('#pce-s-salvar'); await p.waitForSelector('#pce-novolev');
-    await passo('Tela inicial do PCE', () => foto('app-celular', 'tela-inicial-do-pce', 'Tela inicial do PCE (lista de levantamentos ainda vazia)', p));
-    await passo('Tela inicial do PCE (computador)', async () => { await pc(); await foto('app-computador', 'tela-inicial-do-pce', 'Tela inicial do PCE no computador (1280 px)', p); await cel(); });
-    await passo('Tela inicial do PCE (escuro)', () => escuro(() => foto('tema-escuro', 'tela-inicial-do-pce', 'Tela inicial do PCE no tema escuro', p)));
+    await p.click('#pce-s-salvar'); await p.waitForSelector('#campo-novo');
+    await passo('Produtores (lista vazia)', () => tela('app', 'produtores-lista-vazia', 'Produtores: busca, "Novo produtor" e "Baixar dados para o campo" (menu Módulos | Produtores | Termos)', { pc: true, escuro: true }));
 
-    // ---- 2. novo levantamento ----
-    await p.click('#pce-novolev'); await p.waitForSelector('#pceLevForm');
-    await p.waitForFunction(() => document.querySelector('#pce-lat').value !== '', null, { timeout: 10000 }).catch(() => {});
-    await passo('Novo levantamento vazio', () => foto('app-celular', 'novo-levantamento-vazio', 'Novo levantamento, formulário vazio (GPS, data e hora automáticos)', p));
-    await p.fill('#pce-doc', PRODUTOR.doc);
-    await p.waitForFunction(() => /Novo cadastro/.test(document.querySelector('#pce-st-doc').textContent), null, { timeout: 10000 }).catch(() => {});
-    await p.fill('#pce-nome', PRODUTOR.nome); await p.fill('#pce-telefone', '92 90000-0000'); await p.fill('#pce-email', 'produtor@exemplo.invalid');
-    await p.fill('#pce-propriedade', PRODUTOR.propriedade); await p.fill('#pce-codigo', PRODUTOR.codigo); await p.fill('#pce-endereco', 'Ramal Ficticio, km 3');
-    await p.selectOption('#pce-municipio', 'Manaus'); await p.selectOption('#pce-situacao', 'Posse'); await p.selectOption('#pce-comercial', 'sim').catch(() => {});
-    await p.fill('#pce-obs', 'Visita fictícia para demonstração das telas.').catch(() => {});
+    // ---- 2. cadastro do produtor, da propriedade e dos frutos ----
+    await p.click('#campo-novo'); await p.waitForSelector('#pceProdForm');
+    await passo('Novo produtor (vazio)', () => foto('app-celular', 'novo-produtor-vazio', 'Novo produtor: dados do produtor, da propriedade e lista de frutos num formulário só', p));
+    await p.fill('#pp-doc', PRODUTOR.doc); await p.fill('#pp-nome', PRODUTOR.nome); await p.fill('#pp-prop', PRODUTOR.propriedade); await p.fill('#pp-codigo', PRODUTOR.codigo);
+    await p.selectOption('#pp-municipio', 'Manaus');
+    for (const [i, fr] of [{ cultura: 'Cacau', cultivar: 'Comum', area: '3', quantidade: '120' }, { cultura: 'Laranja', cultivar: 'Pera', area: '2,5', quantidade: '400' },
+      { cultura: 'Banana', cultivar: 'Prata', area: '4', quantidade: '300' }, { cultura: 'Soja', cultivar: 'Safra', area: '12,5', quantidade: '' }].entries()) {
+      await p.click('#pp-addfruto'); const bl = p.locator('.pc-fruto').nth(i);
+      await bl.locator('.f-cultura').selectOption(fr.cultura); await bl.locator('.f-cultivar').fill(fr.cultivar); await bl.locator('.f-area').fill(fr.area);
+      if (fr.quantidade) await bl.locator('.f-quantidade').fill(fr.quantidade);
+    }
+    await passo('Novo produtor (preenchido)', () => foto('app-celular', 'novo-produtor-preenchido', 'Novo produtor preenchido, com quatro frutos (cultura do catálogo, cultivar, área, plantas)', p));
+    await p.click('#pp-salvar'); await p.waitForSelector('#pce-produtor');
+    await passo('Tela do produtor', () => tela('app', 'tela-do-produtor', 'Tela do produtor: frutos, "Nova visita", fichas oficiais por modelo e a lista de visitas', { pc: true, escuro: true }));
+    await passo('Produtores (com um produtor)', async () => { await ir(p, 'pce'); await p.waitForSelector('.campo-res-item'); await p.fill('#campoQ', 'ficticio'); await p.waitForSelector('.campo-res-item');
+      await foto('app-celular', 'produtores-busca', 'Produtores: busca por nome, CPF/CNPJ ou propriedade (funciona sem internet com os dados baixados)', p); });
 
-    // uma foto por cultura (a mesma cultura vai trocando no card 1)
-    await F.cultura(p, 0, 'Soja');
-    await passo('Levantamento: soja', () => foto('app-celular', 'levantamento-soja', 'Levantamento com a cultura Soja e as pragas do catálogo', p));
-    await passo('Levantamento: banana', async () => { await F.cultura(p, 0, 'Banana'); await foto('app-celular', 'levantamento-banana', 'Levantamento com a cultura Banana (pragas do catálogo, com a Fusariose opcional)', p); });
-    await passo('Levantamento: laranja', async () => { await F.cultura(p, 0, 'Laranja'); await foto('app-celular', 'levantamento-laranja-citros', 'Levantamento com a cultura Laranja e o bloco do cadastro de citros', p); });
-    await passo('Levantamento: carambola', async () => { await F.cultura(p, 0, 'Carambola'); await foto('app-celular', 'levantamento-carambola', 'Levantamento com a cultura Carambola e a mosca-da-carambola', p); });
-    await passo('Erro de validação', async () => {
-      await p.click('#pce-salvar'); await p.waitForFunction(() => document.querySelector('#toast') && document.querySelector('#toast').textContent.trim(), null, { timeout: 5000 });
-      await p.locator('.pce-pr').first().scrollIntoViewIfNeeded();
-      await foto('app-celular', 'erro-de-validacao', 'Erro de validação: resultado obrigatório da praga sem resposta (aviso na parte de baixo da tela)', p, { fullPage: false });
-    });
+    // ---- 3. Nova visita em passos: Cacau (monilíase detectada, com amostra), Laranja (citros negativo) e Banana (Moko suspeita) ----
+    await ir(p, 'pceprodutor', PRODUTOR.doc); await p.waitForSelector('#pce-novavisita');
+    const jpg = await A.imagem(p, 1600, 1200, '#2a7');
+    await A.visita(p, { frutos: ['Cacau', 'Laranja', 'Banana'], padrao: 'nao_detectada', resultados: { Cacau: { 'Monilíase do Cacaueiro': 'detectada' }, Banana: { 'Moko da Bananeira': 'suspeita' } },
+      amostra: { Cacau: { tipo: 'Folhas e frutos', codigo: 'AM-101', destino: 'Laboratorio Ficticio', qtd: 2 } }, plantas: { Cacau: 120, Laranja: 80, Banana: 60 },
+      fotos: { Cacau: [{ name: 'fruto.jpg', mimeType: 'image/jpeg', buffer: jpg }] },
+      aoPasso: async n => {
+        if (n === 1) return passo('Nova visita, passo 1', () => foto('app-celular', 'visita-passo-1-frutos', 'Nova visita, passo 1: frutos avaliados (marcados entre os do cadastro; dá para acrescentar fruto)', p));
+        if (n === '2-vazio') {
+          await passo('Nova visita, passo 2 (vazio)', () => foto('app-celular', 'visita-passo-2-pragas', 'Nova visita, passo 2: pragas do catálogo de cada fruto, resultado a marcar (as opcionais não obrigam)', p));
+          return passo('Nova visita, erro de validação', async () => {
+            await p.click('#vi-continuar'); await p.waitForFunction(() => document.querySelector('#toast') && document.querySelector('#toast').textContent.trim(), null, { timeout: 5000 });
+            await p.locator('.pce-pr').first().scrollIntoViewIfNeeded();
+            await foto('app-celular', 'visita-erro-de-validacao', 'Erro de validação: resultado obrigatório da praga sem resposta (aviso na parte de baixo da tela)', p, { fullPage: false });
+          });
+        }
+        if (n === 2) return passo('Nova visita, passo 2 (respondido)', async () => { await foto('app-celular', 'visita-passo-2-respondido', 'Nova visita, passo 2 respondido: Monilíase detectada (há quanto tempo, controle) e Moko suspeito', p);
+          await escuro(() => foto('tema-escuro', 'visita-passo-2', 'Nova visita, passo 2, no tema escuro', p)); });
+        if (n === 3) return passo('Nova visita, passo 3', () => foto('app-celular', 'visita-passo-3-amostra-e-deteccao', 'Nova visita, passo 3: plantas inspecionadas, sintomas, coleta de amostra, perguntas de detecção da monilíase e fotos do fruto', p));
+        if (n === 4) return passo('Nova visita, passo 4', () => foto('app-celular', 'visita-passo-4-acoes-e-constatacao', 'Nova visita, passo 4: ação, local, situação constatada por programa e enquadramento legal da planilha da GDV', p));
+        if (n === 5) {
+          await passo('Nova visita, passo 5', () => foto('app-celular', 'visita-passo-5-assinaturas', 'Nova visita, passo 5: assinaturas no papel e o resumo do que sai (um Termo por programa e o Termo de Colheita)', p));
+          return passo('Nova visita, produtor não assina', async () => {
+            await p.check('#pce-naoassina'); await p.locator('#pce-docprod').scrollIntoViewIfNeeded();
+            await foto('app-celular', 'visita-passo-5-produtor-nao-assina', 'Passo 5 com "Produtor não assina": foto do produtor com documento oficial e testemunhas', p);
+            await p.uncheck('#pce-naoassina'); await p.waitForFunction(() => document.querySelector('#pce-docprod').hidden);
+          });
+        }
+        if (n === 'pronta') return passo('Visita pronta', () => tela('app', 'visita-pronta-termos', 'Visita concluída: um Termo de Fiscalização por programa (número, PDF, envio) e o Termo de Colheita da amostra', { pc: true, escuro: true }));
+      } });
 
-    // visita completa: carambola (card 1, já escolhida) + soja, banana, laranja, mandioca e cacau
-    await F.responderObrigatorias(p, 0);
-    if (process.env.TELAS_DEBUG) await p.screenshot({ path: process.env.TELAS_DEBUG + '1.png', fullPage: true });
-    await F.cultura(p, 1, 'Soja'); await p.fill(`${F.cult(1)} >> .c-area`, '12,5'); await p.fill(`${F.cult(1)} >> .c-espLinha`, '0,5'); await p.fill(`${F.cult(1)} >> .c-espPlanta`, '0,1');
-    await F.responder(p, 1, 'Phakopsora pachyrhizi', 'detectada', { tipo: 'Folhas', codigo: 'AM-101', destino: 'Laboratorio Ficticio' }); await F.responderObrigatorias(p, 1);
-    await F.cultura(p, 2, 'Banana'); await p.fill(`${F.cult(2)} >> .c-area`, '4');
-    await F.responder(p, 2, 'Moko da Bananeira', 'suspeita', { tipo: 'Pseudocaule', codigo: 'AM-102', destino: 'Laboratorio Ficticio' }); await F.responderObrigatorias(p, 2);
-    await F.cultura(p, 3, 'Laranja'); await p.fill(`${F.cult(3)} >> .c-area`, '2,5'); await F.responderObrigatorias(p, 3);
-    await F.cultura(p, 4, 'Mandioca'); await p.fill(`${F.cult(4)} >> .c-area`, '1,5'); await F.responderObrigatorias(p, 4);
-    await F.cultura(p, 5, 'Cacau'); await p.fill(`${F.cult(5)} >> .c-area`, '3'); await F.responderObrigatorias(p, 5);
-    for (const k of ['hlb', 'acaro', 'cancro']) await p.click(`#pce-citros label:has(input[name="pce-ci-det-${k}-tem"][value="nao"])`).catch(() => {});
-    await p.check('input[name="pce-ci-atividades"][value="frutos"]').catch(() => {});
-    await p.click('#pce-ci-addcult').then(async () => {
-      const lin = k => `#pce-ci-culturas .pce-ci-cult >> nth=0 >> .ci-${k}`;
-      await p.selectOption(lin('atividade'), 'frutos').catch(() => {}); await p.fill(lin('cultivar'), 'Laranja Pera'); await p.fill(lin('area'), '2,5'); await p.fill(lin('idade'), '6'); await p.fill(lin('plantas'), '400'); await p.fill(lin('producao'), '12,5');
-    }).catch(() => {});
-    await p.fill('#pce-ci-rt-nome', 'Responsavel Tecnico Ficticio').catch(() => {}); await p.fill('#pce-ci-rt-conselho', 'CREA-AM 00000').catch(() => {});
-    if (process.env.TELAS_DEBUG) await p.screenshot({ path: process.env.TELAS_DEBUG, fullPage: true });
-    await p.click('#pce-salvar');
-    await p.waitForSelector('#pce-lev-pronto', { timeout: 15000 }).catch(async () => { throw new Error('o levantamento da visita fictícia não salvou: ' + await aviso(p)); });
-    const levId = await p.evaluate(async () => (await Store.todos('levantamentos')).sort((a, b) => b.criadoEm - a.criadoEm)[0].id);
-    await passo('Levantamento salvo', () => foto('app-celular', 'levantamento-salvo', 'Levantamento salvo: resumo em tabela, cadastros e Termos de Fiscalização por programa e PDFs por programa', p));
-    await passo('Levantamento salvo (computador)', async () => { await pc(); await foto('app-computador', 'levantamento-salvo', 'Levantamento salvo no computador (1280 px)', p); await cel(); });
-    await passo('Levantamento salvo (escuro)', () => escuro(() => foto('tema-escuro', 'levantamento-salvo', 'Levantamento salvo no tema escuro', p)));
-
-    // tema escuro do formulário: abre o rascunho por outra cultura (o levantamento já foi salvo, então volta ao formulário novo)
-    await passo('Levantamento no tema escuro', async () => {
-      await ir(p, 'pcelev'); await p.waitForSelector('#pceLevForm'); await F.cultura(p, 0, 'Soja');
-      await escuro(() => foto('tema-escuro', 'levantamento', 'Formulário de levantamento (cultura Soja) no tema escuro', p));
-      await p.click('[data-pce=descartarlev]').catch(() => {}); await p.waitForSelector('#pce-novolev', { timeout: 5000 }).catch(() => {});
-    });
-
-    // ---- 3. PDFs do levantamento (um por programa) ----
-    await ir(p, 'pcelevpronto', levId); await p.waitForSelector('#pce-lev-pronto');
-    const rotulosPdf = (await p.locator('[data-pce=imprimirlev]').allTextContents()).map(t => t.replace(/^\s*PDF:\s*/, '').trim());
-    console.log('  PDFs do levantamento (programas): ' + rotulosPdf.join(' | '));
-    for (let i = 0; i < rotulosPdf.length; i++) {
-      await passo('PDF da ficha: ' + rotulosPdf[i], async () => {
-        await ir(p, 'pcelevpronto', levId); await p.waitForSelector('[data-pce=imprimirlev]');
-        const pr = await imprimirVia(p, () => p.locator('[data-pce=imprimirlev]').nth(i).click());
-        await salvarPdf(b, pr.html, 'ficha-levantamento-' + rotulosPdf[i], 'Ficha do levantamento do programa ' + rotulosPdf[i]);
+    // ---- 4. PDFs: um Termo por programa e o Termo de Colheita ----
+    await ir(p, 'pcevisitapronto', await p.evaluate(async () => (await Store.todos('termosPce')).sort((x, y) => y.criadoEm - x.criadoEm)[0].visitaId)); await p.waitForSelector('#pce-visita-pronta');
+    const nTermos = await p.locator('.pce-termo-pronto').count();
+    for (let i = 0; i < nTermos; i++) {
+      await passo('PDF do Termo ' + (i + 1), async () => {
+        const cartao = (await p.locator('.pce-termo-pronto').nth(i).textContent()).replace(/\s+/g, ' ');
+        const prog = (cartao.match(/Monilíase|Citros|Bananeira|Carambola|Soja/i) || ['programa'])[0];
+        const pr = await imprimirVia(p, () => p.locator('.pce-termo-pronto').nth(i).locator('[data-mon=imprimir]').click());
+        await salvarPdf(b, pr.html, 'termo-de-fiscalizacao-' + prog, 'PDF do Termo de Fiscalização do programa ' + prog + ' (modelo único, um por programa da visita)');
       });
     }
+    await passo('PDF do Termo de Colheita', async () => {
+      const pr = await imprimirVia(p, () => p.locator('.pce-colheita-pronta [data-pce=imprimirtermo]').first().click());
+      await salvarPdf(b, pr.html, 'termo-de-colheita', 'PDF do Termo de Colheita de Amostras (duas vias)');
+    });
 
-    // ---- 4. cadastros por modelo (um por modelo que a visita pede) ----
-    await ir(p, 'pcelevpronto', levId); await p.waitForSelector('#pce-lev-pronto');
-    const modelos = await p.$$eval('[data-pce=cadvisita]', l => l.map(x => x.dataset.modelo));
-    console.log('  Cadastros pedidos pela visita: ' + modelos.join(', '));
-    for (const m of modelos) {
-      await passo('Cadastro: ' + m, async () => {
-        await ir(p, 'pcelevpronto', levId); await p.waitForSelector(`[data-pce=cadvisita][data-modelo=${m}]`);
-        await p.click(`[data-pce=cadvisita][data-modelo=${m}]`); await p.waitForSelector('#monCadForm'); await sleep(300);
-        await foto('app-celular', 'cadastro-' + m, 'Formulário de cadastro do modelo ' + m + ', aberto a partir da visita (dados do levantamento já vêm preenchidos)', p);
-        await preencherCadastro(p);
-        await p.click('#mc-salvar');
-        try { await aguardar(p, '#pce-lev-pronto'); } catch (e) { await foto('app-celular', 'cadastro-' + m + '-erro', 'ERRO ao salvar o cadastro ' + m + ': ' + await aviso(p), p, { fullPage: false }).catch(() => {}); throw e; }
+    // ---- 5. Termos (Fiscalização e Colheita numa lista só) ----
+    await passo('Termos (lista)', async () => { await ir(p, 'pcetermos'); await p.waitForSelector('#pceTItens .item'); await tela('app', 'termos-lista', 'Termos: Fiscalização e Colheita numa lista só, com pesquisa e filtro por tipo', { pc: true, escuro: true }); });
+
+    // ---- 6. fichas oficiais ----
+    await ir(p, 'pceprodutor', PRODUTOR.doc); await p.waitForSelector('#pce-produtor');
+    for (const m of ['moniliase', 'citros']) {
+      await passo('Ficha oficial: ' + m, async () => {
+        await ir(p, 'pceprodutor', PRODUTOR.doc); await p.waitForSelector(`.pce-visita-termo[data-modelo=${m}] [data-cad=ficha]`);
+        await p.locator(`.pce-visita-termo[data-modelo=${m}] [data-cad=ficha]`).click(); await p.waitForSelector('#pceFichaForm');
+        await foto('app-celular', 'ficha-' + m, 'Ficha oficial do modelo ' + m + ': só as perguntas próprias do modelo que a visita e o cadastro ainda não responderam', p);
+        await p.click('#fi-salvar'); await p.waitForSelector('#pce-produtor');
+        const pr = await imprimirVia(p, () => p.locator(`.pce-visita-termo[data-modelo=${m}] [data-cad=pdfficha]`).first().click());
+        await salvarPdf(b, pr.html, 'ficha-oficial-' + m, 'PDF da ficha oficial do modelo ' + m + ' (modelo único, preenchida do cadastro e da visita)');
       });
     }
+    await passo('Tela do produtor com fichas geradas', () => foto('app-celular', 'tela-do-produtor-com-fichas', 'Tela do produtor depois das fichas geradas (número por programa) e com os Termos da visita na lista', p));
 
-    // ---- 5. Termos de Fiscalização por programa ----
-    await ir(p, 'pcelevpronto', levId); await p.waitForSelector('#pce-lev-pronto');
-    const progs = await p.$$eval('[data-pce=tfvisita]', l => l.map(x => x.dataset.programa));
-    console.log('  Termos de Fiscalização pedidos pela visita: ' + progs.join(', '));
-    for (const g of progs) {
-      await passo('Termo de Fiscalização: ' + g, async () => {
-        await ir(p, 'pcelevpronto', levId); await p.waitForSelector(`[data-pce=tfvisita][data-programa="${g}"]`);
-        await p.click(`[data-pce=tfvisita][data-programa="${g}"]`); await p.waitForSelector('#monTfForm'); await sleep(300);
-        await foto('app-celular', 'termo-de-fiscalizacao-' + g, 'Termo de Fiscalização do programa ' + g + ', ligado à visita', p);
-        await preencherTermo(p);
-        await p.click('#mt-salvar');
-        try { await aguardar(p, '#mon-pronto'); } catch (e) { await foto('app-celular', 'termo-de-fiscalizacao-' + g + '-erro', 'ERRO ao salvar o Termo ' + g + ': ' + await aviso(p), p, { fullPage: false }).catch(() => {}); throw e; }
-      });
-    }
+    // ---- 7. Termo de Fiscalização e Termo de Colheita do papel ----
+    await ir(p, 'pcetermos'); await p.waitForSelector('#mon-novo-papel');
+    await passo('Termo do papel (formulário)', async () => {
+      await p.click('#mon-novo-papel'); await p.waitForSelector('#monTfForm.pce-antigo');
+      await foto('app-celular', 'termo-do-papel-vazio', 'Termo de Fiscalização do papel (digitação): servidor da vistoria, número do papel, interessado, descrição da ação, enquadramento e PDF escaneado', p);
+      await p.fill('#mt-snome', 'Servidor Ficticio Teste'); await p.dispatchEvent('#mt-snome', 'change'); await p.selectOption('#mt-scargo', { index: 1 }); await p.fill('#mt-smatricula', '000.000-0'); await p.selectOption('#mt-slotacao', 'Autazes');
+      await p.selectOption('#mt-unidade', 'Autazes'); await p.fill('#mt-numpapel', '1'); await p.fill('#mt-data', '2026-07-08'); await p.fill('#mt-hora', '14:20');
+      await p.fill('#mt-nome', 'Produtor Papel Ficticio'); await p.fill('#mt-doc', '391.246.587-82'); await p.selectOption('#mt-municipio', 'Autazes'); await p.fill('#mt-lat', '-3,60033'); await p.fill('#mt-lon', '-59,15044W');
+      await p.check('input[name="mt-acoes"][value="Fiscalização"]'); await p.click('#mt-negativa'); await p.fill('#mt-plantas', '75');
+      await foto('app-celular', 'termo-do-papel-preenchido', 'Termo de Fiscalização do papel preenchido (número do papel conferido, coordenada convertida)', p);
+      await p.click('#mt-salvar'); await aguardar(p, '#mon-pronto');
+      await foto('app-celular', 'termo-do-papel-gravado', 'Termo do papel gravado com o número do papel', p);
+      const pr = await imprimirVia(p, () => p.click('#mon-imprimir'));
+      await salvarPdf(b, pr.html, 'termo-de-fiscalizacao-do-papel', 'PDF do Termo de Fiscalização digitado do papel (mesmo modelo único)');
+    });
+    await passo('Termo de Colheita do papel (formulário)', async () => {
+      await ir(p, 'pcetermos'); await p.waitForSelector('#pce-novotermoantigo'); await p.click('#pce-novotermoantigo'); await p.waitForSelector('#pceTermoForm.pce-antigo');
+      await foto('app-celular', 'termo-de-colheita-do-papel', 'Termo de Colheita do papel (digitação): número do papel, produtor, cultura, partes, análise e PDF escaneado', p);
+      await p.click('[data-pce=descartartermo]').catch(() => {});
+    });
 
-    // ---- 6. Termo de Colheita ----
-    await passo('Termo de Colheita (formulário)', async () => {
-      await ir(p, 'pcelevpronto', levId); await p.waitForSelector('#pce-pronto-termo');
-      await p.click('#pce-pronto-termo'); await p.waitForSelector('#pceTermoForm'); await sleep(300);
-      await p.fill('#pce-t-quantidade', '3'); await p.fill('#pce-t-analise', 'fitopatológica');
-      await p.locator('input[name=pce-t-parte]').first().check().catch(() => {});
-      await foto('app-celular', 'termo-de-colheita-formulario', 'Formulário do Termo de Colheita de Amostras, a partir do levantamento', p);
-      await p.click('#pce-t-gerar'); await aguardar(p, '#pce-pronto');
-      await foto('app-celular', 'termo-de-colheita-gerado', 'Termo de Colheita gerado (número confirmado, botões de imprimir)', p);
-      const pr = await imprimirVia(p, () => p.click('#pce-imprimir'));
-      await salvarPdf(b, pr.html, 'termo-de-colheita', 'Termo de Colheita de Amostras (duas vias)');
+    // ---- 8. levantamento antigo: só leitura ----
+    await passo('Levantamento antigo (só leitura)', async () => {
+      const id = await p.evaluate(async doc => {   // levantamento de antes da mudança, já na planilha (aqui gravado direto no aparelho)
+        const id = Store.novoId(), cult = r => ({ cultura: 'Banana', area: '2', espLinha: '', espPlanta: '', espUnidade: 'm', resultado: r, coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '', fotos: [] });
+        await Store.gravar('levantamentos', { id, data: '2026-03-10', hora: '09:30', doc, nome: 'PRODUTOR FICTICIO TESTE', propriedade: 'Propriedade Ficticia Teste', codigoPropriedade: 'PRP-0001', municipio: 'Manaus', uf: 'AM',
+          servidor: 'Servidor Ficticio Teste', cargo: 'Fiscal', matricula: '1', lotacao: 'Manaus', lat: -3.12, lon: -60.02, fotos: '[]', assinaturas: '{}', culturas: '[]', excluido: 0, criadoEm: 1, atualizadoEm: 1, pendente: 0,
+          pragas: JSON.stringify([{ praga: 'Moko da Bananeira', culturas: [cult('nao_detectada')] }, { praga: 'Fusarium R4T', culturas: [cult('nao_detectada')] }]) });
+        return id; }, PRODUTOR.doc);
+      await ir(p, 'pceprodutor', PRODUTOR.doc); await p.waitForSelector('#pce-visitas');
+      await p.locator('#pce-visitas').scrollIntoViewIfNeeded();
+      await foto('app-celular', 'tela-do-produtor-levantamento-antigo', 'Tela do produtor com um levantamento antigo na lista de visitas (identificado como "Levantamento antigo")', p);
+      await ir(p, 'pcelevver', id); await p.waitForSelector('#pce-lev-ver');
+      await tela('app', 'levantamento-antigo-so-leitura', 'Levantamento antigo aberto só para leitura, com o PDF por programa', { escuro: true });
+      const pr = await imprimirVia(p, () => p.locator('.pce-pdf').first().click());
+      await salvarPdf(b, pr.html, 'levantamento-antigo', 'PDF do levantamento antigo (só leitura; modelo antigo, por programa)');
     });
-    await passo('Lista de Termos de Colheita', async () => { await ir(p, 'pcetermos'); await p.waitForSelector('.item.pce-termo'); await foto('app-celular', 'lista-de-termos-de-colheita', 'Lista de Termos de Colheita', p); });
 
-    // ---- 7. lista de levantamentos, Propriedades, Termos, Relatório, Perto de mim, Dados Offline ----
-    await passo('Lista de levantamentos', async () => {
-      await ir(p, 'pce'); await p.waitForSelector('.item.pce-lev');
-      await foto('app-celular', 'lista-de-levantamentos', 'Lista de levantamentos com registros (agrupada por município)', p);
-      await pc(); await foto('app-computador', 'lista-de-levantamentos', 'Lista de levantamentos no computador (1280 px)', p); await cel();
-    });
-    await passo('Propriedades', async () => {
-      await ir(p, 'pcecads'); await p.waitForSelector('#mon-modelo'); await p.waitForSelector('.mon-item');
-      await foto('app-celular', 'propriedades', 'Propriedades: lista de cadastros com o programa de cada um e o seletor do modelo para novo cadastro', p);
-    });
-    for (const g of ['pcetfs']) await passo('Lista de Termos de Fiscalização', async () => {
-      await ir(p, g); await p.waitForSelector('.mon-item, .item, .card', { timeout: 8000 }); await foto('app-celular', 'lista-de-termos-de-fiscalizacao', 'Lista de Termos de Fiscalização por programa', p);
-    });
-    await passo('Relatório de atividades', async () => { await ir(p, 'pcerel'); await sleep(500); await p.waitForSelector('#view .card, #view form', { timeout: 8000 }); await foto('app-celular', 'relatorio-de-atividades', 'Relatório de atividades do PCE (período, unidade, convênio)', p); });
-    await passo('Perto de mim', async () => {
-      await ir(p, 'pcemapa'); await p.waitForSelector('.leaflet-container', { timeout: 10000 }).catch(() => {}); await sleep(800);
-      await foto('app-celular', 'perto-de-mim', 'Perto de mim: mapa das propriedades (os blocos do mapa vêm da internet e ficam bloqueados nestas fotos; o fundo aparece cinza)', p);
-      avisos.push('Perto de mim: sem os blocos do mapa (internet bloqueada de propósito); só os marcadores e o fundo cinza aparecem.');
-    });
-    await passo('Dados Offline', async () => { await ir(p, 'pcecampo'); await p.waitForSelector('#view .card, #view h3', { timeout: 8000 }); await sleep(500); await foto('app-celular', 'dados-offline', 'Dados Offline: baixar os dados de municípios para consultar sem internet', p); });
+    // ---- 9. relatório de atividades e dados para o campo ----
+    await passo('Relatório de atividades', async () => { await ir(p, 'pcerel'); await p.waitForSelector('#monRelForm', { timeout: 8000 }); await sleep(500); await foto('app-celular', 'relatorio-de-atividades', 'Relatório de atividades do PCE (período, município, servidores, folders, anexos)', p); });
+    await passo('Dados para o campo', async () => { await ir(p, 'pcecampo'); await p.waitForSelector('#view .card, #view h3', { timeout: 8000 }); await sleep(500); await foto('app-celular', 'dados-para-o-campo', 'Baixar dados para o campo: municípios para consultar produtores e propriedades sem internet', p); });
 
-    // ---- 8. PDFs dos cadastros e dos Termos de Fiscalização ----
-    const regs = await p.evaluate(async () => ({
-      cads: (await Store.todos('cadastrosPce')).filter(x => !x.excluido).map(x => ({ id: x.id, programa: x.programa || 'moniliase' })),
-      tfs: (await Store.todos('termosPce')).filter(x => !x.excluido).map(x => ({ id: x.id, programa: x.programaVisita || x.programa || '' }))
-    }));
-    for (const x of regs.cads) {
-      await passo('PDF do cadastro: ' + x.programa, async () => {
-        const pr = await imprimirVia(p, () => p.evaluate(id => PCEMon.imprimir('cadastro', id), x.id));
-        await salvarPdf(b, pr.html, 'cadastro-' + x.programa, 'PDF do cadastro do modelo ' + x.programa);
-      });
-    }
-    for (const t of regs.tfs) {
-      await passo('PDF do Termo de Fiscalização: ' + t.programa, async () => {
-        const pr = await imprimirVia(p, () => p.evaluate(id => PCEMon.imprimir('termo', id), t.id));
-        await salvarPdf(b, pr.html, 'termo-de-fiscalizacao-' + t.programa, 'PDF do Termo de Fiscalização do programa ' + t.programa);
-      });
-    }
-    if (!regs.tfs.some(t => /citros/i.test(t.programa))) pulos.push({ tela: 'PDF do Termo de Fiscalização de citros', motivo: 'a visita não gerou o Termo de citros' });
-
-    // ---- 9. painel ----
+    // ---- 10. painel ----
     await passo('Painel', async () => {
       await sincronizar(p);
       const g = await amb.gerente('Gerente Ficticio Teste');
@@ -325,9 +282,9 @@ async function sincronizar(p) {
       await pg.click('#pn-aba-pce'); await pg.waitForSelector('[data-pce-visao]', { timeout: 15000 }); await pg.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 15000 });
       await sleep(1000);
       await passo('Painel: indicadores e mapa', () => foto('painel', 'aba-pce-indicadores-e-mapa', 'Aba PCE do painel: indicadores e mapa (blocos do mapa bloqueados nestas fotos)', pg));
-      await passo('Painel: lista de cadastros', async () => {
+      await passo('Painel: lista de fichas', async () => {
         const T = pg.locator('.pn-tab', { hasText: 'Cadastros de imóvel' }).first(); await T.waitFor({ timeout: 10000 }); await T.scrollIntoViewIfNeeded();
-        await foto('painel', 'cadastros-de-imovel-com-programa', 'Painel: lista de cadastros de imóvel de todos os programas, com a coluna Programa', T);
+        await foto('painel', 'fichas-de-imovel-com-programa', 'Painel: lista de fichas/cadastros de imóvel de todos os programas, com a coluna Programa', T);
       });
       for (const [v, nome, desc] of [['culturas', 'culturas', 'Painel, aba PCE, Culturas (catálogo)'], ['pragas', 'doencas-e-pragas', 'Painel, aba PCE, Doenças e pragas (catálogo)']]) {
         await passo('Painel: ' + nome, async () => {
@@ -338,6 +295,7 @@ async function sincronizar(p) {
       await cx.close();
     });
 
+    avisos.push('PDFs: as imagens vêm do HTML de impressão aberto numa página nova do navegador de teste (fonte Arial trocada por equivalente); no Termo e na ficha o rodapé da folha aparece sobre a última linha de assinaturas e perguntas. Conferir no PDF gerado pelo aparelho antes de dar como defeito do modelo.');
     if (errosJs.length) avisos.push('Erros de JavaScript no app durante o roteiro: ' + [...new Set(errosJs)].slice(0, 3).join(' | '));
   } finally {
     if (b) await b.close().catch(() => {});
@@ -346,10 +304,10 @@ async function sincronizar(p) {
 
   // ---------------- LEIA-ME ----------------
   const L = ['# Telas do módulo PCE (e-GDV)', '',
-    'Fotos geradas por `tests/lib/telas-pce.js`, com dados claramente fictícios (produtor "Produtor Ficticio Teste", CPF 529.982.247-25), num sistema local em memória que não toca a produção.', '',
+    'Fotos geradas por `tests/lib/telas-pce.js`, do fluxo atual do PCE (Produtores, tela do produtor, Nova visita em 5 passos, Termos, fichas oficiais, Termo do papel e levantamento antigo só leitura), com dados claramente fictícios (produtor "Produtor Ficticio Teste", CPF 529.982.247-25), num sistema local em memória que não toca a produção.', '',
     '## Como regerar', '', '```sh', 'cd tests && node lib/telas-pce.js', '```', '',
     'Substitui as fotos desta pasta. Para outra pasta: `GDV_SAIDA_TELAS=/caminho node lib/telas-pce.js`. Portas usadas: 8231 (web) e 8232 (API), configuráveis por `GDV_PORTA_WEB` e `GDV_PORTA_API`.', ''];
-  const secoes = [['app-celular', 'App no celular (400 px, página inteira)'], ['app-computador', 'App no computador (1280 px)'], ['painel', 'Painel (1440 px)'], ['pdfs', 'PDFs (arquivo .pdf e imagem .png de cada página)'], ['tema-escuro', 'Tema escuro (app no celular)']];
+  const secoes = [['app-celular', 'App no celular (400 px, página inteira; menu Módulos | Produtores | Termos)'], ['app-computador', 'App no computador (1280 px)'], ['painel', 'Painel (1440 px)'], ['pdfs', 'PDFs (arquivo .pdf e imagem .png de cada página)'], ['tema-escuro', 'Tema escuro (app no celular)']];
   for (const [sub, titulo] of secoes) {
     const l = fotos.filter(x => x.arq.startsWith(sub + '/')); if (!l.length) continue;
     L.push('## ' + titulo, '', ...l.map(x => `- \`${x.arq}\`: ${x.desc}`), '');

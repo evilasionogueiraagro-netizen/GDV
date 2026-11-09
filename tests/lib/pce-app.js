@@ -52,19 +52,23 @@ async function abrirProdutor(p, busca) {
 const bloco = (p, cultura) => p.locator('.pce-cultura', { has: p.locator('b', { hasText: cultura }) }).first();
 /**
  * Visita completa. o = {frutos: [cultura...], resultados: {cultura: {praga: resultado}}, padrao: 'nao_detectada' (obrigatórias sem resposta),
- * amostra: {cultura: {tipo, codigo, destino, qtd}}, plantas: {cultura: n}, fotos: {cultura: [arquivos]}, naoAssina: false, parar: 'passo' (para antes de concluir)}.
+ * amostra: {cultura: {tipo, codigo, destino, qtd}}, plantas: {cultura: n}, fotos: {cultura: [arquivos]}, naoAssina: false, parar: 'passo' (para antes de concluir),
+ * aoPasso: async passo => {} (chamado com 1, '2-vazio', 2, 3, 4, 5 e 'pronta', para quem fotografa as telas)}.
  * Parte da tela do produtor (#pce-novavisita) e termina na tela da visita concluída (#pce-visita-pronta).
  */
 async function visita(p, o) {
   await p.locator('#pce-novavisita').first().click(); await p.waitForSelector('#pceVisitaForm');
   for (const c of o.frutos) await p.locator('label.vi-fruto', { hasText: c }).locator('input').check();
+  if (o.aoPasso) await o.aoPasso(1);
   await p.click('#vi-continuar'); await p.waitForSelector('.pce-pr');
+  if (o.aoPasso) await o.aoPasso('2-vazio');
   const n = await p.locator('.pce-pr').count();
   for (let i = 0; i < n; i++) {
     const e = p.locator('.pce-pr').nth(i), nome = await e.getAttribute('data-nome'), cult = (await e.locator('xpath=ancestor::div[contains(@class,"pce-cultura")]//b').first().textContent()).trim().replace(/\s*\(.*\)$/, '');   // sem a cultivar
     const res = ((o.resultados || {})[cult] || {})[nome] || (/opcional/.test(await e.locator('.pce-pr-cat').textContent()) ? '' : (o.padrao || 'nao_detectada'));
     if (res) await e.locator('.pce-res-' + res).click();
   }
+  if (o.aoPasso) await o.aoPasso(2);
   if (o.parar === 2) return;
   await p.click('#vi-continuar'); await p.waitForSelector('.v-plantas');
   for (const [cult, a] of Object.entries(o.amostra || {})) {
@@ -77,12 +81,16 @@ async function visita(p, o) {
   }
   for (const [cult, n2] of Object.entries(o.plantas || {})) await bloco(p, cult).locator('.v-plantas').fill(String(n2));
   for (const [cult, arqs] of Object.entries(o.fotos || {})) { await bloco(p, cult).locator('.v-fotos').setInputFiles(arqs); await bloco(p, cult).locator('.pce-foto img').first().waitFor(); }
+  if (o.aoPasso) await o.aoPasso(3);
   if (o.parar === 3) return;
   await p.click('#vi-continuar'); await p.waitForSelector('#vi-local');
+  if (o.aoPasso) await o.aoPasso(4);
   if (o.parar === 4) return;
   await p.click('#vi-continuar'); await p.waitForSelector('#vi-resumo');
+  if (o.aoPasso) await o.aoPasso(5);
   if (o.parar === 5) return;
   await p.click('#vi-concluir'); await p.waitForSelector('#pce-visita-pronta', { timeout: 20000 });
+  if (o.aoPasso) await o.aoPasso('pronta');
 }
 const imagem = (p, w, h, cor) => p.evaluate(([w, h, cor]) => { const c = document.createElement('canvas'); c.width = w; c.height = h; const x = c.getContext('2d');
   x.fillStyle = cor; x.fillRect(0, 0, w, h); x.fillStyle = '#fff'; x.fillRect(w / 4, h / 4, w / 2, h / 2); return c.toDataURL('image/jpeg', 0.9).split(',')[1]; }, [w, h, cor]).then(s => Buffer.from(s, 'base64'));

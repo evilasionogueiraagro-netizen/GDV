@@ -210,6 +210,13 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
   ok(!pp.errosPag.length, 'portal sem erros', pp.errosPag);
   await pp.context().close();
   ok(!err.length, 'sem erros de página', err);
+  // escalas além de 90 dias (Gerar períodos até o fim do convênio, ou período avulso) continuam na lista depois de gravadas
+  r = await post({ action: 'escalaSalvar', key: coord.token, escala: { bva: 'BVA - JUNDIÁ', inicio: dia(120), fim: dia(130), fiscais: [id('Ana Escalada Teste')], situacao: 'publicada' } });
+  const longe = r.escala && r.escala.id;
+  r = await post({ action: 'escalaGerar', key: coord.token, bva: 'BVA - JUNDIÁ', periodos: [{ inicio: dia(200), fim: dia(210) }] });
+  const DL = await post({ action: 'escalaDados', key: coord.token });
+  ok(longe && r.ok && r.criados === 1 && DL.escalas.some(e => e.id === longe && e.situacao === 'publicada') && DL.escalas.some(e => e.inicio === dia(200)),
+    'escalas daqui a 120 e 200 dias (avulsa publicada e gerada) aparecem na lista', DL.escalas.map(e => e.inicio));
   await b.close();
   console.log(falhas ? `FALHOU=${falhas}` : 'OK');
   process.exit(falhas ? 1 : 0);

@@ -35,7 +35,7 @@ const chaveFiscal_ = function (f) { return f.id ? String(f.id) : 'nome:' + nomeC
 
 /** Escalas que tocam o intervalo [de, ate] (padrão: 60 dias para trás e 90 para a frente) + os fiscais que podem ser escalados. */
 function escalaDados_(req) {
-  const hoje = hojeManaus_(), de = diaValido_(req && req.de) ? req.de : somarDias_(hoje, -60), ate = diaValido_(req && req.ate) ? req.ate : somarDias_(hoje, 90);
+  const hoje = hojeManaus_(), de = diaValido_(req && req.de) ? req.de : somarDias_(hoje, -60), ate = diaValido_(req && req.ate) ? req.ate : '9999-12-31';   // futuras: todas (Gerar períodos vai até o fim do convênio)
   const escalas = escalasVivas_().filter(function (e) { return sobrepoe_(e, { inicio: de, fim: ate }); })
     .sort(function (a, b) { return a.bva.localeCompare(b.bva, 'pt-BR') || a.inicio.localeCompare(b.inicio); });
   let fimConvenio = '';                                   // "Gerar períodos" vai, por padrão, até o fim da vigência do convênio (só com req.convenio)

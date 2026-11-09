@@ -173,7 +173,7 @@ function pceConsultar_(req, usuario) {
 /* ---------- PCE em campo: dados do(s) município(s) para consultar sem internet ---------- */
 const CAMPO_MAX_PROPS = 5000;                   // propriedades por chamada (resposta de ~1,5 MB)
 // campos que não vão para o aparelho: técnicos da planilha e nomes que o app usa para controle local
-const CAMPO_FORA = ['srv_ts', 'usuario', 'pendente', 'campoMun', 'resumoLev', 'baixadoEm', 'excluido', 'cadastrosPce', 'ultimoTermoPce'];
+const CAMPO_FORA = ['srv_ts', 'usuario', 'pendente', 'campoMun', 'baixadoEm', 'excluido', 'cadastrosPce', 'ultimoTermoPce'];
 
 /**
  * Todas as colunas da aba (as do sistema e as acrescentadas à mão, pelo cabeçalho), sem as técnicas: colunas novas da ficha ou do
@@ -196,31 +196,9 @@ function lerTodasColunas_(nome) {
   });
 }
 
-/** Pragas detectadas/suspeitas de um levantamento (campo "pragas" ou, nos registros anteriores, "culturas"). */
-function deteccoesLev_(r) {
-  const out = {}, p = lerJSONSeguro_(r.pragas, null);
-  if (Array.isArray(p) && p.length) {
-    p.forEach(function (g) {
-      ((g && g.culturas) || []).forEach(function (c) {
-        if (c && (c.resultado === 'detectada' || c.resultado === 'suspeita')) {
-          const k = String(g.praga || '').trim() || 'Praga não informada';
-          if (out[k] !== 'detectada') out[k] = c.resultado;
-        }
-      });
-    });
-  } else {
-    const cs = lerJSONSeguro_(r.culturas, []);
-    (Array.isArray(cs) ? cs : []).forEach(function (c) {
-      const k = c && String(c.praga || '').trim();
-      if (k && out[k] !== 'detectada') out[k] = c.resultado === 'suspeita' ? 'suspeita' : 'detectada';
-    });
-  }
-  return Object.keys(out).map(function (k) { return { praga: k, resultado: out[k] }; });
-}
-
 /**
  * "Baixar dados para o campo": propriedades do(s) município(s) (comparação sem acento/maiúsculas), os produtores donos delas (por doc)
- * e, por propriedade, um resumo do histórico (nº de levantamentos, data do último e pragas detectadas/suspeitas nele). Só módulo PCE.
+ * e, por propriedade, os frutos e a sugestão de frutos dos levantamentos antigos. Só módulo PCE.
  * Cada download fica registrado na aba Consultas (quem, quando, municípios e quantas propriedades).
  */
 function pceBaixarMunicipio_(req, usuario) {
@@ -235,10 +213,9 @@ function pceBaixarMunicipio_(req, usuario) {
     throw new Error('São ' + props.length + ' propriedades nesse(s) município(s); o limite é ' + CAMPO_MAX_PROPS.toLocaleString('pt-BR') +
       ' por vez. Baixe menos municípios de cada vez.');
   }
-  const visitas = visitasPce_(), resumoLev = resumidorLevantamentos_(visitas), levsDe = indiceVisitasPorPropriedade_(visitas.filter(function (v) { return v.origem === 'levantamento'; }));
+  const visitas = visitasPce_(), levsDe = indiceVisitasPorPropriedade_(visitas.filter(function (v) { return v.origem === 'levantamento'; }));
   const docs = {}, porMun = {};
   props.forEach(function (p) {
-    p.resumoLev = resumoLev(p);
     p.frutosSugeridos = frutosSugeridos_(p.frutos, levsDe(p));      // só leitura no app até salvar; só para propriedade sem frutos
     p.frutos = frutosParaApp_(p.frutos);
     const k = normPub_(p.municipio);
@@ -250,7 +227,7 @@ function pceBaixarMunicipio_(req, usuario) {
   });
   const pessoas = lerTodasColunas_('Pessoas').filter(function (x) { return x.id && docValido_(x.id) && docs[digitos_(x.id)]; })
     .map(function (x) { x.campoMun = Object.keys(docs[digitos_(x.id)]); return x; });
-  // Cadastros de imóvel do PCE dessas propriedades (para o mapa e para preencher o Termo) e o último Termo de Fiscalização de cada uma
+  // Cadastros de imóvel do PCE dessas propriedades (para as fichas) e o último Termo de Fiscalização de cada uma
   const porProp = {}; props.forEach(function (p) { porProp[p.id] = p; });
   const excluidos = {}; lerLeitura_('CadastrosPCE').forEach(function (c) { if (c.excluido === 1) excluidos[c.id] = 1; });
   const cadastrosPce = lerTodasColunas_('CadastrosPCE').filter(function (c) { return c.id && !excluidos[c.id] && porProp[c.propriedadeId]; })
@@ -271,18 +248,6 @@ function pceBaixarMunicipio_(req, usuario) {
   c.getRange(c.getLastRow() + 1, 1, 1, 5).setValues([[Date.now(), usuario, '', '',
     ('PCE campo: ' + municipios.map(function (m) { return m.municipio + ' (' + m.nProps + ')'; }).join(', ')).slice(0, 480)]]);
   return { ok: true, agora: Date.now(), municipios: municipios, propriedades: props, pessoas: pessoas, cadastrosPce: cadastrosPce };
-}
-
-/**
- * Resumo do histórico de cada propriedade: visitas (levantamentos antigos e Termos do fluxo novo) ligadas a ela pelo código ou por produtor (doc) +
- * nome da propriedade. Recebe as visitas contáveis (visitasPce_) e devolve a função p → {n, ultimo, ultimoHora, pragas}.
- */
-function resumidorLevantamentos_(visitas) {
-  const de = indiceVisitasPorPropriedade_(visitas);
-  return function (p) {
-    const lista = de(p), ult = lista[0];
-    return { n: lista.length, ultimo: ult ? ult.data : '', ultimoHora: ult ? ult.hora : '', pragas: ult ? deteccoesLev_(ult) : [] };
-  };
 }
 
 const ARQ_MIMES = { 'image/jpeg': 'jpg', 'image/png': 'png', 'application/pdf': 'pdf' };

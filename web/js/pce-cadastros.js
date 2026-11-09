@@ -311,7 +311,7 @@ const PCECads = (() => {
     return modelos.filter(m => FI.modelos[m]).map(m => {
       const c = cads.filter(x => x.propriedadeId === p.id && (x.programa || 'moniliase') === m).sort((a, b) => (Number(b.numero) || 0) - (Number(a.numero) || 0))[0];
       return `<div class="pce-visita-termo" data-modelo="${m}"><div><b>${icone('formulario')} Ficha de ${esc(rotulo(m))}</b><small>${c ? 'Gerada: nº ' + esc(c.numeroTxt || '') : 'Ainda não gerada'}</small>${c ? selo(c) : ''}</div>
-        <div class="pce-doc-acoes"><button class="mini" data-cad="ficha" data-prop="${esc(p.id)}" data-modelo="${m}">${c ? 'Abrir' : 'Gerar'}</button>${c ? `<button class="mini" data-cad="pdfficha" data-id="${esc(c.id)}">PDF</button>` : ''}</div></div>`;
+        <div class="pce-doc-acoes">${!c || lerJSON(c.dados, {}).fichaNova ? `<button class="mini" data-cad="ficha" data-prop="${esc(p.id)}" data-modelo="${m}">${c ? 'Abrir' : 'Gerar'}</button>` : ''}${c ? `<button class="mini" data-cad="pdfficha" data-id="${esc(c.id)}">PDF</button>` : ''}</div></div>`;
     }).join('');
   }
   async function produtor(doc0) {

@@ -931,7 +931,11 @@ const PCEMon = (() => {
       const pragas = pg.itens.filter(i => i.fid === fid).map(i => ({ praga: i.praga, resultado: i.resultado, haQuantoTempo: COM_DETECCAO.includes(i.resultado) ? textoCurto(i.haQuantoTempo, 60) : '',
         controle: COM_DETECCAO.includes(i.resultado) && i.controle ? (i.controle === 'sim' ? 'Sim' : 'Não') : '', qualControle: COM_DETECCAO.includes(i.resultado) && i.controle === 'sim' ? textoCurto(i.qualControle, 120) : '' }));
       const coleta = st.coleta === 'Sim';
-      const dados = { ...st.dados }; if (st.plantas !== '') dados.plantas = st.plantas; if (st.sint) dados.sintomas = st.sint; if (coleta) dados.qtdAmostras = st.qtd;
+      const dados = { ...st.dados };
+      detecaoDoFruto(fid).filter(q => q.tipo === 'coord').forEach(q => {                      // coordenada da planta vai como número: o servidor tira o "-" de texto
+        const r = lerPar(dados[q.k], dados[q.k2]); if (!r.erro && !r.vazio) { dados[q.k] = r.lat; dados[q.k2] = r.lon; }
+      });
+      if (st.plantas !== '') dados.plantas = st.plantas; if (st.sint) dados.sintomas = st.sint; if (coleta) dados.qtdAmostras = st.qtd;
       return { cultura: f.cultura, area: area === '' || !isFinite(area) ? '' : area, pragas, coleta: coleta ? 'Sim' : 'Não', tipoMaterial: coleta ? st.tipoMaterial : '', codigoAmostra: coleta ? st.codigoAmostra : '',
         destinoAmostra: coleta ? st.destinoAmostra : '', fotos: st.fotos.slice(0, 20), dados };
     });

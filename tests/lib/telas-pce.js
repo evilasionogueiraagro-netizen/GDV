@@ -296,7 +296,7 @@ async function sincronizar(p) {
       await cx.close();
     });
 
-    avisos.push('PDFs: as imagens vêm do HTML de impressão aberto numa página nova do navegador de teste (fonte Arial trocada por equivalente); no Termo e na ficha o rodapé da folha aparece sobre a última linha de assinaturas e perguntas. Conferir no PDF gerado pelo aparelho antes de dar como defeito do modelo.');
+    avisos.push('PDFs: as imagens vêm do HTML de impressão (com doctype) aberto numa página nova do navegador de teste e impresso em A4 sem margem, como a impressão do app.');
     if (errosJs.length) avisos.push('Erros de JavaScript no app durante o roteiro: ' + [...new Set(errosJs)].slice(0, 3).join(' | '));
   } finally {
     if (b) await b.close().catch(() => {});

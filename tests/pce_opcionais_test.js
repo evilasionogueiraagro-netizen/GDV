@@ -84,6 +84,8 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   const tM = await novo(antesM);
   const pm = JSON.parse(tM.culturas)[0].pragas.find(x => x.praga === 'Moko da Bananeira');
   ok(pm.resultado === 'detectada' && pm.haQuantoTempo === '10 dias' && pm.controle === 'Sim' && pm.qualControle === 'Eliminação das plantas', 'Termo grava o resultado, há quanto tempo e o controle do Moko', pm);
+  // regra do usuário (09/11/2026): na banana o enquadramento é só o da Fusariose; Moko e Sigatoka ficam como registro na constatação
+  ok(mesmas(tM.enquadramento, lin('Fusarium R4T')), 'Moko "Tem": o enquadramento continua só o da Fusariose (Moko e Sigatoka são registro)', tM.enquadramento);
 
   console.log('4) rascunho antigo com a opcional em branco abre como "Não tem"');
   await A.abrirProdutor(p, '52998224725'); const antesR = await ids();

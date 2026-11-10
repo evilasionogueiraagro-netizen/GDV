@@ -88,9 +88,11 @@ const ANO = new Date().getFullYear();
   const depois = await pA.evaluate(async () => (await Store.todos('termosPce')).map(t => ({ n: t.numeroTxt, p: t.pendente })));
   ok(depois.every(t => !t.p), 'nada pendente no aparelho', depois);
   await pA.evaluate(() => go('pcetermos')); await pA.waitForSelector('#pceTItens .item');
-  ok(await pA.locator('#pceTItens .item').count() === 3 && /Fiscalização/.test(await pA.textContent('#pceTItens')) && /Colheita/.test(await pA.textContent('#pceTItens')), 'lista de Termos junta Fiscalização e Colheita');
-  await pA.selectOption('#pceTTipo', 'c'); ok(await pA.locator('#pceTItens .item').count() === 1, 'filtro por tipo');
-  await pA.selectOption('#pceTTipo', ''); await pA.fill('#pceTQ', 'citros'); ok(await pA.locator('#pceTItens .item').count() === 1, 'pesquisa por programa');
+  ok(await pA.locator('#pceTItens .item').count() === 2 && await pA.locator('#pceTSel').count() === 0 && await pA.locator('#pceTTipo').count() === 0, 'lista de Termos: os 2 Termos de Fiscalização, sem filtro por tipo');
+  const comCol = pA.locator('#pceTItens .item', { has: pA.locator('.pce-colheita-sub') });
+  ok(await comCol.count() === 1 && /Monil/.test(await comCol.textContent()) && /Colheita/.test(await comCol.locator('.pce-colheita-sub').textContent()) && await comCol.locator('.pce-colheita-sub [data-pce=imprimirtermo]').count() === 1, 'Termo de Colheita aparece dentro do Termo de Fiscalização da mesma visita (o do programa da cultura), com o próprio PDF');
+  await pA.fill('#pceTQ', `001/${ANO}/MANAUS`); ok(await pA.locator('#pceTItens .item').count() === 1 && await pA.locator('#pceTItens .pce-colheita-sub').count() === 1, 'pesquisa pelo nº da colheita acha o Termo da visita');
+  await pA.fill('#pceTQ', 'citros'); ok(await pA.locator('#pceTItens .item').count() === 1, 'pesquisa por programa');
 
   console.log('5) dois aparelhos sem internet: número repetido vira conflito ao sincronizar');
   const pB = await A.aparelho(b, 'Pessoa Ficticia Beta');

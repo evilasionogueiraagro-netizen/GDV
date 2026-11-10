@@ -206,6 +206,7 @@ nav button span { font-size:9.5px; } nav button.on { color:var(--link); font-wei
 .mon-cult { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:0 10px; } .mon-cult label { margin:6px 0; }
 .mon-total { display:block; font-size:22px; font-weight:700; color:var(--destaque); padding:8px 0; }
 .item.pce-termo .botoes button { font-size:15px; }
+.pce-colheita-sub { margin-top:10px; padding:10px 0 0 12px; border-top:1px solid var(--borda); border-left:3px solid var(--borda); }   /* Termo de Colheita dentro do Termo de Fiscalização da visita */
 .mon-cks { display:grid; grid-template-columns:repeat(auto-fill, minmax(165px, 1fr)); gap:0 10px; } .mon-cks .chk { margin:6px 0; font-size:14.5px; }
 .mon-fito { border-top:1px solid var(--grade); padding-top:8px; margin-top:8px; } .mon-fito > b { color:var(--destaque); }
 /* cadastros por programa (pce-cadastros.js): tabelas editáveis e listas de opção */

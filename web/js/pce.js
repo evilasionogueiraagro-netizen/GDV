@@ -690,38 +690,48 @@ const PCEUI = (() => {
     const s = await exigirServidor('pcetermos', null, true); if (!s || !mostrar.viva()) return;
     fechar(T);
     const podeAnt = podeAntigo(), dig = soDigitador(s) && podeAnt, digSemAut = soDigitador(s) && !podeAnt;
-    const fis = (await Sync.visiveis('termosPce', await Store.todos('termosPce'))).filter(x => !Number(x.excluido)).map(t => ({ k: 'f', t })), col = (await Sync.visiveis('colheitas', await Store.todos('colheitas'))).filter(x => !x.excluido).map(t => ({ k: 'c', t }));   // só os do login atual
-    const todos = [...fis, ...col].sort((a, b) => (b.t.criadoEm || 0) - (a.t.criadoEm || 0));
+    const fis = (await Sync.visiveis('termosPce', await Store.todos('termosPce'))).filter(x => !Number(x.excluido)), col = (await Sync.visiveis('colheitas', await Store.todos('colheitas'))).filter(x => !x.excluido);   // só os do login atual
+    // O Termo de Colheita nasce da visita: aparece dentro do Termo de Fiscalização da mesma visita (o do programa da cultura, senão o primeiro).
+    // Colheita sem Termo da visita neste aparelho (antiga ou do papel) fica como item próprio.
+    const doTermo = new Map(fis.map(t => [t.id, []])), soltas = [];
+    col.forEach(c => {
+      const daVisita = c.levantamentoId ? fis.filter(t => t.visitaId && t.visitaId === c.levantamentoId) : [];
+      const t = daVisita.find(x => (lerJSON(x.culturas, []) || []).some(k => k.cultura === c.cultura)) || daVisita[0];
+      if (t) doTermo.get(t.id).push(c); else soltas.push(c);
+    });
+    const todos = [...fis.map(t => ({ k: 'f', t, cols: doTermo.get(t.id) })), ...soltas.map(t => ({ k: 'c', t }))].sort((a, b) => (b.t.criadoEm || 0) - (a.t.criadoEm || 0));
+    const texto = t => semAcento([t.numeroTxt, t.nome, t.municipio, t.cultura, t.programaVisita, t.propriedade].join(' ')).toUpperCase();
     if (!mostrar.viva()) return;
     mostrar(`${digSemAut ? avisoSemAntigoHTML() : ''}
       ${podeAnt ? `<div class="card pce-papel"><h3>${icone('documento')} Digitar do papel</h3><div class="duas">
         <button class="botao ${dig ? '' : 'sec'}" data-mon="novo" data-tipo="termo" data-antigo="1" id="mon-novo-papel">Termo de Fiscalização</button>
         <button class="botao ${dig ? '' : 'sec'}" data-pce="novotermoantigo" id="pce-novotermoantigo">Termo de Colheita</button></div></div>` : ''}
       <button class="botao sec" data-v="pcerel" id="mon-ir-rel">${icone('resumo')} Relatório de atividades</button>
-      <div class="card"><label>Pesquisar (nº, produtor, CPF/CNPJ, município, cultura ou programa)<input id="pceTQ" autocomplete="off"></label>
-        <label>Mostrar<select id="pceTTipo"><option value="">Todos os termos</option><option value="f">Termos de Fiscalização</option><option value="c">Termos de Colheita</option></select></label></div>
+      <div class="card"><label>Pesquisar (nº, produtor, CPF/CNPJ, município, cultura ou programa)<input id="pceTQ" autocomplete="off"></label></div>
       <div id="pceTItens"></div>`);
     const desenhar = () => {
-      const q = semAcento($('#pceTQ').value.trim()).toUpperCase(), qd = digitos(q), tipo = $('#pceTTipo').value;
-      const v = todos.filter(({ k, t }) => (!tipo || tipo === k) && (!q || semAcento([t.numeroTxt, t.nome, t.municipio, t.cultura, t.programaVisita, t.propriedade].join(' ')).toUpperCase().includes(q) || (qd && digitos(t.doc).includes(qd))));
-      $('#pceTItens').innerHTML = v.length ? v.map(({ k, t }) => k === 'f' ? termoFiscItem(t, podeAnt) : termoColItem(t, podeAnt)).join('') : '<div class="vazio">Nenhum termo neste aparelho.</div>';
+      const q = semAcento($('#pceTQ').value.trim()).toUpperCase(), qd = digitos(q);
+      const casa = t => texto(t).includes(q) || (qd && digitos(t.doc).includes(qd));
+      const v = todos.filter(({ t, cols }) => !q || casa(t) || (cols || []).some(casa));
+      $('#pceTItens').innerHTML = v.length ? v.map(({ k, t, cols }) => k === 'f' ? termoFiscItem(t, podeAnt, cols) : termoColItem(t, podeAnt)).join('') : '<div class="vazio">Nenhum termo neste aparelho.</div>';
     };
-    desenhar(); $('#pceTQ').oninput = desenhar; $('#pceTTipo').onchange = desenhar;
+    desenhar(); $('#pceTQ').oninput = desenhar;
   }
   const situacaoTermo = (t, podeAnt) => `${t.cancelado ? `<div class="info pend">${icone('proibido')} CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
     ${Number(t.conflito) === 1 ? '<div class="info pend">Número duplicado na planilha: confira com a coordenação.</div>' : ''}
     ${t.pendente ? `<div class="info pend">${icone('sincronizar')} ${t.provisorio ? 'número provisório, será conferido ao sincronizar' : 'aguardando envio'}${Number(t.registroAntigo) === 1 && !podeAnt ? ' — termo do papel: sem autorização, fica guardado neste aparelho' : ''}</div>` : ''}`;
-  function termoFiscItem(t, podeAnt) {
+  function termoFiscItem(t, podeAnt, cols) {
     const papel = Number(t.registroAntigo) === 1, culturas = (lerJSON(t.culturas, []) || []).map(c => c.cultura).join(', ');
     return `<div class="item pce-termo" data-termo="${esc(t.id)}"><div class="topo"><div><div class="placa">${esc(t.numeroTxt)}</div><div class="tipo">${esc(t.nome)}</div></div><div class="hora">${esc(dBR(t.data))}</div></div>
       <div class="info"><span class="mon-prog">Fiscalização</span> ${esc(t.programaVisita || (papel ? 'do papel' : ''))}${culturas ? ' · ' + esc(culturas) : ''} · ${esc(t.municipio)}</div>
       ${situacaoTermo(t, podeAnt)}
       <div class="botoes">${papel && podeAnt ? `<button class="editar" data-mon="abrir" data-id="${esc(t.id)}">Abrir</button>` : ''}
         <button class="editar" data-mon="imprimir" data-tipo="termo" data-id="${esc(t.id)}">PDF</button><button class="tfbtn" data-mon="enviar" data-id="${esc(t.id)}">Enviar</button>
-        ${Number(t.cancelado) === 1 ? '' : `<button class="excluir" data-mon="cancelar" data-id="${esc(t.id)}">Cancelar</button>`}</div></div>`;
+        ${Number(t.cancelado) === 1 ? '' : `<button class="excluir" data-mon="cancelar" data-id="${esc(t.id)}">Cancelar</button>`}</div>
+      ${(cols || []).map(c => termoColItem(c, podeAnt, true)).join('')}</div>`;
   }
-  function termoColItem(t, podeAnt) {
-    return `<div class="item pce-termo" data-termo="${esc(t.id)}"><div class="topo"><div><div class="placa">${esc(t.numeroTxt)}</div><div class="tipo">${esc(t.nome)}</div></div><div class="hora">${esc(dBR(t.data))}</div></div>
+  function termoColItem(t, podeAnt, dentro) {
+    return `<div class="${dentro ? 'pce-colheita-sub' : 'item pce-termo'}" data-termo="${esc(t.id)}"><div class="topo"><div><div class="placa">${esc(t.numeroTxt)}</div><div class="tipo">${esc(t.nome)}</div></div><div class="hora">${esc(dBR(t.data))}</div></div>
       <div class="info"><span class="mon-prog">Colheita</span> ${esc(t.cultura)} · ${esc(t.quantidade)} amostra(s) · ${esc(t.municipio)}</div>
       ${situacaoTermo(t, podeAnt)}
       <div class="botoes"><button class="editar" data-pce="imprimirtermo" data-id="${esc(t.id)}">PDF</button><button class="tfbtn" data-pce="enviartermo" data-id="${esc(t.id)}">Enviar</button>

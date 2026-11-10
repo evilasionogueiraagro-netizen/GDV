@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const sincronizar = require('./lib/sincronizar');
 const U = require('./lib/usuarios');
 // "Encerrar turno" pela gerência: action painelEncerrarTurno (Code.gs real via fakegas), proteção contra reabertura no sync,
 // botão/diálogo no painel (Visão geral, aba Barreiras, celular; nunca no Modo TV) e o aviso no app do fiscal.
@@ -93,7 +94,10 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
     await p.goto(url); return p;
   }
   const sessao = { 'gdv.painel.token': ADM, 'gdv.painel.nome': 'Gerente Encerra Silva' };
-  const esperarDados = p => p.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 20000 }).then(() => p.waitForTimeout(500));
+  const assentar = p => p.waitForFunction(() => { const el = document.querySelector('#pn-conteudo'); return !el || !el.classList.contains('carregando'); });   // carga do painel terminou
+  const semAnimacao = p => p.waitForFunction(() => !document.querySelector('#tv-palco').getAnimations().length, null, { timeout: 5000 });
+  const sumiu = (p, sel) => p.waitForFunction(s => !document.querySelector(s), sel, { timeout: 5000 }).catch(() => {});   // a checagem logo abaixo diz se sumiu
+  const esperarDados = p => p.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 20000 }).then(() => assentar(p));
   const kpiAndamento = p => p.evaluate(() => { const k = [...document.querySelectorAll('#pn-conteudo .pn-kpi')].find(k => /Barreiras em andamento agora/.test(k.textContent)); return k ? k.querySelector('.pn-kpi-val').textContent.trim() : null; });
   let p = await abrir(WEB, sessao, { viewport: { width: 1366, height: 900 } });
   await esperarDados(p);
@@ -113,7 +117,7 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
   await p.click('#pn-encerrar [data-hora]:nth-child(1)'); ok(await p.inputValue('#pn-enc-fim') === ultP, '"Último veículo" volta a sugestão');
   ok(/duração/.test(await p.textContent('#pn-enc-prev')), 'prévia da duração', (await p.textContent('#pn-enc-prev')).trim());
   await p.screenshot({ path: DIR + 'encerrar_dialogo.png' });
-  await p.click('#pn-enc-cancelar'); await p.waitForTimeout(300);
+  await p.click('#pn-enc-cancelar'); await sumiu(p, '#pn-encerrar');
   ok(await p.locator('#pn-encerrar').count() === 0 && (await linhaTurno('p1')).encerrado === 0, 'Cancelar fecha o diálogo sem encerrar');
   // erro do servidor em português dentro do diálogo: p2 encerrado por outro gerente enquanto o cartão estava na tela
   await enc(ADM, 'p2', hmM(AG - 5 * 60e3));
@@ -123,12 +127,12 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
   await p.click('#pn-enc-ok'); await p.waitForSelector('#pn-enc-erro:not([hidden])');
   ok(/já está encerrado/.test(await p.textContent('#pn-enc-erro')), 'erro do servidor aparece no diálogo, em português', await p.textContent('#pn-enc-erro'));
   await p.fill('#pn-enc-fim', ''); await p.click('#pn-enc-ok'); ok(/HH:MM/.test(await p.textContent('#pn-enc-erro')), 'horário vazio: aviso de formato', await p.textContent('#pn-enc-erro'));
-  await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+  await p.keyboard.press('Escape'); await sumiu(p, '#pn-encerrar');
   // confirma p1
   await p.click('[data-encerrar=p1]'); await p.waitForSelector('#pn-encerrar[open]');
   await p.click('#pn-enc-ok'); await p.waitForSelector('#pn-toast.on');
   ok((await p.textContent('#pn-toast')).trim() === 'Turno encerrado', 'aviso "Turno encerrado"');
-  await p.waitForTimeout(1500);
+  await sumiu(p, '.pn-vivo-item[data-turno=p1]');
   ok(await p.locator('.pn-vivo-item[data-turno=p1]').count() === 0, 'p1 saiu de "Barreiras em andamento agora"');
   const nDepois = Number(await kpiAndamento(p));
   ok(nDepois === nAntes - 2, `indicador "Barreiras em andamento agora": ${nAntes} → ${nDepois} (p1 e p2 encerrados)`);
@@ -139,12 +143,12 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
   ok(d0 && d0.enc && !d0.and && d0.min === esperado && dd.min === esperado && dd.sit === 'encerrada', `horas param de contar: duração fixa em ${esperado} min (início → fim informado)`, [d0, dd]);
   await p.screenshot({ path: DIR + 'encerrar_geral.png', fullPage: false });
   // aba Barreiras
-  await p.click('.pn-aba[data-aba=barreiras]'); await p.waitForTimeout(1200);
+  await p.click('.pn-aba[data-aba=barreiras]'); await p.waitForFunction(() => document.querySelector('.pn-aba[data-aba=barreiras]').getAttribute('aria-selected') === 'true'); await assentar(p);
   ok(await p.locator('.pn-bar-vivo .pn-vivo-item[data-turno=p3] [data-encerrar=p3]').count() === 1, 'aba Barreiras: botão "Encerrar turno" na lista em andamento');
   ok(await p.locator('.pn-bar-vivo [data-encerrar=p1]').count() === 0, 'aba Barreiras: p1 não está mais na lista');
   await p.click('.pn-bar-vivo [data-encerrar=p3]'); await p.waitForSelector('#pn-encerrar[open]');
   ok(await p.inputValue('#pn-enc-fim') === hmM(AG - 50 * 60e3), 'aba Barreiras: sugestão = último veículo de p3');
-  await p.click('#pn-enc-ok'); await p.waitForSelector('#pn-toast.on'); await p.waitForTimeout(1500);
+  await p.click('#pn-enc-ok'); await p.waitForSelector('#pn-toast.on'); await sumiu(p, '.pn-bar-vivo .pn-vivo-item[data-turno=p3]');
   ok(await p.locator('.pn-bar-vivo .pn-vivo-item[data-turno=p3]').count() === 0 && (await linhaTurno('p3')).encerrado === 1, 'aba Barreiras: p3 encerrado e fora da lista');
   const fimTabela = await p.evaluate(() => [...document.querySelectorAll('#pn-conteudo table tr')].map(tr => tr.textContent).find(t => /Barreira Aba Barreiras/.test(t) && /\d\d:\d\d/.test(t)) || '');
   ok(/\(gerência\)/.test(fimTabela), 'tabela de turnos: fim com "(gerência)"', fimTabela.slice(0, 160));
@@ -158,13 +162,13 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
   const geo = await p.evaluate(() => { const r = document.querySelector('#pn-encerrar').getBoundingClientRect(); return { l: r.left, r: r.right, w: innerWidth, rol: document.documentElement.scrollWidth <= innerWidth + 1 }; });
   ok(geo.l >= 15 && geo.r <= geo.w - 15 && geo.rol, 'celular: diálogo cabe na tela (margem ≥ 16 px, sem rolagem lateral)', geo);
   await p.screenshot({ path: DIR + 'encerrar_celular.png' });
-  await p.click('#pn-enc-ok'); await p.waitForSelector('#pn-toast.on'); await p.waitForTimeout(800);
+  await p.click('#pn-enc-ok'); await p.waitForSelector('#pn-toast.on'); await sumiu(p, '.pn-vivo-item[data-turno=p4]');
   ok((await linhaTurno('p4')).encerrado === 1 && await p.locator('.pn-vivo-item[data-turno=p4]').count() === 0, 'celular: encerrado e fora da lista');
   await p.context().close();
   // Modo TV: nunca tem o botão
   await post({ action: 'sync', key: FIS, since: 0, turnos: [T('p5', { data: diaM(iniP), inicio: hmM(iniP), local: 'Barreira TV' })], veiculos: [] });
   p = await abrir(WEB + '?tv=1&rotacao=300&rotacaoAoVivo=300', sessao, { viewport: { width: 1920, height: 1080 } });
-  await p.waitForSelector('#tv-palco .tv-kpi', { timeout: 20000 }); await p.waitForTimeout(1500);
+  await p.waitForSelector('#tv-palco .tv-kpi', { timeout: 20000 }); await semAnimacao(p);
   ok(/Barreira TV/.test(await p.textContent('#tv-palco')), 'Modo TV mostra a barreira aberta');
   ok(await p.locator('[data-encerrar], .pn-btn-encerrar, #pn-encerrar').count() === 0, 'Modo TV: sem botão "Encerrar turno"');
   ok(await p.evaluate(() => Painel.botaoEncerrar(Painel.todos.turnosTodos.find(t => t.id === 'p5')) === null), 'Modo TV: botaoEncerrar() devolve null');
@@ -176,7 +180,7 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
   // conta própria do aparelho: os turnos de teste do fiscal acima ainda abertos virariam o turno deste aparelho (mesmo login em dois aparelhos)
   const lsApp = { ...(await U.fiscal('Fiscal Aparelho Souza')).ls };
   p = await abrir(APP, lsApp, { viewport: { width: 400, height: 820 }, permissions: ['geolocation'], geolocation: { latitude: -3.119, longitude: -60.021, accuracy: 10 } });
-  const sync = () => p.evaluate(async () => { for (let i = 0; i < 40 && Sync.estado().tipo === 'sync'; i++) await new Promise(r => setTimeout(r, 150)); await Sync.sincronizar(); return Sync.estado(); });
+  const sync = () => sincronizar(p);
   const iniciarTurno = async n => {
     await p.click('nav [data-v=modulos]').catch(() => {}); await p.waitForSelector('.modulo[data-v=home]'); await p.click('.modulo[data-v=home]'); await p.waitForSelector('#fTurno');
     await p.fill('#nTF', String(n)); await p.selectOption('#nPosto', 'Fixa'); await p.click('#fTurno button[type=submit]'); await p.waitForSelector('.contador');
@@ -231,7 +235,7 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
     j.recusados = { ...(j.recusados || {}), turnos: retido };
     return rt.fulfill({ response: resp, json: j }); });
   await p.evaluate(() => Store.setMeta('lastSync', 0));
-  await sync(); await p.waitForTimeout(500);
+  await sync();
   const loc = await p.evaluate(id => Store.obter('turnos', id), id2);
   ok(loc.encerrado === 1 && loc.encerradoPor === 'Gerente Encerra Silva' && loc.fim === r.turno.fim && loc.pendente === 1 && loc.unidade === 'EDITADO NO APARELHO',
     'edição local mais nova: encerramento mesclado (encerrado/fim/encerradoPor) e a edição local continua pendente', { e: loc.encerrado, fim: loc.fim, pend: loc.pendente, un: loc.unidade });
@@ -246,7 +250,7 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
   await p.click('#encerrar'); await p.waitForSelector('[data-doc=termo]');
   ok(/ainda não enviado à planilha/.test(await p.textContent('#encPend')), 'fiscal encerra sem internet: "⏳ Encerramento ainda não enviado à planilha"');
   await p.screenshot({ path: DIR + 'encerrar_app_pendente.png' });
-  await fetch(API + '/__on'); await sync(); await p.waitForTimeout(600);
+  await fetch(API + '/__on'); await sync();
   ok(/Turno encerrado, bom descanso!/.test(await p.textContent('#encPend').catch(() => '')) && (await linhaTurno(id3)).encerrado === 1, 'com internet: enviado (tela atualiza sozinha)', await p.textContent('#encPend').catch(() => ''));
   ok(await p.locator('#avisoEncerrado').count() === 0, 'encerramento do próprio fiscal não mostra o aviso da gerência');
 

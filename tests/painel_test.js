@@ -143,13 +143,14 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
     p.on('dialog', d => d.accept());
     await p.goto(WEB); return p;
   }
-  const esperarDados = p => p.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 20000 }).then(() => p.waitForTimeout(400));
+  const assentar = p => p.waitForFunction(() => { const el = document.querySelector('#pn-conteudo'); return !el || !el.classList.contains('carregando'); });   // carga do painel terminou
+  const esperarDados = p => p.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 20000 }).then(() => assentar(p));
   const kpis = async (p, sel = '#pn-conteudo .pn-kpis') => p.$$eval(sel + ' >> nth=0', () => 0).catch(() => 0) && p.locator(sel).first().evaluate(g =>
     Object.fromEntries([...g.querySelectorAll('.pn-kpi')].map(k => [k.querySelector('.pn-kpi-rot').textContent.trim(), k.querySelector('.pn-kpi-val').textContent.trim()])));
   const lerKpis = async (p, sel = '#pn-conteudo .pn-kpis') => p.locator(sel).first().evaluate(g =>
     Object.fromEntries([...g.querySelectorAll('.pn-kpi')].map(k => [k.querySelector('.pn-kpi-rot').textContent.trim(), k.querySelector('.pn-kpi-val').textContent.trim()])));
   void kpis;
-  const aba = async (p, id) => { await p.click(`.pn-aba[data-aba=${id}]`); await p.waitForFunction(i => document.querySelector(`.pn-aba[data-aba=${i}]`).getAttribute('aria-selected') === 'true', id); await p.waitForTimeout(500); };
+  const aba = async (p, id) => { await p.click(`.pn-aba[data-aba=${id}]`); await p.waitForFunction(i => document.querySelector(`.pn-aba[data-aba=${i}]`).getAttribute('aria-selected') === 'true', id); await assentar(p); };
   const semRolagem = p => p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
   const baixar = async (p, loc) => { const [dl] = await Promise.all([p.waitForEvent('download'), loc.click()]); return { nome: dl.suggestedFilename(), txt: fs.readFileSync(await dl.path(), 'utf8') }; };
 
@@ -345,16 +346,16 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   /* ================= 6. filtros ================= */
   console.log('6. Filtros');
   await aba(p, 'geral');
-  await p.click('[data-preset="7d"]'); await p.waitForFunction(() => document.querySelector('[data-preset="7d"]').getAttribute('aria-pressed') === 'true'); await p.waitForTimeout(1500);
+  await p.click('[data-preset="7d"]'); await p.waitForFunction(() => document.querySelector('[data-preset="7d"]').getAttribute('aria-pressed') === 'true'); await assentar(p);
   const E7 = esperado(dia(-6), HOJE); k = await lerKpis(p);
   ok(k['Veículos abordados'] === String(E7.veiculos) && k['Levantamentos PCE'] === String(E7.levs), `7 dias: veículos ${E7.veiculos}, levantamentos ${E7.levs}`, [k['Veículos abordados'], k['Levantamentos PCE']]);
-  await p.click('[data-preset="30d"]'); await p.waitForTimeout(1500);
-  await p.selectOption('#pn-fiscal', 'Pessoa Ficticia Epsilon'); await p.waitForTimeout(500);
+  await p.click('[data-preset="30d"]'); await assentar(p);
+  await p.selectOption('#pn-fiscal', 'Pessoa Ficticia Epsilon'); await assentar(p);
   const EC = esperado(dia(-29), HOJE, t => /Pessoa Ficticia Epsilon/.test(t.fiscal), l => l.servidor === 'Pessoa Ficticia Epsilon');
   k = await lerKpis(p); ok(k['Veículos abordados'] === String(EC.veiculos) && k['Barreiras em andamento agora'] === '0', `fiscal Pessoa Ficticia Epsilon: ${EC.veiculos} veículos, 0 em andamento`, [k['Veículos abordados'], k['Barreiras em andamento agora']]);
-  await p.selectOption('#pn-fiscal', 'Maria'); await p.waitForTimeout(500);       // turno antigo-1 é de "Maria"; "Maria Souza" (tA, tD) não pode entrar
+  await p.selectOption('#pn-fiscal', 'Maria'); await assentar(p);       // turno antigo-1 é de "Maria"; "Maria Souza" (tA, tD) não pode entrar
   k = await lerKpis(p); ok(k['Barreiras em andamento agora'] === '0' && k['Veículos abordados'] === '0', 'filtro de fiscal por nome exato ("Maria" não traz "Maria Souza")', [k['Barreiras em andamento agora'], k['Veículos abordados']]);
-  await p.selectOption('#pn-fiscal', ''); await p.selectOption('#pn-local', 'm:Tabatinga'); await p.waitForTimeout(500);
+  await p.selectOption('#pn-fiscal', ''); await p.selectOption('#pn-local', 'm:Tabatinga'); await assentar(p);
   k = await lerKpis(p); ok(k['Veículos abordados'] === '3' && k['Levantamentos PCE'] === '1', 'município Tabatinga: 3 veículos, 1 levantamento', [k['Veículos abordados'], k['Levantamentos PCE']]);
   const opsBar = await p.$$eval('#pn-local optgroup[label="Barreiras / locais"] option', os => os.map(o => o.value));
   ok(opsBar.includes('b:BVA - CEASA') && !opsBar.some(v => /Porto (da )?CEASA|^b:CEASA$/i.test(v)), 'filtro: BVA - CEASA uma vez só (sem "Barreira Porto CEASA", "Barreira Porto da CEASA" nem "CEASA")', opsBar);
@@ -368,11 +369,11 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   await p.reload(); await esperarDados(p);
   ok(await p.inputValue('#pn-local') === 'b:BVA - CEASA' && await p.getAttribute('.pn-aba[data-aba=barreiras]', 'aria-selected') === 'true', 'filtro e aba lembrados após recarregar');
   await p.selectOption('#pn-local', ''); await aba(p, 'geral');
-  await p.click('[data-preset="custom"]'); await p.fill('#pn-de', dia(-25)); await p.fill('#pn-ate', dia(-15)); await p.click('#pn-aplicar'); await p.waitForTimeout(1500);
+  await p.click('[data-preset="custom"]'); await p.fill('#pn-de', dia(-25)); await p.fill('#pn-ate', dia(-15)); await p.click('#pn-aplicar'); await assentar(p);
   const EP = esperado(dia(-25), dia(-15)); k = await lerKpis(p);
   ok(k['Veículos abordados'] === String(EP.veiculos) && k['Levantamentos PCE'] === String(EP.levs) && k['Barreiras em andamento agora'] === '3',
     `personalizado ${dia(-25)}..${dia(-15)}: ${EP.veiculos} veículos, ${EP.levs} levantamentos; em andamento continua 3`, k);
-  await p.click('[data-preset="30d"]'); await p.waitForTimeout(1500);
+  await p.click('[data-preset="30d"]'); await assentar(p);
 
   /* ================= 7. atualização automática ================= */
   console.log('7. Atualização automática (60 s)');

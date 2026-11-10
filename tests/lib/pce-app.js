@@ -119,4 +119,12 @@ async function salvarPdf(p, pr, modelo, nome) {
   await pg.pdf({ path: amb.saida(nome + '.pdf'), format: 'A4', printBackground: true, preferCSSPageSize: true }); await pg.emulateMedia({ media: 'screen' });
   await pg.setViewportSize({ width: 800, height: 1100 }); await pg.screenshot({ path: amb.saida(nome + '.png'), fullPage: true }); await pg.close();
 }
-module.exports = { aparelho, identificar, novoProdutor, abrirProdutor, visita, bloco, imagem, sync, imprimir, salvarPdf, aba };
+/** Caixas das pragas do Termo impresso (html do documento de impressão): [{linha: 'HLB (Laranja):', caixas: ['Presença', 'Ausência', 'Suspeita'], marcadas: ['Ausência']}]. Vazio = Termo sem as caixas (antigo, ou só o texto). */
+function caixasDoTermo(html) {
+  return (String(html).split('<div class="pr">').slice(1)).map(trecho => {
+    const bloco = trecho.split('</div>')[0], linha = ((/<span class="pr-n">(.*?)<\/span>/.exec(bloco) || [])[1] || '').replace(/&amp;/g, '&');
+    const ops = [...bloco.matchAll(/<span class="op"><span class="cx( on)?"><\/span>([^<]+)<\/span>/g)];
+    return { linha, caixas: ops.map(m => m[2]), marcadas: ops.filter(m => m[1]).map(m => m[2]) };
+  });
+}
+module.exports = { caixasDoTermo, aparelho, identificar, novoProdutor, abrirProdutor, visita, bloco, imagem, sync, imprimir, salvarPdf, aba };

@@ -77,7 +77,39 @@ const PCEDocs = (() => {
       cnpjTxt: fmtDoc(t.cnpj || (digitos(t.doc).length === 14 ? t.doc : '')), dataTxt: dataBR(t.data), coordTxt: coordTxt(t.lat, t.lon),
       pragas: lerJSON(t.pragas, []), tipoLocal: local, acoes: citros && !acoes.length ? ['Fiscalização'] : acoes, localEspecificado: especifico, hora: String(t.hora || '').slice(0, 5),
       t1nome: T(0).nome || '', t1doc: T(0).doc || '', t2nome: T(1).nome || '', t2doc: T(1).doc || '', servidorIdent: ident,
-      cancelado: c ? 'TERMO CANCELADO' + (t.motivoCancel ? ' – ' + t.motivoCancel : '') : '' };
+      pragasRes: pragasDoTermo(t), cancelado: c ? 'TERMO CANCELADO' + (t.motivoCancel ? ' – ' + t.motivoCancel : '') : '' };
+  }
+
+  /**
+   * Pragas avaliadas de um Termo NOVO da visita (tem visitaId e culturas): uma linha por praga e resultado, com as culturas juntas, para as caixas Presença / Ausência / Suspeita.
+   * Termo antigo (sem visitaId ou sem culturas) e o digitado do papel devolvem [] e seguem imprimindo o texto da constatação.
+   * Praga opcional (Moko, Pinta Preta...) só tem Presença e Ausência: vale o campo `opcional` gravado na cultura ou, sem ele (o servidor só guarda os campos que conhece),
+   * a função opcoes.opcional(nome) que o app passa a `montar` (docs.js, com o catálogo).
+   */
+  let OPCIONAL = null;
+  function pragasDoTermo(t) {
+    const cult = arr(lerJSON(t.culturas, []));
+    if (!t.visitaId || !cult.length) return [];
+    const mapa = new Map();
+    cult.forEach(c => arr(obj(c).pragas).forEach(p => {
+      if (!p || !p.praga || !['detectada', 'nao_detectada', 'suspeita'].includes(p.resultado)) return;
+      const k = p.praga + '|' + p.resultado;
+      if (!mapa.has(k)) mapa.set(k, { praga: String(p.praga), resultado: p.resultado, opcional: p.opcional != null ? Number(p.opcional) === 1 : !!(OPCIONAL && OPCIONAL(p.praga)), culturas: [] });
+      const x = mapa.get(k); if (c.cultura && !x.culturas.includes(c.cultura)) x.culturas.push(String(c.cultura));
+    }));
+    return [...mapa.values()];
+  }
+  /** Linhas "Praga (culturas): [ ] Presença [ ] Ausência [ ] Suspeita" no padrão do papel (Suspeita só fora das opcionais, ou se foi a resposta gravada). */
+  function desenharPragas(zona, lista) {
+    const doc = zona.ownerDocument;
+    const el = (tag, cls, ...filhos) => { const e = doc.createElement(tag); if (cls) e.className = cls; filhos.forEach(k => { if (k != null) e.append(k); }); return e; };
+    const op = (on, txt) => el('span', 'op', el('span', 'cx' + (on ? ' on' : '')), txt);
+    lista.forEach(x => {
+      const l = el('div', 'pr', el('span', 'pr-n', x.praga + (x.culturas.length ? ' (' + listaE(x.culturas) + '):' : ':')),
+        op(x.resultado === 'detectada', 'Presença'), op(x.resultado === 'nao_detectada', 'Ausência'));
+      if (!x.opcional || x.resultado === 'suspeita') l.append(op(x.resultado === 'suspeita', 'Suspeita')); else l.append(el('span', 'op vazio'));
+      zona.append(l);
+    });
   }
 
   /* ---------- Ficha oficial (um só modelo: pce-ficha.html, guiado por CONFIG.PCE.fichas) ---------- */
@@ -578,7 +610,8 @@ const PCEDocs = (() => {
       if (ul) { ul.textContent = ''; (dados.servidores || []).forEach(s => { const li = pg.ownerDocument.createElement('div'); li.textContent = [s.nome, s.funcao].filter(Boolean).join(' - '); ul.append(li); }); }
     } else assinaturas(pg, lerJSON(dados.assinaturas, {}), arquivos);
     const cf = pg.querySelector('.cancelado-faixa'); if (cf && !r.cancelado) cf.remove();
-    if (nat === 'termo') { DocumentoBase.montar(pg, { numero: r.numeroTxt }); pg.querySelectorAll('.linhas.l6').forEach(x => DocumentoBase.pautar(x, 5)); pg.querySelectorAll('.linhas.l3').forEach(x => DocumentoBase.pautar(x, 2)); }
+    const zona = pg.querySelector('[data-pragas]'); if (zona) { if (nat === 'termo' && r.pragasRes.length) desenharPragas(zona, r.pragasRes); else zona.remove(); }
+    if (nat === 'termo') { DocumentoBase.montar(pg, { numero: r.numeroTxt }); pg.querySelectorAll('.linhas.l6').forEach(x => DocumentoBase.pautar(x, r.pragasRes.length ? 3 : 5)); pg.querySelectorAll('.linhas.l3').forEach(x => DocumentoBase.pautar(x, 2)); }
     return pg;
   }
   /**
@@ -588,7 +621,7 @@ const PCEDocs = (() => {
    * opcoes.extras = [{tipo, dados, arquivos, antes}] = outras páginas antes/depois (ficha e Termo da mesma visita no mesmo PDF).
    */
   async function montar(doc, tipo, dados, opcoes) {
-    opcoes = opcoes || {};
+    opcoes = opcoes || {}; OPCIONAL = typeof opcoes.opcional === 'function' ? opcoes.opcional : null;
     const pg = doc.querySelector('.a4');
     preencherPagina(pg, tipo, dados, opcoes.arquivos);
     let ult = pg, prim = pg;

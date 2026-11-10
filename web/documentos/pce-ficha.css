@@ -34,6 +34,10 @@
 .doc.termo .cxs .op { margin-right: 2.5mm; }
 .doc.termo .em { line-height: 1.65; }
 .doc.termo .em u { text-decoration: none; border-bottom: 0.8pt dotted #000; padding: 0 1.6mm; font-weight: bold; display: inline-block; min-width: 14mm; text-align: center; }
+.doc.termo .prs { margin-top: 0.8mm; }
+.doc.termo .pr { display: flex; align-items: baseline; line-height: 1.5; }
+.doc.termo .pr-n { flex: 1 1 auto; min-width: 0; padding-right: 2mm; }
+.doc.termo .pr .op { flex: 0 0 auto; min-width: 27mm; margin-right: 0; }
 .doc.termo .peq { font-size: var(--fn); text-align: center; line-height: 1.2; }
 .doc.termo .peq.esq { text-align: left; padding-left: 12mm; }
 .doc.termo .blk { display: flex; border-top: 0.6pt solid #000; margin-top: -0.6pt; }

@@ -173,7 +173,8 @@ const contem = (texto, lista) => lista.filter(x => !norm(texto).includes(norm(x)
     }
     const texto = execFileSync('pdftotext', [pdf, '-']).toString().replace(/\s+/g, ' ');   // texto vetorial: o PDF do navegador tem de ter texto selecionável
     const r = await p.evaluate(() => ({ secoes: [...document.querySelectorAll('td.sec')].map(x => x.textContent.replace(/\s+/g, ' ').trim()), modelo: document.querySelector('.a4').getAttribute('data-modelo'), largura: document.documentElement.scrollWidth,
-      txt: document.body.innerText.replace(/\s+/g, ' '), longo: document.body.getAttribute('data-longo') }));
+      txt: document.body.innerText.replace(/\s+/g, ' '), longo: document.body.getAttribute('data-longo'),
+      caixas: [...document.querySelectorAll('.pr')].map(l => ({ linha: l.querySelector('.pr-n').textContent, caixas: [...l.querySelectorAll('.op')].map(o => o.textContent.trim()).filter(Boolean), marcadas: [...l.querySelectorAll('.op')].filter(o => o.querySelector('.cx.on')).map(o => o.textContent.trim()) })) }));
     await c.close();
     return { ...r, texto: r.txt, textoPdf: texto, folhas, pags, semFundo };
   }
@@ -312,6 +313,17 @@ const contem = (texto, lista) => lista.filter(x => !norm(texto).includes(norm(x)
       assina: !!f.querySelector('[data-ass=servidor]'), enq: !!f.querySelector('.linhas.l3') }));
     document.body.setAttribute('data-longo', JSON.stringify(window.__termoLongo));
   }, args: ['termo', { ...TERMOS.moniliase, constatacao: PALAVRAS.join(' ') }] });
+  console.log('Termo novo da visita: caixas Presença / Ausência / Suspeita; Termo antigo: texto da constatação');
+  const cultCaixas = [{ cultura: 'Cacau', area: '2', pragas: [{ praga: 'Monilíase do Cacaueiro', resultado: 'detectada' }, { praga: 'Fusarium R4T', resultado: 'nao_detectada', opcional: 1 }] },
+    { cultura: 'Cupuaçu', area: '1', pragas: [{ praga: 'Monilíase do Cacaueiro', resultado: 'detectada' }, { praga: 'Fusarium R4T', resultado: 'detectada', opcional: 1 }, { praga: 'Vassoura de Bruxa', resultado: 'suspeita' }] }];
+  const TCX = await gerar('pce-termo.html', 'termo-caixas', { fn: termoFn, args: ['termo', { ...TERMOS.moniliase, culturas: JSON.stringify(cultCaixas), constatacao: 'Observação livre do fiscal.' }] });
+  const resCx = x => x.map(c => c.linha + ' ' + c.caixas.join('/') + ' => ' + c.marcadas.join()).join(' | ');
+  ok(resCx(TCX.caixas) === 'Monilíase do Cacaueiro (Cacau e Cupuaçu): Presença/Ausência/Suspeita => Presença | Fusarium R4T (Cacau): Presença/Ausência => Ausência | Fusarium R4T (Cupuaçu): Presença/Ausência => Presença | Vassoura de Bruxa (Cupuaçu): Presença/Ausência/Suspeita => Suspeita',
+    'Termo novo: uma linha por praga e resultado (culturas juntas), Suspeita só nas que não são opcionais, marcação certa', resCx(TCX.caixas));
+  ok(TCX.folhas === 1 && /Observação livre do fiscal\./.test(TCX.textoPdf) && /\(descrever a situação constatada\)/.test(TCX.textoPdf), 'Termo novo: uma folha, e as linhas de escrever ficam com o texto livre do fiscal');
+  ok(TC.caixas.length === 0 && TM.caixas.length === 1 && /Ausência de sintomas de HLB/.test(TC.textoPdf), 'Termo de citros antigo (sem visitaId): sem caixas de praga e com o texto da constatação');
+  const TPap = await gerar('pce-termo.html', 'termo-papel', { fn: termoFn, args: ['termo', { ...TERMOS.moniliase, visitaId: '', programaVisita: '', culturas: '' }] });
+  ok(TPap.caixas.length === 0 && /Não constatei a presença da monilíase/.test(TPap.textoPdf), 'Termo digitado do papel (sem visitaId e culturas): sem caixas e com o texto da constatação');
   const longo = JSON.parse(TL.longo || '[]'), juntos = longo.map(f => f.texto).join(' ').split(/\s+/).filter(Boolean);
   ok(TL.folhas >= 2 && TL.folhas === longo.length && longo.every(f => f.cabe), 'Termo com constatação longa: continua em folhas completas, com o corpo acima do rodapé em todas', longo.map(f => f.cabe));
   ok(juntos.join(' ') === PALAVRAS.join(' '), 'Termo com constatação longa: nenhuma palavra cortada, repetida ou fora de ordem', juntos.length);
@@ -328,7 +340,7 @@ const contem = (texto, lista) => lista.filter(x => !norm(texto).includes(norm(x)
     const c = await b.newContext({ viewport: { width: 794, height: 1123 } }); const p = await c.newPage();
     await p.goto(`${O.url}/documentos/pce-termo.html`); await p.waitForFunction(() => window.PCEDocs);
     await p.evaluate(([x, y]) => PCEDocs.montar(document, x, y, {}), [tipo, t]);
-    const r = await p.evaluate(() => [...document.querySelectorAll('.cx.on')].map(x => x.parentElement.textContent.trim())); await c.close(); return r;
+    const r = await p.evaluate(() => [...document.querySelectorAll('.cx.on[data-x]')].map(x => x.parentElement.textContent.trim())); await c.close(); return r;
   };
   const mc = await marcasT(TERMOS.citros, 'termoCitros'), mm = await marcasT(TERMOS.moniliase, 'termo');
   ok(mc.includes('HLB') && mc.includes('Cancro Cítrico') && mc.includes('Ácaro Hindustânico') && mc.includes('Fiscalização') && mc.length === 4, 'Termo de citros antigo: pragas marcadas e ação "Fiscalização" (que o papel de citros dizia no texto)', mc);

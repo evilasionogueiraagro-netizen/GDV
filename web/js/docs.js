@@ -560,7 +560,7 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     const f = await abrirModelo(modeloMon(tipo)), w = f.contentWindow;
     for (let i = 0; i < 50 && !w.PCEDocs; i++) await new Promise(r => setTimeout(r, 50));   // script do modelo ainda carregando
     if (!w.PCEDocs) { f.remove(); throw new Error('Modelo de impressão indisponível nesta versão do app.'); }
-    await w.PCEDocs.montar(f.contentDocument, tipo, dados, opcoes || {});
+    await w.PCEDocs.montar(f.contentDocument, tipo, dados, { opcional: n => typeof PCECads !== 'undefined' && PCECads.opcional(n), ...(opcoes || {}) });   // opcional: o servidor não guarda o campo da praga; o catálogo diz quais só têm Presença/Ausência
     const nome = nomePdfMon(tipo, dados);
     if (modo === 'arquivo') return PDF.deFrame(f, nome, undefined, PDF_PCE);
     const folhas = f.contentDocument.querySelectorAll('.a4').length;      // antes de imprimir: no celular o iframe sai da página

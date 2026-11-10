@@ -33,9 +33,11 @@ por área; `Code.gs` tem o `doPost`, `TABELAS` e `VERSAO_CODIGO`. Testes em `tes
 - Google só pela camada de acesso ([docs/PORTABILIDADE.md](docs/PORTABILIDADE.md)); menu e gatilhos sem regra de negócio.
 - Excluir é lógico (`excluido = 1`); nada é apagado da planilha.
 - Datas de negócio em `America/Manaus` (`hojeManaus_()`).
-- Repositório público: só dados fictícios. Nada público expõe CPF, nome completo, placa inteira ou coordenada exata.
+- Repositório público: só dados fictícios. Nada público expõe CPF, nome completo, placa inteira ou coordenada exata. Preserve os nomes, CPFs e exemplos fictícios já padronizados em `tests/` (`Pessoa Ficticia *`, `Fulano Ficticio Teste`, `529.982.247-25`); nunca os substitua por valores de planilhas, prints ou conversas.
 - Toda ação que muda dado ou acesso registra quem fez.
+- Autoria de commit: todo commit deve identificar a pessoa real responsável (`git config user.name` e `user.email` nominais conferidos antes de commitar). `Co-authored-by` é permitido, mas é proibido commitar tendo apenas `Claude`, `noreply@anthropic.com` ou conta genérica sem identificar o humano responsável.
 - Merge na `main` publica em produção: sempre branch + PR; suíte inteira antes do push.
+- Sincronização de branches (base atualizada em 10/11/2026): trabalhe sempre a partir de clone atualizado e da `origin/main` após `git fetch --prune origin`. Nunca envie branch, commit ou cópia local anterior ou com histórico divergente (sem `--force`): crie a branch de novo a partir da `origin/main` e reaplique só os arquivos alterados.
 - Doc não descreve tela; respeite os limites de tamanho (`node tests/lib/contexto.js`).
 
 ## Comandos

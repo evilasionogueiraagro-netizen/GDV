@@ -1,7 +1,7 @@
 /* Ficha oficial e Termo de Fiscalização do PCE: só o que é próprio dos dois, sobre documento-base.css (fonte, margens, quadros, caixas, assinaturas, rodapé). */
 .doc.ficha table.ln.perg td { height: var(--rh); }
 .doc.ficha .aviso td { font-size: var(--fh); }
-.doc.ficha .aviso td.b { font-size: calc(var(--fs) + 1pt); }
+.doc.ficha .aviso td.b { font-size: var(--fs); }
 .doc.ficha .coluna .op { display: block; margin-right: 0; }
 .doc.ficha .colunas2 { display: flex; flex-wrap: wrap; }
 .doc.ficha .colunas2 .op { width: 50%; margin-right: 0; white-space: normal; padding-right: 1mm; }
@@ -15,7 +15,7 @@
 .doc.ficha table.ln.lev td { height: var(--rh); }
 .doc.ficha table.ln.lev td.c { white-space: nowrap; }
 .doc.ficha table.ln.par td { vertical-align: middle; }
-.doc.ficha table.ln.par .cp > .lbl { white-space: normal; }
+.doc.ficha table.ln.par .cp > .lbl, .doc.ficha table.ln.dados .cp > .lbl { white-space: normal; }
 .doc.ficha .aviso td.b { white-space: nowrap; }
 .doc.ficha .pl-i { margin-right: 1.5mm; white-space: nowrap; }
 .doc.ficha .pl-i .v.curto { min-width: 11mm; }

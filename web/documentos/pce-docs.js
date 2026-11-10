@@ -357,7 +357,7 @@ const PCEDocs = (() => {
       tr(td('tit', V.numeroRot + ' ', (() => { const n = el('span'); n.setAttribute('data-numero', ''); return n; })())),
       V.base.length ? tr(td('base', ...V.base.flatMap((l, i) => (i ? [el('br'), l] : [l])))) : null));
     // propriedade comercial? (só nas fichas que têm o quadro)
-    if (M.comercial !== undefined) corpo.push(tabela('aviso', ['31%', '15%', ''],
+    if (M.comercial !== undefined) corpo.push(tabela('aviso', ['39%', '21%', ''],
       tr(td('b', 'PROPRIEDADE COMERCIAL?'), td('', op(V.comercial === 'sim', 'SIM'), op(V.comercial === 'nao', 'NÃO')), td('', M.comercial)),
       tr(tdc(3, 'Propriedade não comercial: ', ...cfg.naoComercial.map(([c, tx]) => op(V.tipoNaoComercial === c, tx + (c === 'outros' ? ':' : ';'), c === 'outros' ? v(V.tipoOutros, 'curto') : null))))));
     // 1. produtor/proprietário: o que o papel de cada modelo tem
@@ -368,7 +368,7 @@ const PCEDocs = (() => {
       tr(td('', cp('NOME DA PROPRIEDADE:', i.propriedade)), td('', cp('CNPJ:', i.cnpj, '', 'nw')))));
     if (cmp.includes('telefone')) corpo.push(tabela('dados', null, tr(td('', cp('TELEFONE:', i.telefone, '', 'nw')))));
     const georref = el('div', 'cp duplo', rot('GEORREFERENCIAMENTO: Lat.:'), v(i.lat, 'nw'), rot('Lon.:'), v(i.lon, 'nw'));
-    corpo.push(cmp.includes('codigo') ? tabela('dados', ['47%', ''], tr(td('', cp('CÓDIGO DA PROPRIEDADE (CONFORME IN Nº33/2016):', i.codigo, '', 'nw')), td('', georref)))
+    corpo.push(cmp.includes('codigo') ? tabela('dados', ['52%', ''], tr(td('', cp('CÓDIGO DA PROPRIEDADE (CONFORME IN Nº33/2016):', i.codigo, '', 'nw')), td('', georref)))
       : tabela('dados', null, tr(td('', georref))));
     if (cmp.includes('via')) corpo.push(tabela('dados', null, tr(td('', rot('PRINCIPAL VIA DE ACESSO À PROPRIEDADE: '), ...cfg.vias.map(([c, tx]) => op(i.via === c, tx, c === 'outra' ? el('span', '', ': ') : null, c === 'outra' ? v(i.viaOutra, 'curto') : null))))));
     corpo.push(tabela('dados', ['60%', ''], tr(td('', cp('ENDEREÇO:', i.endereco)), td('', el('div', 'cp duplo', rot('MUNICÍPIO:'), v(i.municipio), rot('UF:'), v(i.uf, 's nw'))))));
@@ -392,7 +392,7 @@ const PCEDocs = (() => {
     // responsável técnico (só nas fichas que têm), declaração e assinaturas
     const fim = [];
     const rt = V.rt;
-    if (M.rt) fim.push(tabela('', ['68%', ''], tr(td('', cp(M.rt, rt.nome)), td('', cp('Nº CONSELHO:', rt.conselho, '', 'nw')))));
+    if (M.rt) fim.push(tabela('', ['62%', ''], tr(td('', cp(M.rt, rt.nome)), td('', cp('Nº CONSELHO:', rt.conselho, '', 'nw')))));
     if (V.declaracao) fim.push(el('div', 'resp', V.declaracao));
     const s = V.servidor;
     const dataLinha = M.data === 'localedata' ? el('div', 'data', 'LOCAL E DATA: ', v(V.local, 'curto'), ', ', v(V.dataTxt, 'curto'))

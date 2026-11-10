@@ -48,7 +48,7 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   const confirmar = async p => { await p.click('#tf-m-ok'); };
 
   console.log('0) tela de módulos');
-  { const P = await aparelho(fA); const tit = await P.locator('.modulo b').allTextContents(); ok(tit.length === 3 && /Educação Sanitária\/Fiscalização de Trânsito/.test(tit[0]) && /Termo de Fiscalização/.test(tit[1]) && tit[2] === 'PCE', 'após entrar: três módulos (veículos, TF, PCE) — ' + tit.join(' | ')); ok(/Olá, Ana/.test(await P.textContent('#view')), 'saudação com o nome vinculado'); await P.ctx.close(); }
+  { const P = await aparelho(fA); const tit = await P.locator('.modulo b').allTextContents(); ok(tit.length === 3 && /Educação Sanitária\/Fiscalização de Trânsito/.test(tit[0]) && /Termo de Fiscalização/.test(tit[1]) && tit[2] === 'PCE', 'após entrar: três módulos (veículos, TF, PCE) — ' + tit.join(' | ')); ok(/Olá, Pessoa/.test(await P.textContent('#view')), 'saudação com o nome vinculado'); await P.ctx.close(); }
   console.log('A) Ana: o número vem da planilha na hora de gerar, num popup editável, antes do PDF');
   const A = await aparelho(fA); await irTF(A); await novoTF(A);
   ok(!(await A.locator('[data-tf=assinar], canvas.pce-canvas').count()) && await A.locator('#tf-recusa').count() === 1 && /assinaturas são feitas no papel/.test(await A.textContent('#tf-ass-card')),

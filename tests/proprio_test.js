@@ -18,7 +18,7 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) proce
     await p.click('[data-go=registrar]'); for (let i = 0; i < n; i++) { await p.waitForSelector('#fVeic'); await p.fill('#placa', 'ABC1D' + String(10 + i)); await p.click('#fVeic > button.botao'); await p.waitForTimeout(400); }
     await p.click('nav [data-v=modulos]'); await p.waitForSelector('.modulo[data-v=home]');
   };
-  const sync = p => p.evaluate(async () => { await Sync.sincronizar(); await new Promise(r => setTimeout(r, 800)); });
+  const sync = p => p.evaluate(() => Sync.sincronizar());   // sincronizar() só termina com a rodada toda feita
   const A = await aparelho(await cred('Magda Adegas')), B = await aparelho(await cred('Luciana Ferreira'));
   // simula um aparelho com dados de outro fiscal já baixados por versão antiga
   await turno(A, '96', 'BVA - CEASA', 3); await sync(A);
@@ -30,7 +30,7 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) proce
   ok(new RegExp(`^TF-001-[AB]-${ANO}$`).test(tb.t.join()) && tb.guardado, 'aparelho B: as telas mostram só o próprio turno; o de outro fiscal fica guardado: ' + JSON.stringify(tb));
   const ta = await A.evaluate(async () => ({ t: (await Store.todos('turnos')).map(x => x.numeroTF), v: (await Store.todos('veiculos')).length }));
   ok(new RegExp(`^TF-096-[AB]-${ANO}$`).test(ta.t.join()) && ta.v === 3, 'aparelho A só tem o próprio: ' + JSON.stringify(ta));
-  await B.click('nav [data-v=historico]').catch(() => {}); await B.waitForTimeout(800);
+  await B.click('.modulo[data-v=home]'); await B.click('nav [data-v=historico]'); await B.waitForFunction(() => VIEW === 'historico' && document.querySelector('#hOut') && document.querySelector('#hOut').innerHTML.length > 0);
   const hist = await B.textContent('#view'); ok(!/TF-096/.test(hist), 'histórico de B não mostra o turno de outro fiscal');
   const dump = await (await fetch(API + '/__dump')).json(); ok(dump.T.length >= 3 && dump.V.length >= 6, 'planilha mantém tudo (turnos ' + (dump.T.length - 1) + ', veículos ' + (dump.V.length - 1) + ')');
   ok(!A.err.length && !B.err.length, 'sem erros ' + JSON.stringify(A.err.concat(B.err)));

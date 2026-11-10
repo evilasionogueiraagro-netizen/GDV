@@ -7,6 +7,7 @@ const U = require('./lib/usuarios');
   const FU = await U.fiscal('Fiscal Fim a Fim'), TOKEN = FU.token;   // só o token no aparelho (sem nome): o Fiscal 1 do turno fica editável
   const ctx = await b.newContext({ viewport: { width: 400, height: 800 }, permissions: ['geolocation'], geolocation: { latitude: -3.1190275, longitude: -60.0217314, accuracy: 12 } });
   const page = await ctx.newPage();
+  await page.clock.install();   // relógio do navegador: o fim do turno só precisa passar 1 minuto (sem esperar de verdade)
   const erros = []; page.on('pageerror', e => erros.push(e.message)); page.on('console', m => m.type() === 'error' && erros.push(m.text()));
   page.on('dialog', d => d.accept());
   const dump = async () => (await fetch(amb.API + '/__dump')).json();
@@ -50,7 +51,7 @@ const U = require('./lib/usuarios');
     return page.evaluate(() => { const t = window.__prints.pop(); window.__prints.length = 0; return t; }); };
   assert.equal(await page.locator('[data-doc=termo]').count(), 0, 'Termo não deve aparecer antes de encerrar');
   docs.ficha = await cap('[data-doc=ficha]');
-  await page.waitForTimeout(61000);                                   // garante fim > início
+  await page.clock.fastForward(61000);                                // garante fim > início (o app grava HH:MM)
   await page.click('#encerrar'); await page.waitForSelector('[data-doc=termo]');
   console.log('tela encerrado:', (await page.textContent('main')).replace(/\s+/g, ' ').slice(0, 120), '| início capturado:', t0);
   t0 = await page.evaluate(async () => { const ts = await Store.todos('turnos'); return ts.sort((a, b) => b.criadoEm - a.criadoEm)[0].inicio; });   // início real gravado pelo app

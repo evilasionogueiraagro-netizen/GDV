@@ -53,7 +53,7 @@ const X = i => 'Teste ' + CARGAS[i % CARGAS.length];
     const abrir = async (url, espera) => {
       const p = await c.newPage(); let dialogo = 0;
       p.on('dialog', d => { dialogo++; d.dismiss().catch(() => {}); });
-      await p.goto(url); if (espera) await p.waitForSelector(espera, { timeout: 20000 }).catch(() => {});
+      await p.goto(url); if (espera) await p.waitForSelector(espera, { timeout: 20000 });
       p.dialogos = () => dialogo;
       return p;
     };
@@ -63,7 +63,7 @@ const X = i => 'Teste ' + CARGAS[i % CARGAS.length];
     ok(abas.length >= 3, 'painel aberto com as abas', abas);
     for (const a of abas) {
       await p.click(`.pn-aba[data-aba=${a}]`);
-      await p.waitForTimeout(1200);
+      await p.waitForFunction(i => document.querySelector(`.pn-aba[data-aba=${i}]`).getAttribute('aria-selected') === 'true', a);
       await examinar(p, 'painel, aba ' + a);
     }
     ok(!p.dialogos(), 'painel: nenhum diálogo aberto por carga');
@@ -74,15 +74,15 @@ const X = i => 'Teste ' + CARGAS[i % CARGAS.length];
     await examinar(v2, 'verificação pública do TF cancelado (motivo)');
     // controle: o detector acusa uma carga que de fato vira HTML
     await v2.evaluate(h => document.body.insertAdjacentHTML('beforeend', h), CARGAS[0]);
-    await v2.waitForTimeout(300);
+    await v2.waitForFunction(() => window.__xss, null, { timeout: 3000 }).catch(() => {});   // a carga como HTML dispara o onerror de forma assíncrona: sem o espaço, o controle pode ser lido antes
     const ctl = await v2.evaluate(() => window.__xss || 0);
     ok(ctl === 1, 'controle: a mesma carga inserida como HTML é detectada', ctl);
     const d = await abrir(ORIGEM + '/dashboard/', 'main');
     await examinar(d, 'dashboard público');
-    const adm = await abrir(ORIGEM + '/administrativo/', 'main');
+    const adm = await abrir(ORIGEM + '/administrativo/', '#adm-app:not([hidden])');
     await examinar(adm, 'portal do administrativo');
-    const app = await abrir(APP, 'body');
-    await app.waitForTimeout(3000);
+    const app = await abrir(APP, '.modulo');
+    await app.evaluate(() => Sync.sincronizar());   // os dados do login (com as cargas) chegam na sincronização
     await examinar(app, 'app de campo (dados do próprio login)');
     ok(![v, v2, d, adm, app].some(x => x.dialogos()), 'nenhum diálogo aberto por carga');
   } finally { await b.close(); }

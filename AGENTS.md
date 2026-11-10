@@ -36,6 +36,7 @@ por área; `Code.gs` tem o `doPost`, `TABELAS` e `VERSAO_CODIGO`. Testes em `tes
 - Repositório público: só dados fictícios. Nada público expõe CPF, nome completo, placa inteira ou coordenada exata.
 - Toda ação que muda dado ou acesso registra quem fez.
 - Merge na `main` publica em produção: sempre branch + PR; suíte inteira antes do push.
+- **Histórico reescrito em 09/11/2026** (dados pessoais tirados do GitHub). Nunca envie branch, commit ou cópia do repositório de antes dessa data: isso traz os dados de volta. Trabalhe sempre a partir de uma cópia nova e da `origin/main` atual. Se o push for recusado por histórico divergente, não use `--force`: crie a branch de novo a partir da `origin/main` e reaplique só as suas mudanças.
 - Doc não descreve tela; respeite os limites de tamanho (`node tests/lib/contexto.js`).
 
 ## Comandos

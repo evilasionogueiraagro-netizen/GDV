@@ -44,6 +44,7 @@ function culturasTermoPce_(v) {
       .slice(0, MAX_PRAGAS_CULTURA_PCE_).map(function (p) {
         const o = { praga: textoCurto_(p.praga, 80), resultado: RESULTADOS_PCE.indexOf(p.resultado) >= 0 ? p.resultado : '',
                     haQuantoTempo: textoCurto_(p.haQuantoTempo, 60), controle: textoCurto_(p.controle, 40), qualControle: textoCurto_(p.qualControle, 120) };
+        if (Number(p.opcional) === 1 || p.opcional === true) o.opcional = 1;   // praga de registro (tem/não tem): o Termo impresso não mostra a caixa Suspeita
         if (p.dados) o.dados = dadosPceTermo_(p.dados);
         return o;
       });

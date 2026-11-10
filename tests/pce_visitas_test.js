@@ -44,6 +44,10 @@ const TERMO = (visitaId, programaVisita, data, mun, culturas, extra = {}) => { s
   let g = (await lt()).find(x => x.id === t1.id);
   ok(g.visitaId === 'v-x' && g.programaVisita === MON && g.amostra === 'nao' && g.sintomas === 'nao' && JSON.parse(g.culturas)[0].pragas[0].resultado === 'nao_detectada',
     'visitaId, programaVisita e culturas gravados; amostra e sintomas derivados (nao/nao)', g);
+  const tOp = TERMO('v-op', 'Pragas da Bananeira', d(9, 1), 'Manaus', [cultura('Banana', [{ ...praga('Moko da Bananeira', 'detectada'), opcional: 1 }, praga('Sigatoka Negra', 'nao_detectada')])], { excluido: 1 });   // excluído: não entra nas contagens abaixo
+  r = await post({ action: 'sync', key: A, since: 0, termosPce: [tOp] });
+  const pgOp = JSON.parse((await lt()).find(x => x.id === tOp.id).culturas)[0].pragas;
+  ok(r.ok && pgOp[0].opcional === 1 && !('opcional' in pgOp[1]), 'culturas guardam opcional = 1 só na praga de registro (o Termo impresso não mostra Suspeita nela)', pgOp);
   const dup = TERMO('v-x', MON, d(9, 1), 'Manaus', [cultura('Cacau', [praga('Monilíase do Cacaueiro', 'nao_detectada')])]);
   r = await post({ action: 'sync', key: Bk, since: 0, termosPce: [dup] });
   ok(r.ok && (r.recusados.termosPce || []).includes(dup.id) && !(await lt()).some(x => x.id === dup.id), 'segundo Termo do mesmo programa na mesma visita (outro id): recusado, não gravado');

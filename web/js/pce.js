@@ -707,15 +707,17 @@ const PCEUI = (() => {
         <button class="botao ${dig ? '' : 'sec'}" data-mon="novo" data-tipo="termo" data-antigo="1" id="mon-novo-papel">Termo de Fiscalização</button>
         <button class="botao ${dig ? '' : 'sec'}" data-pce="novotermoantigo" id="pce-novotermoantigo">Termo de Colheita</button></div></div>` : ''}
       <button class="botao sec" data-v="pcerel" id="mon-ir-rel">${icone('resumo')} Relatório de atividades</button>
-      <div class="card"><label>Pesquisar (nº, produtor, CPF/CNPJ, município, cultura ou programa)<input id="pceTQ" autocomplete="off"></label></div>
+      <div class="card"><label>Pesquisar (nº, produtor, CPF/CNPJ, município, cultura ou programa)<input id="pceTQ" autocomplete="off"></label>
+        <label>Mostrar<select id="pceTTipo"><option value="">Todos os Termos de Fiscalização</option><option value="amostra">Termos de Fiscalização com amostra coletada</option></select></label></div>
       <div id="pceTItens"></div>`);
     const desenhar = () => {
-      const q = semAcento($('#pceTQ').value.trim()).toUpperCase(), qd = digitos(q);
+      const q = semAcento($('#pceTQ').value.trim()).toUpperCase(), qd = digitos(q), soAmostra = $('#pceTTipo').value === 'amostra';
       const casa = t => texto(t).includes(q) || (qd && digitos(t.doc).includes(qd));
-      const v = todos.filter(({ t, cols }) => !q || casa(t) || (cols || []).some(casa));
+      const comAmostra = ({ k, t, cols }) => k === 'c' || (cols || []).length > 0 || t.amostra === 'sim';   // Termo de Colheita de Amostras solto (antigo ou do papel) é amostra coletada
+      const v = todos.filter(x => (!soAmostra || comAmostra(x)) && (!q || casa(x.t) || (x.cols || []).some(casa)));
       $('#pceTItens').innerHTML = v.length ? v.map(({ k, t, cols }) => k === 'f' ? termoFiscItem(t, podeAnt, cols) : termoColItem(t, podeAnt)).join('') : '<div class="vazio">Nenhum termo neste aparelho.</div>';
     };
-    desenhar(); $('#pceTQ').oninput = desenhar;
+    desenhar(); $('#pceTQ').oninput = desenhar; $('#pceTTipo').onchange = desenhar;
   }
   const situacaoTermo = (t, podeAnt) => `${t.cancelado ? `<div class="info pend">${icone('proibido')} CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
     ${Number(t.conflito) === 1 ? '<div class="info pend">Número duplicado na planilha: confira com a coordenação.</div>' : ''}
@@ -732,7 +734,7 @@ const PCEUI = (() => {
   }
   function termoColItem(t, podeAnt, dentro) {
     return `<div class="${dentro ? 'pce-colheita-sub' : 'item pce-termo'}" data-termo="${esc(t.id)}"><div class="topo"><div><div class="placa">${esc(t.numeroTxt)}</div><div class="tipo">${esc(t.nome)}</div></div><div class="hora">${esc(dBR(t.data))}</div></div>
-      <div class="info"><span class="mon-prog">Colheita</span> ${esc(t.cultura)} · ${esc(t.quantidade)} amostra(s) · ${esc(t.municipio)}</div>
+      <div class="info"><span class="mon-prog">Termo de Colheita de Amostras</span> ${esc(t.cultura)} · ${esc(t.quantidade)} amostra(s) · ${esc(t.municipio)}</div>
       ${situacaoTermo(t, podeAnt)}
       <div class="botoes"><button class="editar" data-pce="imprimirtermo" data-id="${esc(t.id)}">PDF</button><button class="tfbtn" data-pce="enviartermo" data-id="${esc(t.id)}">Enviar</button>
         ${t.cancelado ? '' : `<button class="excluir" data-pce="cancelartermo" data-id="${esc(t.id)}">Cancelar</button>`}</div></div>`;

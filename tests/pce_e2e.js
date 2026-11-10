@@ -88,11 +88,13 @@ const ANO = new Date().getFullYear();
   const depois = await pA.evaluate(async () => (await Store.todos('termosPce')).map(t => ({ n: t.numeroTxt, p: t.pendente })));
   ok(depois.every(t => !t.p), 'nada pendente no aparelho', depois);
   await pA.evaluate(() => go('pcetermos')); await pA.waitForSelector('#pceTItens .item');
-  ok(await pA.locator('#pceTItens .item').count() === 2 && await pA.locator('#pceTSel').count() === 0 && await pA.locator('#pceTTipo').count() === 0, 'lista de Termos: os 2 Termos de Fiscalização, sem filtro por tipo');
+  ok(await pA.locator('#pceTItens .item').count() === 2 && /Todos os Termos de Fiscalização/.test(await pA.textContent('#pceTTipo')) && /Termos de Fiscalização com amostra coletada/.test(await pA.textContent('#pceTTipo')), 'lista de Termos: os 2 Termos de Fiscalização; filtro com nomes por extenso');
   const comCol = pA.locator('#pceTItens .item', { has: pA.locator('.pce-colheita-sub') });
   ok(await comCol.count() === 1 && /Monil/.test(await comCol.textContent()) && /Colheita/.test(await comCol.locator('.pce-colheita-sub').textContent()) && await comCol.locator('.pce-colheita-sub [data-pce=imprimirtermo]').count() === 1, 'Termo de Colheita aparece dentro do Termo de Fiscalização da mesma visita (o do programa da cultura), com o próprio PDF');
   await pA.fill('#pceTQ', `001/${ANO}/MANAUS`); ok(await pA.locator('#pceTItens .item').count() === 1 && await pA.locator('#pceTItens .pce-colheita-sub').count() === 1, 'pesquisa pelo nº da colheita acha o Termo da visita');
-  await pA.fill('#pceTQ', 'citros'); ok(await pA.locator('#pceTItens .item').count() === 1, 'pesquisa por programa');
+  await pA.fill('#pceTQ', ''); await pA.selectOption('#pceTTipo', 'amostra');
+  ok(await pA.locator('#pceTItens .item').count() === 1 && /Termo de Colheita de Amostras/.test(await pA.textContent('#pceTItens')), 'filtro "com amostra coletada": só o Termo da visita com coleta, com o Termo de Colheita de Amostras dentro');
+  await pA.selectOption('#pceTTipo', ''); await pA.fill('#pceTQ', 'citros'); ok(await pA.locator('#pceTItens .item').count() === 1, 'pesquisa por programa');
 
   console.log('5) dois aparelhos sem internet: número repetido vira conflito ao sincronizar');
   const pB = await A.aparelho(b, 'Pessoa Ficticia Beta');

@@ -684,7 +684,7 @@ const PCEMon = (() => {
   const ROTULO_RES = { detectada: 'Presença', nao_detectada: 'Ausência', suspeita: 'Suspeita' };
   function resultadosDe(pg) {
     const mapa = new Map();
-    pg.itens.forEach(i => { const k = i.praga + '|' + i.resultado; if (!mapa.has(k)) mapa.set(k, { praga: i.praga, resultado: i.resultado, culturas: [] }); const c = mapa.get(k).culturas; if (!c.includes(i.cultura)) c.push(i.cultura); });
+    pg.itens.forEach(i => { const nome = CA().nomeNoTF(i.praga), k = nome + '|' + i.resultado; if (!mapa.has(k)) mapa.set(k, { praga: nome, resultado: i.resultado, culturas: [] }); const c = mapa.get(k).culturas; if (!c.includes(i.cultura)) c.push(i.cultura); });
     return [...mapa.values()];
   }
 

@@ -38,8 +38,8 @@ const CAN = 'IN MAPA nº 21/2018; IN SDA/MAPA nº 38', HLB = 'Portaria SDA/MAPA 
   await lar.locator('.v-plantas').fill('200');
   await p.click('#vi-continuar'); await p.waitForSelector('#vi-local');
   const txt = await p.inputValue('textarea[data-prog]'), lis = await p.locator('.vi-resultados li').allTextContents();
-  ok(lis.includes('Cancro Cítrico (Laranja): Presença') && lis.includes('Cancro Cítrico (Limão): Ausência') && lis.includes('HLB / Greening (Laranja e Limão): Ausência') && lis.includes('Schizotetranychus hindustanicus (Laranja e Limão): Ausência'), 'lista de leitura do passo 4: resultado das três doenças (cancro em Presença na Laranja e Ausência no Limão; HLB e ácaro em Ausência nas duas)', lis);
-  ok(txt === '' && !lis.includes('HLB / Greening (Laranja e Limão): Presença') && lis.includes('Diaphorina citri (vetor do HLB) (Laranja): Presença') && lis.includes('Pinta Preta dos Citros (Laranja e Limão): Ausência'), 'Diaphorina "Tem" NÃO marca presença de HLB; as opcionais intocadas entram como Ausência; o campo de texto vem vazio', [txt, lis]);
+  ok(lis.includes('Cancro Cítrico (Laranja): Presença') && lis.includes('Cancro Cítrico (Limão): Ausência') && lis.includes('HLB (Laranja e Limão): Ausência') && lis.includes('Ácaro Hindustânico (Laranja e Limão): Ausência'), 'lista de leitura do passo 4: resultado das três doenças (cancro em Presença na Laranja e Ausência no Limão; HLB e ácaro em Ausência nas duas)', lis);
+  ok(txt === '' && !lis.includes('HLB (Laranja e Limão): Presença') && lis.includes('Diaphorina citri (Laranja): Presença') && lis.includes('Pinta Preta dos Citros (Laranja e Limão): Ausência'), 'Diaphorina "Tem" NÃO marca presença de HLB; as opcionais intocadas entram como Ausência; o campo de texto vem vazio', [txt, lis]);
   const enq = await p.textContent('.vi-enq');
   ok(enq.includes(CAN) && !enq.includes(HLB), 'enquadramento: só o das pragas detectadas (cancro), sem o do HLB', enq);
   await tira('03-constatacao-citros');
@@ -51,7 +51,7 @@ const CAN = 'IN MAPA nº 21/2018; IN SDA/MAPA nº 38', HLB = 'Portaria SDA/MAPA 
   const pr = await A.imprimir(p, '.pce-termo-pronto [data-mon=imprimir]');
   const cxT = A.caixasDoTermo(pr.html), pc = n => cxT.find(x => x.linha.startsWith(n));
   ok(/TERMO DE FISCALIZAÇÃO Nº 001/.test(pr.texto) && /Sitio Laranjal/.test(pr.texto) && /IN MAPA nº 21\/2018/.test(pr.texto) && !/Presença de sintomas/.test(pr.texto), 'PDF no modelo único: número, local e enquadramento, sem frases prontas', pr.texto.slice(0, 500));
-  ok(pc('Cancro Cítrico (Laranja)').marcadas.join() === 'Presença' && pc('Cancro Cítrico (Laranja)').caixas.join() === 'Presença,Ausência,Suspeita' && pc('Cancro Cítrico (Limão)').marcadas.join() === 'Ausência' && pc('HLB / Greening').marcadas.join() === 'Ausência' && /\(Laranja e Limão\)/.test(pc('HLB / Greening').linha) && pc('Diaphorina citri (vetor do HLB)').marcadas.join() === 'Presença' && pc('Diaphorina citri (vetor do HLB)').caixas.length === 2
+  ok(pc('Cancro Cítrico (Laranja)').marcadas.join() === 'Presença' && pc('Cancro Cítrico (Laranja)').caixas.join() === 'Presença,Ausência,Suspeita' && pc('Cancro Cítrico (Limão)').marcadas.join() === 'Ausência' && pc('HLB').marcadas.join() === 'Ausência' && /\(Laranja e Limão\)/.test(pc('HLB').linha) && pc('Diaphorina citri').marcadas.join() === 'Presença' && pc('Diaphorina citri').caixas.length === 2
     , 'PDF: Cancro em Presença na Laranja (3 caixas) e Ausência no Limão, HLB em Ausência com Laranja e Limão juntos, Diaphorina opcional em Presença com 2 caixas', cxT);
   await A.salvarPdf(p, pr, 'pce-termo.html', 'pce_citros_termo');
   if (process.env.GDV_SAIDA_CITROS) fs.copyFileSync(amb.saida('pce_citros_termo.png'), process.env.GDV_SAIDA_CITROS + '/05-termo-citros.png');

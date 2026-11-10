@@ -40,7 +40,7 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   await p.click('#vi-continuar'); await p.waitForSelector('.v-plantas'); await p.click('#vi-continuar'); await p.waitForSelector('#vi-local');
   const consB = await p.locator('textarea[data-prog]').first().inputValue(), resB = await p.locator('.vi-resultados li').allTextContents();
   const enqB = await p.locator('.vi-enq').first().evaluate(e => { e.querySelectorAll('br').forEach(br => br.replaceWith('\n')); return e.textContent; });
-  ok(resB.join('|') === 'Fusarium R4T (Banana): Ausência|Moko da Bananeira (Banana): Ausência|Sigatoka Negra (Banana): Ausência', 'passo 4: lista só de leitura com o resultado das 3 (Ausência), para as caixas do Termo', resB);
+  ok(resB.join('|') === 'Fusariose FOC R4T (Banana): Ausência|Moko da Bananeira (Banana): Ausência|Sigatoka Negra (Banana): Ausência', 'passo 4: lista só de leitura com o resultado das 3 (Ausência), para as caixas do Termo', resB);
   ok(consB === '' && /Observações sobre a situação constatada \(opcional\)/.test(await p.textContent('.pce-prog')) && !/Constatei|Ausência de sintomas/.test(consB), 'campo de texto vazio, sem frase pronta, chamado "Observações sobre a situação constatada (opcional)"', consB);
   ok(mesmas(enqB, lin('Fusarium R4T')), 'enquadramento: o das avaliadas do programa (só a Fusariose tem texto no catálogo)', enqB);
   await p.click('#vi-continuar'); await p.waitForSelector('#vi-resumo'); await p.click('#vi-concluir'); await p.waitForSelector('#pce-visita-pronta', { timeout: 20000 });
@@ -53,22 +53,22 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   const marcadas = await p.evaluate(h => [...new DOMParser().parseFromString(h, 'text/html').querySelectorAll('[data-x^="pragas="].on')].map(e => e.getAttribute('data-x')), pr.html);
   ok(marcadas.join() === 'pragas=Fusariose FOC R4T', 'PDF do Termo: só a caixa Fusariose FOC R4T marcada no quadro de pragas', marcadas);
   const cxB = A.caixasDoTermo(pr.html);
-  ok(cxB.length === 3 && cxB.every(x => x.caixas.join() === 'Presença,Ausência' && x.marcadas.join() === 'Ausência') && cxB.map(x => x.linha).join('|') === 'Fusarium R4T (Banana):|Moko da Bananeira (Banana):|Sigatoka Negra (Banana):', 'PDF do Termo: as 3 opcionais com só Presença e Ausência (sem Suspeita), Ausência marcada', cxB);
+  ok(cxB.length === 3 && cxB.every(x => x.caixas.join() === 'Presença,Ausência' && x.marcadas.join() === 'Ausência') && cxB.map(x => x.linha).join('|') === 'Fusariose FOC R4T (Banana):|Moko da Bananeira (Banana):|Sigatoka Negra (Banana):', 'PDF do Termo: as 3 opcionais com só Presença e Ausência (sem Suspeita), Ausência marcada', cxB);
   ok(!/Não constatei a presença/.test(pr.texto), 'PDF do Termo: sem frase pronta de constatação');
   await A.salvarPdf(p, pr, 'pce-termo.html', 'pce_opcionais_termo_banana');
 
   console.log('2) "Tem" abre os campos de detecção; enquadramento só das detectadas');
   await A.abrirProdutor(p, '52998224725');
   const s1 = await visita('Soja', { 'Phakopsora pachyrhizi': 'nao_detectada', 'Amaranthus palmeri': 'detectada' });
-  ok(s1.res.join('|') === 'Phakopsora pachyrhizi (Soja): Ausência|Amaranthus palmeri (Soja): Presença' && s1.cons === '', '"Tem": o Amaranthus aparece como Presença e a obrigatória Ferrugem como Ausência (sem texto pronto)', [s1.res, s1.cons]);
+  ok(s1.res.join('|') === 'Ferrugem Asiática da soja (Soja): Ausência|Amaranthus palmeri (Soja): Presença' && s1.cons === '', '"Tem": o Amaranthus aparece como Presença e a obrigatória Ferrugem como Ausência (sem texto pronto)', [s1.res, s1.cons]);
   const marc = x => x.map(c => c.linha + ' ' + c.caixas.join('/') + ' => ' + c.marcadas.join()).join(' | ');
-  ok(marc(s1.cx) === 'Phakopsora pachyrhizi (Soja): Presença/Ausência/Suspeita => Ausência | Amaranthus palmeri (Soja): Presença/Ausência => Presença', 'PDF do Termo: Ferrugem (obrigatória) com 3 caixas e Ausência marcada; Amaranthus (opcional) com 2 caixas e Presença marcada', marc(s1.cx));
+  ok(marc(s1.cx) === 'Ferrugem Asiática da soja (Soja): Presença/Ausência/Suspeita => Ausência | Amaranthus palmeri (Soja): Presença/Ausência => Presença', 'PDF do Termo: Ferrugem (obrigatória) com 3 caixas e Ausência marcada; Amaranthus (opcional) com 2 caixas e Presença marcada', marc(s1.cx));
   ok(mesmas(s1.enq, lin('Amaranthus palmeri')) && mesmas(s1.termos[0].enquadramento, lin('Amaranthus palmeri')), 'enquadramento só da detectada (Amaranthus), na tela e no Termo', s1.enq);
   ok(JSON.parse(s1.termos[0].pragas).join() === 'Ferrugem Asiática da soja,Amaranthus palmeri', 'Termo de soja: caixas da Ferrugem e do Amaranthus marcadas', s1.termos[0].pragas);
   ok(s1.termos.length === 1 && s1.termos[0].programaVisita === 'Pragas da Soja', 'um Termo só (Pragas da Soja)', s1.termos.map(t => t.programaVisita));
   await A.abrirProdutor(p, '52998224725');
   const s2 = await visita('Soja', { 'Phakopsora pachyrhizi': 'detectada' });
-  ok(s2.res.join('|') === 'Phakopsora pachyrhizi (Soja): Presença|Amaranthus palmeri (Soja): Ausência' && marc(s2.cx) === 'Phakopsora pachyrhizi (Soja): Presença/Ausência/Suspeita => Presença | Amaranthus palmeri (Soja): Presença/Ausência => Ausência', 'obrigatória detectada e opcional intocada: Ferrugem em Presença e Amaranthus em Ausência (lista e caixas do Termo)', [s2.res, marc(s2.cx)]);
+  ok(s2.res.join('|') === 'Ferrugem Asiática da soja (Soja): Presença|Amaranthus palmeri (Soja): Ausência' && marc(s2.cx) === 'Ferrugem Asiática da soja (Soja): Presença/Ausência/Suspeita => Presença | Amaranthus palmeri (Soja): Presença/Ausência => Ausência', 'obrigatória detectada e opcional intocada: Ferrugem em Presença e Amaranthus em Ausência (lista e caixas do Termo)', [s2.res, marc(s2.cx)]);
   ok(mesmas(s2.enq, lin('Phakopsora pachyrhizi')) && mesmas(s2.termos[0].enquadramento, lin('Phakopsora pachyrhizi')), 'enquadramento só da detectada (Ferrugem), sem o do Amaranthus "Não tem"', s2.enq);
 
   const ids = () => p.evaluate(async () => (await Store.todos('termosPce')).map(t => t.id));
@@ -89,7 +89,7 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   ok(resM.includes('Moko da Bananeira (Banana): Presença') && resM.includes('Sigatoka Negra (Banana): Ausência'), 'Moko "Tem": a lista do passo 4 mostra Moko em Presença e Sigatoka em Ausência', resM);
   await p.click('#vi-continuar'); await p.waitForSelector('#vi-resumo'); await p.click('#vi-concluir'); await p.waitForSelector('#pce-visita-pronta', { timeout: 20000 });
   const cxMoko = A.caixasDoTermo((await A.imprimir(p, '.pce-termo-pronto [data-mon=imprimir]')).html);
-  ok(marc(cxMoko) === 'Fusarium R4T (Banana): Presença/Ausência => Ausência | Moko da Bananeira (Banana): Presença/Ausência => Presença | Sigatoka Negra (Banana): Presença/Ausência => Ausência', 'PDF do Termo de banana com Moko: Presença marcada no Moko (2 caixas) e Ausência nas outras', marc(cxMoko));
+  ok(marc(cxMoko) === 'Fusariose FOC R4T (Banana): Presença/Ausência => Ausência | Moko da Bananeira (Banana): Presença/Ausência => Presença | Sigatoka Negra (Banana): Presença/Ausência => Ausência', 'PDF do Termo de banana com Moko: Presença marcada no Moko (2 caixas) e Ausência nas outras', marc(cxMoko));
   const tM = await novo(antesM);
   const pm = JSON.parse(tM.culturas)[0].pragas.find(x => x.praga === 'Moko da Bananeira');
   ok(pm.resultado === 'detectada' && pm.haQuantoTempo === '10 dias' && pm.controle === 'Sim' && pm.qualControle === 'Eliminação das plantas', 'Termo grava o resultado, há quanto tempo e o controle do Moko', pm);
@@ -109,7 +109,7 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   await p.evaluate(async () => { const r = await Store.meta('pceVisitaRascunho'); go('pcevisita', { doc: r.doc, propId: r.propId }); }); await p.waitForSelector('#pceVisitaForm');
   ok(/Passo 2 de 5/.test(await p.textContent('.pce-passos')) && await p.locator('.pce-pr[data-opcional] .pce-res-nao_detectada input:checked').count() === 3, 'rascunho retomado: as 3 opcionais (vazia e sem registro) abrem como "Não tem"');
   await p.click('#vi-continuar'); await p.waitForSelector('.v-plantas'); await p.click('#vi-continuar'); await p.waitForSelector('#vi-local');
-  ok((await p.locator('.vi-resultados li').allTextContents()).includes('Fusarium R4T (Banana): Ausência'), 'segue para o Termo sem pedir resposta: a Fusariose entra como avaliada (Ausência)');
+  ok((await p.locator('.vi-resultados li').allTextContents()).includes('Fusariose FOC R4T (Banana): Ausência'), 'segue para o Termo sem pedir resposta: a Fusariose entra como avaliada (Ausência)');
   await p.click('#vi-continuar'); await p.waitForSelector('#vi-resumo'); await p.click('#vi-concluir'); await p.waitForSelector('#pce-visita-pronta', { timeout: 20000 });
   const tR = await novo(antesR);
   ok(JSON.parse(tR.pragas).join() === 'Fusariose FOC R4T' && JSON.parse(tR.culturas)[0].pragas.every(x => x.resultado === 'nao_detectada'), 'Termo do rascunho antigo: Fusariose marcada e as 3 como não detectadas', tR.pragas);
@@ -123,11 +123,11 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   await p.locator('.pce-pr[data-nome="Pinta Preta dos Citros"] .pce-res-detectada').click();
   await p.click('#vi-continuar'); await p.waitForSelector('.v-plantas'); await p.click('#vi-continuar'); await p.waitForSelector('#vi-local');
   const resC = await p.locator('.vi-resultados li').allTextContents(), consC = await p.locator('textarea[data-prog]').first().inputValue();
-  ok(consC === '' && resC.includes('HLB / Greening (Laranja): Ausência') && resC.includes('Pinta Preta dos Citros (Laranja): Presença') && resC.includes('Leprose dos Citros (Laranja): Ausência') && resC.includes('Diaphorina citri (vetor do HLB) (Laranja): Ausência'), 'citros: lista de leitura com o resultado das obrigatórias e das opcionais, sem texto pronto', [resC, consC]);
+  ok(consC === '' && resC.includes('HLB (Laranja): Ausência') && resC.includes('Pinta Preta dos Citros (Laranja): Presença') && resC.includes('Leprose dos Citros (Laranja): Ausência') && resC.includes('Diaphorina citri (Laranja): Ausência'), 'citros: lista de leitura com o resultado das obrigatórias e das opcionais, sem texto pronto', [resC, consC]);
   await p.click('#vi-continuar'); await p.waitForSelector('#vi-resumo'); await p.click('#vi-concluir'); await p.waitForSelector('#pce-visita-pronta', { timeout: 20000 });
   const cxC = A.caixasDoTermo((await A.imprimir(p, '.pce-termo-pronto [data-mon=imprimir]')).html), por = n => cxC.find(x => x.linha.startsWith(n + ' '));
-  ok(['HLB / Greening', 'Schizotetranychus hindustanicus', 'Cancro Cítrico'].every(n => por(n) && por(n).caixas.join() === 'Presença,Ausência,Suspeita' && por(n).marcadas.join() === 'Ausência') && por('Pinta Preta dos Citros').caixas.join() === 'Presença,Ausência' && por('Pinta Preta dos Citros').marcadas.join() === 'Presença'
-    && por('Leprose dos Citros').caixas.join() === 'Presença,Ausência' && por('Diaphorina citri (vetor do HLB)').marcadas.join() === 'Ausência', 'PDF do Termo de citros: as 3 obrigatórias com Suspeita e Ausência marcada; Pinta Preta em Presença; Leprose e Diaphorina só com 2 caixas', marc(cxC));
+  ok(['HLB', 'Ácaro Hindustânico', 'Cancro Cítrico'].every(n => por(n) && por(n).caixas.join() === 'Presença,Ausência,Suspeita' && por(n).marcadas.join() === 'Ausência') && por('Pinta Preta dos Citros').caixas.join() === 'Presença,Ausência' && por('Pinta Preta dos Citros').marcadas.join() === 'Presença'
+    && por('Leprose dos Citros').caixas.join() === 'Presença,Ausência' && por('Diaphorina citri').marcadas.join() === 'Ausência', 'PDF do Termo de citros: as 3 obrigatórias com Suspeita e Ausência marcada; Pinta Preta em Presença; Leprose e Diaphorina só com 2 caixas', marc(cxC));
   ok(p.err.length === 0, 'sem erros de JavaScript', p.err);
   await b.close(); process.exit(falhas ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

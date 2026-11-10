@@ -84,17 +84,17 @@ const PCEDocs = (() => {
    * Pragas avaliadas de um Termo NOVO da visita (tem visitaId e culturas): uma linha por praga e resultado, com as culturas juntas, para as caixas Presença / Ausência / Suspeita.
    * Termo antigo (sem visitaId ou sem culturas) e o digitado do papel devolvem [] e seguem imprimindo o texto da constatação.
    * Praga opcional (Moko, Pinta Preta...) só tem Presença e Ausência: vale o campo `opcional` gravado na cultura ou, sem ele (o servidor só guarda os campos que conhece),
-   * a função opcoes.opcional(nome) que o app passa a `montar` (docs.js, com o catálogo).
+   * a função opcoes.opcional(nome) que o app passa a `montar` (docs.js, com o catálogo). O nome da linha é o do quadro de pragas do Termo (opcoes.nomeDe: nomeNoTF, senão nome popular).
    */
-  let OPCIONAL = null;
+  let OPCIONAL = null, NOME_TF = null;
   function pragasDoTermo(t) {
     const cult = arr(lerJSON(t.culturas, []));
     if (!t.visitaId || !cult.length) return [];
     const mapa = new Map();
     cult.forEach(c => arr(obj(c).pragas).forEach(p => {
       if (!p || !p.praga || !['detectada', 'nao_detectada', 'suspeita'].includes(p.resultado)) return;
-      const k = p.praga + '|' + p.resultado;
-      if (!mapa.has(k)) mapa.set(k, { praga: String(p.praga), resultado: p.resultado, opcional: p.opcional != null ? Number(p.opcional) === 1 : !!(OPCIONAL && OPCIONAL(p.praga)), culturas: [] });
+      const nome = String((NOME_TF && NOME_TF(p.praga)) || p.praga), k = nome + '|' + p.resultado;
+      if (!mapa.has(k)) mapa.set(k, { praga: nome, resultado: p.resultado, opcional: p.opcional != null ? Number(p.opcional) === 1 : !!(OPCIONAL && OPCIONAL(p.praga)), culturas: [] });
       const x = mapa.get(k); if (c.cultura && !x.culturas.includes(c.cultura)) x.culturas.push(String(c.cultura));
     }));
     return [...mapa.values()];
@@ -621,7 +621,7 @@ const PCEDocs = (() => {
    * opcoes.extras = [{tipo, dados, arquivos, antes}] = outras páginas antes/depois (ficha e Termo da mesma visita no mesmo PDF).
    */
   async function montar(doc, tipo, dados, opcoes) {
-    opcoes = opcoes || {}; OPCIONAL = typeof opcoes.opcional === 'function' ? opcoes.opcional : null;
+    opcoes = opcoes || {}; OPCIONAL = typeof opcoes.opcional === 'function' ? opcoes.opcional : null; NOME_TF = typeof opcoes.nomeDe === 'function' ? opcoes.nomeDe : null;
     const pg = doc.querySelector('.a4');
     preencherPagina(pg, tipo, dados, opcoes.arquivos);
     let ult = pg, prim = pg;

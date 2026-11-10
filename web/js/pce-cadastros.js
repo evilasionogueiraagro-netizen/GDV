@@ -26,6 +26,8 @@ const PCECads = (() => {
   const nomeDaPraga = p => P.pragas.find(n => idCat(n) === p.id) || p.nomePopular;
   const pragaPorNome = nome => { const k = idCat(nome); return k ? pragasCat().find(p => p.id === k || idCat(p.nomePopular) === k) || null : null; };
   /** Praga opcional (Moko, Pinta Preta...): resposta não obrigatória e sem Termo próprio (entra no Termo do programa dela). */
+  /** Nome da praga como aparece no quadro do Termo: nomeNoTF do catálogo, senão o nome popular, senão o nome gravado. */
+  const nomeNoTF = nome => { const p = pragaPorNome(nome); return (p && (p.nomeNoTF || p.nomePopular)) || String(nome || ''); };
   const opcional = nome => { const p = pragaPorNome(nome); return !!(p && Number(p.opcional) === 1); };
   /** Programa da praga (um Termo por programa): o que ela divide com outras (Citros) ou ela mesma. */
   const programaDaPraga = nome => {
@@ -508,6 +510,6 @@ const PCECads = (() => {
     } catch (err) { toast(err.message || String(err), true); }
   });
 
-  return { produtorForm, produtor, ficha, imprimirFicha, perguntaHTML, lerPergunta, chavesDa, perguntasDoModelo, carregarCatalogo, culturas, pragasLigadas, pragasExtras, pragasCat, pragaPorNome, nomeDaPraga, opcional, programaDaPraga, modeloDaCultura,
+  return { produtorForm, produtor, ficha, imprimirFicha, perguntaHTML, lerPergunta, chavesDa, perguntasDoModelo, carregarCatalogo, culturas, pragasLigadas, pragasExtras, pragasCat, pragaPorNome, nomeDaPraga, opcional, nomeNoTF, programaDaPraga, modeloDaCultura,
     temLevantamento, idCat, frutosDe, rotulo, resumoFruto, espTxt, visitaMaisRecente, selo, catalogo: () => CAT };
 })();

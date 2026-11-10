@@ -64,13 +64,13 @@ const ANO = new Date().getFullYear();
   const imp = await pA.evaluate(() => window.__prints[0]);
   ok(imp.paginas >= 1 && /TERMO DE FISCALIZAÇÃO Nº 001/.test(imp.texto) && new RegExp(`${ANO} Ano - MANAUS Unidade`).test(imp.texto) && /RAIMUNDO FICTICIO/.test(imp.texto) && /Monilíase/.test(imp.texto), 'PDF do Termo: número, produtor e programa', imp.texto.slice(0, 200));
   const cxM = A.caixasDoTermo(imp.html);
-  ok(cxM.length === 1 && /^Monilíase do Cacaueiro \(Cacau\):$/.test(cxM[0].linha) && cxM[0].caixas.join() === 'Presença,Ausência,Suspeita' && cxM[0].marcadas.join() === 'Presença', 'PDF do Termo: Monilíase (Cacau) com a caixa Presença marcada', cxM);
+  ok(cxM.length === 1 && /^Monilíase \(Cacau\):$/.test(cxM[0].linha) && cxM[0].caixas.join() === 'Presença,Ausência,Suspeita' && cxM[0].marcadas.join() === 'Presença', 'PDF do Termo: Monilíase (Cacau) com a caixa Presença marcada', cxM);
   await A.salvarPdf(pA, imp, 'pce-termo.html', 'pce_e2e_termo');
   await pA.evaluate(() => { window.__prints = []; });
   await pA.locator('.pce-termo-pronto').nth(1).locator('[data-mon=imprimir]').click();
   await pA.waitForFunction(() => window.__prints && window.__prints.length, null, { timeout: 15000 });
   const impC = await pA.evaluate(() => window.__prints[0]), cxC = A.caixasDoTermo(impC.html), esperadas = JSON.parse(tC.culturas).flatMap(c => c.pragas.map(p => p.praga));
-  ok(cxC.length === esperadas.length && esperadas.length >= 3 && cxC.every(x => x.marcadas.join() === 'Ausência') && esperadas.every(n => cxC.some(x => x.linha.startsWith(n + ' (Laranja)'))), 'PDF do Termo de citros negativo: toda praga avaliada com a caixa Ausência marcada', cxC);
+  ok(cxC.length === esperadas.length && esperadas.length >= 3 && cxC.every(x => x.marcadas.join() === 'Ausência') && ['HLB', 'Ácaro Hindustânico', 'Cancro Cítrico'].every(n => cxC.some(x => x.linha === n + ' (Laranja):')), 'PDF do Termo de citros negativo: toda praga avaliada com a caixa Ausência marcada', cxC);
   const col1 = await A.imprimir(pA, '.pce-colheita-pronta [data-pce=imprimirtermo]');
   ok(new RegExp(`001/${ANO}/MANAUS`).test(col1.texto) && /Cacau/.test(col1.texto), 'PDF do Termo de Colheita');
 

@@ -353,10 +353,10 @@ const PCECads = (() => {
 
   /* ================= fichas oficiais ================= */
   const vazioV = v => v == null || v === '' || (Array.isArray(v) && !v.length);
-  /** Perguntas do modelo que o app faz: as próprias do modelo, sem as só de registro antigo, as que a visita responde e as tiradas dos frutos. */
+  /** Perguntas do modelo que o app faz: as próprias do modelo, sem as que a visita responde e as tiradas dos frutos (deFrutos e calc). */
   function perguntasDoModelo(modelo) {
     const M = FI.modelos[modelo], LV = M.levantamento || {};
-    return [...arr(M.propriedade), ...arr(M.perguntas), ...arr(LV.perguntas)].filter(p => !p.legado && !p.deVisita && !p.fonte && !p.deFrutos);
+    return [...arr(M.propriedade), ...arr(M.perguntas), ...arr(LV.perguntas)].filter(p => !p.deVisita && !p.fonte && !p.deFrutos && !p.calc);
   }
   const chavesDa = p => [p.k, p.k2, p.compl && p.compl.k, p.outro].filter(Boolean);
   const defDe = (modelo, k) => perguntasDoModelo(modelo).find(p => p.k === k) || null;
@@ -446,7 +446,7 @@ const PCECads = (() => {
         <p><b>${esc((pe && pe.nome) || '')}</b> · ${esc(p.nome || p.codigo || '')}</p>
         <p class="dica" style="text-align:left">Produtor, propriedade e frutos vêm do cadastro. A ficha não impede o Termo.${respondidas && !atual ? ` ${respondidas} pergunta(s) já respondida(s) em outra ficha ou na visita não aparecem aqui.` : ''}</p></div>
       ${perguntas.length ? `<div class="card" id="fi-perguntas"><h3>Perguntas do modelo</h3>${perguntas.map(q => perguntaHTML(q, v, PF0)).join('')}</div>` : '<div class="card tf-ok" id="fi-semperguntas">Nada mais a perguntar para este modelo.</div>'}
-      <div class="card"><h3>Responsável técnico (se houver)</h3><div class="duas">${N().inp(PF0, 'rtnome', 'Nome', FIC.rt.nome, 'maxlength="120"')}${N().inp(PF0, 'rtconselho', 'Nº do conselho', FIC.rt.conselho, 'maxlength="60"')}</div></div>
+      ${M.rt ? `<div class="card"><h3>Responsável técnico (se houver)</h3><div class="duas">${N().inp(PF0, 'rtnome', 'Nome', FIC.rt.nome, 'maxlength="120"')}${N().inp(PF0, 'rtconselho', 'Nº do conselho', FIC.rt.conselho, 'maxlength="60"')}</div></div>` : ''}
       <button class="botao" type="submit" id="fi-salvar">${icone('salvar')} ${atual ? 'Salvar ficha' : 'Gerar ficha'}</button>
       <button class="botao sec" type="button" data-cad="voltarficha" data-cpf="${esc(doc)}">Cancelar</button></form>`);
     $('#pceFichaForm').onsubmit = ev => { ev.preventDefault(); salvarFicha().catch(err => toast('Erro ao salvar: ' + err.message, true)); };
@@ -458,7 +458,7 @@ const PCECads = (() => {
       const { p, pe, modelo, atual, s } = F, doc = digitos(p.doc);
       const dados = { ...(atual ? lerJSON(atual.dados, {}) : {}), ...F.reaproveitado, fichaNova: 1 };
       F.perguntas.forEach(q => Object.assign(dados, lerPergunta(q, PF0)));
-      const rt = { nome: N().g(PF0, 'rtnome').trim(), conselho: N().g(PF0, 'rtconselho').trim() }; dados.rt = rt;
+      if (FI.modelos[modelo].rt) dados.rt = { nome: N().g(PF0, 'rtnome').trim(), conselho: N().g(PF0, 'rtconselho').trim() };      // só as fichas de papel que têm responsável técnico
       const t0 = Date.now(), frutos = frutosDe(p).filter(f => modeloDaCultura(f.cultura) === modelo);
       let rec = { ...(atual || {}), id: F.id, programa: modelo, propriedadeId: p.id, doc, nome: (pe && pe.nome) || '', propriedade: p.nome || '', cnpj: digitos(p.cnpj), municipio: p.municipio || '', uf: p.uf || '',
         lat: p.lat == null ? '' : p.lat, lon: p.lon == null ? '' : p.lon, dados: JSON.stringify(dados), totalPlantas: frutos.reduce((n, f) => n + (Number(f.quantidade) || 0), 0), fotos: '[]',

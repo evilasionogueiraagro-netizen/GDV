@@ -176,7 +176,6 @@ const PCEDocs = (() => {
     }
     return r;
   }
-  const temDado = o => Object.values(o).some(x => x !== '' && x != null);
   /** Respostas extras que a visita traz por pergunta (culturas[].extras, visita.dados e visita.extras; o mais específico por último). */
   function extrasDaVisita(visita) {
     const v = obj(visita), o = {};
@@ -228,6 +227,15 @@ const PCEDocs = (() => {
       if (p.compl) r[p.compl.k] = p.compl.tipo === 'varios' ? lista(ler(p.compl.k)) : str(ler(p.compl.k));
       if (p.outro) r[p.outro] = str(ler(p.outro));
     });
+    // o que o papel pede e os frutos já sabem (soma ou lista de um campo da tabela dos frutos): o que foi escrito na ficha vale primeiro
+    const calcDe = c => {
+      const [tipo, campo] = String(c).split(':'), vals = frutos.map(x => x[campo]);
+      return tipo === 'soma' ? (vals.some(x => num(x)) ? numTxt(Math.round(vals.reduce((t, x) => t + num(x), 0) * 1000) / 1000) : '') : unicos(vals).join(', ');
+    };
+    todasPerguntas.forEach(p => {
+      if (p.calc && !r[p.k]) r[p.k] = calcDe(p.calc);
+      if (p.compl && p.compl.calc && !r[p.compl.k]) r[p.compl.k] = calcDe(p.compl.calc);
+    });
     // respostas que a visita já dá (a ficha não pergunta de novo): praga avaliada, coleta de amostra e ocorrência de praga
     arr(obj(M.levantamento).perguntas).forEach(p => {
       if (p.deVisita && !r[p.k]) { const ps = pragasDaVisita(visita, p.deVisita).map(x => resultadoSN(x.resultado)).filter(Boolean); if (ps.length) r[p.k] = ps.includes('sim') ? 'sim' : 'nao'; }
@@ -253,7 +261,7 @@ const PCEDocs = (() => {
       if (fora.length) { marcados.add('outros'); if (!r[p.outro]) r[p.outro] = unicos(fora).join(', '); }
       r[p.k] = [...marcados];
     });
-    const linhas = arr(obj(M.levantamento).linhas).map(L => ({ ...L, ...linhaLevantamento(L, visita, d) })).filter(L => !L.legado || L.tem || temDado({ a: L.tempo, b: L.controle, c: L.qual }));
+    const linhas = arr(obj(M.levantamento).linhas).map(L => ({ ...L, ...linhaLevantamento(L, visita, d) }));
     const comercial = sn(primeiro(pr.comercial, d.comercial));
     const rt = { nome: '', conselho: '', ...obj(d.rt), ...obj(f.rt) };
     return {
@@ -293,87 +301,107 @@ const PCEDocs = (() => {
     const complemento = (c) => (!c ? null : c.tipo === 'varios'
       ? el('span', 'compl', rot(/[:?]$/.test(c.rot) ? c.rot : c.rot + ':'), ' ', ...opcoes(c, c.ops, V.r[c.k] || [], ''))
       : el('span', 'compl', rot(/[:?]$/.test(c.rot) ? c.rot : c.rot + ':'), ' ', v(V.r[c.k], 'curto')));
-    /** Linha de pergunta: texto da pergunta à esquerda e, à direita, as caixas (e o complemento) ou o valor. */
-    const linhaPerg = p => {
+    /** Resposta de uma pergunta como nós soltos (caixas, valor, complemento), para a linha de pergunta e para a célula de duas perguntas. */
+    const resposta = p => {
       const val = V.r[p.k];
-      let resp;
-      if (p.tipo === 'texto' || p.tipo === 'num') {
-        resp = el('div', 'cp', v(val), p.compl ? complemento(p.compl) : null);
-      } else if (p.tipo === 'coord') {
-        resp = el('div', 'cp duplo', v(val), '/', v(V.r[p.k2]));
-      } else {
-        const ops = p.tipo === 'sn' ? [['sim', 'sim'], ['nao', 'não']] : p.ops, marcados = p.tipo === 'sn' ? [sn(val)] : p.tipo === 'opcao' ? [str(val)] : lista(val);
-        resp = el('div', p.layout || '', ...opcoes(p, ops, marcados, V.r[p.outro]), complemento(p.compl));
-      }
-      return tr(td('lbl', p.rot), td('', resp));
+      if (p.tipo === 'texto' || p.tipo === 'num') return [v(val), p.compl ? complemento(p.compl) : null];
+      if (p.tipo === 'coord') return [v(val), '/', v(V.r[p.k2])];
+      const ops = p.tipo === 'sn' ? [['sim', 'sim'], ['nao', 'não']] : p.ops, marcados = p.tipo === 'sn' ? [sn(val)] : p.tipo === 'opcao' ? [str(val)] : lista(val);
+      return [...opcoes(p, ops, marcados, V.r[p.outro]), complemento(p.compl)];
     };
-    const perguntas = lista_ => {
-      const ls = lista_.filter(p => !p.legado || !vazioV(V.r[p.k]) || (p.compl && !vazioV(V.r[p.compl.k])));
-      const pct = 32;                                                                  // mesma coluna de texto em todas as tabelas de todas as fichas
-      return ls.length ? tabela('perg', [pct + '%', ''], ls.map(linhaPerg)) : null;
+    /** Linha de pergunta: texto da pergunta à esquerda e, à direita, as caixas (e o complemento) ou o valor. */
+    const classeResp = p => (p.tipo === 'texto' || p.tipo === 'num' ? 'cp' : p.tipo === 'coord' ? 'cp duplo' : p.layout || '');
+    const linhaPerg = p => tr(td('lbl', p.rot), td('', el('div', classeResp(p), ...resposta(p))));
+    /** Duas perguntas na mesma linha do papel, uma célula para cada. */
+    const linhaPar = ps => tr(...ps.map(p => td('', el('div', 'cp', rot(p.rot), ' ', ...resposta(p)))));
+    // perguntas fixas, comuns às fichas, e as que o papel tira dos frutos
+    const unicosTxt = l => unicos(l).join(', ');
+    const fixas = {
+      situacao: { k: 'situacao', rot: 'SITUAÇÃO FUNDIÁRIA:', tipo: 'opcao', ops: cfg.situacoes, outro: 'situacaoOutras', outroOp: 'outras' },
+      destino: { k: 'destino', rot: 'DESTINO DA PRODUÇÃO:', tipo: 'texto' }
     };
+    V.r.situacao = V.situacao; V.r.situacaoOutras = V.situacaoOutras; V.r.destino = unicosTxt(V.frutos.map(x => x.destino));
+    const pool = [...arr(M.propriedade), ...arr(M.perguntas), ...arr(obj(M.levantamento).perguntas)];
+    const pergunta = k => fixas[k] || pool.find(p => p.k === k);
+    const colunasDe = (cols) => cols.map(c => [c, (M.colunas && M.colunas[c]) || (cfg.colunas.find(x => x[0] === c) || [])[1] || c.toUpperCase()]);
+    const LARG = { cultura: 15, atividade: 20, cultivar: 18, cultivarCultura: 20, area: 9, espacamento: 14, idade: 10, quantidade: 13, producao: 19, destino: 16 };
+    const numero = n => (n >= 0 ? n + '.   ' : '');
+    // quadro "Cultura (Nº de plantas)" do cacau e cupuaçu: o número de plantas de cada cultura, tirado dos frutos
+    const quadroPlantas = () => {
+      const nomes = arr(M.plantas), soma = n => V.frutos.filter(x => norm(x.cultura) === norm(n)).reduce((t, x) => t + num(x.quantidade), 0);
+      const qtd = nomes.map(n => soma(n)), total = qtd.reduce((t, x) => t + x, 0);
+      return tabela('plantas', null, tr(td('', el('div', 'cp', rot('Cultura (Nº de plantas):'), ' ', ...nomes.flatMap((n, i) => [el('span', 'pl-i', el('b', '', n), ' ', v(qtd[i] ? numTxt(qtd[i]) : '', 'curto')), ' ']),
+        el('span', 'pl-i', el('b', '', 'Total'), ' ', v(total ? numTxt(total) : '', 'curto'))))));
+    };
+    /** Tabela dos frutos: só as colunas do papel do modelo, com linhas em branco até o mínimo do papel. */
+    const tabelaCultura = (b) => {
+      const colunas = colunasDe(b.cultura), cheias = V.frutos, vazias = Math.max(0, (b.linhas || 3) - cheias.length);
+      const celula = (x, c) => td('', c === 'cultivarCultura' ? [x.cultura, x.cultivar].filter(Boolean).join(' ') : c === 'cultivar' ? x.cultivar || x.cultura : str(x[c]));   // ficha de uma cultura só: sem cultivar, vale o nome da cultura
+      const somaLarg = colunas.reduce((t, [c]) => t + (LARG[c] || 14), 0);
+      return tabela('cult', colunas.map(([c]) => ((LARG[c] || 14) * 100 / somaLarg).toFixed(1) + '%'),
+        el('thead', '', tr(...colunas.map(([, tx]) => el('th', '', tx)))),
+        el('tbody', '', ...cheias.map(x => el('tr', 'cheia', ...colunas.map(([c]) => celula(x, c)))), ...Array.from({ length: vazias }, () => el('tr', 'vazia', ...colunas.map(() => td(''))))));
+    };
+    /** Linhas do levantamento como no papel: praga, sim, não e "Há quanto tempo" (ou "Qual"); abaixo, "Utiliza met. controle" quando o papel pergunta. */
+    const tabelaLinhas = ks => tabela('lev', ['34%', '11%', '11%', ''], ks.flatMap(k => {
+      const L = V.linhas.find(x => x.k === k); if (!L) return [];
+      const rs = [tr(td('b', L.rot), td('c', op(L.tem === 'sim', 'sim')), td('c', op(L.tem === 'nao', 'não')),
+        L.cols.includes('tempo') ? td('', rot('Há quanto tempo:'), ' ', v(L.tempo)) : L.cols.includes('qual') && !L.cols.includes('controle') ? td('', rot('Qual:'), ' ', v(L.qual)) : td(''))];
+      if (L.cols.includes('controle')) rs.push(tr(td('', 'Utiliza met. controle:'), td('c', op(L.controle === 'sim', 'sim')), td('c', op(L.controle === 'nao', 'não')), td('', rot('Qual:'), ' ', v(L.qual))));
+      return rs;
+    }));
     const corpo = [];
 
     // título oficial com Nº, base legal
     corpo.push(tabela('', null, tr(td('tit', V.titulo)),
       tr(td('tit', V.numeroRot + ' ', (() => { const n = el('span'); n.setAttribute('data-numero', ''); return n; })())),
       V.base.length ? tr(td('base', ...V.base.flatMap((l, i) => (i ? [el('br'), l] : [l])))) : null));
-    // propriedade comercial?
-    corpo.push(tabela('aviso', ['31%', '15%', ''],
-      tr(td('b', 'PROPRIEDADE COMERCIAL?'), td('', op(V.comercial === 'sim', 'SIM'), op(V.comercial === 'nao', 'NÃO')), td('', cfg.avisoNaoComercial)),
+    // propriedade comercial? (só nas fichas que têm o quadro)
+    if (M.comercial !== undefined) corpo.push(tabela('aviso', ['31%', '15%', ''],
+      tr(td('b', 'PROPRIEDADE COMERCIAL?'), td('', op(V.comercial === 'sim', 'SIM'), op(V.comercial === 'nao', 'NÃO')), td('', M.comercial)),
       tr(tdc(3, 'Propriedade não comercial: ', ...cfg.naoComercial.map(([c, tx]) => op(V.tipoNaoComercial === c, tx + (c === 'outros' ? ':' : ';'), c === 'outros' ? v(V.tipoOutros, 'curto') : null))))));
-    // 1. produtor/proprietário (o mesmo em todas as fichas)
-    const i = V.id;
-    corpo.push(sec('1.   DADOS DO PRODUTOR/PROPRIETÁRIO'));
+    // 1. produtor/proprietário: o que o papel de cada modelo tem
+    const i = V.id, cmp = arr(M.produtor);
+    corpo.push(sec('1.   DADOS DO PRODUTOR/PROPRIETÁRIO'));
     // cada linha é uma tabela com as próprias larguras (nada quebra à toa); as bordas se juntam como num quadro só
     corpo.push(tabela('dados', ['60%', ''], tr(td('', cp('NOME DO PRODUTOR:', i.nome)), td('', cp('CPF:', i.cpf, '', 'nw'))),
       tr(td('', cp('NOME DA PROPRIEDADE:', i.propriedade)), td('', cp('CNPJ:', i.cnpj, '', 'nw')))));
-    corpo.push(tabela('dados', ['36%', ''], tr(td('', cp('TELEFONE:', i.telefone, '', 'nw')), td('', cp('CÓDIGO DA PROPRIEDADE (CONFORME IN Nº33/2016):', i.codigo, '', 'nw')))));
+    if (cmp.includes('telefone')) corpo.push(tabela('dados', null, tr(td('', cp('TELEFONE:', i.telefone, '', 'nw')))));
+    const georref = el('div', 'cp duplo', rot('GEORREFERENCIAMENTO: Lat.:'), v(i.lat, 'nw'), rot('Lon.:'), v(i.lon, 'nw'));
+    corpo.push(cmp.includes('codigo') ? tabela('dados', ['47%', ''], tr(td('', cp('CÓDIGO DA PROPRIEDADE (CONFORME IN Nº33/2016):', i.codigo, '', 'nw')), td('', georref)))
+      : tabela('dados', null, tr(td('', georref))));
+    if (cmp.includes('via')) corpo.push(tabela('dados', null, tr(td('', rot('PRINCIPAL VIA DE ACESSO À PROPRIEDADE: '), ...cfg.vias.map(([c, tx]) => op(i.via === c, tx, c === 'outra' ? el('span', '', ': ') : null, c === 'outra' ? v(i.viaOutra, 'curto') : null))))));
     corpo.push(tabela('dados', ['60%', ''], tr(td('', cp('ENDEREÇO:', i.endereco)), td('', el('div', 'cp duplo', rot('MUNICÍPIO:'), v(i.municipio), rot('UF:'), v(i.uf, 's nw'))))));
-    corpo.push(tabela('dados', ['60%', ''], tr(td('', el('div', 'cp duplo', rot('GEORREFERENCIAMENTO: Lat.:'), v(i.lat, 'nw'), rot('Lon.:'), v(i.lon, 'nw'))),
-      td('', rot('PRINCIPAL VIA DE ACESSO À PROPRIEDADE: '), ...cfg.vias.map(([c, tx]) => op(i.via === c, tx, c === 'outra' ? el('span', '', ': ') : null, c === 'outra' ? v(i.viaOutra, 'curto') : null))))));
-    // 2. dados da propriedade: situação fundiária + o que é do modelo
-    const situacao = { k: 'situacao', rot: 'SITUAÇÃO FUNDIÁRIA:', tipo: 'opcao', ops: cfg.situacoes, outro: 'situacaoOutras', outroOp: 'outras' };
-    V.r.situacao = V.situacao; V.r.situacaoOutras = V.situacaoOutras;
-    corpo.push(sec('2.   DADOS DA PROPRIEDADE'));
-    corpo.push(perguntas([situacao, ...arr(M.propriedade)]));
-    // 3. cultura: tabela padrão dos frutos + perguntas do modelo
-    corpo.push(sec('3.   ' + M.culturaTitulo));
-    const colunas = cfg.colunas.map(([c, tx]) => [c, (M.colunas && M.colunas[c]) || tx]), W = { cultura: 10, cultivar: 13, area: 8, espacamento: 14, idade: 8, quantidade: 12, producao: 19, destino: 16 };
-    const cheias = V.frutos, vazias = Math.max(0, (cfg.linhasCultura || 3) - cheias.length);
-    const soma = k => cheias.reduce((s, x) => s + num(x[k]), 0), somaTxt = k => (cheias.some(x => num(x[k])) ? numTxt(Math.round(soma(k) * 1000) / 1000) : '');
-    const celula = (x, c) => { const t = td('', str(x[c])); if (c === 'cultura' && x.atividade) t.append(el('small', '', x.atividade)); return t; };
-    const cult = tabela('cult', colunas.map(([c]) => W[c] + '%'),
-      el('thead', '', tr(...colunas.map(([, tx]) => el('th', '', tx)))),
-      el('tbody', '', ...cheias.map(x => el('tr', 'cheia', ...colunas.map(([c]) => celula(x, c)))), ...Array.from({ length: vazias }, () => el('tr', 'vazia', ...colunas.map(() => td('')))),
-        cheias.length > 1 ? el('tr', 'total', ...colunas.map(([c]) => td('', c === 'cultura' ? 'TOTAL' : c === 'area' || c === 'quantidade' ? somaTxt(c) : ''))) : null));
-    corpo.push(cult);
-    if (arr(M.perguntas).length) corpo.push(perguntas(arr(M.perguntas)));
-    // 4. levantamento: quadro padrão praga / sim-não / há quanto tempo / controle
-    corpo.push(sec('4.   LEVANTAMENTO'));
-    const L = V.linhas, LV = obj(M.levantamento);
-    if (L.length) {
-      const tipoTxt = { delimitacao: 'Delimitação', deteccao: 'Detecção' };
-      const aplica = (l, c) => l.cols.includes(c);
-      corpo.push(tabela('lev', ['23%', '15%', '5%', '5%', '17%', '16%', ''],
-        el('thead', '', tr(...['PRAGA', 'LEVANTAMENTO', 'SIM', 'NÃO', 'HÁ QUANTO TEMPO', 'UTILIZA MÉT. CONTROLE', 'QUAL'].map(tx => el('th', '', tx)))),
-        el('tbody', '', ...L.map(l => el('tr', '', td('b', l.rot), td('c', tipoTxt[l.tipo]), td('c', cx(l.tem === 'sim')), td('c', cx(l.tem === 'nao')),
-          aplica(l, 'tempo') ? td('', v(l.tempo)) : td('na', '—'),
-          aplica(l, 'controle') ? td('c', op(l.controle === 'sim', 'sim'), op(l.controle === 'nao', 'não')) : td('na', '—'),
-          aplica(l, 'controle') || aplica(l, 'qual') ? td('', v(l.qual)) : td('na', '—'))))));
-    }
-    if (arr(LV.perguntas).length) corpo.push(perguntas(arr(LV.perguntas)));
-    // responsável técnico, assinaturas
+    // demais seções, na ordem do papel do modelo
+    arr(M.secoes).forEach((S, n) => {
+      corpo.push(sec(numero(n + 2) + S.titulo));
+      let grupo = [];
+      const fechar = () => { if (grupo.length) corpo.push(tabela('perg', ['32%', ''], grupo.map(linhaPerg))); grupo = []; };
+      arr(S.blocos).forEach(b => {
+        if (typeof b === 'string') {
+          if (b === 'plantas') { fechar(); corpo.push(quadroPlantas()); return; }
+          const p = pergunta(b); if (p) grupo.push(p); return;
+        }
+        fechar();
+        if (Array.isArray(b)) { const ps = b.map(pergunta).filter(Boolean); if (ps.length) corpo.push(tabela('par', null, linhaPar(ps))); }
+        else if (b.cultura) corpo.push(tabelaCultura(b));
+        else if (b.linhas) corpo.push(tabelaLinhas(b.linhas));
+      });
+      fechar();
+    });
+    // responsável técnico (só nas fichas que têm), declaração e assinaturas
     const fim = [];
     const rt = V.rt;
-    fim.push(tabela('', ['68%', ''], tr(td('', cp('NOME DO RESPONSÁVEL TÉCNICO (SE HOUVER):', rt.nome)), td('', cp('Nº CONSELHO:', rt.conselho, '', 'nw')))));
+    if (M.rt) fim.push(tabela('', ['68%', ''], tr(td('', cp(M.rt, rt.nome)), td('', cp('Nº CONSELHO:', rt.conselho, '', 'nw')))));
     if (V.declaracao) fim.push(el('div', 'resp', V.declaracao));
     const s = V.servidor;
+    const dataLinha = M.data === 'localedata' ? el('div', 'data', 'LOCAL E DATA: ', v(V.local, 'curto'), ', ', v(V.dataTxt, 'curto'))
+      : M.data === 'dataelocal' ? el('div', 'data', 'DATA: ', v(V.dataTxt, 'curto'), el('br'), 'Local: ', v(V.local, 'curto')) : el('div', 'data', 'DATA: ', v(V.dataTxt, 'curto'));
     fim.push(tabela('assin', null, tr(td('', el('div', 'cols',
       el('div', 'col', el('div', 'ass-img'), el('div', 'linha', 'SERVIDOR DA ADAF-AM'),
         el('div', 'serv', el('b', '', s.nome), el('br'), s.cargo, el('br'), [s.matricula, s.lotacao].filter(Boolean).join(' '))),
       el('div', 'col', el('div', 'ass-img'), el('div', 'linha', 'PRODUTOR/PROPRIETÁRIO'), el('div', 'serv', i.nome))),
-      el('div', 'data', 'LOCAL E DATA: ', v(V.local, 'curto'), ', ', v(V.dataTxt, 'curto'))))));
+      dataLinha))));
     const [colS, colP] = fim[fim.length - 1].querySelectorAll('.col'); colS.setAttribute('data-ass', 'servidor'); colP.setAttribute('data-ass', 'produtor');
     corpo.push(el('div', 'fim', ...fim));
     const alvo = pg.querySelector('[data-ficha]'); alvo.textContent = ''; alvo.append(...corpo.filter(Boolean));

@@ -83,7 +83,7 @@ const CAN = 'IN MAPA nº 21/2018; IN SDA/MAPA nº 38', HLB = 'Portaria SDA/MAPA 
   await p.click('#fi-salvar'); await p.waitForSelector('#pce-produtor');
   ok(new RegExp(`Gerada: nº 001-${ANO}-MANAUS`).test(await p.textContent('.pce-visita-termo[data-modelo=citros]')), 'ficha numerada por programa, unidade e ano');
   const pf = await A.imprimir(p, '.pce-visita-termo[data-modelo=citros] [data-cad=pdfficha]');
-  ok(/CADASTRO DE IMÓVEIS DE PRODUÇÃO COMERCIAL DE CÍTRICOS/.test(pf.texto) && /Laranja Pera/.test(pf.texto) && /Limão Tahiti/.test(pf.texto) && /TOTAL/.test(pf.texto) && /Viveiro fictício credenciado/.test(pf.texto), 'PDF da ficha: título oficial, tabela dos frutos e respostas', pf.texto.slice(0, 600));
+  ok(/CADASTRO DE IMÓVEIS DE PRODUÇÃO COMERCIAL DE CÍTRICOS/.test(pf.texto) && /Laranja Pera/.test(pf.texto) && /Limão Tahiti/.test(pf.texto) && /Viveiro fictício credenciado/.test(pf.texto), 'PDF da ficha: título oficial, tabela dos frutos (sem linha de total, que o papel não tem) e respostas', pf.texto.slice(0, 600));
   ok(/Cancro Cítrico/.test(pf.texto) && /HLB/.test(pf.texto), 'quadro do levantamento com cancro, HLB e ácaro');
   await A.salvarPdf(p, pf, 'pce-ficha.html', 'pce_citros_ficha');
   if (process.env.GDV_SAIDA_CITROS) fs.copyFileSync(amb.saida('pce_citros_ficha.png'), process.env.GDV_SAIDA_CITROS + '/07-ficha-citros.png');

@@ -208,35 +208,45 @@ const CONFIG = {
     // pragas = nomes do catálogo; perguntas = chaves de CONFIG.PCE.fichas.modelos[modelo].levantamento.perguntas (a ficha oficial lê as respostas da visita).
     // As respostas vão em culturas[].dados do Termo do programa.
     visita: { deteccao: { moniliase: { pragas: ['Monilíase do Cacaueiro'], perguntas: ['sintomaLat', 'camaraUmida', 'camaraMr', 'suspeitos'] } } },
-    // Fichas oficiais do PCE: UM modelo de documento (documentos/pce-ficha.html) guiado por esta configuração, para os 6 modelos de papel.
-    // Mesma estrutura em todas: cabeçalho e título oficial com Nº; propriedade comercial?; 1. dados do produtor/proprietário (igual em todas);
-    // 2. dados da propriedade (situação fundiária + o que é do modelo); 3. cultura (tabela padrão vinda dos frutos da propriedade + perguntas do modelo);
-    // 4. levantamento (quadro padrão praga / sim-não / há quanto tempo / controle, da visita mais recente; delimitação e detecção no mesmo formato);
-    // responsável técnico e assinaturas. Título, normas e perguntas são os do papel (conteudo_gdv/modulos/pce/fichas-de-papel). Códigos não mudam.
-    // Pergunta: {k, rot, tipo: texto | num | sn | opcao | varios | coord, ops: [[código, texto, grupo?]], compl: {k, rot, tipo?, ops?} (complemento na mesma
-    // linha), outro: k do texto da opção "outro", layout: 'coluna' | 'colunas2', legado: true (só aparece em registro antigo que já traz a resposta; o
-    // app não pergunta), fonte: 'coleta' | 'ocorrencia' (resposta vem da visita) ou deVisita: [nomes de praga] (sim se Detectada ou Suspeita)}.
-    // Linha do levantamento: {k, rot, tipo: delimitacao | deteccao, pragas: [nomes do catálogo], cols: [tempo, controle, qual], legado?}.
-    // O comercial, a situação fundiária, a via de acesso, o telefone, o código, o endereço e o responsável técnico não aparecem em "perguntas":
-    // são comuns a todas as fichas (perguntados uma vez, no cadastro do produtor e da propriedade).
+    // Fichas oficiais do PCE: UM modelo de documento (documentos/pce-ficha.html) guiado por esta configuração, para os 6 modelos de papel. Cada ficha imprime só as seções,
+    // campos, colunas e textos do SEU papel (por modelo, em "secoes"); o título pode ser o padrão. O levantamento vem da visita mais recente. Códigos não mudam.
+    // Pergunta: {k, rot, tipo: texto | num | sn | opcao | varios | coord, ops: [[código, texto, grupo?]], compl: {k, rot, tipo?, ops?, calc?} (complemento na mesma
+    // linha), outro: k do texto da opção "outro", layout: 'coluna' | 'colunas2', fonte: 'coleta' | 'ocorrencia' (resposta vem da visita) ou deVisita: [nomes de praga]
+    // (sim se Detectada ou Suspeita), calc: 'soma:campo' | 'lista:campo' (sai dos frutos da ficha; o app não pergunta)}.
+    // Linha do levantamento: {k, rot, tipo: delimitacao | deteccao, pragas: [nomes do catálogo], cols: [tempo, controle, qual]}.
+    // O comercial, a situação fundiária, a via de acesso, o telefone, o código, o endereço e o responsável técnico (do papel que os tem) são comuns às fichas:
+    // vêm do cadastro do produtor e da propriedade, perguntados uma vez. Em "perguntas" ficam só as próprias do modelo.
     fichas: {
       situacoes: [['proprietario', 'PROPRIETÁRIO'], ['arrendatario', 'ARRENDATÁRIO'], ['cooperativa', 'COOPERATIVA'], ['outras', 'OUTRAS (ESPECIFICAR)']],
       naoComercial: [['sitio', 'sítio'], ['residencia', 'residência'], ['vegetacao', 'vegetação espontânea'], ['publica', 'área pública'], ['outros', 'outros']],
       vias: [['fluvial', 'FLUVIAL'], ['terrestre', 'TERRESTRE'], ['outra', 'OUTRA']],
-      avisoNaoComercial: 'Marcada opção “NÃO” preencher apenas itens 1 e 4.',
-      linhasCultura: 3,                              // linhas em branco da tabela de cultura, no mínimo (como no papel)
       // colunas da tabela de cultura (campos de frutos); cada modelo pode trocar o texto do cabeçalho em "colunas"
-      colunas: [['cultura', 'CULTURA'], ['cultivar', 'CULTIVAR'], ['area', 'ÁREA (ha)'], ['espacamento', 'ESPAÇAMENTO'], ['idade', 'IDADE (Ano)'],
+      colunas: [['cultura', 'CULTURA'], ['atividade', 'TIPO DE ATIVIDADE'], ['cultivar', 'CULTIVAR'], ['cultivarCultura', 'CULTIVAR'], ['area', 'ÁREA (ha)'], ['espacamento', 'ESPAÇAMENTO'], ['idade', 'IDADE (Ano)'],
         ['quantidade', 'QUANTIDADE (plantas)'], ['producao', 'PRODUÇÃO (tonelada/Ano – sacas/ha/ano)'], ['destino', 'DESTINO DA PRODUÇÃO']],
       // cultura (catálogo) → modelo de ficha, para escolher os frutos de cada ficha; fruto com "modelo" próprio vale por ele; sem lista = "propriedade"
       culturaModelo: { 'Laranja': 'citros', 'Limão': 'citros', 'Tangerina': 'citros', 'Banana': 'banana', 'Cacau': 'moniliase', 'Cupuaçu': 'moniliase', 'Herrania': 'moniliase',
         'Cacauí': 'moniliase', 'Cupuí': 'moniliase', 'Macambo': 'moniliase', 'Mandioca': 'mandioca', 'Soja': 'soja' },
       // modelo → nome da cultura quando o registro antigo não a traz (tabela sem coluna de cultura)
       culturaPadrao: { citros: 'Citros', banana: 'Banana', mandioca: 'Mandioca', soja: 'Soja' },
+      // Cada modelo diz o que a SUA ficha de papel tem (conteudo_gdv/modulos/pce/cadastros/*.docx), nada além disso:
+      //   comercial: texto do aviso do "PROPRIEDADE COMERCIAL?" ('' = sem aviso; ausente = a ficha não tem o quadro);
+      //   produtor: campos do item 1 além de nome, CPF, propriedade, CNPJ, georreferenciamento, endereço, município e UF (telefone, codigo, via);
+      //   rt: rótulo do responsável técnico (ausente = sem RT); data: 'data' | 'localedata' (LOCAL E DATA) | 'dataelocal' (DATA e, abaixo, Local);
+      //   secoes: [{titulo, blocos}] na ordem do papel, numeradas a partir do 2 (o 1 é o do produtor). Bloco = chave de uma pergunta do modelo (uma linha),
+      //   lista de duas chaves (duas perguntas na mesma linha), {cultura: [colunas], linhas: mínimo de linhas} (tabela dos frutos), {linhas: [chaves de levantamento.linhas]}
+      //   (praga, sim/não, há quanto tempo ou qual, controle), ou um dos nomes fixos: 'situacao' (situação fundiária), 'destino' (destino da produção, dos frutos)
+      //   e 'plantas' (quadro "Cultura (Nº de plantas)" do cacau e cupuaçu). Colunas da tabela: cultura, cultivar, cultivarCultura (cultura + cultivar),
+      //   atividade, area, espacamento, idade, quantidade, producao, destino. Pergunta com calc ('soma:campo' ou 'lista:campo') sai dos frutos e o app não pergunta.
       modelos: {
         citros: { nome: 'Citros', titulo: 'CADASTRO DE IMÓVEIS DE PRODUÇÃO COMERCIAL DE CÍTRICOS', numero: 'CADASTRO DA PROPRIEDADE Nº',
           base: ['(ATENDIMENTO A IN Nº21 DE 25/04/2018 - Cancro cítrico e Portaria Nº 317 de 21/05/2021 - HLB)', 'LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS DE CITROS'],
-          culturaTitulo: 'CULTURA DO CITROS',
+          comercial: 'Marcada opção “NÃO” preencher apenas itens 1, 4 e 5.', produtor: ['codigo'], rt: 'NOME DO RESPONSÁVEL TÉCNICO:', data: 'data',
+          secoes: [
+            { titulo: 'TIPO DE ATIVIDADE', blocos: ['atividades', 'situacao'] },
+            { titulo: 'CULTURA DO CITROS', blocos: [{ cultura: ['atividade', 'cultivarCultura', 'area', 'idade', 'quantidade', 'producao'], linhas: 4 }, 'entrega', 'compradores', 'beneficia', 'materiais', 'origemMaterial'] },
+            { titulo: 'LEVANTAMENTO DE DELIMITAÇÃO', blocos: [{ linhas: ['pintapreta'] }] },
+            { titulo: 'LEVANTAMENTO DE DETECÇÃO', blocos: [{ linhas: ['cancro', 'hlb', 'acaro'] }] }],
+          colunas: { atividade: 'TIPO DE ATIVIDADE', cultivarCultura: 'CULTIVAR', producao: 'PRODUÇÃO (tonelada/Ano)' },
           propriedade: [
             { k: 'atividades', rot: 'TIPO DE ATIVIDADE', tipo: 'varios', layout: 'colunas2', outro: 'atividadeOutros', ops: [['viveiro_mudas', 'Produção de Mudas', 'VIVEIRO'],
               ['frutos', 'Produção comercial de Frutos'], ['viveiro_semorigem', 'Fornecedor de Material de Propagação sem origem genética comprovada', 'VIVEIRO'],
@@ -254,7 +264,11 @@ const CONFIG = {
             { k: 'acaro', rot: 'Ácaro Hindustânico', tipo: 'deteccao', pragas: ['Schizotetranychus hindustanicus', 'Ácaro Hindustânico'], cols: ['tempo'] }] } },
         banana: { nome: 'Banana', titulo: 'FICHA DE CADASTRO E LEVANTAMENTO DE BANANA', numero: 'Nº',
           base: ['(ATENDIMENTO A IN Nº17 DE 27/05/2009 – Moko da Bananeira e Portaria Nº 17 de 31/05/2005 – Sigatoka Negra)', 'LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS DA BANANA'],
-          culturaTitulo: 'DADOS DA CULTURA', colunas: { idade: 'IDADE DO PLANTIO (Ano)', producao: 'PRODUÇÃO (tonelada/Ano)' },
+          comercial: 'Marcada opção “NÃO” preencher apenas itens 1, 4 e 5.', produtor: ['codigo'], rt: 'NOME DO RESPONSÁVEL TÉCNICO:', data: 'data',
+          secoes: [
+            { titulo: 'DADOS DA CULTURA', blocos: [{ cultura: ['cultivar', 'area', 'idade', 'quantidade', 'producao'], linhas: 5 }, 'compradores', 'origemMaterial', 'destino'] },
+            { titulo: 'LEVANTAMENTO DE DELIMITAÇÃO', blocos: [{ linhas: ['moko', 'sigatoka'] }] }],
+          colunas: { idade: 'IDADE DO PLANTIO (Ano)', producao: 'PRODUÇÃO (tonelada/Ano)' },
           perguntas: [
             { k: 'compradores', rot: 'Com quem comercializa:', tipo: 'varios', ops: [['atravessador', 'atravessador'], ['supermercado', 'supermercado'], ['feira', 'feira'], ['cooperativa', 'cooperativa'], ['outros', 'outros']] },
             { k: 'origemMaterial', rot: 'Origem do material genético:', tipo: 'texto' }],
@@ -262,24 +276,23 @@ const CONFIG = {
             { k: 'moko', rot: 'MOKO DA BANANEIRA', tipo: 'delimitacao', pragas: ['Moko da Bananeira', 'Moko'], cols: ['tempo', 'controle'] },
             { k: 'sigatoka', rot: 'SIGATOKA NEGRA', tipo: 'delimitacao', pragas: ['Sigatoka Negra', 'Sigatoka'], cols: ['tempo', 'controle'] }] } },
         moniliase: { nome: 'Cacau e cupuaçu', titulo: 'FICHA DE CADASTRO E LEVANTAMENTO DE CACAU E CUPUAÇU', numero: 'Nº', base: [],
-          culturaTitulo: 'CULTURA – TIPO DE ATIVIDADE', colunas: { quantidade: 'QUANTIDADE (Nº de plantas)', producao: 'PRODUÇÃO (sacas ou kg)' },
+          comercial: '', produtor: ['via'], data: 'dataelocal', plantas: ['Cupuaçu', 'Cacau', 'Herrania', 'Cacauí', 'Cupuí', 'Macambo'],
+          secoes: [
+            { titulo: 'TIPO DE ATIVIDADE', blocos: ['plantas', ['areaAbandonada', 'areaTotal'], ['areaProducao', 'mumificados'], 'origem', ['producaoTxt', 'destinoTxt'], ['sacaria', 'controlePraga'], 'assistencia', 'frutosSaem'] },
+            { titulo: 'LEVANTAMENTO DE DETECÇÃO', blocos: ['sintomas', 'sintomaLat', ['camaraUmida', 'camaraMr'], 'suspeitos', ['amostra', 'diagnostico']] }],
           perguntas: [
             { k: 'areaAbandonada', rot: 'Existe área abandonada com as culturas:', tipo: 'sn' },
+            { k: 'areaTotal', rot: 'Área total plantada (ha):', tipo: 'texto', calc: 'soma:area', compl: { k: 'idadePlantio', rot: 'Idade do Plantio', calc: 'lista:idade' } },
             { k: 'areaProducao', rot: 'Área em produção (ha):', tipo: 'texto', compl: { k: 'idadeProducao', rot: 'Idade do Plantio' } },
             { k: 'mumificados', rot: 'Retirada de frutos mumificados:', tipo: 'sn' },
             { k: 'origem', rot: 'Origem das sementes/mudas:', tipo: 'opcao', ops: [['proprias', 'próprias'], ['terceiros', 'terceiros – informar fonte']], outro: 'origemFonte', outroOp: 'terceiros' },
+            { k: 'producaoTxt', rot: 'Produção (sacas ou kg):', tipo: 'texto', calc: 'lista:producao' },
+            { k: 'destinoTxt', rot: 'Destino da produção:', tipo: 'texto', calc: 'lista:destino' },
             { k: 'sacaria', rot: 'Sacaria utilizada:', tipo: 'opcao', ops: [['nova', 'nova'], ['reutilizada', 'reutilizada']] },
             { k: 'controlePraga', rot: 'Utiliza algum controle de Praga:', tipo: 'sn' },
             { k: 'assistencia', rot: 'Assistência Técnica:', tipo: 'opcao', ops: [['nao', 'Não possui'], ['privada', 'privada'], ['publica', 'pública/órgão']], outro: 'assistenciaOrgao', outroOp: 'publica' },
-            { k: 'frutosSaem', rot: 'Frutos Inteiros saem da propriedade?', tipo: 'opcao', ops: [['nao', 'Não'], ['sim', 'Sim: Qual o destino?']], outro: 'frutosDestino', outroOp: 'sim' },
-            // só em registro antigo (a tabela de cultura já tem área, idade, produção e destino de cada fruto)
-            { k: 'areaTotal', rot: 'Área total plantada (ha):', tipo: 'texto', legado: true, compl: { k: 'idadePlantio', rot: 'Idade do Plantio' } },
-            { k: 'producaoTxt', rot: 'Produção (sacas ou kg):', tipo: 'texto', legado: true }],
-          levantamento: { linhas: [
-            // informações fitossanitárias da versão antiga do cadastro (não estão no papel): só aparecem em registro antigo que já traz a resposta
-            { k: 'vassoura', rot: 'Vassoura de Bruxa', tipo: 'delimitacao', pragas: ['Vassoura de Bruxa do Cacaueiro'], cols: ['tempo', 'controle'], legado: true, antigo: 'fito' },
-            { k: 'podridao', rot: 'Podridão Parda', tipo: 'delimitacao', pragas: ['Podridão Parda'], cols: ['tempo', 'controle'], legado: true, antigo: 'fito' },
-            { k: 'lazio', rot: 'Lazio', tipo: 'delimitacao', pragas: ['Lazio'], cols: ['tempo', 'controle'], legado: true, antigo: 'fito' }],
+            { k: 'frutosSaem', rot: 'Frutos Inteiros saem da propriedade?', tipo: 'opcao', ops: [['nao', 'Não'], ['sim', 'Sim: Qual o destino?']], outro: 'frutosDestino', outroOp: 'sim' }],
+          levantamento: { linhas: [],
             perguntas: [
               { k: 'sintomas', rot: 'FRUTO COM SINTOMAS VISUAIS DE Moniliophthora roreri:', tipo: 'sn', deVisita: ['Monilíase do Cacaueiro', 'Moniliophthora roreri'] },
               { k: 'sintomaLat', k2: 'sintomaLon', rot: 'Em caso de planta com sintoma visual, informar coordenada da planta:', tipo: 'coord' },
@@ -289,7 +302,12 @@ const CONFIG = {
               { k: 'amostra', rot: 'COLHEITA DE AMOSTRA:', tipo: 'sn', fonte: 'coleta' },
               { k: 'diagnostico', rot: 'DIAGNÓSTICO:', tipo: 'opcao', ops: [['positivo', 'Positivo para M. roreri'], ['negativo', 'Negativo para M. roreri']] }] } },
         mandioca: { nome: 'Mandioca', titulo: 'FICHA DE CADASTRO E LEVANTAMENTO DE MANDIOCA', numero: 'Nº', base: ['LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS'],
-          culturaTitulo: 'CULTURA DA MANDIOCA', colunas: { cultivar: 'CULTIVAR/VARIEDADE', producao: 'ESTIMATIVA DE PRODUÇÃO (tonelada/Ano – sacas/ha/ano)' },
+          produtor: ['telefone', 'codigo'], data: 'localedata',
+          secoes: [
+            { titulo: 'DADOS DA PROPRIEDADE', blocos: ['situacao'] },
+            { titulo: 'CULTURA DA MANDIOCA', blocos: [{ cultura: ['cultivar', 'area', 'espacamento', 'producao'], linhas: 3 }, 'estagio', 'destino', 'materialDe', 'assistencia', 'limpeza'] },
+            { titulo: 'LEVANTAMENTO DE DETECÇÃO', blocos: [{ linhas: ['vassoura'] }, 'amostra'] }],
+          colunas: { cultivar: 'CULTIVAR/VARIEDADE', producao: 'ESTIMATIVA DE PRODUÇÃO (tonelada/Ano – sacas/ha/ano)' },
           perguntas: [
             { k: 'estagio', rot: 'ESTÁGIO DA PLANTA:', tipo: 'opcao', layout: 'colunas2', ops: [['plantio', 'Plantio e Emergência - 15-30 dias'], ['vegetativo', 'Desenvolvimento Vegetativo - 60-90 dias'],
               ['raizes', 'Formação e Desenvolvimento de Raízes - 90-180 dias'], ['maturacao', 'Maturação das Raízes - 180-270 dias'], ['colheita', 'Colheita - 270-360 dias']] },
@@ -301,7 +319,11 @@ const CONFIG = {
             perguntas: [{ k: 'amostra', rot: 'COLHEITA DE AMOSTRAS', tipo: 'sn', fonte: 'coleta', compl: { k: 'amostraTipo', rot: 'Tipo de material coletado' } }] } },
         soja: { nome: 'Soja', titulo: 'FICHA DE CADASTRO E LEVANTAMENTO DE SOJA', numero: 'Nº',
           base: ['(ATENDIMENTO A PORTARIA Nº 865, DE 2 DE AGOSTO DE 2023)', 'LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS'],
-          culturaTitulo: 'CULTURA DA SOJA',
+          produtor: ['telefone', 'codigo'], rt: 'NOME DO RESPONSÁVEL TÉCNICO:', data: 'data',
+          secoes: [
+            { titulo: 'DADOS DA PROPRIEDADE', blocos: ['situacao'] },
+            { titulo: 'CULTURA DA SOJA', blocos: [{ cultura: ['cultivar', 'area', 'espacamento', 'producao'], linhas: 3 }, 'destino', 'maquinario', 'limpeza', 'fornecedor'] },
+            { titulo: 'LEVANTAMENTO DE DETECÇÃO', blocos: [{ linhas: ['ferrugem', 'amaranthus'] }] }],
           perguntas: [
             { k: 'maquinario', rot: 'MAQUINÁRIO ORIUNDO OU SE DESLOCA PARA OUTRA UF?', tipo: 'sn', compl: { k: 'maquinarioLocal', rot: 'LOCAL' } },
             { k: 'limpeza', rot: 'LIMPEZA REALIZADA NO MAQUINÁRIO ANTES DO USO?', tipo: 'sn', compl: { k: 'limpezaForma', rot: 'DE QUE FORMA' } },
@@ -310,7 +332,13 @@ const CONFIG = {
             { k: 'ferrugem', rot: 'FERRUGEM ASIÁTICA', tipo: 'deteccao', pragas: ['Phakopsora pachyrhizi', 'Ferrugem Asiática'], cols: ['tempo'] },
             { k: 'amaranthus', rot: 'Amaranthus palmeri', tipo: 'deteccao', pragas: ['Amaranthus palmeri'], cols: ['qual'] }] } },
         propriedade: { nome: 'Propriedade', titulo: 'FICHA DE CADASTRO E LEVANTAMENTO DE PROPRIEDADE DE INTERESSE DA DEFESA VEGETAL', numero: 'Nº', base: [],
-          culturaTitulo: 'ÁREA PLANTADA', colunas: { producao: 'PRODUÇÃO (tonelada/Ano – sacas/ha/ano)' }, declaracao: 'ASSUMO TOTAL RESPONSABILIDADE PELAS INFORMAÇÕES AQUI PRESTADAS',
+          produtor: ['telefone', 'codigo', 'via'], rt: 'NOME DO RESPONSÁVEL TÉCNICO (SE HOUVER):', data: 'data', declaracao: 'ASSUMO TOTAL RESPONSABILIDADE PELAS INFORMAÇÕES AQUI PRESTADAS',
+          secoes: [
+            { titulo: 'DADOS DA PROPRIEDADE', blocos: ['situacao', ['areaTotal', 'areaAgricola']] },
+            { titulo: 'EXPLORAÇÃO DA PROPRIEDADE', blocos: ['sementes', 'tipos'] },
+            { titulo: 'ÁREA PLANTADA', blocos: [{ cultura: ['cultura', 'area', 'producao'], linhas: 3 }, 'destino'] },
+            { titulo: 'OCORRÊNCIA DE PRAGAS', blocos: ['ocorrencia', 'manipula', 'natureza', 'instalacoes'] }],
+          colunas: { producao: 'PRODUÇÃO (tonelada/Ano – sacas/ha/ano)' },
           propriedade: [
             { k: 'areaTotal', rot: 'ÁREA TOTAL DA PROPRIEDADE (HA):', tipo: 'num' }, { k: 'areaAgricola', rot: 'ÁREA AGRÍCOLA DA PROPRIEDADE (HA):', tipo: 'num' },
             { k: 'sementes', rot: 'EXPLORAÇÃO DA PROPRIEDADE', tipo: 'varios', ops: [['sim', 'SEMENTE E MUDAS']], compl: { k: 'sementesTipo', rot: 'TIPO' } },

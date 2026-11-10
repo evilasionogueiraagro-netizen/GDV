@@ -76,35 +76,60 @@ const TERMOS = {
     culturas: JSON.stringify([{ cultura: 'Cacau', area: '2', pragas: [{ praga: 'Monilíase do Cacaueiro', resultado: 'nao_detectada' }], coleta: 'Não' }]), testemunhas: '[{"nome":"Testemunha Ficticia Um","doc":"000.000.000-01"}]' }
 };
 
-// ---------------------------------------------------------------- campos oficiais do papel (conteudo_gdv/modulos/pce/fichas-de-papel), por modelo
-const COMUM = ['PROPRIEDADE COMERCIAL?', 'SIM', 'NÃO', 'Propriedade não comercial', 'sítio', 'residência', 'vegetação espontânea', 'área pública', 'outros', '1. DADOS DO PRODUTOR/PROPRIETÁRIO', 'NOME DO PRODUTOR', 'CPF', 'NOME DA PROPRIEDADE', 'CNPJ',
-  'TELEFONE', 'CÓDIGO DA PROPRIEDADE (CONFORME IN Nº33/2016)', 'GEORREFERENCIAMENTO', 'Lat.', 'Lon.', 'ENDEREÇO', 'MUNICÍPIO', 'UF', 'PRINCIPAL VIA DE ACESSO À PROPRIEDADE', 'FLUVIAL', 'TERRESTRE', 'OUTRA',
-  '2. DADOS DA PROPRIEDADE', 'SITUAÇÃO FUNDIÁRIA', 'PROPRIETÁRIO', 'ARRENDATÁRIO', 'COOPERATIVA', 'OUTRAS (ESPECIFICAR)', '3. ', 'CULTIVAR', 'ÁREA (ha)', '4. LEVANTAMENTO', 'NOME DO RESPONSÁVEL TÉCNICO', 'CONSELHO',
-  'SERVIDOR DA ADAF-AM', 'PRODUTOR/PROPRIETÁRIO', 'LOCAL E DATA', '1ª via: Unidade Local', '2ª via: ADAF Central (E-mail)', 'GOVERNO DO ESTADO DO AMAZONAS',
+// ---------------------------------------------------------------- campos oficiais do papel (conteudo_gdv/modulos/pce/cadastros/*.docx), por modelo
+// Cada ficha imprime só o que o SEU papel tem: ESP = textos que têm de aparecer; AUSENTE = o que é de outras fichas e não pode aparecer.
+const COMUM = ['NOME DO PRODUTOR', 'CPF', 'NOME DA PROPRIEDADE', 'CNPJ', 'GEORREFERENCIAMENTO', 'Lat.', 'Lon.', 'ENDEREÇO', 'MUNICÍPIO', 'UF', '1. DADOS DO PRODUTOR/PROPRIETÁRIO',
+  'SERVIDOR DA ADAF-AM', 'PRODUTOR/PROPRIETÁRIO', 'DATA', '1ª via: Unidade Local', '2ª via: ADAF Central (E-mail)', 'GOVERNO DO ESTADO DO AMAZONAS',
   'Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM', 'Gerência de Defesa Vegetal – GDV', 'Avenida Carlos Drummond de Andrade, 1460 Japiim', 'Fone: (92) 99192-3067 / 99983-1176', 'Manaus-AM-CEP 69077-730', 'gabinete@adaf.am.gov.br',
-  'Nº sequencial', 'Ano', 'Unidade', 'Marcada opção “NÃO” preencher apenas itens 1 e 4.'];
+  'Nº sequencial', 'Ano', 'Unidade'];
+const NAO_COMERCIAL = ['PROPRIEDADE COMERCIAL?', 'SIM', 'NÃO', 'Propriedade não comercial', 'sítio', 'residência', 'vegetação espontânea', 'área pública', 'outros'];
+const SITUACAO = ['SITUAÇÃO FUNDIÁRIA', 'PROPRIETÁRIO', 'ARRENDATÁRIO', 'COOPERATIVA', 'OUTRAS (ESPECIFICAR)'];
+const VIA = ['PRINCIPAL VIA DE ACESSO À PROPRIEDADE', 'FLUVIAL', 'TERRESTRE', 'OUTRA'];
+const CODIGO = ['CÓDIGO DA PROPRIEDADE (CONFORME IN Nº33/2016)'], RT = ['NOME DO RESPONSÁVEL TÉCNICO', 'CONSELHO'], TEL = ['TELEFONE'];
+const AVISO = 'Marcada opção “NÃO” preencher apenas itens 1, 4 e 5.';
+const SECOES = {
+  citros: ['1. DADOS DO PRODUTOR/PROPRIETÁRIO', '2. TIPO DE ATIVIDADE', '3. CULTURA DO CITROS', '4. LEVANTAMENTO DE DELIMITAÇÃO', '5. LEVANTAMENTO DE DETECÇÃO'],
+  banana: ['1. DADOS DO PRODUTOR/PROPRIETÁRIO', '2. DADOS DA CULTURA', '3. LEVANTAMENTO DE DELIMITAÇÃO'],
+  moniliase: ['1. DADOS DO PRODUTOR/PROPRIETÁRIO', '2. TIPO DE ATIVIDADE', '3. LEVANTAMENTO DE DETECÇÃO'],
+  mandioca: ['1. DADOS DO PRODUTOR/PROPRIETÁRIO', '2. DADOS DA PROPRIEDADE', '3. CULTURA DA MANDIOCA', '4. LEVANTAMENTO DE DETECÇÃO'],
+  soja: ['1. DADOS DO PRODUTOR/PROPRIETÁRIO', '2. DADOS DA PROPRIEDADE', '3. CULTURA DA SOJA', '4. LEVANTAMENTO DE DETECÇÃO'],
+  propriedade: ['1. DADOS DO PRODUTOR/PROPRIETÁRIO', '2. DADOS DA PROPRIEDADE', '3. EXPLORAÇÃO DA PROPRIEDADE', '4. ÁREA PLANTADA', '5. OCORRÊNCIA DE PRAGAS']
+};
 const OFICIAL = {
-  citros: ['CADASTRO DE IMÓVEIS DE PRODUÇÃO COMERCIAL DE CÍTRICOS', 'CADASTRO DA PROPRIEDADE Nº', '(ATENDIMENTO A IN Nº21 DE 25/04/2018 - Cancro cítrico e Portaria Nº 317 de 21/05/2021 - HLB)', 'LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS DE CITROS',
-    'TIPO DE ATIVIDADE', 'VIVEIRO', 'Produção de Mudas', 'Produção comercial de Frutos', 'Fornecedor de Material de Propagação sem origem genética comprovada', 'Outros (especificar)', 'Campos de Produção de Porta-Enxerto', 'Jardins Clonais e Borbulheiras',
-    'CULTURA DO CITROS', 'IDADE (Ano)', 'QUANTIDADE (plantas)', 'PRODUÇÃO (tonelada/Ano', 'Entrega na propriedade', 'De que forma', 'saco', 'caixa', 'a granel', 'Com quem comercializa', 'atravessador', 'supermercado', 'feira', 'cooperativa',
-    'Beneficia o fruto', 'Tipo', 'Material de propagação', 'muda', 'borbulha', 'cavalinho', 'semente', 'Origem do material genético', 'Pinta Preta', 'Cancro Cítrico', 'HLB', 'Ácaro Hindustânico', 'HÁ QUANTO TEMPO', 'UTILIZA MÉT. CONTROLE', 'QUAL', 'Delimitação', 'Detecção'],
-  banana: ['FICHA DE CADASTRO E LEVANTAMENTO DE BANANA', '(ATENDIMENTO A IN Nº17 DE 27/05/2009 – Moko da Bananeira e Portaria Nº 17 de 31/05/2005 – Sigatoka Negra)', 'LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS DA BANANA',
-    'DADOS DA CULTURA', 'IDADE DO PLANTIO (Ano)', 'QUANTIDADE (plantas)', 'PRODUÇÃO (tonelada/Ano)', 'Com quem comercializa', 'atravessador', 'supermercado', 'feira', 'cooperativa', 'outros', 'Origem do material genético', 'DESTINO DA PRODUÇÃO',
-    'MOKO DA BANANEIRA', 'SIGATOKA NEGRA', 'HÁ QUANTO TEMPO', 'UTILIZA MÉT. CONTROLE', 'QUAL', 'Delimitação'],
-  moniliase: ['FICHA DE CADASTRO E LEVANTAMENTO DE CACAU E CUPUAÇU', 'Cupuaçu', 'Cacau', 'QUANTIDADE (Nº de plantas)', 'TOTAL', 'Existe área abandonada com as culturas', 'Área em produção (ha)', 'Idade do Plantio', 'Retirada de frutos mumificados', 'Origem das sementes/mudas',
-    'próprias', 'terceiros – informar fonte', 'PRODUÇÃO (sacas ou kg)', 'DESTINO DA PRODUÇÃO', 'Sacaria utilizada', 'nova', 'reutilizada', 'Utiliza algum controle de Praga', 'Assistência Técnica', 'Não possui', 'privada', 'pública/órgão', 'Frutos Inteiros saem da propriedade?',
-    'Sim: Qual o destino?', 'FRUTO COM SINTOMAS VISUAIS DE Moniliophthora roreri', 'Em caso de planta com sintoma visual, informar coordenada da planta', 'Realizada Câmara Úmida', 'Câmara Úmida apresenta comportamento de Moniliophthora roreri', 'HOSPEDEIRO SUSPEITO',
-    'Herrania', 'Cacauí', 'Cupuí', 'Macambo', 'COLHEITA DE AMOSTRA', 'DIAGNÓSTICO', 'Positivo para M. roreri', 'Negativo para M. roreri'],
-  mandioca: ['FICHA DE CADASTRO E LEVANTAMENTO DE MANDIOCA', 'LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS', 'CULTURA DA MANDIOCA', 'CULTIVAR/VARIEDADE', 'ESPAÇAMENTO', 'ESTIMATIVA DE PRODUÇÃO (tonelada/Ano – sacas/ha/ano)', 'ESTÁGIO DA PLANTA',
-    'Plantio e Emergência - 15-30 dias', 'Desenvolvimento Vegetativo - 60-90 dias', 'Formação e Desenvolvimento de Raízes - 90-180 dias', 'Maturação das Raízes - 180-270 dias', 'Colheita - 270-360 dias', 'DESTINO DA PRODUÇÃO',
-    'ORIGEM DO MATERIAL DE PROPAGAÇÃO', 'PRÓPRIO', 'TERCEIROS', 'ORIGEM', 'ASSISTÊNCIA TÉCNICA?', 'NOME DA EMPRESA', 'LIMPEZA REALIZADA DOS UTENSÍLIOS/FERRAMENTAS?', 'DE QUE FORMA', 'VASSOURA-DE-BRUXA DA MANDIOCA', 'HÁ QUANTO TEMPO',
-    'COLHEITA DE AMOSTRAS', 'Tipo de material coletado', 'Detecção'],
-  soja: ['FICHA DE CADASTRO E LEVANTAMENTO DE SOJA', '(ATENDIMENTO A PORTARIA Nº 865, DE 2 DE AGOSTO DE 2023)', 'LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS', 'CULTURA DA SOJA', 'ESPAÇAMENTO', 'PRODUÇÃO (tonelada/Ano – sacas/ha/ano)', 'DESTINO DA PRODUÇÃO',
-    'MAQUINÁRIO ORIUNDO OU SE DESLOCA PARA OUTRA UF?', 'LOCAL', 'LIMPEZA REALIZADA NO MAQUINÁRIO ANTES DO USO?', 'DE QUE FORMA', 'FORNECEDOR DAS SEMENTES', 'FERRUGEM ASIÁTICA', 'Amaranthus palmeri', 'HÁ QUANTO TEMPO', 'QUAL', 'Detecção'],
-  propriedade: ['FICHA DE CADASTRO E LEVANTAMENTO DE PROPRIEDADE DE INTERESSE DA DEFESA VEGETAL', 'ÁREA TOTAL DA PROPRIEDADE (HA)', 'ÁREA AGRÍCOLA DA PROPRIEDADE (HA)', 'EXPLORAÇÃO DA PROPRIEDADE', 'SEMENTE E MUDAS', 'TIPO DE CULTURA', 'ABACAXI', 'ARROZ', 'COCO', 'MARACUJÁ',
-    'ACEROLA', 'BANANA', 'GOIABA', 'MILHO', 'AÇAÍ', 'CANA DE AÇÚCAR', 'HORTALIÇAS', 'OUTROS', 'ÁREA PLANTADA', 'CULTURA', 'PRODUÇÃO (tonelada/Ano – sacas/ha/ano)', 'DESTINO DA PRODUÇÃO',
-    'Há ocorrência de Pragas (Insetos, Fungos, Bactérias e Ervas Daninhas) na(s) cultura(s)?', 'Em caso positivo, Quais?', 'Produzem e/ou Manipulam produtos e subprodutos de origem vegetal para fins comerciais', 'Natureza operativa do estabelecimento',
-    'In natura', 'DOCES/GELEIAS', 'Existem instalações próprias', 'Quais tipos', 'ASSUMO TOTAL RESPONSABILIDADE PELAS INFORMAÇÕES AQUI PRESTADAS']
+  citros: [...NAO_COMERCIAL, AVISO, ...CODIGO, ...SITUACAO, ...RT, 'CADASTRO DE IMÓVEIS DE PRODUÇÃO COMERCIAL DE CÍTRICOS', 'CADASTRO DA PROPRIEDADE Nº', '(ATENDIMENTO A IN Nº21 DE 25/04/2018 - Cancro cítrico e Portaria Nº 317 de 21/05/2021 - HLB)',
+    'LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS DE CITROS', 'TIPO DE ATIVIDADE', 'VIVEIRO', 'Produção de Mudas', 'Produção comercial de Frutos', 'Fornecedor de Material de Propagação sem origem genética comprovada', 'Outros (especificar)',
+    'Campos de Produção de Porta-Enxerto', 'Jardins Clonais e Borbulheiras', 'CULTURA DO CITROS', 'CULTIVAR', 'ÁREA (ha)', 'IDADE (Ano)', 'QUANTIDADE (plantas)', 'PRODUÇÃO (tonelada/Ano)', 'Entrega na propriedade', 'De que forma', 'saco', 'caixa', 'a granel',
+    'Com quem comercializa', 'atravessador', 'supermercado', 'feira', 'cooperativa', 'Beneficia o fruto', 'Tipo', 'Material de propagação', 'muda', 'borbulha', 'cavalinho', 'semente', 'Origem do material genético',
+    'LEVANTAMENTO DE DELIMITAÇÃO', 'Pinta Preta', 'Utiliza met. controle', 'Qual', 'LEVANTAMENTO DE DETECÇÃO', 'Cancro Cítrico', 'HLB', 'Ácaro Hindustânico', 'Há quanto tempo'],
+  banana: [...NAO_COMERCIAL, AVISO, ...CODIGO, ...RT, 'FICHA DE CADASTRO E LEVANTAMENTO DE BANANA', '(ATENDIMENTO A IN Nº17 DE 27/05/2009 – Moko da Bananeira e Portaria Nº 17 de 31/05/2005 – Sigatoka Negra)', 'LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS DA BANANA',
+    'DADOS DA CULTURA', 'CULTIVAR', 'ÁREA (ha)', 'IDADE DO PLANTIO (Ano)', 'QUANTIDADE (plantas)', 'PRODUÇÃO (tonelada/Ano)', 'Com quem comercializa', 'atravessador', 'supermercado', 'feira', 'cooperativa', 'outros', 'Origem do material genético',
+    'DESTINO DA PRODUÇÃO', 'LEVANTAMENTO DE DELIMITAÇÃO', 'MOKO DA BANANEIRA', 'SIGATOKA NEGRA', 'Há quanto tempo', 'Utiliza met. controle', 'Qual'],
+  moniliase: [...NAO_COMERCIAL, ...VIA, 'FICHA DE CADASTRO E LEVANTAMENTO DE CACAU E CUPUAÇU', 'TIPO DE ATIVIDADE', 'Cultura (Nº de plantas)', 'Cupuaçu', 'Cacau', 'Herrania', 'Cacauí', 'Cupuí', 'Macambo', 'Total', 'Existe área abandonada com as culturas',
+    'Área total plantada (ha)', 'Idade do Plantio', 'Área em produção (ha)', 'Retirada de frutos mumificados', 'Origem das sementes/mudas', 'próprias', 'terceiros – informar fonte', 'Produção (sacas ou kg)', 'Destino da produção', 'Sacaria utilizada', 'nova',
+    'reutilizada', 'Utiliza algum controle de Praga', 'Assistência Técnica', 'Não possui', 'privada', 'pública/órgão', 'Frutos Inteiros saem da propriedade?', 'Sim: Qual o destino?', 'LEVANTAMENTO DE DETECÇÃO',
+    'FRUTO COM SINTOMAS VISUAIS DE Moniliophthora roreri', 'Em caso de planta com sintoma visual, informar coordenada da planta', 'Realizada Câmara Úmida', 'Câmara Úmida apresenta comportamento de Moniliophthora roreri', 'HOSPEDEIRO SUSPEITO',
+    'COLHEITA DE AMOSTRA', 'DIAGNÓSTICO', 'Positivo para M. roreri', 'Negativo para M. roreri', 'Local:'],
+  mandioca: [...TEL, ...CODIGO, ...SITUACAO, 'FICHA DE CADASTRO E LEVANTAMENTO DE MANDIOCA', 'LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS', 'DADOS DA PROPRIEDADE', 'CULTURA DA MANDIOCA', 'CULTIVAR/VARIEDADE', 'ÁREA (ha)', 'ESPAÇAMENTO',
+    'ESTIMATIVA DE PRODUÇÃO (tonelada/Ano – sacas/ha/ano)', 'ESTÁGIO DA PLANTA', 'Plantio e Emergência - 15-30 dias', 'Desenvolvimento Vegetativo - 60-90 dias', 'Formação e Desenvolvimento de Raízes - 90-180 dias', 'Maturação das Raízes - 180-270 dias',
+    'Colheita - 270-360 dias', 'DESTINO DA PRODUÇÃO', 'ORIGEM DO MATERIAL DE PROPAGAÇÃO', 'PRÓPRIO', 'TERCEIROS', 'ORIGEM', 'ASSISTÊNCIA TÉCNICA?', 'NOME DA EMPRESA', 'LIMPEZA REALIZADA DOS UTENSÍLIOS/FERRAMENTAS?', 'DE QUE FORMA',
+    'LEVANTAMENTO DE DETECÇÃO', 'VASSOURA-DE-BRUXA DA MANDIOCA', 'Há quanto tempo', 'COLHEITA DE AMOSTRAS', 'Tipo de material coletado', 'LOCAL E DATA'],
+  soja: [...TEL, ...CODIGO, ...SITUACAO, ...RT, 'FICHA DE CADASTRO E LEVANTAMENTO DE SOJA', '(ATENDIMENTO A PORTARIA Nº 865, DE 2 DE AGOSTO DE 2023)', 'LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS', 'DADOS DA PROPRIEDADE', 'CULTURA DA SOJA', 'CULTIVAR', 'ÁREA (ha)',
+    'ESPAÇAMENTO', 'PRODUÇÃO (tonelada/Ano – sacas/ha/ano)', 'DESTINO DA PRODUÇÃO', 'MAQUINÁRIO ORIUNDO OU SE DESLOCA PARA OUTRA UF?', 'LOCAL', 'LIMPEZA REALIZADA NO MAQUINÁRIO ANTES DO USO?', 'DE QUE FORMA', 'FORNECEDOR DAS SEMENTES',
+    'LEVANTAMENTO DE DETECÇÃO', 'FERRUGEM ASIÁTICA', 'Amaranthus palmeri', 'Há quanto tempo', 'Qual'],
+  propriedade: [...TEL, ...CODIGO, ...VIA, ...SITUACAO, ...RT, 'FICHA DE CADASTRO E LEVANTAMENTO DE PROPRIEDADE DE INTERESSE DA DEFESA VEGETAL', 'DADOS DA PROPRIEDADE', 'ÁREA TOTAL DA PROPRIEDADE (HA)', 'ÁREA AGRÍCOLA DA PROPRIEDADE (HA)', 'EXPLORAÇÃO DA PROPRIEDADE',
+    'SEMENTE E MUDAS', 'TIPO', 'TIPO DE CULTURA', 'ABACAXI', 'ARROZ', 'COCO', 'MARACUJÁ', 'ACEROLA', 'BANANA', 'GOIABA', 'MILHO', 'AÇAÍ', 'CANA DE AÇÚCAR', 'HORTALIÇAS', 'OUTROS', 'ÁREA PLANTADA', 'CULTURA', 'ÁREA (ha)',
+    'PRODUÇÃO (tonelada/Ano – sacas/ha/ano)', 'DESTINO DA PRODUÇÃO', 'OCORRÊNCIA DE PRAGAS', 'Há ocorrência de Pragas (Insetos, Fungos, Bactérias e Ervas Daninhas) na(s) cultura(s)?', 'Em caso positivo, Quais?',
+    'Produzem e/ou Manipulam produtos e subprodutos de origem vegetal para fins comerciais', 'Natureza operativa do estabelecimento', 'In natura', 'DOCES/GELEIAS', 'Existem instalações próprias', 'Quais tipos',
+    'ASSUMO TOTAL RESPONSABILIDADE PELAS INFORMAÇÕES AQUI PRESTADAS']
+};
+// o que NÃO pode aparecer em cada ficha porque o papel dela não tem (campo de outra ficha)
+const AUSENTE = {
+  citros: [...TEL, 'PRINCIPAL VIA DE ACESSO', 'ESPAÇAMENTO', 'DESTINO DA PRODUÇÃO', 'Marcada opção “NÃO” preencher apenas itens 1 e 4.'],
+  banana: [...TEL, 'PRINCIPAL VIA DE ACESSO', 'SITUAÇÃO FUNDIÁRIA', 'ESPAÇAMENTO'],
+  moniliase: [...TEL, ...CODIGO, 'RESPONSÁVEL TÉCNICO', 'SITUAÇÃO FUNDIÁRIA', 'Marcada opção', 'Vassoura', 'Podridão', 'Lazio', 'CULTIVAR', 'ESPAÇAMENTO'],
+  mandioca: ['PROPRIEDADE COMERCIAL?', 'Propriedade não comercial', 'PRINCIPAL VIA DE ACESSO', 'RESPONSÁVEL TÉCNICO', 'IDADE (Ano)', 'QUANTIDADE (plantas)'],
+  soja: ['PROPRIEDADE COMERCIAL?', 'Propriedade não comercial', 'PRINCIPAL VIA DE ACESSO', 'IDADE (Ano)', 'QUANTIDADE (plantas)'],
+  propriedade: ['PROPRIEDADE COMERCIAL?', 'Propriedade não comercial', 'CULTIVAR', 'IDADE (Ano)', 'QUANTIDADE (plantas)', 'ESPAÇAMENTO']
 };
 
 // ---------------------------------------------------------------- ambiente: web/ já servido pelo executor ou, sozinho, por um servidor próprio
@@ -230,45 +255,47 @@ const contem = (texto, lista) => lista.filter(x => !norm(texto).includes(norm(x)
     ok(JSON.stringify(ANTIGOS[m]) === antes, `${m} (antigo): o registro não foi alterado`);
   }
 
-  console.log('Mesma estrutura nos 6 modelos');
-  const ordem = m => R[m].secoes.map(s => (/^(\d)\./.exec(s) || [])[1]).join('');
-  ok(Object.keys(R).every(m => ordem(m) === '1234'), 'seções 1, 2, 3 e 4 na mesma ordem em todas', Object.fromEntries(Object.keys(R).map(m => [m, R[m].secoes])));
-  ok(Object.keys(R).every(m => R[m].secoes[0].startsWith('1. DADOS DO PRODUTOR/PROPRIETÁRIO') && R[m].secoes[1].startsWith('2. DADOS DA PROPRIEDADE') && R[m].secoes[3] === '4. LEVANTAMENTO'), 'títulos de 1, 2 e 4 iguais em todas');
-  ok(Object.keys(A).every(m => ordem.call(null, m) && A[m].secoes.map(s => (/^(\d)\./.exec(s) || [])[1]).join('') === '1234'), 'o mesmo nas fichas de formato antigo');
-  // o bloco do produtor é o mesmo (rótulos e ordem) em todas
-  const rotulosProdutor = t => ['NOME DO PRODUTOR', 'CPF', 'NOME DA PROPRIEDADE', 'CNPJ', 'TELEFONE', 'CÓDIGO DA PROPRIEDADE', 'GEORREFERENCIAMENTO', 'ENDEREÇO', 'MUNICÍPIO', 'UF', 'PRINCIPAL VIA'].map(x => norm(t).indexOf(norm(x)));
-  const ordemProd = m => { const i = rotulosProdutor(R[m].texto); return i.every(x => x >= 0) && i.slice(0, 4).every((x, k, a) => !k || x > a[k - 1]); };
-  ok(Object.keys(R).every(ordemProd), 'bloco do produtor completo e na mesma ordem em todas');
+  console.log('Cada ficha só com as seções, campos e colunas do SEU papel');
+  const titulos = x => x.secoes.map(t => t.replace(/\s+/g, ' '));
+  ok(Object.keys(R).every(m => JSON.stringify(titulos(R[m])) === JSON.stringify(SECOES[m])), 'seções de cada ficha: as do papel dela, na ordem e numeradas', Object.fromEntries(Object.keys(R).map(m => [m, titulos(R[m])])));
+  ok(Object.keys(A).every(m => JSON.stringify(titulos(A[m]).slice(0, SECOES[m].length)) === JSON.stringify(SECOES[m])), 'as fichas de formato antigo abrem com as mesmas seções');
   ok(Object.keys(R).every(m => R[m].largura <= 800), 'nada ultrapassa a largura da folha', Object.fromEntries(Object.keys(R).map(m => [m, R[m].largura])));
+  ok(Object.keys(R).every(m => { const t = norm(R[m].texto), a = ['NOME DO PRODUTOR', 'CPF', 'NOME DA PROPRIEDADE', 'CNPJ'].map(x => t.indexOf(norm(x))); return a.every((x, k) => x >= 0 && (!k || x > a[k - 1])); }), 'bloco do produtor: nome, CPF, propriedade e CNPJ na mesma ordem em todas');
 
-  console.log('Campos oficiais do papel');
+  console.log('Campos oficiais do papel, e nenhum campo de outra ficha');
   for (const m of Object.keys(R)) {
     const falta = contem(R[m].texto, [...COMUM, ...OFICIAL[m]]);
     ok(!falta.length, `${m}: todos os campos oficiais presentes (${COMUM.length + OFICIAL[m].length} conferidos)`, falta);
-    const faltaA = contem(A[m].texto, [...COMUM, ...OFICIAL[m]]);
-    ok(!faltaA.length, `${m} (antigo): idem`, faltaA);
+    const sobra = AUSENTE[m].filter(x => norm(R[m].texto).includes(norm(x)));
+    ok(!sobra.length, `${m}: nada que o papel dela não tenha`, sobra);
+    const faltaA = contem(A[m].texto, [...COMUM, ...OFICIAL[m]]), sobraA = AUSENTE[m].filter(x => norm(A[m].texto).includes(norm(x)));
+    ok(!faltaA.length && !sobraA.length, `${m} (antigo): idem`, [faltaA, sobraA]);
   }
+  ok(!/Marcada opção “NÃO” preencher apenas itens 1 e 4\./.test(R.citros.texto) && /itens 1, 4 e 5\./.test(R.citros.texto), 'citros: texto oficial do aviso corrigido (itens 1, 4 e 5)');
+  ok(/Local:/.test(R.moniliase.texto) && /LOCAL E DATA/.test(R.mandioca.texto) && !/LOCAL E DATA/.test(R.soja.texto), 'data e local como no papel de cada uma (cacau: DATA e Local; mandioca: LOCAL E DATA; as outras só DATA)');
+  ok(R.citros.pags[0].thead === 1 && R.mandioca.pags[0].thead === 1, 'tabela de cultura com cabeçalho');
 
   console.log('Dados aparecem no lugar certo');
   const T = R.citros.texto;
   ok(/Maria Ficticia da Silva Teste/.test(T) && /111\.444\.777-35/.test(T) && /11\.222\.333\/0001-81/.test(T) && /Sitio Exemplo Teste/.test(T) && /-3,119/.test(T) && /Ramal Ficticio, km 3/.test(T), 'citros: produtor e propriedade');
   ok(/Pera/.test(T) && /Laranja/.test(T) && /Limão/.test(T) && !/Prata/.test(T), 'citros: só os frutos de citros entram na tabela de cultura (banana fica fora)');
-  ok(/1\.700/.test(T) || /1700/.test(T), 'citros: total de plantas na tabela', T.match(/TOTAL[^A-Z]*/));
+  ok(/1200/.test(T) && /500/.test(T) && !/TOTAL/.test(T), 'citros: quantidade de plantas de cada fruto na tabela (o papel não tem linha de total)');
   ok(/2 meses/.test(T) && /1 mês/.test(T) && /Fungicida cúprico/.test(T), 'citros: levantamento vem da visita mais recente (há quanto tempo, controle, qual)');
   const marcas = await (async () => { // caixas marcadas por linha do quadro de levantamento
     const c = await b.newContext({ viewport: { width: 794, height: 1123 } }); const p = await c.newPage();
     await p.goto(`${O.url}/documentos/pce-ficha.html`); await p.waitForFunction(() => window.PCEDocs);
     await p.evaluate(([t, d]) => PCEDocs.montar(document, t, d, {}), ['ficha', { modelo: 'citros', produtor: prodBase, propriedade: NOVOS.citros.propriedade, dados: NOVOS.citros.dados, visita: NOVOS.citros.visita, ficha: fichaBase }]);
-    const r = await p.evaluate(() => [...document.querySelectorAll('table.lev tbody tr')].map(tr => [tr.cells[0].textContent, tr.cells[2].querySelector('.on') ? 'sim' : tr.cells[3].querySelector('.on') ? 'nao' : '']));
+    const r = await p.evaluate(() => [...document.querySelectorAll('table.lev tr')].filter(tr => tr.cells[0].classList.contains('b')).map(tr => [tr.cells[0].textContent, tr.cells[1].querySelector('.on') ? 'sim' : tr.cells[2].querySelector('.on') ? 'nao' : '']));
     const sit = await p.evaluate(() => [...document.querySelectorAll('.cx.on')].map(x => x.parentElement.textContent.trim()).join('|'));
     await c.close(); return { r: Object.fromEntries(r), sit };
   })();
   ok(marcas.r['Pinta Preta'] === 'sim' && marcas.r['Cancro Cítrico'] === 'sim' && marcas.r['HLB'] === 'nao' && marcas.r['Ácaro Hindustânico'] === 'nao', 'citros: sim/não do quadro pelo resultado (detectada e suspeita = sim; Diaphorina não marca HLB)', marcas.r);
-  ok(/PROPRIETÁRIO/.test(marcas.sit) && /TERRESTRE/.test(marcas.sit) && /Produção comercial de Frutos/.test(marcas.sit), 'citros: situação fundiária da propriedade, via de acesso e atividade marcadas', marcas.sit);
+  ok(/PROPRIETÁRIO/.test(marcas.sit) && !/TERRESTRE/.test(marcas.sit) && /Produção comercial de Frutos/.test(marcas.sit), 'citros: situação fundiária da propriedade e atividade marcadas (a ficha de citros não tem via de acesso)', marcas.sit);
   ok(/Merenda escolar/.test(T) && /Viveiro fictício/.test(T), 'citros: perguntas próprias do modelo');
   ok(/Eng\. Agr\. Fictício Teste/.test(T) && /CREA-AM 0000/.test(T) && /Servidor Ficticio Teste/.test(T) && /03\/11\/2026/.test(T), 'citros: responsável técnico, servidor e data');
   const M = R.moniliase.texto;
-  ok(/Cacau/.test(M) && /CCN-51/.test(M) && /Cupuaçu/.test(M) && /Branco/.test(M), 'cacau e cupuaçu: frutos na tabela');
+  ok(/Cupuaçu\s+120/.test(M) && /Cacau\s+800/.test(M) && /Total\s+920/.test(M), 'cacau e cupuaçu: nº de plantas de cada cultura e o total, tirados dos frutos (quadro do papel, sem tabela de frutos)', M.match(/Cultura \(Nº de plantas\).{0,160}/));
+  ok(/Área total plantada \(ha\): 3/.test(M) && /10 sacas, 2 sacas/.test(M) && /Cooperativa, Feira/.test(M), 'cacau e cupuaçu: área total, produção e destino somados/listados dos frutos (perguntados uma vez, no cadastro)', M.match(/Área total.{0,80}/));
   ok(/IDAM/.test(M) && /Viveiro fictício/.test(M) && /-3,11/.test(M), 'cacau e cupuaçu: perguntas próprias e coordenada');
   const mar = await (async () => {
     const c = await b.newContext({ viewport: { width: 794, height: 1123 } }); const p = await c.newPage();
@@ -293,7 +320,7 @@ const contem = (texto, lista) => lista.filter(x => !norm(texto).includes(norm(x)
   ok(semVisita === 0, 'banana sem visita: nenhuma caixa marcada no quadro', semVisita);
   console.log('Formato antigo');
   ok(/Pinta Preta/.test(A.citros.texto) && /Fungicida/.test(A.citros.texto) && /Viveiro – produção de mudas/.test(A.citros.texto) && /2 semanas/.test(A.citros.texto), 'citros antigo: delimitação, detecção e tipo de atividade de cada linha');
-  ok(/Vassoura de Bruxa/.test(A.moniliase.texto) && /Quintal fictício/.test(A.moniliase.texto) && /Cooperativa fictícia/.test(A.moniliase.texto) && /10 sacas/.test(A.moniliase.texto) && /6 anos/.test(A.moniliase.texto), 'cacau e cupuaçu antigo: informações fitossanitárias, tipo não comercial, produção e idade');
+  ok(!/Vassoura/.test(A.moniliase.texto) && /Quintal fictício/.test(A.moniliase.texto) && /Cooperativa fictícia/.test(A.moniliase.texto) && /10 sacas/.test(A.moniliase.texto) && /6 anos/.test(A.moniliase.texto), 'cacau e cupuaçu antigo: sem as pragas que o papel não tem (informações fitossanitárias antigas), tipo não comercial, produção e idade (o dado antigo fica gravado)');
   ok(/Cupuí/.test(A.moniliase.texto) && /\b38\b/.test(A.moniliase.texto), 'cacau e cupuaçu antigo: nº de plantas por hospedeiro e total (38)');
   ok(/Comodato fictício/.test(A.soja.texto) && /Capina manual/.test(A.soja.texto) && /Outra UF|MAQUINÁRIO/.test(A.soja.texto), 'soja antiga: situação fundiária e levantamento');
   ok(/Ramal/.test(A.propriedade.texto) && /Praga ficticia/.test(A.propriedade.texto) && /Pupunha/.test(A.propriedade.texto), 'propriedade antiga: via, ocorrência e culturas');
@@ -398,7 +425,7 @@ const contem = (texto, lista) => lista.filter(x => !norm(texto).includes(norm(x)
   ok(D24.folhas === 2 && D24.pags.every(g => g.thead === 1 && perto(g.rodapeBaseMm, 8, 0.5) && g.folgaMm >= 0) && /Cultivar 24/.test(D24.textoPdf) && D24.pags[1].assin === 1 && D24.pags[0].assin === 0, '24 frutos: a tabela continua na 2ª folha com o cabeçalho repetido, rodapé nas duas e assinaturas só na última', D24.pags.map(g => [g.thead, g.assin, g.folgaMm]));
   ok(D12.pags[1].assin === 1 && D12.pags[0].assin === 0 && /Cultivar 12/.test(D12.textoPdf) && /Cultivar 1 /.test(D12.textoPdf) && /continuação/.test(D12.textoPdf), 'assinaturas só na última folha, com todos os 12 frutos e a marca de continuação');
   const D12n = await gerar('pce-ficha.html', 'ficha-moniliase-antiga-teste-folhas', { fn: fichaFn, args: ['cadastro', ANTIGOS.moniliase] });
-  ok(D12n.folhas === 2 && D12n.pags.every(g => g.folgaMm >= 0 && perto(g.rodapeBaseMm, 8, 0.5)), 'ficha antiga de cacau (a mais cheia): 2 folhas, rodapé nas duas');
+  ok(D12n.folhas === 1 && D12n.pags.every(g => g.folgaMm >= 0 && perto(g.rodapeBaseMm, 8, 0.5)), 'ficha antiga de cacau (a mais cheia): sem as pragas e campos que o papel não tem, cabe em 1 folha, com rodapé na base');
 
   console.log('Rota do app: pdf.js (html2canvas, 300 dpi)');
   const PJ = {};
@@ -411,7 +438,7 @@ const contem = (texto, lista) => lista.filter(x => !norm(texto).includes(norm(x)
     console.log(`  · ${nome}: ${PJ[nome].folhas} página(s), ${PJ[nome].ultima.dpi} dpi, imagem ${PJ[nome].larguras[0]} x ${PJ[nome].ultima.paginas[0].ph} px, ${PJ[nome].ultima.paginas.map(x => x.kb + ' KB').join(' + ')}, PDF ${PJ[nome].kbPdf} KB, ${PJ[nome].ms} ms`);
   }
   ok(Object.values(PJ).every(x => x.larguras.every(w => w >= 2400) && x.ultima.dpi >= 295 && x.ultima.escala === 3.125), 'imagem embutida com pelo menos 2400 px de largura (300 dpi) em todas');
-  ok(['ficha-soja', 'ficha-citros', 'termo-citros', 'termo-moniliase'].every(n => PJ[n].folhas === 1) && PJ['ficha-citros-12-frutos'].folhas === 2 && PJ['ficha-moniliase-antiga'].folhas === 2, 'pdf.js: 1 página por folha do modelo (12 frutos e ficha antiga de cacau: 2)', Object.fromEntries(Object.entries(PJ).map(([k, x]) => [k, x.folhas])));
+  ok(['ficha-soja', 'ficha-citros', 'termo-citros', 'termo-moniliase'].every(n => PJ[n].folhas === 1) && PJ['ficha-citros-12-frutos'].folhas === 2 && PJ['ficha-moniliase-antiga'].folhas === 1, 'pdf.js: 1 página por folha do modelo (12 frutos: 2)', Object.fromEntries(Object.entries(PJ).map(([k, x]) => [k, x.folhas])));
   ok(Object.values(PJ).every(x => x.ultima.paginas.every(g => g.kb < 3584)), 'cada folha abaixo de 3,5 MB (limite de 4 MB do arquivoEnviar para imagem)', Object.fromEntries(Object.entries(PJ).map(([k, x]) => [k, x.ultima.paginas.map(g => g.kb)])));
   const PJpadrao = await pelaRotaDoApp('pce-ficha.html', 'ficha-soja-padrao', { fn: fichaFn, args: ['ficha', { modelo: 'soja', produtor: prodBase, propriedade: NOVOS.soja.propriedade, dados: NOVOS.soja.dados, visita: NOVOS.soja.visita, ficha: fichaBase }] }, undefined);
   ok(PJpadrao.ultima.escala === 2 && PJpadrao.larguras[0] < 2000, 'sem opção, pdf.js mantém a escala 2 de sempre (outros módulos não mudam)', [PJpadrao.ultima.escala, PJpadrao.larguras[0]]);

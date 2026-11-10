@@ -1,8 +1,7 @@
 # Fluxo do Git: branches, commits e pull requests
 
-Várias pessoas e agentes de IA mexem no e-GDV. Este padrão existe para que o histórico responda, sem depender de memória
-de ninguém: **quem mudou o quê, por quê e a pedido de quem**. Vale igual para pessoas e agentes. Regras do código ficam
-no [AGENTS.md](../AGENTS.md).
+Padrão para que o histórico responda **quem mudou o quê, por quê e a pedido de quem** (pessoas e agentes). Regras do
+código no [AGENTS.md](../AGENTS.md).
 
 ## Áreas
 
@@ -53,10 +52,10 @@ A mesma lista serve para o nome da branch e para o título do commit e do PR.
   `VERSAO_CODIGO` novo.
 - Uma mudança lógica por commit. Adicione os arquivos pelo nome (`git add web/js/pce.js`), não `git add -A` nem
   `git add .`. Confira `git status` (e `git diff --staged`) antes de cada commit.
-- **Autor = a pessoa responsável pela mudança**, com `user.name` e `user.email` reais no `git config`. Nada de conta
-  genérica nem da conta de outra pessoa.
-- Ferramenta de IA não entra como autor nem coautor (`Co-authored-by` é só para pessoas): quem responde pela mudança é a
-  pessoa do `git config` e a conta do GitHub que abre o PR.
+- **Autor = a pessoa responsável pela mudança**, com `user.name` e `user.email` reais no `git config` (confira antes de
+  commitar). Nada de conta genérica nem da conta de outra pessoa.
+- Todo commit deve identificar claramente o humano responsável: `Co-authored-by` é permitido, mas ferramenta de IA
+  (`Claude`, `noreply@anthropic.com`) nunca pode ficar como único autor sem identificação nominal da pessoa responsável.
 - Quem pediu a mudança vai no corpo ou no PR, pelo setor ou cargo (ex.: "pedido da gerência da GDV"). Nenhum outro dado
   pessoal: o histórico é público.
 

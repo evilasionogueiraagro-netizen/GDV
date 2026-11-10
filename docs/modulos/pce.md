@@ -28,7 +28,7 @@ Produtor, frutos, Termos por programa, citros, monilíase, laudo e campo sem int
 - Limites: 40 culturas por Termo, 25 pragas por cultura, 20 fotos por cultura, `culturas` até 45.000 caracteres; fotos e assinaturas até 4 MB (JPEG/PNG).
 - Termo de Colheita nasce na visita, quando há coleta: uma cultura, um termo por amostra, mesma numeração.
 - Painel: detecção = Detectada ou Suspeita; sem nenhuma, visita negativa.
-- Fichas oficiais (citros, banana, monilíase, mandioca, soja, propriedade): modelo único `pce-ficha.html`, perguntas em `CONFIG.PCE.fichas`; uma por propriedade e modelo, gerada do cadastro e da visita mais recente. Termo: `pce-termo.html`. Cadastros e Termos antigos abrem por adaptadores em `pce-docs.js`, sem alterar o dado.
+- Fichas oficiais (citros, banana, monilíase, mandioca, soja, propriedade): modelo único `pce-ficha.html`; cada modelo imprime só as seções, campos, colunas e textos do seu papel (`secoes` por modelo em `CONFIG.PCE.fichas`) e o app só pergunta o que for daquele modelo e ainda não estiver no cadastro; uma por propriedade e modelo, gerada do cadastro e da visita mais recente. Termo: `pce-termo.html`. Cadastros e Termos antigos abrem por adaptadores em `pce-docs.js`, sem alterar o dado.
 - Documentos A4 com rodapé na base de toda folha (`documento-base.js`).
 
 ## Laudo de laboratório

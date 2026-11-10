@@ -58,8 +58,9 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   console.log('3) passo 4: ações e constatação por programa; passo 5: resumo do que sai');
   await p.click('#vi-continuar'); await p.waitForSelector('#vi-local');
   ok(await p.locator('.pce-prog').count() === 3, 'um bloco de constatação por programa (monilíase, citros, mosca-da-carambola)');
-  const cons = await p.locator('textarea[data-prog]').evaluateAll(l => l.map(t => t.value));
-  ok(cons.some(t => /suspeita de Monilíase do Cacaueiro em Cacau/.test(t)) && cons.some(t => /Ausência de sintomas de HLB/.test(t)) && cons.some(t => /Não constatei a presença de Diaphorina citri \(vetor do HLB\) em Laranja\./.test(t) && !/Praga opcional/.test(t)) && cons.some(t => /Não constatei a presença de Bactrocera carambolae em Laranja/.test(t)), 'constatação pronta de cada programa', cons);
+  const cons = await p.locator('textarea[data-prog]').evaluateAll(l => l.map(t => t.value)), lis = await p.locator('.vi-resultados li').allTextContents();
+  ok(cons.every(t => t === '') && lis.some(t => /^Monilíase do Cacaueiro \(Cacau\): Suspeita$/.test(t)) && lis.some(t => /^HLB \/ Greening \(Laranja\): Ausência$/.test(t)) && lis.includes('Diaphorina citri (vetor do HLB) (Laranja): Ausência') && lis.some(t => /^Bactrocera carambolae \(Laranja\): Ausência$/.test(t)), 'sem texto pronto: lista de leitura com o resultado de cada praga de cada programa, e campo de observações vazio', [cons, lis]);
+  ok(/Observações sobre a situação constatada \(opcional\)/.test(await p.textContent('#pceVisitaForm')) && !/Situação constatada<textarea/.test(await p.innerHTML('#pceVisitaForm')), 'o campo se chama "Observações sobre a situação constatada (opcional)"');
   const enq = await p.locator('.vi-enq').allTextContents();
   ok(enq.some(t => /IN 112/.test(t)) && enq.some(t => /Instrução Normativa SDA\/MAPA nº 38; Portaria SDA\/MAPA n° 1\.545/.test(t)), 'enquadramento da planilha da GDV: suspeita da monilíase; mosca negativa traz o das avaliadas', enq);
   await p.uncheck('input[name=vi-acoes][value="Fiscalização"]'); await p.click('#vi-continuar'); ok(/Marque a ação/.test(await toast()), 'sem ação marcada não avança', await toast());
@@ -95,7 +96,7 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   await p.click('#vi-concluir'); await p.waitForSelector('#pce-visita-pronta');
   ok(await p.locator('.pce-termo-pronto').count() === 2 && await p.locator('.pce-colheita-pronta').count() === 0, 'visita negativa: 2 Termos (soja e mandioca), nenhum Termo de Colheita');
   const neg = await p.evaluate(async () => (await Store.todos('termosPce')).filter(t => /Soja|Mandioca/.test(t.programaVisita)).map(t => ({ p: t.programaVisita, c: t.constatacao, s: t.sintomas, a: t.amostra, r: JSON.parse(t.culturas).flatMap(x => x.pragas.map(y => y.resultado)) })));
-  ok(neg.length === 2 && neg.every(t => t.s === 'nao' && t.a === 'nao' && t.r.every(r => r === 'nao_detectada') && /Não constatei/.test(t.c)), 'Termos negativos: sem sintomas, sem amostra, constatação "Não constatei"', neg);
+  ok(neg.length === 2 && neg.every(t => t.s === 'nao' && t.a === 'nao' && t.r.every(r => r === 'nao_detectada') && t.c === ''), 'Termos negativos: sem sintomas, sem amostra, todas as pragas como Ausência e sem texto pronto na constatação', neg);
   await A.sync(p);
   const prop = (await A.aba('Propriedades')).find(x => x.id === 'PRP-VIS-1'), fr = JSON.parse(prop.frutos);
   ok(fr.length === 4 && fr.some(f => f.cultura === 'Soja' && Number(f.area) === 10.5), 'planilha: Soja entrou nos frutos da propriedade', fr.map(f => f.cultura));

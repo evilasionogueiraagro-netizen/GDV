@@ -184,7 +184,7 @@ async function sincronizar(p) {
         if (n === 2) return passo('Nova visita, passo 2 (respondido)', async () => { await foto('app-celular', 'visita-passo-2-respondido', 'Nova visita, passo 2 respondido: Monilíase detectada (há quanto tempo, controle) e Moko com Tem', p);
           await escuro(() => foto('tema-escuro', 'visita-passo-2', 'Nova visita, passo 2, no tema escuro', p)); });
         if (n === 3) return passo('Nova visita, passo 3', () => foto('app-celular', 'visita-passo-3-amostra-e-deteccao', 'Nova visita, passo 3: plantas inspecionadas, sintomas, coleta de amostra, perguntas de detecção da monilíase e fotos do fruto', p));
-        if (n === 4) return passo('Nova visita, passo 4', () => foto('app-celular', 'visita-passo-4-acoes-e-constatacao', 'Nova visita, passo 4: ação, local, situação constatada por programa e enquadramento legal da planilha da GDV', p));
+        if (n === 4) return passo('Nova visita, passo 4', () => foto('app-celular', 'visita-passo-4-acoes-e-constatacao', 'Nova visita, passo 4: ação, local, resultado de cada praga (caixas do Termo), observações opcionais e enquadramento legal da planilha da GDV', p));
         if (n === 5) {
           await passo('Nova visita, passo 5', () => foto('app-celular', 'visita-passo-5-assinaturas', 'Nova visita, passo 5: assinaturas no papel e o resumo do que sai (um Termo por programa e o Termo de Colheita)', p));
           return passo('Nova visita, produtor não assina', async () => {

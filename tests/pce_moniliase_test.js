@@ -210,7 +210,9 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   ok(t3 && t3.numero === (ANO === 2026 ? 3 : 1) && t3.numeroOrigem === 'provisorio' && Number(t3.conflito) === 0 && t3.visitaId === tCampo.visitaId && !Number(t3.registroAntigo), 'sincronizado: Termo de campo na planilha, com visitaId, sem conflito e fora do papel', t3 && [t3.numeroTxt, t3.numeroOrigem, t3.conflito]);
   ok(JSON.parse(t3.culturas)[0].dados.camaraUmida === 'sim' && JSON.parse(t3.culturas)[0].dados.suspeitos === '["cacau"]', 'planilha: respostas de detecção guardadas no Termo');
   pr = await imprimir(Wp, () => Wp.locator('.pce-termo-pronto [data-mon=imprimir]').first().click());
-  ok(/Servidor Ficticio Teste · Fiscal Agropecuário Engenheiro Agrônomo · Mat\. 000\.000-0 A · Autazes/.test(pr.texto) && /Constatei a presença de Monilíase do Cacaueiro em Cacau/.test(pr.texto), 'PDF do Termo de campo: identificação do servidor e constatação da detecção', pr.texto.slice(-300));
+  ok(/Servidor Ficticio Teste · Fiscal Agropecuário Engenheiro Agrônomo · Mat\. 000\.000-0 A · Autazes/.test(pr.texto) && !/Constatei a presença/.test(pr.texto), 'PDF do Termo de campo: identificação do servidor e sem frase pronta de constatação', pr.texto.slice(-300));
+  const cxCampo = PA.caixasDoTermo(pr.html);
+  ok(cxCampo.length === 1 && cxCampo[0].linha === 'Monilíase do Cacaueiro (Cacau):' && cxCampo[0].marcadas.join() === 'Presença' && cxCampo[0].caixas.join() === 'Presença,Ausência,Suspeita', 'PDF do Termo de campo: Monilíase em Presença (obrigatória, com a caixa Suspeita)', cxCampo);
   const pAut = await Wp.evaluate(async () => { await Campo.baixar(['Autazes']); return (await Store.todos('propriedades')).filter(p => p.campoMun).map(p => ({ id: p.id, ult: p.ultimoTermoPce && p.ultimoTermoPce.numeroTxt })); });
   ok(pAut.some(p => p.id === 'PRP-MON-1' && p.ult === t3.numeroTxt), '"Dados para o campo": a propriedade baixada traz o último Termo de fiscalização', pAut);
 

@@ -644,10 +644,7 @@ const PCEMon = (() => {
       });
     } else if (V.passo === 4) {
       V.acoes = cv('vi-', 'acoes'); V.local = g('vi-', 'local').trim(); V.data = g('vi-', 'data') || V.data; V.hora = g('vi-', 'hora') || V.hora;
-      document.querySelectorAll('textarea[data-prog]').forEach(t => {
-        if (t.value !== (V.constAuto || {})[t.dataset.prog + '|c']) V.constEdit[t.dataset.prog] = 1;
-        V.const[t.dataset.prog] = t.value;
-      });
+      document.querySelectorAll('textarea[data-prog]').forEach(t => { V.const[t.dataset.prog] = t.value; });
     } else if (V.passo === 5) {
       V.naoAssina = !!($('#pce-naoassina') || {}).checked; V.t1nome = g('vi-', 't1nome'); V.t1doc = g('vi-', 't1doc'); V.t2nome = g('vi-', 't2nome'); V.t2doc = g('vi-', 't2doc');
     }
@@ -683,27 +680,12 @@ const PCEMon = (() => {
     const pos = pg.itens.filter(i => COM_DETECCAO.includes(i.resultado) && txt(i)), base = pos.length ? pos : pg.itens.filter(i => txt(i));
     return [...new Set(base.map(txt))].join('\n');
   };
-  /** Texto pronto da situação constatada (o fiscal pode editar): citros usa as frases de ausência/presença; os outros dizem o resultado de cada praga. */
-  function constatacaoDe(pg) {
-    // citros: HLB, ácaro e cancro usam as frases próprias; as demais pragas (opcionais inclusive) dizem o resultado de cada uma
-    const cit = ehProgramaCitros(pg) ? pg.itens.filter(i => !i.opcional || PCECitros.ehDeteccao(i.praga)) : [], resto = pg.itens.filter(i => !cit.includes(i)), porPraga = new Map();
-    resto.forEach(i => { const k = i.praga + '|' + i.resultado; if (!porPraga.has(k)) porPraga.set(k, { ...i, culturas: [] }); const c = porPraga.get(k).culturas; if (!c.includes(i.cultura)) c.push(i.cultura); });
-    const linhas = cit.length ? PCECitros.frases(cit, [...new Set(cit.map(i => i.cultura))]) : [];
-    if (resto.length && resto.every(i => i.resultado === 'nao_detectada' && /monil/i.test(i.praga))) linhas.push(TC.constatacaoNegativa || '');
-    else porPraga.forEach(x => {
-      const em = x.culturas.length ? ' em ' + listaE(x.culturas) : '';
-      linhas.push(x.resultado === 'detectada' ? `Constatei a presença de ${x.praga}${em}.` : x.resultado === 'suspeita' ? `Constatei suspeita de ${x.praga}${em}.` : `Não constatei a presença de ${x.praga}${em}.`);
-    });
-    return linhas.filter(Boolean).join('\n');
-  }
-  /** Constatação de cada programa: o texto do fiscal (se editou) ou o texto pronto, atualizado com as respostas. */
-  function atualizarConstatacoes(pgs) {
-    V.constAuto = V.constAuto || {};
-    pgs.forEach(pg => {
-      const novo = constatacaoDe(pg);
-      if (!V.constEdit[pg.programa]) V.const[pg.programa] = novo;
-      V.constAuto[pg.programa + '|c'] = novo;
-    });
+  /** Resultado de cada praga do programa, como sai no Termo (caixas Presença / Ausência / Suspeita): uma linha por praga e resultado, com as culturas juntas. */
+  const ROTULO_RES = { detectada: 'Presença', nao_detectada: 'Ausência', suspeita: 'Suspeita' };
+  function resultadosDe(pg) {
+    const mapa = new Map();
+    pg.itens.forEach(i => { const k = i.praga + '|' + i.resultado; if (!mapa.has(k)) mapa.set(k, { praga: i.praga, resultado: i.resultado, culturas: [] }); const c = mapa.get(k).culturas; if (!c.includes(i.cultura)) c.push(i.cultura); });
+    return [...mapa.values()];
   }
 
   /* ---------- telas dos passos ---------- */
@@ -763,8 +745,6 @@ const PCEMon = (() => {
         <div id="vi-fotos-${esc(fid)}" class="pce-fotos pce-fotos-cult"></div></div>`;
     }).join('');
   }
-  /** Altura do campo da constatação: o texto pronto inteiro à vista (cerca de 38 letras por linha no celular). */
-  const linhasDe = t => Math.min(16, Math.max(4, String(t || '').split('\n').reduce((n, l) => n + Math.max(1, Math.ceil(l.length / 38)), 0) + 1));
   function passo4(pgs) {
     return `<div class="card"><h3>${icone('formulario')} Ação realizada</h3>
         <p class="mon-sub">ao realizar ações de *</p>${cks('vi-', 'acoes', (TC.acoes || []).map(x => [x, x]), V.acoes)}
@@ -772,7 +752,9 @@ const PCEMon = (() => {
         <div class="duas">${inp('vi-', 'data', 'Data', V.data, `type="date" max="${hojeISO()}"`)}${inp('vi-', 'hora', 'Hora', V.hora, 'type="time"')}</div></div>
       ${pgs.map(pg => `<div class="card pce-prog" data-prog="${esc(pg.programa)}"><h3>${icone('praga')} ${esc(pg.nome)}</h3>
         <p class="dica" style="text-align:left">${esc(listaE([...new Set(pg.itens.map(i => i.cultura))]))}</p>
-        <label>Situação constatada<textarea data-prog="${esc(pg.programa)}" rows="${linhasDe(V.const[pg.programa])}">${esc(V.const[pg.programa] || '')}</textarea></label>
+        <div class="mon-sub">Situação constatada (sai nas caixas do Termo)</div>
+        <ul class="mon-rel-lista vi-resultados" data-prog="${esc(pg.programa)}">${resultadosDe(pg).map(x => `<li>${esc(x.praga)} (${esc(listaE(x.culturas))}): <b>${ROTULO_RES[x.resultado] || ''}</b></li>`).join('')}</ul>
+        <label>Observações sobre a situação constatada (opcional)<textarea data-prog="${esc(pg.programa)}" rows="4">${esc(V.const[pg.programa] || '')}</textarea></label>
         <div class="mon-sub">Enquadramento legal (da planilha da GDV)</div><p class="vi-enq" data-prog="${esc(pg.programa)}">${esc(enquadramentoDe(pg) || 'Sem enquadramento cadastrado para as pragas deste programa.').replace(/\n/g, '<br>')}</p></div>`).join('')}`;
   }
   function passo5(pgs) {
@@ -790,7 +772,6 @@ const PCEMon = (() => {
   async function desenhar() {
     if (!V || VIEW !== 'pcevisita') return;
     const pgs = programas();
-    if (V.passo === 4) atualizarConstatacoes(pgs);
     const corpo = [passo1, passo2, passo3, () => passo4(pgs), () => passo5(pgs)][V.passo - 1]();
     view(`<form id="pceVisitaForm" autocomplete="off" novalidate>${cabecalho()}${corpo}
       <div class="vi-nav ${V.passo > 1 ? 'duas' : ''}">${V.passo > 1 ? `<button class="botao sec" type="button" data-mon="vi-voltar" id="vi-voltar">${icone('voltar')} Voltar</button>` : ''}
@@ -832,7 +813,6 @@ const PCEMon = (() => {
       if (!V.acoes.length) return 'Marque a ação realizada (ex.: Fiscalização).';
       if (!V.local) return 'Informe o local da fiscalização.';
       if (!/^\d{4}-\d{2}-\d{2}$/.test(V.data) || !/^\d{2}:\d{2}/.test(V.hora)) return 'Informe a data e a hora.';
-      if (programas().some(pg => !String(V.const[pg.programa] || '').trim())) return 'Descreva a situação constatada de cada programa.';
       return '';
     }
     if (n === 5) { if (V.naoAssina && !V.ass.produtorDoc) return 'Produtor não assina: tire a foto dele segurando o documento de identificação (ou desmarque a opção).'; return ''; }
@@ -887,9 +867,13 @@ const PCEMon = (() => {
     fechar(); if (V) V.vivo = false;
     const base = retomar ? { ...retomar } : { id: Store.novoId(), doc: digitos(p.doc), propId: p.id, passo: 1, sel: [], F: {}, acoes: ['Fiscalização'],
       local: [p.nome ? 'Propriedade ' + p.nome : '', p.endereco, p.municipio ? `${p.municipio}/${p.uf || 'AM'}` : ''].filter(Boolean).join(', '),
-      const: {}, constEdit: {}, constAuto: {}, data: hojeISO(), hora: agoraHM(), ass: {}, assNovas: {}, naoAssina: false, t1nome: '', t1doc: '', t2nome: '', t2doc: '', termoIds: {}, colheitaIds: {},
+      const: {}, data: hojeISO(), hora: agoraHM(), ass: {}, assNovas: {}, naoAssina: false, t1nome: '', t1doc: '', t2nome: '', t2doc: '', termoIds: {}, colheitaIds: {},
       lat: '', lon: '', prec: '' };
     const nova = Object.assign(base, { p, pe, nomeProdutor: (pe && pe.nome) || p.nome || '', serv: U().dadosServidor(s), vivo: true, salvando: false, dono: 'termosPce' });
+    if (retomar && retomar.constAuto) {                               // rascunho de antes: o texto pronto saiu (as caixas do Termo o substituem); só fica o que o fiscal editou
+      Object.keys(nova.const || {}).forEach(k => { if (!(nova.constEdit || {})[k]) nova.const[k] = ''; });
+      delete nova.constAuto; delete nova.constEdit;
+    }
     V = nova;
     const frutos = CA().frutosDe(p);
     if (!retomar && frutos.length === 1) V.sel = [frutos[0].id];
@@ -926,7 +910,7 @@ const PCEMon = (() => {
   function culturasDoPrograma(pg) {
     return pg.frutos.map(fid => {
       const f = frutoDe(fid), st = fruto(fid), area = f.area === '' || f.area == null ? '' : Number(f.area);
-      const pragas = pg.itens.filter(i => i.fid === fid).map(i => ({ praga: i.praga, resultado: i.resultado, haQuantoTempo: COM_DETECCAO.includes(i.resultado) ? textoCurto(i.haQuantoTempo, 60) : '',
+      const pragas = pg.itens.filter(i => i.fid === fid).map(i => ({ praga: i.praga, resultado: i.resultado, opcional: i.opcional ? 1 : 0, haQuantoTempo: COM_DETECCAO.includes(i.resultado) ? textoCurto(i.haQuantoTempo, 60) : '',
         controle: COM_DETECCAO.includes(i.resultado) && i.controle ? (i.controle === 'sim' ? 'Sim' : 'Não') : '', qualControle: COM_DETECCAO.includes(i.resultado) && i.controle === 'sim' ? textoCurto(i.qualControle, 120) : '' }));
       const coleta = st.coleta === 'Sim';
       const dados = { ...st.dados };

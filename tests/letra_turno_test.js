@@ -42,7 +42,7 @@ const T = (id, n, letra, local = 'BVA - JUNDIÁ', extra = {}) => ({ id, numeroTF
   r = await post({ action: 'turnoNumero', key: A.token, turnoId: 'lt6', numero: 21 });
   ok(!r.ok && /não está liberada/.test(r.erro), 'turno do Jundiá de antes de 24/10: correção não liberada', r.erro);
   // nº que ficou "NaN" no aparelho (formulário apagado durante a abertura): o colega do turno corrige
-  await post({ action: 'sync', key: A.token, since: 0, turnos: [{ ...T('lt7', 1, 'A'), numeroTF: `TF-NaN-A-${ANO}` }] });
+  await post({ action: 'sync', key: A.token, since: 0, turnos: [{ ...T('lt7', 1, 'A'), numeroTF: `TF-NaN-A-${ANO}`, inicio: new Date(Date.now() - 4 * 3600e3).toISOString().slice(11, 16) }] });   // aberto agora: aceita entrada
   r = await post({ action: 'turnoEntrar', key: B.token, turnoId: 'lt7' }); ok(r.ok, 'o colega entra no turno', r.erro);
   r = await post({ action: 'turnoNumero', key: B.token, turnoId: 'lt7', numero: 30 });
   ok(r.ok && r.turno.numeroTF === `TF-030-A-${ANO}`, 'turno com nº "NaN": o colega corrige', r.turno || r.erro);

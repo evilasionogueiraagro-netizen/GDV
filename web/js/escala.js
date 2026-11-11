@@ -40,28 +40,48 @@ const EscalaUI = (() => {
     if (mostrar.viva() && (!antes || JSON.stringify(D.escalas) !== velho)) desenhar(mostrar);
     AVISOS = [];
   }
+  /* lista: resumo de hoje (uma linha por BVA) e as BVAs lado a lado no computador; no celular, uma BVA por vez (abas).
+     Em cada BVA: a escala de hoje em destaque, as 3 próximas (o resto em "Mostrar mais") e a anterior recolhida. */
+  let ABA = 0; const MAIS = new Set();
+  const nomesF = e => e.fiscais.length ? `<span class="esc-nomes">${e.fiscais.map(f => `<span class="esc-nome${f.id ? '' : ' sem'}">${esc(nomeF(f))}</span>`).join('')}</span>`
+    : '<small>Nenhum fiscal escolhido</small>';
+  const itemEsc = (e, tipo) => `<button type="button" class="esc-item${tipo ? ' ' + tipo : ''}" data-esc="${esc(e.id)}">
+      <span class="esc-per"><b>${periodo(e)}</b>${tipo === 'atual' ? ' <span class="esc-selo atual">Hoje</span>' : tipo === 'passada' ? ' <span class="esc-selo">Anterior</span>' : ''}
+        <span class="esc-selo ${e.situacao === 'publicada' ? 'ok' : 'rasc'}">${e.situacao === 'publicada' ? 'Publicada' : 'Rascunho'}</span>${e.equipeNumero ? `<span class="esc-eq">Equipe ${esc(e.equipeNumero)}</span>` : ''}</span>
+      ${nomesF(e)}</button>`;
   function desenhar(mostrar) {
-    const h = hoje();
-    const blocos = bvas().map(b => {
+    const h = hoje(), lb = bvas(); if (ABA >= lb.length) ABA = 0;
+    const dados = lb.map(b => {
       const es = D.escalas.filter(e => nl(e.bva) === nl(b)).sort((x, y) => x.inicio.localeCompare(y.inicio));
-      const vivas = es.filter(e => e.fim >= h), ultima = es.filter(e => e.fim < h).pop();
-      const mostrarEs = (ultima ? [ultima] : []).concat(vivas);
-      const atual = vivas.find(e => e.inicio <= h);
-      return `<div class="card esc-bva"><div class="esc-cab"><h3>${esc(b)}</h3>${atual ? '' : '<span class="esc-selo aviso">Sem escala hoje</span>'}</div>
-        ${mostrarEs.length ? mostrarEs.map(e => `<button type="button" class="esc-item${e.fim < h ? ' passada' : ''}" data-esc="${esc(e.id)}">
-          <span class="esc-per"><b>${periodo(e)}</b>${e.inicio <= h && e.fim >= h ? ' <span class="esc-selo atual">Atual</span>' : e.fim < h ? ' <span class="esc-selo">Anterior</span>' : ''}
-            <span class="esc-selo ${e.situacao === 'publicada' ? 'ok' : 'rasc'}">${e.situacao === 'publicada' ? 'Publicada' : 'Rascunho'}</span></span>
-          <small>${e.equipeNumero ? `Equipe ${esc(e.equipeNumero)} · ` : ''}${e.fiscais.length ? esc(e.fiscais.map(nomeF).join(', ')) : 'Nenhum fiscal escolhido'}</small></button>`).join('')
-        : '<p class="dica">Nenhuma escala ainda.</p>'}
-        <button type="button" class="botao sec mini" data-escnova="${esc(b)}">${icone('mais')} Nova escala da ${esc(b)}</button>
-        ${CONFIG.regimeEscala(b).regime === 'ajustavel' ? '' : `<button type="button" class="botao sec mini" data-escgerar="${esc(b)}">${icone('calendario')} Gerar períodos da ${esc(b)}</button>`}</div>`;
-    }).join('');
-    mostrar(`<div class="card"><h3>${icone('calendario')} Escalas de plantão</h3>
-        <p class="dica" style="text-align:left">Quem fica em cada BVA em cada período. Só a escala <b>publicada</b> aparece para os fiscais e para a gerência.</p>
-        <button type="button" class="botao sec mini" data-go="relequipes">${icone('documento')} Relatórios das equipes</button>
-        <button type="button" class="botao" data-escnova="">${icone('mais')} Nova escala</button></div>
+      const atual = es.find(e => e.inicio <= h && e.fim >= h);
+      return { b, atual, prox: es.filter(e => e.inicio > h), ultima: es.filter(e => e.fim < h).pop() };
+    });
+    const resumo = dados.map(({ b, atual, prox }, i) => atual
+      ? `<button type="button" class="esc-hoje" data-escaba="${i}"><b>${esc(b)}</b><span>${atual.equipeNumero ? `Equipe ${esc(atual.equipeNumero)} · ` : ''}${atual.fiscais.length} fiscal(is)</span><small>Hoje · troca em ${dBR(atual.fim).slice(0, 5)}</small></button>`
+      : `<button type="button" class="esc-hoje falta" data-escaba="${i}"><b>${esc(b)}</b><span>${prox[0] ? `Próxima: ${dBR(prox[0].inicio).slice(0, 5)}${prox[0].equipeNumero ? ` (Equipe ${esc(prox[0].equipeNumero)})` : ''}` : 'Nenhuma escala futura'}</span><small>Sem escala hoje</small></button>`).join('');
+    const abas = dados.map(({ b }, i) => `<button type="button" role="tab" class="esc-aba" aria-selected="${i === ABA}" data-escaba="${i}">${esc(b.replace(/^BVA\s*-\s*/i, ''))}</button>`).join('');
+    const blocos = dados.map(({ b, atual, prox, ultima }, i) => `<section class="card esc-bva${i === ABA ? ' vis' : ''}" id="escBva${i}" aria-label="${esc(b)}">
+        <div class="esc-cab"><h3>${esc(b)}</h3><small>${esc(CONFIG.textoRegimeEscala(b) || '')}</small></div>
+        <div class="esc-rot">Agora</div>${atual ? itemEsc(atual, 'atual') : '<p class="dica esc-vazio">Sem escala para hoje.</p>'}
+        <div class="esc-rot">Próximas</div>${prox.length ? prox.map((e, j) => itemEsc(e, j < 3 ? '' : MAIS.has(b) ? 'extra-on' : 'extra')).join('') : '<p class="dica esc-vazio">Nenhuma escala futura.</p>'}
+        ${prox.length > 3 ? `<button type="button" class="esc-mais" data-escmais="${esc(b)}">${MAIS.has(b) ? 'Mostrar menos' : `Mostrar mais ${prox.length - 3}`}</button>` : ''}
+        ${ultima ? `<details class="esc-ant"><summary>Anterior (${dBR(ultima.inicio).slice(0, 5)} a ${dBR(ultima.fim)})</summary>${itemEsc(ultima, 'passada')}</details>` : ''}
+        <div class="esc-pe"><button type="button" class="botao sec mini" data-escnova="${esc(b)}">${icone('mais')} Nova escala</button>
+        ${CONFIG.regimeEscala(b).regime === 'ajustavel' ? '' : `<button type="button" class="botao sec mini" data-escgerar="${esc(b)}">${icone('calendario')} Gerar períodos</button>`}</div></section>`).join('');
+    mostrar(`<div class="esc-topo"><div><h2>${icone('calendario')} Escalas de plantão</h2>
+          <p class="dica">Só a escala <b>publicada</b> aparece para os fiscais e para a gerência.</p></div>
+        <div class="esc-acoes"><button type="button" class="botao sec mini" data-go="relequipes">${icone('documento')} Relatórios das equipes</button>
+          <button type="button" class="botao mini" data-escnova="">${icone('mais')} Nova escala</button></div></div>
       ${AVISOS.length ? `<div class="card aviso" id="escAvisos">${icone('alerta')} <b>Atenção</b><ul>${AVISOS.map(a => `<li>${esc(a)}</li>`).join('')}</ul></div>` : ''}
+      <div class="esc-resumo">${resumo}</div>
+      <div class="esc-abas" role="tablist">${abas}</div>
       <div id="escLista">${blocos}</div>`);
+  }
+  function mudarAba(i, rolar) {
+    ABA = i;
+    document.querySelectorAll('.esc-aba').forEach((a, j) => a.setAttribute('aria-selected', j === i));
+    document.querySelectorAll('#escLista .esc-bva').forEach((s, j) => s.classList.toggle('vis', j === i));
+    const s = document.getElementById('escBva' + i); if (rolar && s) s.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
 
   /** Formulário: BVA, início e fim do período e os fiscais (cada um com as outras escalas em que está no mesmo período). */
@@ -317,6 +337,11 @@ const EscalaUI = (() => {
   }
 
   document.addEventListener('click', ev => {
+    const ab = ev.target.closest('[data-escaba]'); if (ab) return mudarAba(Number(ab.dataset.escaba), ab.classList.contains('esc-hoje') || !matchMedia('(max-width:699px)').matches);
+    const mm = ev.target.closest('[data-escmais]');
+    if (mm) { const b = mm.dataset.escmais; MAIS.has(b) ? MAIS.delete(b) : MAIS.add(b); const s = mm.closest('.esc-bva');
+      s.querySelectorAll('.esc-item.extra, .esc-item.extra-on').forEach(x => { x.classList.toggle('extra'); x.classList.toggle('extra-on'); });
+      mm.textContent = MAIS.has(b) ? 'Mostrar menos' : `Mostrar mais ${s.querySelectorAll('.esc-item.extra').length}`; return; }
     const n = ev.target.closest('[data-escnova]'); if (n) return go('escala', '+' + n.dataset.escnova);
     const gg = ev.target.closest('[data-escgerar]'); if (gg) return go('escalagerar', gg.dataset.escgerar);
     const i = ev.target.closest('[data-esc]'); if (i) return go('escala', i.dataset.esc);

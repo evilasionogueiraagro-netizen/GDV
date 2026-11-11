@@ -56,6 +56,7 @@ const ontem = diaM(Date.now() - 864e5), ANO = ontem.slice(0, 4);
     await p.click('[data-go=home]').catch(() => {}); await p.click('nav [data-v=historico]'); await p.waitForSelector(`[data-numturno="${ta.id}"]`, { timeout: 10000 });
     await p.click(`[data-numturno="${ta.id}"]`);
     await p.waitForFunction(() => /Nº corrigido: TF-035-A/.test(document.querySelector('#toast').textContent), null, { timeout: 15000 }).catch(() => {});
+    await p.waitForFunction(() => /TF-035-A/.test(document.querySelector('main').textContent), null, { timeout: 10000 }).catch(() => {});   // o Histórico redesenha depois do aviso
     const tc = (await aba('Turnos')).find(t => t.id === ta.id);
     ok(tc.numeroTF === `TF-035-A-${ANO}` && /TF-035-A/.test(await p.textContent('main')), 'botão "Corrigir nº" no Histórico: TF-031-A vira TF-035-A (planilha e tela)', tc.numeroTF);
 

@@ -297,7 +297,7 @@ nav button .ico { width:24px; height:24px; margin-bottom:2px; }
 .esc-hoje { display: flex; flex-direction: column; gap: 2px; text-align: left; font: inherit; color: var(--ink); cursor: pointer; background: var(--sf); border: 1px solid var(--borda); border-left: 4px solid var(--bom); border-radius: var(--r-lg); padding: 8px 12px; box-shadow: var(--sombra); min-height: 44px; }
 .esc-hoje span { font-size: var(--t-sm); color: var(--ink2); } .esc-hoje small { font-weight: 600; color: var(--bom-txt); }
 .esc-hoje.falta { border-left-color: var(--atencao); } .esc-hoje.falta small { color: var(--atencao-txt); }
-.esc-abas { display: flex; gap: 6px; overflow-x: auto; position: sticky; top: 0; z-index: 2; background: var(--pg); padding: 6px 0 8px; }
+.esc-abas { display: flex; gap: 6px; overflow-x: auto; position: sticky; top: 58px; z-index: 4; background: var(--pg); padding: 6px 0 8px; }
 .esc-aba { font: inherit; font-weight: 600; white-space: nowrap; border: 1px solid var(--borda); background: var(--sf); color: var(--ink2); border-radius: var(--r-pill); padding: 6px 14px; min-height: 40px; cursor: pointer; }
 .esc-aba[aria-selected="true"] { background: var(--acao); border-color: var(--acao); color: #fff; }
 .esc-bva:not(.vis) { display: none; } .esc-bva { scroll-margin-top: 12px; }

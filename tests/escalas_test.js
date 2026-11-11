@@ -112,6 +112,8 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
   ok(/BVA - JUNDIÁ/.test(resumo) && /Hoje · troca em/.test(resumo) && /Sem escala hoje/.test(resumo), 'resumo de hoje: equipe e troca por BVA; aviso onde falta escala', resumo.slice(0, 300));
   await pc.click('.esc-aba:has-text("JUNDIÁ")');
   ok(await pc.locator('[data-escnova="BVA - JUNDIÁ"]').isVisible() && !(await pc.locator('[data-escnova="BVA - CEASA"]').isVisible()), 'celular: a aba mostra só a BVA escolhida');
+  const abaFixa = await pc.evaluate(() => { scrollTo(0, document.body.scrollHeight); const a = document.querySelector('.esc-abas').getBoundingClientRect(), h = document.querySelector('header').getBoundingClientRect(); return a.top >= h.bottom - 1; });
+  ok(abaFixa, 'celular: ao rolar, as abas ficam logo abaixo do cabeçalho (não por baixo dele)');
   await pc.setViewportSize({ width: 1366, height: 900 }); await pc.waitForTimeout(200);
   ok(await pc.locator('[data-escnova="BVA - CEASA"]').isVisible() && await pc.locator('[data-escnova="BVA - AEROPORTO"]').isVisible(), 'computador: as BVAs lado a lado, todas visíveis');
   await pc.screenshot({ path: amb.saida('escala_lista_pc.png'), fullPage: true });

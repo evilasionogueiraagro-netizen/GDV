@@ -101,12 +101,23 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
 
   const pc = await aparelho(coord, 'Carla Coordenadora Teste');
   ok(!!(await pc.$('.modulo[data-v=escalas]')), 'coordenação: cartão "Escalas de plantão" nos módulos');
-  await pc.click('.modulo[data-v=escalas]'); await pc.waitForSelector('#escLista [data-esc]', { timeout: 15000 });
+  await pc.click('.modulo[data-v=escalas]'); await pc.waitForSelector('#escLista [data-esc]', { state: 'attached', timeout: 15000 });
   const lista = await pc.textContent('#escLista');
   ok(/BVA - JUNDIÁ/.test(lista) && /Ana Escalada Teste/.test(lista) && /BVA - CEASA/.test(lista), 'lista das escalas por BVA e período', lista.slice(0, 300));
   const cache = await pc.evaluate(async () => { const d = await Store.meta('escalaDados'); return d && d.escalas.length && !('fimConvenio' in d); });
   ok(cache, 'lista: a última leitura fica guardada (abre na hora da próxima vez) e sem ler o convênio');
   await pc.screenshot({ path: amb.saida('escala_lista.png'), fullPage: true });
+  // resumo de hoje (uma linha por BVA) e, no celular, uma BVA por vez nas abas
+  const resumo = await pc.textContent('.esc-resumo');
+  ok(/BVA - JUNDIÁ/.test(resumo) && /Hoje · troca em/.test(resumo) && /Sem escala hoje/.test(resumo), 'resumo de hoje: equipe e troca por BVA; aviso onde falta escala', resumo.slice(0, 300));
+  await pc.click('.esc-aba:has-text("JUNDIÁ")');
+  ok(await pc.locator('[data-escnova="BVA - JUNDIÁ"]').isVisible() && !(await pc.locator('[data-escnova="BVA - CEASA"]').isVisible()), 'celular: a aba mostra só a BVA escolhida');
+  const abaFixa = await pc.evaluate(() => { scrollTo(0, document.body.scrollHeight); const a = document.querySelector('.esc-abas').getBoundingClientRect(), h = document.querySelector('header').getBoundingClientRect(); return a.top >= h.bottom - 1; });
+  ok(abaFixa, 'celular: ao rolar, as abas ficam logo abaixo do cabeçalho (não por baixo dele)');
+  await pc.setViewportSize({ width: 1366, height: 900 }); await pc.waitForTimeout(200);
+  ok(await pc.locator('[data-escnova="BVA - CEASA"]').isVisible() && await pc.locator('[data-escnova="BVA - AEROPORTO"]').isVisible(), 'computador: as BVAs lado a lado, todas visíveis');
+  await pc.screenshot({ path: amb.saida('escala_lista_pc.png'), fullPage: true });
+  await pc.setViewportSize({ width: 400, height: 900 });
   // fim sugerido pelo regime da BVA: Jundiá 10 dias, CEASA 8, Aeroporto (12 h × 36 h) o mesmo dia; ajustável: o coordenador escolhe
   await pc.click('[data-escnova="BVA - JUNDIÁ"]'); await pc.waitForSelector('#fEscala');
   ok(/Período de 10 dias \(troca no último dia\): o fim vem sugerido/.test(await pc.textContent('#escRegime')), 'nova escala do Jundiá: mostra o regime (10 dias)');
@@ -124,21 +135,22 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
   ok(gerados === '10-15>10-24 10-24>11-02 11-02>11-11 11-11>11-20 11-20>11-29 11-29>12-08 12-08>12-17 12-17>12-26 12-26>01-04', 'Jundiá: períodos de 10 dias com troca no último dia, iguais aos do papel', gerados);
   const geradosC = await pc.evaluate(() => CONFIG.gerarPeriodosEscala('BVA - CEASA', '2026-10-04', '2026-11-28').map(p => p.inicio.slice(5) + '>' + p.fim.slice(5)).join(' '));
   ok(geradosC === '10-04>10-11 10-11>10-18 10-18>10-25 10-25>11-01 11-01>11-08 11-08>11-15 11-15>11-22 11-22>11-29', 'CEASA: períodos de 8 dias com troca no último dia, iguais aos do papel', geradosC);
-  await pc.click('[data-go=escalas]'); await pc.waitForSelector('#escLista [data-escgerar="BVA - CEASA"]', { timeout: 15000 });
+  await pc.click('[data-go=escalas]'); await pc.waitForSelector('#escLista [data-escgerar="BVA - CEASA"]', { state: 'attached', timeout: 15000 });
+  await pc.click('.esc-aba:has-text("CEASA")');
   ok(!(await pc.$('[data-escgerar="BVA - TABATINGA"]')), 'ajustável: sem "Gerar períodos"');
   await pc.click('[data-escgerar="BVA - CEASA"]'); await pc.waitForSelector('#fGerar #gerPrevia li');
   await pc.fill('#gerIni', '2027-02-01'); await pc.fill('#gerAte', '2027-02-28'); await pc.dispatchEvent('#gerAte', 'change');
   const prev = await pc.textContent('#gerPrevia');
   ok(/4 período\(s\) novo/.test(prev) && /01\/02\/2027 a 08\/02\/2027/.test(prev), 'app: prévia dos períodos da CEASA (8 dias)', prev);
   await pc.screenshot({ path: amb.saida('escala_gerar.png'), fullPage: true });
-  await pc.click('#gerOk'); await pc.waitForSelector('#escLista [data-esc]', { timeout: 15000 });
+  await pc.click('#gerOk'); await pc.waitForSelector('#escLista [data-esc]', { state: 'attached', timeout: 15000 });
   ok((await linhas('Escalas')).filter(x => x.bva === 'BVA - CEASA' && x.inicio >= '2027-02-01' && x.situacao === 'rascunho').length === 4, 'app: 4 rascunhos da CEASA criados');
   await pc.click('[data-escnova]'); await pc.waitForSelector('#fEscala');
   await pc.selectOption('#escBva', 'BVA - AEROPORTO'); await pc.fill('#escIni', dia(1)); await pc.fill('#escFim', dia(5));
   await pc.check(`#fEscala input[data-fiscal="${id('Ana Escalada Teste')}"]`);
   ok(/BVA - JUNDIÁ/.test(await pc.textContent(`#fEscala label:has(input[data-fiscal="${id('Ana Escalada Teste')}"])`)), 'escolher fiscal: mostra quem já está em outra BVA no período');
   await pc.screenshot({ path: amb.saida('escala_form.png'), fullPage: true });
-  await pc.click('#escPublicar'); await pc.waitForSelector('#escLista [data-esc]', { timeout: 15000 }); await pc.waitForTimeout(300);
+  await pc.click('#escPublicar'); await pc.waitForSelector('#escLista [data-esc]', { state: 'attached', timeout: 15000 }); await pc.waitForTimeout(300);
   const L2 = (await linhas('Escalas')).find(x => x.bva === 'BVA - AEROPORTO');
   ok(L2 && L2.situacao === 'publicada' && JSON.parse(L2.fiscais)[0].nome === 'Ana Escalada Teste' && L2.atualizadoPor === 'Carla Coordenadora Teste', 'app: escala publicada pela coordenação', L2);
   ok(/também está na BVA - JUNDIÁ/.test(await pc.textContent('#escAvisos').catch(() => '')), 'app: avisos depois de publicar');

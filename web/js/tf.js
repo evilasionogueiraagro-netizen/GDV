@@ -34,6 +34,9 @@ const TFUI = (() => {
 
   /* ---------- numeração: uma sequência por barreira/ano, consultada na planilha na hora de gerar ---------- */
   const barreiras = async () => (await Store.meta('barreiras')) || [];
+  /** Barreira do TF que é a BVA do turno (id, nome ou sufixo do cadastro iguais ao local, sem acento/caixa/pontuação), ou null. */
+  const chaveBar = x => String(x || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const barreiraDoLocal = (bars, local) => { const k = chaveBar(local); return k ? bars.find(b => [b.id, b.nome, b.sufixo].some(v => chaveBar(v) === k)) || null : null; };
   async function ultimoConhecido(b, a) {                                          // base para propor número SEM internet
     const uv = (((await Store.meta('ultimoVisto')) || {})[chave(b, a)] || 0);
     const locais = (await Store.todos('tfs')).filter(t => t.barreira === b && t.ano === a).reduce((m, t) => Math.max(m, t.numero), 0);
@@ -246,6 +249,7 @@ const TFUI = (() => {
     <div class="card"><h3>${pap ? `${icone('documento')} TF antigo (digitado do papel)` : 'Termo de Fiscalização de Barreira'}</h3>
       ${pap ? '<p class="dica" style="text-align:left" id="tf-papel-dica">Digite o TF como está no papel: número, data, hora e o servidor que fiscalizou. Precisa de internet: a planilha confere se o número está livre. Anexe o PDF escaneado.</p>' : ''}
       <label>Barreira<select id="tf-barreira">${bars.map(b => `<option value="${esc(b.id)}" ${b.id === D.barreira ? 'selected' : ''}>${esc(b.nome)}</option>`).join('')}</select></label>
+      ${!pap && S && S.semBarreira ? `<p class="dica aviso" style="text-align:left" id="tf-sembarreira">${icone('alerta')} A ${esc(S.semBarreira)} (BVA do turno) não está na lista de barreiras do TF: confira a barreira acima. Para incluir, a gerência salva a BVA no painel (BVAs).</p>` : ''}
       <div class="tf-num" id="tf-numero"></div>
       <div class="duas">${campo('data', 'Data', D.data, `type="date" required${pap ? ` max="${hojeISO()}"` : ''}`)}${campo('hora', 'Hora', D.hora, 'type="time" required')}</div>
       ${pap ? `${campo('servidor', 'Servidor que fiscalizou (nome completo) *', D.servidor, 'list="tf-servidores" autocapitalize="words"')}<datalist id="tf-servidores"></datalist>` : ''}</div>
@@ -394,8 +398,10 @@ const TFUI = (() => {
       if (prefill.veiculoId) { veic = await Store.obter('veiculos', prefill.veiculoId); S.veiculoId = prefill.veiculoId; }
       const tid = (veic && veic.turnoId) || (turno && turno.id) || ''; S.turnoId = tid;                  // TF fica ligado ao turno aberto
       const tr = tid ? await Store.obter('turnos', tid) : null;
-      const bPad = localStorage.getItem('gdv.barreira');
-      D.barreira = bars.some(b => b.id === bPad) ? bPad : bars[0].id;
+      // TF do turno: a barreira é a BVA do turno (o último usado neste aparelho pode ser de outra BVA); sem turno, a última usada
+      const bPad = localStorage.getItem('gdv.barreira'), doTurno = tr && barreiraDoLocal(bars, tr.local);
+      D.barreira = doTurno ? doTurno.id : bars.some(b => b.id === bPad) ? bPad : bars[0].id;
+      S.semBarreira = tr && tr.posto === 'Fixa' && !doTurno ? tr.local : '';     // BVA fixa sem barreira no cadastro: avisa no formulário
       D.local = (tr && tr.local) || (bars.find(b => b.id === D.barreira) || {}).local || '';
       if (veic) { D.placa = veic.placa; D.ufOrigem = veic.ufOrigem || ''; D.ufDestino = veic.ufDestino || '';    // origem/destino do registro do veículo
         D.origem = veic.origemMun || D.origem; D.destino = veic.destinoMun || D.destino; }

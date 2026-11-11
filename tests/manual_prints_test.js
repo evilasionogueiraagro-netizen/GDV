@@ -25,6 +25,8 @@ async function print(p, nome, alvo) {
 (async () => {
   const b = await amb.lancar({ args: ['--no-sandbox', '--lang=pt-BR'] });
   try {
+    const fn = (nome, args) => fetch(API + '/__fn?nome=' + nome + '&args=' + encodeURIComponent(JSON.stringify(args))).then(x => x.json());
+    await fn('listarBarreiras_', []); await fn('inserir_', ['Barreiras', [{ id: 'BVA-JUNDIA', nome: 'BVA-JUNDIÁ', sufixo: 'BVA - JUNDIÁ', local: 'BR-174, km 75', ativo: 1 }]]);
     const coord = await U.fiscal('Carla Coordenadora Teste', { permissoes: ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'coordenacaoBarreiras'] });
     const A = await U.fiscal('Fulano Ficticio Teste'), B = await U.fiscal('Beltrano Ficticio Teste');
     const D = await post({ action: 'escalaDados', key: coord.token }), id = n => D.fiscais.find(f => f.nome === n).id;
@@ -86,7 +88,6 @@ async function print(p, nome, alvo) {
     await p.click('nav [data-v=lista]'); await p.waitForSelector('[data-tfveic]'); await print(p, '09-lista-veiculos');
     await p.locator('[data-tfveic]').first().click(); await p.waitForSelector('#tfForm');
     await p.waitForFunction(() => document.querySelector('#tf-num') && !/Consultando/.test(document.querySelector('#tf-num-dica').textContent), null, { timeout: 10000 });
-    await p.selectOption('#tf-barreira', { label: 'BVA - JUNDIÁ' }).catch(() => {});
     await p.fill('#tf-doc', '529.982.247-25'); await p.waitForFunction(() => /Novo cadastro|Cadastro encontrado/.test(document.querySelector('#tf-st-doc').textContent), null, { timeout: 8000 });
     await p.fill('#tf-nome', 'FULANO FICTICIO TESTE'); await p.fill('#tf-endereco', 'RUA DAS FLORES 10'); await p.fill('#tf-municipio', 'MANAUS');
     await p.fill('#tf-uf', 'am'); await p.fill('#tf-telefone', '92999990000'); await p.fill('#tf-origem', 'PRESIDENTE FIGUEIREDO'); await p.fill('#tf-destino', 'MANAUS');

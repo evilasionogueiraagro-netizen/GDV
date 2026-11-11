@@ -47,8 +47,8 @@ Feito: veja [modulos/convenio.md](modulos/convenio.md).
 Decisões: [Convênio MAPA/ADAF](decisoes/anteriores.md#convênio-mapaadaf)
 
 Falta:
-- Registro de armadilhas (etapa 1.3) e de ações de controle (etapa 1.5) no app de campo; hoje, lançamento manual no painel.
-- Criar convênio novo: hoje é copiar a linha da aba `Convenios` e ajustar o JSON.
+- Armadilhas (1.3) e ações de controle (1.5) no app de campo; hoje, lançadas no painel.
+- Convênio novo: hoje, copiar a linha da aba `Convenios`.
 
 ---
 

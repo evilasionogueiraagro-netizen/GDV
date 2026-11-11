@@ -1,6 +1,6 @@
 # App de campo (fiscais nas barreiras)
 
-App do fiscal (`web/`). Veja: [TF](../modulos/tf.md), [barreiras](../modulos/barreiras-ao-vivo.md), [acessos](../modulos/acessos.md).
+App do fiscal (`web/`). Veja: [TF](../modulos/tf.md), [barreiras](../modulos/barreiras-ao-vivo.md), [acessos](../modulos/acessos.md). Manual: `web/manual.html`; prints refeitos por `GDV_MANUAL_SALVAR=1 node run.js manual_prints_test`.
 
 ## Regras
 - Offline primeiro (IndexedDB). Sobe ao voltar a internet, após cada registro, a cada 20 s com turno aberto (1 min sem).

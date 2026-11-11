@@ -19,7 +19,7 @@ concurrency:
 jobs:
   testes:
     name: testes (parte ${{ matrix.parte }}/4)
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04   # Playwright 1.54 não instala o Chromium no ubuntu-latest (26.04)
     timeout-minutes: 25
     strategy:
       fail-fast: false                     # uma parte com falha não interrompe as outras: o resumo mostra tudo de uma vez

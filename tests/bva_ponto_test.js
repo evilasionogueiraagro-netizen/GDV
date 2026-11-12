@@ -46,7 +46,7 @@ const hoje = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10);
   ok(T2['tp-movel'] && T2['tp-movel'].lat === -2.9 && T2['tp-movel'].d === null, 'volante: fica com o GPS do celular', T2['tp-movel']);
   await G.click('.pn-aba[data-aba=barreiras]'); await G.waitForSelector('.pn-alertas-caixa .pn-alerta', { timeout: 15000 });
   const al = (await G.textContent('.pn-alertas-caixa')).replace(/\s+/g, ' ');
-  ok(/1 turno\(s\) aberto\(s\) a mais de 2 km da BVA/.test(al) && /BVA - CEASA \(1[01],\d km/.test(al), 'alerta: turno aberto a mais de 2 km da BVA, com a distância', al.slice(0, 600));
+  ok(/1 turno\(s\) iniciado\(s\) a mais de 2 km da BVA \(no período\)/.test(al) && /BVA - CEASA \(1[01],\d km/.test(al), 'alerta: turno aberto a mais de 2 km da BVA, com a distância', al.slice(0, 600));
   ok(/\d+ turno\(s\) de BVA fixa sem GPS no ponto da BVA/.test(al) && !/sem coordenada GPS/.test(al), 'alerta informativo do turno sem GPS no ponto da BVA (não conta como "sem coordenada")', al.slice(0, 600));
   await G.screenshot({ path: amb.saida('bva_ponto_painel.png'), fullPage: true });
 

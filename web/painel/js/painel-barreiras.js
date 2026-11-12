@@ -65,7 +65,7 @@
     if (semC.length) A.push({ nivel: 'info', titulo: `${semC.length} turno(s) sem coordenada GPS`,
       detalhe: 'Contam nos números, mas não aparecem no mapa. Oriente o fiscal a permitir a localização ao iniciar e encerrar o turno.' });
     const longe = d.turnos.filter(t => t.distBvaKm != null && t.distBvaKm > P.DIST_BVA_KM);
-    if (longe.length) A.push({ nivel: 'atencao', titulo: `${longe.length} turno(s) aberto(s) a mais de ${P.DIST_BVA_KM} km da BVA`,
+    if (longe.length) A.push({ nivel: 'atencao', titulo: `${longe.length} turno(s) iniciado(s) a mais de ${P.DIST_BVA_KM} km da BVA (no período)`,
       detalhe: longe.slice(0, 8).map(t => `${fmt.dataCurta(t.data)} ${t.local} (${t.distBvaKm.toFixed(1).replace('.', ',')} km, ${t.fiscal || 'fiscal não informado'})`).join('; ') + (longe.length > 8 ? '…' : '') +
         '. Pelo GPS do celular no início do turno, comparado ao ponto da BVA no Cadastro de BVAs. Confira se o turno foi aberto no local certo ou se o GPS estava impreciso.' });
     const doCadastro = d.turnos.filter(t => t.gpsDoCadastro);

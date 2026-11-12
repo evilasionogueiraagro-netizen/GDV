@@ -316,6 +316,22 @@ const Painel = (() => {
     return out;
   }
 
+  /* Ponto fixo da BVA (cadastro de BVAs no painel: lat/lng): o turno de BVA fixa aparece no ponto da BVA no mapa (pontoBva), mesmo sem
+     GPS (gpsDoCadastro: a coordenada é do cadastro, não do celular); com GPS, distBvaKm = distância do início do turno até a BVA (alerta
+     quando passa de DIST_BVA_KM). As coordenadas do turno (latIni/latFim) continuam as do celular. */
+  const DIST_BVA_KM = 2;
+  const chaveLocal = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+  const distKm = (a1, o1, a2, o2) => { const r = Math.PI / 180, dA = (a2 - a1) * r, dO = (o2 - o1) * r;
+    const h = Math.sin(dA / 2) ** 2 + Math.cos(a1 * r) * Math.cos(a2 * r) * Math.sin(dO / 2) ** 2; return 12742 * Math.asin(Math.min(1, Math.sqrt(h))); };
+  function pontoDaBva(t) {
+    if (t.posto === 'Móvel' || typeof CONFIG === 'undefined' || !CONFIG.bvas) return;
+    const k = chaveLocal(t.local), b = k && CONFIG.bvas.find(x => chaveLocal(x.nome) === k);
+    if (!b || !Number(b.lat) || !Number(b.lng)) return;
+    const gA = t.latIni != null && t.lonIni != null ? [t.latIni, t.lonIni] : t.latFim != null && t.lonFim != null ? [t.latFim, t.lonFim] : null;
+    t.pontoBva = true; t.gpsDoCadastro = !gA; t.distBvaKm = gA ? distKm(gA[0], gA[1], b.lat, b.lng) : null;
+    t.lat = b.lat; t.lon = b.lng;
+  }
+
   function normalizar(r) {
     const de = r.de || r._de, ate = r.ate || r._ate;
     const nomeCanon = nomesCanonicos(r);
@@ -336,6 +352,7 @@ const Painel = (() => {
       const fimOk = t.latFim != null && t.lonFim != null;
       t.lat = t.emAndamento || !fimOk ? t.latIni : t.latFim; t.lon = t.emAndamento || !fimOk ? t.lonIni : t.lonFim;
       if (t.lat == null || t.lon == null) { t.lat = fimOk ? t.latFim : null; t.lon = fimOk ? t.lonFim : null; }
+      pontoDaBva(t);
       t.data = isoDe(t.data);
       t.inicioMs = num(t.inicioTs) || msDe(t.data, t.inicio);
       t.fimMs = t.encerrado ? (num(t.fimTs) || msDe(t.data, t.fim)) : null;
@@ -1826,7 +1843,7 @@ const Painel = (() => {
     chamar, get usuario() { return S.nome; }, aoSair: fn => { aoSairFns.push(fn); },
     /** Aba aberta, redesenho da aba atual (sem perder o campo em foco) e o aviso curto do rodapé: abas que carregam dados próprios (Escalas). */
     abaAtual: () => S.aba, redesenhar: () => renderAba(true), toast: avisar,
-    get bvasCadastro() { return S.bvasCadastro || []; }, definirBvasCadastro: l => { S.bvasCadastro = l; },
+    DIST_BVA_KM,     get bvasCadastro() { return S.bvasCadastro || []; }, definirBvasCadastro: l => { S.bvasCadastro = l; },
     /** pode(perm): a sessão tem a permissão (gerência vale todas); gerencia: pode criar e alterar (sem ela o painel é só de leitura). */
     pode, get gerencia() { return pode('gerencia'); },
     /** Botão "Encerrar turno" (gerência) para um turno em andamento; null no modo TV. */

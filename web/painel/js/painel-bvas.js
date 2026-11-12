@@ -1,5 +1,5 @@
 /* Cadastro de BVAs (gerência), aberto pelo botão "Cadastro de BVAs" da aba Barreiras: a lista em uso (as do app em CONFIG.bvas e as
-   cadastradas no painel), "Nova BVA" e editar município, endereço, placa obrigatória, Ficha de Campo e ativa. O nome não muda depois de
+   cadastradas no painel), "Nova BVA" e editar município, endereço, coordenadas (ponto da BVA no mapa), placa obrigatória, Ficha de Campo e ativa. O nome não muda depois de
    criado (os turnos guardam o nome). Action painelBvaSalvar (bvas.gs); os aparelhos recebem a lista nova na próxima sincronização. */
 (function () {
   'use strict';
@@ -11,12 +11,14 @@
   function lista() {
     const cad = P.bvasCadastro, base = (CONFIG.bvasBase || []), out = [];
     const escalaDe = (c, b) => c && c.escalaRegime ? { regime: c.escalaRegime, dias: Number(c.escalaDias) || 0, troca: !!Number(c.escalaTroca) } : (b && b.escala) || { regime: 'ajustavel', dias: 0 };
-    base.forEach(b => { const c = cad.find(x => k(x.nome) === k(b.nome)); out.push({ ...b, ...(c ? { municipio: c.municipio, endereco: c.endereco, placa: !!c.placa, ficha: !!c.ficha } : {}), escala: escalaDe(c, b), cad: c || null, ativo: c ? !!c.ativo : true, base: true }); });
+    base.forEach(b => { const c = cad.find(x => k(x.nome) === k(b.nome)); out.push({ ...b, ...(c ? { municipio: c.municipio, endereco: c.endereco, placa: !!c.placa, ficha: !!c.ficha, lat: c.lat, lng: c.lng } : {}), escala: escalaDe(c, b), cad: c || null, ativo: c ? !!c.ativo : true, base: true }); });
     cad.filter(c => !base.some(b => k(b.nome) === k(c.nome))).sort((a, b) => a.nome.localeCompare(b.nome, 'pt-BR'))
-      .forEach(c => out.push({ nome: c.nome, municipio: c.municipio, endereco: c.endereco, placa: !!c.placa, ficha: !!c.ficha, escala: escalaDe(c, null), ativo: !!c.ativo, cad: c, base: false }));
+      .forEach(c => out.push({ nome: c.nome, municipio: c.municipio, endereco: c.endereco, placa: !!c.placa, ficha: !!c.ficha, lat: c.lat, lng: c.lng, escala: escalaDe(c, null), ativo: !!c.ativo, cad: c, base: false }));
     return out;
   }
 
+  const temPonto = b => !!(b && Number(b.lat) && Number(b.lng));
+  const DIST_KM = (P.DIST_BVA_KM || 2);
   const REG = () => (CONFIG.REGIMES_ESCALA || {});
   const textoReg = e => e.regime === 'dias' ? `${e.dias} dias${e.troca ? ' (troca no último dia)' : ''}` : (REG()[e.regime] || 'Período ajustável');
   function abrir() {
@@ -27,13 +29,15 @@
       const L = lista(), e = editando === '' ? { nome: '', municipio: '', endereco: '', placa: false, ficha: false, ativo: true, escala: { regime: 'ajustavel', dias: 0 }, novo: true } : editando;
       dlg.innerHTML = `<form method="dialog" class="pn-dlg-form" novalidate><h3>Cadastro de BVAs</h3>
         <p class="pn-sub">Lista do campo "Local / Posto (BVA)" do app. Os aparelhos recebem as mudanças na próxima sincronização.</p>
-        <div class="pn-tab"><div class="pn-tab-rolo"><table id="pn-bva-tab"><thead><tr><th scope="col">BVA</th><th scope="col">Município</th><th scope="col">Placa</th><th scope="col">Ficha</th><th scope="col">Escala de plantão</th><th scope="col">Situação</th><th scope="col"></th></tr></thead>
-          <tbody>${L.map((b, i) => `<tr><td>${esc(b.nome)}</td><td>${esc(b.municipio || '—')}</td><td>${b.placa ? 'obrigatória' : 'opcional'}</td><td>${b.ficha ? 'sim' : 'não'}</td><td>${esc(textoReg(b.escala))}</td>
+        <div class="pn-tab"><div class="pn-tab-rolo"><table id="pn-bva-tab"><thead><tr><th scope="col">BVA</th><th scope="col">Município</th><th scope="col">Placa</th><th scope="col">Ficha</th><th scope="col">Escala de plantão</th><th scope="col">Ponto no mapa</th><th scope="col">Situação</th><th scope="col"></th></tr></thead>
+          <tbody>${L.map((b, i) => `<tr><td>${esc(b.nome)}</td><td>${esc(b.municipio || '—')}</td><td>${b.placa ? 'obrigatória' : 'opcional'}</td><td>${b.ficha ? 'sim' : 'não'}</td><td>${esc(textoReg(b.escala))}</td><td>${temPonto(b) ? 'definido' : '<span class="pn-sub">sem ponto</span>'}</td>
             <td>${b.ativo ? '<span class="pn-selo bom">ativa</span>' : '<span class="pn-selo">desativada</span>'}</td><td><button type="button" class="pn-btn pn-btn-mini" data-bva-ed="${i}">Editar</button></td></tr>`).join('')}</tbody></table></div></div>
         ${e ? `<fieldset class="pn-conv-cfg-etapa" id="pn-bva-form"><legend>${e.novo ? 'Nova BVA' : esc(e.nome)}</legend>
           ${e.novo ? '<label class="pn-conv-campo">Nome<input id="pn-bva-nome" maxlength="60" placeholder="ex.: BVA - HUMAITÁ" autocomplete="off"></label>' : ''}
           <label class="pn-conv-campo">Município<input id="pn-bva-mun" maxlength="60" value="${esc(e.municipio || '')}" autocomplete="off"></label>
           <label class="pn-conv-campo">Endereço (Termo de Fiscalização)<input id="pn-bva-end" maxlength="160" value="${esc(e.endereco || '')}" autocomplete="off"></label>
+          <label class="pn-conv-campo">Coordenadas da BVA (latitude, longitude)<input id="pn-bva-coord" maxlength="60" placeholder="ex.: -3.11903, -60.02171" value="${esc(temPonto(e) ? e.lat + ', ' + e.lng : '')}" autocomplete="off" inputmode="decimal"></label>
+          <p class="pn-sub">No Google Maps, toque e segure no ponto da barreira e copie os números (ex.: -3.11903, -60.02171). No painel, os turnos desta BVA fixa aparecem neste ponto do mapa, o turno sem GPS também, e há alerta quando o turno foi aberto a mais de ${DIST_KM} km daqui. Vazio: sem ponto.</p>
           <label class="pn-rg-chk"><input type="checkbox" id="pn-bva-placa" ${e.placa ? 'checked' : ''}> Placa do veículo obrigatória</label>
           <label class="pn-rg-chk"><input type="checkbox" id="pn-bva-ficha" ${e.ficha ? 'checked' : ''}> Gera a Ficha de Campo</label>
           <div class="pn-conv-cfg-grade"><label class="pn-conv-campo">Escala de plantão<select id="pn-bva-reg">${Object.entries(REG()).map(([v, t]) => `<option value="${v}" ${e.escala.regime === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
@@ -53,7 +57,9 @@
       q('#pn-bva-cancelar-ed').onclick = () => desenhar(null);
       q('#pn-bva-reg').onchange = ev => { q('#pn-bva-dias-box').hidden = q('#pn-bva-troca-box').hidden = ev.target.value !== 'dias'; };
       q('#pn-bva-salvar').onclick = async () => {
-        const bva = { id: e.cad ? e.cad.id : '', nome: e.novo ? q('#pn-bva-nome').value : e.nome, municipio: q('#pn-bva-mun').value, endereco: q('#pn-bva-end').value,
+        const nums = (q('#pn-bva-coord').value.match(/-?\d+(?:[.,]\d+)?/g) || []).map(x => x.replace(',', '.'));
+        if (q('#pn-bva-coord').value.trim() && nums.length !== 2) return desenhar(e, 'Coordenadas: informe latitude e longitude separadas por vírgula (ex.: -3.11903, -60.02171).');
+        const bva = { lat: nums[0] || '', lng: nums[1] || '', id: e.cad ? e.cad.id : '', nome: e.novo ? q('#pn-bva-nome').value : e.nome, municipio: q('#pn-bva-mun').value, endereco: q('#pn-bva-end').value,
                       placa: q('#pn-bva-placa').checked, ficha: q('#pn-bva-ficha').checked, ativo: q('#pn-bva-ativo').checked,
                       escalaRegime: q('#pn-bva-reg').value, escalaDias: q('#pn-bva-reg').value === 'dias' ? Number(q('#pn-bva-dias').value) || 0 : 0,
                       escalaTroca: q('#pn-bva-reg').value === 'dias' && q('#pn-bva-troca').checked };

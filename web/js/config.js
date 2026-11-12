@@ -270,6 +270,7 @@ CONFIG.aplicarBvas = function (cadastro) {
     const i = lista.findIndex(b => k(b.nome) === k(c.nome));
     const esc = c.escalaRegime ? { regime: c.escalaRegime, dias: Number(c.escalaDias) || 0, troca: !!Number(c.escalaTroca) } : i >= 0 ? lista[i].escala : null;
     const b = { nome: i >= 0 ? lista[i].nome : c.nome, placa: !!Number(c.placa), ficha: !!Number(c.ficha), endereco: c.endereco || '', municipio: c.municipio || '', escala: esc || { regime: 'ajustavel' } };
+    if (Number(c.lat) && Number(c.lng)) { b.lat = Number(c.lat); b.lng = Number(c.lng); }   // ponto fixo da BVA (painel: mapa e distância)
     if (Number(c.ativo) === 0) { if (i >= 0) lista.splice(i, 1); return; }
     if (i >= 0) lista[i] = b; else novas.push(b);
   });

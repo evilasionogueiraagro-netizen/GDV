@@ -10,6 +10,7 @@ O que faz uma barreira aparecer (ou continuar) em andamento no painel. Veja tamb
 - Sinal: cada aparelho envia em toda sincronização. Erro do servidor no envio: uma vez, `ping` com situacao = 'erro'.
 - Último sinal da barreira: o maior entre turno, último veículo e sinal do aparelho.
 - Alertas: sem sinal há mais de 30 min; turno aberto há mais de 12 h.
+- Ponto da BVA (`BVAs.lat/lng`): turno de BVA fixa no ponto, mesmo sem GPS; alerta a mais de 2 km. Planilha: GPS do celular.
 - Encerramento do fiscal só sai com internet e app aberto; sem sinal, fica no aparelho.
 - Mesmo login em vários aparelhos: o aparelho sem turno entra no turno aberto do login (24 h). Painel junta turnos do mesmo login, mesma barreira e horários sobrepostos.
 - Turno compartilhado (outro login): o dono gera um código (`turnoConvidar`, 15 min, uma pessoa); o colega digita e entra (`turnoParear`), lança no turno e só sai (`turnoSair`). BVA fixa: entra com um toque no turno em andamento (`turnosAbertos`, `turnoEntrar`; fica em Pareamentos). Resposta perdida: o app adota o turno do sync. Sem lançamento, sair ou ser tirado (`turnoRemoverColega`) tira o nome (`removidoPor`). Só o dono grava e encerra o turno; o colega conta como fiscal do turno (`colegas`).

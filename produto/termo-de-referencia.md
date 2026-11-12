@@ -114,7 +114,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 - RF-34. Visão geral com alertas para decisão, mapa do Amazonas (com tela cheia) e barreiras em andamento atualizadas a cada 15 segundos.
 - RF-35. Abas Barreiras, TF de Barreira, PCE, Escalas, Convênios, Relatórios, Usuários e Dashboard público, com filtros por período, fiscal, barreira e município.
 - RF-36. Modo TV para a sala de situação (rotação de telas, 24 horas).
-- RF-37. Cadastro de BVAs pela gerência; a BVA nova passa a ser barreira do TF.
+- RF-37. Cadastro de BVAs pela gerência; a BVA nova passa a ser barreira do TF. Cada BVA pode ter um ponto fixo (coordenadas): o turno da BVA fixa aparece nesse ponto no mapa, inclusive sem GPS, e o painel alerta o turno aberto a mais de 2 km da BVA.
 - RF-38. Exportação em CSV, com proteção contra fórmulas.
 
 ### 4.7. Relatórios e indicadores

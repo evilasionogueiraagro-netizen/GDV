@@ -12,7 +12,7 @@ Testes passam na `main` → "Publicar Apps Script" não faz nada se o commit nã
 - Serviço novo do Google: a conta dona autoriza no editor (rode uma função, ex.: `onOpen`, e aceite); até lá, as chamadas com o serviço falham. Já deve estar combinado ([PORTABILIDADE.md](PORTABILIDADE.md)).
 
 ## Configurar (uma vez)
-Precisa da conta dona (**adafegdv@gmail.com**) e do dono do repositório (só ele vê os segredos).
+Precisa da conta dona do script e do dono do repositório (só ele vê os segredos).
 
 1. Ligue a "API do Google Apps Script" em <https://script.google.com/home/usersettings> (conta dona).
 2. ID do script: planilha → **Extensões → Apps Script → Configurações do projeto → IDs → ID do script**.
@@ -20,7 +20,7 @@ Precisa da conta dona (**adafegdv@gmail.com**) e do dono do repositório (só el
    ```sh
    npx --yes @google/clasp@3.4.1 -A ./clasprc-gdv.json login
    ```
-   Entre como adafegdv@gmail.com. A página `localhost` "Logged in!" é normal. Confira (tem que dar `true`):
+   Entre com a conta dona do script. A página `localhost` "Logged in!" é normal. Confira (tem que dar `true`):
    ```sh
    jq -e '.tokens.default.refresh_token | length > 0' clasprc-gdv.json
    ```

@@ -33,7 +33,7 @@ Feito: veja [modulos/pce.md](modulos/pce.md).
 Decisões: [PCE em campo](decisoes/anteriores.md#pce-em-campo)
 
 Falta:
-- Cadastros dos programas banana, mandioca, soja e propriedade geral (a aba `CadastrosPCE` já tem `programa` e `dados` em JSON).
+- Cadastros dos programas banana, mandioca, soja e propriedade geral (`CadastrosPCE`).
 - Fotos no termo e no cadastro (a coluna `fotos` existe, sem tela).
 - Relatório no app com os termos de outros servidores (hoje usa os do aparelho; o painel usa todos).
 - Via do produtor por link ou QR.
@@ -55,14 +55,14 @@ Falta:
 ## 4. Relatório GDV: próximos passos
 
 *Feito em 14 e 16/10/2026. Em espera (gestor): por ora, linha manual.*
-Feito: veja [modulos/relatorios.md](modulos/relatorios.md) e, para a carga na barreira, [modulos/vigifito.md](modulos/vigifito.md).
+Feito: [relatorios](modulos/relatorios.md), [vigifito](modulos/vigifito.md).
 Decisões: [Relatório GDV](decisoes/anteriores.md#relatório-gdv)
 
 Falta:
 - Medida aplicada com quantidade, por visita (hoje: linhas e coluna próprias no painel).
 - Vazio sanitário da soja. Hoje: coluna "Fiscalizações do vazio sanitário" por município.
 - Educação sanitária no app (ações, público). Hoje: Seção V no painel; veículos orientados já automáticos.
-- Importação de CFO/CFOC, PTV e UP/UC (CSV dos sistemas de certificação). Hoje: tabelas das Seções III e IV no painel.
+- Importar CFO/CFOC, PTV e UP/UC (CSV). Hoje: Seções III e IV no painel.
 - Armadilhas (mosca-da-carambola e Diaphorina citri). Hoje: coluna e linha próprias no painel (Seção VI).
 - Avisos de consistência: coordenada fora do município (exige a malha); importar relatórios anteriores ao e-GDV.
 

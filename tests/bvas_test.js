@@ -65,7 +65,7 @@ const linhas = async aba => { const d = await (await fetch(API + '/__tudo')).jso
   await G.goto(amb.PAINEL); await G.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 30000 });
   await G.click('.pn-aba[data-aba=barreiras]'); await G.waitForSelector('#pn-bva-abrir'); await G.click('#pn-bva-abrir'); await G.waitForSelector('#pn-bva-dlg[open] #pn-bva-tab');
   const tab = (await G.innerText('#pn-bva-tab')).replace(/\s+/g, ' ');
-  ok(/BVA - HUMAITÁ Humaitá obrigatória sim Período ajustável ativa/.test(tab) && /BVA - AEROPORTO .*desativada/.test(tab), 'painel: lista com as da base e as cadastradas', tab);
+  ok(/BVA - HUMAITÁ Humaitá obrigatória sim Período ajustável sem ponto ativa/.test(tab) && /BVA - AEROPORTO .*desativada/.test(tab), 'painel: lista com as da base e as cadastradas', tab);
   ok(/BVA - JUNDIÁ .*10 dias/.test(tab) && /BVA - CEASA .*8 dias/.test(tab) && /Plantão de 12 h × 36 h/.test(tab), 'painel: regime da escala de cada BVA', tab);
   await G.click('#pn-bva-nova'); await G.fill('#pn-bva-nome', 'Parintins'); await G.fill('#pn-bva-mun', 'Parintins');
   await G.selectOption('#pn-bva-reg', 'dias'); await G.fill('#pn-bva-dias', '5'); await G.click('#pn-bva-salvar');

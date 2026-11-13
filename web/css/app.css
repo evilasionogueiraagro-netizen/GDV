@@ -70,12 +70,15 @@ nav button span { font-size:9.5px; } nav button.on { color:var(--link); font-wei
 .pce-gps { display:flex; justify-content:space-between; align-items:center; gap:8px; } .pce-gps .dica { text-align:left; padding:0; }
 .pce-cult { border:1px solid var(--grade); border-radius:10px; padding:10px; margin:10px 0; background:var(--sf2); }
 .pce-cult-topo { display:flex; justify-content:space-between; align-items:center; } .pce-cult-topo b { color:var(--destaque); }
-/* PCE — levantamento por praga/doença: card da praga com as culturas avaliadas dentro (resultado e fotos de cada cultura) */
-.pce-praga { border:2px solid var(--base); border-radius:12px; padding:10px; margin:12px 0; background:var(--sf); }
-.pce-praga-topo { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; } .pce-praga-topo b { color:var(--destaque); font-size:16px; }
-.pce-praga [hidden] { display:none !important; }
-.pce-praga .pce-cult { margin:8px 0; }
-.pce-addcult { margin-top:4px; }
+/* PCE — levantamento por cultura: card da cultura (área, espaçamento, fotos) com as pragas/doenças avaliadas nela (resultado e amostra de cada uma) */
+.pce-cultura { border:2px solid var(--base); border-radius:12px; padding:10px; margin:12px 0; background:var(--sf); }
+.pce-cultura-topo { display:flex; justify-content:space-between; align-items:center; margin-bottom:4px; } .pce-cultura-topo b { color:var(--destaque); font-size:16px; }
+.pce-cultura [hidden] { display:none !important; }
+.pce-prs h4 { margin:12px 0 4px; font-size:14px; color:var(--mut); }
+.pce-pr { border:1px solid var(--grade); border-radius:10px; padding:10px; margin:8px 0; background:var(--sf2); }
+.pce-pr-topo { display:flex; justify-content:space-between; align-items:center; gap:8px; } .pce-pr-topo b { color:var(--destaque); }
+.pce-pr-topo .pce-pr-nome { flex:1; margin:0; } .pce-pr-cat { color:var(--mut); font-size:12px; }
+.pce-addpraga { margin-top:4px; }
 /* PCE — bloco "Cultura do citros" (cadastro de cítricos): um só, dentro do card "Pragas e doenças", com praga de citros no levantamento */
 .pce-citros { border:2px solid var(--atencao); border-radius:12px; padding:10px; margin:12px 0; background:color-mix(in srgb, var(--atencao) 16%, var(--sf)); }
 .pce-citros h4 { margin:0 0 4px; font-size:16px; color:var(--atencao-txt); } .pce-citros h4 small { display:block; font-weight:400; font-size:12.5px; color:var(--mut); }
@@ -95,6 +98,7 @@ nav button span { font-size:9.5px; } nav button.on { color:var(--link); font-wei
 .mon-prog { display:inline-block; font-size:12px; font-weight:700; color:var(--atencao-txt); background:color-mix(in srgb, var(--atencao) 16%, var(--sf)); border-radius:8px; padding:0 6px; }
 .pce-res { border:0; padding:0; margin:6px 0 10px; min-width:0; } .pce-res legend { padding:0; font-size:13px; color:var(--mut); margin-bottom:4px; }
 .pce-res-op { display:grid; grid-template-columns:repeat(3,1fr); gap:6px; }
+.pce-res-op.pce-res-dois { grid-template-columns:repeat(2,1fr); }
 .pce-res-op label { position:relative; color:var(--ink); flex-direction:row; align-items:center; justify-content:center; gap:4px; margin:0; padding:9px 4px; border:1.5px solid var(--grade); border-radius:10px; background:var(--sf); font-size:13.5px; font-weight:600; text-align:center; cursor:pointer; line-height:1.15; }
 .pce-res-op input { position:absolute; opacity:0; width:1px; height:1px; }
 .pce-res-op label:has(input:focus-visible) { outline:2px solid var(--marca2); outline-offset:2px; }
@@ -103,8 +107,8 @@ nav button span { font-size:9.5px; } nav button.on { color:var(--link); font-wei
 .pce-res-op .pce-res-nao_detectada:has(input:checked) { background:var(--sucesso); border-color:var(--sucesso); color:#fff; }
 /* espaçamento: seletor da unidade (m | cm) acima dos dois campos */
 .pce-esp { border:0; padding:0; margin:6px 0 0; min-width:0; } .pce-esp legend { padding:0; font-size:13px; color:var(--mut); margin-bottom:4px; }
-.pce-esp-un { display:inline-grid; grid-template-columns:repeat(2,64px); gap:6px; margin-bottom:6px; }
-.pce-esp-un label { position:relative; flex-direction:row; justify-content:center; margin:0; padding:7px 4px; border:1.5px solid var(--grade); border-radius:8px; background:var(--sf); font-weight:600; color:var(--ink); cursor:pointer; }
+.pce-esp-un { display:grid; grid-template-columns:repeat(2,minmax(0,140px)); gap:6px; margin-bottom:6px; }
+.pce-esp-un label { position:relative; flex-direction:row; justify-content:center; margin:0; padding:7px 10px; border:1.5px solid var(--grade); border-radius:8px; background:var(--sf); font-weight:600; color:var(--ink); cursor:pointer; }
 .pce-esp-un input { position:absolute; opacity:0; width:1px; height:1px; }
 .pce-esp-un label:has(input:focus-visible) { outline:2px solid var(--marca2); outline-offset:2px; }
 .pce-esp-un label:has(input:checked) { background:var(--marca2); border-color:var(--marca2); color:#fff; }
@@ -116,7 +120,8 @@ nav button span { font-size:9.5px; } nav button.on { color:var(--link); font-wei
 .pce-ordem { display:flex; align-items:center; gap:8px; margin:0 0 10px; font-size:14px; color:var(--mut); } .pce-ordem select { width:auto; margin:0; padding:6px 8px; }
 .pce-lev-grupo { font-weight:700; color:var(--destaque); margin:14px 2px 6px; font-size:15px; } .pce-lev-grupo small { font-weight:400; color:var(--mut); font-size:12.5px; margin-left:6px; }
 .pce-res-resumo { display:flex; flex-wrap:wrap; gap:4px 10px; }
-.pce-res-lista { margin:8px 0 0; padding-left:18px; } .pce-res-lista li { margin:6px 0; } .pce-res-lista small { color:var(--mut); }
+.pce-res-tabela { margin:10px 0 0; } .pce-res-tabela td:last-child { width:1%; white-space:nowrap; } .pce-res-tabela td { vertical-align:middle; }
+.pce-res-cultura th { white-space:normal; font-weight:700; color:var(--ink); background:var(--sf2); border-top:2px solid var(--base); } .pce-res-cultura small { font-weight:400; color:var(--mut); }
 .pce-pdfs .botao { margin-top:8px; }
 
 .pce-arquivo { position:relative; flex-direction:row; align-items:center; justify-content:center; background:var(--sf); color:var(--link); border:2px dashed var(--marca2); border-radius:10px; padding:12px; font-size:15px; font-weight:600; cursor:pointer; }
@@ -200,13 +205,35 @@ nav button span { font-size:9.5px; } nav button.on { color:var(--link); font-wei
 .mon-op label:has(input:checked) { background:var(--marca); border-color:var(--marca); color:#fff; }
 .mon-cult { display:grid; grid-template-columns:repeat(3, minmax(0, 1fr)); gap:0 10px; } .mon-cult label { margin:6px 0; }
 .mon-total { display:block; font-size:22px; font-weight:700; color:var(--destaque); padding:8px 0; }
-.mon-cks { display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:0 10px; } .mon-cks .chk { margin:6px 0; font-size:14.5px; }
+.item.pce-termo .botoes button { font-size:15px; }
+.pce-colheita-sub { margin-top:10px; padding:10px 0 0 12px; border-top:1px solid var(--borda); border-left:3px solid var(--borda); }   /* Termo de Colheita dentro do Termo de Fiscalização da visita */
+.mon-cks { display:grid; grid-template-columns:repeat(auto-fill, minmax(165px, 1fr)); gap:0 10px; } .mon-cks .chk { margin:6px 0; font-size:14.5px; }
 .mon-fito { border-top:1px solid var(--grade); padding-top:8px; margin-top:8px; } .mon-fito > b { color:var(--destaque); }
+/* cadastros por programa (pce-cadastros.js): tabelas editáveis e listas de opção */
+.pc-campo[hidden], .pc-det [hidden] { display:none; }
+.pc-lin { display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:0 10px; align-items:end; border:1px solid var(--grade); border-radius:var(--r-sm); padding:6px 8px; margin:6px 0; }
+.pc-lin .mini { justify-self:end; margin-bottom:6px; }
+.pc-lista { grid-template-columns:1fr; }
 .mon-mun { grid-template-columns:1fr 80px; }
 .mon-extras { border:1px dashed var(--grade); box-shadow:none; background:var(--sf2); }
 .mon-previa { background:var(--sf2); box-shadow:none; border:1px solid var(--grade); } .mon-rel-lista { margin:6px 0; padding-left:18px; } .mon-rel-lista li { margin:4px 0; }
 .campo-mon { margin:6px 0 0; color:var(--mut); }
 .cargo-outro { margin-top:6px; } .cargo-outro[hidden] { display:none; }
+/* PCE: produtores, tela do produtor e nova visita em passos */
+.pce-passos-topo { display:flex; justify-content:space-between; align-items:baseline; gap:8px; flex-wrap:wrap; } .pce-passos-topo small { color:var(--mut); font-size:13px; }
+.pce-passos-barra { display:grid; grid-template-columns:repeat(5, 1fr); gap:4px; margin:8px 0; } .pce-passos-barra span { height:6px; border-radius:3px; background:var(--grade); } .pce-passos-barra span.on { background:var(--marca2); }
+.vi-fruto { display:flex; flex-direction:row; align-items:center; gap:8px; padding:10px 0; border-bottom:1px solid var(--grade); color:var(--ink); min-height:44px; } .vi-fruto input { width:auto; }
+.vi-novo-fruto { margin-top:12px; border:1px dashed var(--grade); border-radius:10px; padding:8px 10px; } .vi-novo-fruto summary { cursor:pointer; color:var(--link); font-weight:600; padding:6px 0; }
+.vi-det { border-top:1px dashed var(--grade); margin-top:6px; padding-top:6px; } .vi-amostra[hidden] { display:none; }
+.vi-nav { margin:12px 0 6px; } .vi-nav .botao { margin:0 0 8px; } .vi-nav.duas .botao { margin:0; }
+.vi-enq { font-size:13px; color:var(--mut); margin:2px 0 0; overflow-wrap:anywhere; }
+.pce-sub { margin:12px 0 4px; font-size:14px; color:var(--mut); }
+.pce-frutos { margin:0 0 8px; padding-left:20px; } .pce-frutos li { margin:2px 0; }
+.pce-visita-termo { display:flex; justify-content:space-between; align-items:flex-start; gap:8px; padding:8px 0; border-top:1px solid var(--grade); } .pce-visita-termo:first-of-type { border-top:0; }
+.pce-visita-termo > div:first-child { min-width:0; } .pce-visita-termo small { display:block; color:var(--mut); font-size:13px; overflow-wrap:anywhere; }
+.pce-visita-termo .pce-doc-acoes { flex-shrink:0; } .pce-prop .botoes { flex-wrap:wrap; }
+.tf-num-inline { color:var(--destaque); font-weight:700; }
+.pce-papel .duas .botao { margin:0; font-size:14px; padding:12px 8px; }
 /* PCE: produtor que não assina — foto com documento de identificação no lugar da assinatura */
 .pce-naoassina { margin:4px 0 8px; } .pce-docprod .pce-fotos { margin:6px 0; } .pce-ass[hidden], .pce-docprod[hidden] { display:none; }
 
@@ -254,11 +281,49 @@ nav button span { font-size:9.5px; } nav button.on { color:var(--link); font-wei
 /* PCE: atalhos para cadastros, termos de fiscalização e relatório (o fluxo principal é a visita: levantamento → termo) */
 .pce-docs-atalhos { display:flex; flex-wrap:wrap; gap:6px; margin:0 0 12px; } .pce-docs-atalhos .mini { margin:0; padding:8px 10px; }
 .pce-visita .botao { margin:8px 0; }
+
+/* PCE — 3 Cards Principais por Fluxo na Tela Inicial */
+.pce-fluxos { margin:0 0 12px; }
+.pce-fluxo-card { margin:0 0 12px; border:1.5px solid var(--grade); border-radius:14px; padding:16px; background:var(--sf); box-shadow:var(--sombra); transition:border-color .15s ease; }
+.pce-fluxo-card:hover { border-color:var(--borda); }
+.pce-fluxo-topo { display:flex; align-items:flex-start; gap:12px; margin-bottom:12px; }
+.pce-fluxo-ic { flex:0 0 42px; height:42px; border-radius:10px; background:var(--sf2); border:1px solid var(--grade); display:flex; align-items:center; justify-content:center; color:var(--destaque); }
+.pce-fluxo-ic .ico { width:22px; height:22px; }
+.pce-fluxo-titulo { margin:0 0 3px; font-size:16.5px; font-weight:700; color:var(--destaque); }
+.pce-fluxo-sub { margin:0; font-size:13px; color:var(--mut); line-height:1.4; }
+.pce-fluxo-acoes { display:flex; flex-direction:column; gap:8px; margin-top:10px; }
+.pce-fluxo-acoes.duas { display:grid; grid-template-columns:1fr 1fr; gap:8px; }
+.pce-fluxo-acoes .botao { margin:0; }
+.pce-campo-status { font-size:13px; color:var(--ink); background:var(--sf2); padding:8px 12px; border-radius:8px; border:1px solid var(--grade); margin-bottom:4px; }
+
+/* PCE — Submenu / Abas internas (Pills) */
+.pce-subnav { display:flex; gap:6px; overflow-x:auto; padding:2px 2px 10px; margin:0 0 12px; -webkit-overflow-scrolling:touch; scrollbar-width:none; }
+.pce-subnav::-webkit-scrollbar { display:none; }
+.pce-subnav-btn { flex:0 0 auto; display:inline-flex; align-items:center; gap:6px; padding:7px 12px; background:var(--sf); border:1.5px solid var(--grade); border-radius:20px; font-size:13px; font-weight:600; color:var(--mut); cursor:pointer; text-decoration:none; white-space:nowrap; transition:all .15s ease; }
+.pce-subnav-btn .ico { width:15px; height:15px; }
+.pce-subnav-btn:hover { background:var(--sf2); color:var(--ink); border-color:var(--borda); }
+.pce-subnav-btn.on { background:var(--sel); border-color:var(--marca2); color:var(--destaque); font-weight:700; }
+
+/* PCE — Painel de Estatísticas */
+.pce-stats { margin-bottom:12px; padding:14px; background:var(--sf); border-radius:12px; border:1px solid var(--grade); }
+.pce-stats-topo { display:flex; justify-content:space-between; align-items:baseline; margin-bottom:10px; border-bottom:1px solid var(--grade); padding-bottom:6px; flex-wrap:wrap; gap:4px; }
+.pce-stats-topo b { display:flex; align-items:center; gap:6px; font-size:14.5px; color:var(--destaque); }
+.pce-stats-topo small { font-size:12px; color:var(--mut); }
+.pce-stats-grid { display:grid; grid-template-columns:repeat(auto-fit, minmax(120px, 1fr)); gap:8px; }
+.pce-stat-item { background:var(--sf2); border:1px solid var(--grade); border-radius:8px; padding:8px; text-align:center; }
+.pce-stat-num { display:block; font-size:20px; font-weight:700; color:var(--destaque); }
+.pce-stat-rot { display:block; font-size:11.5px; color:var(--mut); margin-top:2px; }
+
+@media (min-width:1024px) {
+  .pce-fluxos { display:grid; grid-template-columns:repeat(3, 1fr); gap:12px; margin-bottom:14px; }
+  .pce-fluxo-card { margin:0; display:flex; flex-direction:column; justify-content:space-between; }
+  .pce-fluxo-acoes.duas { grid-template-columns:1fr; }
+}
 /* PCE: resultado do laboratório do Termo de Colheita (selo com texto, não só cor) */
 .pce-lab { display:inline-block; font-size:13px; border-radius:6px; padding:2px 8px; background:var(--sf2); color:inherit; border:1px solid var(--borda); }
-.pce-lab.positivo { border-color:var(--critico); background:rgba(208,59,59,.10); font-weight:600; }
-.pce-lab.negativo { border-color:var(--bom); background:rgba(12,163,12,.08); }
-.pce-lab.inconclusivo, .pce-lab.inviavel { border-color:var(--serio); background:rgba(236,131,90,.10); }
+.pce-lab.positivo { border-color:var(--critico); background:color-mix(in srgb, var(--critico) 12%, var(--sf)); color:var(--critico); font-weight:600; }
+.pce-lab.negativo { border-color:var(--bom); background:color-mix(in srgb, var(--bom) 10%, var(--sf)); color:var(--bom-txt); }
+.pce-lab.inconclusivo, .pce-lab.inviavel { border-color:var(--serio); background:color-mix(in srgb, var(--serio) 12%, var(--sf)); color:var(--atencao-txt); }
 .pce-lab.sem { opacity:.8; }
 .pce-outro-l[hidden], #pce-modal-lab label[hidden] { display:none !important; }
 .pce-lista-outro { min-width:0; } .pce-outro-l { margin-top:6px; }
@@ -340,3 +405,8 @@ nav button .ico { width:24px; height:24px; margin-bottom:2px; }
 .re-itens { display: grid; gap: 6px; margin: 8px 0; }
 .re-item { display: grid; grid-template-columns: 4.6em 1fr 3.6em 4.6em auto; gap: 4px; align-items: center; }
 .re-item input { min-width: 0; padding: 8px 6px; }
+/* PCE: formulário do produtor com várias propriedades (cada uma recolhível, com os seus frutos) */
+.pp-prop > summary { cursor:pointer; list-style:none; } .pp-prop > summary::-webkit-details-marker { display:none; }
+.pp-prop > summary h3 { margin:0; } .pp-prop[open] > summary { margin-bottom:10px; }
+.pp-prop .pp-addfruto, .pp-prop .pp-delprop { margin-top:10px; }
+.pp-prop input[readonly] { background:var(--sf); color:var(--mut); }

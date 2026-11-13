@@ -413,7 +413,7 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
   }
   const listaIds = v => { const a = jsonPce(v, []); return Array.isArray(a) ? a.filter(x => typeof x === 'string' && x) : []; };
 
-  /* Levantamento por praga/doença: cada card de praga vira um PDF (dados gerais + só as culturas e fotos daquela praga + assinaturas). */
+  /* Levantamento por programa: cada grupo (g.praga = nome do programa, ver levPorPrograma em pce.js) vira um PDF (dados gerais + só as culturas e fotos dele + assinaturas). */
   const RES_PCE = { detectada: 'Detectada', nao_detectada: 'Não detectada', suspeita: 'Suspeita' };
   const SEM_PRAGA = 'Sem praga informada';
   const objeto = x => x && typeof x === 'object';
@@ -449,7 +449,7 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     const n = k => culturas.filter(c => c.resultado === k).length;
     return [['detectada', 'detectada(s)'], ['suspeita', 'suspeita(s)'], ['nao_detectada', 'não detectada(s)']].filter(([k]) => n(k)).map(([k, t]) => `${n(k)} ${t}`).join(', ');
   };
-  /** Nome sugerido do PDF de uma praga: Levantamento_<produtor>_<praga>_<data>. */
+  /** Nome sugerido do PDF de um programa: Levantamento_<produtor>_<programa>_<data>. */
   const nomePdfPce = (reg, praga) => nomeArquivo(`Levantamento_${reg.nome || 'SEM_NOME'}_${nomePraga(praga)}_${dataPce(reg.data).replace(/\//g, '-')}`);
 
   /**
@@ -466,10 +466,13 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     const fotosCult = culturas.map(c => c.fotos), nFotos = fotosCult.reduce((s, l) => s + l.length, 0) + G.gerais.length;
     preencherCampos(d, Object.assign({}, reg, {
       data: dataPce(reg.data), doc: fmtDoc(reg.doc), coordDec: co.dec || 'Não capturadas', coordGms: co.gms,
-      praga: nomePraga(grupo.praga), fichaN: total > 1 ? `${i + 1} de ${total} (uma ficha por praga/doença avaliada na visita)` : '1 de 1',
-      resumoPraga: culturas.length ? `${culturas.length} cultura(s) avaliada(s): ${resumoResultados(culturas)}.` : 'Nenhuma cultura informada.',
+      cnpjTxt: reg.cnpj ? fmtDoc(reg.cnpj) : '', localData: [reg.municipio, dataPce(reg.data)].filter(Boolean).join(', '),
+      servidorIdent: [reg.cargo, reg.matricula && 'Mat. ' + reg.matricula, reg.lotacao].filter(Boolean).join(' · '),
+      praga: nomePraga(grupo.praga), fichaN: total > 1 ? `${i + 1} de ${total}` : '1 de 1',
+      resumoPraga: culturas.length ? `${new Set(culturas.map(c => c.culturaBase || c.cultura)).size} cultura(s) avaliada(s): ${resumoResultados(culturas)}.` : 'Nenhuma cultura informada.',
       nFotos: nFotos ? `(${nFotos})` : '',
-      localOrigem: `Local: ${String(reg.tipoLocal || '').trim() || 'não informado'} · Origem: ${String(reg.origemVisita || '').trim() || 'não informada'}`
+      localOrigem: `Local: ${String(reg.tipoLocal || '').trim() || 'não informado'}${reg.comercial === 'sim' ? ' · Comercial: sim' : reg.comercial === 'nao' ? ' · Comercial: não' : ''}`
+        + ` · Origem: ${String(reg.origemVisita || '').trim() || 'não informada'}`
     }));
     const corpo = d.getElementById('culturasCorpo');
     if (!culturas.length) corpo.innerHTML = '<tr><td colspan="10" class="vazio">Nenhuma cultura informada.</td></tr>';
@@ -490,7 +493,7 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
       grade.querySelectorAll('figcaption').forEach((fc, k) => { fc.textContent = `${legenda} – foto ${k + 1}`; });
       g.append(h, grade); alvo.append(g);
     };
-    culturas.forEach((c, k) => { if (c.fotos.length) grupoFotos(`Cultura ${k + 1}: ${c.cultura}`, `· ${RES_PCE[c.resultado]} · ${c.fotos.length} foto(s)`, c.fotos, c.cultura); });
+    culturas.forEach((c, k) => { const leg = c.culturaBase || c.cultura; if (c.fotos.length) grupoFotos(`Cultura ${k + 1}: ${leg}`, `· ${RES_PCE[c.resultado]} · ${c.fotos.length} foto(s)`, c.fotos, leg); });
     if (G.gerais.length) grupoFotos('Fotos gerais (registro anterior)', '· do levantamento inteiro, antes da separação por praga', G.gerais, 'Geral');
     if (!nFotos) { alvo.className = 'vazio'; alvo.textContent = 'Nenhuma foto registrada.'; }
     montarAssinaturas(d, jsonPce(reg.assinaturas, {}), arquivos);
@@ -532,31 +535,47 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     imprimir(f, nomeT);
   }
 
-  /* ---------- PCE: Cadastro de imóvel (monilíase), Cadastro de citros, Termo de Fiscalização do PCE e Relatório de atividades ----------
-     Modelos declarativos (documentos/pce-termo.html, pce-termo-citros.html, pce-cadastro-moniliase.html, pce-cadastro-citros.html, pce-relatorio.html)
-     preenchidos por documentos/pce-docs.js (o mesmo script do painel). modo 'arquivo': devolve o PDF gerado no aparelho (pdf.js) em vez de abrir a impressão.
-     opcoes.extras: outras páginas no mesmo PDF (citros: Cadastro de citros + Termo de Fiscalização da visita). */
-  const MODELO_MON = { termo: 'pce-termo.html', cadastro: 'pce-cadastro-moniliase.html', relatorio: 'pce-relatorio.html',
-    termoCitros: 'pce-termo-citros.html', cadastroCitros: 'pce-cadastro-citros.html' };
+  /* ---------- PCE: Ficha oficial, Termo de Fiscalização e Relatório de atividades ----------
+     Três modelos declarativos (documentos/pce-ficha.html, pce-termo.html, pce-relatorio.html) preenchidos por documentos/pce-docs.js (o mesmo script do painel).
+     A ficha é uma só para os 6 formulários de papel (citros, banana, moniliase, mandioca, soja, propriedade), guiada por CONFIG.PCE.fichas.
+     modo 'arquivo': devolve o PDF gerado no aparelho (pdf.js) em vez de abrir a impressão.
+     opcoes.extras: outras páginas no mesmo PDF (ficha + Termo da mesma visita). Os tipos antigos (cadastro, cadastroCitros, cadastroBanana..., termoCitros)
+     continuam aceitos por pceMon: o pce-docs.js os adapta para os modelos novos sem alterar o registro. */
+  const MODELO_MON = { ficha: 'pce-ficha.html', termo: 'pce-termo.html', relatorio: 'pce-relatorio.html' };
+  const modeloMon = tipo => MODELO_MON[/^termo/.test(tipo) ? 'termo' : /^(ficha|cadastro)/.test(tipo) ? 'ficha' : 'relatorio'];
   function nomePdfMon(tipo, r) {
+    if (tipo === 'ficha') { const e = r.ficha || {}; return nomeArquivo(`Ficha_${(r.modelo || '').replace(/^./, c => c.toUpperCase())}_` + (e.numeroTxt || 'SEM_NUMERO') + '_' + ((r.produtor || {}).nome || '')); }
+    const gen = /^cadastro(Banana|Mandioca|Soja|Propriedade)$/.exec(tipo);
+    if (gen) return nomeArquivo(`Cadastro_${gen[1]}_` + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));
     if (tipo === 'termo') return nomeArquivo('Termo_Fiscalizacao_' + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));
     if (tipo === 'termoCitros') return nomeArquivo('TF_Citros_' + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));
     if (tipo === 'cadastroCitros') return nomeArquivo('Cadastro_Citros_' + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));
     if (tipo === 'cadastro') return nomeArquivo('Cadastro_Moniliase_' + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));
     return nomeArquivo(`Relatorio_Atividades_${r.localArq || r.local || ''}_${dataPce(r.de).replace(/\//g, '-')}_a_${dataPce(r.ate).replace(/\//g, '-')}`);
   }
+  // PDF do PCE (ficha, Termo, relatório): 300 dpi reais (A4 em 2481 x 3508 px) e JPEG 0,92; os outros módulos seguem com o padrão do pdf.js
+  const PDF_PCE = { escala: 3.125, qualidade: 0.92 };
   async function pceMon(tipo, dados, opcoes, modo) {
     if (!dados) throw new Error('Registro não encontrado.');
-    const f = await abrirModelo(MODELO_MON[tipo]), w = f.contentWindow;
+    const f = await abrirModelo(modeloMon(tipo)), w = f.contentWindow;
     for (let i = 0; i < 50 && !w.PCEDocs; i++) await new Promise(r => setTimeout(r, 50));   // script do modelo ainda carregando
     if (!w.PCEDocs) { f.remove(); throw new Error('Modelo de impressão indisponível nesta versão do app.'); }
-    await w.PCEDocs.montar(f.contentDocument, tipo, dados, opcoes || {});
+    await w.PCEDocs.montar(f.contentDocument, tipo, dados, { opcional: n => typeof PCECads !== 'undefined' && PCECads.opcional(n), nomeDe: n => (typeof PCECads !== 'undefined' && PCECads.nomeNoTF ? PCECads.nomeNoTF(n) : n), ...(opcoes || {}) });   // opcional: o servidor não guarda o campo da praga; o catálogo diz quais só têm Presença/Ausência
     const nome = nomePdfMon(tipo, dados);
-    if (modo === 'arquivo') return PDF.deFrame(f, nome);
+    if (modo === 'arquivo') return PDF.deFrame(f, nome, undefined, PDF_PCE);
     const folhas = f.contentDocument.querySelectorAll('.a4').length;      // antes de imprimir: no celular o iframe sai da página
     imprimir(f, nome);
     return folhas;
   }
+
+  /**
+   * Ficha oficial do PCE (um modelo por propriedade). entrada = {produtor, propriedade (com frutos), dados (próprios do modelo), visita (Termo mais recente) ou nada,
+   * frutos (opcional), ficha: {numeroTxt, data, local, servidor, cargo, matricula, lotacao, assinaturas, rt}}: ver PCEDocs.valoresFicha em documentos/pce-docs.js.
+   * modelo: citros | banana | moniliase | mandioca | soja | propriedade. Registro antigo (CadastrosPCE): PCEDocs.entradaDeCadastro(registro).
+   */
+  const fichaPce = (modelo, entrada, opcoes, modo) => pceMon('ficha', { ...entrada, modelo }, opcoes, modo);
+  /** Termo de Fiscalização do PCE (um só modelo, todos os programas; aceita o Termo novo, o antigo e o de citros antigo, como gravados). */
+  const termoPce = (termo, opcoes, modo) => pceMon('termo', termo, opcoes, modo);
 
   /** Relatório da equipe (prestação de contas do convênio): modelo rel-equipe.html preenchido por documentos/rel-equipe-docs.js. */
   async function relEquipe(R) {
@@ -575,5 +594,5 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     return imprimir(f, `Termo_de_${r.tipo.normalize('NFD').replace(/[\u0300-\u036f]/g, '')}_${String(r.numero).replace(/[^\w]+/g, '_')}_${String(R.escala.bva).replace(/[^\w]+/g, '_')}`);
   }
 
-  return { ficha, termo, tf, auto, limparImpressao, relEquipe, termoRepasse, fiscaisDoTurno, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, nomePdfMon, ordenar, esc };
+  return { ficha, termo, tf, auto, limparImpressao, relEquipe, termoRepasse, fiscaisDoTurno, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, fichaPce, termoPce, nomePdfMon, ordenar, esc };
 })();

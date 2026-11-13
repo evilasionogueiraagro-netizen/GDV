@@ -105,6 +105,7 @@
     const nCult = levs.reduce((s, l) => s + l.culturasUnicas.length, 0);   // a mesma cultura avaliada para várias pragas conta uma vez
     const tipos = new Set(itens.map(x => x.cultura)).size;
     const termos = d.colheitas, amostrasTermos = termos.reduce((s, t) => s + qtdAmostras(t), 0);
+    const cadsPer = (d.cadastrosPce || []).filter(c => c.data >= f.de && c.data <= f.ate);
     const cob = cobertura(d, f), nMun = cob.linhas.length;
     const cobAno = cob.linhas.filter(l => l.sit >= 1).length, munPer = cob.linhas.filter(l => l.periodo).length;
     const nConf = auditoriaFiltrada(d, f).reduce((s, a) => s + (a.conflitos || 0) + a.duplicados.length, 0);
@@ -122,13 +123,16 @@
         status: nConf ? 'critico' : null },
       { chave: 'termosPce', rotulo: 'Termos de fiscalização', valor: (d.termosPce || []).length,
         detalhe: `${fmt.int((d.termosPce || []).reduce((s, t) => s + (t.plantasInspecionadas || 0), 0))} plantas inspecionadas` },
-      { chave: 'cadastrosPce', rotulo: 'Cadastros monilíase', valor: (d.cadastrosPce || []).filter(c => c.data >= f.de && c.data <= f.ate).length,
-        detalhe: 'imóveis com hospedeiros cadastrados no período' },
+      { chave: 'cadastrosPce', rotulo: 'Cadastros de imóvel', valor: cadsPer.length,
+        detalhe: Object.entries(cadsPer.reduce((o, c) => { const k = progCad(c.programa); o[k] = (o[k] || 0) + 1; return o; }, {})).map(([k, n]) => `${k}: ${n}`).join(' · ') || 'nenhum cadastro no período' },
       { chave: 'cobertura', rotulo: `Cobertura (${cob.ano})`, valor: `${fmt.int(cobAno)} / ${fmt.int(nMun)}`, detalhe: `municípios com levantamento de ${fmt.dataCurta(cob.lim)} a ${fmt.dataCurta(f.ate)}`,
         status: nMun && cobAno / nMun < 0.5 ? 'atencao' : null, cobertos: cobAno, total: nMun }
     ];
   }
 
+  /** Cadastros de imóvel são por programa (monilíase, citros, banana, mandioca, soja, cadastro geral): nome curto do programa. */
+  const ROT_CAD = (typeof CONFIG !== 'undefined' && CONFIG.PCE && CONFIG.PCE.cadastros && CONFIG.PCE.cadastros.rotulos) || {};
+  const progCad = p => ROT_CAD[p || 'moniliase'] || String(p || 'moniliase');
   /** Cálculos do módulo para o modo TV e a aba: detecções por praga, focos (novo × recorrente) e cobertura municipal. */
   function calculos(d, f) {
     const itens = itensCultura(d.levantamentos);
@@ -140,7 +144,24 @@
   }
 
   /* ---------- render ---------- */
+  // Seletor da aba: uma visão por vez. Culturas e Doenças e pragas = catálogo (painel-pce-catalogo.js), só com o módulo PCE.
+  const VISOES = [['indicadores', 'Indicadores e mapa'], ['culturas', 'Culturas'], ['pragas', 'Doenças e pragas']];
+  const LS_VISAO = 'pn.pce.visao';
+  const lerVisao = () => { try { return localStorage.getItem(LS_VISAO) || ''; } catch (e) { return ''; } };
+  function seletor(c) {
+    const vs = VISOES.filter(([v]) => v === 'indicadores' || (P.temPermissao('pce') && window.PainelPceCatalogo));
+    let atual = lerVisao(); if (!vs.some(([v]) => v === atual)) atual = 'indicadores';
+    if (vs.length > 1) {
+      const s = P.el('div', 'pn-pce-sub'); s.setAttribute('role', 'tablist'); s.setAttribute('aria-label', 'Visões do PCE');
+      s.innerHTML = vs.map(([v, t]) => `<button type="button" role="tab" data-pce-visao="${v}" aria-selected="${v === atual}" class="${v === atual ? 'on' : ''}">${esc(t)}</button>`).join('');
+      s.onclick = e => { const b = e.target.closest('[data-pce-visao]'); if (!b) return; try { localStorage.setItem(LS_VISAO, b.dataset.pceVisao); } catch (x) { /* sem armazenamento */ } P.redesenhar(); };
+      c.appendChild(s);
+    }
+    return atual;
+  }
   function render(c, d, f) {
+    const visao = seletor(c);
+    if (visao !== 'indicadores') { const corpo = P.el('div', 'pn-cat'); c.appendChild(corpo); window.PainelPceCatalogo.render(corpo, visao); return; }
     const p = P.paleta;
     const levs = d.levantamentos, termos = d.colheitas;
     const K = calculos(d, f), itens = K.itens, cob = K.cobertura, nMun = cob.linhas.length;
@@ -239,8 +260,9 @@
     ], cob.linhas, { id: 'pce-cobertura', csv: 'pce-cobertura-municipal.csv', ordenar: 'dias', limite: 15, vazio: 'Nenhum município.' });
 
     /* Levantamentos */
-    const sl = P.secao(c, 'Levantamentos do período', 'Documento do produtor mascarado (LGPD). Busque por propriedade, município, cultura, praga ou servidor.');
+    const sl = P.secao(c, 'Levantamentos do período', 'Levantamentos antigos e visitas dos Termos de Fiscalização (um Termo por programa; a visita conta uma vez). Documento do produtor mascarado (LGPD). Busque por propriedade, município, cultura, praga ou servidor.');
     P.tabela(sl, [
+      { chave: 'origem', rotulo: 'Origem', fmt: v => v === 'termo' ? 'Termo' : 'Levantamento antigo' },
       { chave: 'data', rotulo: 'Data', fmt: (v, l) => `${fmt.data(v)}${l.hora ? ' ' + l.hora : ''}`, csv: v => fmt.data(v), ordem: l => (l.data || '') + (l.hora || '') },
       { chave: 'municipio', rotulo: 'Município' },
       { chave: 'propriedade', rotulo: 'Propriedade', fmt: (v, l) => [v, l.codigoPropriedade].filter(Boolean).join(' · ') || '—' },
@@ -253,6 +275,7 @@
         ordem: l => l.deteccoes },
       { chave: 'nAmostras', rotulo: 'Amostras', num: true, fmt: fmt.int },
       { chave: 'tipoLocal', rotulo: 'Tipo de local', fmt: v => v || 'não informado' },
+      { chave: 'comercial', rotulo: 'Comercial', fmt: v => v === 'sim' ? 'Sim' : v === 'nao' ? 'Não' : 'não informado' },
       { chave: 'origemVisita', rotulo: 'Origem da visita', fmt: v => v || 'não informada' },
       { chave: 'servidor', rotulo: 'Servidor' },
       { chave: 'coord', rotulo: 'GPS', fmt: (v, l) => temCoord(l) ? 'Sim' : 'Não', html: (v, l) => temCoord(l) ? 'Sim' : selo('atencao', 'Não'), ordem: l => temCoord(l) ? 1 : 0 },
@@ -360,7 +383,7 @@
   /* ---------- Monilíase: Termos de Fiscalização do PCE, Cadastros de imóvel e Relatório de atividades ---------- */
   function secaoMoniliase(c, d, f) {
     const termos = d.termosPceTodos || [], cads = d.cadastrosPce || [];
-    const sm = P.secao(c, 'Monilíase: termos e cadastros', 'Termos de Fiscalização do PCE (um por visita) e Cadastros de imóvel com hospedeiros. O relatório de atividades usa os filtros de período, município e servidor.');
+    const sm = P.secao(c, 'Termos e cadastros de imóvel', 'Termos de Fiscalização do PCE (um por programa em cada visita) e Cadastros de imóvel (um por propriedade e programa: monilíase, citros, banana, mandioca, soja e cadastro geral). O relatório de atividades usa os filtros de período, município e servidor.');
     sm.parentNode.classList.add('pn-pce-mon');
     const bar = P.el('div', 'pn-mon-acoes');
     const b = P.el('button', 'pn-btn pn-btn-prim', 'Relatório de atividades'); b.type = 'button'; b.id = 'pn-pce-relatorio';
@@ -377,10 +400,11 @@
     ], termos, { id: 'pce-termos-fisc', titulo: 'Termos de Fiscalização', csv: 'pce-termos-fiscalizacao.csv', ordenar: 'numeroTxt', limite: 15, vazio: 'Nenhum Termo de Fiscalização no período.' });
     P.tabela(sm, [
       { chave: 'numeroTxt', rotulo: 'Nº', ordem: l => (l.ano || 0) * 1e6 + (l.numero || 0) }, { chave: 'data', rotulo: 'Data', fmt: fmt.data },
+      { chave: 'programa', rotulo: 'Programa', fmt: v => progCad(v) },
       { chave: 'municipio', rotulo: 'Município' }, { chave: 'nome', rotulo: 'Produtor', fmt: (v, l) => [v, l.doc].filter(Boolean).join(' · ') || '—' },
-      { chave: 'propriedade', rotulo: 'Propriedade', fmt: v => v || '—' }, { chave: 'totalPlantas', rotulo: 'Plantas', num: true, fmt: fmt.int },
-      { chave: 'sintomas', rotulo: 'Sintomas', fmt: (v, l) => (l.dados && l.dados.sintomas === 'sim') ? 'Sim' : 'Não' }, { chave: 'servidor', rotulo: 'Servidor' }
-    ], cads, { id: 'pce-cadastros-mon', titulo: 'Cadastros de imóvel (monilíase)', csv: 'pce-cadastros-moniliase.csv', ordenar: 'numeroTxt', limite: 15, vazio: 'Nenhum cadastro no período.' });
+      { chave: 'propriedade', rotulo: 'Propriedade', fmt: v => v || '—' }, { chave: 'totalPlantas', rotulo: 'Plantas', num: true, fmt: v => (v ? fmt.int(v) : '—') },
+      { chave: 'sintomas', rotulo: 'Sintomas', fmt: (v, l) => (l.programa && l.programa !== 'moniliase' ? '—' : (l.dados && l.dados.sintomas === 'sim') ? 'Sim' : 'Não') }, { chave: 'servidor', rotulo: 'Servidor' }
+    ], cads, { id: 'pce-cadastros-mon', titulo: 'Cadastros de imóvel (todos os programas)', csv: 'pce-cadastros-imovel.csv', ordenar: 'numeroTxt', limite: 15, vazio: 'Nenhum cadastro no período.' });
   }
   const REL_LS = 'gdv.painel.relatorioPce';
   function dialogoRelatorio(d, f) {
@@ -388,21 +412,21 @@
     const velho = document.getElementById('pn-relatorio'); if (velho) velho.remove();
     let m = {}; try { m = JSON.parse(localStorage.getItem(REL_LS) || '{}') || {}; } catch (e) { m = {}; }
     const mun = f.local && f.local.tipo === 'municipio' ? f.local.valor : '';
-    const pragas = (CONFIG.PCE.termo && CONFIG.PCE.termo.pragas) || ['Monilíase'];
-    const calc = (praga, folders) => PCEDocs.calcularRelatorio(d.termosPceTodos || [], d.cadastrosPce || [], { de: f.de, ate: f.ate, municipio: mun, praga, servidores: f.fiscal ? [f.fiscal] : [], folders });
-    let R = calc(m.praga || 'Monilíase');
+    const progs = PCEDocs.programasRelatorio(), progSel = progs.some(x => x.id === m.programa) ? m.programa : 'moniliase';
+    const calc = (programa, folders) => PCEDocs.calcularRelatorio(d.termosPceTodos || [], d.cadastrosPce || [], { de: f.de, ate: f.ate, municipio: mun, programa, servidores: f.fiscal ? [f.fiscal] : [], folders });
+    let R = calc(progSel);
     const servTxt = R => R.servidores.map(x => [x.nome, x.funcao].filter(Boolean).join(' - ')).join('\n');
-    const objetivo = pr => ((CONFIG.PCE.termo || {}).objetivos || {})[pr] || `Executar Ações de Levantamento Fitossanitário de detecção da praga ${pr}, visando a prevenção e ação imediata de contingência.`;
+    const objetivo = programa => PCEDocs.objetivoRelatorio({ programa });
     const dlg = P.el('dialog', 'pn-dlg pn-dlg-rel'); dlg.id = 'pn-relatorio';
     const campo = (id, rot, v, tag) => `<label class="pn-dlg-campo">${esc(rot)}${tag === 'ta' ? `<textarea id="${id}" rows="3">${esc(v)}</textarea>` : `<input id="${id}" value="${esc(v)}">`}</label>`;
     dlg.innerHTML = `<form method="dialog" class="pn-dlg-form" novalidate><h3>Relatório de atividades</h3>
       <div class="pn-dlg-info"><b>${esc(f.rotuloPeriodo)}${mun ? ' · ' + esc(mun) : ''}${f.fiscal ? ' · ' + esc(f.fiscal) : ''}</b><span id="pn-rel-resumo"></span></div>
-      <label class="pn-dlg-campo">Praga/programa<select id="pn-rel-praga">${pragas.map(x => `<option ${x === (m.praga || 'Monilíase') ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+      <label class="pn-dlg-campo">Programa<select id="pn-rel-praga">${progs.map(x => `<option value="${esc(x.id)}" ${x.id === progSel ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
       ${campo('pn-rel-conv', 'Convênio nº', m.convenio || '')}${campo('pn-rel-etapa', 'Etapa', m.etapa || '')}
       ${campo('pn-rel-servs', 'Nome dos servidores (Nome - Função, um por linha; inclua o motorista)', servTxt(R), 'ta')}
       ${campo('pn-rel-resp', 'Responsável pela equipe', R.servidores[0] ? [R.servidores[0].nome, R.servidores[0].funcao].filter(Boolean).join(' - ') : '')}
       ${campo('pn-rel-local', 'Local', mun ? mun + '/AM' : R.municipios.map(x => x + '/AM').join(', '))}
-      ${campo('pn-rel-obj', 'Objetivo', objetivo(m.praga || 'Monilíase'), 'ta')}${campo('pn-rel-desl', 'Deslocamento', m.deslocamento || '')}
+      ${campo('pn-rel-obj', 'Objetivo', objetivo(progSel), 'ta')}${campo('pn-rel-desl', 'Deslocamento', m.deslocamento || '')}
       ${campo('pn-rel-folders', 'Educação Sanitária: nº de folders e flyers distribuídos', '')}
       ${campo('pn-rel-obs', 'OBS', m.obs != null ? m.obs : 'Anexo Termo de Fiscalização e Cadastro de imóveis', 'ta')}
       <label><input type="checkbox" id="pn-rel-anexos" ${m.anexos === false ? '' : 'checked'}> Anexar os Termos de Fiscalização e os Cadastros ligados (CPF mascarado)</label>
@@ -420,9 +444,9 @@
       ev.preventDefault(); recalc();
       const v = id => q(id).value.trim(), anexar = q('pn-rel-anexos').checked;
       const rel = { convenio: v('pn-rel-conv'), etapa: v('pn-rel-etapa'), responsavel: v('pn-rel-resp'), de: f.de, ate: f.ate, local: v('pn-rel-local'), objetivo: v('pn-rel-obj'),
-        deslocamento: v('pn-rel-desl'), praga: q('pn-rel-praga').value, obs: v('pn-rel-obs'), calc: R,
+        deslocamento: v('pn-rel-desl'), programa: q('pn-rel-praga').value, obs: v('pn-rel-obs'), calc: R,
         servidores: v('pn-rel-servs').split('\n').map(l => l.trim()).filter(Boolean).map(l => { const [nome, ...r] = l.split(/\s+-\s+/); return { nome, funcao: r.join(' - ') }; }) };
-      try { localStorage.setItem(REL_LS, JSON.stringify({ praga: rel.praga, convenio: rel.convenio, etapa: rel.etapa, deslocamento: rel.deslocamento, obs: rel.obs, anexos: anexar })); } catch (e) { /* sem armazenamento */ }
+      try { localStorage.setItem(REL_LS, JSON.stringify({ programa: rel.programa, convenio: rel.convenio, etapa: rel.etapa, deslocamento: rel.deslocamento, obs: rel.obs, anexos: anexar })); } catch (e) { /* sem armazenamento */ }
       dlg.close();
       await imprimirRelatorio(rel, anexar ? { termos: R.termos, cadastros: R.cadastros } : null);
     });

@@ -31,17 +31,17 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== und
   await p.screenshot({ path: amb.saida('responsivo_pc_modulos.png') });
 
   await p.click('.modulo[data-v=pce]'); await p.waitForSelector('#pceServForm');
-  await p.selectOption('#pce-s-cargo', { index: 1 }); await p.selectOption('#pce-s-lotacao', 'Manaus'); await p.click('#pce-s-salvar'); await p.waitForSelector('#pce-novolev');
+  await p.selectOption('#pce-s-cargo', { index: 1 }); await p.selectOption('#pce-s-lotacao', 'Manaus'); await p.click('#pce-s-salvar'); await p.waitForSelector('#campo-novo');
   n = await navInfo();
   const botoes = await p.evaluate(() => [...document.querySelectorAll('#nav button')].map(b => { const r = b.getBoundingClientRect(); return [Math.round(r.left), Math.round(r.width)]; }));
-  ok(botoes.length >= 4 && botoes.every(([l, w]) => l < 216 && w > 150), 'PC: botões do menu do PCE empilhados na lateral', botoes);
-  await p.click('#pce-novolev'); await p.waitForSelector('#pceLevForm');
+  ok(botoes.length >= 3 && botoes.every(([l, w]) => l < 216 && w > 150), 'PC: botões do menu do PCE empilhados na lateral', botoes);
+  await p.click('#campo-novo'); await p.waitForSelector('#pceProdForm');
   const fw = await p.evaluate(() => Math.round(document.querySelector('#view').getBoundingClientRect().width));
-  ok(fw >= 800 && fw <= 900 && await semRolagem(), 'PC: formulário com largura confortável (≤ 880 px de conteúdo)', fw);
-  await p.screenshot({ path: amb.saida('responsivo_pc_levantamento.png') });
+  ok(fw >= 800 && fw <= 900 && await semRolagem(), 'PC: formulário do produtor com largura confortável (≤ 880 px de conteúdo)', fw);
+  await p.screenshot({ path: amb.saida('responsivo_pc_produtor.png') });
   await p.setViewportSize({ width: 820, height: 1180 }); await p.waitForTimeout(200);
-  ok(await semRolagem(), 'tablet: formulário do levantamento sem rolagem horizontal');
-  await p.screenshot({ path: amb.saida('responsivo_tablet_levantamento.png') });
+  ok(await semRolagem(), 'tablet: formulário do produtor sem rolagem horizontal');
+  await p.screenshot({ path: amb.saida('responsivo_tablet_produtor.png') });
   ok(err.length === 0, 'sem erros de JavaScript', err);
   await b.close(); process.exit(falhas ? 1 : 0);
 })().catch(e => { console.error(e); process.exit(1); });

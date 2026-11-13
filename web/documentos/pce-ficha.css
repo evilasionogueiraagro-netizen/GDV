@@ -1,0 +1,68 @@
+/* Ficha oficial e Termo de Fiscalização do PCE: só o que é próprio dos dois, sobre documento-base.css (fonte, margens, quadros, caixas, assinaturas, rodapé). */
+.doc.ficha table.ln.perg td { height: var(--rh); }
+.doc.ficha .aviso td { font-size: var(--fh); }
+.doc.ficha .aviso td.b { font-size: var(--fs); }
+.doc.ficha .coluna .op { display: block; margin-right: 0; }
+.doc.ficha .colunas2 { display: flex; flex-wrap: wrap; }
+.doc.ficha .colunas2 .op { width: 50%; margin-right: 0; white-space: normal; padding-right: 1mm; }
+.doc.ficha .grupo { font-weight: bold; }
+.doc.ficha .compl { margin-left: 1mm; white-space: nowrap; }
+.doc.ficha .compl .v { white-space: normal; }
+/* tabela de cultura (frutos) e quadro do levantamento; o cabeçalho repete se a tabela continuar em outra folha */
+.doc.ficha table.ln.cult th { font-weight: bold; text-align: center; font-size: var(--fh); padding: 0.3mm; line-height: 1.15; }
+.doc.ficha table.ln.cult td { height: var(--rh); text-align: center; font-weight: bold; overflow-wrap: anywhere; padding: 0 0.6mm; }
+.doc.ficha table.ln.cult td small { display: block; font-weight: normal; font-size: var(--fn); }
+.doc.ficha table.ln.lev td { height: var(--rh); }
+.doc.ficha table.ln.lev td.c { white-space: nowrap; }
+.doc.ficha table.ln.par td { vertical-align: middle; }
+.doc.ficha table.ln.par .cp > .lbl, .doc.ficha table.ln.dados .cp > .lbl { white-space: normal; }
+.doc.ficha .aviso td.b { white-space: nowrap; }
+.doc.ficha .pl-i { margin-right: 1.5mm; white-space: nowrap; }
+.doc.ficha .pl-i .v.curto { min-width: 11mm; }
+.doc.ficha .resp { text-align: center; font-weight: bold; padding: 0.6mm 0; }
+.doc.ficha table.ln.assin td { padding: 1mm 4mm; }
+.doc.ficha .assin .data { text-align: center; margin-top: 1mm; }
+.doc.ficha .assin .serv { font-size: var(--fh); }
+/* Termo de Fiscalização: título grande com o número à direita, identificação em quadros altos, constatação e enquadramento em linhas pontilhadas que crescem até a folha acabar,
+   testemunhas à esquerda e, à direita, "Recebi", assinatura do produtor e do servidor em três quadros (a sobra de altura da folha vai para eles: pce-docs.js, esticarFolha) */
+.a4.doc.termo { --ft: 20pt; --brasao: 17mm; --rh: 5.2mm; }
+.a4.doc.termo.c1 { --ft: 19pt; --rh: 5mm; }
+.a4.doc.termo.c2 { --ft: 18pt; --rh: 4.8mm; }
+.a4.doc.termo.c3 { --ft: 17pt; --rh: 4.6mm; }
+.a4.doc.termo.c4 { --ft: 16pt; --rh: 4.3mm; }
+.a4.doc.termo.c5 { --ft: 15pt; --rh: 3.9mm; }
+.doc.termo table.ln td.tit { text-align: left; white-space: nowrap; padding: 1.2mm 1.6mm 1mm; }
+.doc.termo .tit-l { display: flex; justify-content: space-between; align-items: flex-end; }
+.doc.termo table.ln tr.alta td { height: calc(var(--rh) * 1.5); vertical-align: top; }
+.doc.termo .cxs { line-height: 1.65; vertical-align: top; }
+/* Seção 2 padronizada: linhas de caixas (tipo de local, ações) e o quadro "Resultado da inspeção" (uma linha por praga) */
+.doc.termo .ops { line-height: 1.65; }
+.doc.termo .ops .lbl { margin-right: 1.2mm; }
+.doc.termo .ops .op { margin-right: 1.8mm; }
+.doc.termo .cxs > .lbl { display: block; line-height: 1.4; }
+.doc.termo table.ln td.res-td { padding: 0; height: auto; }
+.doc.termo table.res { width: 100%; border-collapse: collapse; table-layout: fixed; border-style: hidden; }
+.doc.termo table.res th { font-weight: bold; text-align: center; }
+.doc.termo table.res td.pr-x { text-align: left; white-space: nowrap; }
+.doc.termo table.res td.pr-x .op { margin-right: 0; }
+.doc.termo table.res tr.det td.pr-n, .doc.termo table.res tr.det td.pr-c { font-weight: bold; }
+.doc.termo .cxs .op { margin-right: 2.5mm; }
+.doc.termo .peq { font-size: var(--fn); text-align: center; line-height: 1.2; }
+.doc.termo .peq.esq { text-align: left; padding-left: 12mm; }
+.doc.termo .blk { display: flex; border-top: 0.6pt solid #000; margin-top: -0.6pt; }
+.doc.termo .blk > .esq { flex: 0 0 52%; border-right: 0.6pt solid #000; padding: var(--pd) 1.6mm 1.6mm; display: flex; flex-direction: column; justify-content: space-between; }
+.doc.termo .blk > .dir { flex: 1 1 0; display: flex; flex-direction: column; }
+.doc.termo .blk .bl { padding: var(--pd) 1.6mm; flex: 1 1 auto; }
+.doc.termo .blk .bl + .bl { border-top: 0.6pt solid #000; }
+.doc.termo .blk .bl.b1 { padding-bottom: 3mm; }
+.doc.termo .blk .bl.b2, .doc.termo .blk .bl.b3 { display: flex; flex-direction: column; justify-content: flex-end; }
+.doc.termo .tst .lin { margin-top: 1.6mm; display: flex; align-items: flex-end; gap: 1mm; }
+.doc.termo .tst .lin u { text-decoration: none; flex: 1; border-bottom: 0.6pt solid #000; font-weight: bold; min-height: 4.5mm; }
+.doc.termo .tst .grupo { padding-top: 2mm; }
+.doc.termo .ass { text-align: center; font-weight: bold; margin-top: 0.5mm; }
+.doc.termo .ass .linha { margin: 0 4mm; }
+.doc .ass-img.doc, .a4.doc.compacta .ass-img.doc { height: 22mm; font-size: var(--fh); font-weight: normal; }   /* produtor que não assina: foto com documento */
+.doc .ass-img.doc img { max-height: 22mm; }
+.doc.termo .ass .ident { font-size: var(--fh); font-weight: normal; }
+.doc.termo .recebi { display: block; font-weight: bold; margin-top: 1mm; }
+.doc.termo .cancelado-faixa { border: 0.8pt solid #b00020; color: #b00020; font-weight: bold; text-align: center; padding: 0.8mm; margin-bottom: 1mm; }

@@ -1,74 +1,113 @@
 const amb = require('./lib/amb');
-const U = require('./lib/usuarios');
-// PCE — a visita é uma só: levantamento (pragas escolhidas) → cadastrar a propriedade (se nova) → Termo de Fiscalização com as pragas já marcadas.
-// Sem cartão específico de monilíase na lista: só atalhos gerais para cadastros, termos e relatório.
-const { API, APP } = amb;
-let falhas = 0;
-const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== undefined ? ' -> ' + JSON.stringify(x) : '')); if (!c) falhas++; };
+const A = require('./lib/pce-app');
+// PCE — a visita em passos: validações de cada passo, pragas pelo catálogo e pela regra de hospedeiros, praga acrescentada, fruto acrescentado na
+// visita (vai para o cadastro), perguntas de detecção da monilíase, visita sem detecção (também gera Termo) e sem coleta (sem Termo de Colheita).
+// App real + Code.gs real no fakegas. Dados fictícios.
+const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x === undefined ? '' : ' -> ' + JSON.stringify(x).slice(0, 300))); if (!c) throw new Error(m); };
 (async () => {
   const b = await amb.lancar();
-  const r = await U.fiscal('Pessoa Ficticia Alfa');
-  const c = await b.newContext({ viewport: { width: 400, height: 900 }, permissions: ['geolocation'], geolocation: { latitude: -3.12, longitude: -60.02, accuracy: 9 } });
-  await c.addInitScript(([t]) => { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', 'Pessoa Ficticia Alfa'); localStorage.setItem('gdv.semInstalar', '1'); } }, [r.token]);
-  const p = await c.newPage(); const err = []; p.on('pageerror', e => err.push(e.message)); p.on('dialog', d => d.accept());
+  const p = await A.aparelho(b, 'Pessoa Ficticia Delta Ficticia');
   const toast = () => p.textContent('#toast');
+  await A.identificar(p);
+  await A.novoProdutor(p, { doc: '11144477735', nome: 'Maria Ficticia', propriedade: 'Sitio Visita', codigo: 'PRP-VIS-1', municipio: 'Manaus',
+    frutos: [{ cultura: 'Cacau', area: 3, quantidade: 600 }, { cultura: 'Laranja', area: 1 }, { cultura: 'Mandioca', area: 2 }] });
 
-  await p.goto(APP); await p.waitForSelector('.modulo[data-v=pce]'); await p.click('.modulo[data-v=pce]'); await p.waitForSelector('#pceServForm');
-  await p.selectOption('#pce-s-cargo', { index: 1 }); await p.selectOption('#pce-s-lotacao', 'Manaus'); await p.click('#pce-s-salvar'); await p.waitForSelector('#pce-novolev');
-  ok(await p.locator('.pce-mon-atalhos').count() === 0 && !/🍫|Monilíase/.test(await p.textContent('#view')), 'lista do PCE sem cartão específico de monilíase');
-  ok(await p.locator('.pce-docs-atalhos #pce-cads').count() === 1 && await p.locator('.pce-docs-atalhos #pce-tfs').count() === 1 && await p.locator('.pce-docs-atalhos #pce-rel').count() === 1,
-    'atalhos gerais: cadastros de propriedades, termos de fiscalização e relatório');
+  console.log('1) passo 1: precisa marcar fruto; passo 2: pragas pelo catálogo e pelos hospedeiros');
+  await p.locator('#pce-novavisita').click(); await p.waitForSelector('#pceVisitaForm');
+  ok(/Passo 1 de 5/.test(await p.textContent('.pce-passos')) && await p.locator('input[name=vi-fruto]').count() === 3 && await p.locator('#vi-voltar').count() === 0, 'passo 1 de 5, 3 frutos do cadastro, sem "Voltar"');
+  ok(await p.locator('input[name=vi-fruto]:checked').count() === 3, 'os frutos da propriedade já vêm marcados');
+  for (const c of await p.locator('input[name=vi-fruto]').all()) await c.uncheck();
+  await p.click('#vi-continuar'); ok(/Marque ao menos um fruto/.test(await toast()) && /Passo 1/.test(await p.textContent('.pce-passos')), 'sem fruto marcado não avança', await toast());
+  await p.locator('label.vi-fruto', { hasText: 'Cacau' }).locator('input').check(); await p.locator('label.vi-fruto', { hasText: 'Laranja' }).locator('input').check();
+  ok(await p.locator('textarea[data-pulado]').count() >= 1, 'programa sem fruto marcado pede justificativa');
+  await p.click('#vi-continuar'); ok(/justifique|justificativa/i.test(await toast()), 'sem justificativa não avança', await toast());
+  for (const t of await p.locator('textarea[data-pulado]').all()) await t.fill('Cultura não avaliada nesta visita (motivo fictício).');
+  await p.click('#vi-continuar'); await p.waitForSelector('.pce-pr');
+  const nomes = c => A.bloco(p, c).locator('.pce-pr').evaluateAll(l => l.map(e => e.dataset.nome));
+  ok((await nomes('Cacau')).join('|') === 'Monilíase do Cacaueiro', 'Cacau: só a monilíase (catálogo)', await nomes('Cacau'));
+  const lar = await nomes('Laranja');
+  ok(lar.length === 6 && ['HLB / Greening', 'Cancro Cítrico', 'Schizotetranychus hindustanicus'].every(x => lar.includes(x)) && ['Diaphorina citri (vetor do HLB)', 'Pinta Preta dos Citros', 'Leprose dos Citros'].every(x => lar.includes(x)), 'Laranja: HLB, cancro, ácaro e as opcionais', lar);
+  const obrig = await A.bloco(p, 'Laranja').locator('.pce-pr:not([data-opcional])').evaluateAll(l => l.map(e => e.dataset.nome));
+  ok(obrig.length === 3, 'citros: HLB, ácaro hindustânico e cancro têm resultado obrigatório; as outras 3 são campos "Não tem" / "Tem"', obrig);
+  const opc = A.bloco(p, 'Laranja').locator('.pce-pr[data-opcional]');
+  ok(await opc.count() === 3 && await opc.locator('.pce-res-nao_detectada input:checked').count() === 3 && await opc.locator('.pce-res-detectada input:checked').count() === 0, 'as 3 opcionais já vêm marcadas "Não tem", sem a pessoa tocar');
+  ok(await opc.first().locator('.r-res').count() === 2 && (await opc.first().locator('.pce-res-op label').allTextContents()).join('|') === 'Não tem|Tem' && !/opcional/i.test(await opc.first().textContent()), 'opcional: só as duas opções "Não tem" e "Tem", sem "(opcional)" na tela');
+  await p.click('#vi-continuar'); ok(/Informe o resultado de .* em (Cacau|Laranja)/.test(await toast()), 'praga obrigatória sem resposta não avança', await toast());
+  const extrasCacau = await A.bloco(p, 'Cacau').locator('.vi-extra option').allTextContents(), extrasLar = await A.bloco(p, 'Laranja').locator('.vi-extra option').allTextContents();
+  ok(!extrasCacau.some(x => /Moko|Sigatoka|Phakopsora|Ferrugem|Fusari/i.test(x)), 'hospedeiros: Cacau não oferece praga de banana nem de soja', extrasCacau);
+  ok(extrasLar.some(x => /carambola/i.test(x)), 'hospedeiros: Laranja oferece a mosca-da-carambola (citros é hospedeiro)', extrasLar);
+  await A.bloco(p, 'Laranja').locator('.vi-extra').selectOption({ label: extrasLar.find(x => /carambola/i.test(x)) }); await A.bloco(p, 'Laranja').locator('[data-mon=addpraga]').click();
+  ok((await nomes('Laranja')).includes('Bactrocera carambolae'), 'praga acrescentada aparece no fruto', await nomes('Laranja'));
 
-  // 1) levantamento: propriedade nova, duas pragas
-  await p.click('#pce-novolev'); await p.waitForSelector('#pceLevForm');
-  await p.fill('#pce-doc', '52998224725'); await p.fill('#pce-nome', 'Raimundo Nonato'); await p.fill('#pce-propriedade', 'Sítio Esperança'); await p.fill('#pce-codigo', 'PRP-77');
-  await p.fill('#pce-telefone', '92 90000-0000'); await p.fill('#pce-empresa', 'Sitio Ficticio Teste'); await p.fill('#pce-endereco', 'Ramal Ficticio, km 3');
-  if (!(await p.inputValue('#pce-municipio'))) await p.selectOption('#pce-municipio', 'Manaus');
-  await p.selectOption('.pce-praga >> nth=0 >> .p-praga', 'Monilíase do Cacaueiro'); await p.selectOption('.pce-praga >> nth=0 >> .pce-cult >> nth=0 >> .c-cultura', 'Cacau');
-  await p.click('.pce-praga >> nth=0 >> .pce-cult >> nth=0 >> .pce-res-nao_detectada');
-  await p.click('#pce-addpraga'); await p.selectOption('.pce-praga >> nth=1 >> .p-praga', 'Bactrocera carambolae');
-  await p.selectOption('.pce-praga >> nth=1 >> .pce-cult >> nth=0 >> .c-cultura', 'Laranja'); await p.click('.pce-praga >> nth=1 >> .pce-cult >> nth=0 >> .pce-res-nao_detectada');
-  await p.click('#pce-salvar'); await p.waitForSelector('#pce-lev-pronto');
-  ok(await p.locator('.pce-visita #pce-pronto-tf').count() === 1 && await p.locator('.pce-visita #pce-pronto-cad').count() === 1 && /Propriedade nova/.test(await p.textContent(".pce-visita")),
-    'depois de salvar: "Próximo passo da visita" com Cadastrar a propriedade e Termo de Fiscalização');
-  await p.screenshot({ path: amb.saida('pce_visita_pronto.png'), fullPage: true });
+  console.log('2) detecção da monilíase: perguntas do programa; coordenada só no Amazonas');
+  const resp = async (c, nome, res) => A.bloco(p, c).locator(`.pce-pr[data-nome="${nome}"] .pce-res-${res}`).click();
+  await resp('Cacau', 'Monilíase do Cacaueiro', 'suspeita');
+  ok(await A.bloco(p, 'Cacau').locator('.vi-det').count() === 1, 'suspeita pede há quanto tempo e controle');
+  await A.bloco(p, 'Cacau').locator('.r-tempo').fill('15 dias'); await A.bloco(p, 'Cacau').locator('fieldset[data-k=c] label:has(input[value=sim])').click();
+  await p.click('#vi-continuar'); ok(/Informe qual controle/.test(await toast()), 'controle "sim" exige o nome do controle', await toast());
+  await A.bloco(p, 'Cacau').locator('.r-qual').fill('Poda sanitária');
+  for (const n of ['HLB / Greening', 'Cancro Cítrico', 'Schizotetranychus hindustanicus', 'Bactrocera carambolae']) await resp('Laranja', n, 'nao_detectada');
+  await p.click('#vi-continuar'); await p.waitForSelector('.v-plantas');
+  const cac = A.bloco(p, 'Cacau');
+  ok(await cac.locator('.vi-deteccao').count() === 1 && await A.bloco(p, 'Laranja').locator('.vi-deteccao').count() === 0, 'perguntas de detecção só no fruto com praga do programa detectada/suspeita');
+  ok(await cac.locator('.v-plantas').inputValue() === '600', 'plantas inspecionadas vêm do cadastro (600) e podem ser editadas');
+  ok(await cac.locator('fieldset[data-k=s] input[value=sim]').isChecked(), 'sintomas já marcado "sim" pela suspeita');
+  await cac.locator('input[id$=sintomaLat]').fill('-33'); await cac.locator('input[id$=sintomaLon]').fill('-60');
+  await p.click('#vi-continuar'); ok(/fora do Amazonas/.test(await toast()), 'coordenada da planta fora do Amazonas é recusada', await toast());
+  await cac.locator('input[id$=sintomaLat]').fill('-3,5'); await cac.locator('input[id$=sintomaLon]').fill('-59,9');
+  await cac.locator('fieldset[data-k=camaraUmida] label:has(input[value=sim])').click();
+  await cac.locator('input[name$=suspeitos][value=cacau]').check();
+  await cac.locator('fieldset[data-k=c] label:has(input[value=sim])').click(); await p.click('#vi-continuar'); ok(/tipo de material/.test(await toast()), 'coleta Sim exige o tipo de material', await toast());
+  await cac.locator('.v-tipoMaterial').fill('Frutos');
 
-  // 2) cadastrar a propriedade: vem preenchido do levantamento; ao salvar, segue para o Termo
-  await p.click('#pce-pronto-cad'); await p.waitForSelector('#monCadForm');
-  ok((await p.inputValue('#mc-nome')).toUpperCase() === 'RAIMUNDO NONATO' && /52998224725|529\.982\.247-25/.test(await p.inputValue('#mc-doc')) && await p.inputValue('#mc-propriedade') === 'Sítio Esperança',
-    'cadastro já vem com produtor, CPF e propriedade do levantamento', [await p.inputValue('#mc-nome'), await p.inputValue('#mc-doc'), await p.inputValue('#mc-propriedade')]);
-  if (!(await p.inputValue('#mc-municipio'))) await p.selectOption('#mc-municipio', 'Manaus');
-  await p.click('#mc-salvar');
-  for (let i = 0; i < 40 && !(await p.locator('#monTfForm').count()); i++) {           // número do cadastro (popup) e depois o Termo
-    if (await p.locator('#mon-m-ok').count()) await p.click('#mon-m-ok');
-    await p.waitForTimeout(300);
-  }
-  ok(await p.locator('#monTfForm').count() === 1, 'depois do cadastro: abre o Termo de Fiscalização da visita', await toast());
-  const marcadas = await p.evaluate(() => [...document.querySelectorAll('#monTfForm input[type=checkbox]:checked')].map(i => i.value));
-  ok(marcadas.includes('Monilíase') && marcadas.includes('Mosca-da-Carambola'), 'Termo já vem com as pragas do levantamento marcadas', marcadas);
-  ok((await p.inputValue('#mt-nome')).toUpperCase() === 'RAIMUNDO NONATO', 'Termo já vem com o produtor (cadastro ligado)', await p.inputValue('#mt-nome'));
-  const ident = await p.evaluate(() => Object.fromEntries(['doc', 'atividade', 'empresa', 'atividadeEmpresa', 'endereco', 'municipio', 'uf', 'telefone'].map(k => [k, document.querySelector('#mt-' + k).value])));
-  ok(/529\.982\.247-25/.test(ident.doc) && ident.atividade === 'Cultivo de cacau e laranja' && ident.empresa === 'Sitio Ficticio Teste' && ident.atividadeEmpresa === 'Cultivo de cacau e laranja'
-    && ident.endereco === 'Ramal Ficticio, km 3' && ident.municipio === 'Manaus' && ident.uf === 'AM' && ident.telefone === '92 90000-0000',
-    'Termo já vem com a identificação do levantamento: CPF, atividade (culturas), empresa, endereço, município, UF e telefone', ident);
-  await p.screenshot({ path: amb.saida('pce_visita_termo.png'), fullPage: true });
-  await p.click('#mt-salvar');
-  for (let i = 0; i < 40 && !(await p.locator('#mon-pronto').count()); i++) { if (await p.locator('#mon-m-ok').count()) await p.click('#mon-m-ok'); await p.waitForTimeout(300); }
-  ok(await p.locator('#mon-pronto').count() === 1, 'Termo de Fiscalização salvo', await toast());
-  const tfp = await p.evaluate(async () => (await Store.todos('termosPce'))[0] || {});
-  ok(tfp.atividade === 'Cultivo de cacau e laranja' && tfp.empresa === 'Sitio Ficticio Teste' && tfp.endereco === 'Ramal Ficticio, km 3' && tfp.uf === 'AM' && tfp.telefone === '92 90000-0000',
-    'Termo salvo com a identificação completa (vai para o PDF)', tfp);
+  console.log('3) passo 4: ações e constatação por programa; passo 5: resumo do que sai');
+  await p.click('#vi-continuar'); await p.waitForSelector('#vi-local');
+  ok(await p.locator('.pce-prog').count() === 3, 'um bloco de constatação por programa (monilíase, citros, mosca-da-carambola)');
+  const cons = await p.locator('textarea[data-prog]').evaluateAll(l => l.map(t => t.value)), lis = await p.locator('.vi-resultados li').allTextContents();
+  ok(cons.every(t => t === '') && lis.some(t => /^Monilíase \(Cacau\): Suspeita$/.test(t)) && lis.some(t => /^HLB \(Laranja\): Ausência$/.test(t)) && lis.includes('Diaphorina citri (Laranja): Ausência') && lis.some(t => /^Mosca-da-Carambola \(Laranja\): Ausência$/.test(t)), 'sem texto pronto: lista de leitura com o resultado de cada praga de cada programa, e campo de observações vazio', [cons, lis]);
+  ok(/Observações sobre a situação constatada \(opcional\)/.test(await p.textContent('#pceVisitaForm')) && !/Situação constatada<textarea/.test(await p.innerHTML('#pceVisitaForm')), 'o campo se chama "Observações sobre a situação constatada (opcional)"');
+  const enq = await p.locator('.vi-enq').allTextContents();
+  ok(enq.some(t => /IN 112/.test(t)) && enq.some(t => /Instrução Normativa SDA\/MAPA nº 38; Portaria SDA\/MAPA n° 1\.545/.test(t)), 'enquadramento da planilha da GDV: suspeita da monilíase; mosca negativa traz o das avaliadas', enq);
+  await p.uncheck('input[name=vi-acoes][value="Fiscalização"]'); await p.click('#vi-continuar'); ok(/Marque a ação/.test(await toast()), 'sem ação marcada não avança', await toast());
+  await p.check('input[name=vi-acoes][value="Fiscalização"]');
+  await p.fill('#vi-local', ''); await p.click('#vi-continuar'); ok(/local da fiscalização/i.test(await toast()), 'sem local não avança', await toast());
+  await p.fill('#vi-local', 'Sitio Visita, ramal 3');
+  await p.click('#vi-continuar'); await p.waitForSelector('#vi-resumo');
+  ok(await p.locator('#vi-resumo li').count() === 4, '3 Termos de Fiscalização e 1 Termo de Colheita no resumo', await p.locator('#vi-resumo li').allTextContents());
+  await p.click('#vi-voltar'); await p.waitForSelector('#vi-local'); ok(await p.inputValue('#vi-local') === 'Sitio Visita, ramal 3', '"Voltar" mantém o que foi digitado');
+  await p.click('#vi-continuar'); await p.waitForSelector('#vi-resumo');
+  await p.click('#vi-concluir'); await p.waitForSelector('#pce-visita-pronta');
+  ok(await p.locator('.pce-termo-pronto').count() === 3 && await p.locator('.pce-colheita-pronta').count() === 1, 'visita gera 3 Termos e 1 de Colheita');
+  const T = await p.evaluate(async () => (await Store.todos('termosPce')).map(t => ({ prog: t.programaVisita, programa: t.programa, local: JSON.parse(t.tipoLocal), acoes: JSON.parse(t.acoes), pragas: JSON.parse(t.pragas), c: JSON.parse(t.culturas) })));
+  const m = T.find(t => /Monil/.test(t.prog)), c = T.find(t => /Citros/.test(t.prog)), mo = T.find(t => /Carambola/.test(t.prog));
+  ok(m.programa === 'moniliase' && c.programa === 'citros' && mo && m.local[0] === 'Sitio Visita, ramal 3' && m.acoes[0] === 'Fiscalização', 'Termos: programa, local e ação', T.map(t => t.prog));
+  ok(JSON.stringify(m.pragas) === '["Monilíase"]' && c.pragas.includes('HLB') && mo.pragas.includes('Mosca-da-Carambola'), 'quadro de pragas do Termo (nomes do papel)', [m.pragas, c.pragas, mo.pragas]);
+  const dm = m.c[0].dados, pm = m.c[0].pragas[0];
+  ok(dm.camaraUmida === 'sim' && dm.suspeitos === '["cacau"]' && dm.sintomaLat === -3.5 && dm.sintomaLon === -59.9 && dm.plantas === '600' && pm.haQuantoTempo === '15 dias' && pm.controle === 'Sim' && pm.qualControle === 'Poda sanitária', 'respostas da detecção, controle e plantas no culturas do Termo', { dm, pm });
 
-  // 3) na lista: o levantamento mostra o Termo feito e não pede mais cadastro
-  await p.evaluate(() => go('pce')); await p.waitForSelector('.item.pce-lev');
-  const item = await p.textContent('.item.pce-lev');
-  ok(/Termo de Fiscalização \d/.test(item) && !/Cadastrar a propriedade/.test(item), 'lista: levantamento com o Termo da visita e sem pedir cadastro de novo', item.replace(/\s+/g, ' ').slice(0, 200));
-
-  // 4) propriedade já cadastrada, novo levantamento em outro dia: só o Termo (sem "Cadastrar")
-  const lev2 = await p.evaluate(async () => { const l = (await Store.todos('levantamentos'))[0]; const n = { ...l, id: Store.novoId(), data: '2026-01-05', hora: '09:00', pendente: 1 }; await Store.salvar('levantamentos', n); return n.id; });
-  await p.evaluate(id => PCEUI.levPronto(id), lev2); await p.waitForSelector('#pce-lev-pronto');
-  ok(await p.locator('#pce-pronto-cad').count() === 0 && /Fazer o Termo/.test(await p.textContent('#pce-pronto-tf')) && /já cadastrada/.test(await p.textContent('.pce-visita')),
-    'propriedade já cadastrada: só "Fazer o Termo de Fiscalização da visita"');
-  ok(err.length === 0, 'sem erros de JavaScript', err);
-  await b.close(); process.exit(falhas ? 1 : 0);
-})().catch(e => { console.error(e); process.exit(1); });
+  console.log('4) fruto acrescentado na visita vai para o cadastro; visita SEM detecção também gera Termo; sem coleta, sem Termo de Colheita');
+  await p.click('#vi-voltar-produtor'); await p.waitForSelector('#pce-produtor');
+  await p.locator('#pce-novavisita').click(); await p.waitForSelector('#pceVisitaForm');
+  await p.click('summary'); await p.selectOption('#vi-nf-cultura', 'Soja'); await p.fill('#vi-nf-area', '10,5'); await p.click('#vi-addfruto');
+  await p.waitForSelector('label.vi-fruto:has-text("Soja") input:checked');
+  ok(/Soja · 10,5 ha/.test(await p.textContent('label.vi-fruto:has-text("Soja")')), 'fruto novo aparece marcado na visita');
+  for (const l of await p.locator('label.vi-fruto').all()) { const t = await l.textContent(); await l.locator('input').setChecked(/Soja|Mandioca/.test(t)); }   // os frutos já vêm marcados: ficam só soja e mandioca
+  for (const t of await p.locator('textarea[data-pulado]').all()) await t.fill('Cultura não avaliada nesta visita (motivo fictício).');
+  await p.click('#vi-continuar'); await p.waitForSelector('.pce-pr');
+  const ns = await nomes('Soja'), nm = await nomes('Mandioca');
+  ok(ns.includes('Phakopsora pachyrhizi') && nm.join('|') === 'Vassoura de Bruxa da Mandioca', 'Soja: ferrugem e Amaranthus; Mandioca: vassoura-de-bruxa', { ns, nm });
+  for (const n of ['Phakopsora pachyrhizi', 'Vassoura de Bruxa da Mandioca']) await p.locator(`.pce-pr[data-nome="${n}"] .pce-res-nao_detectada`).click();
+  await p.click('#vi-continuar'); await p.waitForSelector('.v-plantas'); await p.click('#vi-continuar'); await p.waitForSelector('#vi-local');
+  await p.click('#vi-continuar'); await p.waitForSelector('#vi-resumo');
+  await p.click('#vi-concluir'); await p.waitForSelector('#pce-visita-pronta');
+  ok(await p.locator('.pce-termo-pronto').count() === 2 && await p.locator('.pce-colheita-pronta').count() === 0, 'visita negativa: 2 Termos (soja e mandioca), nenhum Termo de Colheita');
+  const neg = await p.evaluate(async () => (await Store.todos('termosPce')).filter(t => /Soja|Mandioca/.test(t.programaVisita)).map(t => ({ p: t.programaVisita, c: t.constatacao, s: t.sintomas, a: t.amostra, r: JSON.parse(t.culturas).flatMap(x => x.pragas.map(y => y.resultado)) })));
+  ok(neg.length === 2 && neg.every(t => t.s === 'nao' && t.a === 'nao' && t.r.every(r => r === 'nao_detectada') && t.c === ''), 'Termos negativos: sem sintomas, sem amostra, todas as pragas como Ausência e sem texto pronto na constatação', neg);
+  await A.sync(p);
+  const prop = (await A.aba('Propriedades')).find(x => x.id === 'PRP-VIS-1'), fr = JSON.parse(prop.frutos);
+  ok(fr.length === 4 && fr.some(f => f.cultura === 'Soja' && Number(f.area) === 10.5), 'planilha: Soja entrou nos frutos da propriedade', fr.map(f => f.cultura));
+  const TP = (await A.aba('TermosPCE')).filter(t => /Soja|Mandioca/.test(t.programaVisita));
+  ok(TP.length === 2 && TP.every(t => t.visitaId && t.sintomas === 'nao'), 'planilha: Termos negativos chegam com visitaId (contam como visita)');
+  ok(p.err.length === 0, 'sem erros de JavaScript', p.err);
+  console.log('OK'); await b.close();
+})().catch(e => { console.error('FALHOU', e.message); process.exit(1); });

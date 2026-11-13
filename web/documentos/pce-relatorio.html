@@ -3,57 +3,69 @@
 <head>
 <meta charset="UTF-8">
 <title>Relatório de atividades (PCE)</title>
+<link rel="stylesheet" href="documento-base.css">
+<link rel="stylesheet" href="pce-ficha.css">
 <link rel="stylesheet" href="pce.css">
 <style>
-/* Relatório de atividades / prestação de contas do convênio MAPA/ADAF/AM — modelo do relatório de Autazes. Prefixo .doc-rel.
-   Os Termos de Fiscalização e os Cadastros do período podem vir anexados (páginas seguintes, modelos pce-termo.html e pce-cadastro-moniliase.html). */
-@page{ size:A4 portrait; margin:8mm 7mm; }
-.doc-rel{ font-family:Calibri, Carlito, Arial, sans-serif; font-size:13.5px; }
-.doc-rel .cab{ text-align:center; margin:4mm 0 3mm; } .doc-rel .cab img{ height:72px; }
-.doc-rel h1{ font-size:13.5px; text-align:center; margin:2mm 0 0; line-height:1.55; }
-.doc-rel .corpo{ margin:7mm 16mm 0; }
-.doc-rel .serv div{ margin:2px 0; }
-.doc-rel .caixa{ border:1px solid #000; padding:4px 6px; margin:4mm 0; white-space:pre-wrap; }
-.doc-rel .caixa.alta{ min-height:9mm; }
-.doc-rel .caixa .rot{ display:inline; font-size:13.5px; color:#000; }
-.doc-rel .ativ-tit{ text-align:center; font-weight:bold; margin:6mm 0 3mm; }
-.doc-rel .ativ{ margin-left:12mm; line-height:1.9; }
-.doc-rel .ativ .tf{ text-align:center; font-weight:bold; margin-left:-12mm; }
-.doc-rel .obs{ margin-top:2mm; white-space:pre-wrap; }
-.doc-rel .assin{ margin-top:16mm; width:75mm; text-align:center; border-top:1px solid #000; padding-top:2px; }
+/* Relatório de atividades (o levantamento do PCE): prestação de contas do convênio MAPA/ADAF/AM por período, local e programa. Um modelo para todos os
+   programas; só o nome muda. Segue o papel: quadros para servidores, responsável, período, local, objetivo e deslocamento, e o quadro "Atividades
+   desenvolvidas" com a lista dos Termos. Folha de documento-base.css (rodapé na base de toda página); o que não cabe continua na folha seguinte (pce-docs.js).
+   Os Termos de Fiscalização e as Fichas do período podem vir anexados (páginas seguintes, modelos pce-termo.html e pce-ficha.html). Prefixo .doc-rel. */
+.a4.doc.doc-rel{ font-family:Calibri, Carlito, Arial, sans-serif; font-size:12pt; line-height:1.35; padding:8mm 22mm 0; }
+.doc-rel .cab{ text-align:center; margin:0 0 2mm; } .doc-rel .cab img{ height:17mm; }
+.doc-rel h1{ font-size:10.5pt; text-align:center; margin:0 6mm 3mm; line-height:1.45; }
+.doc-rel .caixa{ border:0.6pt solid #000; padding:1.2mm 2mm; margin:0 0 3.5mm; white-space:pre-wrap; overflow-wrap:anywhere; }
+.doc-rel .caixa b{ font-weight:bold; }
+.doc-rel .caixa.alta{ min-height:11mm; }
+.doc-rel .serv{ font-size:inherit; line-height:1.6; }
+.doc-rel .ativ-cx{ padding:1.5mm 2mm 3mm; white-space:normal; }
+.doc-rel .ativ-tit{ text-align:center; font-weight:bold; margin:0 0 3mm; }
+.doc-rel .ativ{ list-style:none; margin:2mm 0 0; padding:0 0 0 14mm; line-height:1.75; }
+.doc-rel .ativ li{ position:relative; text-align:justify; }
+.doc-rel .ativ li::before{ content:"\27A2"; position:absolute; left:-8mm; }
+.doc-rel .ativ .num{ white-space:nowrap; }
+.doc-rel .fim{ break-inside:avoid; }
+.doc-rel .obs{ margin:1mm 0 0; white-space:pre-wrap; }
+.doc-rel .assin{ margin-top:14mm; width:80mm; text-align:center; border-top:0.6pt solid #000; padding-top:0.5mm; font-size:10.5pt; }
 .doc-rel .assin small{ display:block; }
 .a4.anexo{ page-break-before:always; break-before:page; }
 </style>
 </head>
 <body>
-<div class="a4 doc-rel">
-  <div class="cab"><img src="../img/brasao.png" alt=""></div>
-  <h1>RELATÓRIO DE PRESTAÇÃO DE CONTA - CONVÊNIO Nº <span data-c="convenio"></span> -<br>MAPA/ADAF/AM</h1>
-  <h1>RELATÓRIO DE ATIVIDADES - ETAPA <span data-c="etapa"></span> - LEVANTAMENTOS FITOSSANITÁRIOS DE DETECÇÃO/ DELIMITAÇÃO E VERIFICAÇÃO</h1>
-  <div class="corpo">
-    <p>Nome dos Servidores:</p>
-    <div class="serv" data-lista="servidores"></div>
-    <div class="caixa alta">Responsável pela equipe: <span data-c="responsavel"></span></div>
-    <div class="caixa">Período: <span data-c="periodo"></span></div>
-    <div class="caixa">Local: <span data-c="local"></span></div>
-    <div class="caixa">Objetivo:
+<div class="a4 doc doc-rel">
+  <div class="cq">
+    <div class="cab"><img src="../img/brasao.png" alt=""></div>
+    <h1>RELATÓRIO DE PRESTAÇÃO DE CONTA – CONVÊNIO Nº <span data-c="convenio"></span> –<br>MAPA/ADAF/AM</h1>
+    <h1>RELATÓRIO DE ATIVIDADES – ETAPA <span data-c="etapa"></span> – LEVANTAMENTOS FITOSSANITÁRIOS DE DETECÇÃO/ DELIMITAÇÃO E VERIFICAÇÃO</h1>
+    <div class="caixa"><b>Nome dos Servidores:</b><div class="serv" data-lista="servidores"></div></div>
+    <div class="caixa alta"><b>Responsável pela equipe:</b> <span data-c="responsavel"></span></div>
+    <div class="caixa"><b>Período:</b> <span data-c="periodo"></span></div>
+    <div class="caixa"><b>Local: <span data-c="local"></span></b></div>
+    <div class="caixa"><b>Objetivo:</b>
 <span data-c="objetivo"></span></div>
-    <div class="caixa">Deslocamento:
+    <div class="caixa"><b>Deslocamento:</b>
 <span data-c="deslocamento"></span></div>
-    <div class="ativ-tit">ATIVIDADES DESENVOLVIDAS</div>
-    <p data-c="intro"></p>
-    <div class="ativ">
-      <div>Hospedeiros Inspecionados: <span data-c="t.hospedeiros"></span></div>
-      <div>Plantas inspecionadas: <span data-c="t.plantas"></span></div>
-      <div>Presença de sintomas: <span data-c="t.sintomas"></span></div>
-      <div>Coleta de amostra: <span data-c="t.coleta"></span></div>
-      <div>Educação Sanitária: <span data-c="t.educacao"></span></div>
-      <div class="tf">Termo de Fiscalização emitidos: <span data-c="t.termos"></span></div>
+    <div class="caixa ativ-cx">
+      <div class="ativ-tit">ATIVIDADES DESENVOLVIDAS</div>
+      <div data-c="intro"></div>
+      <ul class="ativ">
+        <li>Hospedeiros Inspecionados: <span data-c="t.hospedeiros"></span></li>
+        <li>Plantas inspecionadas: <span data-c="t.plantas"></span></li>
+        <li>Presença de sintomas: <span data-c="t.sintomas"></span></li>
+        <li>Coleta de amostra: <span data-c="t.coleta"></span></li>
+        <li>Educação Sanitária: <span data-c="t.educacao"></span></li>
+        <li class="tf">Termo de Fiscalização emitidos: <span data-c="t.termos"></span> <span data-numeros></span></li>
+      </ul>
     </div>
-    <div class="obs">OBS: <span data-c="obsTxt"></span></div>
-    <div class="assin">Assinatura e carimbo do Responsável da Equipe<small data-c="responsavel"></small></div>
+    <div class="fim">
+      <div class="obs">OBS: <span data-c="obsTxt"></span></div>
+      <div class="assin">Assinatura e carimbo do Responsável da Equipe<small data-c="responsavel"></small></div>
+    </div>
   </div>
+  <div data-rodape></div>
 </div>
+<script src="../js/config.js"></script>
+<script src="documento-base.js"></script>
 <script src="pce-docs.js"></script>
 </body>
 </html>

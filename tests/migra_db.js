@@ -1,5 +1,5 @@
 const amb = require('./lib/amb');
-// Migração do banco local: v1 (app original) e v2 (com TF) → v4 (PCE + monilíase), sem perder dados.
+// Migração do banco local: v1 (app original) e v2 (com TF) → v4 (PCE), sem perder dados; v5 (stores retiradas) abre como está.
 const { chromium } = require('playwright-core');
 const U = require('./lib/usuarios');
 const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw new Error(m); };
@@ -8,7 +8,7 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   const FU = await U.fiscal('Ana Lima');
   const criar = (p, versao, stores, dados) => p.evaluate(([versao, stores, dados]) => new Promise((ok, no) => {
     const rq = indexedDB.open('gdv', versao);
-    rq.onupgradeneeded = () => { const d = rq.result; stores.forEach(n => d.createObjectStore(n, { keyPath: n === 'meta' ? 'k' : 'id' })); };
+    rq.onupgradeneeded = () => { const d = rq.result; stores.forEach(n => { const s = d.createObjectStore(n, { keyPath: n === 'meta' ? 'k' : 'id' }); if (n === 'arquivos') s.createIndex('enviado', 'enviado'); }); };
     rq.onsuccess = () => { const d = rq.result, t = d.transaction(Object.keys(dados), 'readwrite');
       Object.entries(dados).forEach(([s, recs]) => recs.forEach(r => t.objectStore(s).put(r)));
       t.oncomplete = () => { d.close(); ok(); }; };
@@ -31,7 +31,7 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   await abrirApp(p);
   let r = await p.evaluate(async () => ({ turnos: (await Store.todos('turnos')).map(t => t.id), veic: (await Store.todos('veiculos')).map(v => v.placa), atual: await Store.meta('turnoAtual') }));
   let e = await estrutura(p);
-  ok(e.v === 4 && ['levantamentos', 'colheitas', 'propriedades', 'arquivos', 'tfs', 'pessoas', 'placas', 'cadastrosPce', 'termosPce'].every(s => e.stores.includes(s)) && e.indices.includes('enviado'), 'v1 → v4: stores novas e índice "enviado": ' + JSON.stringify(e));
+  ok(e.v === 4 && ['levantamentos', 'colheitas', 'propriedades', 'arquivos', 'tfs', 'pessoas', 'placas', 'cadastrosPce', 'termosPce'].every(s => e.stores.includes(s)) && e.indices.includes('enviado'), 'v1 → v5: stores novas e índice "enviado": ' + JSON.stringify(e));
   ok(r.turnos.includes('t-antigo') && r.veic.includes('AAA1A11') && r.atual === 't-antigo', 'turno, veículo e turno atual preservados');
   await p.click('.modulo[data-v=home]'); await p.waitForTimeout(500);
   const tela = await p.evaluate(() => document.querySelector('#view').innerText.replace(/\s+/g, ' ')); ok(/Turno em andamento|TF-001-A-2026|CEASA/.test(tela), 'turno aberto continua na tela inicial: ' + tela.slice(0, 160));
@@ -55,6 +55,19 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   ok(r.lev.length === 0 && r.arq === 0, 'stores do PCE vazias e utilizáveis');
   await p.click('.modulo[data-v=pce]'); await p.waitForSelector('#pceServForm'); ok(true, 'módulo PCE abre sobre o banco migrado');
   ok(!p.err.length, 'sem erros: ' + JSON.stringify(p.err));
+  await fetch(amb.API + '/__on');
+
+  console.log('3) banco v5 (quem chegou a ter as stores culturasAvaliadas e resultados) abre como está e a pendência continua');
+  p = await nova();
+  await criar(p, 5, ['turnos', 'veiculos', 'tfs', 'pessoas', 'placas', 'levantamentos', 'colheitas', 'propriedades', 'cadastrosPce', 'termosPce', 'culturasAvaliadas', 'resultados', 'arquivos', 'meta'],
+    { levantamentos: [{ id: 'lev-v5', data: '2026-10-09', hora: '09:00', servidor: 'Ana Lima', doc: '52998224725', nome: 'JOSE', pendente: 1, excluido: 0, criadoEm: 1, atualizadoEm: 1, pragas: '[]', culturas: '[]' }],
+      resultados: [{ id: 'lev-v5|x', levantamentoId: 'lev-v5', pendente: 1 }], meta: [{ k: 'lastSync', v: 321 }] });
+  await fetch(amb.API + '/__off');
+  await abrirApp(p);
+  r = await p.evaluate(async () => ({ lev: (await Store.todos('levantamentos')).map(l => [l.id, l.pendente]), res: (await Store.todos('resultados')).length, ls: await Store.meta('lastSync') }));
+  e = await estrutura(p);
+  ok(e.v === 5 && r.lev.length === 1 && r.lev[0][0] === 'lev-v5' && r.lev[0][1] === 1 && r.res === 1 && r.ls === 321, 'v5 abre sem erro de versão; levantamento pendente, linhas e meta preservados', { e, r });
+  ok(!p.err.length, 'sem erros: ' + JSON.stringify(p.err)); await p.context().close();
   await fetch(amb.API + '/__on');
   console.log('OK'); await b.close();
 })().catch(e => { console.error('FALHOU', e.message); process.exit(1); });

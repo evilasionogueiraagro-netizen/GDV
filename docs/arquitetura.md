@@ -121,8 +121,10 @@ classDiagram
       +String id
       +String codigo
       +String doc
+      +JSON frutos
     }
     class Levantamento {
+      <<antigo, só leitura>>
       +String id
       +String propriedadeId
       +Data data
@@ -149,7 +151,9 @@ classDiagram
     }
     class TermoPCE {
       +String id
-      +String levantamentoId
+      +String visitaId
+      +String programaVisita
+      +JSON culturas
       +String doenca
       +String cadastroId
       +String doc
@@ -177,13 +181,13 @@ classDiagram
   Pessoa <|-- Proprietario
   TermoAcao <|-- TermoTurno
   TermoAcao <|-- TermoPCE
-  Propriedade "1" --> "*" Levantamento : visita
-  Levantamento "1" --> "*" Colheita : amostra
+  Propriedade "1" --> "*" Levantamento : visita antiga
+  Propriedade "1" --> "*" Colheita : amostra da visita
   Propriedade "1" --> "*" Cadastro : inscrita em
   Programa "1" --> "*" Cadastro : inscreve
   Programa "1" --> "*" Doenca : tem
   TermoPCE "*" --> "1" Doenca : de
-  TermoPCE "0..*" --> "1" Levantamento : valida
+  TermoPCE "*" --> "1" Propriedade : visita
   TermoPCE "*" --> "1" Cadastro : do cadastro
   TermoPCE "*" --> "1" Proprietario : fiscalizado
   Propriedade "*" --> "1" Proprietario : dono
@@ -196,20 +200,18 @@ classDiagram
 | Documento | Quando | Template | Onde fica |
 |---|---|---|---|
 | TF de Barreira (`TFBarreira`) | irregularidade na barreira (liberação, apreensão, rechaço) | `web/documentos/tf.html` | aba `TFs`, numeração por barreira e ano |
-| Termo de Fiscalização de ação (`TermoAcao`) | ao encerrar o turno (`TermoTurno`) ou na fiscalização de uma propriedade (`TermoPCE`) | `termo.html` (turno), `pce-termo.html` e `pce-termo-citros.html` (PCE) | turno: gerado dos dados do turno, sem aba; PCE: aba `TermosPCE` |
+| Termo de Fiscalização de ação (`TermoAcao`) | ao encerrar o turno (`TermoTurno`) ou na fiscalização de uma propriedade (`TermoPCE`) | `termo.html` (turno), `pce-termo.html` (PCE, modelo único) | turno: gerado dos dados do turno, sem aba; PCE: aba `TermosPCE` |
 
 **Pessoa e proprietário:** todo proprietário é uma pessoa, mas nem toda pessoa é proprietária (quem só passa na
 barreira é só `Pessoa`). Os dois ficam na aba `Pessoas` (id = CPF/CNPJ); proprietário é a pessoa que é `doc` de
 alguma `Propriedade`. É pelo CPF/CNPJ que se conta quantos TFs uma pessoa levou (`tfsRecebidos`); a reincidência
 de hoje olha só o TF de Barreira.
 
-**PCE (modelo combinado em 22/10/2026):** o PCE é o **programa** (monilíase, citros...), com várias doenças (praga
-ou doença: HLB, cancro cítrico, mosca-da-carambola...). O levantamento é a visita ao proprietário e gera **0 ou
-vários** Termos de Fiscalização do PCE, **um por doença achada**; cada termo valida o levantamento daquela doença.
-Visita sem doença achada = levantamento negativo, sem termo. Identificação e contagem são sempre **por doença**. **O código ainda difere:** `Levantamentos` já guarda várias pragas por visita (um cartão
-e uma ficha por praga), mas `TermosPCE` tem um termo por visita com uma lista de pragas, sem apontar para o
-levantamento. Decisões em
-[decisoes/modelo.md](decisoes/modelo.md).
+**PCE (simplificado em 06/11/2026):** o PCE é só produtor, `frutos` (JSON em `Propriedades`) e Termos. A visita é o
+Termo: `TermosPCE` guarda um Termo **por programa** da visita, ligado por `visitaId` (criado no app) e `programaVisita`,
+com as culturas avaliadas em `culturas` (JSON). `Levantamentos` não é mais criado, mas fica intacta e continua somando
+nos relatórios; `Colheitas.levantamentoId` guarda o `visitaId` nos registros novos. Regras em
+[modulos/pce.md](modulos/pce.md); decisões em [decisoes/pce-simplificado.md](decisoes/pce-simplificado.md).
 
 `Cadastro` = aba `CadastrosPCE`: a ligação de uma propriedade com um programa, no máximo uma por par (o cadastro do
 imóvel naquele programa; `dados` guarda os campos do programa). `Programa` não é aba: é a lista `PROGRAMAS_PCE` do

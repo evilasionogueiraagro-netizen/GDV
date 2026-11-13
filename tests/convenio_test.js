@@ -38,6 +38,9 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
   propriedadeId: CPF + '|SITIO SIGILOSO', doc: CPF, nome: 'Produtor Secreto', servidor: 'Pedro Volante', pragas: JSON.stringify(['Monilíase']), acoes: '[]', tipoLocal: '[]', testemunhas: '[]',
   plantasInspecionadas: 10, cancelado: 0, excluido: 0, criadoEm: agora, atualizadoEm: agora, ...extra });
 
+const NOVO = visitaId => ({ visitaId, programaVisita: 'Monilíase do Cacaueiro e Cupuaçuzeiro', pragas: '[]',
+  culturas: JSON.stringify([{ cultura: 'Cacau', area: 1, coleta: 'Não', pragas: [{ praga: 'Monilíase do Cacaueiro', resultado: 'nao_detectada' }], fotos: [] }]) });
+
 (async () => {
   /* ================= 1. servidor ================= */
   console.log('1. Servidor: dados, permissões, validações e apuração');
@@ -57,7 +60,9 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
       LEV('m3', '2026-09-04', 'MANAUS', MON, { codigoPropriedade: 'P-1' }), LEV('m4', '2026-09-10', 'Manacapuru', MON), LEV('m5', '2026-09-11', 'Manacapuru', MON),
       LEV('m6', '2026-09-11', 'Manacapuru', MON, { doc: CPF, propriedade: 'Outra Terra' }), LEV('m7', '2026-08-15', 'Iranduba', MON, { codigoPropriedade: 'P-9' }),
       LEV('m8', '2026-09-08', 'Itacoatiara', 'Moko da bananeira'), LEV('m9', '2026-10-05', 'Careiro', MON), { ...LEV('m10', '2026-09-09', 'Humaitá', MON), excluido: 1 }],
-    termosPce: [TPCE('p1', '2026-09-18', 'Autazes'), TPCE('p2', '2026-09-19', 'Coari', { cancelado: 1, motivoCancel: 'erro' })] });
+    // 1.4 soma levantamentos e Termos: o Termo do fluxo novo (p1, só com culturas) e o antigo (p3, sem visitaId) contam; o cancelado (p2) não
+    termosPce: [TPCE('p1', '2026-09-18', 'Autazes', NOVO('v-p1')), TPCE('p2', '2026-09-19', 'Coari', { ...NOVO('v-p2'), cancelado: 1, motivoCancel: 'erro' }),
+      TPCE('p3', '2026-09-20', 'Autazes')] });
   ok(d.ok, 'dados de teste sincronizados (turnos, veículos, TFs, levantamentos e termos PCE)', d.erro);
   await fetch(API + '/__fn?nome=desativarRotinasAutomaticas_');
   const adm = await gerar('Gerente Convênio', 'admin'), TOK = adm.token;
@@ -108,8 +113,8 @@ const TPCE = (id, data, mun, extra = {}) => ({ id, unidade: mun.toUpperCase(), a
   const AP = await post({ action: 'painelConvApuracao', key: TOK, convenio: '991272-2025', de: '2026-03-01', ate: '2026-09-30' });
   const a14 = AP.etapas['1.4'], a19 = AP.etapas['1.9'], a110 = AP.etapas['1.10'];
   const pm = Object.fromEntries(a14.porMunicipio.map(x => [x.municipio.toLowerCase(), x]));
-  ok(a14.porMunicipio.length === 4 && pm.manaus.propriedades === 2 && pm.manaus.registros === 3 && pm.manacapuru.propriedades === 2 && pm.iranduba.propriedades === 1 && pm.autazes.propriedades === 1,
-    '1.4: 4 municípios (Manaus 2 prop./3 reg., Manacapuru 2, Iranduba 1, Autazes 1 pelo termo); sem Itacoatiara (outra praga), Careiro (outubro), Humaitá (excluído) nem Coari (termo cancelado)', a14.porMunicipio);
+  ok(a14.porMunicipio.length === 4 && pm.manaus.propriedades === 2 && pm.manaus.registros === 3 && pm.manacapuru.propriedades === 2 && pm.iranduba.propriedades === 1 && pm.autazes.propriedades === 1 && pm.autazes.registros === 2,
+    '1.4: 4 municípios (Manaus 2 prop./3 reg., Manacapuru 2, Iranduba 1, Autazes 1 prop./2 reg. por um Termo novo e um antigo); sem Itacoatiara (outra praga), Careiro (outubro), Humaitá (excluído) nem Coari (termo cancelado)', a14.porMunicipio);
   ok(a14.meses['2026-09'].municipios.length === 3 && a14.meses['2026-03'].municipios.length === 1 && a14.meses['2026-08'].municipios.join() === 'Iranduba', '1.4: municípios distintos por mês (set = 3, mar = 1, ago = Iranduba)', a14.meses);
   ok(a19.porMunicipio.length === 1 && a19.porMunicipio[0].total.turnos === 2 && a19.porMunicipio[0].total.tfs === 2 && a19.porMunicipio[0].total.veiculos === 3 && a19.meses['2026-09'].turnos === 1,
     '1.9: 2 turnos volantes em Tabatinga (1 em setembro), 2 TFs, 3 veículos; volante em Manaus fora', a19);

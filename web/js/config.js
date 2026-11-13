@@ -395,10 +395,17 @@ const CONFIG = {
       acoes: ['Controle/Erradicação', 'Levantamento', 'Monitoramento', 'Educação Sanitária', 'Fiscalização'],
       vias: ['1ª via: Interessado', '2ª via: ADAF Central', '3ª via: Unidade Local'],
       constatacaoNegativa: 'Não constatei a presença da monilíase do cacau e do cupuaçu.',
-      // Relatório de atividades (prestação de contas do convênio): objetivo sugerido por praga (editável)
-      objetivos: {
-        'Monilíase': 'Executar Ações de Levantamento Fitossanitário de detecção da praga Monilíase, visando a prevenção e ação imediata de contingência.'
-      },
+      // Relatório de atividades (o levantamento: resumo de um período e local por programa). O documento é o mesmo para todos; muda só o nome.
+      // id = código; nome = como aparece na lista; texto = como entra nas frases ("...Levantamentos Fitossanitário {texto}, realizou-se:");
+      // pragas = caixas do quadro do Termo que são do programa; modelo = programa gravado no Termo (para Termo sem caixa marcada).
+      programasRelatorio: [
+        { id: 'citros', nome: 'Pragas dos Citros', texto: 'das pragas dos Citros', pragas: ['HLB', 'Cancro Cítrico', 'Ácaro Hindustânico', 'Diaphorina citri'], modelo: 'citros' },
+        { id: 'soja', nome: 'Pragas da Soja', texto: 'das pragas da Soja', pragas: ['Ferrugem Asiática da soja', 'Amaranthus palmeri'], modelo: 'soja' },
+        { id: 'banana', nome: 'Pragas da Bananeira', texto: 'das pragas da Bananeira', pragas: ['Fusariose FOC R4T'], modelo: 'banana' },
+        { id: 'mandioca', nome: 'Pragas da Mandioca', texto: 'das pragas da Mandioca', pragas: ['Vassoura-de-bruxa da Mandioca'], modelo: 'mandioca' },
+        { id: 'moniliase', nome: 'Monilíase do Cacaueiro e Cupuaçuzeiro', texto: 'da praga Monilíase', pragas: ['Monilíase'], modelo: 'moniliase' },
+        { id: 'mosca', nome: 'Mosca-da-Carambola', texto: 'da praga Mosca-da-Carambola', pragas: ['Mosca-da-Carambola'], modelo: '' }
+      ],
       // Termos de Fiscalização gerados pela propriedade (tela "Termos de Fiscalização"): um Termo por programa, todos com os mesmos dados do cadastro;
       // muda só a "Descrição da ação". nome = programa por extenso (vai em programaVisita, sem código); pragas = caixas do quadro 2 do Termo;
       // descricao = texto da constatação, com {culturas} trocado pelas culturas da propriedade que são daquele programa.

@@ -573,19 +573,33 @@ const PCEDocs = (() => {
    * Agregados do relatório a partir dos Termos de Fiscalização do PCE (e dos cadastros ligados).
    * f = {de, ate, municipio, praga, servidores:[nomes], folders (nº digitado na geração do relatório)}. Termos cancelados/excluídos ficam de fora.
    */
+  const programasRelatorio = () => arr(((typeof CONFIG !== 'undefined' && CONFIG.PCE && CONFIG.PCE.termo) || {}).programasRelatorio);
+  const programaRelatorio = id => programasRelatorio().find(p => p.id === id) || null;
+  /** O Termo é do programa: tem uma caixa de praga dele, ou o nome do programa por extenso, ou (sem caixa marcada) o modelo gravado. */
+  function termoDoPrograma(t, pg) {
+    const caixas = arr(lerJSON(t.pragas, [])).map(norm), nomes = [pg.nome, ...arr(pg.nomes)].map(norm);
+    return arr(pg.pragas).some(p => caixas.includes(norm(p))) || nomes.includes(norm(t.programaVisita)) || (!caixas.length && !!pg.modelo && t.programa === pg.modelo);
+  }
+  /** Como o programa (ou a praga, nos relatórios antigos) entra nas frases: "da praga Monilíase", "das pragas dos Citros". */
+  const textoDoPrograma = R => { const pg = programaRelatorio(R && R.programa); return pg ? pg.texto : (R && R.praga ? 'da praga ' + R.praga : 'das pragas do PCE'); };
+  const objetivoRelatorio = R => `Executar Ações de Levantamento Fitossanitário de detecção ${textoDoPrograma(R)}, visando a prevenção e ação imediata de contingência.`;
   function calcularRelatorio(termos, cadastros, f) {
     f = f || {};
+    const pgRel = programaRelatorio(f.programa);
     const cadPorId = new Map((cadastros || []).filter(c => c && !Number(c.excluido)).map(c => [c.id, c]));
     const servs = (f.servidores || []).map(norm).filter(Boolean);
     const T = (termos || []).filter(t => t && !Number(t.excluido) && !Number(t.cancelado) && (!f.de || t.data >= f.de) && (!f.ate || t.data <= f.ate)
-      && (!f.municipio || norm(t.municipio) === norm(f.municipio)) && (!f.praga || lerJSON(t.pragas, []).some(p => norm(p) === norm(f.praga)))
+      && (!f.municipio || norm(t.municipio) === norm(f.municipio)) && (!pgRel || termoDoPrograma(t, pgRel))
+      && (pgRel || !f.praga || lerJSON(t.pragas, []).some(p => norm(p) === norm(f.praga)))
       && (!servs.length || servs.includes(norm(t.servidor))))
       .sort((a, b) => (Number(a.ano) - Number(b.ano)) || (Number(a.numero) - Number(b.numero)) || String(a.data + a.hora).localeCompare(String(b.data + b.hora)));
     const ligados = [...new Set(T.map(t => t.cadastroId).filter(Boolean))].map(id => cadPorId.get(id)).filter(Boolean)
       .sort((a, b) => String(a.data).localeCompare(String(b.data)) || Number(a.numero) - Number(b.numero));
     const hosp = new Set();
-    T.forEach(t => { lerJSON(t.hospedeiros, []).forEach(h => hosp.add(h)); const c = cadPorId.get(t.cadastroId); if (c) HOSP.forEach(([k, n]) => { if (num((lerJSON(c.dados, {}).plantas || {})[k]) > 0) hosp.add(n); }); });
-    const hospedeiros = HOSP.map(h => h[1]).filter(n => hosp.has(n));
+    T.forEach(t => { arr(lerJSON(t.hospedeiros, [])).forEach(h => { if (h) hosp.add(nomeHosp(String(h))); }); const c = cadPorId.get(t.cadastroId); if (c) HOSP.forEach(([k, n]) => { if (num((lerJSON(c.dados, {}).plantas || {})[k]) > 0) hosp.add(n); }); });
+    // culturas avaliadas: as do cacau/cupuaçu na ordem do papel e, depois, as demais (qualquer programa), na ordem em que aparecem
+    const hospedeiros = [...HOSP.map(h => h[1]).filter(n => hosp.has(n)), ...[...hosp].filter(n => n && !HOSP.some(h => h[1] === n))];
+    const numeros = T.filter(t => Number(t.numero) > 0).map(t => String(Number(t.numero)).padStart(3, '0') + (t.ano ? '/' + t.ano : ''));
     const plantas = T.reduce((s, t) => s + num(t.plantasInspecionadas), 0), folders = Math.max(0, Math.round(num(f.folders)));
     // Educação Sanitária: termos com a ação marcada + folders/flyers digitados no relatório (não são anotados por visita)
     const educacao = T.filter(t => lerJSON(t.acoes, []).some(a => norm(a) === 'EDUCACAO SANITARIA')).length;
@@ -595,19 +609,20 @@ const PCEDocs = (() => {
     const servidores = []; const vistos = new Set();
     T.forEach(t => { const k = norm(t.servidor); if (k && !vistos.has(k)) { vistos.add(k); servidores.push({ nome: t.servidor, funcao: t.cargo || '' }); } });
     const hospTxt = hospedeiros.length ? (hospedeiros.length === 1 ? hospedeiros[0] : hospedeiros.slice(0, -1).join(', ') + ' ou ' + hospedeiros[hospedeiros.length - 1].toLowerCase()) : '';
-    return { termos: T, cadastros: ligados, nTermos: T.length, plantas, folders, educacao, amostras, sintomas, hospedeiros, municipios: muns, servidores,
+    return { termos: T, cadastros: ligados, nTermos: T.length, numeros, plantas, folders, educacao, amostras, sintomas, hospedeiros, municipios: muns, servidores,
       textos: {
         hospedeiros: hospTxt || '—',
         plantas: `${plantas.toLocaleString('pt-BR')} plantas`,
         sintomas: sintomas ? `Houve presença de sintomas (${sintomas} ${sintomas === 1 ? 'termo' : 'termos'})` : 'Não houve presença de sintomas',
         coleta: amostras ? `Houve coleta de amostra (${amostras} ${amostras === 1 ? 'termo' : 'termos'})` : 'Não houve coleta de amostra',
         educacao: edu ? edu[0].toUpperCase() + edu.slice(1) : 'não realizada',
-        termos: `${pad2(T.length)} ${T.length === 1 ? 'termo' : 'termos'}.`
+        termos: `${pad2(T.length)} ${T.length === 1 ? 'termo' : 'termos'}.`,
+        numeros: numeros.length ? `(Nº dos termos: ${numeros.join('; ')})` : ''
       } };
   }
   function valoresRelatorio(R) {
     const c = R.calc || { textos: {} };
-    return { ...R, periodo: R.de || R.ate ? `${dataBR(R.de)} a ${dataBR(R.ate)}.` : '', intro: `Durante os Levantamentos Fitossanitário da praga ${R.praga || 'Monilíase'}, realizou-se:`,
+    return { ...R, periodo: R.de || R.ate ? `${dataBR(R.de)} a ${dataBR(R.ate)}.` : '', intro: `Durante os Levantamentos Fitossanitário ${textoDoPrograma(R)}, realizou-se:`, objetivo: R.objetivo || objetivoRelatorio(R),
       t: c.textos, obsTxt: R.obs || '' };
   }
 
@@ -620,6 +635,43 @@ const PCEDocs = (() => {
     : reg && tipo === 'cadastro' && MODELOS_FICHA.includes(reg.programa) && reg.programa !== 'moniliase' ? 'cadastro' + cap(reg.programa) : tipo);
   const VALORES = { termo: valoresTermo, relatorio: valoresRelatorio };
   const cacheModelo = {};
+  /* ---------- relatório: números dos Termos e continuação em outra folha ---------- */
+  /** "(Nº dos termos: 001/2026; 002/2026; ...)": um trecho por número, para a lista poder continuar na folha seguinte sem cortar um número. */
+  function desenharNumerosRelatorio(pg, calc) {
+    const z = pg.querySelector('[data-numeros]'); if (!z) return;
+    const d = pg.ownerDocument, ns = arr(calc && calc.numeros);
+    z.textContent = ''; if (!ns.length) return;
+    z.append('(Nº dos termos: ');
+    ns.forEach((n, i) => { const s = d.createElement('span'); s.className = 'num'; s.textContent = n + (i < ns.length - 1 ? ';' : ')'); z.append(s, ' '); });
+  }
+  /**
+   * Folha do relatório que passou do rodapé: OBS e assinatura vão para a folha seguinte e, se ainda não couber, os últimos números dos Termos também
+   * (nenhum texto é cortado). Repete enquanto a folha nova não couber. Devolve a última folha do relatório.
+   */
+  function paginarRelatorio(pg) {
+    if (!pg.querySelector('[data-rodape]') || !pg.querySelector('.cq')) return pg;
+    DocumentoBase.montarRodape(pg);
+    const d = pg.ownerDocument, el = (tag, cls, txt) => { const e = d.createElement(tag); if (cls) e.className = cls; if (txt) e.textContent = txt; return e; };
+    let atual = pg;
+    for (let volta = 0; volta < 40 && !DocumentoBase.cabe(atual); volta++) {
+      const nova = el('div', 'a4 doc doc-rel'), cq = el('div', 'cq'), rod = el('div'); rod.setAttribute('data-rodape', '');
+      nova.append(cq, rod); atual.after(nova);
+      const fim = atual.querySelector('.fim'), nums = [...atual.querySelectorAll('[data-numeros] .num')], fora = [];
+      if (fim) cq.append(fim);
+      while (!DocumentoBase.cabe(atual) && nums.length > 1) { const s = nums.pop(); s.remove(); fora.unshift(s); }
+      if (fora.length) {
+        const cx = el('div', 'caixa ativ-cx'), z = el('div'); z.setAttribute('data-numeros', '');
+        cx.append(el('div', 'ativ-tit', 'TERMOS DE FISCALIZAÇÃO EMITIDOS (continuação)'), z);
+        fora.forEach(n => z.append(n, ' '));
+        cq.prepend(cx);
+      }
+      DocumentoBase.montarRodape(nova);
+      if (!fim && !fora.length) { nova.remove(); break; }                              // nada mais para mover: fica como está
+      atual = nova;
+    }
+    return atual;
+  }
+
   /** Página modelo (.a4) de outro arquivo de documentos (para anexar termos/fichas ao relatório); o <style> dele vem junto, uma vez. */
   async function modeloDe(doc, tipo) {
     const arquivo = ARQUIVO[natureza(tipo)];
@@ -643,6 +695,7 @@ const PCEDocs = (() => {
     if (nat === 'relatorio') {
       const ul = pg.querySelector('[data-lista=servidores]');
       if (ul) { ul.textContent = ''; (dados.servidores || []).forEach(s => { const li = pg.ownerDocument.createElement('div'); li.textContent = [s.nome, s.funcao].filter(Boolean).join(' - '); ul.append(li); }); }
+      desenharNumerosRelatorio(pg, r.calc);
     } else assinaturas(pg, lerJSON(dados.assinaturas, {}), arquivos);
     const cf = pg.querySelector('.cancelado-faixa'); if (cf && !r.cancelado) cf.remove();
     const zona = pg.querySelector('[data-pragas]'); if (zona) { if (nat === 'termo' && r.pragasRes.length) desenharPragas(zona, r.pragasRes); else (zona.closest('tr.res-l') || zona).remove(); }
@@ -670,11 +723,12 @@ const PCEDocs = (() => {
       if (x.antes) { prim.before(n); prim = n; } else { ult.after(n); ult = n; }
     }
     await Promise.all([...doc.images].map(im => (im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; }))));
+    if (tipo === 'relatorio') paginarRelatorio(pg);                                      // as folhas de continuação entram logo depois da primeira, antes dos anexos
     ajustarFolhas(doc);
     return doc.querySelectorAll('.a4').length;
   }
 
-  return { montar, preencher, calcularRelatorio, valoresTermo, valoresFicha, entradaDeCadastro, modeloDoCadastro, frutosDoModelo, modeloDaCultura, tipoDoRegistro, MODELOS_FICHA,
+  return { montar, preencher, calcularRelatorio, programasRelatorio, objetivoRelatorio, valoresTermo, valoresFicha, entradaDeCadastro, modeloDoCadastro, frutosDoModelo, modeloDaCultura, tipoDoRegistro, MODELOS_FICHA,
     totalPlantas, coordTxt, fmtDoc, dataBR, HOSP, nomeHosp, norm, listaE, lerJSON };
 })();
 if (typeof window !== 'undefined') window.PCEDocs = PCEDocs;

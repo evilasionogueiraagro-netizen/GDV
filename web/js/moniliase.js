@@ -505,13 +505,13 @@ const PCEMon = (() => {
     fechar();
     const m = (await Store.meta(REL_META)) || {}, termos = (await Store.todos('termosPce')).filter(t => !Number(t.excluido));
     const servs = [...new Set(termos.map(t => String(t.servidor || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-    const fp = filtroPadrao(), pr = TC.pragas || [];
+    const fp = filtroPadrao(), progs = PCEDocs.programasRelatorio(), progSel = progs.some(x => x.id === m.programa) ? m.programa : 'moniliase';
     if (!mostrar.viva()) return;
     mostrar(`      <form id="monRelForm" class="card" autocomplete="off"><h3>${icone('resumo')} Relatório de atividades</h3>
-      <p class="dica" style="text-align:left">Prestação de contas do convênio, a partir dos Termos de Fiscalização (PCE) deste aparelho. Os números são calculados; os textos podem ser editados.</p>
+      <p class="dica" style="text-align:left">É o levantamento: o resumo de um período e de um local, por programa, calculado dos Termos de Fiscalização (PCE) deste aparelho. O documento é o mesmo para todo programa; muda só o nome. Os números são calculados; os textos podem ser editados.</p>
       <div class="duas"><label>De<input id="mr-de" type="date" value="${esc(m.de || fp.de)}"></label><label>Até<input id="mr-ate" type="date" value="${esc(m.ate || fp.ate)}"></label></div>
       <div class="duas"><label>Município<select id="mr-mun">${opts(P.municipios, m.municipio || '', 'Todos')}</select></label>
-        <label>Praga/programa<select id="mr-praga">${opts(pr, m.praga || 'Monilíase', 'Todas')}</select></label></div>
+        <label>Programa<select id="mr-praga">${progs.map(x => `<option value="${esc(x.id)}" ${x.id === progSel ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label></div>
       <fieldset class="pce-partes-grupo"><legend>Servidor(es) dos termos</legend><div class="mon-cks">${servs.length ? servs.map(n => `<label class="chk"><input type="checkbox" name="mr-serv" value="${esc(n)}" ${!m.servidores || !m.servidores.length || m.servidores.includes(n) ? 'checked' : ''}> ${esc(n)}</label>`).join('') : '<span class="dica">Nenhum termo neste aparelho.</span>'}</div></fieldset>
       <div class="duas"><label>Convênio nº<input id="mr-conv" value="${esc(m.convenio || '')}" placeholder="00991272/2025"></label><label>Etapa<input id="mr-etapa" value="${esc(m.etapa || '')}" placeholder="1.4"></label></div>
       <label>Nome dos servidores (um por linha: Nome - Cargo/Função; inclua o motorista)<textarea id="mr-servs" rows="3"></textarea></label>
@@ -554,26 +554,25 @@ const PCEMon = (() => {
     f.addEventListener('change', () => atualizar().catch(e => toast(e.message, true)));
     f.addEventListener('input', e => { if (['mr-de', 'mr-ate', 'mr-folders-n'].includes(e.target.id)) atualizar().catch(() => {}); });
     if (m.servidoresTxt) { $('#mr-servs').value = m.servidoresTxt; auto['mr-servs'] = '__'; }
-    if (m.objetivo) { $('#mr-obj').value = m.objetivo; auto['mr-obj'] = '__'; }
+    if (m.objetivo && m.programa === progSel) { $('#mr-obj').value = m.objetivo; auto['mr-obj'] = '__'; }
     await atualizar();
   }
   /** Lê a tela do relatório, calcula e (salvar) lembra convênio/etapa/textos para a próxima vez. */
   async function montarRelatorio(soCalc) {
     const v = id => ($('#' + id) || {}).value || '';
-    const f = { de: v('mr-de'), ate: v('mr-ate'), municipio: v('mr-mun'), praga: v('mr-praga'), servidores: [...document.querySelectorAll('input[name=mr-serv]:checked')].map(x => x.value),
+    const f = { de: v('mr-de'), ate: v('mr-ate'), municipio: v('mr-mun'), programa: v('mr-praga'), servidores: [...document.querySelectorAll('input[name=mr-serv]:checked')].map(x => x.value),
       folders: inteiro(v('mr-folders-n')) || 0 };
     const todosServ = document.querySelectorAll('input[name=mr-serv]').length;
     if (f.servidores.length === todosServ) f.servidores = [];
     const termos = await Store.todos('termosPce'), cads = await Store.todos('cadastrosPce');
     const calc = PCEDocs.calcularRelatorio(termos, cads, f);
-    const praga = f.praga || 'Monilíase';
     const local = f.municipio ? `${f.municipio}/AM` : calc.municipios.map(x => x + '/AM').join(', ');
-    const R = { ...f, calc, praga, servidores: calc.servidores, local, objetivo: (TC.objetivos || {})[praga] || `Executar Ações de Levantamento Fitossanitário de detecção da praga ${praga}, visando a prevenção e ação imediata de contingência.` };
+    const R = { ...f, calc, servidores: calc.servidores, local, objetivo: PCEDocs.objetivoRelatorio(f) };
     if (soCalc) return R;
     const servidores = v('mr-servs').split('\n').map(l => l.trim()).filter(Boolean).map(l => { const [nome, ...resto] = l.split(/\s+-\s+/); return { nome, funcao: resto.join(' - ') }; });
     const rel = { convenio: v('mr-conv').trim(), etapa: v('mr-etapa').trim(), servidores, responsavel: v('mr-resp').trim(), de: f.de, ate: f.ate, local: v('mr-local').trim() || local,
-      localArq: f.municipio || calc.municipios.join('_'), objetivo: v('mr-obj').trim() || R.objetivo, deslocamento: v('mr-desl').trim(), praga, calc, obs: v('mr-obs').trim() };
-    await Store.setMeta(REL_META, { de: f.de, ate: f.ate, municipio: f.municipio, praga: f.praga, servidores: f.servidores, convenio: rel.convenio, etapa: rel.etapa,
+      localArq: f.municipio || calc.municipios.join('_'), objetivo: v('mr-obj').trim() || R.objetivo, deslocamento: v('mr-desl').trim(), programa: f.programa, calc, obs: v('mr-obs').trim() };
+    await Store.setMeta(REL_META, { de: f.de, ate: f.ate, municipio: f.municipio, programa: f.programa, servidores: f.servidores, convenio: rel.convenio, etapa: rel.etapa,
       responsavel: rel.responsavel, deslocamento: rel.deslocamento, obs: rel.obs, servidoresTxt: v('mr-servs'), objetivo: rel.objetivo !== R.objetivo ? rel.objetivo : '',
       anexoT: $('#mr-anexo-t').checked, anexoC: $('#mr-anexo-c').checked });
     const anexos = { termos: $('#mr-anexo-t').checked ? calc.termos : [], cadastros: $('#mr-anexo-c').checked ? calc.cadastros : [] };

@@ -412,21 +412,21 @@
     const velho = document.getElementById('pn-relatorio'); if (velho) velho.remove();
     let m = {}; try { m = JSON.parse(localStorage.getItem(REL_LS) || '{}') || {}; } catch (e) { m = {}; }
     const mun = f.local && f.local.tipo === 'municipio' ? f.local.valor : '';
-    const pragas = (CONFIG.PCE.termo && CONFIG.PCE.termo.pragas) || ['Monilíase'];
-    const calc = (praga, folders) => PCEDocs.calcularRelatorio(d.termosPceTodos || [], d.cadastrosPce || [], { de: f.de, ate: f.ate, municipio: mun, praga, servidores: f.fiscal ? [f.fiscal] : [], folders });
-    let R = calc(m.praga || 'Monilíase');
+    const progs = PCEDocs.programasRelatorio(), progSel = progs.some(x => x.id === m.programa) ? m.programa : 'moniliase';
+    const calc = (programa, folders) => PCEDocs.calcularRelatorio(d.termosPceTodos || [], d.cadastrosPce || [], { de: f.de, ate: f.ate, municipio: mun, programa, servidores: f.fiscal ? [f.fiscal] : [], folders });
+    let R = calc(progSel);
     const servTxt = R => R.servidores.map(x => [x.nome, x.funcao].filter(Boolean).join(' - ')).join('\n');
-    const objetivo = pr => ((CONFIG.PCE.termo || {}).objetivos || {})[pr] || `Executar Ações de Levantamento Fitossanitário de detecção da praga ${pr}, visando a prevenção e ação imediata de contingência.`;
+    const objetivo = programa => PCEDocs.objetivoRelatorio({ programa });
     const dlg = P.el('dialog', 'pn-dlg pn-dlg-rel'); dlg.id = 'pn-relatorio';
     const campo = (id, rot, v, tag) => `<label class="pn-dlg-campo">${esc(rot)}${tag === 'ta' ? `<textarea id="${id}" rows="3">${esc(v)}</textarea>` : `<input id="${id}" value="${esc(v)}">`}</label>`;
     dlg.innerHTML = `<form method="dialog" class="pn-dlg-form" novalidate><h3>Relatório de atividades</h3>
       <div class="pn-dlg-info"><b>${esc(f.rotuloPeriodo)}${mun ? ' · ' + esc(mun) : ''}${f.fiscal ? ' · ' + esc(f.fiscal) : ''}</b><span id="pn-rel-resumo"></span></div>
-      <label class="pn-dlg-campo">Praga/programa<select id="pn-rel-praga">${pragas.map(x => `<option ${x === (m.praga || 'Monilíase') ? 'selected' : ''}>${esc(x)}</option>`).join('')}</select></label>
+      <label class="pn-dlg-campo">Programa<select id="pn-rel-praga">${progs.map(x => `<option value="${esc(x.id)}" ${x.id === progSel ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
       ${campo('pn-rel-conv', 'Convênio nº', m.convenio || '')}${campo('pn-rel-etapa', 'Etapa', m.etapa || '')}
       ${campo('pn-rel-servs', 'Nome dos servidores (Nome - Função, um por linha; inclua o motorista)', servTxt(R), 'ta')}
       ${campo('pn-rel-resp', 'Responsável pela equipe', R.servidores[0] ? [R.servidores[0].nome, R.servidores[0].funcao].filter(Boolean).join(' - ') : '')}
       ${campo('pn-rel-local', 'Local', mun ? mun + '/AM' : R.municipios.map(x => x + '/AM').join(', '))}
-      ${campo('pn-rel-obj', 'Objetivo', objetivo(m.praga || 'Monilíase'), 'ta')}${campo('pn-rel-desl', 'Deslocamento', m.deslocamento || '')}
+      ${campo('pn-rel-obj', 'Objetivo', objetivo(progSel), 'ta')}${campo('pn-rel-desl', 'Deslocamento', m.deslocamento || '')}
       ${campo('pn-rel-folders', 'Educação Sanitária: nº de folders e flyers distribuídos', '')}
       ${campo('pn-rel-obs', 'OBS', m.obs != null ? m.obs : 'Anexo Termo de Fiscalização e Cadastro de imóveis', 'ta')}
       <label><input type="checkbox" id="pn-rel-anexos" ${m.anexos === false ? '' : 'checked'}> Anexar os Termos de Fiscalização e os Cadastros ligados (CPF mascarado)</label>
@@ -444,9 +444,9 @@
       ev.preventDefault(); recalc();
       const v = id => q(id).value.trim(), anexar = q('pn-rel-anexos').checked;
       const rel = { convenio: v('pn-rel-conv'), etapa: v('pn-rel-etapa'), responsavel: v('pn-rel-resp'), de: f.de, ate: f.ate, local: v('pn-rel-local'), objetivo: v('pn-rel-obj'),
-        deslocamento: v('pn-rel-desl'), praga: q('pn-rel-praga').value, obs: v('pn-rel-obs'), calc: R,
+        deslocamento: v('pn-rel-desl'), programa: q('pn-rel-praga').value, obs: v('pn-rel-obs'), calc: R,
         servidores: v('pn-rel-servs').split('\n').map(l => l.trim()).filter(Boolean).map(l => { const [nome, ...r] = l.split(/\s+-\s+/); return { nome, funcao: r.join(' - ') }; }) };
-      try { localStorage.setItem(REL_LS, JSON.stringify({ praga: rel.praga, convenio: rel.convenio, etapa: rel.etapa, deslocamento: rel.deslocamento, obs: rel.obs, anexos: anexar })); } catch (e) { /* sem armazenamento */ }
+      try { localStorage.setItem(REL_LS, JSON.stringify({ programa: rel.programa, convenio: rel.convenio, etapa: rel.etapa, deslocamento: rel.deslocamento, obs: rel.obs, anexos: anexar })); } catch (e) { /* sem armazenamento */ }
       dlg.close();
       await imprimirRelatorio(rel, anexar ? { termos: R.termos, cadastros: R.cadastros } : null);
     });

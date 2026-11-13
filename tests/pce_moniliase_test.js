@@ -143,6 +143,17 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
     && /Termo de Fiscalização emitidos: 02 termos/.test(pr.texto) && /Não houve coleta de amostra/.test(pr.texto) && /Deslocamento: Manaus\/AM x Autazes\/AM x Manaus\/AM/.test(pr.texto),
     'relatório: convênio, etapa, servidores, período, local, plantas, educação sanitária (ações + folders), termos emitidos', pr.texto.slice(0, 900));
   ok(pr.paginas === 3 && (pr.html.match(/class="a4 [^"]*termo[^"]*"/g) || []).length === 2, 'relatório com os 2 Termos anexados (3 folhas, sem fichas ligadas)', [pr.paginas, (pr.html.match(/class="a4 [^"]*"/g) || [])]);
+  ok(/Nº dos termos: 001\/2026; 002\/2026\)/.test(pr.texto) && /Hospedeiros Inspecionados:/.test(pr.texto) && /Levantamentos Fitossanitário da praga Monilíase, realizou-se/.test(pr.texto) && /SEPROR\/AM/.test(pr.texto),
+    'relatório no modelo do levantamento: números dos Termos, frase do programa e rodapé na folha', pr.texto.slice(0, 1200));
+  const gen = await A.evaluate(() => {
+    const t = (id, o) => ({ id, data: '2026-07-08', numero: 1, ano: 2026, acoes: '[]', hospedeiros: '["Laranja"]', ...o });
+    const termos = [t('a', { pragas: '["HLB"]' }), t('b', { pragas: '[]', programaVisita: 'Pragas dos Citros', numero: 2 }), t('c', { pragas: '["Monilíase"]', numero: 3 }), t('d', { pragas: '[]', programa: 'citros', numero: 4 })];
+    const c = PCEDocs.calcularRelatorio(termos, [], { programa: 'citros' });
+    return { ids: c.termos.map(x => x.id).join(''), hosp: c.textos.hospedeiros, nums: c.textos.numeros, obj: PCEDocs.objetivoRelatorio({ programa: 'citros' }), progs: PCEDocs.programasRelatorio().length,
+      ops: [...document.querySelectorAll('#mr-praga option')].length };
+  });
+  ok(gen.ids === 'abd' && gen.hosp === 'Laranja' && gen.nums === '(Nº dos termos: 001/2026; 002/2026; 004/2026)' && /detecção das pragas dos Citros, visando/.test(gen.obj) && gen.progs === 6 && gen.ops === 6,
+    'relatório genérico por programa: o mesmo cálculo e os mesmos textos, só o nome muda (Termo entra pela caixa de praga, pelo nome do programa ou pelo modelo)', gen);
   await A.evaluate(() => { window.__pdfRel = null; PDF.baixar = f => { window.__pdfRel = f; }; });
   await A.click('#mr-arquivo'); await A.waitForFunction(() => window.__pdfRel, null, { timeout: 60000 });
   const pdfR = Buffer.from(await A.evaluate(async () => { const u = new Uint8Array(await window.__pdfRel.arrayBuffer()); let s = ''; u.forEach(x => { s += String.fromCharCode(x); }); return btoa(s); }), 'base64');

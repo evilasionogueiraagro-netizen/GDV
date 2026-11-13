@@ -116,7 +116,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   let pr = await imprimir(A, () => A.evaluate(id => PCEMon.imprimir('termo', id), idT1));
   ok(/TERMO DE FISCALIZAÇÃO Nº 001/.test(pr.texto) && new RegExp(`${ANO} Ano - AUTAZES Unidade`).test(pr.texto) && /JOAO FICTICIO TESTE/.test(pr.texto) && /702\.815\.364-90/.test(pr.texto) && /-3,60033/.test(pr.texto)
     && /Não constatei a presença da monilíase/.test(pr.texto) && /1ª via: Interessado/.test(pr.texto) && pr.paginas === 1, 'PDF do termo: número, interessado, CPF, coordenadas, constatação, vias (1 folha)', pr.texto.slice(0, 500));
-  ok(/class="cx on" data-x="pragas=Monilíase"/.test(pr.html) && /class="cx on" data-x="acoes=Fiscalização"/.test(pr.html) && !/class="cx on" data-x="acoes=Levantamento"/.test(pr.html), 'caixas marcadas: Monilíase e Fiscalização');
+  ok(/data-c="programaTxt">[^<]*Monilíase/.test(pr.html) && /class="cx on" data-x="acoes=Fiscalização"/.test(pr.html) && !/class="cx on" data-x="acoes=Levantamento"/.test(pr.html), 'programa/praga Monilíase no quadro e caixa Fiscalização marcada');
   const pdfT = await pdfArquivo(A, idT1);
   salvar('mon_termo_001.2026.AUTAZES.pdf', pdfT);
   ok(pdfT.slice(0, 5).toString() === '%PDF-' && pdfT.length > 30000, 'PDF gerado no aparelho', pdfT.length);

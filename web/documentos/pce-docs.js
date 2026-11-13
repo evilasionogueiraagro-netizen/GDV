@@ -22,6 +22,8 @@ const PCEDocs = (() => {
   const num = v => { const n = Number(String(v == null ? '' : v).replace(',', '.')); return isFinite(n) ? n : 0; };
   const semAcento = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
   const norm = s => semAcento(s).toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim();
+  /** "Laranja" + "Pera" = "Laranja Pera"; cultivar que já começa pelo nome da cultura ("Laranja Pera") não repete a cultura. */
+  const culturaCultivar = (cultura, cultivar) => (cultivar && cultura && (norm(cultivar) + ' ').startsWith(norm(cultura) + ' ') ? String(cultivar) : [cultura, cultivar].filter(Boolean).join(' '));
   const HOSP = [['cupuacu', 'Cupuaçu'], ['cacau', 'Cacau'], ['herrania', 'Herrania'], ['cacaui', 'Cacauí'], ['cupui', 'Cupuí'], ['macambo', 'Macambo']];
   const nomeHosp = k => (HOSP.find(h => h[0] === k) || [k, k])[1];
   const coordTxt = (lat, lon) => {
@@ -71,12 +73,13 @@ const PCEDocs = (() => {
     const tst = lerJSON(t.testemunhas, []), T = i => tst[i] || {};
     const ident = [t.servidor, t.cargo, t.matricula && 'Mat. ' + t.matricula, t.lotacao].filter(Boolean).join(' · ');
     const local = arr(lerJSON(t.tipoLocal, [])).map(String), citros = t.programa === 'citros';
-    const especifico = citros ? local[0] || '' : local.find(x => !LOCAIS_TERMO.some(s => norm(s) === norm(x))) || '';
+    const especifico = local.find(x => !LOCAIS_TERMO.some(s => norm(s) === norm(x))) || '';   // o local escrito pelo fiscal (o que não é uma das caixas)
     const acoes = arr(lerJSON(t.acoes, [])), c = Number(t.cancelado) === 1;
     return { ...t, cpf: digitos(t.doc).length === 11 ? fmtDoc(t.doc) : (digitos(t.doc).length === 14 ? '' : t.doc || ''),
       cnpjTxt: fmtDoc(t.cnpj || (digitos(t.doc).length === 14 ? t.doc : '')), dataTxt: dataBR(t.data), coordTxt: coordTxt(t.lat, t.lon),
       pragas: lerJSON(t.pragas, []), tipoLocal: local, acoes: citros && !acoes.length ? ['Fiscalização'] : acoes, localEspecificado: especifico, hora: String(t.hora || '').slice(0, 5),
       t1nome: T(0).nome || '', t1doc: T(0).doc || '', t2nome: T(1).nome || '', t2doc: T(1).doc || '', servidorIdent: ident,
+      programaTxt: String(t.programaVisita || '').trim() || arr(lerJSON(t.pragas, [])).join(', '),   // Termo da visita: o programa por extenso; antigo ou do papel: as pragas marcadas
       pragasRes: pragasDoTermo(t), cancelado: c ? 'TERMO CANCELADO' + (t.motivoCancel ? ' – ' + t.motivoCancel : '') : '' };
   }
 
@@ -99,16 +102,18 @@ const PCEDocs = (() => {
     }));
     return [...mapa.values()];
   }
-  /** Linhas "Praga (culturas): [ ] Presença [ ] Ausência [ ] Suspeita" no padrão do papel (Suspeita só fora das opcionais, ou se foi a resposta gravada). */
+  /**
+   * Quadro "Resultado da inspeção" do Termo: uma linha por praga e resultado, com as culturas ao lado e as caixas Presença / Ausência / Suspeita
+   * (Suspeita só fora das opcionais, ou se foi a resposta gravada). Linha com presença ou suspeita sai em negrito (classe det).
+   */
   function desenharPragas(zona, lista) {
-    const doc = zona.ownerDocument;
+    const doc = zona.ownerDocument, corpo = zona.tBodies[0] || zona.appendChild(doc.createElement('tbody'));
     const el = (tag, cls, ...filhos) => { const e = doc.createElement(tag); if (cls) e.className = cls; filhos.forEach(k => { if (k != null) e.append(k); }); return e; };
     const op = (on, txt) => el('span', 'op', el('span', 'cx' + (on ? ' on' : '')), txt);
     lista.forEach(x => {
-      const l = el('div', 'pr', el('span', 'pr-n', x.praga + (x.culturas.length ? ' (' + listaE(x.culturas) + '):' : ':')),
-        op(x.resultado === 'detectada', 'Presença'), op(x.resultado === 'nao_detectada', 'Ausência'));
-      if (!x.opcional || x.resultado === 'suspeita') l.append(op(x.resultado === 'suspeita', 'Suspeita')); else l.append(el('span', 'op vazio'));
-      zona.append(l);
+      corpo.append(el('tr', 'pr' + (x.resultado === 'nao_detectada' ? '' : ' det'), el('td', 'pr-n', x.praga), el('td', 'pr-c', listaE(x.culturas)),
+        el('td', 'pr-x', op(x.resultado === 'detectada', 'Presença')), el('td', 'pr-x', op(x.resultado === 'nao_detectada', 'Ausência')),
+        el('td', 'pr-x', !x.opcional || x.resultado === 'suspeita' ? op(x.resultado === 'suspeita', 'Suspeita') : null)));
     });
   }
 
@@ -336,7 +341,7 @@ const PCEDocs = (() => {
     /** Tabela dos frutos: só as colunas do papel do modelo, com linhas em branco até o mínimo do papel. */
     const tabelaCultura = (b) => {
       const colunas = colunasDe(b.cultura), cheias = V.frutos, vazias = Math.max(0, (b.linhas || 3) - cheias.length);
-      const celula = (x, c) => td('', c === 'cultivarCultura' ? [x.cultura, x.cultivar].filter(Boolean).join(' ') : c === 'cultivar' ? x.cultivar || x.cultura : str(x[c]));   // ficha de uma cultura só: sem cultivar, vale o nome da cultura
+      const celula = (x, c) => td('', c === 'cultivarCultura' ? culturaCultivar(x.cultura, x.cultivar) : c === 'cultivar' ? x.cultivar || x.cultura : str(x[c]));   // ficha de uma cultura só: sem cultivar, vale o nome da cultura
       const somaLarg = colunas.reduce((t, [c]) => t + (LARG[c] || 14), 0);
       return tabela('cult', colunas.map(([c]) => ((LARG[c] || 14) * 100 / somaLarg).toFixed(1) + '%'),
         el('thead', '', tr(...colunas.map(([, tx]) => el('th', '', tx)))),
@@ -491,7 +496,9 @@ const PCEDocs = (() => {
       const q = nova(), t = atual.ownerDocument.importNode(molde.querySelector('.linhas.l6').closest('table'), true), cel = t.querySelector('td.cxs');
       const linhas = cel.querySelector('.linhas'), nota = cel.querySelector('.linhas ~ .peq');
       t.querySelector('td.sec').textContent = '2 – Descrição da Ação (continuação)';
-      cel.textContent = ''; cel.append(linhas, nota); q.append(t);
+      cel.textContent = ''; cel.append(linhas, nota);
+      [...t.rows].forEach(r => { if (!r.querySelector('td.sec') && !r.contains(cel)) r.remove(); });   // a continuação leva só o título e a situação constatada
+      q.append(t);
       if (!encher(atual, 1)) break;
     }
     atual.querySelector('.cq').append(...depois);                                  // enquadramento e quadro das assinaturas vão juntos para a última folha
@@ -638,7 +645,7 @@ const PCEDocs = (() => {
       if (ul) { ul.textContent = ''; (dados.servidores || []).forEach(s => { const li = pg.ownerDocument.createElement('div'); li.textContent = [s.nome, s.funcao].filter(Boolean).join(' - '); ul.append(li); }); }
     } else assinaturas(pg, lerJSON(dados.assinaturas, {}), arquivos);
     const cf = pg.querySelector('.cancelado-faixa'); if (cf && !r.cancelado) cf.remove();
-    const zona = pg.querySelector('[data-pragas]'); if (zona) { if (nat === 'termo' && r.pragasRes.length) desenharPragas(zona, r.pragasRes); else zona.remove(); }
+    const zona = pg.querySelector('[data-pragas]'); if (zona) { if (nat === 'termo' && r.pragasRes.length) desenharPragas(zona, r.pragasRes); else (zona.closest('tr.res-l') || zona).remove(); }
     if (nat === 'termo') { DocumentoBase.montar(pg, { numero: r.numeroTxt }); pg.querySelectorAll('.linhas.l6').forEach(x => DocumentoBase.pautar(x, r.pragasRes.length ? 3 : 5)); pg.querySelectorAll('.linhas.l3').forEach(x => DocumentoBase.pautar(x, 2)); }
     return pg;
   }

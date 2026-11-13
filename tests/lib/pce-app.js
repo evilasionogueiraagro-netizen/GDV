@@ -32,10 +32,11 @@ const aba = async (nome) => { const l = await (await fetch(amb.API + '/__aba?nom
 /** Produtor novo: {doc, nome, propriedade, codigo, municipio, frutos:[{cultura, cultivar, area, quantidade}]}; termina na tela do produtor. */
 async function novoProdutor(p, o) {
   await p.click('nav [data-v=pce]'); await p.waitForSelector('#campo-novo'); await p.click('#campo-novo'); await p.waitForSelector('#pceProdForm');
-  await p.fill('#pp-doc', o.doc); await p.fill('#pp-nome', o.nome); await p.fill('#pp-prop', o.propriedade || ''); await p.fill('#pp-codigo', o.codigo || '');
-  await p.selectOption('#pp-municipio', o.municipio || 'Manaus');
+  const pr = p.locator('#pp-props .pp-prop').first();   // o formulário abre com uma propriedade; cada propriedade tem os seus frutos
+  await p.fill('#pp-doc', o.doc); await p.fill('#pp-nome', o.nome); await pr.locator('.p-prop').fill(o.propriedade || ''); await pr.locator('.p-codigo').fill(o.codigo || '');
+  await pr.locator('.p-municipio').selectOption(o.municipio || 'Manaus');
   for (const [i, f] of (o.frutos || []).entries()) {
-    await p.click('#pp-addfruto');
+    await pr.locator('.pp-addfruto').click();
     const b = p.locator('.pc-fruto').nth(i);
     await b.locator('.f-cultura').selectOption(f.cultura);
     if (f.cultivar) await b.locator('.f-cultivar').fill(f.cultivar);
@@ -58,14 +59,22 @@ const bloco = (p, cultura) => p.locator('.pce-cultura', { has: p.locator('b', { 
  */
 async function visita(p, o) {
   await p.locator('#pce-novavisita').first().click(); await p.waitForSelector('#pceVisitaForm');
-  for (const c of o.frutos) await p.locator('label.vi-fruto', { hasText: c }).locator('input').check();
+  // os frutos da propriedade já vêm marcados: ficam só os de o.frutos; programa que fica sem fruto pede justificativa (o.justificativas = {programa: texto})
+  for (let i = 0, n0 = await p.locator('label.vi-fruto').count(); i < n0; i++) {
+    const l = p.locator('label.vi-fruto').nth(i), txt = await l.textContent();
+    await l.locator('input').setChecked(o.frutos.some(c => txt.includes(c)));
+  }
+  for (let i = 0, n0 = await p.locator('textarea[data-pulado]').count(); i < n0; i++) {
+    const a = p.locator('textarea[data-pulado]').nth(i), prog = await a.getAttribute('data-pulado');
+    await a.fill((o.justificativas || {})[prog] || 'Cultura não avaliada nesta visita (motivo fictício).');
+  }
   if (o.aoPasso) await o.aoPasso(1);
   await p.click('#vi-continuar'); await p.waitForSelector('.pce-pr');
   if (o.aoPasso) await o.aoPasso('2-vazio');
   const n = await p.locator('.pce-pr').count();
   for (let i = 0; i < n; i++) {
     const e = p.locator('.pce-pr').nth(i), nome = await e.getAttribute('data-nome'), cult = (await e.locator('xpath=ancestor::div[contains(@class,"pce-cultura")]//b').first().textContent()).trim().replace(/\s*\(.*\)$/, '');   // sem a cultivar
-    const res = ((o.resultados || {})[cult] || {})[nome] || (await e.getAttribute('data-opcional') ? '' : (o.padrao || 'nao_detectada'));
+    const res = ((o.resultados || {})[cult] || {})[nome] || (await e.getAttribute('data-opcional') && await e.locator('.r-res:checked').count() ? '' : (o.padrao || 'nao_detectada'));   // opcional pré-marcada fica como está; a que exige escolha (Fusariose) recebe o padrão
     if (res) await e.locator('.pce-res-' + res).click();
   }
   if (o.aoPasso) await o.aoPasso(2);
@@ -119,10 +128,11 @@ async function salvarPdf(p, pr, modelo, nome) {
   await pg.pdf({ path: amb.saida(nome + '.pdf'), format: 'A4', printBackground: true, preferCSSPageSize: true }); await pg.emulateMedia({ media: 'screen' });
   await pg.setViewportSize({ width: 800, height: 1100 }); await pg.screenshot({ path: amb.saida(nome + '.png'), fullPage: true }); await pg.close();
 }
-/** Caixas das pragas do Termo impresso (html do documento de impressão): [{linha: 'HLB (Laranja):', caixas: ['Presença', 'Ausência', 'Suspeita'], marcadas: ['Ausência']}]. Vazio = Termo sem as caixas (antigo, ou só o texto). */
+/** Caixas das pragas do Termo impresso (html do documento de impressão; quadro "Resultado da inspeção"): [{linha: 'HLB (Laranja):', caixas: ['Presença', 'Ausência', 'Suspeita'], marcadas: ['Ausência']}]. Vazio = Termo sem o quadro (antigo, ou só o texto). */
 function caixasDoTermo(html) {
-  return (String(html).split('<div class="pr">').slice(1)).map(trecho => {
-    const bloco = trecho.split('</div>')[0], linha = ((/<span class="pr-n">(.*?)<\/span>/.exec(bloco) || [])[1] || '').replace(/&amp;/g, '&');
+  return (String(html).split(/<tr class="pr(?: det)?">/).slice(1)).map(trecho => {
+    const bloco = trecho.split('</tr>')[0], cel = c => ((new RegExp('<td class="' + c + '">(.*?)</td>').exec(bloco) || [])[1] || '').replace(/&amp;/g, '&');
+    const linha = cel('pr-n') + (cel('pr-c') ? ' (' + cel('pr-c') + ')' : '') + ':';
     const ops = [...bloco.matchAll(/<span class="op"><span class="cx( on)?"><\/span>([^<]+)<\/span>/g)];
     return { linha, caixas: ops.map(m => m[2]), marcadas: ops.filter(m => m[1]).map(m => m[2]) };
   });

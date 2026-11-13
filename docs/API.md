@@ -38,6 +38,7 @@ Contrato das actions: ao criar, mudar ou remover uma, atualize esta tabela. Regr
 | `pceProximoNumero` | pce | `unidade`, `ano` | `ultimo`, `proximo` |
 | `pceEmitir` | pce | `colheita`, `pessoa`, `propriedade` | como `tfEmitir`, + `numeroTxt` |
 | `pceConsultar` | pce | `doc` | `pessoa`, `propriedades` (`cnpj`, `empresa`, `endereco`, `uf`, `viaAcesso`, `comercial`, `tipoPropriedade`, `frutos`, `frutosSugeridos`), contagens, `cadastrosPce` |
+| `pceBuscarTexto` | pce | `q` (3+ caracteres), `municipio` | `resultados` (até 20: `doc`, `nome`, `propriedades`), `total` |
 | `pceDocNumero` | pce | `tipo` (`termo`/`cadastro`), `unidade`, `ano`, `programa` | `ultimo`, `proximo` |
 | `pceDocRegistrar` | pce | `tipo`, `registro`, `pessoa`, `propriedade` | como `pceEmitir`; Termo da visita que já existe: `emitido: false`, `termoDaVisita` {`id`, `numeroTxt`, `programaVisita`} |
 | `pceBaixarMunicipio` | pce | `municipios` (lista) | `agora`, `municipios`, `propriedades` (como em `pceConsultar`), `pessoas`, `cadastrosPce` |

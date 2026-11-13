@@ -62,9 +62,10 @@ function culturasTermoPce_(v) {
  * amostra (sim/nao) e sintomas (sim/nao) saem das culturas quando o app não os mandou. Devolve false se as culturas não cabem na célula.
  */
 function normalizarTermoPceVisita_(r) {
-  if (!('visitaId' in r)) { delete r.programaVisita; delete r.culturas; return true; }
+  if (!('visitaId' in r)) { delete r.programaVisita; delete r.culturas; delete r.programasPulados; return true; }
   r.visitaId = textoCurto_(r.visitaId, 64);
-  if (!r.visitaId) { r.visitaId = ''; r.programaVisita = ''; r.culturas = ''; return true; }
+  if (!r.visitaId) { r.visitaId = ''; r.programaVisita = ''; r.culturas = ''; r.programasPulados = ''; return true; }
+  r.programasPulados = programasPuladosPce_(r.programasPulados);
   r.programaVisita = textoCurto_(r.programaVisita || r.programa, 60);
   const cs = culturasTermoPce_(r.culturas);
   r.culturas = JSON.stringify(cs);
@@ -73,6 +74,22 @@ function normalizarTermoPceVisita_(r) {
   if (r.amostra !== 'sim' && r.amostra !== 'nao') r.amostra = cs.some(function (c) { return c.coleta === 'Sim'; }) ? 'sim' : 'nao';
   if (r.sintomas !== 'sim' && r.sintomas !== 'nao') r.sintomas = temPraga(['detectada', 'suspeita']) ? 'sim' : 'nao';
   return true;
+}
+
+/**
+ * Programas que a propriedade tem (pelas culturas) e o fiscal não avaliou na visita: JSON [{programa, justificativa}] ou '' (nenhum).
+ * Só entra item com programa e justificativa; no máximo 10; textos limitados.
+ */
+function programasPuladosPce_(v) {
+  const l = lerJSONSeguro_(v, []);
+  if (!Array.isArray(l)) return '';
+  const out = [];
+  l.forEach(function (x) {
+    if (!x || typeof x !== 'object' || out.length >= 10) return;
+    const programa = textoCurto_(x.programa, 60), justificativa = textoCurto_(x.justificativa, 300);
+    if (programa && justificativa) out.push({ programa: programa, justificativa: justificativa });
+  });
+  return out.length ? JSON.stringify(out) : '';
 }
 
 /** Chave única do Termo da visita: "visitaId|programaVisita" ('' = Termo antigo). */

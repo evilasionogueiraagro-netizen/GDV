@@ -7,7 +7,7 @@
 <link rel="stylesheet" href="pce-ficha.css">
 </head>
 <body>
-<!-- Termo de Fiscalização do PCE: um único modelo para todos os programas (o de citros acrescenta o local especificado). Mesma base da ficha (documento-base.css). -->
+<!-- Termo de Fiscalização do PCE: um único modelo para todos os programas. Mesma base da ficha (documento-base.css). -->
 <div class="a4 doc termo">
   <div data-cabecalho></div>
   <div class="cancelado-faixa" data-c="cancelado"></div>
@@ -26,30 +26,27 @@
       <td><div class="cp"><span class="lbl">UF:</span><span class="v nw" data-c="uf"></span></div></td>
       <td><div class="cp"><span class="lbl">Telefone:</span><span class="v nw" data-c="telefone"></span></div></td></tr>
     <tr><td colspan="3"><div class="cp"><span class="lbl">Coordenadas Geográficas:</span><span class="v nw" data-c="coordTxt"></span></div></td></tr></table>
-  <table class="ln"><tr><td class="sec">2 – Descrição da Ação</td></tr>
-    <tr><td class="cxs">
-      <span class="op"><span class="cx" data-x="pragas=Ácaro Hindustânico"></span>Ácaro Hindustânico</span>
-      <span class="op"><span class="cx" data-x="pragas=Cancro Cítrico"></span>Cancro Cítrico</span>
-      <span class="op"><span class="cx" data-x="pragas=HLB"></span>HLB</span>
-      <span class="op"><span class="cx" data-x="pragas=Ferrugem Asiática da soja"></span>Ferrugem Asiática da soja</span><br>
-      <span class="op"><span class="cx" data-x="pragas=Fusariose FOC R4T"></span>Fusariose FOC R4T</span>
-      <span class="op"><span class="cx" data-x="pragas=Monilíase"></span>Monilíase</span>
-      <span class="op"><span class="cx" data-x="pragas=Mosca-da-Carambola"></span>Mosca-da-Carambola</span>
-      <span class="op"><span class="cx" data-x="pragas=Vassoura-de-bruxa da Mandioca"></span>Vassoura-de-bruxa da Mandioca</span><br>
-      <span class="op"><span class="cx" data-x="pragas=Amaranthus palmeri"></span>Amaranthus palmeri</span>
-      <span class="op"><span class="cx" data-x="pragas=Diaphorina citri"></span>Diaphorina citri</span><br>
+  <!-- Seção 2 padronizada (12/11/2026): os mesmos campos em todo Termo, em quadro: programa, data, hora, local, ações, quem realizou e o resultado por praga. -->
+  <table class="ln ac"><colgroup><col style="width:46%"><col style="width:26%"><col></colgroup>
+    <tr><td class="sec" colspan="3">2 – Descrição da Ação</td></tr>
+    <tr><td><div class="cp"><span class="lbl">Programa / praga:</span><span class="v" data-c="programaTxt"></span></div></td>
+      <td><div class="cp"><span class="lbl">Data:</span><span class="v nw" data-c="dataTxt"></span></div></td>
+      <td><div class="cp"><span class="lbl">Hora:</span><span class="v nw" data-c="hora"></span></div></td></tr>
+    <tr><td colspan="3"><div class="cp"><span class="lbl">Local da ação:</span><span class="v" data-c="localEspecificado"></span></div></td></tr>
+    <tr><td colspan="3" class="ops"><span class="lbl">Tipo de local:</span>
       <span class="op"><span class="cx" data-x="tipoLocal=Evento Agropecuário"></span>Evento Agropecuário</span>
       <span class="op"><span class="cx" data-x="tipoLocal=Unidade de Produção (UP)"></span>Unidade de Produção (UP)</span>
-      <span class="op"><span class="cx" data-x="tipoLocal=Unidade de Consolidação (UC)"></span>Unidade de Consolidação (UC)</span>
-      <div class="em">Em <u data-c="dataTxt"></u> às <u data-c="hora"></u> hora(s) ao realizar ações de:</div>
+      <span class="op"><span class="cx" data-x="tipoLocal=Unidade de Consolidação (UC)"></span>Unidade de Consolidação (UC)</span></td></tr>
+    <tr><td colspan="3" class="ops"><span class="lbl">Ações realizadas:</span>
       <span class="op"><span class="cx" data-x="acoes=Controle/Erradicação"></span>Controle/Erradicação</span>
       <span class="op"><span class="cx" data-x="acoes=Levantamento"></span>Levantamento</span>
       <span class="op"><span class="cx" data-x="acoes=Monitoramento"></span>Monitoramento</span>
       <span class="op"><span class="cx" data-x="acoes=Educação Sanitária"></span>Educação Sanitária</span>
-      <span class="op"><span class="cx" data-x="acoes=Fiscalização"></span>Fiscalização</span>
-      <div class="em">no(a) <u data-c="localEspecificado"></u> constatei</div>
-      <div class="peq esq">(especificar o local)</div>
-      <div class="prs" data-pragas></div>
+      <span class="op"><span class="cx" data-x="acoes=Fiscalização"></span>Fiscalização</span></td></tr>
+    <tr><td colspan="3"><div class="cp"><span class="lbl">Realizada por:</span><span class="v" data-c="servidorIdent"></span></div></td></tr>
+    <tr class="res-l"><td colspan="3" class="res-td"><table class="res" data-pragas><colgroup><col style="width:28%"><col style="width:27%"><col><col><col></colgroup>
+      <thead><tr><th>Praga</th><th>Cultura(s) avaliada(s)</th><th colspan="3">Resultado da inspeção</th></tr></thead><tbody></tbody></table></td></tr>
+    <tr><td colspan="3" class="cxs"><div class="lbl">Situação constatada:</div>
       <div class="linhas l6" data-c="constatacao"></div>
       <div class="peq">(descrever a situação constatada)</div></td></tr></table>
   <table class="ln"><tr><td class="sec">3 – Enquadramento Legal <small>(citar leis, decretos, resoluções, portarias, instruções normativas, artigos, incisos e alíneas)</small></td></tr>

@@ -349,7 +349,7 @@ const PCEMon = (() => {
         <p class="mon-sub">Praga(s)</p>${cks(p, 'pragas', lst(TC.pragas || []), D.pragas)}
         ${cks(p, 'tipoLocal', lst(TC.locais || []), D.tipoLocal)}
         <div class="duas">${inp(p, 'data', 'Em (data) *', D.data, `type="date" min="2000-01-01" max="${hojeISO()}"`)}${inp(p, 'hora', 'às (hora) *', D.hora, 'type="time"')}</div>
-        <p class="mon-sub">ao realizar ações de *</p>${cks(p, 'acoes', lst(TC.acoes || []), D.acoes)}
+        <p class="mon-sub">Ações realizadas *</p>${cks(p, 'acoes', lst(TC.acoes || []), D.acoes)}
         <label>Situação constatada<textarea id="${p}constatacao" rows="4">${esc(D.constatacao)}</textarea></label>
         <button type="button" class="mini" data-mon="negativa" id="${p}negativa">${icone('assinatura')} “${esc(TC.constatacaoNegativa || '')}”</button></div>
       <div class="card"><h3>3 – Enquadramento legal</h3><label><textarea id="${p}enquadramento" rows="3" aria-label="Enquadramento legal" placeholder="citar leis, decretos, resoluções, portarias, instruções normativas, artigos, incisos e alíneas">${esc(D.enquadramento)}</textarea></label></div>
@@ -620,15 +620,40 @@ const PCEMon = (() => {
     return [...lig, ...extras];
   }
   /** Resposta da praga no fruto. Opcional em branco (rascunho antigo ou fruto recém-marcado) vale "Não tem" (nao_detectada). */
-  const respostaDe = (fid, p) => { const r = fruto(fid).pragas[p.id] || {}; return p.opcional && !r.resultado ? { ...r, resultado: 'nao_detectada' } : r; };
+  /** Praga opcional que exige escolha do fiscal (CONFIG.PCE.visita.respostaExplicita): não vem marcada "Não tem". */
+  const explicita = p => ((P.visita || {}).respostaExplicita || []).some(n => idCat(n) === p.id || idCat(n) === idCat(p.nome));
+  const respostaDe = (fid, p) => { const r = fruto(fid).pragas[p.id] || {}; return p.opcional && !r.resultado && !explicita(p) ? { ...r, resultado: 'nao_detectada' } : r; };
   const respondidas = fid => pragasDoFruto(fid).filter(p => respostaDe(fid, p).resultado);
+
+  /* ---------- programas obrigatórios da propriedade ---------- */
+  /** Programas que a propriedade obriga: os das pragas ligadas no catálogo às culturas cadastradas nela. [{programa, nome, frutos:[fid]}] */
+  function programasDaPropriedade() {
+    const mapa = new Map();
+    CA().frutosDe(V.p).forEach(f => CA().pragasLigadas(f.cultura).forEach(p => {
+      const pg = CA().programaDaPraga(CA().nomeDaPraga(p)); if (!pg || !pg.programa) return;
+      if (!mapa.has(pg.programa)) mapa.set(pg.programa, { programa: pg.programa, nome: pg.nome, frutos: [] });
+      const x = mapa.get(pg.programa); if (!x.frutos.includes(f.id)) x.frutos.push(f.id);
+    }));
+    return [...mapa.values()];
+  }
+  /** Programas da propriedade sem nenhum fruto marcado nesta visita: só passam com justificativa (vai no Termo e vira alerta no painel). */
+  const programasPulados = () => programasDaPropriedade().filter(pg => !pg.frutos.some(fid => V.sel.includes(fid)));
+  const JUST_MIN = 10;
+  const puladosHTML = () => programasPulados().map(pg => `<div class="tf-alerta vi-pulado" data-prog="${esc(pg.programa)}">${icone('alerta')} <b>${esc(pg.nome)}</b>: a propriedade tem cultura deste programa e nenhuma foi marcada.
+      Para seguir sem o Termo dele, justifique (fica registrado no seu nome e aparece no painel).
+      <label>Justificativa *<textarea data-pulado="${esc(pg.programa)}" rows="2" maxlength="300">${esc((V.pulados || {})[pg.programa] || '')}</textarea></label></div>`).join('');
+  /** [{programa (por extenso), justificativa}] dos programas pulados, como vai em cada Termo da visita. */
+  const puladosDoTermo = () => programasPulados().map(pg => ({ programa: pg.nome, justificativa: String((V.pulados || {})[pg.programa] || '').trim() })).filter(x => x.justificativa);
 
   /* ---------- leitura da tela do passo para o estado ---------- */
   function coletarPasso() {
     if (!V || !$('#pceVisitaForm')) return;
     const q = (s, r = document) => r.querySelector(s);
-    if (V.passo === 1) V.sel = [...document.querySelectorAll('input[name=vi-fruto]:checked')].map(c => c.value);
-    else if (V.passo === 2) {
+    if (V.passo === 1) {
+      V.sel = [...document.querySelectorAll('input[name=vi-fruto]:checked')].map(c => c.value);
+      V.pulados = V.pulados || {};
+      document.querySelectorAll('textarea[data-pulado]').forEach(x => { V.pulados[x.dataset.pulado] = x.value; });
+    } else if (V.passo === 2) {
       document.querySelectorAll('.pce-pr[data-fruto]').forEach(e => {
         const r = q('.r-res:checked', e), st = fruto(e.dataset.fruto);
         st.pragas[e.dataset.praga] = { resultado: r ? r.value : '', haQuantoTempo: (q('.r-tempo', e) || {}).value || '', controle: rv('vi-ctl-' + e.dataset.fruto + '-' + e.dataset.praga + '-', 'c'), qualControle: (q('.r-qual', e) || {}).value || '' };
@@ -695,9 +720,10 @@ const PCEMon = (() => {
   function passo1() {
     const lista = CA().frutosDe(V.p);
     return `<div class="card"><h3>${icone('broto')} Frutos avaliados nesta visita</h3>
-      <p class="dica" style="text-align:left">Marque os frutos que você avaliou. Se faltar algum, acrescente: ele vai para o cadastro da propriedade.</p>
+      <p class="dica" style="text-align:left">Os frutos da propriedade já vêm marcados: cada programa das culturas dela gera um Termo. Desmarque só o que não foi avaliado. Se faltar algum, acrescente: ele vai para o cadastro da propriedade.</p>
       ${lista.length ? lista.map(f => `<label class="chk vi-fruto"><input type="checkbox" name="vi-fruto" value="${esc(f.id)}" ${V.sel.includes(f.id) ? 'checked' : ''}> ${esc(CA().resumoFruto(f))}</label>`).join('')
         : '<div class="tf-novo" id="vi-semfrutos">Esta propriedade ainda não tem frutos cadastrados. Acrescente abaixo o que será avaliado.</div>'}
+      <div id="vi-pulados">${puladosHTML()}</div>
       <details class="vi-novo-fruto" ${lista.length ? '' : 'open'}><summary>+ Acrescentar fruto ao cadastro</summary>
         <label>Cultura<select id="vi-nf-cultura">${opts(CA().culturas(), '', 'Selecione')}</select></label>
         <div class="duas"><label>Cultivar<input id="vi-nf-cultivar" maxlength="80" autocomplete="off"></label><label>Área (ha)<input id="vi-nf-area" inputmode="decimal" maxlength="12" autocomplete="off"></label></div>
@@ -708,7 +734,7 @@ const PCEMon = (() => {
     return `<div class="pce-pr" data-fruto="${esc(fid)}" data-praga="${esc(p.id)}" data-nome="${esc(p.nome)}"${p.opcional ? ' data-opcional="1"' : ''}><div class="pce-pr-topo"><b>${icone('praga')} ${esc(p.nome)}</b>
         <small class="pce-pr-cat">${p.ligada ? 'do catálogo' : 'acrescentada'}</small>
         ${p.ligada ? '' : `<button type="button" class="mini" data-mon="delpraga" data-fruto="${esc(fid)}" data-praga="${esc(p.id)}" aria-label="Remover ${esc(p.nome)}">Remover</button>`}</div>
-      <fieldset class="pce-res"><legend>Resultado${p.opcional ? '' : ' *'}</legend><div class="pce-res-op${Object.keys(ops).length === 2 ? ' pce-res-dois' : ''}">${Object.keys(ops).map(v => `<label class="pce-res-${v}"><input type="radio" class="r-res" name="res-${esc(u)}" value="${v}" ${st.resultado === v ? 'checked' : ''}><span>${esc(ops[v])}</span></label>`).join('')}</div></fieldset>
+      <fieldset class="pce-res"><legend>Resultado${p.opcional && !explicita(p) ? '' : ' *'}</legend><div class="pce-res-op${Object.keys(ops).length === 2 ? ' pce-res-dois' : ''}">${Object.keys(ops).map(v => `<label class="pce-res-${v}"><input type="radio" class="r-res" name="res-${esc(u)}" value="${v}" ${st.resultado === v ? 'checked' : ''}><span>${esc(ops[v])}</span></label>`).join('')}</div></fieldset>
       ${det ? `<div class="vi-det"><label>Há quanto tempo<input class="r-tempo" maxlength="60" value="${esc(st.haQuantoTempo || '')}" autocomplete="off"></label>
         ${sn('vi-ctl-' + u + '-', 'c', 'Utiliza método de controle?', st.controle || '')}
         <label>Qual controle<input class="r-qual" maxlength="120" value="${esc(st.qualControle || '')}" autocomplete="off"></label></div>` : ''}</div>`;
@@ -747,7 +773,7 @@ const PCEMon = (() => {
   }
   function passo4(pgs) {
     return `<div class="card"><h3>${icone('formulario')} Ação realizada</h3>
-        <p class="mon-sub">ao realizar ações de *</p>${cks('vi-', 'acoes', (TC.acoes || []).map(x => [x, x]), V.acoes)}
+        <p class="mon-sub">Ações realizadas *</p>${cks('vi-', 'acoes', (TC.acoes || []).map(x => [x, x]), V.acoes)}
         <label>Local da fiscalização *<input id="vi-local" maxlength="200" value="${esc(V.local)}" autocomplete="off" placeholder="ex.: Propriedade Sítio Boa Vista, Ramal do Km 3"></label>
         <div class="duas">${inp('vi-', 'data', 'Data', V.data, `type="date" max="${hojeISO()}"`)}${inp('vi-', 'hora', 'Hora', V.hora, 'type="time"')}</div></div>
       ${pgs.map(pg => `<div class="card pce-prog" data-prog="${esc(pg.programa)}"><h3>${icone('praga')} ${esc(pg.nome)}</h3>
@@ -784,13 +810,18 @@ const PCEMon = (() => {
   }
   /** Valida o passo atual; devolve a mensagem do que falta ou ''. */
   function faltaNoPasso(n) {
-    if (n === 1) { if (!V.sel.length) return 'Marque ao menos um fruto avaliado (ou acrescente um).'; return ''; }
+    if (n === 1) {
+      if (!V.sel.length) return 'Marque ao menos um fruto avaliado (ou acrescente um).';
+      const sem = programasPulados().find(pg => String((V.pulados || {})[pg.programa] || '').trim().length < JUST_MIN);
+      if (sem) return `${sem.nome}: marque um fruto deste programa ou escreva a justificativa (mínimo de ${JUST_MIN} letras).`;
+      return '';
+    }
     if (n === 2) {
       for (const fid of V.sel) {
         const f = frutoDe(fid);
         for (const p of pragasDoFruto(fid)) {
           const r = respostaDe(fid, p);
-          if (!r.resultado) return `Informe o resultado de ${p.nome} em ${f.cultura} (detectada, não detectada ou suspeita).`;
+          if (!r.resultado) return p.opcional ? `Informe se ${p.nome} tem ou não tem em ${f.cultura}.` : `Informe o resultado de ${p.nome} em ${f.cultura} (detectada, não detectada ou suspeita).`;
           if (COM_DETECCAO.includes(r.resultado) && r.controle === 'sim' && !String(r.qualControle).trim()) return `Informe qual controle é usado para ${p.nome} em ${f.cultura}.`;
         }
       }
@@ -876,7 +907,8 @@ const PCEMon = (() => {
     }
     V = nova;
     const frutos = CA().frutosDe(p);
-    if (!retomar && frutos.length === 1) V.sel = [frutos[0].id];
+    if (!retomar) V.sel = frutos.map(f => f.id);   // todo fruto já vem marcado: os programas das culturas da propriedade são obrigatórios (desmarcar um programa inteiro pede justificativa)
+    V.pulados = V.pulados || {};
     await desenhar();
     salvarRascunho(0);
     if (!retomar) pegarLocalSilencioso().then(gps => { if (V === nova && gps) { const r = U().validarCoord(gps.lat, gps.lng); if (!r.erro) { V.lat = r.lat; V.lon = r.lon; V.prec = gps.prec; salvarRascunho(); } } }).catch(() => {});
@@ -938,7 +970,7 @@ const PCEMon = (() => {
       tipoLocal: JSON.stringify([V.local]), acoes: JSON.stringify(V.acoes), constatacao: String(V.const[pg.programa] || '').trim(), enquadramento: enquadramentoDe(pg),
       testemunhas: JSON.stringify(testemunhas), recebidoEm: '', plantasInspecionadas: plantas, amostra: cs.some(c => c.coleta === 'Sim') ? 'sim' : 'nao', sintomas: temSint ? 'sim' : 'nao',
       hospedeiros: JSON.stringify(culturasTxt), fotos: JSON.stringify([...new Set(cs.flatMap(c => c.fotos))]), assinaturas: JSON.stringify(ctx.mapa), documentos: '[]', registroAntigo: 0, cancelado: 0, motivoCancel: '', excluido: 0,
-      visitaId: V.id, programaVisita: pg.nome, culturas: JSON.stringify(cs) };
+      visitaId: V.id, programaVisita: pg.nome, culturas: JSON.stringify(cs), programasPulados: (l => (l.length ? JSON.stringify(l) : ''))(puladosDoTermo()) };
   }
   const culturasTxtAtividade = cult => (cult.length ? 'Cultivo de ' + listaE(cult.map(x => String(x).toLowerCase())) : '');
   function montarColheita(fid, ctx) {
@@ -982,13 +1014,14 @@ const PCEMon = (() => {
     } catch (e) { st.salvando = false; if (btn && btn.isConnected) btn.disabled = false; toast('Erro ao concluir: ' + (e.message || e), true); }
   }
 
-  /** Tela depois de concluir: os Termos da visita (um por programa), o Termo de Colheita e os PDFs. */
-  async function visitaPronta(id) {
+  /** Tela depois de concluir: os Termos da visita (um por programa), o Termo de Colheita e os PDFs. Também serve aos Termos gerados pela propriedade. */
+  async function visitaPronta(arg) {
+    const doCadastro = !!(arg && typeof arg === 'object' && arg.cadastro), id = arg && typeof arg === 'object' ? arg.id : arg;
     const termos = (await Store.todos('termosPce')).filter(t => t.visitaId === id && !Number(t.excluido)).sort((a, b) => (Number(a.numero) || 0) - (Number(b.numero) || 0));
     const cols = (await Store.todos('colheitas')).filter(c => c.levantamentoId === id && !Number(c.excluido));
     if (!termos.length) return go('pce');
     const t0 = termos[0], pendente = termos.some(t => t.pendente) || cols.some(c => c.pendente), doc = digitos(t0.doc);
-    view(`<div class="card" id="pce-visita-pronta"><h3>${icone('ok')} Visita concluída</h3>
+    view(`<div class="card" id="pce-visita-pronta"><h3>${icone('ok')} ${doCadastro ? 'Termos gerados' : 'Visita concluída'}</h3>
       <p><b>${esc(t0.nome)}</b> · ${esc(dBR(t0.data))} ${esc(t0.hora)} · ${esc(t0.municipio)}</p>
       ${pendente ? `<div class="tf-novo">${icone('sincronizar')} Aguardando envio / número provisório: a planilha confere os números ao sincronizar.</div>` : '<div class="tf-ok">✓ Números confirmados na planilha.</div>'}</div>
       ${termos.map(t => `<div class="card pce-termo-pronto" data-termo="${esc(t.id)}"><h3>${icone('formulario')} Termo de Fiscalização <span class="tf-num-inline">${esc(t.numeroTxt)}</span></h3>
@@ -1013,6 +1046,8 @@ const PCEMon = (() => {
     coletarPasso();
     if (el.classList && el.classList.contains('r-res') && tipo !== 'input') {
       const y = window.scrollY; await desenhar(); window.scrollTo(0, y);
+    } else if (el.name === 'vi-fruto') {                                // marcou/desmarcou um fruto: o quadro dos programas sem fruto (justificativa) acompanha
+      const z = $('#vi-pulados'); if (z) z.innerHTML = puladosHTML();
     } else if (el.name && /^vi-col-/.test(el.name)) {
       const b = el.closest('.pce-cultura'), sim = rv(el.name.replace(/c$/, ''), 'c') === 'sim', am = b && b.querySelector('.vi-amostra');
       if (am) am.hidden = !sim;

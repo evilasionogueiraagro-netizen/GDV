@@ -706,6 +706,7 @@ const PCEUI = (() => {
       ${podeAnt ? `<div class="card pce-papel"><h3>${icone('documento')} Digitar do papel</h3><div class="duas">
         <button class="botao ${dig ? '' : 'sec'}" data-mon="novo" data-tipo="termo" data-antigo="1" id="mon-novo-papel">Termo de Fiscalização</button>
         <button class="botao ${dig ? '' : 'sec'}" data-pce="novotermoantigo" id="pce-novotermoantigo">Termo de Colheita</button></div></div>` : ''}
+      ${Sync.pode('pce') && !soDigitador(s) ? `<button class="botao" data-v="pcenovotermo" id="pce-novotermo-ir">${icone('mais')} Novo termo</button>` : ''}
       <button class="botao sec" data-v="pcerel" id="mon-ir-rel">${icone('resumo')} Relatório de atividades</button>
       <div class="card"><label>Pesquisar (nº, produtor, CPF/CNPJ, município, cultura ou programa)<input id="pceTQ" autocomplete="off"></label>
         <label>Mostrar<select id="pceTTipo"><option value="">Todos os Termos de Fiscalização</option><option value="amostra">Termos de Fiscalização com amostra coletada</option></select></label></div>

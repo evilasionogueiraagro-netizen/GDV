@@ -119,8 +119,8 @@ function semPermissaoPara(view) {
 }
 function renderNav(view) {
   const ativo = ({ editar: 'lista', fechado: 'home', tfpronto: MODULO === 'tf' ? 'tf' : 'lista', tfnovo: MODULO === 'tf' ? 'tfnovo' : 'lista',
-    pceservidor: 'pce', pcecampo: 'pce', pceprodutor: 'pce', pceprodform: 'pce', pcevisita: 'pce', pcevisitapronto: 'pce', pceficha: 'pce', pcelevver: 'pce',
-    pcepronto: 'pcetermos', pcetermo: 'pcetermos', pcetf: 'pcetermos', pcetfpronto: 'pcetermos', pcerel: 'pcetermos', escala: 'escalas', escalagerar: 'escalas' })[view] || view;
+    pceservidor: 'pce', pcecampo: 'pce', pceprodutor: 'pce', pceprodform: 'pce', pcevisita: 'pce', pcevisitapronto: 'pce', pceficha: 'pce', pcelevver: 'pce', pcetfs: 'pce',
+    pcepronto: 'pcetermos', pcetermo: 'pcetermos', pcetf: 'pcetermos', pcetfpronto: 'pcetermos', pcerel: 'pcetermos', pcenovotermo: 'pcetermos', escala: 'escalas', escalagerar: 'escalas' })[view] || view;
   $('#nav').innerHTML = NAVS[MODULO].map(([v, i, t]) => `<button data-v="${v}" class="${v === ativo ? 'on' : ''}">${icone(i)}<span>${t}</span></button>`).join('');
 }
 /** Abre a tela. o.manterRolagem: redesenho da mesma tela (sincronização), sem voltar ao topo. Devolve a promessa do desenho. */
@@ -142,6 +142,7 @@ function go(view, arg, o) {
     // PCE: produtores (busca e dados offline), cadastro com frutos, tela do produtor, fichas, nova visita e Termos
     pce: () => Campo.telaProdutores(), pcecampo: () => Campo.telaBaixar(), pceprodutor: () => PCECads.produtor(EDIT), pceprodform: () => PCECads.produtorForm(EDIT),
     pceficha: () => PCECads.ficha(EDIT), pcevisita: () => PCEMon.visita(EDIT), pcevisitapronto: () => PCEMon.visitaPronta(EDIT), pcelevver: () => PCEUI.verLev(EDIT),
+    pcetfs: () => PCECads.termos(EDIT), pcenovotermo: () => Campo.telaNovoTermo(),
     pcetermos: () => PCEUI.termos(), pcetermo: () => PCEUI.termo(EDIT), pcepronto: () => PCEUI.pronto(EDIT), pceservidor: () => PCEUI.servidor(EDIT),
     pcetf: () => PCEMon.termo(EDIT), pcetfpronto: () => PCEMon.pronto(EDIT), pcerel: () => PCEMon.relatorio(),
     escalas: () => EscalaUI.lista(), escala: () => EscalaUI.form(EDIT), escalagerar: () => EscalaUI.gerar(EDIT),

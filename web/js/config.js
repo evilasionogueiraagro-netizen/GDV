@@ -207,7 +207,9 @@ const CONFIG = {
     // Perguntas de detecção próprias de um programa, feitas na visita (por fruto) quando uma praga dele é detectada ou suspeita. Chave = modelo da cultura;
     // pragas = nomes do catálogo; perguntas = chaves de CONFIG.PCE.fichas.modelos[modelo].levantamento.perguntas (a ficha oficial lê as respostas da visita).
     // As respostas vão em culturas[].dados do Termo do programa.
-    visita: { deteccao: { moniliase: { pragas: ['Monilíase do Cacaueiro'], perguntas: ['sintomaLat', 'camaraUmida', 'camaraMr', 'suspeitos'] } } },
+    // respostaExplicita = pragas opcionais que NÃO vêm marcadas "Não tem": o fiscal tem de escolher (nome do catálogo). Na bananeira é a Fusariose,
+    // a única com legislação na planilha da GDV; Moko e Sigatoka seguem pré-marcadas.
+    visita: { deteccao: { moniliase: { pragas: ['Monilíase do Cacaueiro'], perguntas: ['sintomaLat', 'camaraUmida', 'camaraMr', 'suspeitos'] } }, respostaExplicita: ['Fusarium R4T'] },
     // Fichas oficiais do PCE: UM modelo de documento (documentos/pce-ficha.html) guiado por esta configuração, para os 6 modelos de papel. Cada ficha imprime só as seções,
     // campos, colunas e textos do SEU papel (por modelo, em "secoes"); o título pode ser o padrão. O levantamento vem da visita mais recente. Códigos não mudam.
     // Pergunta: {k, rot, tipo: texto | num | sn | opcao | varios | coord, ops: [[código, texto, grupo?]], compl: {k, rot, tipo?, ops?, calc?} (complemento na mesma
@@ -396,6 +398,23 @@ const CONFIG = {
       // Relatório de atividades (prestação de contas do convênio): objetivo sugerido por praga (editável)
       objetivos: {
         'Monilíase': 'Executar Ações de Levantamento Fitossanitário de detecção da praga Monilíase, visando a prevenção e ação imediata de contingência.'
+      },
+      // Termos de Fiscalização gerados pela propriedade (tela "Termos de Fiscalização"): um Termo por programa, todos com os mesmos dados do cadastro;
+      // muda só a "Descrição da ação". nome = programa por extenso (vai em programaVisita, sem código); pragas = caixas do quadro 2 do Termo;
+      // descricao = texto da constatação, com {culturas} trocado pelas culturas da propriedade que são daquele programa.
+      programas: {
+        moniliase: { nome: 'Monilíase do Cacaueiro', pragas: ['Monilíase'],
+          descricao: 'Realização de fiscalização do Programa de Controle e Erradicação da Monilíase do Cacaueiro na cultura de {culturas}, com inspeção de frutos e folhas.' },
+        citros: { nome: 'Pragas dos Citros', pragas: ['HLB', 'Cancro Cítrico', 'Ácaro Hindustânico', 'Diaphorina citri'],
+          descricao: 'Realização de fiscalização das pragas dos citros — huanglongbing (HLB), cancro cítrico, ácaro hindustânico e Diaphorina citri — na cultura de {culturas}, com inspeção de frutos e folhas.' },
+        banana: { nome: 'Fusariose da Bananeira (raça 4 tropical)', pragas: ['Fusariose FOC R4T'],
+          descricao: 'Realização de fiscalização da fusariose da bananeira (Fusarium oxysporum f. sp. cubense, raça 4 tropical) na cultura de {culturas}.' },
+        mandioca: { nome: 'Vassoura-de-bruxa da Mandioca', pragas: ['Vassoura-de-bruxa da Mandioca'],
+          descricao: 'Realização de fiscalização da vassoura-de-bruxa da mandioca na cultura de {culturas}.' },
+        soja: { nome: 'Ferrugem Asiática da Soja e Amaranthus palmeri', pragas: ['Ferrugem Asiática da soja', 'Amaranthus palmeri'],
+          descricao: 'Realização de fiscalização da ferrugem asiática da soja e do Amaranthus palmeri na cultura de {culturas}.' },
+        propriedade: { nome: 'Propriedade de Interesse da Defesa Vegetal', pragas: [],
+          descricao: 'Realização de fiscalização da propriedade de interesse da defesa vegetal, nas culturas de {culturas}.' }
       }
     }
   },

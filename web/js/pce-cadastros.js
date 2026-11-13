@@ -79,8 +79,8 @@ const PCECads = (() => {
     return `<div class="pce-cultura pc-fruto" data-i="${i}" data-id="${u}"><div class="pce-cultura-topo"><b>${icone('broto')} Fruto ${i + 1}${f.sugerido ? ' <small>(sugestão do histórico)</small>' : ''}</b>
         <button type="button" class="mini" data-cad="delfruto" data-i="${i}" aria-label="Remover fruto ${i + 1}">Remover</button></div>
       <label>Cultura *<select class="f-cultura">${U().opts(culturas(), f.cultura, 'Selecione')}</select></label>
-      <div class="duas">${inp('cultivar', 'Cultivar', `list="pp-cultivares-${i}"`)}${inp('area', 'Área (ha)', 'inputmode="decimal"')}</div>
-      <datalist id="pp-cultivares-${i}">${cult.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
+      <div class="duas">${inp('cultivar', 'Cultivar', `list="pp-cultivares-${u}"`)}${inp('area', 'Área (ha)', 'inputmode="decimal"')}</div>
+      <datalist id="pp-cultivares-${u}">${cult.map(x => `<option value="${esc(x)}">`).join('')}</datalist>
       <fieldset class="pce-esp"><legend>Espaçamento</legend><div class="pce-esp-un" role="radiogroup" aria-label="Unidade do espaçamento">${['m', 'cm'].map(x =>
         `<label><input type="radio" class="f-espUnidade" name="esp-${u}" value="${x}" ${f.espUnidade === x ? 'checked' : ''}><span>${x === 'm' ? 'Metros' : 'Centímetros'}</span></label>`).join('')}</div>
         <div class="duas">${inp('espLinha', 'Entre linhas', 'inputmode="decimal"')}${inp('espPlanta', 'Entre plantas', 'inputmode="decimal"')}</div></fieldset>
@@ -88,16 +88,49 @@ const PCECads = (() => {
       <div class="duas">${inp('producao', 'Produção (t/ano ou sacas/ha/ano)', 'inputmode="decimal"')}${inp('destino', 'Destino da produção')}</div></div>`;
   }
 
-  /* ================= formulário único: produtor, propriedade e frutos ================= */
-  let S = null;                                                           // formulário aberto: {doc, propId, frutos, salvos, rec}
+  /* ================= formulário único: produtor e propriedades (cada propriedade com os seus frutos) ================= */
+  let S = null;                                                           // formulário aberto: {doc, docFixo, seq, props: {k: {k, D, frutos, sugerido, salvos, rec, aberto, sujo}}}
   const propIdDe = (codigo, doc, nome) => (String(codigo || '').trim() || (doc && String(nome || '').trim()
     ? doc + '|' + semAcento(nome).toUpperCase().replace(/[^A-Z0-9]+/g, ' ').trim() : '')).slice(0, 64).trim();
   const campo = (id, rot, v, extra = '') => `<label>${rot}<input id="pp-${id}" value="${esc(v == null ? '' : v)}" ${extra}></label>`;
+  const campoP = (c, rot, v, extra = '') => `<label>${rot}<input class="p-${c}" value="${esc(v == null ? '' : v)}" ${extra}></label>`;
   const coordTxt = v => (v === '' || v == null ? '' : String(v).replace('.', ','));
   const viaOps = FI.vias.map(([c, t]) => [c, t[0] + t.slice(1).toLowerCase()]);
   const comercialOps = [['', 'Não informado'], ['sim', 'Sim'], ['nao', 'Não']];
-  function formHTML(D, F) {
-    const novoDoc = !F.docFixo;
+  const MSG_SEM_FRUTO = 'Nenhum fruto cadastrado. Toque em “Adicionar fruto”.';
+  /** Bloco de uma propriedade no formulário (k = chave estável do bloco; a ordem na tela é a do DOM). */
+  const blocoDe = k => document.querySelector(`.pp-prop[data-k="${k}"]`);
+  const pq = (k, c) => { const b = blocoDe(k); return b ? b.querySelector('.p-' + c) : null; };
+  const pv = (k, c) => (pq(k, c) || { value: '' }).value;
+  const chavesNaTela = () => [...document.querySelectorAll('#pp-props .pp-prop')].map(b => b.dataset.k);
+  const valorProdutor = id => ($('#pp-' + id) || { value: '' }).value;
+  function propHTML(b) {
+    const D = b.D, k = b.k;
+    const idSug = b.sugerido && !S.sugVisto ? (S.sugVisto = true, ' id="pp-sugestao"') : '';
+    return `<details class="card pp-prop" data-k="${k}" ${b.aberto ? 'open' : ''}>
+      <summary><h3>${icone('propriedade')} <span class="pp-titulo">${esc(D.propriedade || D.codigo || 'Nova propriedade')}</span></h3></summary>
+      ${campoP('prop', 'Nome da propriedade', D.propriedade)}
+      <div class="duas">${campoP('codigo', 'Código (IN 33/2016)', D.codigo, 'maxlength="60"')}<label>Situação fundiária<select class="p-situacao">${U().opts(P.situacoes, D.situacao, 'Selecione')}</select></label></div>
+      <div class="duas pce-mun-uf"><label>Município *<select class="p-municipio">${U().opts(P.municipios, D.municipio, 'Selecione')}</select></label>${campoP('uf', 'UF', 'AM', 'readonly tabindex="-1" aria-readonly="true"')}</div>
+      ${campoP('endereco', 'Endereço', D.endereco, 'maxlength="200" placeholder="ex.: Ramal do Km 3, s/n — Comunidade"')}
+      <div class="duas"><label>Via de acesso<select class="p-via">${[['', 'Não informada'], ...viaOps].map(([v, t]) => `<option value="${v}" ${D.via === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
+        <label>Propriedade comercial?<select class="p-comercial">${comercialOps.map(([v, t]) => `<option value="${v}" ${D.comercial === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label></div>
+      <label class="pp-tipo-l" ${D.comercial === 'nao' ? '' : 'hidden'}>Tipo (propriedade não comercial)<select class="p-tipo">${U().opts(FI.naoComercial.map(x => x[1]), D.tipo, 'Selecione')}</select></label>
+      <div class="duas">${campoP('cnpj', 'CNPJ da propriedade/empresa', D.cnpj, 'inputmode="numeric" placeholder="00.000.000/0000-00"')}${campoP('empresa', 'Empresa / nome fantasia', D.empresa, 'maxlength="120"')}</div>
+      <div class="pp-st-cnpj tf-status" aria-live="polite"></div>
+      <div class="duas">${campoP('lat', 'Latitude', D.lat, 'inputmode="text" placeholder="-3,60033"')}${campoP('lon', 'Longitude', D.lon, 'inputmode="text" placeholder="-59,15044"')}</div>
+      <div class="pp-coord-st tf-status" aria-live="polite"></div>
+      <div class="pce-gps"><span class="pp-gps-st dica"></span><button type="button" class="mini" data-cad="gps">${icone('local')} Usar GPS</button></div>
+      <h4 class="pce-sub">${icone('broto')} Frutos desta propriedade</h4>
+      <p class="dica" style="text-align:left">Cultura, cultivar, área e o resto são perguntados só aqui; a visita e as fichas oficiais usam estes dados.</p>
+      ${b.sugerido ? `<div class="tf-novo"${idSug}>${icone('sugerir')} Sugestão feita com os levantamentos antigos desta propriedade. Confira, ajuste e salve: só vira cadastro ao salvar.</div>` : ''}
+      <div class="pp-frutos"></div>
+      <button type="button" class="botao sec pp-addfruto" data-cad="addfruto">+ Adicionar fruto</button>
+      ${b.rec ? '' : `<button type="button" class="mini pp-delprop" data-cad="delprop">Remover esta propriedade</button>`}
+    </details>`;
+  }
+  function formHTML(D, blocos) {
+    const novoDoc = !S.docFixo;
     return `<form id="pceProdForm" autocomplete="off" novalidate>
     <div class="card"><h3>${icone('pessoa')} Produtor</h3>
       <div class="pce-busca">${campo('doc', 'CPF / CNPJ *', D.doc, `inputmode="numeric" placeholder="000.000.000-00" ${novoDoc ? '' : 'readonly'}`)}
@@ -105,56 +138,41 @@ const PCECads = (() => {
       <div id="pp-st-doc" class="tf-status" aria-live="polite"></div>
       ${campo('nome', 'Nome completo / Razão social *', D.nome)}
       <div class="duas">${campo('telefone', 'Telefone', D.telefone, 'type="tel"')}${campo('email', 'E-mail', D.email, 'type="email"')}</div></div>
-    <div class="card"><h3>${icone('propriedade')} Propriedade</h3>
-      ${campo('prop', 'Nome da propriedade', D.propriedade)}
-      <div class="duas">${campo('codigo', 'Código (IN 33/2016)', D.codigo, 'maxlength="60"')}<label>Situação fundiária<select id="pp-situacao">${U().opts(P.situacoes, D.situacao, 'Selecione')}</select></label></div>
-      <div class="duas pce-mun-uf"><label>Município *<select id="pp-municipio">${U().opts(P.municipios, D.municipio, 'Selecione')}</select></label>${campo('uf', 'UF', D.uf, 'maxlength="2" autocapitalize="characters"')}</div>
-      ${campo('endereco', 'Endereço', D.endereco, 'maxlength="200" placeholder="ex.: Ramal do Km 3, s/n — Comunidade"')}
-      <div class="duas"><label>Via de acesso<select id="pp-via">${[['', 'Não informada'], ...viaOps].map(([v, t]) => `<option value="${v}" ${D.via === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>
-        <label>Propriedade comercial?<select id="pp-comercial">${comercialOps.map(([v, t]) => `<option value="${v}" ${D.comercial === v ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label></div>
-      <label id="pp-tipo-l" ${D.comercial === 'nao' ? '' : 'hidden'}>Tipo (propriedade não comercial)<select id="pp-tipo">${U().opts(FI.naoComercial.map(x => x[1]), D.tipo, 'Selecione')}</select></label>
-      <div class="duas">${campo('cnpj', 'CNPJ da propriedade/empresa', D.cnpj, 'inputmode="numeric" placeholder="00.000.000/0000-00"')}${campo('empresa', 'Empresa / nome fantasia', D.empresa, 'maxlength="120"')}</div>
-      <div id="pp-st-cnpj" class="tf-status" aria-live="polite"></div>
-      <div class="duas">${campo('lat', 'Latitude', D.lat, 'inputmode="text" placeholder="-3,60033"')}${campo('lon', 'Longitude', D.lon, 'inputmode="text" placeholder="-59,15044"')}</div>
-      <div id="pp-coord-st" class="tf-status" aria-live="polite"></div>
-      <div class="pce-gps"><span id="pp-gps-st" class="dica"></span><button type="button" class="mini" data-cad="gps">${icone('local')} Usar GPS</button></div></div>
-    <div class="card"><h3>${icone('broto')} Frutos da propriedade</h3>
-      <p class="dica" style="text-align:left">Cultura, cultivar, área e o resto são perguntados só aqui; a visita e as fichas oficiais usam estes dados.</p>
-      ${F.sugerido ? `<div class="tf-novo" id="pp-sugestao">${icone('sugerir')} Sugestão feita com os levantamentos antigos desta propriedade. Confira, ajuste e salve: só vira cadastro ao salvar.</div>` : ''}
-      <div id="pp-frutos"></div>
-      <button type="button" class="botao sec" data-cad="addfruto" id="pp-addfruto">+ Adicionar fruto</button></div>
+    <div id="pp-props">${blocos.map(propHTML).join('')}</div>
+    <button type="button" class="botao sec" data-cad="addprop" id="pp-addprop">${icone('mais')} Adicionar propriedade</button>
     <button class="botao" type="submit" id="pp-salvar">${icone('salvar')} Salvar</button>
     <button class="botao sec" type="button" data-cad="cancelarform">Cancelar</button></form>`;
   }
-  function desenharFrutos() {
-    const el = $('#pp-frutos'); if (!el || !S) return;
-    el.innerHTML = S.frutos.length ? S.frutos.map(frutoHTML).join('') : '<p class="dica" style="text-align:left" id="pp-semfrutos">Nenhum fruto cadastrado. Toque em “Adicionar fruto”.</p>';
+  function desenharFrutos(k) {
+    const b = blocoDe(k), x = S && S.props[k], el = b && b.querySelector('.pp-frutos'); if (!el || !x) return;
+    el.innerHTML = x.frutos.length ? x.frutos.map(frutoHTML).join('') : `<p class="dica pp-semfrutos" style="text-align:left">${MSG_SEM_FRUTO}</p>`;
   }
-  /** Frutos do formulário como estão na tela (a lista em memória acompanha, para redesenhar sem perder o que foi digitado). */
-  function coletarFrutos() {
-    return [...document.querySelectorAll('#pp-frutos .pc-fruto')].map((b, i) => {
-      const q = c => (b.querySelector('.f-' + c) || { value: '' }).value.trim(), base = S.frutos[i] || {};
-      return { ...base, id: b.dataset.id, cultura: q('cultura'), cultivar: q('cultivar'), area: q('area').replace(',', '.'), espLinha: q('espLinha').replace(',', '.'), espPlanta: q('espPlanta').replace(',', '.'),
-        espUnidade: (b.querySelector('.f-espUnidade:checked') || {}).value || '', idade: q('idade').replace(',', '.'), quantidade: q('quantidade').replace(',', '.'), producao: q('producao').replace(',', '.'),
+  /** Frutos de uma propriedade como estão na tela (a lista em memória acompanha, para redesenhar sem perder o que foi digitado). */
+  function coletarFrutos(k) {
+    const b = blocoDe(k), x = S.props[k];
+    return [...b.querySelectorAll('.pp-frutos .pc-fruto')].map((el, i) => {
+      const q = c => (el.querySelector('.f-' + c) || { value: '' }).value.trim(), base = x.frutos[i] || {};
+      return { ...base, id: el.dataset.id, cultura: q('cultura'), cultivar: q('cultivar'), area: q('area').replace(',', '.'), espLinha: q('espLinha').replace(',', '.'), espPlanta: q('espPlanta').replace(',', '.'),
+        espUnidade: (el.querySelector('.f-espUnidade:checked') || {}).value || '', idade: q('idade').replace(',', '.'), quantidade: q('quantidade').replace(',', '.'), producao: q('producao').replace(',', '.'),
         destino: q('destino'), excluido: 0 };
     });
   }
-  const valorPropriedade = id => ($('#pp-' + id) || { value: '' }).value;
-  function mostrarCoord() {
-    const st = $('#pp-coord-st'); if (!st) return null;
-    const r = PCEMon.lerPar(valorPropriedade('lat'), valorPropriedade('lon'));
+  function mostrarCoord(k) {
+    const b = blocoDe(k), st = b && b.querySelector('.pp-coord-st'); if (!st) return null;
+    const r = PCEMon.lerPar(pv(k, 'lat'), pv(k, 'lon'));
     st.innerHTML = r.vazio ? '' : r.erro ? `<div class="tf-alerta">${icone('alerta')} ${esc(r.erro)}</div>` : `<div class="tf-ok">${icone('check')} ${esc(String(r.lat).replace('.', ','))} / ${esc(String(r.lon).replace('.', ','))}</div>`;
     return r;
   }
-  async function usarGPS() {
-    const st = $('#pp-gps-st'); if (st) st.textContent = 'Obtendo localização…';
-    const g = await pegarLocal(); if (!$('#pp-lat')) return;
+  async function usarGPS(k) {
+    const b = blocoDe(k), st = b && b.querySelector('.pp-gps-st'); if (st) st.textContent = 'Obtendo localização…';
+    const g = await pegarLocal(); if (!pq(k, 'lat')) return;
     if (!g) { if (st) st.textContent = 'GPS indisponível ou permissão negada.'; return; }
-    $('#pp-lat').value = String(g.lat).replace('.', ','); $('#pp-lon').value = String(g.lng).replace('.', ',');
-    if (st) st.textContent = `Localização obtida (precisão aproximada: ${g.prec} m).`; mostrarCoord();
+    pq(k, 'lat').value = String(g.lat).replace('.', ','); pq(k, 'lon').value = String(g.lng).replace('.', ',');
+    if (st) st.textContent = `Localização obtida (precisão aproximada: ${g.prec} m).`; mostrarCoord(k);
+    if (S.props[k]) S.props[k].sujo = true;
   }
-  function avisoCnpj() {
-    const t = $('#pp-cnpj'), st = $('#pp-st-cnpj'), d = digitos(t.value); if (d.length === 14) t.value = U().fmtDoc(d);
+  function avisoCnpj(k) {
+    const t = pq(k, 'cnpj'), st = blocoDe(k).querySelector('.pp-st-cnpj'), d = digitos(t.value); if (d.length === 14) t.value = U().fmtDoc(d);
     if (st) st.innerHTML = !d ? '' : d.length !== 14 ? '<div class="tf-alerta">CNPJ incompleto (14 dígitos).</div>' : U().cnpjOk(d) ? '' : '<div class="tf-alerta">CNPJ com dígitos inválidos: confira a digitação.</div>';
   }
   /** Produtor + propriedade que o formulário abre: o que o aparelho tem (e a sugestão de frutos, se a propriedade ainda não tem nenhum). */
@@ -164,28 +182,40 @@ const PCECads = (() => {
       situacao: (p && p.situacaoFundiaria) || '', municipio: (p && p.municipio) || (pe && pe.municipio) || (await U().servidorAtual() || {}).lotacao || '', uf: (p && p.uf) || (pe && pe.uf) || 'AM',
       endereco: (p && p.endereco) || (pe && pe.endereco) || '', via: (p && p.viaAcesso) || '', comercial: (p && p.comercial) || '', tipo: (p && p.tipoPropriedade) || '',
       cnpj: p && digitos(p.cnpj).length === 14 ? U().fmtDoc(digitos(p.cnpj)) : '', empresa: (p && p.empresa) || '', lat: coordTxt(p && p.lat), lon: coordTxt(p && p.lon) };
-    let frutos = frutosDe(p).map(f => ({ ...f, espUnidade: f.espUnidade || (f.espLinha !== '' || f.espPlanta !== '' ? 'm' : 'm') })), sugerido = false;
+    let frutos = frutosDe(p).map(f => ({ ...f, espUnidade: f.espUnidade || 'm' })), sugerido = false;
     if (p && !arr(lerJSON(p.frutos, [])).length && arr(p.frutosSugeridos).length) { frutos = arr(p.frutosSugeridos).map(f => ({ ...frutoVazio(), ...f, excluido: 0 })); sugerido = true; }
     return { D, frutos, sugerido, p, pe };
+  }
+  /** Cria o estado de um bloco de propriedade (novo ou já cadastrado); `sujo` = precisa ser salvo (novo, aberto para editar ou alterado). */
+  function novoBloco(d, aberto) {
+    const k = String(++S.seq);
+    return (S.props[k] = { k, D: d.D, frutos: d.frutos, sugerido: d.sugerido, salvos: arr(lerJSON(d.p && d.p.frutos, [])), rec: d.p || null, aberto, sujo: aberto || !d.p });
   }
   async function produtorForm(arg) {
     if (U().bloqueado()) return view(avisoAtivacao());
     const o = arg && typeof arg === 'object' ? arg : {}, doc = digitos(o.doc), mostrar = tela();
     const s = await U().exigirServidor('pceprodform', o, true); if (!s) return;
     await carregarCatalogo();
-    let propId = o.propId || '';
-    if (doc && !propId && !o.nova) { const ps = (await Store.todos('propriedades')).filter(x => !x.excluido && digitos(x.doc) === doc); if (ps.length === 1) propId = ps[0].id; }
-    const { D, frutos, sugerido, p } = await dadosDoForm(doc, propId);
+    const todas = doc ? (await Store.todos('propriedades')).filter(x => !x.excluido && digitos(x.doc) === doc)
+      .sort((a, b) => String(a.nome || a.codigo || '').localeCompare(String(b.nome || b.codigo || ''), 'pt-BR')) : [];
+    let alvo = o.propId || '';
+    if (!alvo && !o.nova && todas.length === 1) alvo = todas[0].id;
+    const dados = [];
+    for (const p of todas) dados.push({ aberto: p.id === alvo, d: await dadosDoForm(doc, p.id) });
+    if (!todas.length || o.nova) dados.push({ aberto: true, d: await dadosDoForm(doc, '') });
+    const docFixo = !!(doc && (o.docFixo || alvo || (await Store.obter('pessoas', doc))));
     if (!mostrar.viva()) return;
-    S = { doc, propId: p ? p.id : '', frutos, sugerido, salvos: arr(lerJSON(p && p.frutos, [])), rec: p || null, docFixo: !!(doc && (o.docFixo || propId || (await Store.obter('pessoas', doc)))) };
-    mostrar(formHTML(D, S));
-    desenharFrutos();
-    if (S.docFixo) await ligarProdutor();
+    S = { doc, docFixo, seq: 0, props: {}, sugVisto: false };
+    const blocos = dados.map(x => novoBloco(x.d, x.aberto));
+    mostrar(formHTML(dados[0].d.D, blocos));
+    blocos.forEach(b => { desenharFrutos(b.k); mostrarCoord(b.k); });
     const f = $('#pceProdForm');
+    const marcar = t => { const b = t.closest && t.closest('.pp-prop'); if (b && S.props[b.dataset.k]) S.props[b.dataset.k].sujo = true; return b; };
     f.addEventListener('input', e => {
-      const t = e.target;
+      const t = e.target, b = marcar(t), k = b && b.dataset.k;
       if (t.id === 'pp-doc' && !S.docFixo) { const d = digitos(t.value); clearTimeout(S.tc); if (d.length === 11 || d.length === 14) S.tc = setTimeout(() => consultarDoc().catch(() => {}), 400); else $('#pp-st-doc').replaceChildren(); }
-      if (t.id === 'pp-lat' || t.id === 'pp-lon') mostrarCoord();
+      if (b && (t.classList.contains('p-lat') || t.classList.contains('p-lon'))) mostrarCoord(k);
+      if (b && t.classList.contains('p-prop')) b.querySelector('.pp-titulo').textContent = t.value.trim() || pv(k, 'codigo').trim() || 'Nova propriedade';
       if (t.matches && t.matches('.f-espLinha, .f-espPlanta, .f-area, .f-idade, .f-quantidade, .f-producao')) {   // só número: tira letras e deixa um separador decimal
         const v = t.value; let n = v.replace(/[^\d.,]/g, ''); const i = n.search(/[.,]/);
         if (i >= 0) n = n.slice(0, i + 1) + n.slice(i + 1).replace(/[.,]/g, '');
@@ -193,23 +223,19 @@ const PCECads = (() => {
       }
     });
     f.addEventListener('change', e => {
-      const t = e.target;
+      const t = e.target, b = marcar(t), k = b && b.dataset.k;
       if (t.id === 'pp-doc') t.value = U().fmtDoc(digitos(t.value)) || t.value;
-      if (t.id === 'pp-cnpj') avisoCnpj();
-      if (t.id === 'pp-uf') t.value = t.value.toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2);
-      if (t.id === 'pp-comercial') $('#pp-tipo-l').hidden = t.value !== 'nao';
-      if (t.classList.contains('f-cultura')) { S.frutos = coletarFrutos(); const i = +t.closest('.pc-fruto').dataset.i; const dl = $(`#pp-cultivares-${i}`); if (dl) dl.innerHTML = cultivaresDe(t.value).map(x => `<option value="${esc(x)}">`).join(''); }
+      if (!b) return;
+      if (t.classList.contains('p-cnpj')) avisoCnpj(k);
+      if (t.classList.contains('p-comercial')) b.querySelector('.pp-tipo-l').hidden = t.value !== 'nao';
+      if (t.classList.contains('f-cultura')) {
+        S.props[k].frutos = coletarFrutos(k);
+        const fr = t.closest('.pc-fruto'), dl = fr && fr.querySelector('datalist'); if (dl) dl.innerHTML = cultivaresDe(t.value).map(x => `<option value="${esc(x)}">`).join('');
+      }
     });
     f.onsubmit = ev => { ev.preventDefault(); salvarForm().catch(err => toast('Erro ao salvar: ' + err.message, true)); };
-    mostrarCoord();
-    const alvo = $(S.docFixo ? '#pp-nome' : '#pp-doc'); if (alvo && !alvo.value) alvo.focus();
-    if (D.doc && !S.docFixo) consultarDoc().catch(() => {});
-  }
-  /** Produtor já cadastrado (documento fixo): mostra o aviso e as outras propriedades dele. */
-  async function ligarProdutor() {
-    const st = $('#pp-st-doc'); if (!st || !S.doc) return;
-    const outras = (await Store.todos('propriedades')).filter(x => !x.excluido && digitos(x.doc) === S.doc && x.id !== S.propId);
-    st.innerHTML = outras.length ? `<div class="tf-novo">Este produtor tem outra(s) propriedade(s): ${outras.map(x => esc(x.nome || x.codigo || x.id)).join(', ')}.</div>` : '';
+    const alvoFoco = $(S.docFixo ? '#pp-nome' : '#pp-doc'); if (alvoFoco && !alvoFoco.value) alvoFoco.focus();
+    if (dados[0].d.D.doc && !S.docFixo) consultarDoc().catch(() => {});
   }
   /** CPF/CNPJ digitado: busca no aparelho e no servidor. Produtor que já existe abre a tela dele; senão os campos seguem para preencher. */
   async function consultarDoc() {
@@ -223,50 +249,69 @@ const PCECads = (() => {
     const pe = await Store.obter('pessoas', d), props = (await Store.todos('propriedades')).filter(x => !x.excluido && digitos(x.doc) === d);
     if (pe || props.length) {
       const set = (id, v) => { const el = $('#pp-' + id); if (el && v && !el.value.trim()) el.value = v; };
-      if (pe) { set('nome', pe.nome); set('telefone', pe.telefone); set('email', pe.email); set('endereco', pe.endereco); }
+      if (pe) { set('nome', pe.nome); set('telefone', pe.telefone); set('email', pe.email); }
+      const b0 = document.querySelector('#pp-props .pp-prop'), e0 = b0 && S.props[b0.dataset.k] && !S.props[b0.dataset.k].rec && b0.querySelector('.p-endereco');
+      if (e0 && pe && pe.endereco && !e0.value.trim()) e0.value = pe.endereco;
       html += `<div class="tf-ok">${icone('check')} Produtor já cadastrado${pe ? ': ' + esc(pe.nome) : ''}. <button type="button" class="mini" data-cad="abrirprodutor" data-cpf="${esc(d)}">Abrir o produtor</button></div>`;
     } else html += '<div class="tf-novo">Produtor novo: preencha os dados abaixo.</div>';
     if (r.parcial) html += `<div class="tf-novo pce-offline">${icone('offline')} Sem conexão: ${esc(r.offline || 'só os dados deste aparelho')}.</div>`;
     st.innerHTML = html;
   }
-  async function salvarForm() {
-    if (!S || S.salvando) return;
-    const doc = digitos(valorPropriedade('doc')), nome = valorPropriedade('nome').trim().replace(/\s+/g, ' ').toUpperCase();
-    if (!U().conferirDoc(doc)) return;
-    if (!nome) return toast('Informe o nome do produtor.', true);
-    const municipio = valorPropriedade('municipio'), nomeProp = valorPropriedade('prop').trim().replace(/\s+/g, ' '), codigo = valorPropriedade('codigo').trim();
-    if (!municipio) return toast('Escolha o município.', true);
-    if (!nomeProp && !codigo) return toast('Informe o nome ou o código da propriedade.', true);
-    const cnpj = digitos(valorPropriedade('cnpj'));
-    if (cnpj && cnpj.length !== 14) { $('#pp-cnpj').focus(); return toast('O CNPJ da propriedade/empresa deve ter 14 dígitos (ou deixe em branco).', true); }
-    if (cnpj && !U().cnpjOk(cnpj) && !confirm('O CNPJ da propriedade/empresa tem dígitos inválidos. Continuar mesmo assim?')) return;
-    const co = mostrarCoord(); if (co.erro) return toast('Coordenadas: ' + co.erro, true);   // só dentro do Amazonas
-    const frutos = coletarFrutos();
+  /** Valida uma propriedade do formulário; devolve {erro} (e abre o bloco) ou {prop, salvar} com o registro pronto para gravar. */
+  async function lerBloco(k, doc, rotulo) {
+    const b = blocoDe(k), x = S.props[k];
+    const falha = (msg, campoFoco) => { b.open = true; toast(rotulo + msg, true); if (campoFoco) campoFoco.focus(); return { erro: true }; };
+    const municipio = pv(k, 'municipio'), nomeProp = pv(k, 'prop').trim().replace(/\s+/g, ' '), codigo = pv(k, 'codigo').trim();
+    if (!municipio) return falha('escolha o município.', pq(k, 'municipio'));
+    if (!nomeProp && !codigo) return falha('informe o nome ou o código da propriedade.', pq(k, 'prop'));
+    const cnpj = digitos(pv(k, 'cnpj'));
+    if (cnpj && cnpj.length !== 14) return falha('o CNPJ da propriedade/empresa deve ter 14 dígitos (ou deixe em branco).', pq(k, 'cnpj'));
+    if (cnpj && !U().cnpjOk(cnpj) && !confirm(rotulo + 'o CNPJ da propriedade/empresa tem dígitos inválidos. Continuar mesmo assim?')) return { erro: true };
+    const co = mostrarCoord(k); if (co.erro) return falha('coordenadas: ' + co.erro, pq(k, 'lat'));   // só dentro do Amazonas
+    const frutos = coletarFrutos(k);
     for (const [i, f] of frutos.entries()) {
-      if (!f.cultura) return toast(`Fruto ${i + 1}: escolha a cultura (ou remova o fruto).`, true);
-      if (['area', 'espLinha', 'espPlanta', 'idade', 'quantidade', 'producao'].some(k => f[k] !== '' && !NUM.test(f[k]))) return toast(`${f.cultura}: área, espaçamento, idade, quantidade e produção só aceitam números.`, true);
-      if ((f.espLinha !== '' || f.espPlanta !== '') && !['m', 'cm'].includes(f.espUnidade)) return toast(`${f.cultura}: escolha a unidade do espaçamento (metros ou centímetros).`, true);
+      if (!f.cultura) return falha(`fruto ${i + 1}: escolha a cultura (ou remova o fruto).`);
+      if (['area', 'espLinha', 'espPlanta', 'idade', 'quantidade', 'producao'].some(c => f[c] !== '' && !NUM.test(f[c]))) return falha(`${f.cultura}: área, espaçamento, idade, quantidade e produção só aceitam números.`);
+      if ((f.espLinha !== '' || f.espPlanta !== '') && !['m', 'cm'].includes(f.espUnidade)) return falha(`${f.cultura}: escolha a unidade do espaçamento (metros ou centímetros).`);
       if (f.espLinha === '' && f.espPlanta === '') f.espUnidade = '';
     }
-    if (frutos.length > MAX_FRUTOS) return toast(`Limite de ${MAX_FRUTOS} frutos por propriedade.`, true);
-    const id = S.propId || propIdDe(codigo, doc, nomeProp);
-    if (!id) return toast('Informe o nome ou o código da propriedade.', true);
+    if (frutos.length > MAX_FRUTOS) return falha(`limite de ${MAX_FRUTOS} frutos por propriedade.`);
+    const id = x.rec ? x.rec.id : propIdDe(codigo, doc, nomeProp);
+    if (!id) return falha('informe o nome ou o código da propriedade.', pq(k, 'prop'));
     const ja = await Store.obter('propriedades', id);
-    if (ja && !ja.excluido && digitos(ja.doc) && digitos(ja.doc) !== doc) return toast('Já existe uma propriedade com este código para outro produtor. Confira o código.', true);
+    if (ja && !ja.excluido && digitos(ja.doc) && digitos(ja.doc) !== doc) return falha('já existe uma propriedade com este código para outro produtor. Confira o código.', pq(k, 'codigo'));
+    if (!x.rec && ja && !ja.excluido) return falha('já existe uma propriedade com este código/nome para este produtor. Abra a existente.', pq(k, 'codigo'));
+    const t = Date.now(), base = { ...(ja || {}) }; delete base.pendente; delete base.frutosSugeridos; delete base.recusadoEm;
+    const removidos = arr(x.salvos).filter(f => f && !frutos.some(y => y.id === f.id)).map(f => ({ ...f, excluido: 1 }));   // fruto salvo que saiu da lista: exclusão lógica
+    const comercial = pv(k, 'comercial'), via = pv(k, 'via');
+    const prop = { ...base, id, codigo, nome: nomeProp, doc, municipio, situacaoFundiaria: pv(k, 'situacao'), lat: co.vazio ? '' : co.lat, lon: co.vazio ? '' : co.lon,
+      cnpj, empresa: pv(k, 'empresa').trim().replace(/\s+/g, ' ').slice(0, 120), endereco: pv(k, 'endereco').trim().replace(/\s+/g, ' ').slice(0, 200),
+      uf: 'AM', viaAcesso: via, comercial, tipoPropriedade: comercial === 'nao' ? pv(k, 'tipo') : '',
+      frutos: JSON.stringify([...frutos, ...removidos]), criadoEm: base.criadoEm || t };
+    return { prop, salvar: !!x.sujo };
+  }
+  async function salvarForm() {
+    if (!S || S.salvando) return;
+    const doc = digitos(valorProdutor('doc')), nome = valorProdutor('nome').trim().replace(/\s+/g, ' ').toUpperCase();
+    if (!U().conferirDoc(doc)) return;
+    if (!nome) return toast('Informe o nome do produtor.', true);
+    const chaves = chavesNaTela(), lidos = [];
+    for (const [i, k] of chaves.entries()) {
+      const nomeB = pv(k, 'prop').trim() || pv(k, 'codigo').trim();
+      const r = await lerBloco(k, doc, chaves.length > 1 ? `Propriedade ${i + 1}${nomeB ? ' (' + nomeB + ')' : ''}: ` : '');
+      if (r.erro) return;
+      lidos.push(r);
+    }
+    const ids = lidos.map(r => r.prop.id);
+    if (new Set(ids).size !== ids.length) return toast('Duas propriedades têm o mesmo código ou nome. Confira.', true);
     S.salvando = true;
     const btn = $('#pp-salvar'); btn.disabled = true;
     try {
-      const t = Date.now(), base = { ...(ja || {}) }; delete base.pendente; delete base.frutosSugeridos; delete base.recusadoEm;
-      const removidos = arr(S.salvos).filter(f => f && !frutos.some(x => x.id === f.id)).map(f => ({ ...f, excluido: 1 }));   // fruto salvo que saiu da lista: exclusão lógica
-      const comercial = valorPropriedade('comercial'), via = valorPropriedade('via');
-      const prop = { ...base, id, codigo, nome: nomeProp, doc, municipio, situacaoFundiaria: valorPropriedade('situacao'), lat: co.vazio ? '' : co.lat, lon: co.vazio ? '' : co.lon,
-        cnpj, empresa: valorPropriedade('empresa').trim().replace(/\s+/g, ' ').slice(0, 120), endereco: valorPropriedade('endereco').trim().replace(/\s+/g, ' ').slice(0, 200),
-        uf: valorPropriedade('uf').trim().toUpperCase().replace(/[^A-Z]/g, '').slice(0, 2), viaAcesso: via, comercial, tipoPropriedade: comercial === 'nao' ? valorPropriedade('tipo') : '',
-        frutos: JSON.stringify([...frutos, ...removidos]), criadoEm: base.criadoEm || t };
-      await Store.salvar('pessoas', await U().montarPessoa(doc, { nome, telefone: valorPropriedade('telefone').trim(), email: valorPropriedade('email').trim(), endereco: prop.endereco, uf: prop.uf, municipio }));
-      await Store.salvar('propriedades', prop);
+      const primeira = lidos[0].prop;
+      await Store.salvar('pessoas', await U().montarPessoa(doc, { nome, telefone: valorProdutor('telefone').trim(), email: valorProdutor('email').trim(), endereco: primeira.endereco, uf: 'AM', municipio: primeira.municipio }));
+      for (const r of lidos) if (r.salvar) await Store.salvar('propriedades', r.prop);
       S = null;
-      toast('Produtor, propriedade e frutos salvos.');
+      toast(lidos.length > 1 ? 'Produtor e propriedades salvos.' : 'Produtor, propriedade e frutos salvos.');
       Sync.sincronizar();
       go('pceprodutor', doc);
     } catch (e) { S.salvando = false; btn.disabled = false; throw e; }
@@ -302,7 +347,9 @@ const PCECads = (() => {
         <div class="pce-doc-acoes"><button class="mini" data-cad="pdftermo" data-id="${esc(t.id)}">PDF</button></div></div>`).join('');
     const col = v.colheitas.map(c => `<div class="pce-visita-termo"><div><b>${icone('amostra')} Termo de Colheita ${esc(c.numeroTxt || '(sem nº)')}</b><small>${esc(c.cultura || '')} · ${esc(c.quantidade || '')} amostra(s)</small>${selo(c)}</div>
         <div class="pce-doc-acoes"><button class="mini" data-cad="pdfcolheita" data-id="${esc(c.id)}">PDF</button></div></div>`).join('');
-    return `<div class="item pce-visita-item" data-visita="${esc(v.id)}"><div class="topo"><div><div class="placa pce-nome">${v.tipo === 'papel' ? 'Termo do papel' : 'Visita'}</div></div>
+    // Termos gerados pela propriedade: nenhuma praga avaliada em nenhuma cultura (a visita sempre tem ao menos uma).
+    const doCadastro = v.termos.every(t => { const cs = arr(lerJSON(t.culturas, [])); return cs.length && cs.every(c => !arr(c.pragas).length); });
+    return `<div class="item pce-visita-item" data-visita="${esc(v.id)}"><div class="topo"><div><div class="placa pce-nome">${v.tipo === 'papel' ? 'Termo do papel' : doCadastro ? 'Termos gerados' : 'Visita'}</div></div>
       <div class="hora">${esc(dBR(v.data))}<br>${esc(v.hora)}</div></div>${linhas}${col}</div>`;
   }
   /** Fichas oficiais de uma propriedade: um botão por modelo (os dos frutos dela) e o estado de cada uma. */
@@ -344,11 +391,122 @@ const PCECads = (() => {
             : sug ? `<div class="tf-novo">${icone('sugerir')} Sem frutos cadastrados. Há sugestão do histórico: ${esc(p.frutosSugeridos.map(f => f.cultura).join(', '))}. Abra “Editar” para conferir e salvar.</div>`
             : '<p class="dica" style="text-align:left">Nenhum fruto cadastrado. Abra “Editar” para acrescentar.</p>'}
           <div class="botoes"><button class="botao sec" data-cad="editar" data-cpf="${esc(doc)}" data-prop="${esc(p.id)}">${icone('editar')} Editar</button></div>
-          ${podeVisita ? `<button class="botao" data-cad="visita" data-cpf="${esc(doc)}" data-prop="${esc(p.id)}" id="pce-novavisita">${icone('mais')} Nova visita</button>` : ''}
+          ${podeVisita ? `<button class="botao" data-cad="visita" data-cpf="${esc(doc)}" data-prop="${esc(p.id)}" id="pce-novavisita">${icone('mais')} Nova visita</button>
+            <button class="botao sec" data-cad="termos" data-cpf="${esc(doc)}" data-prop="${esc(p.id)}" id="pce-termos">${icone('formulario')} Termos de Fiscalização</button>` : ''}
           <h4 class="pce-sub">Fichas oficiais</h4>${fichasHTML(p, cads)}</div>`; }).join('')}
       ${!props.length ? `<div class="card"><p>Este produtor ainda não tem propriedade cadastrada.</p><button class="botao" data-cad="nova" data-cpf="${esc(doc)}">${icone('mais')} Cadastrar propriedade</button></div>` : ''}
       <div class="card"><h3>${icone('historico')} Visitas</h3><div id="pce-visitas">${visitas.length ? visitas.map(v => visitaHTML(v, pendArq)).join('') : '<div class="vazio">Nenhuma visita registrada para este produtor.</div>'}</div></div>
       <button class="botao sec" data-v="pce">${icone('voltar')} Voltar aos produtores</button>`);
+  }
+
+  /* ================= Termos de Fiscalização pela propriedade (um por programa) ================= */
+  // A propriedade já tem os frutos; aqui o fiscal só marca os programas e confere data, hora, ações e local. Sai um Termo por programa com os
+  // mesmos dados do cadastro (produtor e propriedade) e a mesma numeração da visita; muda só a "Descrição da ação" (CONFIG.PCE.termo.programas).
+  const TCFG = () => (CONFIG.PCE.termo || {});
+  const progCfg = m => (TCFG().programas || {})[m] || null;
+  const listaE = l => PCEDocs.listaE(l);
+  const areaNum = v => { if (v === '' || v == null) return ''; const n = Number(String(v).replace(',', '.')); return isFinite(n) && n >= 0 ? n : ''; };
+  const qtdNum = v => Number(String(v == null ? '' : v).replace(',', '.')) || 0;
+  /** Enquadramento legal do programa: as pragas do quadro do Termo viram os nomes do catálogo (CONFIG.PCE.legislacao). */
+  function enquadramentoDoPrograma(m) {
+    const cfg = progCfg(m) || {}, mapa = TCFG().pragaDoLevantamento || {}, inv = {};
+    Object.keys(mapa).forEach(k => { if (!(mapa[k] in inv)) inv[mapa[k]] = k; });
+    const txt = arr(cfg.pragas).map(x => inv[x] || x).map(n => {
+      const p = pragaPorNome(n); return (p && p.enquadramentoLegal) || (P.legislacao || {})[n] || '';
+    }).filter(Boolean);
+    return [...new Set(txt)].join('\n');
+  }
+  /** Texto da "Descrição da ação" do programa, com as culturas da propriedade que são dele. */
+  function descricaoDoPrograma(m, culturas) {
+    const cfg = progCfg(m) || {}, txt = String(cfg.descricao || ''), lista = listaE(culturas.map(c => String(c).toLowerCase()));
+    return txt.indexOf('{culturas}') >= 0 ? txt.split('{culturas}').join(lista) : txt + (lista ? ' Culturas: ' + lista + '.' : '');
+  }
+  /** Modelos de ficha/programa dos frutos da propriedade, na ordem do cadastro, com os frutos de cada um. */
+  function programasDaPropriedade(p) {
+    const g = new Map();
+    frutosDe(p).filter(f => f.cultura).forEach(f => { const m = modeloDaCultura(f.cultura); if (!g.has(m)) g.set(m, []); g.get(m).push(f); });
+    return [...g.entries()].filter(([m]) => progCfg(m));
+  }
+  async function termos(arg) {
+    if (U().bloqueado()) return view(avisoAtivacao());
+    const o = arg && typeof arg === 'object' ? arg : { propId: arg }, mostrar = tela();
+    const s = await U().exigirServidor('pcetfs', o); if (!s || !mostrar.viva()) return;
+    await carregarCatalogo();
+    const p = await Store.obter('propriedades', o.propId);
+    if (!p || Number(p.excluido)) { toast('Propriedade não encontrada neste aparelho.', true); return go('pce'); }
+    const doc = digitos(p.doc), pe = (await Store.obter('pessoas', doc)) || {}, programas = programasDaPropriedade(p);
+    if (!programas.length) {
+      return view(`<div class="card"><h3>${icone('formulario')} Termos de Fiscalização</h3>
+        <p>${esc(p.nome || p.codigo || 'Propriedade')} ainda não tem frutos cadastrados. O Termo é feito pelos programas dos frutos.</p>
+        <button class="botao" data-cad="editar" data-cpf="${esc(doc)}" data-prop="${esc(p.id)}">${icone('editar')} Cadastrar frutos</button>
+        <button class="botao sec" data-cad="voltartermos" data-cpf="${esc(doc)}">${icone('voltar')} Voltar ao produtor</button></div>`);
+    }
+    const anteriores = (await Store.todos('termosPce')).filter(t => !Number(t.excluido) && t.propriedadeId === p.id)
+      .sort((a, b) => (String(b.data) + String(b.hora)).localeCompare(String(a.data) + String(a.hora)));
+    const ult = anteriores[0] || {}, acoesUlt = arr(lerJSON(ult.acoes, []));
+    const localPadrao = arr(lerJSON(ult.tipoLocal, []))[0] || [p.nome || p.codigo || '', p.codigo && p.nome ? 'cód. ' + p.codigo : ''].filter(Boolean).join(' – ');
+    if (!mostrar.viva()) return;
+    const acoesOpsHTML = arr(TCFG().acoes).map(a => `<label class="chk"><input type="checkbox" name="pcetf-acao" value="${esc(a)}" ${(acoesUlt.length ? acoesUlt.includes(a) : a === 'Fiscalização') ? 'checked' : ''}> ${esc(a)}</label>`).join('');
+    mostrar(`<form id="pceTfsForm" autocomplete="off" novalidate>
+      <div class="card" id="pce-tfs"><h3>${icone('formulario')} Termos de Fiscalização</h3>
+        <p><b>${esc(pe.nome || p.nome || 'Produtor')}</b> · ${esc(U().fmtDoc(doc))}</p>
+        <p class="dica" style="text-align:left">${esc([p.nome || p.codigo, p.municipio && p.municipio + '/' + (p.uf || 'AM'), p.endereco].filter(Boolean).join(' · '))}</p>
+        <p class="dica" style="text-align:left">Marque os programas. Sai um Termo por programa, com os dados do cadastro: só a descrição da ação muda.</p></div>
+      <div class="card"><h3>${icone('broto')} Programas</h3>
+        ${programas.map(([m, frs]) => { const cf = progCfg(m), cts = [...new Set(frs.map(f => f.cultura).filter(Boolean))];
+          return `<label class="chk pce-tf-prog"><input type="checkbox" name="pcetf-prog" value="${esc(m)}" checked>
+            <span><b>${esc(cf.nome || rotulo(m))}</b><br><small>${esc(listaE(cts))} · ${frs.length} fruto(s)</small></span></label>`; }).join('')}</div>
+      <div class="card"><h3>${icone('documento')} Dados do Termo</h3>
+        <p class="mon-sub">Ações realizadas *</p><div class="mon-cks">${acoesOpsHTML}</div>
+        <label>Local da fiscalização *<input id="pcetf-local" maxlength="200" value="${esc(localPadrao)}" autocomplete="off"></label>
+        <div class="duas"><label>Data *<input id="pcetf-data" type="date" max="${hojeISO()}" value="${hojeISO()}"></label>
+          <label>Hora *<input id="pcetf-hora" type="time" value="${agoraHM()}"></label></div>
+        <label>Observação (opcional, entra na descrição da ação de todos os Termos)<textarea id="pcetf-obs" rows="3" maxlength="600"></textarea></label></div>
+      <button class="botao" type="submit" id="pcetf-gerar">${icone('ok')} Gerar Termos</button>
+      <button class="botao sec" type="button" data-cad="voltartermos" data-cpf="${esc(doc)}">${icone('voltar')} Voltar ao produtor</button></form>`);
+    const f = $('#pceTfsForm');
+    /** Um Termo por programa marcado; o lote inteiro compartilha o visitaId (é a visita que conta nos relatórios). */
+    async function gerar() {
+      const sel = [...document.querySelectorAll('input[name="pcetf-prog"]:checked')].map(x => x.value);
+      if (!sel.length) return toast('Marque ao menos um programa.', true);
+      const acoes = [...document.querySelectorAll('input[name="pcetf-acao"]:checked')].map(x => x.value);
+      if (!acoes.length) return toast('Marque a ação realizada.', true);
+      const local = ($('#pcetf-local').value || '').trim().replace(/\s+/g, ' ');
+      if (!local) return toast('Informe o local da fiscalização.', true);
+      const data = $('#pcetf-data').value, hora = $('#pcetf-hora').value;
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(data) || !/^\d{2}:\d{2}/.test(hora)) return toast('Informe a data e a hora.', true);
+      const obs = ($('#pcetf-obs').value || '').trim().replace(/\s+/g, ' ');
+      const btn = $('#pcetf-gerar'); if (btn) btn.disabled = true;
+      const visitaId = Store.novoId(), avisos = [], serv = U().dadosServidor(s), unidade = Sync.unidadePce(s.lotacao || p.municipio);
+      let criados = 0;
+      try {
+        for (const m of sel) {
+          const cf = progCfg(m) || {}, frs = (programas.find(x => x[0] === m) || [])[1] || [];
+          const cts = [...new Set(frs.map(x => x.cultura).filter(Boolean))];
+          const culturas = frs.map(x => ({ cultura: x.cultura, area: areaNum(x.area), pragas: [], coleta: 'Não', tipoMaterial: '', codigoAmostra: '', destinoAmostra: '', fotos: [], dados: {} }));
+          const atividade = cts.length ? 'Cultivo de ' + listaE(cts.map(x => String(x).toLowerCase())) : '';
+          const rec = { id: Store.novoId(), unidade, propriedadeId: p.id, cadastroId: '', programa: m,
+            doc, nome: String(pe.nome || '').trim().replace(/\s+/g, ' ').toUpperCase().slice(0, 120), atividade: atividade,
+            empresa: p.empresa || '', cnpj: digitos(p.cnpj), atividadeEmpresa: (p.empresa || doc.length === 14) ? atividade : '',
+            endereco: p.endereco || '', municipio: p.municipio || '', uf: p.uf || 'AM', telefone: pe.telefone || '',
+            lat: p.lat == null ? '' : p.lat, lon: p.lon == null ? '' : p.lon, data: data, hora: hora.slice(0, 5), ...serv,
+            pragas: JSON.stringify(arr(cf.pragas)), tipoLocal: JSON.stringify([local]), acoes: JSON.stringify(acoes),
+            constatacao: [descricaoDoPrograma(m, cts), obs].filter(Boolean).join(' '), enquadramento: enquadramentoDoPrograma(m),
+            testemunhas: '[]', recebidoEm: '', plantasInspecionadas: frs.reduce((n, x) => n + qtdNum(x.quantidade), 0),
+            amostra: 'nao', sintomas: 'nao', hospedeiros: JSON.stringify(cts), fotos: '[]', assinaturas: '{}', documentos: '[]',
+            registroAntigo: 0, cancelado: 0, motivoCancel: '', excluido: 0,
+            visitaId: visitaId, programaVisita: cf.nome || rotulo(m), culturas: JSON.stringify(culturas) };
+          const r = await PCEMon.numerar('termo', rec, null, null);
+          if (r && r.rec) criados++;
+          if (r && r.duplicado) avisos.push(`${cf.nome || rotulo(m)}: a planilha já tem o Termo ${r.duplicado.numeroTxt}; não foi criado outro.`);
+        }
+        Sync.sincronizar();
+        if (avisos.length) toast(avisos.join(' '), true);
+        if (!criados) { if (btn && btn.isConnected) btn.disabled = false; return toast('Nenhum Termo foi criado. Confira a conexão e tente de novo.', true); }
+        go('pcevisitapronto', { id: visitaId, cadastro: true });
+      } catch (e) { if (btn && btn.isConnected) btn.disabled = false; throw e; }
+    }
+    f.onsubmit = ev => { ev.preventDefault(); gerar().catch(err => toast(err.message || String(err), true)); };
   }
 
   /* ================= fichas oficiais ================= */
@@ -486,6 +644,8 @@ const PCECads = (() => {
       if (a === 'editar') go('pceprodform', { doc, propId: prop || '', docFixo: true });
       else if (a === 'nova') go('pceprodform', { doc, nova: true, docFixo: true });
       else if (a === 'visita') go('pcevisita', { doc, propId: prop });
+      else if (a === 'termos') go('pcetfs', { doc, propId: prop });
+      else if (a === 'voltartermos') go('pceprodutor', doc);
       else if (a === 'ficha') go('pceficha', { propId: prop, modelo: el.dataset.modelo, id: ((await Store.todos('cadastrosPce')).find(c => !Number(c.excluido) && c.propriedadeId === prop && (c.programa || 'moniliase') === el.dataset.modelo && lerJSON(c.dados, {}).fichaNova) || {}).id });
       else if (a === 'pdfficha') await imprimirFicha(el.dataset.id);
       else if (a === 'pdftermo') await PCEMon.imprimir('termo', el.dataset.id);
@@ -494,22 +654,35 @@ const PCECads = (() => {
       else if (a === 'voltarficha') go('pceprodutor', doc);
       else if (a === 'cancelarform') { const d = S && S.doc; S = null; go(d ? 'pceprodutor' : 'pce', d || null); }
       else if (a === 'consultar') await consultarDoc();
-      else if (a === 'gps') await usarGPS();
+      else if (a === 'gps') { const b = el.closest('.pp-prop'); if (b) await usarGPS(b.dataset.k); }
       else if (a === 'addfruto') {
-        if (!S) return;
-        S.frutos = coletarFrutos();
-        if (S.frutos.length >= MAX_FRUTOS) return toast(`Limite de ${MAX_FRUTOS} frutos por propriedade.`, true);
-        S.frutos.push(frutoVazio()); desenharFrutos();
-        const b = document.querySelectorAll('#pp-frutos .pc-fruto'), ult = b[b.length - 1]; if (ult) { ult.scrollIntoView({ block: 'start' }); ult.querySelector('.f-cultura').focus(); }
+        const b = el.closest('.pp-prop'); if (!S || !b) return;
+        const k = b.dataset.k, x = S.props[k];
+        x.frutos = coletarFrutos(k); x.sujo = true;
+        if (x.frutos.length >= MAX_FRUTOS) return toast(`Limite de ${MAX_FRUTOS} frutos por propriedade.`, true);
+        x.frutos.push(frutoVazio()); desenharFrutos(k);
+        const fr = b.querySelectorAll('.pp-frutos .pc-fruto'), ult = fr[fr.length - 1]; if (ult) { ult.scrollIntoView({ block: 'start' }); ult.querySelector('.f-cultura').focus(); }
       } else if (a === 'delfruto') {
-        if (!S) return;
-        S.frutos = coletarFrutos(); const i = +el.dataset.i, f = S.frutos[i];
+        const b = el.closest('.pp-prop'); if (!S || !b) return;
+        const k = b.dataset.k, x = S.props[k];
+        x.frutos = coletarFrutos(k); x.sujo = true;
+        const i = +el.dataset.i, f = x.frutos[i];
         if (f && f.cultura && !confirm(`Remover o fruto ${f.cultura}?`)) return;
-        S.frutos.splice(i, 1); desenharFrutos();
+        x.frutos.splice(i, 1); desenharFrutos(k);
+      } else if (a === 'addprop') {
+        if (!S) return;
+        const d = digitos(($('#pp-doc') || {}).value) || S.doc, x = novoBloco(await dadosDoForm(d, ''), true);
+        $('#pp-props').insertAdjacentHTML('beforeend', propHTML(x)); desenharFrutos(x.k); mostrarCoord(x.k);
+        const nb = blocoDe(x.k); nb.scrollIntoView({ block: 'start' }); const campoNome = nb.querySelector('.p-prop'); if (campoNome) campoNome.focus();
+      } else if (a === 'delprop') {
+        const b = el.closest('.pp-prop'), x = b && S && S.props[b.dataset.k]; if (!x || x.rec) return;   // só a propriedade ainda não salva sai da lista
+        if (chavesNaTela().length <= 1) return toast('O cadastro precisa de ao menos uma propriedade.', true);
+        if (!confirm('Remover esta propriedade do cadastro?')) return;
+        delete S.props[b.dataset.k]; b.remove();
       }
     } catch (err) { toast(err.message || String(err), true); }
   });
 
-  return { produtorForm, produtor, ficha, imprimirFicha, perguntaHTML, lerPergunta, chavesDa, perguntasDoModelo, carregarCatalogo, culturas, pragasLigadas, pragasExtras, pragasCat, pragaPorNome, nomeDaPraga, opcional, nomeNoTF, programaDaPraga, modeloDaCultura,
+  return { produtorForm, produtor, ficha, termos, imprimirFicha, perguntaHTML, lerPergunta, chavesDa, perguntasDoModelo, carregarCatalogo, culturas, pragasLigadas, pragasExtras, pragasCat, pragaPorNome, nomeDaPraga, opcional, nomeNoTF, programaDaPraga, modeloDaCultura,
     temLevantamento, idCat, frutosDe, rotulo, resumoFruto, espTxt, visitaMaisRecente, selo, catalogo: () => CAT };
 })();

@@ -185,21 +185,23 @@ const Campo = (() => {
     mostrar(`<div class="card pce-serv"><div><b>${esc(s.nome)}</b><small>${dig ? 'Digitação de registros do papel' : esc(s.cargo) + ' · ' + esc(s.lotacao)}${s.matricula ? ' · Mat. ' + esc(s.matricula) : ''}</small></div>
         <button class="mini" data-pce="servidor" id="pce-meusdados">${icone('pessoa')} Meus dados</button></div>
       <div class="card"><h3>${icone('pessoa')} Produtores</h3>
+        <label>Município<select id="campoMun"><option value="">Todos os municípios</option>${P.municipios.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('')}</select></label>
         <label>Buscar por CPF/CNPJ, nome do produtor, propriedade ou código<input id="campoQ" type="search" autocomplete="off" inputmode="search" placeholder="ex.: 529.982.247-25 ou Sítio Boa Vista"></label>
         <div id="campoRes" aria-live="polite"></div>
         <button class="botao" type="button" data-campo="novo" id="campo-novo">${icone('mais')} Novo produtor</button></div>
       <div class="card" id="campo-offline"><h3>${icone('baixar')} Dados para trabalhar sem internet</h3>
         <p class="dica" style="text-align:left" id="pce-campo-res">${baixados ? 'No aparelho: ' + esc(baixados) : 'Nenhum município baixado neste aparelho.'}</p>
         <button class="botao sec" type="button" data-v="pcecampo" id="pce-campo">${icone('baixar')} Baixar dados para o campo</button></div>`);
-    const q = $('#campoQ'), saida = $('#campoRes');
+    const q = $('#campoQ'), saida = $('#campoRes'), selMun = $('#campoMun');
     let tq = null, seq = 0;
     const desenhar = async () => {
       const eu = ++seq, txt = q.value.trim(), d = digitos(txt);
+      const mun = norm(selMun.value), base = mun ? todos.filter(x => x.props.some(p => norm(p.municipio) === mun)) : todos;   // filtro por município: produtores com propriedade nele
       let lista;
-      if (txt.length < 2 && d.length < 3) lista = todos.slice(0, MOSTRAR);
+      if (txt.length < 2 && d.length < 3) lista = base.slice(0, MOSTRAR);
       else {
         const docs = new Set((await buscar(txt, 80)).map(r => digitos(r.prop ? r.prop.doc : r.pessoa.id)));
-        lista = todos.filter(x => docs.has(x.doc)).slice(0, MOSTRAR);
+        lista = base.filter(x => docs.has(x.doc)).slice(0, MOSTRAR);
       }
       if (eu !== seq || !saida.isConnected) return;
       const cheio = txt.length < 2 && d.length < 3;
@@ -207,14 +209,76 @@ const Campo = (() => {
       if (!lista.length) {
         extra = `<div class="tf-novo">Nenhum produtor encontrado neste aparelho. ${online() && (d.length === 11 || d.length === 14) ? 'Toque em “Procurar no servidor” para ver se já tem cadastro.' : 'Baixe os dados do município (abaixo) ou cadastre como novo.'}</div>`
           + (online() && (d.length === 11 || d.length === 14) ? `<button class="botao sec" type="button" data-campo="servidor" data-cpf="${esc(d)}" id="campo-servidor">${icone('busca')} Procurar no servidor</button>` : '');
-      } else if (cheio && todos.length > MOSTRAR) extra = `<p class="dica">Mostrando ${MOSTRAR} de ${todos.length} produtores neste aparelho. Digite para buscar.</p>`;
+      } else if (cheio && base.length > MOSTRAR) extra = `<p class="dica">Mostrando ${MOSTRAR} de ${base.length} produtores${mun ? ' neste município' : ' neste aparelho'}. Digite para buscar.</p>`;
       saida.innerHTML = `${lista.length ? `<ul class="campo-res">${lista.map(linhaProdutor).join('')}</ul>` : ''}${extra}`;
     };
     q.oninput = () => { clearTimeout(tq); tq = setTimeout(() => desenhar().catch(() => {}), 200); };
+    selMun.onchange = () => desenhar().catch(() => {});
     await desenhar();
   }
 
   /* ================= tela: baixar dados para o campo ================= */
+  /* ================= tela: novo Termo (aba Termos) ================= */
+  // Procura o produtor ou a propriedade para gerar o Termo: primeiro neste aparelho; se não achar, na planilha (pceBuscarTexto). Sem internet,
+  // avisa que só o aparelho foi consultado. O que vem da planilha é só a identificação: o cadastro completo chega pelo consultar(doc).
+  async function telaNovoTermo() {
+    const mostrar = tela();
+    const s = await PCEUI.exigirServidor('pcenovotermo', null, true); if (!s || !mostrar.viva()) return;
+    if (!Sync.pode('pce') || PCEUI.soDigitador(s)) { toast('O Termo de campo é gerado por quem tem o módulo PCE e os dados de servidor.', true); return go('pcetermos'); }
+    const todos = (await produtores()).sort((a, b) => norm(nomeDe(a)).localeCompare(norm(nomeDe(b))));
+    if (!mostrar.viva()) return;
+    mostrar(`<div class="card" id="pce-novotermo"><h3>${icone('formulario')} Novo Termo de Fiscalização</h3>
+        <p class="dica" style="text-align:left">Procure o produtor ou a propriedade. Ao abrir, escolha “Nova visita” ou “Termos de Fiscalização” na propriedade.</p>
+        <label>Município<select id="ntMun"><option value="">Todos os municípios</option>${P.municipios.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('')}</select></label>
+        <label>Buscar por CPF/CNPJ, nome do produtor, propriedade ou código<input id="ntQ" type="search" autocomplete="off" inputmode="search"></label>
+        <h4 class="pce-sub">Neste aparelho</h4><div id="ntLocal" aria-live="polite"></div>
+        <h4 class="pce-sub">Na planilha</h4><div id="ntSrv" aria-live="polite"></div></div>
+      <button class="botao sec" type="button" data-v="pcetermos">${icone('voltar')} Voltar aos termos</button>`);
+    const q = $('#ntQ'), selMun = $('#ntMun'), local = $('#ntLocal'), srv = $('#ntSrv');
+    let tq = null, seq = 0;
+    const basta = () => norm(q.value).length >= 3 || digitos(q.value).length >= 3;
+    const srvInicial = () => {
+      srv.innerHTML = online()
+        ? `<button class="botao sec" type="button" id="nt-planilha" ${basta() ? '' : 'disabled'}>${icone('busca')} Procurar na planilha</button>${basta() ? '' : '<p class="dica" style="text-align:left">Digite pelo menos 3 letras ou números.</p>'}`
+        : `<div class="tf-novo" id="nt-offline">${icone('alerta')} Sem internet: a busca olhou só este aparelho. Com internet, dá para procurar na planilha.</div>`;
+    };
+    const desenhar = async () => {
+      const eu = ++seq, txt = q.value.trim(), d = digitos(txt), mun = norm(selMun.value);
+      const base = mun ? todos.filter(x => x.props.some(p => norm(p.municipio) === mun)) : todos;
+      let lista = [];
+      if (txt.length >= 2 || d.length >= 3) {
+        const docs = new Set((await buscar(txt, 80)).map(r => digitos(r.prop ? r.prop.doc : r.pessoa.id)));
+        lista = base.filter(x => docs.has(x.doc)).slice(0, MOSTRAR);
+      }
+      if (eu !== seq || !local.isConnected) return;
+      local.innerHTML = lista.length ? `<ul class="campo-res">${lista.map(linhaProdutor).join('')}</ul>`
+        : `<p class="dica" style="text-align:left">${txt.length >= 2 || d.length >= 3 ? 'Nenhum produtor encontrado neste aparelho.' : 'Digite para buscar.'}</p>`;
+      srvInicial();
+    };
+    const procurar = async btn => {
+      const eu = seq; btn.disabled = true; btn.textContent = 'Procurando…';
+      try {
+        const r = await Sync.pceBuscarTexto(q.value.trim(), selMun.value);
+        if (eu !== seq || !srv.isConnected) return;
+        const l = r.resultados || [];
+        srv.innerHTML = l.length ? `<ul class="campo-res">${l.map(x => `<li><button type="button" class="campo-res-item" data-campo="trazer" data-cpf="${esc(digitos(x.doc))}"><b>${esc(x.nome || ((x.propriedades || [])[0] || {}).nome || 'Produtor sem nome')}</b>
+            <small>${esc([fmtDoc(digitos(x.doc)), (x.propriedades || []).map(p => p.nome || p.codigo).filter(Boolean).slice(0, 2).join(', ') || 'sem propriedade cadastrada', ((x.propriedades || [])[0] || {}).municipio].filter(Boolean).join(' · '))}</small></button></li>`).join('')}</ul>
+            ${Number(r.total) > l.length ? `<p class="dica" style="text-align:left">Mostrando ${l.length} de ${Number(r.total)}. Escreva mais para afinar a busca.</p>` : ''}`
+          : `<div class="tf-novo">Nenhum produtor encontrado na planilha. Cadastre como novo.</div>
+            <button class="botao sec" type="button" data-campo="novo">${icone('mais')} Novo produtor</button>`;
+      } catch (e) {
+        if (eu !== seq || !srv.isConnected) return;
+        srvInicial();
+        toast(/a[cç][aã]o inv[aá]lida/i.test(e.message) ? 'A planilha ainda não tem esta busca: a gerência precisa atualizar o Code.gs.'
+          : (e.name === 'AbortError' || e.name === 'TypeError') ? 'Sem resposta da planilha. Confira a internet e tente de novo.' : e.message, true);
+      }
+    };
+    q.oninput = () => { clearTimeout(tq); tq = setTimeout(() => desenhar().catch(() => {}), 200); };
+    selMun.onchange = () => desenhar().catch(() => {});
+    srv.onclick = e => { const b = e.target.closest('#nt-planilha'); if (b && !b.disabled) procurar(b); };
+    await desenhar();
+  }
+
   async function telaBaixar() {
     const mostrar = tela();
     const m = await lerMeta(), lista = Object.values(m).sort((a, b) => a.municipio.localeCompare(b.municipio, 'pt-BR'));
@@ -278,7 +342,12 @@ const Campo = (() => {
         await telaBaixar();
       }
       else if (a === 'abrir') go('pceprodutor', el.dataset.cpf);
-      else if (a === 'novo') go('pceprodform', { doc: digitos(($('#campoQ') || {}).value).length >= 11 ? digitos($('#campoQ').value) : '' });
+      else if (a === 'novo') { const v = ($('#campoQ') || $('#ntQ') || {}).value; go('pceprodform', { doc: digitos(v).length >= 11 ? digitos(v) : '' }); }
+      else if (a === 'trazer') {                                          // resultado da planilha: traz o cadastro completo para o aparelho e abre o produtor
+        el.disabled = true;
+        const r = await consultar(el.dataset.cpf);
+        if (r.achou) go('pceprodutor', el.dataset.cpf); else { el.disabled = false; toast('Não foi possível trazer este cadastro agora. Tente de novo.', true); }
+      }
       else if (a === 'servidor') {
         el.disabled = true;
         const r = await consultar(el.dataset.cpf);
@@ -287,5 +356,5 @@ const Campo = (() => {
     } catch (err) { toast(err.message || String(err), true); }
   });
 
-  return { telaProdutores, telaBaixar, baixar, apagar, atualizarSozinho, buscar, consultar, textoOffline, resumo, produtores, norm, fmtDoc };
+  return { telaProdutores, telaNovoTermo, telaBaixar, baixar, apagar, atualizarSozinho, buscar, consultar, textoOffline, resumo, produtores, norm, fmtDoc };
 })();

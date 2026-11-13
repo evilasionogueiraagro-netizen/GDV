@@ -25,6 +25,10 @@ Produtor, frutos, Termos por programa, citros, monilíase, laudo e campo sem int
 - **Rastreabilidade:** toda ação registra quem fez; exclusão lógica.
 
 ## Termo e documentos
+- **Programa obrigatório:** cada programa das culturas da propriedade gera Termo na visita; para pular um, o fiscal justifica (`TermosPCE.programasPulados`, JSON `[{programa, justificativa}]`) e o painel alerta. Praga opcional de `CONFIG.PCE.visita.respostaExplicita` (Fusariose) não vem pré-marcada.
+- **Seção 2 do Termo:** quadro padronizado, igual em todos os programas (programa, data, hora, local, tipo de local, ações, quem realizou e resultado por praga).
+- **Novo termo (aba Termos):** a busca do produtor olha o aparelho e, com internet, a planilha (`pceBuscarTexto`, só identificação; o cadastro vem por `pceConsultar`). Sem internet, o app avisa que só o aparelho foi consultado.
+- **Termos pela propriedade:** a tela "Termos de Fiscalização" (cartão da propriedade) gera, sem nova visita, um Termo por programa marcado, com os dados do produtor e da propriedade e só os frutos daquele programa. Os Termos do lote compartilham `visitaId`; mudam apenas a "Descrição da ação" (`CONFIG.PCE.termo.programas`, com `{culturas}`) e as caixas de praga, e `programaVisita` sai por extenso (sem código).
 - Limites: 40 culturas por Termo, 25 pragas por cultura, 20 fotos por cultura, `culturas` até 45.000 caracteres; fotos e assinaturas até 4 MB (JPEG/PNG).
 - Termo de Colheita nasce na visita, quando há coleta: uma cultura, um termo por amostra, mesma numeração.
 - Painel: detecção = Detectada ou Suspeita; sem nenhuma, visita negativa.

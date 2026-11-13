@@ -1422,6 +1422,13 @@ const Painel = (() => {
       if (lac.length) A.push({ nivel: 'atencao', aba, titulo: `${nome}: ${nLac} lacuna(s) na sequência`,
         detalhe: 'Números sem registro — ' + lac.map(a => `${g(a)}: ${a.lacunas.slice(0, 12).join(', ')}${a.lacunasTotal > 12 ? '…' : ''}`).join(' · ') });
     };
+    // 3a. programa da propriedade não avaliado na visita (o fiscal desmarcou e justificou): um alerta por visita, com a justificativa
+    const vistas = new Set();
+    (d.termosPce || []).filter(t => Number(t.cancelado) !== 1 && Array.isArray(t.programasPulados) && t.programasPulados.length).forEach(t => {
+      const k = t.visitaId || t.id; if (vistas.has(k)) return; vistas.add(k);
+      A.push({ nivel: 'atencao', aba: 'pce', titulo: `Programa não avaliado em visita: ${t.programasPulados.map(x => x.programa).join(', ')} (${t.municipio || 'município não informado'})`,
+        detalhe: `Visita de ${fmt.data(t.data)} · ${t.empresa || t.nome || 'propriedade'} · ${t.servidor || 'servidor não informado'}. ` + t.programasPulados.map(x => `${x.programa}: ${x.justificativa}`).join(' · ') });
+    });
     // 3b. resultado de laboratório dos Termos de Colheita: amostra positiva (crítico) e sem resultado há mais de 30 dias do envio (atenção)
     const prazoLab = (typeof CONFIG !== 'undefined' && CONFIG.PCE && CONFIG.PCE.laboratorio && CONFIG.PCE.laboratorio.prazoDias) || 30, hojeLab = diaManaus(agora());
     (d.colheitas || []).filter(c => c.laboratorio && c.laboratorio.resultado === 'positivo').forEach(c => A.push({ nivel: 'critico', aba: 'pce',

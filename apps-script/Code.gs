@@ -52,7 +52,7 @@ const TABELAS = {
         // (ocorrência, condutor, RENAVAM, CEP, fatos, enquadramento, ciência, testemunhas, coordenadas); autoConflito = nº repetido
         'autoNumero', 'autoNumeroTxt', 'autoNumeroOrigem', 'autoDados', 'autoConflito'],
   Pessoas: ['id', 'tipo', 'nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
-            'email'],                                                                                                              // id = CPF/CNPJ (só dígitos)
+            'email', 'tipoPessoa'],                                                                                                              // id = CPF/CNPJ (só dígitos)
   Placas: ['id', 'doc', 'nome', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],                                                    // id = placa
   Barreiras: ['id', 'nome', 'sufixo', 'local', 'ativo'],                                                                            // cadastro feito direto na planilha
   Numeracao: ['id', 'barreira', 'ano', 'ultimo', 'atualizadoEm'],                                                                    // ponto de partida definido pelo administrador (id = barreira|ano)
@@ -81,7 +81,8 @@ const TABELAS = {
                  // frutos da propriedade (PCE): JSON [{id, cultura, cultivar, area, espLinha, espPlanta, espUnidade, idade, quantidade, producao, destino,
                  // excluido, em, por}]. O app salva pelo sync; o servidor normaliza (pce-frutos.gs) e mescla por id: fruto nunca some por reenvio
                  // desatualizado (remover = excluido 1). Fonte única da tabela de cultura das fichas.
-                 'frutos'],
+                 'frutos',
+                 'situacaoFundiariaOutra', 'areaTotal', 'areaAgricola', 'localidade', 'obs'],   // sempre depois de frutos: coluna nova só entra no fim
   // Cadastro de imóvel do PCE (1x por propriedade e programa: monilíase e citros). Numeração por programa + unidade + ano ("001-2026-AUTAZES").
   // dados = JSON com os campos do programa (monilíase: culturas/plantas, informações fitossanitárias, levantamento de detecção…; citros: o bloco
   // "Cultura do citros" do levantamento + levantamentoId, codigoPropriedade, endereco, telefone, empresa, culturasAvaliadas); totalPlantas = soma das plantas.
@@ -98,7 +99,9 @@ const TABELAS = {
               'servidor', 'cargo', 'matricula', 'lotacao', 'pragas', 'tipoLocal', 'acoes', 'constatacao', 'enquadramento', 'testemunhas', 'recebidoEm',
               'plantasInspecionadas', 'amostra', 'sintomas', 'hospedeiros', 'fotos', 'assinaturas', 'documentos', 'registroAntigo',
               'cancelado', 'motivoCancel', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
-              'visitaId', 'programaVisita', 'culturas'],   // culturas = JSON [{cultura, area, pragas:[{praga, resultado, haQuantoTempo, controle, qualControle}], coleta, tipoMaterial, codigoAmostra, destinoAmostra, fotos:[ids]}]
+              'visitaId', 'programaVisita', 'culturas',
+              'programasPulados'],   // JSON [{programa, justificativa}]: programas das culturas da propriedade que o fiscal não avaliou na visita (alerta no painel)
+              // culturas = JSON [{cultura, area, pragas:[{praga, resultado, haQuantoTempo, controle, qualControle}], coleta, tipoMaterial, codigoAmostra, destinoAmostra, fotos:[ids]}]
   Arquivos: ['id', 'dono', 'donoId', 'tipo', 'papel', 'nome', 'mime', 'tamanho', 'driveId', 'url', 'usuario', 'criadoEm',  // fotos/assinaturas/PDFs no Drive
              'rotulo'],   // rotulo = cultura da foto do levantamento (vai também no nome do arquivo)
   // TF de Barreira em preenchimento no aparelho (alerta "apreensão em andamento" no painel). id = usuario|rascunhoId. Sem CPF/nome do fiscalizado.
@@ -208,7 +211,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-11-09d';
+const VERSAO_CODIGO = '2026-11-13a';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -270,6 +273,7 @@ function doPost(e) {
     if (req.action === 'pceProximoNumero') return json_(pceProximoNumero_(req));
     if (req.action === 'pceEmitir') return json_(pceEmitir_(req, usuario));
     if (req.action === 'pceConsultar') return json_(lido_(req, pceConsultar_(req, usuario)));
+    if (req.action === 'pceBuscarTexto') return json_(lido_(req, pceBuscarTexto_(req, usuario)));
     if (req.action === 'pceDocNumero') return json_(pceDocNumero_(req));
     if (req.action === 'pceDocRegistrar') return json_(pceDocRegistrar_(req, usuario));
     if (req.action === 'pceBaixarMunicipio') return json_(lido_(req, pceBaixarMunicipio_(req, usuario)));

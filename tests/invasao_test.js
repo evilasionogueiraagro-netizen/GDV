@@ -40,11 +40,11 @@ const hoje = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10), ANO =
 const uuid = () => crypto.randomUUID();
 
 // todas as actions do doPost, por quem pode chamá-las
-const CAMPO = ['ping', 'sync', 'tfConsultar', 'tfProximoNumero', 'tfEmitir', 'pceProximoNumero', 'pceEmitir', 'pceConsultar', 'pceDocNumero',
+const CAMPO = ['ping', 'sync', 'tfConsultar', 'tfProximoNumero', 'tfEmitir', 'pceProximoNumero', 'pceEmitir', 'pceConsultar', 'pceBuscarTexto', 'pceDocNumero',
   'pceDocRegistrar', 'pceBaixarMunicipio', 'arquivoEnviar', 'tfAndamento', 'tfIndiceReincidencia', 'turnoConvidar', 'turnoParear',
   'turnoSair', 'turnoPapelRegistrar', 'turnoNumero', 'turnosAbertos', 'turnoEntrar', 'turnoRemoverColega'];
 const MODULO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf', tfIndiceReincidencia: 'tf', pceProximoNumero: 'pce',
-  pceEmitir: 'pce', pceConsultar: 'pce', pceBaixarMunicipio: 'pce', arquivoEnviar: 'pce', pceDocNumero: 'pce', pceDocRegistrar: 'pce',
+  pceEmitir: 'pce', pceConsultar: 'pce', pceBuscarTexto: 'pce', pceBaixarMunicipio: 'pce', arquivoEnviar: 'pce', pceDocNumero: 'pce', pceDocRegistrar: 'pce',
   turnoConvidar: 'veiculos', turnoParear: 'veiculos', turnoSair: 'veiculos', turnoPapelRegistrar: 'veiculos', turnoNumero: 'veiculos', turnosAbertos: 'veiculos', turnoEntrar: 'veiculos', turnoRemoverColega: 'veiculos' };
 // catálogo do PCE (pce-catalogo.gs): ler exige o módulo pce; gravar, gerência + pce (nem a gerência sem pce passa)
 const PCE_CATALOGO = ['painelPceCatalogo', 'painelPceCatalogoSalvar'];

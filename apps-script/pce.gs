@@ -170,6 +170,38 @@ function pceConsultar_(req, usuario) {
   };
 }
 
+const BUSCA_PCE_MAX = 20;                       // produtores devolvidos por busca de texto
+
+/**
+ * Busca de produtor por texto (nome do produtor, nome ou código da propriedade, ou parte do CPF/CNPJ), para gerar Termo de quem não está
+ * no aparelho. Todas as palavras têm de aparecer (sem acento/maiúsculas); município opcional. Devolve só o que identifica o produtor e as
+ * propriedades dele que casaram: o cadastro completo vem depois, pelo pceConsultar. Cada busca fica na aba Consultas (quem, quando, texto).
+ */
+function pceBuscarTexto_(req, usuario) {
+  const q = String(req.q || '').trim().slice(0, 80), t = normPub_(q), d = digitos_(q), pal = t.split(' ').filter(Boolean);
+  if (t.length < 3 && d.length < 3) throw new Error('Digite pelo menos 3 letras ou números para buscar.');
+  const mun = normPub_(String(req.municipio || '').slice(0, 80));
+  const casa = function (txt) { return pal.length > 0 && pal.every(function (w) { return txt.indexOf(w) >= 0; }); };
+  const nomes = {};
+  lerLeitura_('Pessoas').forEach(function (p) { const k = digitos_(p.id); if (k && docValido_(k)) nomes[k] = String(p.nome || ''); });
+  const por = {}, ordem = [];
+  const item = function (doc) { if (!por[doc]) { por[doc] = { doc: doc, nome: nomes[doc] || '', propriedades: [] }; ordem.push(doc); } return por[doc]; };
+  lerLeitura_('Propriedades').forEach(function (p) {
+    const doc = digitos_(p.doc);
+    if (!p.id || !doc || !docValido_(doc) || p.excluido === 1 || (mun && normPub_(p.municipio) !== mun)) return;
+    const bate = casa(normPub_([p.nome, p.codigo, nomes[doc]].join(' '))) || (d.length >= 3 && (doc.indexOf(d) >= 0 || digitos_(p.codigo).indexOf(d) >= 0));
+    if (bate) item(doc).propriedades.push({ id: p.id, nome: p.nome, codigo: p.codigo, municipio: p.municipio });
+  });
+  if (!mun) {                                                       // produtor sem propriedade cadastrada: só aparece na busca sem município
+    Object.keys(nomes).forEach(function (doc) { if (!por[doc] && (casa(normPub_(nomes[doc])) || (d.length >= 3 && doc.indexOf(d) >= 0))) item(doc); });
+  }
+  const todos = ordem.map(function (k) { return por[k]; })
+    .sort(function (a, b) { return normPub_(a.nome || (a.propriedades[0] || {}).nome).localeCompare(normPub_(b.nome || (b.propriedades[0] || {}).nome)); });
+  const c = aba_('Consultas');
+  c.getRange(c.getLastRow() + 1, 1, 1, 5).setValues([[Date.now(), usuario, '', '', ('PCE busca: ' + (d.length >= 3 && !pal.length ? '(número)' : t) + ' (' + todos.length + ')').slice(0, 480)]]);
+  return { ok: true, resultados: todos.slice(0, BUSCA_PCE_MAX), total: todos.length };
+}
+
 /* ---------- PCE em campo: dados do(s) município(s) para consultar sem internet ---------- */
 const CAMPO_MAX_PROPS = 5000;                   // propriedades por chamada (resposta de ~1,5 MB)
 // campos que não vão para o aparelho: técnicos da planilha e nomes que o app usa para controle local
@@ -635,6 +667,7 @@ function dadosPainel_(admin, filtro) {
              servidor: r.servidor, cargo: r.cargo, matricula: r.matricula, lotacao: r.lotacao,
              pragas: lerJSONSeguro_(r.pragas, []), tipoLocal: lerJSONSeguro_(r.tipoLocal, []), acoes: lerJSONSeguro_(r.acoes, []),
              constatacao: r.constatacao, enquadramento: r.enquadramento, plantasInspecionadas: r.plantasInspecionadas, visitaId: r.visitaId, programaVisita: r.programaVisita,
+             programasPulados: lerJSONSeguro_(r.programasPulados, []),   // programas da propriedade não avaliados na visita, com a justificativa (alerta do painel)
              amostra: r.amostra, sintomas: r.sintomas, hospedeiros: lerJSONSeguro_(r.hospedeiros, []), cancelado: r.cancelado, motivoCancel: r.motivoCancel,
              nDocumentos: contarFotos_(r.documentos), criadoEm: r.criadoEm, srv_ts: r.srv_ts, usuario: r.usuario };
   });

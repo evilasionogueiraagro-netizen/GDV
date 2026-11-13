@@ -199,7 +199,7 @@ const contem = (texto, lista) => lista.filter(x => !norm(texto).includes(norm(x)
     const texto = execFileSync('pdftotext', [pdf, '-']).toString().replace(/\s+/g, ' ');   // texto vetorial: o PDF do navegador tem de ter texto selecionável
     const r = await p.evaluate(() => ({ secoes: [...document.querySelectorAll('td.sec')].map(x => x.textContent.replace(/\s+/g, ' ').trim()), modelo: document.querySelector('.a4').getAttribute('data-modelo'), largura: document.documentElement.scrollWidth,
       txt: document.body.innerText.replace(/\s+/g, ' '), longo: document.body.getAttribute('data-longo'),
-      caixas: [...document.querySelectorAll('.pr')].map(l => ({ linha: l.querySelector('.pr-n').textContent, caixas: [...l.querySelectorAll('.op')].map(o => o.textContent.trim()).filter(Boolean), marcadas: [...l.querySelectorAll('.op')].filter(o => o.querySelector('.cx.on')).map(o => o.textContent.trim()) })) }));
+      caixas: [...document.querySelectorAll('.pr')].map(l => ({ linha: l.querySelector('.pr-n').textContent + (l.querySelector('.pr-c').textContent ? ' (' + l.querySelector('.pr-c').textContent + ')' : '') + ':', caixas: [...l.querySelectorAll('.op')].map(o => o.textContent.trim()).filter(Boolean), marcadas: [...l.querySelectorAll('.op')].filter(o => o.querySelector('.cx.on')).map(o => o.textContent.trim()) })) }));
     await c.close();
     return { ...r, texto: r.txt, textoPdf: texto, folhas, pags, semFundo };
   }
@@ -356,12 +356,12 @@ const contem = (texto, lista) => lista.filter(x => !norm(texto).includes(norm(x)
   ok(juntos.join(' ') === PALAVRAS.join(' '), 'Termo com constatação longa: nenhuma palavra cortada, repetida ou fora de ordem', juntos.length);
   ok(longo.filter(f => f.assina).length === 1 && longo[longo.length - 1].assina && longo[longo.length - 1].enq, 'Termo com constatação longa: enquadramento e assinaturas juntos na última folha', longo.map(f => f.assina));
   const OF_TERMO = ['TERMO DE FISCALIZAÇÃO Nº', 'Nº sequencial', '1 – Identificação', 'Nome', 'CPF', 'Atividade', 'Empresa / Fantasia', 'CNPJ', 'Endereço', 'Município', 'UF', 'Telefone', 'Coordenadas Geográficas', '2 – Descrição da Ação',
-    'Ácaro Hindustânico', 'Cancro Cítrico', 'HLB', 'Ferrugem Asiática da soja', 'Fusariose FOC R4T', 'Monilíase', 'Mosca-da-Carambola', 'Vassoura-de-bruxa da Mandioca', 'Amaranthus palmeri', 'Diaphorina citri', 'Evento Agropecuário', 'Unidade de Produção (UP)',
-    'Unidade de Consolidação (UC)', 'ao realizar ações de', 'Controle/Erradicação', 'Levantamento', 'Monitoramento', 'Educação Sanitária', 'Fiscalização', '(descrever a situação constatada)', '3 – Enquadramento Legal', '4 – Testemunhas',
+    'Programa / praga', 'Data', 'Hora', 'Local da ação', 'Tipo de local', 'Evento Agropecuário', 'Unidade de Produção (UP)',
+    'Unidade de Consolidação (UC)', 'Ações realizadas', 'Realizada por', 'Situação constatada', 'Controle/Erradicação', 'Levantamento', 'Monitoramento', 'Educação Sanitária', 'Fiscalização', '(descrever a situação constatada)', '3 – Enquadramento Legal', '4 – Testemunhas',
     'Recebi a 2ª via deste Termo em', 'Assinatura e Identificação do Servidor da ADAF', '1ª via: Interessado', '2ª via: ADAF Central', '3ª via: Unidade Local', 'GOVERNO DO ESTADO DO AMAZONAS'];
   ok(!contem(TC.texto, OF_TERMO).length && !contem(TM.texto, OF_TERMO).length, 'Termo: todos os campos oficiais do papel presentes', [contem(TC.texto, OF_TERMO), contem(TM.texto, OF_TERMO)]);
-  // texto próprio do Termo de citros: "Em ... às ... hora(s) ao realizar fiscalização no(a) <local especificado> constatei" + (especificar o local)
-  ok(/Pomar de laranja/.test(TC.texto) && /no\(a\) Pomar de laranja constatei/.test(TC.texto) && /\(especificar o local\)/.test(TC.texto) && /14:30/.test(TC.texto), 'Termo de citros: local especificado, "constatei" e a hora', TC.texto.slice(250, 900));
+  // seção 2 padronizada: o local escrito pelo fiscal vai em "Local da ação" e a hora no quadro (Termo de citros antigo guardava o local em tipoLocal[0])
+  ok(/Local da ação:\s*Pomar de laranja/.test(TC.texto) && /Hora:\s*14:30/.test(TC.texto) && /Programa \/ praga:\s*HLB, Cancro Cítrico, Ácaro Hindustânico/.test(TC.texto), 'Termo de citros: local da ação, hora e pragas no quadro', TC.texto.slice(250, 900));
   ok(/Ausência de sintomas de HLB/.test(TC.texto) && /Portaria SDA\/MAPA nº 1\.326/.test(TC.texto), 'Termo de citros: frases da descrição e enquadramento da planilha');
   const marcasT = async (t, tipo) => {
     const c = await b.newContext({ viewport: { width: 794, height: 1123 } }); const p = await c.newPage();

@@ -66,6 +66,16 @@ const EU = [-2.63, -56.74];
   ok(!r.ok && r.semPermissao === 'pce' && /Sem autorização para o módulo PCE/.test(r.erro), 'fiscal sem o módulo PCE: servidor recusa (' + r.erro + ')');
   r = await post({ action: 'pceBaixarMunicipio', key: fC.token, municipios: [] }); ok(!r.ok && /município/.test(r.erro), 'sem município: recusado');
 
+  console.log('1b) servidor: pceBuscarTexto (busca por texto para o Novo termo)');
+  r = await post({ action: 'pceBuscarTexto', key: fC.token, q: 'ana manauara' });
+  ok(r.ok && r.resultados.length === 1 && r.resultados[0].doc === '71428793860', 'busca por nome sem acento/maiúsculas acha o produtor: ' + JSON.stringify(r.resultados || r.erro));
+  ok(r.ok && !/endereco|telefone|"lat"|frutos/.test(JSON.stringify(r)), 'a busca devolve só a identificação (sem endereço, telefone, coordenada ou frutos)');
+  r = await post({ action: 'pceBuscarTexto', key: fC.token, q: 'silva', municipio: 'parintins' });
+  ok(r.ok && r.resultados.length > 0 && r.resultados.every(x => x.propriedades.length && x.propriedades.every(p => /parintins/i.test(p.municipio))), 'filtro por município: só propriedades de Parintins');
+  r = await post({ action: 'pceBuscarTexto', key: fC.token, q: 'ab' }); ok(!r.ok && /3 letras/.test(r.erro), 'menos de 3 letras: recusado');
+  r = await post({ action: 'pceBuscarTexto', key: fD.token, q: 'ana manauara' }); ok(!r.ok && r.semPermissao === 'pce', 'fiscal sem o módulo PCE: busca recusada');
+  ok((await get('/__aba?nome=Consultas')).some(l => l[1] === fC.nome && /PCE busca: ana manauara \(1\)/.test(l[4])), 'busca registrada na aba Consultas (quem e o texto)');
+
   // ---------- app ----------
   const b = await amb.lancar();
   const aparelho = async ({ token, nome }) => {

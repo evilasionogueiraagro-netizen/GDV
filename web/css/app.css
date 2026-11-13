@@ -382,3 +382,8 @@ nav button .ico { width:24px; height:24px; margin-bottom:2px; }
 .re-itens { display: grid; gap: 6px; margin: 8px 0; }
 .re-item { display: grid; grid-template-columns: 4.6em 1fr 3.6em 4.6em auto; gap: 4px; align-items: center; }
 .re-item input { min-width: 0; padding: 8px 6px; }
+/* PCE: formulário do produtor com várias propriedades (cada uma recolhível, com os seus frutos) */
+.pp-prop > summary { cursor:pointer; list-style:none; } .pp-prop > summary::-webkit-details-marker { display:none; }
+.pp-prop > summary h3 { margin:0; } .pp-prop[open] > summary { margin-bottom:10px; }
+.pp-prop .pp-addfruto, .pp-prop .pp-delprop { margin-top:10px; }
+.pp-prop input[readonly] { background:var(--sf); color:var(--mut); }

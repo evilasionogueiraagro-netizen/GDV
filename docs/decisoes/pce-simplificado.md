@@ -13,3 +13,8 @@ O PCE passa a ser produtor, frutos e Termos. Regras em [../modulos/pce.md](../mo
 | 09/11/2026 | Constatação do Termo novo em caixas Presença / Ausência / Suspeita, em todos os programas | o resultado de cada praga se lê sem texto escrito |
 | 06/11/2026 | Saem Perto de mim, Rota e laudo no app; o laudo continua no painel | fora do escopo: produtor, frutos e Termos |
 | 09/11/2026 | Praga opcional do catálogo deixa de ser campo em branco: vem marcada "Não tem" e a pessoa só troca para "Tem"; conta como avaliada no Termo do programa | a visita só de banana saía sem caixa de praga marcada e sem enquadramento legal |
+| 12/11/2026 | Cadastro por programa com base herdada: produtor, propriedades (várias, UF fixa AM) e culturas são digitados uma vez; cada programa guarda só o que é dele | a prestação de contas é por programa; cadastro único não resolve, repetir dado gera inconsistência |
+| 12/11/2026 | Programa das culturas da propriedade é obrigatório na visita; pular exige justificativa, que vira alerta no painel. Fusariose pede resposta explícita | propriedade com a cultura tem de ter o Termo do programa |
+| 12/11/2026 | Seção 2 do Termo deixa de copiar o papel e vira quadro padronizado | padronizar primeiro; ajustes depois |
+| 12/11/2026 | "Novo termo" na aba Termos: busca no aparelho e depois na planilha, por texto; sem internet, avisa | em campo o fiscal parte do Termo, não do cadastro |
+| 10/11/2026 | Termos de Fiscalização gerados pela propriedade, sem nova visita: um por programa dos frutos do cadastro, com os mesmos dados e a mesma numeração; só a "Descrição da ação" muda (`CONFIG.PCE.termo.programas`) | o cadastro já tem tudo; repetir a visita só para emitir o Termo é trabalho dobrado |

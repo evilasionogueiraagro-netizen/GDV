@@ -370,8 +370,8 @@ const contem = (texto, lista) => lista.filter(x => !norm(texto).includes(norm(x)
     const r = await p.evaluate(() => [...document.querySelectorAll('.cx.on[data-x]')].map(x => x.parentElement.textContent.trim())); await c.close(); return r;
   };
   const mc = await marcasT(TERMOS.citros, 'termoCitros'), mm = await marcasT(TERMOS.moniliase, 'termo');
-  ok(mc.includes('HLB') && mc.includes('Cancro Cítrico') && mc.includes('Ácaro Hindustânico') && mc.includes('Fiscalização') && mc.length === 4, 'Termo de citros antigo: pragas marcadas e ação "Fiscalização" (que o papel de citros dizia no texto)', mc);
-  ok(mm.includes('Monilíase') && mm.includes('Levantamento') && mm.includes('Monitoramento') && mm.includes('Unidade de Produção (UP)') && mm.length === 4, 'Termo de monilíase: pragas, ações e local marcados', mm);
+  ok(mc.join() === 'Fiscalização', 'Termo de citros antigo: ação "Fiscalização" marcada (as pragas saem no quadro "Resultado da inspeção", não mais em caixas soltas)', mc);
+  ok(mm.includes('Levantamento') && mm.includes('Monitoramento') && mm.includes('Unidade de Produção (UP)') && mm.length === 3, 'Termo de monilíase: ações e local marcados (a praga vem na coluna "Programa / praga" e no quadro de resultado)', mm);
   ok(/Testemunha Ficticia Um/.test(TM.texto) && /Não constatei a presença da monilíase/.test(TM.texto) && /IN 112/.test(TM.texto) && !/no\(a\) .* constatei/.test(TM.texto.replace(/no\(a\)\s+constatei/, '')) , 'Termo de monilíase: testemunha, constatação e enquadramento');
   ok(JSON.stringify(TERMOS.citros).includes('Pomar de laranja'), 'Termo antigo não foi alterado');
 

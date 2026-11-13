@@ -15,8 +15,13 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   console.log('1) passo 1: precisa marcar fruto; passo 2: pragas pelo catálogo e pelos hospedeiros');
   await p.locator('#pce-novavisita').click(); await p.waitForSelector('#pceVisitaForm');
   ok(/Passo 1 de 5/.test(await p.textContent('.pce-passos')) && await p.locator('input[name=vi-fruto]').count() === 3 && await p.locator('#vi-voltar').count() === 0, 'passo 1 de 5, 3 frutos do cadastro, sem "Voltar"');
+  ok(await p.locator('input[name=vi-fruto]:checked').count() === 3, 'os frutos da propriedade já vêm marcados');
+  for (const c of await p.locator('input[name=vi-fruto]').all()) await c.uncheck();
   await p.click('#vi-continuar'); ok(/Marque ao menos um fruto/.test(await toast()) && /Passo 1/.test(await p.textContent('.pce-passos')), 'sem fruto marcado não avança', await toast());
   await p.locator('label.vi-fruto', { hasText: 'Cacau' }).locator('input').check(); await p.locator('label.vi-fruto', { hasText: 'Laranja' }).locator('input').check();
+  ok(await p.locator('textarea[data-pulado]').count() >= 1, 'programa sem fruto marcado pede justificativa');
+  await p.click('#vi-continuar'); ok(/justifique|justificativa/i.test(await toast()), 'sem justificativa não avança', await toast());
+  for (const t of await p.locator('textarea[data-pulado]').all()) await t.fill('Cultura não avaliada nesta visita (motivo fictício).');
   await p.click('#vi-continuar'); await p.waitForSelector('.pce-pr');
   const nomes = c => A.bloco(p, c).locator('.pce-pr').evaluateAll(l => l.map(e => e.dataset.nome));
   ok((await nomes('Cacau')).join('|') === 'Monilíase do Cacaueiro', 'Cacau: só a monilíase (catálogo)', await nomes('Cacau'));
@@ -86,7 +91,8 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   await p.click('summary'); await p.selectOption('#vi-nf-cultura', 'Soja'); await p.fill('#vi-nf-area', '10,5'); await p.click('#vi-addfruto');
   await p.waitForSelector('label.vi-fruto:has-text("Soja") input:checked');
   ok(/Soja · 10,5 ha/.test(await p.textContent('label.vi-fruto:has-text("Soja")')), 'fruto novo aparece marcado na visita');
-  await p.locator('label.vi-fruto', { hasText: 'Mandioca' }).locator('input').check();
+  for (const l of await p.locator('label.vi-fruto').all()) { const t = await l.textContent(); await l.locator('input').setChecked(/Soja|Mandioca/.test(t)); }   // os frutos já vêm marcados: ficam só soja e mandioca
+  for (const t of await p.locator('textarea[data-pulado]').all()) await t.fill('Cultura não avaliada nesta visita (motivo fictício).');
   await p.click('#vi-continuar'); await p.waitForSelector('.pce-pr');
   const ns = await nomes('Soja'), nm = await nomes('Mandioca');
   ok(ns.includes('Phakopsora pachyrhizi') && nm.join('|') === 'Vassoura de Bruxa da Mandioca', 'Soja: ferrugem e Amaranthus; Mandioca: vassoura-de-bruxa', { ns, nm });

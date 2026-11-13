@@ -12,6 +12,10 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   await A.identificar(p);
   await A.novoProdutor(p, { doc: '52998224725', nome: 'Produtor Ficticio Opcionais', propriedade: 'Sitio Ficticio Opcionais', codigo: 'PRP-OPC-1', municipio: 'Manaus',
     frutos: [{ cultura: 'Banana', area: 1 }, { cultura: 'Soja', area: 2 }, { cultura: 'Laranja', area: 1 }] });
+  /** Os frutos da propriedade já vêm todos marcados na Nova visita: deixa marcado só o pedido. */
+  const soFruto = async nome => { for (const l of await p.locator('label.vi-fruto').all()) await l.locator('input').setChecked((await l.textContent()).includes(nome));
+    for (const t of await p.locator('textarea[data-pulado]').all()) await t.fill('Cultura não avaliada nesta visita (motivo fictício).'); };   // programa sem fruto marcado pede justificativa
+  const naoTem = async nome => p.locator(`.pce-pr[data-nome="${nome}"] .pce-res-nao_detectada`).click();
   const L = await p.evaluate(() => CONFIG.PCE.legislacao);
   const lin = (...n) => n.map(x => L[x]).join('\n');
   const mesmas = (a, b2) => JSON.stringify(a.split('\n').sort()) === JSON.stringify(b2.split('\n').sort());
@@ -31,12 +35,15 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
 
   console.log('1) banana com tudo "Não tem": Termo de Pragas da Bananeira com a Fusariose marcada, constatação e enquadramento das avaliadas');
   await p.locator('#pce-novavisita').first().click(); await p.waitForSelector('#pceVisitaForm');
-  await p.locator('label.vi-fruto', { hasText: 'Banana' }).locator('input').check(); await p.click('#vi-continuar'); await p.waitForSelector('.pce-pr');
+  await soFruto('Banana'); await p.click('#vi-continuar'); await p.waitForSelector('.pce-pr');
   const opc = p.locator('.pce-pr[data-opcional]');
   ok(await p.locator('.pce-pr').count() === 3 && await opc.count() === 3, 'banana: Fusariose, Moko e Sigatoka, todas opcionais');
-  ok(await opc.locator('.pce-res-nao_detectada input:checked').count() === 3 && await opc.locator('.pce-res-detectada input:checked').count() === 0, 'as 3 vêm marcadas "Não tem" sem a pessoa tocar');
-  ok((await opc.first().locator('.pce-res-op label').allTextContents()).join('|') === 'Não tem|Tem' && (await opc.first().locator('legend').textContent()).trim() === 'Resultado', 'campo de duas opções "Não tem" e "Tem", legenda sem "(opcional)"');
-  ok(!/em branco|opcional/i.test(await opc.first().locator('.pce-pr-cat').textContent()), 'o selo ao lado do nome não sugere deixar em branco', await opc.first().locator('.pce-pr-cat').textContent());
+  ok(await opc.locator('.pce-res-nao_detectada input:checked').count() === 2 && await opc.locator('.pce-res-detectada input:checked').count() === 0 && await p.locator('.pce-pr[data-nome="Fusarium R4T"] input:checked').count() === 0,
+    'Moko e Sigatoka vêm marcadas "Não tem"; a Fusariose (CONFIG.PCE.visita.respostaExplicita) espera a escolha do fiscal');
+  await p.click('#vi-continuar'); ok(/Informe se Fusarium R4T tem ou não tem/.test(await p.textContent('#toast')), 'sem responder a Fusariose não avança', await p.textContent('#toast'));
+  await naoTem('Fusarium R4T');
+  ok((await opc.first().locator('.pce-res-op label').allTextContents()).join('|') === 'Não tem|Tem' && (await opc.nth(1).locator('legend').textContent()).trim() === 'Resultado', 'campo de duas opções "Não tem" e "Tem", legenda sem "(opcional)" (a Fusariose leva o asterisco da resposta obrigatória)');
+  ok(!/em branco|opcional/i.test(await opc.nth(1).locator('.pce-pr-cat').textContent()), 'o selo ao lado do nome não sugere deixar em branco', await opc.nth(1).locator('.pce-pr-cat').textContent());
   await p.click('#vi-continuar'); await p.waitForSelector('.v-plantas'); await p.click('#vi-continuar'); await p.waitForSelector('#vi-local');
   const consB = await p.locator('textarea[data-prog]').first().inputValue(), resB = await p.locator('.vi-resultados li').allTextContents();
   const enqB = await p.locator('.vi-enq').first().evaluate(e => { e.querySelectorAll('br').forEach(br => br.replaceWith('\n')); return e.textContent; });
@@ -51,7 +58,7 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   ok(cs.length === 3 && cs.every(x => x.resultado === 'nao_detectada'), 'cultura do Termo: as 3 pragas avaliadas como não detectadas', cs);
   const pr = await A.imprimir(p, '.pce-termo-pronto [data-mon=imprimir]');
   const marcadas = await p.evaluate(h => [...new DOMParser().parseFromString(h, 'text/html').querySelectorAll('[data-x^="pragas="].on')].map(e => e.getAttribute('data-x')), pr.html);
-  ok(marcadas.join() === 'pragas=Fusariose FOC R4T', 'PDF do Termo: só a caixa Fusariose FOC R4T marcada no quadro de pragas', marcadas);
+  ok(marcadas.length === 0 && /Programa \/ praga:\s*Pragas da Bananeira/.test(pr.texto), 'PDF do Termo: o programa vem na seção 2 e as pragas no quadro "Resultado da inspeção" (sem caixas soltas de praga)', [marcadas, pr.texto.slice(0, 300)]);
   const cxB = A.caixasDoTermo(pr.html);
   ok(cxB.length === 3 && cxB.every(x => x.caixas.join() === 'Presença,Ausência' && x.marcadas.join() === 'Ausência') && cxB.map(x => x.linha).join('|') === 'Fusariose FOC R4T (Banana):|Moko da Bananeira (Banana):|Sigatoka Negra (Banana):', 'PDF do Termo: as 3 opcionais com só Presença e Ausência (sem Suspeita), Ausência marcada', cxB);
   ok(!/Não constatei a presença/.test(pr.texto), 'PDF do Termo: sem frase pronta de constatação');
@@ -76,11 +83,12 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   console.log('3) campos do "Tem" (há quanto tempo e controle) e validação');
   await A.abrirProdutor(p, '52998224725'); const antesM = await ids();
   await p.locator('#pce-novavisita').first().click(); await p.waitForSelector('#pceVisitaForm');
-  await p.locator('label.vi-fruto', { hasText: 'Banana' }).locator('input').check(); await p.click('#vi-continuar'); await p.waitForSelector('.pce-pr');
+  await soFruto('Banana'); await p.click('#vi-continuar'); await p.waitForSelector('.pce-pr');
   const moko = p.locator('.pce-pr[data-nome="Moko da Bananeira"]');
   ok(await moko.locator('.vi-det').count() === 0, '"Não tem": sem campos de detecção');
   await moko.locator('.pce-res-detectada').click();
   ok(await moko.locator('.r-tempo').count() === 1 && await moko.locator('fieldset[data-k=c]').count() === 1 && await moko.locator('.r-qual').count() === 1, '"Tem": abre "há quanto tempo", "utiliza controle?" e "qual controle"');
+  await naoTem('Fusarium R4T');
   await moko.locator('.r-tempo').fill('10 dias'); await moko.locator('fieldset[data-k=c] label:has(input[value=sim])').click();
   await p.click('#vi-continuar'); ok(/Informe qual controle é usado para Moko/.test(await p.textContent('#toast')), 'controle "sim" exige o nome do controle', await p.textContent('#toast'));
   await moko.locator('.r-qual').fill('Eliminação das plantas');
@@ -100,6 +108,7 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   await A.abrirProdutor(p, '52998224725'); const antesR = await ids();
   await A.visita(p, { frutos: ['Banana'], parar: 2 });
   for (let i = 0; i < 50 && !(await p.evaluate(async () => { const r = await Store.meta('pceVisitaRascunho'); return !!(r && r.passo === 2); })); i++) await p.waitForTimeout(100);
+  await p.locator('.pce-pr[data-opcional]').first().waitFor();
   const idsPragas = await p.locator('.pce-pr[data-opcional]').evaluateAll(l => l.map(e => e.dataset.praga));
   await p.evaluate(async idsPragas => {                // como um rascunho de versão antiga: uma opcional com resultado vazio, outra sem registro nenhum, outra só com o resto
     const r = await Store.meta('pceVisitaRascunho'), f = Object.values(r.F)[0];
@@ -107,9 +116,10 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   }, idsPragas);
   await p.reload(); await p.waitForSelector('.modulo[data-v=pce]');
   await p.evaluate(async () => { const r = await Store.meta('pceVisitaRascunho'); go('pcevisita', { doc: r.doc, propId: r.propId }); }); await p.waitForSelector('#pceVisitaForm');
-  ok(/Passo 2 de 5/.test(await p.textContent('.pce-passos')) && await p.locator('.pce-pr[data-opcional] .pce-res-nao_detectada input:checked').count() === 3, 'rascunho retomado: as 3 opcionais (vazia e sem registro) abrem como "Não tem"');
+  ok(/Passo 2 de 5/.test(await p.textContent('.pce-passos')) && await p.locator('.pce-pr[data-opcional] .pce-res-nao_detectada input:checked').count() === 2, 'rascunho retomado: Moko e Sigatoka (vazia e sem registro) abrem como "Não tem"; a Fusariose continua pedindo resposta');
+  await naoTem('Fusarium R4T');
   await p.click('#vi-continuar'); await p.waitForSelector('.v-plantas'); await p.click('#vi-continuar'); await p.waitForSelector('#vi-local');
-  ok((await p.locator('.vi-resultados li').allTextContents()).includes('Fusariose FOC R4T (Banana): Ausência'), 'segue para o Termo sem pedir resposta: a Fusariose entra como avaliada (Ausência)');
+  ok((await p.locator('.vi-resultados li').allTextContents()).includes('Fusariose FOC R4T (Banana): Ausência'), 'segue para o Termo: a Fusariose, respondida, entra como avaliada (Ausência)');
   await p.click('#vi-continuar'); await p.waitForSelector('#vi-resumo'); await p.click('#vi-concluir'); await p.waitForSelector('#pce-visita-pronta', { timeout: 20000 });
   const tR = await novo(antesR);
   ok(JSON.parse(tR.pragas).join() === 'Fusariose FOC R4T' && JSON.parse(tR.culturas)[0].pragas.every(x => x.resultado === 'nao_detectada'), 'Termo do rascunho antigo: Fusariose marcada e as 3 como não detectadas', tR.pragas);
@@ -117,7 +127,7 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   console.log('5) citros: HLB, ácaro e cancro (obrigatórias, com Suspeita) e as opcionais (só Presença e Ausência) nas caixas do Termo');
   await A.abrirProdutor(p, '52998224725');
   await p.locator('#pce-novavisita').first().click(); await p.waitForSelector('#pceVisitaForm');
-  await p.locator('label.vi-fruto', { hasText: 'Laranja' }).locator('input').check();
+  await soFruto('Laranja');
   await p.click('#vi-continuar'); await p.waitForSelector('.pce-pr');
   for (const n of ['HLB / Greening', 'Schizotetranychus hindustanicus', 'Cancro Cítrico']) await p.locator(`.pce-pr[data-nome="${n}"] .pce-res-nao_detectada`).click();
   await p.locator('.pce-pr[data-nome="Pinta Preta dos Citros"] .pce-res-detectada').click();

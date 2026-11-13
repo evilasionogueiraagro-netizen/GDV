@@ -107,7 +107,7 @@ const uuid = () => require('crypto').randomUUID();
 
   console.log('8) e-mail em Pessoas e migração de colunas');
   const pes = await aba('Pessoas');
-  ok(JSON.stringify(pes[0]) === JSON.stringify(CAB_ANTIGO.concat('email')), 'cabeçalho de Pessoas ganhou "email" no FIM: ' + pes[0].slice(-2).join(','));
+  ok(JSON.stringify(pes[0]) === JSON.stringify(CAB_ANTIGO.concat('email', 'tipoPessoa')), 'cabeçalho de Pessoas ganhou "email" e "tipoPessoa" no FIM: ' + pes[0].slice(-2).join(','));
   const pj = (await fn('lerLeitura_', 'Pessoas')).r.find(p => p.id === '52998224725');
   ok(pj.email === 'jose@exemplo.com' && pj.rg === '123' && pj.endereco === 'RUA X', 'cadastro antigo atualizado: e-mail novo, RG e endereço do TF mantidos');
   // o TF não conhece o e-mail: salvar a pessoa pelo TF não pode apagá-lo
@@ -120,7 +120,7 @@ const uuid = () => require('crypto').randomUUID();
   ok(pes.length === 2 && pes[1][0] === '52998224725', 'linha antiga continua na mesma posição (sem duplicar)');
   const cab = async n => (await aba(n))[0];
   ok((await cab('Levantamentos')).join() === 'id,data,hora,servidor,cargo,matricula,lotacao,doc,nome,telefone,email,propriedade,codigoPropriedade,situacaoFundiaria,municipio,lat,lon,precisao,culturas,fotos,assinaturas,obs,excluido,criadoEm,atualizadoEm,srv_ts,usuario,registroAntigo,documentos,pragas,tipoLocal,origemVisita,citros,cnpj,empresa,endereco,uf,comercial', 'aba Levantamentos criada com as colunas da especificação (pragas, tipoLocal, origemVisita, citros e a identificação cnpj/empresa/endereco/uf no fim)');
-  ok((await cab('Colheitas')).length === 45 && (await cab('Colheitas')).slice(-3).join() === 'registroAntigo,documentos,laboratorio' && (await cab('Propriedades')).join() === 'id,codigo,nome,doc,municipio,situacaoFundiaria,lat,lon,criadoEm,atualizadoEm,srv_ts,usuario,cnpj,viaAcesso,comercial,tipoPropriedade,endereco,uf,empresa,frutos', 'abas Colheitas (45 colunas: registroAntigo, documentos e laboratorio no fim) e Propriedades criadas (campos do Cadastro de imóvel e frutos no fim)');
+  ok((await cab('Colheitas')).length === 45 && (await cab('Colheitas')).slice(-3).join() === 'registroAntigo,documentos,laboratorio' && (await cab('Propriedades')).join() === 'id,codigo,nome,doc,municipio,situacaoFundiaria,lat,lon,criadoEm,atualizadoEm,srv_ts,usuario,cnpj,viaAcesso,comercial,tipoPropriedade,endereco,uf,empresa,frutos,situacaoFundiariaOutra,areaTotal,areaAgricola,localidade,obs', 'abas Colheitas (45 colunas: registroAntigo, documentos e laboratorio no fim) e Propriedades criadas (campos do Cadastro de imóvel e frutos no fim)');
 
   console.log('9) consulta do produtor (pceConsultar)');
   let c = await post({ action: 'pceConsultar', key: Bk, doc: '529.982.247-25' });

@@ -543,6 +543,10 @@ function novoTurno() {
     if (!nomes.length) { toast('Informe o nome completo do fiscal.', true); $('#nFiscal1').focus(); return; }
     const curto = nomes.find(n => n.split(' ').length < 2);
     if (curto) { toast(`Informe o nome completo (nome e sobrenome): "${curto}"`, true); return; }
+    // o formulário é lido aqui, no toque: a tela pode ser redesenhada durante as esperas abaixo (rede, GPS) e o nº sairia vazio ("TF-NaN")
+    const nTF = parseInt($('#nTF').value, 10), posto = $('#nPosto').value, local = $('#nLocal').value.trim(), unidade = $('#nUnidade').value.trim();
+    const semPlaca = placaObrigatoria() ? 0 : 1, soPessoas = posto === 'Móvel' && $('#nSoPessoas') && $('#nSoPessoas').checked ? 1 : 0, fiscal1 = $('#nFiscal1').value.trim();
+    if (!(nTF >= 1 && nTF <= 99999)) { toast('Informe o nº do Termo de Fiscalização (só números).', true); $('#nTF').focus(); return; }
     if (!(await conferirEscala())) { toast('Você não está na escala de plantão desta BVA para hoje.', true); return; }
     const data = hojeISO(), inicio = agoraHM();                                  // horário = instante do clique
     const btn = $('#fTurno button[type=submit]'); btn.disabled = true; btn.textContent = 'Obtendo localização…';
@@ -554,20 +558,17 @@ function novoTurno() {
     if (aqui && !confirm(`Já tem turno em andamento em ${aqui.local} (${aqui.fiscal || aqui.dono}).\n\nO melhor é entrar nele ("Entrar neste turno"). Abrir um turno separado mesmo assim?`)) {
       btn.disabled = false; btn.textContent = 'Iniciar turno'; return;
     }
-    const nTF = parseInt($('#nTF').value, 10), letra = await letraProposta(nTF, $('#nLocal').value.trim(), data.slice(0, 4));
+    const letra = await letraProposta(nTF, local, data.slice(0, 4));
     const gps = (await pegarLocal()) || gpsVolante;
     if (!gps) toast('Turno iniciado sem coordenadas (GPS indisponível ou permissão negada).', true);
     const t = await Store.salvar('turnos', {
       numeroTF: `TF-${pad(nTF, 3)}-${letra}-${data.slice(0, 4)}`,
-      data, letra, posto: $('#nPosto').value,
-      inicio, fim: '', ...camposLocal(gps, 'Ini'),
-      fiscal: nomes.join(' e '), local: $('#nLocal').value.trim(),
-      unidade: $('#nUnidade').value.trim(), semPlaca: placaObrigatoria() ? 0 : 1, encerrado: 0,
-      soPessoas: $('#nPosto').value === 'Móvel' && $('#nSoPessoas') && $('#nSoPessoas').checked ? 1 : 0, pessoasEducacao: 0
+      data, letra, posto, inicio, fim: '', ...camposLocal(gps, 'Ini'),
+      fiscal: nomes.join(' e '), local, unidade, semPlaca, encerrado: 0, soPessoas, pessoasEducacao: 0
     });
     ['local', 'unidade', 'posto'].forEach(k => localStorage.setItem('gdv.' + k, t[k]));
     if (t.posto === 'Móvel') localStorage.setItem('gdv.unidadeVolante', t.unidade);
-    localStorage.setItem('gdv.fiscal1', $('#nFiscal1').value.trim());
+    localStorage.setItem('gdv.fiscal1', fiscal1);
     await Store.setMeta('turnoAtual', t.id);
     try { localStorage.removeItem(LS_AVISO_ENC); } catch (e2) { /* sem armazenamento */ }
     Sync.sincronizar(); go('home');

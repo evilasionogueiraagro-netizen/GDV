@@ -1,16 +1,28 @@
 /* Manuais (manual.html do app de campo, do painel e do portal). Tokens e componentes: design.css (docs/DESIGN.md); aqui só o arranjo
-   de uma página de leitura: seções curtas, uma coluna, boa para imprimir. */
+   de uma página de leitura: seções curtas, uma coluna, boa para imprimir. No manual do fiscal, cada passo traz o print da tela
+   (img/manual/, gerado por tests/manual_prints_test.js): ao lado do texto no computador, abaixo dele no celular. */
 body { line-height: 1.5; }
 header { position: sticky; top: 0; z-index: 2; }
 header small { opacity: .85; font-size: 12px; }
 header a { margin-left: auto; color: #fff; font-size: 14px; white-space: nowrap; }
 main { max-width: 680px; margin: 0 auto; padding: 16px; }
-section { background: var(--sf); border: 1px solid var(--borda); border-radius: var(--r-lg); box-shadow: var(--sombra); padding: 4px 16px 12px; margin-bottom: 12px; }
-section h2 { font-size: 18px; margin: 12px 0 6px; }
-section ol, section ul { padding-left: 22px; margin: 6px 0; }
+main:has(.passo) { max-width: 920px; }
+section, .indice { background: var(--sf); border: 1px solid var(--borda); border-radius: var(--r-lg); box-shadow: var(--sombra); padding: 4px 16px 12px; margin-bottom: 12px; scroll-margin-top: 64px; }
+section h2 { font-size: 18px; margin: 12px 0 6px; display: flex; align-items: center; gap: 8px; }
+section h3 { font-size: 15.5px; margin: 8px 0 4px; }
+section ol, section ul, .indice ol { padding-left: 22px; margin: 6px 0; }
 section li { margin: 4px 0; }
 section p { margin: 8px 0; }
-.dica { background: color-mix(in srgb, var(--atencao) 16%, var(--sf)); border: 1px solid var(--atencao); border-radius: var(--r-md); padding: 8px 10px; }
+.n { display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; border-radius: 50%; background: var(--acao); color: #fff; font-size: 15px; flex: none; }
+.indice { padding: 12px 16px; } .indice b { font-size: 16px; } .indice li { margin: 3px 0; } .indice .leg { color: var(--mut); font-size: 13px; margin: 6px 0 0; }
+.passo { display: grid; grid-template-columns: 1fr; gap: 8px 20px; align-items: start; padding: 10px 0; border-top: 1px solid var(--grade); }
+section > h2 + .passo, section > p + .passo { border-top: 0; }
+.passo figure { margin: 0 auto; width: min(260px, 80%); }
+.passo img { display: block; width: 100%; height: auto; border: 1px solid var(--borda); border-radius: var(--r-lg); box-shadow: var(--sombra); background: #fff; }
+.passo figcaption { text-align: center; color: var(--mut); font-size: 12.5px; margin-top: 4px; }
+@media (min-width: 720px) { .passo { grid-template-columns: 1fr 250px; } .passo figure { width: 250px; position: sticky; top: 72px; } }
+.dica { background: color-mix(in srgb, var(--atencao) 16%, var(--sf)); border: 1px solid var(--atencao); border-radius: var(--r-md); padding: 8px 10px; text-align: left; color: var(--ink); }
 b.bt { background: var(--sel); color: var(--destaque); border-radius: var(--r-sm); padding: 0 5px; font-weight: 600; white-space: nowrap; }
+.faq dt { font-weight: 650; margin-top: 10px; } .faq dd { margin: 2px 0 0 0; color: var(--ink2); }
 footer { text-align: center; color: var(--mut); font-size: 12px; padding: 8px 16px 24px; }
-@media print { header { position: static; } section { break-inside: avoid; box-shadow: none; } }
+@media print { header { position: static; } section, .passo { break-inside: avoid; box-shadow: none; } .passo figure { position: static; } .indice { display: none; } }

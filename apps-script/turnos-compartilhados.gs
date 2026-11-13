@@ -261,8 +261,10 @@ function turnoNumero_(req, usuario) {
   return comLock_(function () {
     const linhas = lerLinhas_('Turnos'), t = linhas.filter(function (x) { return x.id === id; })[0];
     if (!t) throw new Error('O turno ainda não chegou ao servidor. Aguarde sincronizar (com internet) e tente de novo.');
-    const colega = lerJSONSeguro_(t.colegas, []).some(function (x) { return nomeChave_(x) === nomeChave_(usuario); });
-    if (t.usuario !== usuario && !colega) throw new Error('Só quem trabalhou no turno pode corrigir o nº.');
+    // dono e colega pelo nome sem diferença de maiúsculas e espaços (conta renomeada); colega pela lista do turno ou pelo pareamento
+    const eu = nomeChave_(usuario), colega = lerJSONSeguro_(t.colegas, []).some(function (x) { return nomeChave_(x) === eu; }) ||
+      lerLeitura_('Pareamentos').some(function (p) { return p.turnoId === id && p.colega && p.entrouEm && !p.removidoPor && nomeChave_(p.colega) === eu; });
+    if (nomeChave_(t.usuario) !== eu && !colega) throw new Error('Só quem trabalhou no turno pode corrigir o nº.');
     if (!numeroTurnoEditavel_(t)) throw new Error('A correção do nº não está liberada para este turno (BVA ou data).');
     const m = RE_NUMERO_TURNO_.exec(String(t.numeroTF || '').trim()), ano = m ? m[3] : String(t.data).slice(0, 4);
     if (m && Number(m[1]) === n) return { ok: true, turno: { id: id, numeroTF: t.numeroTF, letra: t.letra }, igual: true };

@@ -15,7 +15,7 @@
   const horasDe = lista => lista.reduce((s, t) => s + (t.duracaoContabilMin || 0), 0);
   const limitadosTxt = lista => { const n = lista.filter(t => t.horasLimitadas).length; return n ? ` · ${n} turno(s) aberto(s) há mais de 12 h contado(s) com 12 h` : ''; };
   const porHora = (n, min) => min > 0 ? n / (min / 60) : null;
-  const temCoord = t => (t.latIni != null && t.lonIni != null) || (t.latFim != null && t.lonFim != null);
+  const temCoord = t => (t.latIni != null && t.lonIni != null) || (t.latFim != null && t.lonFim != null) || !!t.pontoBva;   // BVA com ponto fixo: no mapa
   const SITUACAO = { ok: 'Em andamento', semsinal: 'Sem sinal > 30 min', longa: 'Aberta > 12 h', aguardando: 'Encerrado no celular, aguardando envio', encerrada: 'Encerrada' };
 
 
@@ -64,6 +64,13 @@
     const semC = d.turnos.filter(t => !temCoord(t));
     if (semC.length) A.push({ nivel: 'info', titulo: `${semC.length} turno(s) sem coordenada GPS`,
       detalhe: 'Contam nos números, mas não aparecem no mapa. Oriente o fiscal a permitir a localização ao iniciar e encerrar o turno.' });
+    const longe = d.turnos.filter(t => t.distBvaKm != null && t.distBvaKm > P.DIST_BVA_KM);
+    if (longe.length) A.push({ nivel: 'atencao', titulo: `${longe.length} turno(s) iniciado(s) a mais de ${P.DIST_BVA_KM} km da BVA (no período)`,
+      detalhe: longe.slice(0, 8).map(t => `${fmt.dataCurta(t.data)} ${t.local} (${t.distBvaKm.toFixed(1).replace('.', ',')} km, ${t.fiscal || 'fiscal não informado'})`).join('; ') + (longe.length > 8 ? '…' : '') +
+        '. Pelo GPS do celular no início do turno, comparado ao ponto da BVA no Cadastro de BVAs. Confira se o turno foi aberto no local certo ou se o GPS estava impreciso.' });
+    const doCadastro = d.turnos.filter(t => t.gpsDoCadastro);
+    if (doCadastro.length) A.push({ nivel: 'info', titulo: `${doCadastro.length} turno(s) de BVA fixa sem GPS no ponto da BVA`,
+      detalhe: 'Aparecem no mapa no ponto da BVA (Cadastro de BVAs), não pelo celular. Oriente o fiscal a permitir a localização ao iniciar o turno.' });
     const curtos = d.turnos.filter(t => t.encerrado && t.duracaoMin != null && t.duracaoMin < 60);
     if (curtos.length) A.push({ nivel: 'info', titulo: `${curtos.length} turno(s) com menos de 1 h`,
       detalhe: curtos.slice(0, 8).map(t => `${fmt.dataCurta(t.data)} ${t.local || ''} (${fmt.duracao(t.duracaoMin)})`).join('; ') + (curtos.length > 8 ? '…' : '') });
@@ -131,7 +138,7 @@
         it.innerHTML = `${P.seloSituacao(t)}<b>${esc(t.local || 'Sem local')}</b><small>${esc(t.fiscal || '')}${t.municipio ? ' · ' + esc(t.municipio) : ''}${t.posto ? ' · posto ' + esc(t.posto) : ''}</small>
           <small>Início ${esc(fmt.dataCurta(t.data))} ${esc(t.inicio || '')} · ${esc(fmt.duracao(t.duracaoMin))} · último sinal ${esc(fmt.rel(t.ultimoSinal))}</small>${P.linhasSinal(t)}
           <div class="pn-vivo-num"><span><strong>${fmt.int(t.nVeiculos)}</strong>veículos</span><span><strong>${fmt.int(t.nPessoas)}</strong>pessoas</span>${vph != null ? `<span><strong>${fmt.num(vph, 1)}</strong>/h</span>` : ''}</div>
-          <small>${t.ultimoVeiculo ? `Último veículo às ${esc(t.ultimoVeiculo.hora)} (${esc(nomeTipo(t.ultimoVeiculo.tipo))})` : 'Nenhum veículo registrado ainda'}${t.lat == null ? ' · sem GPS' : ''}</small>`;
+          <small>${t.ultimoVeiculo ? `Último veículo às ${esc(t.ultimoVeiculo.hora)} (${esc(nomeTipo(t.ultimoVeiculo.tipo))})` : 'Nenhum veículo registrado ainda'}${t.lat == null ? ' · sem GPS' : t.gpsDoCadastro ? ' · sem GPS (no ponto da BVA)' : ''}</small>`;
         if (t.lat != null && t.lon != null) {
           const b = P.el('button', 'pn-link', 'Ver no mapa'); b.type = 'button';
           b.onclick = () => { const m = window.__pnBarMapa; if (!m) return; m.map.setView([t.lat, t.lon], 11); document.querySelector('.pn-bar-mapa').scrollIntoView({ behavior: 'smooth', block: 'start' }); };

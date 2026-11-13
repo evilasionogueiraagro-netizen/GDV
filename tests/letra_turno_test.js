@@ -41,6 +41,13 @@ const T = (id, n, letra, local = 'BVA - JUNDIÁ', extra = {}) => ({ id, numeroTF
   await post({ action: 'sync', key: A.token, since: 0, turnos: [T('lt6', 20, 'A', 'BVA - JUNDIÁ', { data: '2026-10-20' })] });
   r = await post({ action: 'turnoNumero', key: A.token, turnoId: 'lt6', numero: 21 });
   ok(!r.ok && /não está liberada/.test(r.erro), 'turno do Jundiá de antes de 24/10: correção não liberada', r.erro);
+  // nº que ficou "NaN" no aparelho (formulário apagado durante a abertura): o colega do turno corrige
+  await post({ action: 'sync', key: A.token, since: 0, turnos: [{ ...T('lt7', 1, 'A'), numeroTF: `TF-NaN-A-${ANO}`, inicio: new Date(Date.now() - 4 * 3600e3).toISOString().slice(11, 16) }] });   // aberto agora: aceita entrada
+  r = await post({ action: 'turnoEntrar', key: B.token, turnoId: 'lt7' }); ok(r.ok, 'o colega entra no turno', r.erro);
+  r = await post({ action: 'turnoNumero', key: B.token, turnoId: 'lt7', numero: 30 });
+  ok(r.ok && r.turno.numeroTF === `TF-030-A-${ANO}`, 'turno com nº "NaN": o colega corrige', r.turno || r.erro);
+  r = await post({ action: 'sync', key: A.token, since: 0, turnos: [{ ...T('lt7', 1, 'A'), numeroTF: `TF-NaN-A-${ANO}`, encerrado: 1, atualizadoEm: ag + 9000 }] });
+  ok((await aba('Turnos')).find(t => t.id === 'lt7').numeroTF === `TF-030-A-${ANO}`, 'reenvio do aparelho com o "NaN" não desfaz a correção');
   const H = (await aba('HistoricoDeAlteracoes')).filter(h => h.registroId === 'lt5');
   ok(H.length === 1 && /TF-013-A/.test(H[0].antes) && /TF-012-D/.test(H[0].depois), 'histórico registra quem corrigiu, antes e depois', H);
   r = await post({ action: 'sync', key: C.token, since: 0 });

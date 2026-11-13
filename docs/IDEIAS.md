@@ -46,22 +46,22 @@ Feito: veja [modulos/convenio.md](modulos/convenio.md).
 Decisões: [Convênio MAPA/ADAF](decisoes/anteriores.md#convênio-mapaadaf)
 
 Falta:
-- Registro de armadilhas (etapa 1.3) e de ações de controle (etapa 1.5) no app de campo; hoje, lançamento manual no painel.
-- Criar convênio novo: hoje é copiar a linha da aba `Convenios` e ajustar o JSON.
+- Armadilhas (1.3) e ações de controle (1.5) no app de campo; hoje, lançadas no painel.
+- Convênio novo: hoje, copiar a linha da aba `Convenios`.
 
 ---
 
 ## 4. Relatório GDV: próximos passos
 
 *Feito em 14 e 16/10/2026. Em espera (gestor): por ora, linha manual.*
-Feito: veja [modulos/relatorios.md](modulos/relatorios.md) e, para a carga na barreira, [modulos/vigifito.md](modulos/vigifito.md).
+Feito: [relatorios](modulos/relatorios.md), [vigifito](modulos/vigifito.md).
 Decisões: [Relatório GDV](decisoes/anteriores.md#relatório-gdv)
 
 Falta:
 - Medida aplicada com quantidade, por visita (hoje: linhas e coluna próprias no painel).
 - Vazio sanitário da soja. Hoje: coluna "Fiscalizações do vazio sanitário" por município.
 - Educação sanitária no app (ações, público). Hoje: Seção V no painel; veículos orientados já automáticos.
-- Importação de CFO/CFOC, PTV e UP/UC (CSV dos sistemas de certificação). Hoje: tabelas das Seções III e IV no painel.
+- Importar CFO/CFOC, PTV e UP/UC (CSV). Hoje: Seções III e IV no painel.
 - Armadilhas (mosca-da-carambola e Diaphorina citri). Hoje: coluna e linha próprias no painel (Seção VI).
 - Avisos de consistência: coordenada fora do município (exige a malha); importar relatórios anteriores ao e-GDV.
 

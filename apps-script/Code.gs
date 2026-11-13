@@ -178,7 +178,8 @@ const TABELAS = {
   EscalaPcdp: ['id', 'escalaId', 'usuarioId', 'nome', 'situacao', 'pcdp', 'atualizadoEm', 'atualizadoPor', 'admId'],
   // BVAs cadastradas pela gerência no painel (bvas.gs): somam-se às de CONFIG.bvas e mudam/desativam as de lá pelo nome
   BVAs: ['id', 'nome', 'municipio', 'endereco', 'placa', 'ficha', 'ativo', 'criadoEm', 'criadoPor', 'atualizadoEm', 'atualizadoPor',
-         'escalaRegime', 'escalaDias', 'escalaTroca'],   // regime da escala de plantão (dias | 12x36 | 8h | ajustavel; vazio = o do config.js) e dias do período
+         'escalaRegime', 'escalaDias', 'escalaTroca',    // regime da escala de plantão (dias | 12x36 | 8h | ajustavel; vazio = o do config.js) e dias do período
+         'lat', 'lng'],                                  // ponto fixo da BVA (painel: mapa, turno sem GPS e alerta de distância); vazio = sem ponto
   // Quem leu dados pessoais (LGPD): uma linha por usuário + action a cada 1 h (acessos.gs lido_). resumo = filtros, sem dado pessoal.
   AcessosADados: ['id', 'em', 'usuarioId', 'nome', 'acao', 'resumo'],
   // Catálogo do PCE (pce-catalogo.gs): a gerência edita no painel; vazio = vale a base do código. A praga pertence a um programa (várias podem dividir um: Citros); a família define o

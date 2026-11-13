@@ -8,8 +8,15 @@ function bvasCadastro_() {
   return lerLeitura_('BVAs').filter(function (b) { return b.id && b.nome; }).map(function (b) {
     return { id: b.id, nome: b.nome, municipio: b.municipio || '', endereco: b.endereco || '', placa: Number(b.placa) === 1 ? 1 : 0, ficha: Number(b.ficha) === 1 ? 1 : 0,
              ativo: Number(b.ativo) === 0 ? 0 : 1, atualizadoEm: Number(b.atualizadoEm) || 0, atualizadoPor: b.atualizadoPor || '',
-             escalaRegime: REGIMES_ESCALA_.indexOf(b.escalaRegime) >= 0 ? b.escalaRegime : '', escalaDias: Number(b.escalaDias) || 0, escalaTroca: Number(b.escalaTroca) === 1 ? 1 : 0 };
+             escalaRegime: REGIMES_ESCALA_.indexOf(b.escalaRegime) >= 0 ? b.escalaRegime : '', escalaDias: Number(b.escalaDias) || 0, escalaTroca: Number(b.escalaTroca) === 1 ? 1 : 0,
+             lat: coordBva_(b.lat, 90), lng: coordBva_(b.lng, 180) };
   });
+}
+/** Coordenada guardada (texto ou número) → número com até 6 casas, ou '' (vazia ou fora de -lim…lim). */
+function coordBva_(v, lim) {
+  if (v === '' || v === null || v === undefined) return '';
+  const n = Number(String(v).trim().replace(',', '.'));
+  return isFinite(n) && Math.abs(n) <= lim && n !== 0 ? Math.round(n * 1e6) / 1e6 : '';
 }
 // regime da escala de plantão (web/js/config.js → REGIMES_ESCALA): período de N dias, 12 h × 36 h, turno diário de 8 h, ajustável
 const REGIMES_ESCALA_ = ['dias', '12x36', '8h', 'ajustavel'];
@@ -18,7 +25,7 @@ function nomeBva_(v) {
   let n = String(v || '').trim().replace(/\s+/g, ' ').replace(/^bva\s*[-–]?\s*/i, '').toUpperCase();
   return n ? 'BVA - ' + n : '';
 }
-/** painelBvaSalvar {bva: {id?, nome, municipio, endereco, placa, ficha, ativo, escalaRegime?, escalaDias?}}: cria ou altera (só a gerência). */
+/** painelBvaSalvar {bva: {id?, nome, municipio, endereco, placa, ficha, ativo, escalaRegime?, escalaDias?, lat?, lng?}}: cria ou altera (só a gerência). */
 function painelBvaSalvar(token, req) {
   const quem = adminDoToken_(token, true), b = req && req.bva;
   if (!b || typeof b !== 'object') throw new Error('BVA não informada.');
@@ -29,6 +36,14 @@ function painelBvaSalvar(token, req) {
     if (rg && REGIMES_ESCALA_.indexOf(rg) < 0) throw new Error('Regime da escala inválido.');
     if (rg === 'dias' && !(dias >= 1 && dias <= ESCALA_MAX_DIAS_ && Math.round(dias) === dias)) throw new Error('Período da escala: de 1 a ' + ESCALA_MAX_DIAS_ + ' dias.');
     reg.escalaRegime = rg; reg.escalaDias = rg === 'dias' ? dias : ''; reg.escalaTroca = rg === 'dias' && b.escalaTroca ? 1 : 0;
+  }
+  if (b.lat !== undefined || b.lng !== undefined) {                  // ponto fixo da BVA: os dois ou nenhum
+    const vazio = v => String(v === undefined || v === null ? '' : v).trim() === '';
+    if (vazio(b.lat) && vazio(b.lng)) { reg.lat = ''; reg.lng = ''; }
+    else {
+      reg.lat = coordBva_(b.lat, 90); reg.lng = coordBva_(b.lng, 180);
+      if (reg.lat === '' || reg.lng === '') throw new Error('Coordenada inválida: informe latitude e longitude em graus decimais (ex.: -3.1190, -60.0217).');
+    }
   }
   return comLock_(function () {
     const linhas = lerLinhas_('BVAs'), id = String(b.id || '').trim(), atual = id ? linhas.filter(function (x) { return x.id === id; })[0] : null;
@@ -47,7 +62,7 @@ function painelBvaSalvar(token, req) {
     barreiraDaBva_(nome, reg);
     inserir_('HistoricoDeAlteracoes', [{ id: uuid_(), em: agora, usuarioId: (USUARIO_ATUAL_ && USUARIO_ATUAL_.id) || textoAutor_(quem), acao: atual ? 'alterar BVA' : 'cadastrar BVA',
       tabela: 'BVAs', registroId: novoId, antes: atual ? JSON.stringify({ municipio: atual.municipio, endereco: atual.endereco, placa: atual.placa, ficha: atual.ficha, ativo: atual.ativo,
-        escalaRegime: atual.escalaRegime, escalaDias: atual.escalaDias }) : '',
+        escalaRegime: atual.escalaRegime, escalaDias: atual.escalaDias, lat: atual.lat, lng: atual.lng }) : '',
       depois: JSON.stringify(Object.assign({ nome: nome }, reg)) }]);
     return { ok: true, bva: Object.assign({ id: novoId, nome: nome }, reg), bvas: bvasCadastro_() };
   });

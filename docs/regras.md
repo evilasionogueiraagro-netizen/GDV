@@ -30,7 +30,7 @@ Valem para todo código, teste, doc e commit. Resumo de uma linha de cada no [AG
   de outro arquivo (mapas de funções viram função que monta o mapa na chamada); `ordem_arquivos_test` confere.
 - **Fuso**: datas de negócio em `America/Manaus` (UTC-4): `hojeManaus_()`, `tsManaus_()`, nunca `new Date()` cru.
 - **Sem e-mail, ID de planilha ou de pasta fixos no código**: vão nas propriedades do script (`grep -n getProperty`).
-  A planilha, o script e o Drive são da conta `adafegdv@gmail.com` desde 15/10/2026; o código segue a conta dona do
+  A planilha, o script e o Drive são de uma conta institucional da ADAF desde 15/10/2026; o código segue a conta dona do
   script.
 
 ## Front (`web/`)

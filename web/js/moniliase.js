@@ -357,7 +357,7 @@ const PCEMon = (() => {
         <div class="duas">${inp(p, 't1nome', 'Testemunha 1 – nome', D.t1nome)}${inp(p, 't1doc', 'CPF/RG', D.t1doc)}</div>
         <div class="duas">${inp(p, 't2nome', 'Testemunha 2 – nome', D.t2nome)}${inp(p, 't2doc', 'CPF/RG', D.t2doc)}</div>
         ${inp(p, 'recebido', 'Recebi a 2ª via deste Termo em (data, hora e local)', D.recebidoEm)}</div>
-      <div class="card mon-extras"><h3>${icone('resumo')} Para o levantamento</h3><p class="dica" style="text-align:left">Não aparece no papel.</p>
+      <div class="card mon-extras"><h3>${icone('resumo')} Para o relatório de atividades</h3><p class="dica" style="text-align:left">Não aparece no papel.</p>
         ${inp(p, 'plantas', 'Plantas inspecionadas', D.plantas, 'inputmode="numeric" autocomplete="off"')}
         ${sn(p, 'amostra', 'Amostra coletada?', D.amostra)}${sn(p, 'sintomas', 'Presença de sintomas?', D.sintomas)}</div>
       ${pdfHTML(p)}
@@ -512,7 +512,7 @@ const PCEMon = (() => {
     const salvo = progs.some(x => x.id === m.programa) ? m.programa : '';
     const progSel = salvo && (contagem.find(x => x.id === salvo).n || !maior.n) ? salvo : (maior.n ? maior.id : (salvo || 'moniliase'));
     if (!mostrar.viva()) return;
-    mostrar(`      <form id="monRelForm" class="card" autocomplete="off"><h3>${icone('resumo')} Levantamento</h3>
+    mostrar(`      <form id="monRelForm" class="card" autocomplete="off"><h3>${icone('resumo')} Relatório de atividades</h3>
       <p class="dica" style="text-align:left">Resumo de um período e de um local, por programa, calculado dos Termos de Fiscalização deste aparelho (o painel junta os de todos os servidores). Sai no modelo do Relatório de atividades do convênio; muda só o nome do programa. Os números são calculados; os textos podem ser editados.</p>
       <div class="duas"><label>De<input id="mr-de" type="date" value="${esc(m.de || fp.de)}"></label><label>Até<input id="mr-ate" type="date" value="${esc(m.ate || fp.ate)}"></label></div>
       <div class="duas"><label>Município<select id="mr-mun">${opts(P.municipios, m.municipio || '', 'Todos')}</select></label>
@@ -541,12 +541,12 @@ const PCEMon = (() => {
         'mr-resp': R.servidores[0] ? [R.servidores[0].nome, R.servidores[0].funcao].filter(Boolean).join(' - ') : '' };
       Object.entries(suger).forEach(([k, v]) => { const el = $('#' + k); if (el && (!el.value.trim() || el.value === auto[k])) { el.value = v; auto[k] = v; } });
       const c = R.calc;
-      // levantamento final só com tudo na planilha: Termo que não subiu ainda tem número provisório (pode mudar ao sincronizar)
+      // relatório final só com tudo na planilha: Termo que não subiu ainda tem número provisório (pode mudar ao sincronizar)
       const pend = c.termos.filter(t => Number(t.pendente) || t.provisorio).length;
       const envio = !c.nTermos ? ''
-        : pend ? `<div class="tf-novo" id="mr-pendentes">${icone('sincronizar')} ${pend} de ${c.nTermos} Termo(s) deste levantamento ainda não subiram para a planilha; o número deles é provisório.
-            Envie antes de gerar o levantamento final.${navigator.onLine ? `<button class="botao sec" type="button" id="mr-enviar">${icone('sincronizar')} Enviar agora</button>` : ' Sem internet: envie quando tiver sinal.'}</div>`
-        : `<div class="tf-ok" id="mr-enviados">Todos os ${c.nTermos} Termo(s) deste levantamento já estão na planilha.</div>`;
+        : pend ? `<div class="tf-novo" id="mr-pendentes">${icone('sincronizar')} ${pend} de ${c.nTermos} Termo(s) deste relatório ainda não subiram para a planilha; o número deles é provisório.
+            Envie antes de gerar o relatório final.${navigator.onLine ? `<button class="botao sec" type="button" id="mr-enviar">${icone('sincronizar')} Enviar agora</button>` : ' Sem internet: envie quando tiver sinal.'}</div>`
+        : `<div class="tf-ok" id="mr-enviados">Todos os ${c.nTermos} Termo(s) deste relatório já estão na planilha.</div>`;
       $('#mr-previa').innerHTML = `${envio}<div class="pce-stats-topo">
           <b>${icone('resumo')} Atividades desenvolvidas</b>
           <small>${c.cadastros.length} cadastro(s) ligado(s)</small>
@@ -602,7 +602,7 @@ const PCEMon = (() => {
     if (!rel.calc.nTermos && !confirm('Nenhum Termo de Fiscalização no período/filtros escolhidos. Gerar o relatório assim mesmo?')) return;
     const r = await Docs.pceMon('relatorio', rel, { anexos, arquivosPorReg }, modo);
     if (modo === 'arquivo') {
-      if (PDF.podeCompartilhar([r])) { try { await PDF.compartilhar([r], 'Levantamento — ADAF', 'Levantamento (Relatório de atividades) gerado pelo e-GDV.'); } catch (e) { PDF.baixar(r); } }
+      if (PDF.podeCompartilhar([r])) { try { await PDF.compartilhar([r], 'Relatório de atividades — ADAF', 'Relatório de atividades gerado pelo e-GDV.'); } catch (e) { PDF.baixar(r); } }
       else PDF.baixar(r);
       toast(`PDF gerado: ${r.name}`);
     }

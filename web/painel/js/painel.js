@@ -1242,7 +1242,7 @@ const Painel = (() => {
         L.marker(w.ll, { icon: ic, zIndexOffset: t.tfAndamento ? 2000 : 1000, title: (t.local || 'Barreira em andamento') + (t.tfAndamento ? ' — ' + rotuloTF(t) : ''), keyboard: true })
           .bindPopup(() => popup(t.local || 'Barreira', linhasTF(t.tfAndamento).concat([['Posto', t.posto], ['Unidade', t.unidade], ['Município', t.municipio], ['Fiscais', t.fiscal], ['Início', `${fmt.data(t.data)} ${t.inicio || ''}`],
             ['Duração até agora', fmt.duracao(t.duracaoMin)], ['Veículos', fmt.int(t.nVeiculos)], ['Pessoas', fmt.int(t.nPessoas)],
-            ['Último veículo', t.ultimoVeiculo ? `${t.ultimoVeiculo.hora} (${t.ultimoVeiculo.placa || 's/ placa'})` : 'nenhum ainda'], ['Último sinal', t.ultimoSinal ? `${fmt.dataHora(t.ultimoSinal)} (${fmt.rel(t.ultimoSinal)})` : '—'],
+            ['Último veículo', t.ultimoVeiculo ? `${t.ultimoVeiculo.hora} (${t.ultimoVeiculo.placa || t.ultimoVeiculo.embarcacao || 's/ placa'})` : 'nenhum ainda'], ['Último sinal', t.ultimoSinal ? `${fmt.dataHora(t.ultimoSinal)} (${fmt.rel(t.ultimoSinal)})` : '—'],
             t.situacao === 'aguardando' ? ['Celular', `encerrado${t.fimNoCelular ? ' às ' + t.fimNoCelular : ''}, aguardando envio`] : t.semSinal ? ['Celular', textoSemSinal(t)] : null,
             t.aparelho && t.aparelho.erroAtual && t.aparelho.ultimoErro ? ['Erro ao enviar', t.aparelho.ultimoErro] : null, linhaAprox(w)]),
             seloSituacao(t))).addTo(g);
@@ -1298,7 +1298,7 @@ const Painel = (() => {
         const ic = L.divIcon({ className: '', html: `<div class="pn-tfpto${apre ? ' apre' : ''}${w.aprox ? ' aprox' : ''}">TF</div>`, iconSize: [22, 16], iconAnchor: [11, 8], popupAnchor: [0, -9] });
         L.marker(w.ll, { icon: ic, zIndexOffset: 500, title: 'TF ' + (t.numeroTxt || ''), keyboard: true })
           .bindPopup(() => popup('TF ' + (t.numeroTxt || ''), [['Data', `${fmt.data(t.data)} ${t.hora || ''}`], ['Procedimento', t.procedimentoNome], ['Barreira', t.localBarreira], ['Município', t.municipio || w.municipio],
-            ['Fiscal', t.fiscal], ['Placa', t.placa], ['Origem → destino', [t.origem, t.destino].filter(Boolean).join(' → ')], t.reincidente ? ['Reincidente', 'sim'] : null, linhaAprox(w)],
+            ['Fiscal', t.fiscal], ['Placa', t.placa], t.embarcacao ? ['Embarcação', t.embarcacao] : null, ['Origem → destino', [t.origem, t.destino].filter(Boolean).join(' → ')], t.reincidente ? ['Reincidente', 'sim'] : null, linhaAprox(w)],
             apre ? '<span class="pn-selo critico">Apreensão</span>' : '')).addTo(g);
       });
     }

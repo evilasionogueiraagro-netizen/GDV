@@ -666,7 +666,7 @@ async function registrar() {
   const tiposTurno = Object.entries(CONFIG.tipos).filter(([c, x]) => !x.soVolante || t.posto === 'Móvel' || (v && v.tipo === c));
   const soPes = soPessoas(t), tipo = v ? v.tipo : soPes && CONFIG.tipos.EM ? 'EM' : 'PA', semPlaca = !!Number(t.semPlaca);    // turno com placa opcional (ex.: Jundiá)
   const cuidadoFixo = !!(v && Number(v.cuidado) === 1);                // alerta de cuidado já salvo: não se desmarca no app
-  view(`<form class="card" id="fVeic"><h3>${v ? 'Editar veículo' : 'Registrar veículo'}</h3>
+  view(`<form class="card" id="fVeic"><h3 id="fVeicTit">${v ? 'Editar veículo' : 'Registrar veículo'}</h3>
     <label id="embBox" hidden>Nome da embarcação *<input id="embarcacao" maxlength="80" autocomplete="off" autocapitalize="characters" placeholder="ex.: B/M ESTRELA DO RIO" value="${esc(v && v.embarcacao || '')}"></label>
     <label id="placaBox">Placa${semPlaca ? ' <small>(opcional)</small>' : ''}<input id="placa" maxlength="8" autocapitalize="characters" autocomplete="off" ${semPlaca ? '' : 'required'} placeholder="ABC1D23" value="${esc(v ? v.placa : '')}" aria-describedby="placa-tf"></label>
     <p id="placa-cuidado" class="aviso placa-tf" role="alert" hidden></p><p id="placa-tf" class="aviso-erro placa-tf" role="status" hidden></p>
@@ -705,7 +705,7 @@ async function registrar() {
   placa.oninput = () => { placa.value = placa.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); conferirTF(); };
   // embarcação: nome no lugar da placa (sem placa, sem alerta de cuidado, que é por placa)
   const ehEmb = () => { const r = document.querySelector('input[name=tipo]:checked'); return !!r && r.value === 'EM'; };
-  const trocarTipo = () => { const emb = ehEmb(); $('#embBox').hidden = !emb; $('#placaBox').hidden = emb; $('.veic-cuidado').hidden = emb;
+  const trocarTipo = () => { const emb = ehEmb(); $('#fVeicTit').textContent = `${v ? 'Editar' : 'Registrar'} ${emb ? 'embarcação' : 'veículo'}`; $('#embBox').hidden = !emb; $('#placaBox').hidden = emb; $('.veic-cuidado').hidden = emb;
     placa.required = !emb && !semPlaca; if (emb) { avisoTF.hidden = true; avisoCuid.hidden = true; } };
   document.querySelectorAll('input[name=tipo]').forEach(r => { r.onchange = trocarTipo; }); trocarTipo();
   $('#vCuidado').onchange = e => { $('#vCuidadoBox').hidden = !e.target.checked; if (e.target.checked) $('#vCuidadoMot').focus(); };

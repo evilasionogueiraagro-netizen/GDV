@@ -311,7 +311,7 @@
       { chave: 'data', rotulo: 'Data', fmt: (v, l) => `${fmt.data(v)}${l.hora ? ' ' + l.hora : ''}`, csv: v => fmt.data(v), ordem: l => (l.data || '') + (l.hora || '') },
       { chave: 'barreiraNome', rotulo: 'Barreira' }, { chave: 'fiscal', rotulo: 'Fiscal' },
       { chave: 'procedimento', rotulo: 'Procedimento', fmt: (v, l) => curtoProc(procDe(l)) + (l.auto ? ' + auto' : '') + (l.advertencia ? ' + advertência' : '') },
-      { chave: 'placa', rotulo: 'Placa' },
+      { chave: 'placa', rotulo: 'Placa / embarcação', fmt: (v, l) => [v, l.embarcacao].filter(Boolean).join(' · ') || '—' },
       { chave: 'rota', rotulo: 'Origem → destino', fmt: (v, l) => rota(l) || '—', ordem: l => rota(l) || '' },
       { chave: 'produtosTxt', rotulo: 'Produtos', fmt: (v, l) => l.produtosLista.map(x => `${x.produto}${x.qtd != null ? ' ' + fmt.num(x.qtd, 1) : ''}${x.unidade ? ' ' + x.unidade : ''}`).join('; ') || '—', ordem: l => (l.produtosLista[0] || {}).produto || '' },
       { chave: 'nome', rotulo: 'Fiscalizado', fmt: (v, l) => [v, l.doc].filter(Boolean).join(' · ') || '—',

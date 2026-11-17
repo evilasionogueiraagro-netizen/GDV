@@ -7,7 +7,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | Órgão | Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM |
 | Unidade responsável | Gerência de Defesa Vegetal – GDV |
 | Produto | e-GDV (app de campo, painel gerencial, Portal do Administrativo, dashboard público e serviço de dados) |
-| Versão do sistema descrita | 2026-11-17d |
+| Versão do sistema descrita | 2026-11-17e |
 | Versão deste Termo | 2.5, de 17/11/2026 |
 
 ## 1. Objeto
@@ -76,7 +76,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 
 ### 4.3. Termo de Fiscalização de Barreira (TF) e Auto de Infração
 - RF-15. Lavratura do TF, isolado ou a partir do veículo do turno:
-  - dados do fiscalizado e do veículo;
+  - dados do fiscalizado e do veículo (no volante, a embarcação pelo nome);
   - produtos e quantidades, origem e destino;
   - documentos apresentados;
   - procedimento (liberação, apreensão ou rechaço), fiel depositário e advertência;
@@ -223,4 +223,4 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | 2.2 | 09/11/2026 | 2026-11-09a | RF-04A: o que o servidor manda a um login é sempre visível para ele, mesmo com o nome da conta alterado |
 | 2.3 | 09/11/2026 | 2026-11-09a | RF-20: QR code e endereço de verificação desligados no TF de Barreira |
 | 2.4 | 17/11/2026 | 2026-11-17c | RF-46: novo módulo Termo de Educação Sanitária; o cartão de turnos e veículos passa a se chamar Fiscalização de Trânsito |
-| 2.5 | 17/11/2026 | 2026-11-17d | RF-07 e RF-13: tipo Embarcação (com o nome) no volante; o volante só de educação sanitária registra embarcações e lavra TF de barreira no turno |
+| 2.5 | 17/11/2026 | 2026-11-17e | RF-07, RF-13 e RF-15: tipo Embarcação (com o nome) no volante; o volante só de educação sanitária registra embarcações e lavra TF de barreira no turno; o TF da embarcação traz o nome dela |

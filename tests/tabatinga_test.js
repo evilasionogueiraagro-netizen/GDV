@@ -43,8 +43,8 @@ const diaManaus = ms => new Date(ms - 4 * 3600e3).toISOString().slice(0, 10);
     await p.click('[data-pes="corrigir"]'); await p.waitForTimeout(300);
     ok((await p.textContent('#pesCont h1')).trim() === '12', 'corrigir total: 12');
     await p.click('main [data-go=registrar]'); await p.waitForSelector('#fVeic');
-    ok(await p.isChecked('input[name=tipo][value=EM]') && await p.isVisible('#embarcacao') && !(await p.isVisible('#placa')) && !(await p.locator('#pessoas').count()),
-      'Registrar: Embarcação marcada, nome no lugar da placa, sem pessoas (ficam no contador)');
+    ok(await p.isChecked('input[name=tipo][value=EM]') && await p.isVisible('#embarcacao') && !(await p.isVisible('#placa')) && !(await p.locator('#pessoas').count()) &&
+      /Registrar embarcação/.test(await p.textContent('#fVeicTit')), 'Registrar: Embarcação marcada, título "Registrar embarcação", nome no lugar da placa, sem pessoas (ficam no contador)');
     await p.click('#fVeic button.botao'); await p.waitForTimeout(300);
     ok(/nome da embarcação/.test(await p.textContent('#toast')), 'embarcação sem nome: não salva');
     await p.fill('#embarcacao', 'b/m estrela ficticia'); await p.click('#fVeic button.botao'); await p.waitForTimeout(500);
@@ -54,6 +54,9 @@ const diaManaus = ms => new Date(ms - 4 * 3600e3).toISOString().slice(0, 10);
     await p.click('main [data-go=lista]'); await p.waitForSelector('.item');
     ok(/B\/M ESTRELA FICTICIA/.test(await p.textContent('.item .placa')) && /Embarcação/.test(await p.textContent('.item .tipo')) && !/Pessoas:/.test(await p.textContent('.item')),
       'lista: nome da embarcação no lugar da placa, tipo Embarcação');
+    await p.click('.item [data-tfveic]'); await p.waitForSelector('#tfForm');
+    ok(await p.inputValue('#tf-embarcacao') === 'B/M ESTRELA FICTICIA' && !(await p.inputValue('#tf-placa')),
+      '"Lavrar TF" na embarcação: o TF vem com o nome da embarcação (sem placa)', await p.inputValue('#tf-embarcacao').catch(() => 'sem campo'));
     await p.click('nav [data-v=home]'); await p.waitForSelector('#pesCont');
     await p.click('main [data-go=tfnovo]'); await p.waitForSelector('#tfForm');
     ok(await p.evaluate(async () => { const r = await Store.meta('turnoAtual'); return !!r; }), 'Lavrar TF de barreira: abre o formulário do TF com o turno aberto');
@@ -78,6 +81,7 @@ const diaManaus = ms => new Date(ms - 4 * 3600e3).toISOString().slice(0, 10);
     const PD = await post({ action: 'painelDados', key: TOK, de: hoje, ate: hoje });
     const tp = PD.ok && (PD.turnos || []).find(x => x.id === (t && t.id));
     ok(tp && tp.nVeiculos === 1 && tp.nPessoas === 12 && tp.pessoasEducacao === 12, 'painel: turno com 1 embarcação e 12 pessoas', tp);
+    ok((PD.veiculos || []).some(x => x.turnoId === (t && t.id) && x.embarcacao === 'B/M ESTRELA FICTICIA'), 'painel: a embarcação vem com o nome (no lugar de "s/ placa")');
     const VD = await post({ action: 'painelVigDados', key: TOK, ano: Number(hoje.slice(0, 4)) });
     const X = ((VD.apuracao.porMes || {})['tabatinga-volante'] || {})[hoje.slice(0, 7)] || {};
     ok(X.educacao === 12 && X.veiculos === 1 && X.turnos === 1 && X.abordagem === 1, 'VIGIFITO Tabatinga volante: educação sanitária 12, 1 embarcação, 1 abordagem itinerante', X);

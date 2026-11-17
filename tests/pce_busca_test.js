@@ -2,7 +2,7 @@ const amb = require('./lib/amb');
 const A = require('./lib/pce-app');
 const path = require('path'), { spawn } = require('child_process');
 // PCE — aparelho e planilha deixados explícitos: a busca de produtor (Produtores e Novo termo) procura sozinha na planilha com internet e avisa
-// sem internet; o Levantamento (antes "Relatório de atividades") abre no programa que tem Termo e avisa o Termo que ainda não subiu, com
+// sem internet; o Relatório de atividades abre no programa que tem Termo e avisa o Termo que ainda não subiu, com
 // "Enviar agora". E o local.js (GDV_LOCAL=1) aponta as páginas para o servidor local sem mudar o fakegas da suíte.
 // App real + Code.gs real no fakegas. Dados fictícios.
 const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x === undefined ? '' : ' -> ' + JSON.stringify(x).slice(0, 300))); if (!c) throw new Error(m); };
@@ -50,26 +50,26 @@ const texto = (p, sel) => p.evaluate(s => (document.querySelector(s) || {}).text
     'sem internet: aviso amarelo no aparelho e aviso de que a planilha não foi consultada');
   await pB.ctx.setOffline(false); await pB.evaluate(() => window.dispatchEvent(new Event('online')));
 
-  console.log('5) Levantamento: nome, programa do Termo e Termo que não subiu');
+  console.log('5) Relatório de atividades: nome, programa do Termo e Termo que não subiu');
   await pA.evaluate(() => go('pcetermos')); await pA.waitForSelector('#mon-ir-rel');
-  ok(/^\s*Levantamento\s*$/.test(await pA.locator('#mon-ir-rel').textContent()), 'aba Termos: botão "Levantamento"');
+  ok(/^\s*Relatório de atividades\s*$/.test(await pA.locator('#mon-ir-rel').textContent()), 'aba Termos: botão "Relatório de atividades"');
   await A.abrirProdutor(pA, 'sitio busca');
   // visita sem internet: o Termo fica no aparelho, com número provisório; a planilha continua fora quando a internet volta
   await fetch(amb.API + '/__off'); await pA.ctx.setOffline(true); await pA.evaluate(() => window.dispatchEvent(new Event('offline')));
   await A.visita(pA, { frutos: ['Laranja'], padrao: 'nao_detectada' });
   await pA.ctx.setOffline(false); await pA.evaluate(() => window.dispatchEvent(new Event('online')));
   await pA.evaluate(() => go('pcerel')); await pA.waitForSelector('#monRelForm');
-  ok(/^\s*Levantamento\s*$/.test(await pA.locator('#monRelForm h3').first().textContent()), 'tela com o título "Levantamento"');
+  ok(/^\s*Relatório de atividades\s*$/.test(await pA.locator('#monRelForm h3').first().textContent()), 'tela com o título "Relatório de atividades"');
   ok(await pA.inputValue('#mr-praga') === 'citros', 'abre no programa que tem Termo no período (citros), não em Monilíase', await pA.inputValue('#mr-praga'));
   await pA.waitForSelector('#mr-pendentes');
-  ok(/1 de 1 Termo\(s\) deste levantamento ainda não subiram/.test(await texto(pA, '#mr-pendentes')) && await pA.locator('#mr-enviar').count() === 1,
+  ok(/1 de 1 Termo\(s\) deste relatório ainda não subiram/.test(await texto(pA, '#mr-pendentes')) && await pA.locator('#mr-enviar').count() === 1,
     'Termo não enviado: aviso com a contagem e "Enviar agora"', await texto(pA, '#mr-pendentes'));
   await pA.click('#mr-enviar'); await pA.waitForSelector('#mr-enviar:not([disabled])', { timeout: 45000 });
   ok(await pA.locator('#mr-pendentes').count() === 1, 'planilha fora do ar: "Enviar agora" não some com o aviso');
   await fetch(amb.API + '/__on');
   if (await pA.locator('#mr-enviar').count()) await pA.click('#mr-enviar').catch(() => {});   // o envio automático pode chegar antes do clique
   await pA.waitForSelector('#mr-enviados', { timeout: 45000 });
-  ok(/Todos os 1 Termo\(s\) deste levantamento já estão na planilha/.test(await texto(pA, '#mr-enviados')) && await pA.locator('#mr-pendentes').count() === 0,
+  ok(/Todos os 1 Termo\(s\) deste relatório já estão na planilha/.test(await texto(pA, '#mr-enviados')) && await pA.locator('#mr-pendentes').count() === 0,
     'depois do envio: todos os Termos na planilha', await texto(pA, '#mr-enviados'));
 
   console.log('6) servidor local (local.js) e suíte');

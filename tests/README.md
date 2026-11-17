@@ -45,7 +45,7 @@ Principais (a lista completa é `node run.js --lista`):
 - `pce_citros_test`: citros e a visita completa (cadastro, termo, PDF).
 - `pce_laudo_test`: resultado de laboratório, no app e no painel (`painelPceLaudo`).
 - `educacao_test`: Termo de Educação Sanitária (permissão, número online e provisório, conflito, obrigatórios, rascunho, cancelar, impressão e PDF).
-- `pce_busca_test`: busca de produtor no aparelho e na planilha (com e sem internet) e Levantamento (programa do Termo, Termo que não subiu).
+- `pce_busca_test`: busca de produtor no aparelho e na planilha (com e sem internet) e Relatório de atividades (programa do Termo, Termo que não subiu).
 - `publico_test`: dashboard público (`web/dashboard/`).
 - `convenio_test`: aba Convênios (`painelConv*`), relatório em PDF e Word.
 - `convfin_test`: importação da planilha de movimentação (`painelConvFinImportar`).

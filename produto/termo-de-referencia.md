@@ -140,6 +140,9 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 ### 4.10. Rotinas automáticas
 - RF-45. Encerramento automático de turnos esquecidos, cópia de segurança diária (30 últimas), relatório mensal por e-mail e arquivamento anual.
 
+### 4.11. Termo de Educação Sanitária
+- RF-46. Módulo próprio e independente (permissão ligada pela gerência): o servidor registra a medida educativa (abordagem, palestra, oficina, dia de campo, material, feira, reunião, visita ou outra) com data, hora, município, local, público-alvo, programas ou pragas abordados, descrição, pessoas orientadas, folders entregues e observações; numeração por unidade e ano, confirmada pela planilha (provisória sem internet), rascunho automático, cancelamento com motivo e PDF no modelo da ADAF.
+
 ## 5. Requisitos não funcionais
 
 | Código | Requisito |
@@ -219,3 +222,4 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | 2.1 | 09/11/2026 | 2026-11-07a | RF-04A: aparelho com vários logins mostra a cada um só os próprios registros e os dos turnos de que participa |
 | 2.2 | 09/11/2026 | 2026-11-09a | RF-04A: o que o servidor manda a um login é sempre visível para ele, mesmo com o nome da conta alterado |
 | 2.3 | 09/11/2026 | 2026-11-09a | RF-20: QR code e endereço de verificação desligados no TF de Barreira |
+| 2.4 | 17/11/2026 | 2026-11-17c | RF-46: novo módulo Termo de Educação Sanitária; o cartão de turnos e veículos passa a se chamar Fiscalização de Trânsito |

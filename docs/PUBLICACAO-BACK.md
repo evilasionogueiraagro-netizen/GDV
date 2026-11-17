@@ -1,13 +1,13 @@
 # Publicação automática do back (Apps Script)
 
-Quando os testes passam na `main`, o workflow [apps-script.yml](../.github/workflows/apps-script.yml) publica `apps-script/` com o [clasp](https://github.com/google/clasp) e cria versão nova na implantação atual. A URL `/exec` não muda.
+No merge na `main` (os testes já rodaram no PR), o workflow [apps-script.yml](../.github/workflows/apps-script.yml) publica `apps-script/` com o [clasp](https://github.com/google/clasp) e cria versão nova na implantação atual. A URL `/exec` não muda.
 
 ## Como funciona
-Testes passam na `main` → "Publicar Apps Script" não faz nada se o commit não é o último da `main` ou se o `GET /exec` já responde o `VERSAO_CODIGO`. Senão: `clasp push --force` (substitui os arquivos por `apps-script/`), `clasp redeploy` na implantação de `web/js/config.js` e confere o `GET /exec` (12 tentativas, de 10 s).
+Merge na `main` → "Publicar Apps Script" não faz nada se o commit não é o último da `main` ou se o `GET /exec` já responde o `VERSAO_CODIGO`. Senão: `clasp push --force` (substitui os arquivos por `apps-script/`), `clasp redeploy` na implantação de `web/js/config.js` e confere o `GET /exec` (12 tentativas, de 10 s).
 
 ## Regras
 - **Só publica se o `VERSAO_CODIGO` mudou.** Esqueceu? Mude-o num commit novo.
-- O front vai no merge (`pages.yml`) e o back uns 10 min depois. Se o front depende de action ou coluna nova, ele aguenta o back antigo nesse intervalo, ou o back vai antes, em PR próprio.
+- Front e back saem no mesmo merge (o back, ~2 min depois). Front que depende de action ou coluna nova aguenta o back antigo nesse intervalo.
 - Não edite no editor do Apps Script (a próxima publicação sobrescreve). Publicar à mão: mude o `VERSAO_CODIGO` junto.
 - Serviço novo do Google: a conta dona autoriza no editor (rode uma função, ex.: `onOpen`, e aceite); até lá, as chamadas com o serviço falham. Já deve estar combinado ([PORTABILIDADE.md](PORTABILIDADE.md)).
 

@@ -26,7 +26,7 @@ A mesma lista serve para o nome da branch e para o título do commit e do PR.
 ## Branches
 
 - **`main` = produção.** Merge com mudança em `web/**` publica o front no GitHub Pages na hora; se o `VERSAO_CODIGO` do
-  `Code.gs` mudou, o back vai para o Apps Script depois dos testes ([PUBLICACAO-BACK.md](PUBLICACAO-BACK.md)).
+  `Code.gs` mudou, o back vai no mesmo merge ([PUBLICACAO-BACK.md](PUBLICACAO-BACK.md)).
 - Nunca commit nem push direto na `main`. Nunca `git push --force`, em branch nenhuma.
 - Uma branch por tarefa, curta (entra em 1 a 3 dias), criada da `origin/main` atualizada:
 

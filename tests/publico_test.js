@@ -151,6 +151,12 @@ const PROIBIDOS = [CPF, CNPJ, CPF2, '529.982.247-25', '***.982', 'Fulano Secreto
   ok(!('pessoas' in N) && !('produtos' in N) && !('tiposVeiculo' in N), 'blocos desligados não vêm na resposta (pessoas, produtos, tipos)');
   ok(N.porBarreira.map(x => x.local).join() === 'BVA - CEASA,BVA - JUNDIÁ,BVA - AEROPORTO,Postos volantes' && N.porBarreira.find(x => !x.fixa).acoes === 2, 'por barreira: BVAs fixas + volantes somados (sem endereço do volante)', N.porBarreira);
   ok(N.serie && N.serie.passo === 'dia' && N.serie.pontos.length === 30 && N.serie.pontos.reduce((s, x) => s + x.veiculos, 0) === 8, 'série diária de 30 dias (soma = 8 veículos)');
+  // quilos (Kg e Ton; caixas não somam) e números por BVA (filtro do dashboard): TF do turno conta na BVA do turno
+  const bv = n => (N.porBva || []).find(x => x.local === n) || {};
+  ok(N.kgApreendidos === 150 && N.kgRechacados === 150, 'kg: 150 apreendidos (CEASA) e 150 rechaçados (volante); 3 caixas não somam', { ap: N.kgApreendidos, re: N.kgRechacados });
+  ok(bv('BVA - CEASA').veiculos === 3 && bv('BVA - CEASA').tfs === 1 && bv('BVA - CEASA').kgApreendidos === 150 && bv('BVA - CEASA').rechacos === 0 && bv('BVA - JUNDIÁ').tfs === 1 &&
+    bv('Postos volantes').rechacos === 1 && bv('Postos volantes').kgRechacados === 150 && N.porBva.at(-1).local === 'Postos volantes' && !('pessoas' in bv('BVA - CEASA')),
+    'por BVA: veículos, TFs, rechaços e kg de cada BVA; volantes no fim; bloco desligado (pessoas) fora', N.porBva);
   const prMoko = (N.pragas || []).find(x => x.praga === 'Moko da bananeira');
   ok(prMoko && prMoko.deteccoes === 3 && prMoko.municipios === 1 && !('mun' in prMoko), 'detecções por praga (sem lista de municípios)', N.pragas);
   const mun = n => (M.pce || []).find(x => x.municipio === n);
@@ -213,6 +219,15 @@ const PROIBIDOS = [CPF, CNPJ, CPF2, '529.982.247-25', '***.982', 'Fulano Secreto
   const kpi = k => pd.$eval(`.pn-kpi[data-kpi=${k}] .pn-kpi-val`, e => e.textContent).catch(() => null);
   ok(await kpi('acoes') === '6' && await kpi('veiculos') === '8' && await kpi('tfs') === '3' && await kpi('apreensao') === '1' && await kpi('levantamentos') === '5' && await kpi('municipios') === '3 de 62',
     'KPIs: ações 6, veículos 8, TFs 3, apreensões 1, levantamentos 5, municípios "3 de 62"');
+  ok(await kpi('r-veiculos') === '8' && await kpi('r-tfs') === '3' && await kpi('r-kgap') === '150 kg' && await kpi('r-kgre') === '150 kg' && await kpi('r-rechacos') === '1',
+    'resumo do período (todas as barreiras): veículos, TFs, kg apreendidos e rechaçados, rechaços');
+  await pd.selectOption('#db-bva', 'BVA - CEASA'); await pd.waitForTimeout(300);
+  ok(await kpi('r-veiculos') === '3' && await kpi('r-tfs') === '1' && await kpi('r-kgap') === '150 kg' && await kpi('r-kgre') === '0 kg' && await kpi('r-rechacos') === '0' &&
+    /Somente a BVA - CEASA/.test(await pd.textContent('#db-corpo')), 'filtro por BVA: só os números da BVA - CEASA');
+  await shot(pd, 'numeros_bva');
+  await pd.selectOption('#db-bva', 'Postos volantes'); await pd.waitForTimeout(300);
+  ok(await kpi('r-rechacos') === '1' && await kpi('r-kgre') === '150 kg', 'filtro: postos volantes (1 rechaço, 150 kg)');
+  await pd.selectOption('#db-bva', ''); await pd.waitForTimeout(300);
   ok(await kpi('pessoas') === null && !(await pd.$('[data-grafico=produtos]')) && !(await pd.$('[data-grafico=tiposVeiculo]')), 'blocos desligados não aparecem (pessoas, produtos, tipos)');
   const grafs = await pd.$$eval('[data-grafico]', a => a.map(x => x.dataset.grafico));
   ok(['porBarreira', 'procedimentos', 'pragas', 'serie-veiculos', 'serie-tfs', 'serie-levantamentos'].every(g => grafs.includes(g)) && await pd.$$eval('[data-grafico] canvas', a => a.length) >= 6, 'gráficos dos blocos ligados', grafs);

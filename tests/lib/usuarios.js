@@ -8,7 +8,7 @@ const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).
 const get = p => fetch(API + p).then(r => r.json());
 
 const SENHA = 'Senha-Campo-123';
-const MODULOS_DO_CAMPO = ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce', 'digitarDoPapel'];
+const MODULOS_DO_CAMPO = ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce', 'digitarDoPapel', 'educacaoSanitaria'];
 let aparelhos = 0;
 
 /** Cria a conta com as permissões e devolve {usuario, senhaProvisoria}. */
@@ -52,8 +52,8 @@ async function gerente() {
   const g = await amb.gerente('Gerente Teste Campo');
   return (gerenteSessao = { token: g.token, usuario: g.usuario });
 }
-/** {veiculos, tf, pce, antigo} (1/0, o formato dos módulos do app) -> lista de permissões do campo. */
-const lista = o => ['campo', ...(o.veiculos ? ['fiscalizacaoDeTransito'] : []), ...(o.tf ? ['termoDeBarreira'] : []), ...(o.pce ? ['pce'] : []), ...(o.antigo ? ['digitarDoPapel'] : [])];
+/** {veiculos, tf, pce, antigo, educacao} (1/0, o formato dos módulos do app) -> lista de permissões do campo. */
+const lista = o => ['campo', ...(o.veiculos ? ['fiscalizacaoDeTransito'] : []), ...(o.tf ? ['termoDeBarreira'] : []), ...(o.pce ? ['pce'] : []), ...(o.antigo ? ['digitarDoPapel'] : []), ...(o.educacao ? ['educacaoSanitaria'] : [])];
 /** A gerência define a lista exata de permissões de um usuário (vale na hora, no servidor). */
 async function permissoes(usuarioId, lista) {
   const g = await gerente();

@@ -23,7 +23,8 @@ const PUBLICO_PERIODOS_ANTIGOS = ['30d', 'ano', 'anoAnterior', 'tudo'];   // os 
 // blocos (KPIs, gráficos e camadas) e o padrão de cada um
 const PUBLICO_BLOCOS = {
   acoes: true, horas: true, veiculos: true, pessoas: true, porBarreira: true, tiposVeiculo: true,   // Barreiras
-  tfs: true, procedimentos: true, autos: true, produtos: true,                                       // TF de Barreira
+  tfs: true, procedimentos: true, autos: true, produtos: true, kg: true,                             // TF de Barreira (kg: apreendidos e rechaçados)
+  porBva: true,                                                                                       // filtro por BVA nos números
   levantamentos: true, municipios: true, deteccoes: true, amostras: true,                            // PCE
   mensal: true,                                                                                       // evolução no tempo
   coropletico: true, bvas: true, calor: false, aoVivo: false,                                         // mapa
@@ -228,11 +229,14 @@ function publicoCalcular_(cfg, per) {
     b.acoes++; t._bar = b;
   });
   let veiculos = 0, pessoas = 0; const tipos = {};
-  todosTurnos.forEach(function (t) { if (t._per) pessoas += Number(t.pessoasEducacao) || 0; });   // turno sem veículos: pessoas orientadas no turno
+  // números por BVA (filtro do dashboard): a BVA fixa pelo nome; volantes num item só
+  const porBva = {}, bvaDe = function (nome) { return porBva[nome] = porBva[nome] || { local: nome, veiculos: 0, pessoas: 0, tfs: 0, rechacos: 0, kgApreendidos: 0, kgRechacados: 0 }; };
+  todosTurnos.forEach(function (t) { if (!t._per) return; const n = Number(t.pessoasEducacao) || 0; pessoas += n; bvaDe(t._bar.local).pessoas += n; });   // turno sem veículos: pessoas orientadas no turno
   lerLeitura_('Veiculos').forEach(function (v) {
     const t = turnoPorId[v.turnoId];
     if (!v.id || v.excluido === 1 || !t || !t._per) return;
     veiculos++; pessoas += v.pessoas || 0;
+    const bv = bvaDe(t._bar.local); bv.veiculos++; bv.pessoas += v.pessoas || 0;
     const tp = String(v.tipo || '').trim().toUpperCase().slice(0, 4) || 'OUTRO'; tipos[tp] = (tipos[tp] || 0) + 1;
     const l = loc(locDe[t.id]); if (l) l.veiculos++;
     t._bar.veiculos++;
@@ -242,9 +246,18 @@ function publicoCalcular_(cfg, per) {
   // ---- TF de Barreira (válidos = não cancelados) ----
   const tfs = lerLeitura_('TFs').filter(function (r) { return r.id && r.cancelado !== 1 && noPer(r); });
   const proc = { liberacao: 0, apreensao: 0, rechaco: 0, outro: 0 }, prod = {};
-  let autos = 0;
+  let autos = 0, kgApreendidos = 0, kgRechacados = 0;
+  // BVA do TF: a do turno; TF sem turno (digitado do papel): pelo sufixo da barreira do TF ("BVA - CEASA")
+  const bvaDaBarreira = {}; lerLeitura_('Barreiras').forEach(function (b) { if (b.id) bvaDaBarreira[b.id] = nomeBvaPub_(b.sufixo || b.nome); });
   tfs.forEach(function (r) {
     proc[proc.hasOwnProperty(r.procedimento) && r.procedimento !== 'outro' ? r.procedimento : 'outro']++;
+    const tt = turnoPorId[r.turnoId], nb = tt && tt._bar ? tt._bar.local : (bvaDaBarreira[r.barreira] || ''), bv = nb ? bvaDe(nb) : null;
+    if (bv) { bv.tfs++; if (r.procedimento === 'rechaco') bv.rechacos++; }
+    if (r.procedimento === 'apreensao' || r.procedimento === 'rechaco') produtosTF_(r.produtos).forEach(function (p) {   // kg: Kg e Ton (× 1000); outras unidades não somam
+      const t = p.quantidade === null ? null : toneladas_(p.quantidade, p.unidade); if (t === null) return;
+      if (r.procedimento === 'apreensao') { kgApreendidos += t * 1000; if (bv) bv.kgApreendidos += t * 1000; }
+      else { kgRechacados += t * 1000; if (bv) bv.kgRechacados += t * 1000; }
+    });
     if (r.auto === 1) autos++;
     ponto(r.data).tfs++;
     const l = turnoPorId[r.turnoId] ? loc(locDe[r.turnoId]) : null; if (l) l.tfs++;
@@ -290,6 +303,13 @@ function publicoCalcular_(cfg, per) {
     if (B.tfs) N.tfs = tfs.length;
     if (B.procedimentos) N.procedimentos = proc;
     if (B.autos) N.autos = autos;
+    if (B.kg) { N.kgApreendidos = Math.round(kgApreendidos * 10) / 10; N.kgRechacados = Math.round(kgRechacados * 10) / 10; }
+    if (B.porBva) N.porBva = Object.keys(porBva).map(function (k) { return porBva[k]; })
+      .sort(function (a, b) { return (a.local === volante.local) - (b.local === volante.local) || a.local.localeCompare(b.local); })
+      .map(function (b) { const o = { local: b.local };
+        if (B.veiculos) o.veiculos = b.veiculos; if (B.pessoas) o.pessoas = b.pessoas; if (B.tfs) o.tfs = b.tfs; if (B.procedimentos) o.rechacos = b.rechacos;
+        if (B.kg) { o.kgApreendidos = Math.round(b.kgApreendidos * 10) / 10; o.kgRechacados = Math.round(b.kgRechacados * 10) / 10; }
+        return o; });
     if (B.produtos) N.produtos = Object.keys(prod).map(function (k) { const p = prod[k]; p.quantidade = Math.round(p.quantidade * 100) / 100; return p; })
       .sort(function (a, b) { return b.tfs - a.tfs || b.quantidade - a.quantidade; }).slice(0, 15);
     if (B.levantamentos) N.levantamentos = levs.length;

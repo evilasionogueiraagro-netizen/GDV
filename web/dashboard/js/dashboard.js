@@ -6,7 +6,7 @@
    no navegador, com a data. ?previa=1 (botão do painel): pré-visualização com a credencial de administrador deste navegador. */
 (() => {
   'use strict';
-  const LS_MODO = 'gdv.dashboard.modo', LS_PER = 'gdv.dashboard.periodo', LS_CACHE = 'gdv.dashboard.cache', LS_IV = 'gdv.dashboard.intervalo';
+  const LS_BVA = 'gdv.dashboard.bva', LS_MODO = 'gdv.dashboard.modo', LS_PER = 'gdv.dashboard.periodo', LS_CACHE = 'gdv.dashboard.cache', LS_IV = 'gdv.dashboard.intervalo';
   const ATUALIZAR_MS = 5 * 60 * 1000, VIVO_MS = 60 * 1000, API_TEMPO_MS = 45 * 1000;
   const AM_LIMITES = [[-9.9, -73.9], [2.3, -56.0]];
   const $ = s => document.querySelector(s);
@@ -29,7 +29,7 @@
   const q = new URLSearchParams(location.search);
   const PREVIA = q.get('previa') === '1';
 
-  const S = { r: null, modo: '', periodo: ls.get(LS_PER) || '', carregando: false, ultima: 0, graficos: [], mapa: null, municipio: '', camadas: null, indicador: '', geo: null, mun: [], offline: '' };
+  const S = { r: null, modo: '', bva: ls.get(LS_BVA) || '', periodo: ls.get(LS_PER) || '', carregando: false, ultima: 0, graficos: [], mapa: null, municipio: '', camadas: null, indicador: '', geo: null, mun: [], offline: '' };
   const pedidoModo = q.get('modo');
   S.modo = pedidoModo === 'mapa' || pedidoModo === 'numeros' ? pedidoModo : (ls.get(LS_MODO) || 'mapa');
 
@@ -235,6 +235,25 @@
     S.animar = !auto;
     const N = r.numeros || {}, B = r.blocos || {}, tem = k => N[k] != null;
     let algo = false;
+    // Resumo por BVA: o visitante escolhe uma BVA (ou todas) e vê os números principais do período só dela
+    const RES = ['veiculos', 'pessoas', 'tfs', 'procedimentos', 'kgApreendidos'];
+    if (RES.some(tem)) {
+      algo = true;
+      const L = N.porBva || [], sel = L.some(b => b.local === S.bva) ? S.bva : '';
+      const b = sel ? L.find(x => x.local === sel) : { veiculos: N.veiculos, pessoas: N.pessoas, tfs: N.tfs, rechacos: (N.procedimentos || {}).rechaco, kgApreendidos: N.kgApreendidos, kgRechacados: N.kgRechacados };
+      const s = secao(c, 'Resumo do período', sel ? `Somente a ${sel}.` : 'Todas as barreiras (fixas e volantes).');
+      if (L.length) s.insertAdjacentHTML('beforeend', `<label class="db-bva-sel">Barreira<select id="db-bva"><option value="">Todas as barreiras</option>${L.map(x => `<option ${x.local === sel ? 'selected' : ''}>${esc(x.local)}</option>`).join('')}</select></label>`);
+      const kg = v => v == null ? null : `${fmt.num(v)} kg`;
+      kpis(s, [b.veiculos != null && { chave: 'r-veiculos', rotulo: 'Veículos abordados', valor: b.veiculos },
+        b.pessoas != null && { chave: 'r-pessoas', rotulo: 'Educação sanitária (pessoas orientadas)', valor: b.pessoas },
+        b.tfs != null && { chave: 'r-tfs', rotulo: 'TFs emitidos', valor: b.tfs },
+        b.kgApreendidos != null && { chave: 'r-kgap', rotulo: 'Produtos apreendidos', valor: kg(b.kgApreendidos) },
+        b.kgRechacados != null && { chave: 'r-kgre', rotulo: 'Produtos rechaçados', valor: kg(b.kgRechacados) },
+        b.rechacos != null && { chave: 'r-rechacos', rotulo: 'Rechaços realizados', valor: b.rechacos }]);
+      if (N.kgApreendidos != null) s.appendChild(el('p', 'pn-sub', 'Quilos somados dos produtos informados em Kg ou toneladas; outras unidades (caixa, saca, unidade) não entram na soma.'));
+      const sb = s.querySelector('#db-bva');
+      if (sb) sb.onchange = () => { S.bva = sb.value; ls.set(LS_BVA, S.bva); desenhar(true); const n = $('#db-bva'); if (n) n.focus(); };
+    }
     // Barreiras
     if (['acoes', 'horas', 'veiculos', 'pessoas', 'porBarreira', 'tiposVeiculo'].some(tem)) {
       algo = true;

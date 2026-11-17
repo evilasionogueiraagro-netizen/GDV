@@ -87,6 +87,8 @@
 .db-mun dd { margin: 0; font-weight: 650; text-align: right; font-variant-numeric: tabular-nums; }
 .db-mun-sel { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink2); margin-top: 12px; }
 .db-mun-sel select { padding: 8px; width: 100%; }
+.db-bva-sel { display: flex; flex-direction: column; gap: 4px; font-size: 12.5px; color: var(--ink2); margin: 4px 0 12px; max-width: 360px; }
+.db-bva-sel select { padding: 8px; width: 100%; font-size: 15px; }
 .db-fonte { font-size: 12px; color: var(--mut); margin: 8px 0 0; }
 .db-bva { width: 16px; height: 16px; border-radius: 4px; background: var(--s7); border: 2px solid var(--sf); box-shadow: 0 0 0 1.5px var(--ink); transform: rotate(45deg); }
 .db-vivo { width: 22px; height: 22px; border-radius: 50%; background: var(--bom); border: 3px solid var(--sf); box-shadow: 0 0 0 2px var(--ink); position: relative; }

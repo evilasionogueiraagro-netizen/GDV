@@ -135,7 +135,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 - RF-43. Histórico de cada lançamento, com quem fez e quando.
 
 ### 4.9. Dashboard público
-- RF-44. Números agregados por período, ligados pela gerência, com ocultação de números pequenos e coordenadas generalizadas.
+- RF-44. Números agregados por período (incluindo intervalo de datas escolhido pelo visitante), ligados pela gerência, com ocultação de números pequenos e coordenadas generalizadas. Resumo filtrável por BVA: veículos abordados, educação sanitária, TFs emitidos, kg apreendidos, kg rechaçados e rechaços realizados.
 
 ### 4.10. Rotinas automáticas
 - RF-45. Encerramento automático de turnos esquecidos, cópia de segurança diária (30 últimas), relatório mensal por e-mail e arquivamento anual.

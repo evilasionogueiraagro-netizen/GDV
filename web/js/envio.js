@@ -4,22 +4,24 @@
 // Não usa window/document/localStorage: roda também dentro do service worker. Depende de Store (store.js) e CONFIG (config.js).
 const Envio = (() => {
   // k = Ficha oficial do PCE (CadastrosPCE), m = Termo de Fiscalização do PCE, r = produtor/propriedade com os frutos
-  const NOMES = ['t', 'v', 'f', 'p', 'l', 'g', 'c', 'r', 'k', 'm'];
-  const STORES = { t: 'turnos', v: 'veiculos', f: 'tfs', p: 'pessoas', l: 'placas', g: 'levantamentos', c: 'colheitas', r: 'propriedades', k: 'cadastrosPce', m: 'termosPce' };
-  const CAMPOS = { t: 'turnos', v: 'veiculos', f: 'tfs', p: 'pessoas', l: 'placas', g: 'levantamentos', c: 'colheitas', r: 'propriedades', k: 'cadastrosPce', m: 'termosPce' };   // nome no corpo da requisição
-  const LIMITES = { t: 500, v: 1000, f: 100, p: 300, l: 300, g: 100, c: 100, r: 300, k: 100, m: 100 };                                                         // registros por rodada
+  // e = Termo de Educação Sanitária
+  const NOMES = ['t', 'v', 'f', 'p', 'l', 'g', 'c', 'r', 'k', 'm', 'e'];
+  const STORES = { t: 'turnos', v: 'veiculos', f: 'tfs', p: 'pessoas', l: 'placas', g: 'levantamentos', c: 'colheitas', r: 'propriedades', k: 'cadastrosPce', m: 'termosPce', e: 'termosEducacao' };
+  const CAMPOS = { t: 'turnos', v: 'veiculos', f: 'tfs', p: 'pessoas', l: 'placas', g: 'levantamentos', c: 'colheitas', r: 'propriedades', k: 'cadastrosPce', m: 'termosPce', e: 'termosEducacao' };   // nome no corpo da requisição
+  const LIMITES = { t: 500, v: 1000, f: 100, p: 300, l: 300, g: 100, c: 100, r: 300, k: 100, m: 100, e: 100 };                                                         // registros por rodada
   // stores de cada módulo (pessoas servem ao TF e ao PCE: sobem se qualquer um dos dois estiver liberado)
-  const MODULO_DO_STORE = { t: ['veiculos'], v: ['veiculos'], f: ['tf'], l: ['tf'], p: ['tf', 'pce'], g: ['pce'], c: ['pce'], r: ['pce'], k: ['pce'], m: ['pce'], a: ['tf', 'pce'] };   // a = arquivos (fotos/assinaturas do TF e do PCE)
+  const MODULO_DO_STORE = { t: ['veiculos'], v: ['veiculos'], f: ['tf'], l: ['tf'], p: ['tf', 'pce'], g: ['pce'], c: ['pce'], r: ['pce'], k: ['pce'], m: ['pce'], e: ['educacao'], a: ['tf', 'pce'] };   // a = arquivos (fotos/assinaturas do TF e do PCE)
   /** Permissões por módulo (padrão: tudo liberado — aparelho que nunca sincronizou ou servidor antigo que não manda permissões).
    *  "antigo" (Digitar do papel: registros antigos e PDFs escaneados) é o contrário: só vale se o servidor mandar antigo=1. */
   const normPerm = o => {
-    const r = { veiculos: 1, tf: 1, pce: 1, antigo: 0, escala: 0 };
+    const r = { veiculos: 1, tf: 1, pce: 1, antigo: 0, escala: 0, educacao: 0 };
     if (o && typeof o === 'object') ['veiculos', 'tf', 'pce'].forEach(k => { if (k in o) r[k] = Number(o[k]) === 0 || o[k] === false ? 0 : 1; });
     r.antigo = o && (o.antigo === true || Number(o.antigo) === 1) && r.pce ? 1 : 0;
+    r.educacao = o && Number(o.educacao) === 1 ? 1 : 0;           // Termo de Educação Sanitária: desligado até o servidor mandar 1
     r.escala = o && Number(o.escala) === 1 ? 1 : 0;                 // escalas de plantão (coordenação): desligado até o servidor mandar 1
     return r;
   };
-  const storePermitido = (n, perm) => MODULO_DO_STORE[n].some(m => (perm || {})[m] !== 0);
+  const storePermitido = (n, perm) => MODULO_DO_STORE[n].some(m => (m === 'educacao' ? (perm || {})[m] === 1 : (perm || {})[m] !== 0));
   /** Registro digitado do papel (levantamento/termo com registroAntigo=1): só sobe com a permissão "antigo". */
   const ehAntigo = r => !!r && Number(r.registroAntigo) === 1;
   const podeAntigo = perm => !!perm && Number(perm.antigo) === 1;
@@ -86,7 +88,7 @@ const Envio = (() => {
     if (perm && perm.pce === 0) regs = [];
     if (perm && perm.tf === 0) tfs = [];
     if (perm && !podeAntigo(perm)) { regs = regs.filter(r => !ehAntigo(r)).map(r => ({ ...r, documentos: '[]' })); tfs = tfs.filter(r => !ehAntigo(r)).map(r => ({ ...r, pdfs: '[]' })); }
-    // turno digitado do papel: o PDF do Termo (só com Educação Sanitária/Fiscalização de Trânsito e "Digitar do papel")
+    // turno digitado do papel: o PDF do Termo (só com Fiscalização de Trânsito e "Digitar do papel")
     const turnos = perm && (perm.veiculos === 0 || !podeAntigo(perm)) ? [] : (await Store.todos('turnos')).filter(ehAntigo);
     const ref = idsReferenciados([...regs, ...tfs, ...turnos]);
     return (await Store.chaves('arquivos', 'enviado', 0)).filter(id => ref.has(id));

@@ -1,0 +1,18 @@
+/* Termo de Educação Sanitária: só o que é próprio dele, sobre documento-base.css (fonte, quadros, caixas, linhas de escrever, rodapé). */
+.a4.doc.edu { --ft: 17pt; --brasao: 17mm; --rh: 6mm; }
+.a4.doc.edu.c1 { --ft: 16pt; --rh: 5.6mm; }
+.a4.doc.edu.c2 { --ft: 15pt; --rh: 5.2mm; }
+.a4.doc.edu.c3 { --ft: 14pt; --rh: 4.8mm; }
+.a4.doc.edu.c4 { --ft: 13pt; --rh: 4.4mm; }
+.a4.doc.edu.c5 { --ft: 12pt; --rh: 4mm; }
+.doc.edu table.ln td.tit { text-align: left; white-space: nowrap; padding: 1.2mm 1.6mm 1mm; }
+.doc.edu .tit-l { display: flex; justify-content: space-between; align-items: flex-end; }
+.doc.edu .cancelado-faixa { border: 0.8pt solid #b00020; color: #b00020; font-weight: bold; text-align: center; padding: 0.8mm; margin-bottom: 1mm; }
+.doc.edu .ops { line-height: 1.65; }
+.doc.edu .ops .lbl { margin-right: 1.2mm; font-weight: bold; }
+.doc.edu .ops .op { margin-right: 2.2mm; }
+.doc.edu .cxs { vertical-align: top; }
+.doc.edu .assin-edu { border-top: 0.6pt solid #000; margin-top: -0.6pt; display: flex; justify-content: center; padding: 3mm 14mm 2mm; }
+.doc.edu .assin-edu .ass { width: 100%; text-align: center; }
+.doc.edu .assin-edu .ass-img { height: 12mm; }
+.doc.edu .assin-edu .ident { font-size: var(--fh); line-height: 1.3; margin-top: 0.6mm; }

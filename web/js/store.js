@@ -2,10 +2,10 @@
 // Também é carregado pelo service worker (envio em segundo plano): não depende de window/document.
 const Store = (() => {
   let dbp;
-  const STORES = ['turnos', 'veiculos', 'tfs', 'pessoas', 'placas', 'levantamentos', 'colheitas', 'propriedades', 'cadastrosPce', 'termosPce'];
+  const STORES = ['turnos', 'veiculos', 'tfs', 'pessoas', 'placas', 'levantamentos', 'colheitas', 'propriedades', 'cadastrosPce', 'termosPce', 'termosEducacao'];
   function db() {
     if (!dbp) dbp = new Promise((ok, no) => {
-      // v2: tfs, pessoas, placas · v3: módulo PCE (levantamentos, colheitas, propriedades, arquivos) · v4: PCE (cadastrosPce = fichas oficiais,
+      // v6: termosEducacao (Termo de Educação Sanitária). v2: tfs, pessoas, placas · v3: módulo PCE (levantamentos, colheitas, propriedades, arquivos) · v4: PCE (cadastrosPce = fichas oficiais,
       // termosPce = Termo de Fiscalização). Os dados antigos são mantidos. Store nova = subir a versão: aparelho que já está na versão atual não roda
       // o onupgradeneeded. Aparelho que chegou a ficar na v5 (stores culturasAvaliadas e resultados, retiradas do app) abre como está, sem
       // voltar de versão: as duas stores ficam vazias de uso e nada pendente se perde.
@@ -32,7 +32,7 @@ const Store = (() => {
           no(rq.error);
         };
       };
-      abrir(4);
+      abrir(6);
     });
     return dbp;
   }

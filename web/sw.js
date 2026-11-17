@@ -8,6 +8,7 @@ const ARQUIVOS = [
   'documentos/pce-levantamento.html', 'documentos/pce-colheita.html', 'documentos/pce.css', 'manual.html', 'css/manual.css',
   'documentos/pce-docs.js', 'documentos/pce-termo.html', 'documentos/pce-ficha.html', 'documentos/pce-ficha.css', 'documentos/documento-base.css', 'documentos/documento-base.js',
   'documentos/pce-relatorio.html', 'documentos/rel-equipe.html', 'documentos/rel-equipe-docs.js', 'documentos/termo-repasse.html',
+  'documentos/educacao-termo.html', 'documentos/educacao-termo.css', 'documentos/educacao-docs.js', 'js/educacao.js',
   'img/logo-adaf.png', 'img/brasao.png', 'img/sepror.png', 'img/icone-egdv-192.png', 'img/icone-egdv-512.png'
 ];
 

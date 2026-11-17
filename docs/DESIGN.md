@@ -74,7 +74,7 @@ icone('carro', { tamanho: 28 })         // tamanho em px (padrão 1.25em, acompa
 - Alinhamento com o texto: classe `.ico` (em `design.css`).
 
 **Nomes disponíveis** (em português; cada um aponta para um ícone da Lucide, citado no comentário da linha em
-`icones.js`): administrativo, alerta, amostra, anexo, assinatura, baixar, bloqueio, broto, busca, camera, caminhao,
+`icones.js`): administrativo, alerta, amostra, anexo, assinatura, baixar, barco, bloqueio, broto, busca, camera, caminhao,
 caminhao-bau, carro, celular, check, chave, citros, compartilhar, dica, documento, editar, enviar, externo, fechar,
 formulario, historico, imprimir, info, inicio, lista, lixeira, local, manual, mapa, mais, moto, offline, ok, online,
 onibus, parar, pausa, pendente, pessoa, praga, proibido, propriedade, publico, resumo, rota, sair-tela-cheia, salvar,

@@ -272,7 +272,7 @@
 
     P.tabela(st, [
       { chave: 'data', rotulo: 'Data', fmt: fmt.data, ordem: l => (l.data || '') + (l.hora || '') }, { chave: 'hora', rotulo: 'Hora', fmt: v => v || '—' },
-      { chave: 'placa', rotulo: 'Placa', fmt: v => v || '—' }, { chave: 'tipo', rotulo: 'Tipo', fmt: v => nomeTipo(v) },
+      { chave: 'placa', rotulo: 'Placa / embarcação', fmt: (v, l) => v || l.embarcacao || '—' }, { chave: 'tipo', rotulo: 'Tipo', fmt: v => nomeTipo(v) },
       { chave: 'pessoas', rotulo: 'Pessoas', num: true, fmt: fmt.int }, { chave: 'local', rotulo: 'Barreira / local', fmt: v => v || '—' },
       { chave: 'carga', rotulo: 'Origem → destino', fmt: (v, l) => [l.ufOrigem || l.ufDestino || l.origemMun || l.destinoMun ? `${lugar(l.origemMun, l.ufOrigem)} → ${lugar(l.destinoMun, l.ufDestino)}` : '', l.carga ? `carga (registro antigo): ${l.produtos || 'vegetais/partes'}` : ''].filter(Boolean).join(' · ') || '—',
         ordem: l => (l.ufOrigem || '') + (l.origemMun || '') + (l.ufDestino || '') + (l.destinoMun || '') },

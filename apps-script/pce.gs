@@ -568,6 +568,7 @@ function dadosPainel_(admin, filtro) {
     if (v.srv_ts > a.ts) a.ts = v.srv_ts;
     if (String(v.hora) > a.hora) a.hora = String(v.hora);
     const o = { id: v.id, turnoId: v.turnoId, hora: v.hora, placa: v.placa, tipo: v.tipo, pessoas: v.pessoas, srv_ts: v.srv_ts, usuario: v.usuario };
+    if (v.embarcacao) o.embarcacao = v.embarcacao;                                                          // tipo EM: nome no lugar da placa
     if (v.ufOrigem || v.ufDestino) { o.ufOrigem = v.ufOrigem || ''; o.ufDestino = v.ufDestino || ''; }        // origem/destino (opcional)
     if (v.carga === 1) { o.carga = 1; o.produtos = produtosTF_(v.produtos).map(function (p) { return p.texto; }).join('; '); }   // registro antigo
     return o;

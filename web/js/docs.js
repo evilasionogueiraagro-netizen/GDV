@@ -183,10 +183,13 @@ const Docs = (() => {
     // turno que só conta pessoas orientadas (volante de Tabatinga: educação sanitária da monilíase)
     const soPes = Number(turno.soPessoas) === 1, temaCfg = ((CONFIG.volantesSoPessoas || {})[String(turno.unidade || '').toUpperCase()] || {}).tema;
     const tema = temaCfg ? esc(temaCfg).replace(/\(([^)]+)\)/, '(<i>$1</i>)') : '';
+    // embarcações (tipo EM: nome no lugar da placa) e demais veículos fiscalizados no turno só de educação sanitária
+    const embarcacoes = veiculos.filter(x => x.tipo === 'EM').map(x => x.embarcacao || 'sem nome'), outrosVeic = veiculos.length - embarcacoes.length;
     d.getElementById('descricaoTexto').innerHTML = `
 <p>Em <strong>${esc(dia)}/${esc(mes)}/${esc(ano)}</strong>, das <strong>${esc(ini)}</strong> às <strong>${esc(fim)}</strong> hora(s), ao realizar fiscalização no(a)
 <strong>${esc(turno.local)}</strong>, pelo(s) servidor(es) <strong>${esc(fiscaisDoTurno(turno))}</strong>, constatou-se:</p>
-${soPes ? `<p>Foram realizadas <strong>${pessoas}</strong> ações de educação sanitária (pessoas orientadas)${tema ? ` sobre a <strong>${tema}</strong>` : ''}.</p>`
+${soPes ? `<p>Foram realizadas <strong>${pessoas}</strong> ações de educação sanitária (pessoas orientadas)${tema ? ` sobre a <strong>${tema}</strong>` : ''}${embarcacoes.length
+    ? `, com fiscalização de <strong>${embarcacoes.length}</strong> embarcação(ões) (<strong>${esc(embarcacoes.join('; '))}</strong>)` : ''}${outrosVeic ? ` e de <strong>${outrosVeic}</strong> veículo(s)` : ''}.</p>`
   : `<p>Foram fiscalizados <strong>${veiculos.length}</strong> veículos e realizadas <strong>${pessoas}</strong> ações de educação sanitária (pessoas orientadas),
 com inspeção de veículos, cargas, bagagens, pessoas e demais materiais sujeitos ao controle da Defesa Agropecuária.</p>`}
 <p>Termos de Fiscalização de Barreira lavrados: ${lavrados.length ? `<strong>${esc(lavrados.join('; '))}</strong>.${medidas.length ? ` Medidas tomadas: <strong>${esc(medidas.join(', '))}</strong>.` : ''}` : '<strong>nenhum</strong>.'}</p>
@@ -298,6 +301,8 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
       [{ w: 33, t: `${marca(t.procedimento === 'liberacao')} Liberação` }, { w: 33, t: `${marca(t.procedimento === 'apreensao')} Apreensão p/ destruição` }, { w: 34, t: `${marca(t.procedimento === 'rechaco')} Rechaço` }],
       [{ w: 33, t: `${marca(t.fiel)} Fiel depositário` }, { w: 33, t: `${marca(t.auto)} Auto de Infração` }, { w: 34, t: `${marca(t.advertencia)} Advertência` }]]);
     set('local', t.local); set('data', t.data ? dataBR(t.data) : ''); set('hora', t.hora); set('placa', t.placa); set('origem', comUF(t.origem, t.ufOrigem)); set('destino', comUF(t.destino, t.ufDestino));
+    // TF de embarcação (volante: porto/rio): o nome no lugar da placa (e a placa junto, se houver)
+    if (t.embarcacao) { set('placa_rot', 'Embarcação Fiscalizada - Nome'); set('placa', [t.embarcacao, t.placa && 'placa ' + t.placa].filter(Boolean).join(' · ')); }
     const dc = (rot, k) => ({ w: 25, t: `${marca(docs[k])} ${rot} ${docs[k] || '____________'}` });
     grade('documentos', [[dc('NF Nº', 'nf'), dc('SIF Nº', 'sif'), dc('PTV Nº', 'ptv'), dc('SIE Nº', 'sie')], [dc('SIM Nº', 'sim'), dc('GTA Nº', 'gta'), dc('LACRE', 'lacre'), dc('OUTROS', 'outros')]]);
     set('produtos', prods.join('\n')); set('constatacao', t.constatacao); set('enquadramento', t.enquadramento);
@@ -334,7 +339,7 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     const [seq, ano, ...un] = String(t.autoNumeroTxt || '').split('-');
     Object.assign(v, { num_seq: seq, num_ano: ano, num_unidade: un.join('-'), tf_ref: `Lavrado com o TF nº ${t.numeroTxt}`,
       nome: t.nome, doc: fmtDoc(t.doc), nome_comercial: ai.nomeComercial, cadastro: ai.cadastro, condutor: ai.condutor, condutor_cpf: fmtDoc(ai.condutorCpf),
-      endereco: t.endereco, municipio: t.municipio, uf: t.uf, cep: ai.cep, renavam: ai.renavam, placa: t.placa,
+      endereco: t.endereco, municipio: t.municipio, uf: t.uf, cep: ai.cep, renavam: ai.renavam, placa: [t.placa, t.embarcacao].filter(Boolean).join(' / '),   // Placa/Nome da Embarcação
       procedencia: comUF(t.origem, t.ufOrigem), destino: comUF(t.destino, t.ufDestino), fatos: ai.fatos, enquadramento: ai.enquadramento,
       ciente_nome: ai.condutor || t.nome, ciente_cpf: fmtDoc(ai.condutor ? ai.condutorCpf : t.doc), ciente_ass: ai.ciencia === 'recusou' ? 'Recusou-se a assinar' : ai.ciencia === 'naoSabe' ? 'Não sabe ler e escrever' : '',
       local_data: `${t.local || ''}, ${t.data ? dataBR(t.data) : ''} ${t.hora || ''}`, autuante: t.fiscal });

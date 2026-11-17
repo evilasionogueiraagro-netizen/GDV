@@ -65,7 +65,7 @@ const TFUI = (() => {
   // { hist:{doc,placa}, tpl, turnoId, veiculoId, rid, id (do TF, já na abertura: as fotos ficam ligadas a ele), fotos:[ids], ass, assNovas, recusa }
   let S = null;
   const vazio = () => ({ barreira: '', numero: '', data: hojeISO(), hora: agoraHM(), servidor: '', doc: '', nome: '', rg: '', endereco: '', municipio: '', uf: '', telefone: '', relacao: T.relacoes[0],
-    inspecao: false, coleta: false, amostras: '', procedimento: '', fiel: false, auto: false, advertencia: false, local: '', placa: '', origem: '', destino: '', ufOrigem: '', ufDestino: '',
+    inspecao: false, coleta: false, amostras: '', procedimento: '', fiel: false, auto: false, advertencia: false, local: '', placa: '', embarcacao: '', origem: '', destino: '', ufOrigem: '', ufDestino: '',
     docs: { nf: '', ptv: '', gta: '', sif: '', sie: '', sim: '', lacre: '', outros: '' }, produtos: [{ p: '', q: '', u: T.unidades[0] }], constatacao: '', enquadramento: '', ai: aiVazio() });
   const testVazia = () => ({ nome: '', cpf: '', endereco: '', telefone: '' });
   /** Campos do auto de infração (os do fiscalizado, da placa e da origem/destino vêm do próprio TF). */
@@ -79,7 +79,7 @@ const TFUI = (() => {
     const proc = document.querySelector('input[name=tf-proc]:checked');
     return { barreira: g('barreira'), numero: S && S.antigo ? g('num') : S && S.numEditado && S.numEditado.b === g('barreira') ? String(S.numEditado.n) : '', data: g('data'), hora: g('hora'), servidor: g('servidor'), doc: g('doc'), nome: g('nome'), rg: g('rg'), endereco: g('endereco'), municipio: g('municipio'),
       uf: g('uf'), telefone: g('telefone'), relacao: g('relacao'), inspecao: c('inspecao'), coleta: c('coleta'), amostras: g('amostras'),
-      procedimento: proc ? proc.value : '', fiel: c('fiel'), auto: c('auto'), advertencia: c('advertencia'), local: g('local'), placa: placaNorm(g('placa')), origem: g('origem'), destino: g('destino'), ufOrigem: g('ufOrigem'), ufDestino: g('ufDestino'),
+      procedimento: proc ? proc.value : '', fiel: c('fiel'), auto: c('auto'), advertencia: c('advertencia'), local: g('local'), placa: placaNorm(g('placa')), embarcacao: g('embarcacao').trim().replace(/\s+/g, ' ').toUpperCase(), origem: g('origem'), destino: g('destino'), ufOrigem: g('ufOrigem'), ufDestino: g('ufDestino'),
       docs: Object.fromEntries(['nf', 'ptv', 'gta', 'sif', 'sie', 'sim', 'lacre', 'outros'].map(k => [k, g('d-' + k)])),
       produtos: [...document.querySelectorAll('#tf-produtos .prod')].map(r => ({ p: r.querySelector('select').value, q: r.querySelector('input').value, u: r.querySelectorAll('select')[1].value })),
       constatacao: g('constatacao'), enquadramento: g('enquadramento'), ai: coletarAuto(g) };
@@ -278,6 +278,7 @@ const TFUI = (() => {
       ${campo('local', 'Local *', D.local)}
       ${campo('placa', 'Veículo fiscalizado – placa', D.placa, 'maxlength="8" autocapitalize="characters" placeholder="ABC1D23"')}
       <div id="tf-st-placa" class="tf-status" aria-live="polite"></div>
+      ${D.embarcacao || (S && S.volante) ? campo('embarcacao', 'Embarcação fiscalizada – nome', D.embarcacao, 'maxlength="80" autocapitalize="characters" placeholder="ex.: B/M ESTRELA DO RIO"') : ''}
       <div class="duas">${campo('origem', 'Origem', D.origem)}${campo('destino', 'Destino', D.destino)}</div>
       <div class="duas">${selUF('ufOrigem', 'UF de origem', D.ufOrigem)}${selUF('ufDestino', 'UF de destino', D.ufDestino)}</div></div>
 
@@ -403,10 +404,12 @@ const TFUI = (() => {
       D.barreira = doTurno ? doTurno.id : bars.some(b => b.id === bPad) ? bPad : bars[0].id;
       S.semBarreira = tr && tr.posto === 'Fixa' && !doTurno ? tr.local : '';     // BVA fixa sem barreira no cadastro: avisa no formulário
       D.local = (tr && tr.local) || (bars.find(b => b.id === D.barreira) || {}).local || '';
-      if (veic) { D.placa = veic.placa; D.ufOrigem = veic.ufOrigem || ''; D.ufDestino = veic.ufDestino || '';    // origem/destino do registro do veículo
+      if (veic) { D.placa = veic.placa; D.embarcacao = veic.embarcacao || ''; D.ufOrigem = veic.ufOrigem || ''; D.ufDestino = veic.ufDestino || '';    // origem/destino do registro do veículo
         D.origem = veic.origemMun || D.origem; D.destino = veic.destinoMun || D.destino; }
     }
     if (!bars.some(b => b.id === D.barreira)) D.barreira = bars[0].id;
+    const trS = S.turnoId ? await Store.obter('turnos', S.turnoId) : null;
+    S.volante = !!(trS && trS.posto === 'Móvel');                                  // volante (porto/rio): campo do nome da embarcação
     view(formHTML(D, bars));
     ligarForm();                                                                  // já: o fiscal pode marcar o procedimento antes da planilha responder o nº
     if (antigo) { await renderPDFs(); const dl = $('#tf-servidores'); if (dl) dl.innerHTML = servidoresPapel().map(n => `<option value="${esc(n)}">`).join(''); }
@@ -685,7 +688,7 @@ const TFUI = (() => {
       if ((await Store.todos('tfs')).some(t => t.barreira === bar.id && t.ano === a && t.numero === n && t.id !== id)) { numero = n; aviso = `Este aparelho já gerou o TF nº ${num4(n)}/${a}. Escolha outro número.`; continue; }
       const rec = {
         id, criadoEm: t0, atualizadoEm: t0, barreira: bar.id, ano: a, numero: n, numeroTxt: `${num4(n)}/${a} - ${bar.sufixo}`, turnoId: S.turnoId || '', veiculoId: S.veiculoId || '',
-        data: D.data, hora: D.hora, fiscal: (turno && turno.fiscal) || Sync.nome(), local: D.local.trim(), placa: D.placa, origem: D.origem.trim(), destino: D.destino.trim(),
+        data: D.data, hora: D.hora, fiscal: (turno && turno.fiscal) || Sync.nome(), local: D.local.trim(), placa: D.placa, embarcacao: D.embarcacao || '', origem: D.origem.trim(), destino: D.destino.trim(),
         ufOrigem: CONFIG.ufs.includes(D.ufOrigem) ? D.ufOrigem : '', ufDestino: CONFIG.ufs.includes(D.ufDestino) ? D.ufDestino : '',
         doc, nome, rg: pessoa.rg, endereco: pessoa.endereco, municipio: pessoa.municipio, uf: pessoa.uf, telefone: pessoa.telefone, relacao: D.relacao,
         inspecao: D.inspecao ? 1 : 0, coleta: D.coleta ? 1 : 0, amostras: Number(D.amostras) || 0, procedimento: D.procedimento, fiel: D.fiel ? 1 : 0, auto: D.auto ? 1 : 0, advertencia: D.advertencia ? 1 : 0,
@@ -754,7 +757,7 @@ const TFUI = (() => {
     const placa = docOk(doc) && D.placa.length >= 7 ? { id: D.placa, doc, nome, criadoEm: t0, atualizadoEm: t0 } : null;   // documento padrão: sem vínculo
     const rec = {
       id: st.id, criadoEm: t0, atualizadoEm: t0, barreira: bar.id, ano: a, numero: n, numeroTxt: `${num4(n)}/${a} - ${bar.sufixo}${papel ? ' (papel)' : ''}`, turnoId: '', veiculoId: '',
-      data: D.data, hora: D.hora, fiscal: servidor, local: D.local.trim(), placa: D.placa, origem: D.origem.trim(), destino: D.destino.trim(),
+      data: D.data, hora: D.hora, fiscal: servidor, local: D.local.trim(), placa: D.placa, embarcacao: D.embarcacao || '', origem: D.origem.trim(), destino: D.destino.trim(),
       ufOrigem: CONFIG.ufs.includes(D.ufOrigem) ? D.ufOrigem : '', ufDestino: CONFIG.ufs.includes(D.ufDestino) ? D.ufDestino : '',
       doc, nome, rg: D.rg.trim(), endereco: D.endereco.trim(), municipio: D.municipio.trim(), uf: D.uf.trim().toUpperCase(), telefone: D.telefone.trim(), relacao: D.relacao,
       inspecao: D.inspecao ? 1 : 0, coleta: D.coleta ? 1 : 0, amostras: Number(D.amostras) || 0, procedimento: D.procedimento, fiel: D.fiel ? 1 : 0, auto: D.auto ? 1 : 0, advertencia: D.advertencia ? 1 : 0,
@@ -783,7 +786,7 @@ const TFUI = (() => {
     PR = { id: t.id, ass: lerJSON(t.assinaturas, {}) || {}, assNovas: {}, recusa: Number(t.recusaAssinatura) === 1 };
     const nF = (lerJSON(t.fotos, []) || []).length, pap = Number(t.registroAntigo) === 1, pdfs = pap ? lerJSON(t.pdfs, []) || [] : [];
     view(`<div class="card"><h3>${icone('ok')} ${pap ? 'TF do papel gravado' : 'TF gerado'}</h3><div class="tf-num"><b>${esc(t.numeroTxt)}</b></div>
-      <p>${esc(t.nome)} · ${esc(fmtDoc(t.doc))}</p><p>${dBR(t.data)} ${esc(t.hora)}${t.placa ? ' · ' + esc(t.placa) : ''}</p>
+      <p>${esc(t.nome)} · ${esc(fmtDoc(t.doc))}</p><p>${dBR(t.data)} ${esc(t.hora)}${t.placa ? ' · ' + esc(t.placa) : ''}${t.embarcacao ? ' · ' + esc(t.embarcacao) : ''}</p>
       ${pap ? `<div class="tf-novo" id="tf-papel-info">${icone('documento')} Digitado do papel · servidor que fiscalizou: ${esc(t.fiscal)}</div>` : ''}
       ${t.pendente ? `<div class="tf-novo">${icone('sincronizar')} Número provisório / aguardando envio: será conferido na planilha ao sincronizar. Se houver repetição, a coordenação é avisada.</div>` : '<div class="tf-ok">✓ Número confirmado na planilha.</div>'}
       ${t.numeroOrigem === 'editado' ? `<div class="tf-novo">${icone('editar')} Número alterado manualmente (o sistema sugeriu ${num4(t.numeroSugerido)}). Registrado para auditoria.</div>` : ''}
@@ -832,10 +835,10 @@ const TFUI = (() => {
       ${nRem ? `<label class="chk"><input type="checkbox" id="tfVerRem" ${verRemovidos ? 'checked' : ''}> Mostrar os excluídos da lista (${nRem})</label>` : ''}</div><div id="tfItens"></div>`);
     const desenhar = () => {
       const q = $('#tfQ').value.trim().toUpperCase(), qd = digitos(q);
-      const v = todos.filter(t => verRemovidos || !removidos.has(t.id)).filter(t => !q || t.numeroTxt.toUpperCase().includes(q) || t.nome.toUpperCase().includes(q) || (qd && digitos(t.doc).includes(qd)) || placaNorm(t.placa).includes(placaNorm(q)));
+      const v = todos.filter(t => verRemovidos || !removidos.has(t.id)).filter(t => !q || t.numeroTxt.toUpperCase().includes(q) || t.nome.toUpperCase().includes(q) || (qd && digitos(t.doc).includes(qd)) || placaNorm(t.placa).includes(placaNorm(q)) || String(t.embarcacao || '').includes(q));
       $('#tfItens').innerHTML = v.length ? v.map(t => `<div class="item"><div class="topo"><div><div class="placa">${esc(t.numeroTxt)}</div><div class="tipo">${esc(t.nome)}</div></div>
         <div class="hora">${dBR(t.data)}</div></div>
-        <div class="info">${esc(PROC[t.procedimento] || 'Sem procedimento')}${t.placa ? ' · ' + esc(t.placa) : ''}${t.reincidente ? ' · reincidente' : ''}${Number(t.registroAntigo) === 1 ? ' · do papel' : ''}</div>
+        <div class="info">${esc(PROC[t.procedimento] || 'Sem procedimento')}${t.placa ? ' · ' + esc(t.placa) : ''}${t.embarcacao ? ' · ' + esc(t.embarcacao) : ''}${t.reincidente ? ' · reincidente' : ''}${Number(t.registroAntigo) === 1 ? ' · do papel' : ''}</div>
         ${doColega(t) ? `<div class="info">${icone('pessoa')} Lavrado por ${esc(t.usuario)} (turno compartilhado)</div>` : ''}
         ${t.cancelado ? `<div class="info pend">${icone('proibido')} CANCELADO${t.motivoCancel ? ': ' + esc(t.motivoCancel) : ''}</div>` : ''}
         ${t.conflito ? '<div class="info pend">Número duplicado na planilha: confira com a coordenação.</div>' : ''}

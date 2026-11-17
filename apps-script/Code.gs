@@ -33,7 +33,8 @@ const TABELAS = {
              'origemMun', 'destinoMun', 'transportador', 'cargaPapel', 'medidaPapel', 'tfPapel', 'docPapel', 'importacao',
              // alerta de cuidado (app): cuidado = 1 → outros fiscais veem "Cuidado ao abordar este veículo" ao digitar a placa (índice
              // tfIndiceReincidencia); cuidadoMotivo = alteracao | resistencia | ameaca | outro (detalhes nas observações)
-             'cuidado', 'cuidadoMotivo'],
+             'cuidado', 'cuidadoMotivo',
+             'embarcacao'],                // nome da embarcação (tipo EM, turno volante: porto/rio); vazio nos demais veículos
   // HISTÓRICO (não vale mais como credencial): códigos de ativação e credenciais antigas dos fiscais e administradores.
   // Os nomes ainda servem à lista de servidores das diárias do portal (admServidores_).
   Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm', 'perfil',
@@ -50,7 +51,8 @@ const TABELAS = {
         'registroAntigo', 'pdfs',                     // TF digitado do papel (Digitar do papel): registroAntigo = 1, pdfs = JSON [ids] dos PDFs escaneados (aba Arquivos)
         // auto de infração do TF (auto = 1): sequência própria por barreira/ano (SEQUENCIAS.AI); autoDados = JSON com os campos do auto
         // (ocorrência, condutor, RENAVAM, CEP, fatos, enquadramento, ciência, testemunhas, coordenadas); autoConflito = nº repetido
-        'autoNumero', 'autoNumeroTxt', 'autoNumeroOrigem', 'autoDados', 'autoConflito'],
+        'autoNumero', 'autoNumeroTxt', 'autoNumeroOrigem', 'autoDados', 'autoConflito',
+        'embarcacao'],                                // nome da embarcação fiscalizada (TF no volante: porto/rio); vazio nos demais
   Pessoas: ['id', 'tipo', 'nome', 'rg', 'endereco', 'municipio', 'uf', 'telefone', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario',
             'email', 'tipoPessoa'],                                                                                                              // id = CPF/CNPJ (só dígitos)
   Placas: ['id', 'doc', 'nome', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],                                                    // id = placa
@@ -218,7 +220,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-11-17c';
+const VERSAO_CODIGO = '2026-11-17e';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado

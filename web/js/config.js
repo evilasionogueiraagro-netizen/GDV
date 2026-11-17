@@ -48,7 +48,9 @@ const CONFIG = {
     CC: { nome: 'Caminhão/Carreta',  icone: 'caminhao' },
     CB: { nome: 'Caminhão/Carreta Baú', icone: 'caminhao-bau' },
     ON: { nome: 'Ônibus',            icone: 'onibus' },
-    MT: { nome: 'Moto',              icone: 'moto' }
+    MT: { nome: 'Moto',              icone: 'moto' },
+    // só nos turnos volantes (ex.: porto de Tabatinga): sem placa, com o nome da embarcação (coluna embarcacao do veículo)
+    EM: { nome: 'Embarcação',        icone: 'barco', soVolante: true }
   },
   linhasFicha: 50,
   // UFs de origem/destino (opcionais no registro do veículo e no TF; mesma lista que UFS_ no Code.gs). Destino AM vindo de outra UF =

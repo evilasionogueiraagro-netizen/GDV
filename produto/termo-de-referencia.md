@@ -7,8 +7,8 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | Órgão | Agência de Defesa Agropecuária e Florestal do Estado do Amazonas – ADAF/AM |
 | Unidade responsável | Gerência de Defesa Vegetal – GDV |
 | Produto | e-GDV (app de campo, painel gerencial, Portal do Administrativo, dashboard público e serviço de dados) |
-| Versão do sistema descrita | 2026-11-09a |
-| Versão deste Termo | 2.3, de 09/11/2026 |
+| Versão do sistema descrita | 2026-11-17e |
+| Versão deste Termo | 2.5, de 17/11/2026 |
 
 ## 1. Objeto
 
@@ -65,18 +65,18 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 ### 4.2. Turno na barreira e educação sanitária
 - RF-05. Abertura de turno em posto fixo (BVA) ou volante, com número do Termo do turno, horário e localização (GPS) de início e fim.
 - RF-06. Turno compartilhado: o colega entra no mesmo turno com o próprio login, por um código de 6 números ou, na BVA fixa com turno em andamento, com um toque (sem código); quem entrou por engano e não lançou nada sai do turno, pelo próprio fiscal ou por quem abriu o turno. Os TFs lavrados no turno ficam visíveis para todos os fiscais do turno.
-- RF-07. Registro de cada veículo: placa (obrigatória onde a BVA exige), tipo, origem e destino, e quantas pessoas receberam educação sanitária.
+- RF-07. Registro de cada veículo: placa (obrigatória onde a BVA exige), tipo, origem e destino, e quantas pessoas receberam educação sanitária. No volante, o tipo Embarcação, identificada pelo nome em vez da placa.
 - RF-08. Alerta de cuidado na placa (abordagem com risco), visto por outros fiscais em qualquer BVA e avisado à gerência.
 - RF-09. Aviso de placa com TF anterior na mesma BVA, também sem internet.
 - RF-10. Encerramento do turno, encerramento automático após 12 horas e encerramento pela gerência.
 - RF-11. Termo de Fiscalização do turno e Ficha de Campo em PDF. O Termo traz os números dos TFs de Barreira lavrados no turno (inclusive pelos colegas) e as medidas tomadas.
 - RF-12. Recuperação dos turnos do próprio login a partir da planilha, para uso em outro aparelho.
-- RF-13. Volante só de educação sanitária (sem registro de veículos), com contador de pessoas orientadas.
+- RF-13. Volante só de educação sanitária, com contador de pessoas orientadas, registro das embarcações e veículos fiscalizados e lavratura do TF de barreira dentro do turno.
 - RF-14. Digitação de turnos antigos do papel, com o PDF escaneado anexado.
 
 ### 4.3. Termo de Fiscalização de Barreira (TF) e Auto de Infração
 - RF-15. Lavratura do TF, isolado ou a partir do veículo do turno:
-  - dados do fiscalizado e do veículo;
+  - dados do fiscalizado e do veículo (no volante, a embarcação pelo nome);
   - produtos e quantidades, origem e destino;
   - documentos apresentados;
   - procedimento (liberação, apreensão ou rechaço), fiel depositário e advertência;
@@ -223,3 +223,4 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | 2.2 | 09/11/2026 | 2026-11-09a | RF-04A: o que o servidor manda a um login é sempre visível para ele, mesmo com o nome da conta alterado |
 | 2.3 | 09/11/2026 | 2026-11-09a | RF-20: QR code e endereço de verificação desligados no TF de Barreira |
 | 2.4 | 17/11/2026 | 2026-11-17c | RF-46: novo módulo Termo de Educação Sanitária; o cartão de turnos e veículos passa a se chamar Fiscalização de Trânsito |
+| 2.5 | 17/11/2026 | 2026-11-17e | RF-07, RF-13 e RF-15: tipo Embarcação (com o nome) no volante; o volante só de educação sanitária registra embarcações e lavra TF de barreira no turno; o TF da embarcação traz o nome dela |

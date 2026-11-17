@@ -1,4 +1,4 @@
-/* Painel gerencial — aba "Barreiras" (módulo Educação Sanitária/Fiscalização de Trânsito). Usa a API do objeto global Painel (js/painel.js). */
+/* Painel gerencial — aba "Barreiras" (módulo Fiscalização de Trânsito). Usa a API do objeto global Painel (js/painel.js). */
 (() => {
   'use strict';
   if (typeof Painel === 'undefined') return;
@@ -124,7 +124,7 @@
     if (P.pode('gerencia') && window.PainelBvas) { const lb = P.el('div', 'pn-bva-linha'); lb.appendChild(PainelBvas.botao()); c.appendChild(lb); }   // gerência: cadastro de BVAs
 
     /* ---------- indicadores ---------- */
-    P.kpis(P.secao(c, 'Indicadores de Educação Sanitária/Fiscalização de Trânsito'), indicadores(d));
+    P.kpis(P.secao(c, 'Indicadores de Fiscalização de Trânsito'), indicadores(d));
 
     /* ---------- ao vivo + alertas ---------- */
     const duo = P.el('div', 'pn-duo pn-bar-vivo'); c.appendChild(duo);

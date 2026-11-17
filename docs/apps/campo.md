@@ -13,7 +13,8 @@ App do fiscal (`web/`). Veja: [TF](../modulos/tf.md), [barreiras](../modulos/bar
 - Placa obrigatória só onde `placa: true` (hoje CEASA); senão `Turnos.semPlaca = 1`.
 - Pessoas por veículo: digitadas pelo fiscal (educação sanitária), sem sugestão.
 - Origem e destino opcionais, só UF (`Veiculos.ufOrigem`/`ufDestino`).
-- Volante de educação sanitária: `Turnos.soPessoas = 1`, contador `Turnos.pessoasEducacao`, sem veículos; marcado em `CONFIG.volantesSoPessoas` (hoje TABATINGA). Conta em VIGIFITO, painel, relatório, dashboard e convênio (1.9).
+- Volante de educação sanitária: `Turnos.soPessoas = 1`, contador `Turnos.pessoasEducacao`; marcado em `CONFIG.volantesSoPessoas` (hoje TABATINGA). Conta em VIGIFITO, painel, relatório, dashboard e convênio (1.9). Registra embarcações/veículos sem pessoas (as pessoas ficam no contador) e lavra TF de barreira ligado ao turno.
+- Embarcação: tipo `EM` (`soVolante`: só em turno volante), sem placa e sem alerta de cuidado; nome obrigatório em `Veiculos.embarcacao`.
 - Excluir é lógico. "Limpar histórico" só remove turnos encerrados e enviados.
 - BVAs: `CONFIG.bvas` + as cadastradas no painel (aba `BVAs`, `bvas.gs`; sync `bvas`, `CONFIG.aplicarBvas`); nome fixo, desativar esconde.
 - Cancelar turno: só o dono, sem TF. Fica na planilha (`cancelado = 1`, veículos excluídos), fora de tudo (`lerLeitura_`); não volta.

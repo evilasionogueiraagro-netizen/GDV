@@ -183,10 +183,13 @@ const Docs = (() => {
     // turno que só conta pessoas orientadas (volante de Tabatinga: educação sanitária da monilíase)
     const soPes = Number(turno.soPessoas) === 1, temaCfg = ((CONFIG.volantesSoPessoas || {})[String(turno.unidade || '').toUpperCase()] || {}).tema;
     const tema = temaCfg ? esc(temaCfg).replace(/\(([^)]+)\)/, '(<i>$1</i>)') : '';
+    // embarcações (tipo EM: nome no lugar da placa) e demais veículos fiscalizados no turno só de educação sanitária
+    const embarcacoes = veiculos.filter(x => x.tipo === 'EM').map(x => x.embarcacao || 'sem nome'), outrosVeic = veiculos.length - embarcacoes.length;
     d.getElementById('descricaoTexto').innerHTML = `
 <p>Em <strong>${esc(dia)}/${esc(mes)}/${esc(ano)}</strong>, das <strong>${esc(ini)}</strong> às <strong>${esc(fim)}</strong> hora(s), ao realizar fiscalização no(a)
 <strong>${esc(turno.local)}</strong>, pelo(s) servidor(es) <strong>${esc(fiscaisDoTurno(turno))}</strong>, constatou-se:</p>
-${soPes ? `<p>Foram realizadas <strong>${pessoas}</strong> ações de educação sanitária (pessoas orientadas)${tema ? ` sobre a <strong>${tema}</strong>` : ''}.</p>`
+${soPes ? `<p>Foram realizadas <strong>${pessoas}</strong> ações de educação sanitária (pessoas orientadas)${tema ? ` sobre a <strong>${tema}</strong>` : ''}${embarcacoes.length
+    ? `, com fiscalização de <strong>${embarcacoes.length}</strong> embarcação(ões) (<strong>${esc(embarcacoes.join('; '))}</strong>)` : ''}${outrosVeic ? ` e de <strong>${outrosVeic}</strong> veículo(s)` : ''}.</p>`
   : `<p>Foram fiscalizados <strong>${veiculos.length}</strong> veículos e realizadas <strong>${pessoas}</strong> ações de educação sanitária (pessoas orientadas),
 com inspeção de veículos, cargas, bagagens, pessoas e demais materiais sujeitos ao controle da Defesa Agropecuária.</p>`}
 <p>Termos de Fiscalização de Barreira lavrados: ${lavrados.length ? `<strong>${esc(lavrados.join('; '))}</strong>.${medidas.length ? ` Medidas tomadas: <strong>${esc(medidas.join(', '))}</strong>.` : ''}` : '<strong>nenhum</strong>.'}</p>

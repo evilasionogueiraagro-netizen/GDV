@@ -283,7 +283,7 @@ async function home() {
   if (!mostrar.viva()) return;
   if (!t) return novoTurno();
   const v = await veiculosDe(t.id);
-  if (soPessoas(t)) return homePessoas(t, mostrar);
+  if (soPessoas(t)) return homePessoas(t, mostrar, v);
   mostrar(`${avisoAtivacao()}
     <div class="card"><h3>Turno atual</h3>
       <p><b>${esc(t.numeroTF)}</b> ${botaoNumero(t)}</p>
@@ -379,8 +379,9 @@ async function turnosAbertosNaBva() {
   if (!navigator.onLine) return [];
   try { return (await Sync.turnosAbertos()).turnos || []; } catch (e) { return []; }
 }
-/** Turno de BVA sem contagem de veículos: contador de pessoas orientadas (educação sanitária), gravado no turno. */
-function homePessoas(t, mostrar) {
+/** Turno só de educação sanitária (volante, ex.: porto de Tabatinga): contador de pessoas orientadas, gravado no turno; as embarcações
+ *  (e veículos) fiscalizadas são registradas à parte, sem pessoas, e o TF de barreira é lavrado dentro do turno. */
+function homePessoas(t, mostrar, v) {
   const n = Number(t.pessoasEducacao) || 0, tema = (cfgSoPessoas(t.unidade) || {}).tema;
   mostrar(`${avisoAtivacao()}
     <div class="card"><h3>Turno atual</h3>
@@ -388,10 +389,14 @@ function homePessoas(t, mostrar) {
       <p><b>Fiscal:</b> ${esc(t.fiscal)}</p><p><b>Local:</b> ${esc(t.local)}</p>
       <p><b>Data:</b> ${dBR(t.data)} &nbsp; <b>Posto:</b> ${esc(t.posto || '')}</p>
       <p><b>Início do turno:</b> ${esc(t.inicio)}</p>
-      <p><small>Neste turno não se contam veículos: conte as pessoas orientadas${tema ? ' sobre a ' + esc(tema) : ''}.</small></p></div>
+      <p><small>Conte as pessoas orientadas${tema ? ' sobre a ' + esc(tema) : ''}. As embarcações fiscalizadas são registradas à parte.</small></p></div>
     <div class="card contador" id="pesCont"><h1>${n}</h1><p>Pessoas orientadas (educação sanitária)</p></div>
     <div class="duas pes-botoes"><button class="botao" data-pes="1">+1 pessoa</button><button class="botao" data-pes="5">+5</button></div>
     <div class="duas pes-botoes"><button class="botao sec" data-pes="10">+10</button><button class="botao sec" data-pes="corrigir">${icone('editar')} Corrigir total</button></div>
+    <div class="card contador"><h1>${(v || []).length}</h1><p>Embarcações e veículos fiscalizados</p></div>
+    <button class="botao" data-go="registrar">${icone('barco')} Registrar embarcação</button>
+    ${(v || []).length ? `<button class="botao sec" data-go="lista">${icone('lista')} Lista de embarcações</button>` : ''}
+    ${Sync.pode('tf') ? `<button class="botao" data-go="tfnovo">${icone('documento')} Lavrar TF de barreira</button>` : ''}
     ${botaoFim(t)}`);
   document.querySelectorAll('[data-pes]').forEach(b => b.onclick = async () => {
     const atual = (await Store.obter('turnos', t.id)) || t; let total = Number(atual.pessoasEducacao) || 0;
@@ -656,17 +661,20 @@ const opcoesUF = atual => `<option value="">—</option>${CONFIG.ufs.map(u => `<
 async function registrar() {
   const t = await turnoAtual();
   if (!t) { toast('Inicie um turno primeiro.', true); return go('home'); }
-  if (soPessoas(t)) { toast('Neste turno não se registram veículos: conte as pessoas orientadas na tela do turno.'); return go('home'); }
   const v = EDIT ? await Store.obter('veiculos', EDIT) : null;
-  const tipo = v ? v.tipo : 'PA', semPlaca = !!Number(t.semPlaca);    // turno com placa opcional (ex.: Jundiá)
+  // tipos do turno: Embarcação (soVolante) só no volante; no turno só de educação sanitária (porto) a embarcação vem marcada
+  const tiposTurno = Object.entries(CONFIG.tipos).filter(([c, x]) => !x.soVolante || t.posto === 'Móvel' || (v && v.tipo === c));
+  const soPes = soPessoas(t), tipo = v ? v.tipo : soPes && CONFIG.tipos.EM ? 'EM' : 'PA', semPlaca = !!Number(t.semPlaca);    // turno com placa opcional (ex.: Jundiá)
   const cuidadoFixo = !!(v && Number(v.cuidado) === 1);                // alerta de cuidado já salvo: não se desmarca no app
   view(`<form class="card" id="fVeic"><h3>${v ? 'Editar veículo' : 'Registrar veículo'}</h3>
-    <label>Placa${semPlaca ? ' <small>(opcional)</small>' : ''}<input id="placa" maxlength="8" autocapitalize="characters" autocomplete="off" ${semPlaca ? '' : 'required'} placeholder="ABC1D23" value="${esc(v ? v.placa : '')}" aria-describedby="placa-tf"></label>
+    <label id="embBox" hidden>Nome da embarcação *<input id="embarcacao" maxlength="80" autocomplete="off" autocapitalize="characters" placeholder="ex.: B/M ESTRELA DO RIO" value="${esc(v && v.embarcacao || '')}"></label>
+    <label id="placaBox">Placa${semPlaca ? ' <small>(opcional)</small>' : ''}<input id="placa" maxlength="8" autocapitalize="characters" autocomplete="off" ${semPlaca ? '' : 'required'} placeholder="ABC1D23" value="${esc(v ? v.placa : '')}" aria-describedby="placa-tf"></label>
     <p id="placa-cuidado" class="aviso placa-tf" role="alert" hidden></p><p id="placa-tf" class="aviso-erro placa-tf" role="status" hidden></p>
     <label>Tipo do veículo</label>
-    <div class="tipos">${Object.entries(CONFIG.tipos).map(([c, x]) => `
+    <div class="tipos">${tiposTurno.map(([c, x]) => `
       <label class="tipo-card"><input type="radio" name="tipo" value="${c}" ${c === tipo ? 'checked' : ''}>${icone(x.icone)}<span>${x.nome}</span></label>`).join('')}</div>
-    <label>Pessoas que receberam educação sanitária<input id="pessoas" type="number" min="0" inputmode="numeric" placeholder="0" value="${v ? esc(String(Number(v.pessoas) || 0)) : ''}"></label>
+    ${soPes ? '<p class="dica">As pessoas orientadas deste turno são contadas no contador da tela do turno.</p>'
+      : `<label>Pessoas que receberam educação sanitária<input id="pessoas" type="number" min="0" inputmode="numeric" placeholder="0" value="${v ? esc(String(Number(v.pessoas) || 0)) : ''}"></label>`}
     <div class="veic-ufs" role="group" aria-label="Origem e destino (opcional)"><div class="veic-ufs-rot">Origem e destino <small>(opcional)</small></div>
       <label>Cidade de origem<input id="vMunOri" maxlength="60" autocomplete="off" autocapitalize="words" placeholder="ex.: Boa Vista" value="${esc(v && v.origemMun || '')}"></label>
       <label>UF<select id="vUfOri" aria-label="UF de origem">${opcoesUF(v && v.ufOrigem)}</select></label>
@@ -695,28 +703,37 @@ async function registrar() {
     if (r.n > 0) avisoTF.innerHTML = `${icone('alerta')} ${r.n === 1 ? 'Já há 1 TF de barreira lavrado' : `Já há ${r.n} TFs de barreira lavrados`} para esta placa em ${esc(t.local)}${r.ult ? ` (último em ${dBR(r.ult)})` : ''}.`;
   };
   placa.oninput = () => { placa.value = placa.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); conferirTF(); };
+  // embarcação: nome no lugar da placa (sem placa, sem alerta de cuidado, que é por placa)
+  const ehEmb = () => { const r = document.querySelector('input[name=tipo]:checked'); return !!r && r.value === 'EM'; };
+  const trocarTipo = () => { const emb = ehEmb(); $('#embBox').hidden = !emb; $('#placaBox').hidden = emb; $('.veic-cuidado').hidden = emb;
+    placa.required = !emb && !semPlaca; if (emb) { avisoTF.hidden = true; avisoCuid.hidden = true; } };
+  document.querySelectorAll('input[name=tipo]').forEach(r => { r.onchange = trocarTipo; }); trocarTipo();
   $('#vCuidado').onchange = e => { $('#vCuidadoBox').hidden = !e.target.checked; if (e.target.checked) $('#vCuidadoMot').focus(); };
   if (placa.value) conferirTF();
-  if (!v && !semPlaca) placa.focus();
+  if (!v && ehEmb()) $('#embarcacao').focus(); else if (!v && !semPlaca) placa.focus();
   $('#fVeic').onsubmit = async e => {
     e.preventDefault();
-    const p = placa.value.trim();
-    if (!p && !semPlaca) { toast('Informe a placa.', true); placa.focus(); return; }
+    const emb = ehEmb(), nomeEmb = $('#embarcacao').value.trim().replace(/\s+/g, ' ').toUpperCase();
+    if (emb && !nomeEmb) { toast('Informe o nome da embarcação.', true); $('#embarcacao').focus(); return; }
+    const p = emb ? '' : placa.value.trim();
+    if (!p && !semPlaca && !emb) { toast('Informe a placa.', true); placa.focus(); return; }
     if (p && !/^[A-Z]{3}\d[A-Z0-9]\d{2}$/.test(p) && !confirm(`A placa "${p}" está fora do padrão. Salvar mesmo assim?`)) return;
-    const cuid = cuidadoFixo || $('#vCuidado').checked, cuidMot = cuidadoFixo ? v.cuidadoMotivo || 'outro' : $('#vCuidadoMot').value;
+    const cuid = !emb && (cuidadoFixo || $('#vCuidado').checked), cuidMot = cuidadoFixo ? v.cuidadoMotivo || 'outro' : $('#vCuidadoMot').value;
     if (cuid && !p) { toast('O alerta de cuidado precisa da placa.', true); placa.focus(); return; }
     if (cuid && !cuidMot) { toast('Escolha o motivo do alerta de cuidado.', true); $('#vCuidadoMot').focus(); return; }
     const existentes = await veiculosDe(t.id);
     if (p && existentes.some(x => x.placa === p && x.id !== (v && v.id)) && !confirm(`A placa ${p} já foi registrada neste turno. Registrar de novo?`)) return;
+    if (emb && existentes.some(x => x.tipo === 'EM' && x.embarcacao === nomeEmb && x.id !== (v && v.id)) && !confirm(`A embarcação ${nomeEmb} já foi registrada neste turno. Registrar de novo?`)) return;
     const tp = document.querySelector('input[name=tipo]:checked').value;
     // educação sanitária, medida fitossanitária, partidas, documentos e inspeção saem das pessoas informadas pelo fiscal e dos TFs (servidor); ao editar um
     // registro antigo, os campos de fiscalização que ele já tinha ficam como estavam ({ ...v, ...dados })
-    const dados = { turnoId: t.id, placa: p, tipo: tp, pessoas: Math.max(0, parseInt($('#pessoas').value, 10) || 0), obs: $('#obs').value.trim(), excluido: 0,
+    const dados = { turnoId: t.id, placa: p, tipo: tp, embarcacao: emb ? nomeEmb : '', obs: $('#obs').value.trim(), excluido: 0,
+      pessoas: $('#pessoas') ? Math.max(0, parseInt($('#pessoas').value, 10) || 0) : Number(v && v.pessoas) || 0,
       ufOrigem: $('#vUfOri').value, ufDestino: $('#vUfDes').value,
       origemMun: $('#vMunOri').value.trim().replace(/\s+/g, ' '), destinoMun: $('#vMunDes').value.trim().replace(/\s+/g, ' '),
       cuidado: cuid ? 1 : 0, cuidadoMotivo: cuid ? cuidMot : '' };
     if (v) { await Store.salvar('veiculos', { ...v, ...dados }); toast('Registro atualizado.'); Sync.sincronizar(); go('lista'); }
-    else { await Store.salvar('veiculos', { ...dados, hora: agoraHM() }); toast(p ? `${p} registrado.` : 'Veículo registrado (sem placa).'); Sync.sincronizar(); go('registrar'); }
+    else { await Store.salvar('veiculos', { ...dados, hora: agoraHM() }); toast(emb ? `Embarcação ${nomeEmb} registrada.` : p ? `${p} registrado.` : 'Veículo registrado (sem placa).'); Sync.sincronizar(); go('registrar'); }
   };
 }
 
@@ -728,15 +745,15 @@ async function lista() {
   if (!t) return novoTurno();
   const todos = (await veiculosDe(t.id)).reverse();
   if (!mostrar.viva()) return;
-  view(`<div class="card"><label>Pesquisar placa<input id="q" autocapitalize="characters"></label></div><div id="itens"></div>`);
+  view(`<div class="card"><label>Pesquisar placa ou embarcação<input id="q" autocapitalize="characters"></label></div><div id="itens"></div>`);
   const desenhar = () => {
     const q = $('#q').value.toUpperCase();
-    const v = todos.filter(x => !q || x.placa.includes(q));
+    const v = todos.filter(x => !q || String(x.placa || '').includes(q) || String(x.embarcacao || '').includes(q));
     $('#itens').innerHTML = v.length ? v.map(x => `
-      <div class="item"><div class="topo"><div><div class="placa">${x.placa ? esc(x.placa) : '<small>sem placa</small>'}</div>
+      <div class="item"><div class="topo"><div><div class="placa">${x.embarcacao ? esc(x.embarcacao) : x.placa ? esc(x.placa) : '<small>sem placa</small>'}</div>
         <div class="tipo">${CONFIG.tipos[x.tipo] ? icone(CONFIG.tipos[x.tipo].icone) + ' ' + CONFIG.tipos[x.tipo].nome : esc(x.tipo)}</div></div>
         <div class="hora">${esc(x.hora)}</div></div>
-        <div class="info"><b>Pessoas:</b> ${Number(x.pessoas) || 0}</div>
+        ${soPessoas(t) ? '' : `<div class="info"><b>Pessoas:</b> ${Number(x.pessoas) || 0}</div>`}
         ${Number(x.carga) ? `<div class="info veic-carga"><b>Carga:</b> ${esc(cargaProdutos(x).map(c => c.p + (c.q ? ` ${c.q} ${c.u}` : '')).join('; ') || 'vegetais/partes')}</div>` : ''}
         ${x.ufOrigem || x.ufDestino || x.origemMun || x.destinoMun ? `<div class="info veic-uf"><b>Origem → destino:</b> ${esc(lugar(x.origemMun, x.ufOrigem))} → ${esc(lugar(x.destinoMun, x.ufDestino))}</div>` : ''}
         ${x.obs ? `<div class="info"><b>Obs:</b> ${esc(x.obs)}</div>` : ''}
@@ -759,7 +776,9 @@ async function resumo() {
   const por = contar(v);
   if (!mostrar.viva()) return;
   if (soPessoas(t)) {
-    view(`<div class="card"><h3>${esc(t.numeroTF)}</h3><div class="total">PESSOAS ORIENTADAS<br>${pessoasDoTurno(t, v)}<small>educação sanitária (sem contagem de veículos neste turno)</small></div></div>
+    view(`<div class="card"><h3>${esc(t.numeroTF)}</h3>
+      ${Object.entries(CONFIG.tipos).filter(([c]) => por[c]).map(([c, x]) => `<div class="resumo-item"><span>${icone(x.icone)} ${x.nome}</span><strong>${por[c]}</strong></div>`).join('')}
+      <div class="total">PESSOAS ORIENTADAS<br>${pessoasDoTurno(t, v)}<small>educação sanitária${v.length ? ` · ${v.length} embarcação(ões)/veículo(s) fiscalizado(s)` : ''}</small></div></div>
       ${botaoFim(t)}
       <p class="dica">Início do turno: ${esc(t.inicio)}. Ao encerrar, o horário final é registrado e o Termo de Fiscalização fica disponível.<br>Na janela de impressão, escolha “Salvar como PDF”.</p>`);
     $('#encerrar').onclick = () => encerrarTurno(t); ligarCancelar(t); return;
@@ -815,7 +834,7 @@ async function fechado() {
   if (!mostrar.viva()) return;
   view(`<div class="card"><h3>Turno encerrado</h3><p><b>${esc(t.numeroTF)}</b> ${botaoNumero(t)}</p>
     <p>${dBR(t.data)} · das <b>${esc(t.inicio)}</b> às <b>${esc(t.fim)}</b></p>
-    <p>${soPessoas(t) ? '' : v.length + ' veículos · '}${pessoasDoTurno(t, v)} pessoas${soPessoas(t) ? ' orientadas' : ''}</p>
+    <p>${soPessoas(t) && !v.length ? '' : v.length + (soPessoas(t) ? ' embarcação(ões)/veículo(s) · ' : ' veículos · ')}${pessoasDoTurno(t, v)} pessoas${soPessoas(t) ? ' orientadas' : ''}</p>
     ${htmlStatusEnc(t)}</div>
     <button class="botao" data-doc="termo" data-id="${t.id}">${icone('documento')} Termo de Fiscalização (PDF)</button>
     ${temFicha(t) ? `<button class="botao" data-doc="ficha" data-id="${t.id}">${icone('formulario')} Ficha de Campo (PDF)</button>` : ''}

@@ -33,7 +33,8 @@ const TABELAS = {
              'origemMun', 'destinoMun', 'transportador', 'cargaPapel', 'medidaPapel', 'tfPapel', 'docPapel', 'importacao',
              // alerta de cuidado (app): cuidado = 1 → outros fiscais veem "Cuidado ao abordar este veículo" ao digitar a placa (índice
              // tfIndiceReincidencia); cuidadoMotivo = alteracao | resistencia | ameaca | outro (detalhes nas observações)
-             'cuidado', 'cuidadoMotivo'],
+             'cuidado', 'cuidadoMotivo',
+             'embarcacao'],                // nome da embarcação (tipo EM, turno volante: porto/rio); vazio nos demais veículos
   // HISTÓRICO (não vale mais como credencial): códigos de ativação e credenciais antigas dos fiscais e administradores.
   // Os nomes ainda servem à lista de servidores das diárias do portal (admServidores_).
   Fiscais: ['nome', 'codigo', 'expiraEm', 'ativo', 'token', 'ativadoEm', 'perfil',
@@ -218,7 +219,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-11-17c';
+const VERSAO_CODIGO = '2026-11-17d';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado

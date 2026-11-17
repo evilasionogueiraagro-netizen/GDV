@@ -27,7 +27,7 @@ const linhas = async aba => (await get('/__aba?nome=' + aba)) || [];
   const perm = (v, t, pc) => U.permissoes(C.usuario.id, U.lista({ veiculos: v, tf: t, pce: pc }));
   await a.goto(APP); await a.waitForSelector('.modulo'); await sync();
   ok(await a.locator('.modulo[data-v]').count() === 3, 'tudo liberado: três módulos no menu');
-  ok(JSON.stringify(await a.evaluate(() => Store.meta('permissoes'))) === '{"veiculos":1,"tf":1,"pce":1,"antigo":0,"escala":0}', 'permissões guardadas no aparelho (meta "permissoes")');
+  ok(JSON.stringify(await a.evaluate(() => Store.meta('permissoes'))) === '{"veiculos":1,"tf":1,"pce":1,"antigo":0,"escala":0,"educacao":0}', 'permissões guardadas no aparelho (meta "permissoes")');
   ok(await a.evaluate(() => Sync.pode('antigo') === false), 'app: Digitar do papel desligado por padrão');
   // turno + veículo
   await a.click('.modulo[data-v=home]'); await a.waitForSelector('#fTurno');
@@ -59,7 +59,7 @@ const linhas = async aba => (await get('/__aba?nome=' + aba)) || [];
   await a.waitForFunction(() => VIEW === 'modulos' && !document.querySelector('.modulo[data-v=home]'), null, { timeout: 15000 });
   ok(true, 'veiculos=0 com o fiscal dentro do módulo: ao sincronizar volta para a tela de módulos');
   await a.waitForFunction(() => document.querySelector('#avisoPerm'), null, { timeout: 8000 });
-  ok(/Sem autorização para o módulo Educação Sanitária\/Fiscalização de Trânsito — fale com a gerência/.test(await a.textContent('#avisoPerm')), 'aviso: "Sem autorização para o módulo Educação Sanitária/Fiscalização de Trânsito — fale com a gerência"', await a.textContent('#avisoPerm'));
+  ok(/Sem autorização para o módulo Fiscalização de Trânsito — fale com a gerência/.test(await a.textContent('#avisoPerm')), 'aviso: "Sem autorização para o módulo Fiscalização de Trânsito — fale com a gerência"', await a.textContent('#avisoPerm'));
   ok(await a.locator('.modulo[data-v=home]').count() === 0, 'cartão de veículos some do menu (o turno em andamento fica guardado no aparelho)');
   let loc = await a.evaluate(async () => (await Store.todos('veiculos')).filter(v => ['AAA1B22', 'OFF1L23'].includes(v.placa)).map(v => v.placa + ':' + v.pendente).sort().join());
   ok(loc === 'AAA1B22:0,OFF1L23:1', 'veículo registrado sem internet continua no aparelho, pendente', loc);

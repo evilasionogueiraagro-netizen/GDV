@@ -16,21 +16,21 @@ function nomeServidor_(v) {
 
 /* ---------- Módulos do campo (permissões do usuário: PermissoesDosUsuarios) ---------- */
 
-const NOME_MODULO = { veiculos: 'Educação Sanitária/Fiscalização de Trânsito', tf: 'TF de Barreira', pce: 'PCE' };
+const NOME_MODULO = { veiculos: 'Fiscalização de Trânsito', tf: 'TF de Barreira', pce: 'PCE', educacao: 'Educação Sanitária' };
 // actions do app que pertencem a um módulo (o servidor recusa se o módulo não estiver liberado para quem chama)
 const MODULO_DA_ACAO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf', tfIndiceReincidencia: 'tf',
                          pceProximoNumero: 'pce', pceEmitir: 'pce', pceConsultar: 'pce', pceBuscarTexto: 'pce', pceBaixarMunicipio: 'pce', arquivoEnviar: 'pce',
-                         pceDocNumero: 'pce', pceDocRegistrar: 'pce',
+                         pceDocNumero: 'pce', pceDocRegistrar: 'pce', educacaoProximoNumero: 'educacao', educacaoRegistrar: 'educacao',
                          turnoConvidar: 'veiculos', turnoParear: 'veiculos', turnoSair: 'veiculos', turnosAbertos: 'veiculos', turnoEntrar: 'veiculos', turnoRemoverColega: 'veiculos',
                          turnoPapelRegistrar: 'veiculos', turnoNumero: 'veiculos', turnoRecuperar: 'veiculos', turnoTFs: 'veiculos' };
 const MSG_SEM_ANTIGO = 'Sem autorização para digitar registros antigos (do papel). Fale com a gerência.';
 
 /**
- * Módulos liberados para quem chama {veiculos, tf, pce, antigo}: vêm das permissões do usuário da sessão (USUARIO_ATUAL_, preenchido
+ * Módulos liberados para quem chama {veiculos, tf, pce, antigo, educacao}: vêm das permissões do usuário da sessão (USUARIO_ATUAL_, preenchido
  * por autenticar_ a cada chamada). Sem sessão, nada liberado. O parâmetro é só o nome (assinatura antiga); não muda o resultado.
  */
 function permissoesDe_(usuario) {
-  return USUARIO_ATUAL_ ? Object.assign({}, USUARIO_ATUAL_.modulos) : { veiculos: 0, tf: 0, pce: 0, antigo: 0 };
+  return USUARIO_ATUAL_ ? Object.assign({}, USUARIO_ATUAL_.modulos) : { veiculos: 0, tf: 0, pce: 0, antigo: 0, educacao: 0 };
 }
 
 /** Recusa registro antigo (digitado do papel) / PDF escaneado sem a permissão "antigo". Mensagem sem "revogado"/"inválido". */

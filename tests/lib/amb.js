@@ -67,9 +67,9 @@ async function modulos(tokGerente, nome, m) {
   if (!L.ok) return L;
   const u = L.usuarios.find(x => x.nome === nome);
   if (!u) return { ok: false, erro: 'usuário não encontrado: ' + nome };
-  const perms = ['campo'].concat(m.veiculos ? ['fiscalizacaoDeTransito'] : [], m.tf ? ['termoDeBarreira'] : [], m.pce ? ['pce'] : [], m.antigo ? ['digitarDoPapel'] : []);
+  const perms = ['campo'].concat(m.veiculos ? ['fiscalizacaoDeTransito'] : [], m.tf ? ['termoDeBarreira'] : [], m.pce ? ['pce'] : [], m.antigo ? ['digitarDoPapel'] : [], m.educacao ? ['educacaoSanitaria'] : []);
   const r = await post({ action: 'usuarioPermissoes', key: tokGerente, usuarioId: u.id, permissoes: perms });
-  if (r.ok) r.permissoes = { veiculos: m.veiculos ? 1 : 0, tf: m.tf ? 1 : 0, pce: m.pce ? 1 : 0, antigo: m.pce && m.antigo ? 1 : 0 };
+  if (r.ok) r.permissoes = { veiculos: m.veiculos ? 1 : 0, tf: m.tf ? 1 : 0, pce: m.pce ? 1 : 0, antigo: m.pce && m.antigo ? 1 : 0, educacao: m.educacao ? 1 : 0 };
   return r;
 }
 let tokCarga = null;

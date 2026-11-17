@@ -577,6 +577,22 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
   /** Termo de Fiscalização do PCE (um só modelo, todos os programas; aceita o Termo novo, o antigo e o de citros antigo, como gravados). */
   const termoPce = (termo, opcoes, modo) => pceMon('termo', termo, opcoes, modo);
 
+  /**
+   * Termo de Educação Sanitária: modelo documentos/educacao-termo.html preenchido por documentos/educacao-docs.js.
+   * modo 'arquivo': devolve o PDF gerado no aparelho (pdf.js, 300 dpi como os documentos do PCE) em vez de abrir a impressão.
+   */
+  async function termoEducacao(t, modo) {
+    if (!t) throw new Error('Registro não encontrado.');
+    const f = await abrirModelo('educacao-termo.html'), w = f.contentWindow;
+    for (let i = 0; i < 50 && !w.EducacaoDocs; i++) await new Promise(r => setTimeout(r, 50));
+    if (!w.EducacaoDocs) { f.remove(); throw new Error('Modelo de impressão indisponível nesta versão do app.'); }
+    w.EducacaoDocs.montar(f.contentDocument, t, { programas: ((CONFIG.PCE.termo || {}).programasRelatorio || []).map(p => p.nome) });
+    const nome = nomeArquivo('Termo_Educacao_Sanitaria_' + String(t.numeroTxt || 'SEM_NUMERO'));
+    if (modo === 'arquivo') return PDF.deFrame(f, nome, undefined, PDF_PCE);
+    imprimir(f, nome);
+    return 1;
+  }
+
   /** Relatório da equipe (prestação de contas do convênio): modelo rel-equipe.html preenchido por documentos/rel-equipe-docs.js. */
   async function relEquipe(R) {
     const f = await abrirModelo('rel-equipe.html'), w = f.contentWindow;
@@ -594,5 +610,5 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     return imprimir(f, `Termo_de_${r.tipo.normalize('NFD').replace(/[\u0300-\u036f]/g, '')}_${String(r.numero).replace(/[^\w]+/g, '_')}_${String(R.escala.bva).replace(/[^\w]+/g, '_')}`);
   }
 
-  return { ficha, termo, tf, auto, limparImpressao, relEquipe, termoRepasse, fiscaisDoTurno, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, fichaPce, termoPce, nomePdfMon, ordenar, esc };
+  return { ficha, termo, tf, auto, limparImpressao, relEquipe, termoRepasse, fiscaisDoTurno, pceLevantamento, pceGrupos, nomePdfPce, pceColheita, pceMon, fichaPce, termoPce, termoEducacao, nomePdfMon, ordenar, esc };
 })();

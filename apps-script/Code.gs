@@ -191,12 +191,18 @@ const TABELAS = {
            'levantamento',   // 0 = sem levantamento no campo (praga ausente no Brasil, ex.: Fusariose FOC R4T: só educação sanitária)
            'opcional'],      // 1 = campo tem/não tem, já marcado "não tem" no app; entra no Termo do programa, sem Termo próprio
   PragasDasFamilias: ['id', 'pragaId', 'familiaId', 'ativo', 'atualizadoEm', 'atualizadoPor'],
-  PragasDasCulturas: ['id', 'pragaId', 'culturaId', 'ativo', 'atualizadoEm', 'atualizadoPor']
+  PragasDasCulturas: ['id', 'pragaId', 'culturaId', 'ativo', 'atualizadoEm', 'atualizadoPor'],
+  // Termo de Educação Sanitária (educacao.gs; módulo próprio, sem ligação com turno, TF de barreira nem PCE). Numeração "001.2026.MANAUS" por unidade (lotação do
+  // servidor) e ano. publicoAlvo e programas = JSON de textos (lista fixa + "Outro" com o texto em publicoOutro/programaOutro); pessoas = pessoas orientadas; folders = folders/flyers
+  // entregues. Exclusão lógica; cancelar = cancelado 1 com motivoCancel (o número continua usado).
+  TermosEducacao: ['id', 'unidade', 'ano', 'numero', 'numeroTxt', 'numeroSugerido', 'numeroOrigem', 'conflito', 'emitidoEm', 'data', 'hora', 'municipio', 'local',
+                   'tipoMedida', 'tipoMedidaOutro', 'publicoAlvo', 'publicoOutro', 'programas', 'programaOutro', 'descricao', 'pessoas', 'folders', 'obs',
+                   'servidor', 'cargo', 'matricula', 'lotacao', 'cancelado', 'motivoCancel', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario']
 };
 const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'cuidado', 'semPlaca', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
                           'expiraEm', 'ativo', 'ativadoEm', 'oculto', 'ocultoEm',
                           'ano', 'numero', 'ultimo', 'de', 'ate', 'em', 'numeroSugerido', 'emitidoEm', 'amostras', 'inspecao', 'coleta', 'fiel', 'auto', 'autoNumero', 'autoConflito',
-                          'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito', 'tamanho',
+                          'folders', 'advertencia', 'reincidente', 'tfsAnteriores', 'cancelado', 'conflito', 'tamanho',
                           'inicioTs', 'atualizadoTs', 'registroAntigo', 'encerradoEm', 'canceladoEm',
                           'standalone', 'online', 'ultimoSinal', 'ultimoErroEm', 'primeiroSinal', 'recusaAssinatura',
                           'totalPlantas', 'plantasInspecionadas', 'importadoEm',
@@ -206,13 +212,13 @@ const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'cuidado', 'semPlaca', 'exclui
                           'entrouEm', 'saiuEm'];   // lat/lon/precisao ficam como texto (como em Turnos)
 const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000, produtos: 3000, motivoCancel: 300,
                         culturas: 45000, pragas: 45000, descricao: 3000, fotos: 20000, assinaturas: 1000, obs: 2000,
-                        frutos: 30000, dados: 20000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000, citros: 20000, cargaPapel: 3000, autoDados: 10000 };   // demais colunas: 500
+                        frutos: 30000, dados: 20000, publicoAlvo: 2000, programas: 2000, testemunhas: 1000, hospedeiros: 1000, laboratorio: 2000, citros: 20000, cargaPapel: 3000, autoDados: 10000 };   // demais colunas: 500
 // culturas/fotos/assinaturas são JSON: cortar o texto invalidaria o JSON (e apagaria as referências no aparelho). Os limites acima
 // cabem numa célula (50.000 caracteres) e o app limita a quantidade de culturas/fotos e o tamanho dos campos para nunca chegar neles.
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-11-17b';
+const VERSAO_CODIGO = '2026-11-17c';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -275,6 +281,8 @@ function doPost(e) {
     if (req.action === 'pceEmitir') return json_(pceEmitir_(req, usuario));
     if (req.action === 'pceConsultar') return json_(lido_(req, pceConsultar_(req, usuario)));
     if (req.action === 'pceBuscarTexto') return json_(lido_(req, pceBuscarTexto_(req, usuario)));
+    if (req.action === 'educacaoProximoNumero') return json_(educacaoProximoNumero_(req));
+    if (req.action === 'educacaoRegistrar') return json_(educacaoRegistrar_(req, usuario));
     if (req.action === 'pceDocNumero') return json_(pceDocNumero_(req));
     if (req.action === 'pceDocRegistrar') return json_(pceDocRegistrar_(req, usuario));
     if (req.action === 'pceBaixarMunicipio') return json_(lido_(req, pceBaixarMunicipio_(req, usuario)));
@@ -320,6 +328,7 @@ function sincronizar_(req, usuario) {
   const propriedades = lista_(req.propriedades);
   const cadastrosPce = lista_(req.cadastrosPce);
   const termosPce = lista_(req.termosPce);
+  const termosEducacao = lista_(req.termosEducacao);
   const since = Number(req.since) || 0;
   // Módulos sem autorização: os registros NÃO são gravados e voltam em "recusados" (o app os mantém pendentes no aparelho).
   // Pessoas (cadastro do fiscalizado/produtor) servem ao TF e ao PCE: entram se qualquer um dos dois estiver liberado.
@@ -334,7 +343,8 @@ function sincronizar_(req, usuario) {
     tfs: filtrar('tfs', tfs, perm.tf), placas: filtrar('placas', placas, perm.tf), pessoas: filtrar('pessoas', pessoas, perm.tf || perm.pce),
     levantamentos: filtrar('levantamentos', levantamentos, perm.pce), colheitas: filtrar('colheitas', colheitas, perm.pce),
     propriedades: filtrar('propriedades', propriedades, perm.pce),
-    cadastrosPce: filtrar('cadastrosPce', cadastrosPce, perm.pce), termosPce: filtrar('termosPce', termosPce, perm.pce)
+    cadastrosPce: filtrar('cadastrosPce', cadastrosPce, perm.pce), termosPce: filtrar('termosPce', termosPce, perm.pce),
+    termosEducacao: filtrar('termosEducacao', termosEducacao, perm.educacao)
   };
   // registros antigos (digitados do papel) só com a permissão "antigo": os demais do mesmo lote entram normalmente
   if (!perm.antigo) {
@@ -411,6 +421,13 @@ function sincronizar_(req, usuario) {
       alheios(x[1], gravar_(D.aba, regs, agora, usuario));
       marcarConflitos_(D.seq, gravados_(regs, recusados[x[1]]), agora);
     });
+    // Termo de Educação Sanitária: nº em texto no formato do papel; número repetido = conflito (o mais antigo vale)
+    if (T.termosEducacao.length) {
+      const ja = {}; lerLeitura_('TermosEducacao').forEach(function (l) { ja[l.id] = true; });
+      T.termosEducacao.forEach(function (r) { if (!r) return; normalizarTermoEdu_(r, false); if (!r.emitidoEm) { if (ja[r.id]) delete r.emitidoEm; else r.emitidoEm = agora; } });
+      alheios('termosEducacao', gravar_('TermosEducacao', T.termosEducacao, agora, usuario));
+      marcarConflitos_('EDU', gravados_(T.termosEducacao, recusados.termosEducacao), agora);
+    }
     // sinal do aparelho (melhor esforço: nunca derruba o envio). Desconta o que acabou de chegar.
     const encerrados = {};
     T.turnos.forEach(function (t) { if (t && t.id && Number(t.encerrado) === 1) encerrados[String(t.id)] = true; });
@@ -439,6 +456,8 @@ function sincronizar_(req, usuario) {
       cadastrosPce: lerMudancas_('CadastrosPCE', since, usuario),   // Cadastro de imóvel e Termo de Fiscalização do PCE (só os do próprio servidor)
       termosPce: lerMudancas_('TermosPCE', since, usuario),
       ultimosDocPce: ultimosDocPce_(),                  // último nº de Termo de Fiscalização ("T|UNIDADE|ano") e de Cadastro ("C|PROGRAMA|UNIDADE|ano")
+      termosEducacao: perm.educacao ? lerMudancas_('TermosEducacao', since, usuario) : [],   // Termo de Educação Sanitária (só os do próprio servidor)
+      ultimosEducacao: perm.educacao ? ultimosEdu_() : {},                              // último nº por "UNIDADE|ano"
       permissoes: perm,                                 // módulos liberados para este servidor (o app guarda e esconde o que não pode)
       bvas: bvasCadastro_(),                            // BVAs cadastradas no painel (o app junta com CONFIG.bvas)
       catalogoPce: perm.pce ? catalogoPce_() : null,    // culturas, famílias e pragas do PCE (pce-catalogo.gs); sem o módulo, nada

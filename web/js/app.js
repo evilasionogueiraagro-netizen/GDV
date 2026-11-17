@@ -95,32 +95,33 @@ const botaoFim = t => souColega(t) ? `<button class="botao vermelho" id="encerra
 const cfgSoPessoas = unidade => ((CONFIG.volantesSoPessoas || {})[String(unidade || '').trim().toUpperCase()]) || null;
 const pessoasDoTurno = (t, v) => (v || []).reduce((s, x) => s + (Number(x.pessoas) || 0), 0) + (Number(t && t.pessoasEducacao) || 0);
 /* ---------- módulos e navegação ---------- */
-// Depois de instalar o app e entrar (matrícula e senha), o fiscal escolhe um módulo: Educação Sanitária/Fiscalização de Trânsito (turnos e veículos), TF ou PCE.
-// Dentro da Educação Sanitária/Fiscalização de Trânsito o TF também está embutido (botão "Lavrar TF"); o menu de baixo muda conforme o módulo.
+// Depois de instalar o app e entrar (matrícula e senha), o fiscal escolhe um módulo: Fiscalização de Trânsito (turnos e veículos), TF, PCE ou Educação Sanitária.
+// Dentro da Fiscalização de Trânsito o TF também está embutido (botão "Lavrar TF"); o menu de baixo muda conforme o módulo.
 let MODULO = 'hub';
 const NAVS = {
   hub: [['modulos', 'inicio', 'Módulos'], ['config', 'status', 'Status']],
   veiculos: [['modulos', 'inicio', 'Módulos'], ['home', 'caminhao-bau', 'Turno'], ['registrar', 'mais', 'Registrar'], ['lista', 'lista', 'Lista'], ['resumo', 'resumo', 'Resumo'], ['historico', 'historico', 'Histórico']],
   tf: [['modulos', 'inicio', 'Módulos'], ['tf', 'documento', 'Meus TFs'], ['tfnovo', 'mais', 'Novo TF']],
   escala: [['modulos', 'inicio', 'Módulos'], ['escalas', 'calendario', 'Escalas']],
-  pce: [['modulos', 'inicio', 'Módulos'], ['pce', 'pessoa', 'Produtores'], ['pcetermos', 'formulario', 'Termos']]
+  pce: [['modulos', 'inicio', 'Módulos'], ['pce', 'pessoa', 'Produtores'], ['pcetermos', 'formulario', 'Termos']],
+  educacao: [['modulos', 'inicio', 'Módulos'], ['educacao', 'lista', 'Meus termos'], ['educacaonovo', 'mais', 'Novo termo']]
 };
 const VIEWS_VEICULOS = ['home', 'registrar', 'editar', 'lista', 'resumo', 'fechado', 'historico', 'turnopapel'];
 /** Módulo (permissão) de cada tela: veiculos, tf ou pce; '' = livre (módulos, status). */
-const moduloDaView = v => VIEWS_VEICULOS.includes(v) ? 'veiculos' : /^tf/.test(v) ? 'tf' : /^pce/.test(v) ? 'pce' : /^escala/.test(v) ? 'escala' : '';
+const moduloDaView = v => VIEWS_VEICULOS.includes(v) ? 'veiculos' : /^tf/.test(v) ? 'tf' : /^pce/.test(v) ? 'pce' : /^escala/.test(v) ? 'escala' : /^educacao/.test(v) ? 'educacao' : '';
 const SEM_AUT = 'Sem autorização — fale com a gerência';
-const MODS_LIBERADOS = () => ['veiculos', 'tf', 'pce'].some(m => Sync.pode(m));
+const MODS_LIBERADOS = () => ['veiculos', 'tf', 'pce', 'educacao'].some(m => Sync.pode(m));
 /** A gerência tirou o módulo (painel → Servidores): a tela não abre e volta para a tela de módulos. Os dados do aparelho ficam guardados. */
 function semPermissaoPara(view) {
   const m = moduloDaView(view);
   if (m && !Sync.pode(m)) return m;
-  if (MODULO === 'veiculos' && m === 'tf' && view !== 'tf' && !Sync.pode('veiculos')) return 'veiculos';   // TF embutido na Educação Sanitária/Fiscalização de Trânsito
+  if (MODULO === 'veiculos' && m === 'tf' && view !== 'tf' && !Sync.pode('veiculos')) return 'veiculos';   // TF embutido na Fiscalização de Trânsito
   return '';
 }
 function renderNav(view) {
   const ativo = ({ editar: 'lista', fechado: 'home', tfpronto: MODULO === 'tf' ? 'tf' : 'lista', tfnovo: MODULO === 'tf' ? 'tfnovo' : 'lista',
     pceservidor: 'pce', pcecampo: 'pce', pceprodutor: 'pce', pceprodform: 'pce', pcevisita: 'pce', pcevisitapronto: 'pce', pceficha: 'pce', pcelevver: 'pce', pcetfs: 'pce',
-    pcepronto: 'pcetermos', pcetermo: 'pcetermos', pcetf: 'pcetermos', pcetfpronto: 'pcetermos', pcerel: 'pcetermos', pcenovotermo: 'pcetermos', escala: 'escalas', escalagerar: 'escalas' })[view] || view;
+    pcepronto: 'pcetermos', pcetermo: 'pcetermos', pcetf: 'pcetermos', pcetfpronto: 'pcetermos', pcerel: 'pcetermos', pcenovotermo: 'pcetermos', escala: 'escalas', escalagerar: 'escalas', educacaotermo: 'educacao', educacaoservidor: 'educacao' })[view] || view;
   $('#nav').innerHTML = NAVS[MODULO].map(([v, i, t]) => `<button data-v="${v}" class="${v === ativo ? 'on' : ''}">${icone(i)}<span>${t}</span></button>`).join('');
 }
 /** Abre a tela. o.manterRolagem: redesenho da mesma tela (sincronização), sem voltar ao topo. Devolve a promessa do desenho. */
@@ -136,6 +137,7 @@ function go(view, arg, o) {
   else if (VIEWS_VEICULOS.includes(view)) MODULO = 'veiculos';
   else if (/^pce/.test(view)) MODULO = 'pce';
   else if (/^escala/.test(view)) MODULO = 'escala';
+  else if (/^educacao/.test(view)) MODULO = 'educacao';
   else if (/^tf/.test(view) && MODULO === 'hub') MODULO = 'tf';          // TF aberto a partir do veículo continua no módulo de veículos (embutido)
   renderNav(view); GER++;
   const r = ({ modulos, home, registrar, editar: registrar, lista, resumo, fechado, historico, config, turnopapel, tf: () => TFUI.lista(), tfnovo: () => TFUI.novo(EDIT), tfpronto: () => TFUI.pronto(EDIT),
@@ -145,6 +147,7 @@ function go(view, arg, o) {
     pcetfs: () => PCECads.termos(EDIT), pcenovotermo: () => Campo.telaNovoTermo(),
     pcetermos: () => PCEUI.termos(), pcetermo: () => PCEUI.termo(EDIT), pcepronto: () => PCEUI.pronto(EDIT), pceservidor: () => PCEUI.servidor(EDIT),
     pcetf: () => PCEMon.termo(EDIT), pcetfpronto: () => PCEMon.pronto(EDIT), pcerel: () => PCEMon.relatorio(),
+    educacao: () => EducacaoUI.lista(), educacaonovo: () => EducacaoUI.novo(), educacaotermo: () => EducacaoUI.termo(EDIT), educacaoservidor: () => EducacaoUI.servidor(EDIT),
     escalas: () => EscalaUI.lista(), escala: () => EscalaUI.form(EDIT), escalagerar: () => EscalaUI.gerar(EDIT),
     relequipes: () => EscalaUI.relLista(), relequipe: () => EscalaUI.rel(EDIT) }[view])();
   if (!(o && o.manterRolagem)) window.scrollTo(0, 0);
@@ -166,7 +169,7 @@ async function modulos() {
   const mostrar = tela();
   const t = await turnoAtual(), v = t ? await veiculosDe(t.id) : [];
   const tfs = await Store.todos('tfs'), pend = tfs.filter(x => x.pendente).length, nome = Sync.nome().split(' ')[0];
-  const stPce = await PCEUI.status();
+  const stPce = await PCEUI.status(), stEdu = await EducacaoUI.status();
   // módulo sem autorização some do menu (os registros já feitos continuam guardados no aparelho; o aviso abaixo lembra se houver pendentes)
   const cartao = (mod, v, ic, titulo, linhas) => Sync.pode(mod)
     ? `<button class="modulo" data-v="${v}"><span class="ic">${icone(ic)}</span><span><b>${titulo}</b>${linhas}</span></button>` : '';
@@ -176,11 +179,12 @@ async function modulos() {
     ${aviso ? `<div class="card aviso" id="avisoPerm">${icone('alerta')} ${esc(aviso)}</div>` : ''}
     ${avisoTurnoEncerrado()}
     ${MODS_LIBERADOS() ? '' : '<div class="card aviso" id="semModulos"><h3>Nenhum módulo liberado</h3><p>O seu acesso não libera nenhum módulo do app de campo. Fale com a gerência. Os registros que estão neste aparelho continuam guardados.</p></div>'}
-    <div class="modulos">${cartao('veiculos', 'home', 'caminhao-bau', 'Educação Sanitária/Fiscalização de Trânsito', `<small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)` : 'Registro das informações, por ação'}</small>`)}
+    <div class="modulos">${cartao('veiculos', 'home', 'caminhao-bau', 'Fiscalização de Trânsito', `<small>${t ? `Turno em andamento · ${v.length} veículo(s) registrado(s)` : 'Registro das informações, por ação'}</small>`)}
     ${cartao('tf', 'tf', 'documento', 'Termo de Fiscalização de Barreira', `<small>${tfs.length} TF(s) neste aparelho${pend ? ` · ${icone('pendente')} ${pend} aguardando envio` : ''}</small>`)}
     ${cartao('pce', 'pce', 'broto', 'PCE', `<small>Programa de Controle e Erradicação — produtores, visitas e Termos de Fiscalização e de Colheita</small><small class="pce-status">${esc(stPce)}</small>`)}
+    ${cartao('educacao', 'educacao', 'manual', 'Educação Sanitária', `<small>Termo de Educação Sanitária: palestras, abordagens, oficinas e outras medidas educativas</small><small class="edu-status">${esc(stEdu)}</small>`)}
     ${cartao('escala', 'escalas', 'calendario', 'Escalas de plantão', '<small>Coordenação de barreira e trânsito: quem fica em cada BVA em cada período</small>')}</div>
-    ${Sync.pode('veiculos') && Sync.pode('tf') ? '<p class="dica">Dentro da Educação Sanitária/Fiscalização de Trânsito também dá para lavrar o TF de um veículo (botão “Lavrar TF”).</p>' : ''}
+    ${Sync.pode('veiculos') && Sync.pode('tf') ? '<p class="dica">Dentro da Fiscalização de Trânsito também dá para lavrar o TF de um veículo (botão “Lavrar TF”).</p>' : ''}
     <a class="botao sec" href="manual.html">${icone('manual')} Manual do fiscal</a>`);
   EscalaUI.aviso().catch(() => {});                                   // escala de plantão nova ou alterada: aviso uma vez na tela inicial
 }
@@ -1005,7 +1009,7 @@ Sync.onEstado(e => {
   b.innerHTML = icone(ic) + ' ' + esc(txt + (e.tipo === 'sync' ? '' : pend));
   atualizarStatusEnc().catch(() => {});
 });
-window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'resumo', 'historico', 'tf', 'pce', 'pcetermos', 'fechado'].includes(VIEW)) redesenhar(); });
+window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'resumo', 'historico', 'tf', 'pce', 'pcetermos', 'educacao', 'educacaotermo', 'fechado'].includes(VIEW)) redesenhar(); });
 // permissões mudaram no sync: se a tela aberta é de um módulo que deixou de ser autorizado, volta para os módulos (nada é apagado);
 // na tela de módulos (ou em telas livres) só redesenha
 window.addEventListener('gdv-permissoes', () => {

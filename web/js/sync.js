@@ -183,11 +183,11 @@ const Sync = (() => {
      O servidor devolve {veiculos, tf, pce, antigo} a cada sync; guardamos a última (meta "permissoes") para usar sem internet.
      Padrão: módulos liberados (aparelho que nunca sincronizou, ou versão antiga do servidor que não manda permissões);
      "antigo" (Digitar do papel: registro/termo antigo e PDF escaneado) é o contrário: desligado até o servidor mandar antigo=1. */
-  const MODULOS = { veiculos: 'Educação Sanitária/Fiscalização de Trânsito', tf: 'TF de Barreira', pce: 'PCE', antigo: 'Digitar do papel', escala: 'Escalas de plantão' };
+  const MODULOS = { veiculos: 'Fiscalização de Trânsito', tf: 'TF de Barreira', pce: 'PCE', antigo: 'Digitar do papel', escala: 'Escalas de plantão', educacao: 'Educação Sanitária' };
   const { MODULO_DO_STORE, normPerm } = Envio;
   let PERM = normPerm(null);
   const permissoes = () => ({ ...PERM });
-  const pode = m => (m === 'antigo' ? Envio.podeAntigo(PERM) : m === 'escala' ? PERM.escala === 1 : PERM[m] !== 0);
+  const pode = m => (m === 'antigo' ? Envio.podeAntigo(PERM) : m === 'escala' ? PERM.escala === 1 : m === 'educacao' ? PERM.educacao === 1 : PERM[m] !== 0);
   const storePermitido = n => Envio.storePermitido(n, PERM);
   async function carregarPermissoes() {
     try { PERM = normPerm(await Store.meta('permissoes')); } catch (e) { /* sem banco: tudo liberado */ }
@@ -258,6 +258,15 @@ const Sync = (() => {
     Object.keys(ultimos).forEach(k => { const kk = k.toUpperCase(); uv[kk] = Math.max(uv[kk] || 0, Number(ultimos[k]) || 0); });
     await Store.setMeta('ultimoVistoDocPce', uv);
   }
+  /* Termo de Educação Sanitária: último nº por "UNIDADE|ano", para o número provisório sem internet; consulta e gravação online do número. */
+  async function lembrarUltimosEducacao(ultimos) {
+    if (!ultimos) return;
+    const uv = (await Store.meta('ultimoVistoEducacao')) || {};
+    Object.keys(ultimos).forEach(k => { const kk = k.toUpperCase(); uv[kk] = Math.max(uv[kk] || 0, Number(ultimos[k]) || 0); });
+    await Store.setMeta('ultimoVistoEducacao', uv);
+  }
+  const educacaoProximoNumero = (unidade, ano) => chamar({ action: 'educacaoProximoNumero', unidade: unidadePce(unidade), ano }, 9000);
+  const educacaoRegistrar = registro => chamar({ action: 'educacaoRegistrar', registro: limpo(registro) }, 20000);
   const pceDocNumero = (tipo, unidade, ano, programa) => chamar({ action: 'pceDocNumero', tipo, unidade: unidadePce(unidade), ano, programa }, 9000);
   /** Grava o Termo de Fiscalização / Cadastro do PCE só se o número ainda estiver livre (como o Termo de Colheita). */
   const pceDocRegistrar = (tipo, registro, pessoa, propriedade) => chamar({ action: 'pceDocRegistrar', tipo, registro: limpo(registro),
@@ -484,6 +493,8 @@ const Sync = (() => {
         await aplicar('colheitas', r.colheitas || []);
         await aplicar('cadastrosPce', r.cadastrosPce || []);
         await aplicar('termosPce', r.termosPce || []);
+        await aplicar('termosEducacao', r.termosEducacao || []);
+        await lembrarUltimosEducacao(r.ultimosEducacao);
         await adotarPropriedades(r.propriedadesGravadas);
         await tratarRecusadosPce(l.rec);
         if (r.catalogoPce && typeof r.catalogoPce === 'object') await Store.setMeta('catalogoPce', r.catalogoPce);
@@ -593,5 +604,5 @@ const Sync = (() => {
 
   return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, turnosAbertos, entrarNoTurno, sairDoTurno, removerColega, podeTurnoNaBva, visiveis, turnoPapel, mesmoNome, recuperarTurnos, tfsDoTurno, escalaDados, escalaSalvar, escalaExcluir, escalaGerar, relEquipeLista, relEquipe, relEquipeSalvar, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
-    pceProximoNumero, pceEmitir, pceConsultar, pceBuscarTexto, pceBaixarMunicipio, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
+    pceProximoNumero, pceEmitir, pceConsultar, pceBuscarTexto, pceBaixarMunicipio, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, lembrarUltimosEducacao, educacaoProximoNumero, educacaoRegistrar, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

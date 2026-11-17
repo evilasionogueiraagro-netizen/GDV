@@ -40,7 +40,7 @@ const planilha = async aba => { const d = await (await fetch(API + '/__tudo')).j
   await p.goto(APP); await p.waitForSelector('.modulo[data-v=pce]');
   await p.evaluate(() => Sync.sincronizar()); await p.waitForTimeout(1200);
   const e4 = await estrutura(p);
-  ok(e4.v === 4 && STORES4.every(s => e4.stores.includes(s)) && !e4.stores.includes('culturasAvaliadas') && !e4.stores.includes('resultados'), 'o app continua na versão 4, sem as stores de linhas da visita', e4);
+  ok(e4.v === 6 && STORES4.concat('termosEducacao').every(s => e4.stores.includes(s)) && !e4.stores.includes('culturasAvaliadas') && !e4.stores.includes('resultados'), 'o app sobe para a versão 6 (store do Termo de Educação Sanitária), sem as stores de linhas da visita', e4);
   ok(await p.evaluate(async () => !!(await Store.meta('catalogoPce'))), 'catálogo do PCE recebido no sync');
   await A.identificar(p);
   await A.novoProdutor(p, { doc: '52998224725', nome: 'Produtor Ficticio Banco', propriedade: 'Sitio Banco', codigo: 'PRP-BANCO-1', frutos: [{ cultura: 'Soja', area: 10 }] });
@@ -64,7 +64,7 @@ const planilha = async aba => { const d = await (await fetch(API + '/__tudo')).j
   await p.goto(APP); await p.waitForSelector('.modulo[data-v=pce]');
   ok(p.err.length === 0, 'o app abre sobre o banco v5 sem erro (sem VersionError)', p.err);
   const e5 = await estrutura(p);
-  ok(e5.v === 5 && e5.stores.includes('culturasAvaliadas'), 'o banco fica como está (v5), sem apagar nada', e5);
+  ok(e5.v === 6 && e5.stores.includes('culturasAvaliadas') && e5.stores.includes('termosEducacao'), 'o banco sobe para a v6 mantendo as stores antigas, sem apagar nada', e5);
   await p.evaluate(() => Sync.sincronizar()); await p.waitForFunction(async () => !(await Store.todos('levantamentos')).some(l => l.pendente), null, { timeout: 15000 });
   const lv = (await planilha('Levantamentos')).find(l => l.id === 'lev-v5-1');
   ok(lv && lv.codigoPropriedade === 'PRP-V5-1', 'levantamento pendente do aparelho foi enviado depois de atualizar o app', lv && lv.id);

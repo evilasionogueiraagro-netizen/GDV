@@ -16,8 +16,8 @@
   // permissão (valor gravado no servidor) → rótulo; dois grupos de caixas
   const ROTULOS = { campo: 'App de campo', fiscalizacaoDeTransito: 'Fiscalização de trânsito', termoDeBarreira: 'TF de Barreira', pce: 'PCE',
     digitarDoPapel: 'Digitar do papel', painel: 'Painel gerencial: só consulta', administracao: 'Portal do Administrativo', gerencia: 'Gerência: tudo + cadastrar usuários',
-    coordenacaoBarreiras: 'Coordenação de barreira e trânsito (escalas)' };
-  const GRUPOS = [['App de campo e módulos', ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce', 'digitarDoPapel', 'coordenacaoBarreiras']],
+    coordenacaoBarreiras: 'Coordenação de barreira e trânsito (escalas)', educacaoSanitaria: 'Educação Sanitária' };
+  const GRUPOS = [['App de campo e módulos', ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce', 'digitarDoPapel', 'coordenacaoBarreiras', 'educacaoSanitaria']],
     ['Painel gerencial e portal', ['painel', 'administracao', 'gerencia']]];
   const APLICATIVOS = { campo: 'App de campo', painel: 'Painel gerencial', administracao: 'Portal do Administrativo' };
   const rotulo = p => ROTULOS[p] || p;
@@ -48,7 +48,7 @@
   /** Texto pronto para mandar à pessoa (WhatsApp, SMS, e-mail): só os endereços das telas que ela pode abrir. */
   function mensagem(g) {
     const p = g.permissoes || [], tudo = p.indexOf('gerencia') >= 0;
-    const campo = tudo || p.some(x => ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce', 'digitarDoPapel'].indexOf(x) >= 0);
+    const campo = tudo || p.some(x => ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce', 'digitarDoPapel', 'educacaoSanitaria'].indexOf(x) >= 0);
     const links = [campo && `App de campo: ${APP_URL}`, (tudo || p.indexOf('painel') >= 0) && `Painel gerencial${tudo ? '' : ' (consulta)'}: ${APP_URL}painel/`,
       (tudo || p.indexOf('administracao') >= 0) && `Portal do Administrativo: ${APP_URL}administrativo/`].filter(Boolean);
     return `Olá, ${primeiroNome(g.nome)}! Seu acesso ao e-GDV (ADAF):\n\n` +

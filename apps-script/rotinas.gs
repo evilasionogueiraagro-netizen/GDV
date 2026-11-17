@@ -517,7 +517,7 @@ function htmlRelatorio_(a, rotulo) {
   let out = '<div style="font-family:Arial,Helvetica,sans-serif;color:#1d2433;max-width:760px">' +
     '<h2 style="margin:0 0 4px">e-GDV – Relatório mensal: ' + escHtml_(rotulo) + '</h2>' +
     '<p style="margin:0;color:#5b6475">Período ' + diaBR_(a.de) + ' a ' + diaBR_(a.ate) + ' (horário de Manaus).</p>';
-  out += h('Barreiras (Educação Sanitária/Fiscalização de Trânsito)');
+  out += h('Barreiras (Fiscalização de Trânsito)');
   out += a.barreiras.length ? tabela(['Barreira', 'Turnos', 'Horas de barreira', 'Veículos', 'Pessoas'],
     a.barreiras.map(function (b) { return [b.barreira, numBR_(b.turnos), horas(b.minutos), numBR_(b.veiculos), numBR_(b.pessoas)]; })
       .concat([['Total', numBR_(a.total.turnos), horas(a.total.minutos), numBR_(a.total.veiculos), numBR_(a.total.pessoas)]]), [1, 2, 3, 4])

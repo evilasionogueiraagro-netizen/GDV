@@ -16,12 +16,14 @@
       ['veiculos', 'Veículos abordados', 'Total de veículos e evolução.'],
       ['pessoas', 'Pessoas orientadas', 'Pessoas que receberam educação sanitária, informadas pelo fiscal em cada veículo.'],
       ['porBarreira', 'Por barreira', 'Gráfico por BVA fixa; volantes somados num item só.'],
+      ['porBva', 'Filtro por BVA', 'O visitante escolhe uma BVA e vê os números só dela (veículos, educação sanitária, TFs, rechaços e kg).'],
       ['tiposVeiculo', 'Tipos de veículo', 'Passeio, caminhão, ônibus…']]],
     ['TF de Barreira', [
       ['tfs', 'TFs lavrados', 'Total de termos (cancelados não contam).'],
       ['procedimentos', 'Por procedimento', 'Liberação, apreensão e rechaço.'],
       ['autos', 'Autos de infração', 'Total de autos.'],
-      ['produtos', 'Produtos apreendidos', 'Produto, nº de apreensões e quantidade/unidade.']]],
+      ['produtos', 'Produtos apreendidos', 'Produto, nº de apreensões e quantidade/unidade.'],
+      ['kg', 'Quilos apreendidos e rechaçados', 'Soma em kg dos produtos apreendidos e dos rechaçados (Kg e Ton; outras unidades não somam).']]],
     ['PCE', [
       ['levantamentos', 'Levantamentos', 'Total e por município (mapa).'],
       ['municipios', 'Municípios cobertos', '“X de 62” com levantamento.'],

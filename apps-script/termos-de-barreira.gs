@@ -57,6 +57,8 @@ const SEQUENCIAS = {
   PCE: { aba: 'Colheitas', grupo: 'unidade', prefixo: 'PCE|', nome: 'Termo de Colheita' },
   // PCE: Termo de Fiscalização (uma sequência por unidade/ano) e Cadastro de imóvel (por programa + unidade + ano: grupo "MONILIASE|AUTAZES")
   TPCE: { aba: 'TermosPCE', grupo: 'unidade', prefixo: 'TPCE|', nome: 'Termo de Fiscalização (PCE)' },
+  // Termo de Educação Sanitária (educacao.gs): uma sequência por unidade/ano
+  EDU: { aba: 'TermosEducacao', grupo: 'unidade', prefixo: 'EDU|', nome: 'Termo de Educação Sanitária' },
   CPCE: { aba: 'CadastrosPCE', grupo: 'unidade', prefixo: 'CPCE|', nome: 'Cadastro de imóvel (PCE)',
           grupoDe: function (r) { return String(r.programa || 'moniliase').toUpperCase() + '|' + r.unidade; } }
 };
@@ -213,7 +215,7 @@ function marcarConflitos_(tipo, recebidos, agora) {
     const o = paraObjeto_(t.cols, l);
     if (tipo !== 'TF' && !(numSeq_(tipo, o) > 0)) return;               // termo/auto sem número não entra em conflito (TF: comportamento original)
     if (tipo === 'AI' && (Number(o.auto) !== 1 || o.cancelado === 1)) return;   // auto desmarcado ou TF cancelado não disputa o número
-    if ((tipo === 'TPCE' || tipo === 'CPCE') && o.excluido === 1) return;   // cadastro excluído não disputa o número
+    if ((tipo === 'TPCE' || tipo === 'CPCE' || tipo === 'EDU') && o.excluido === 1) return;   // cadastro excluído não disputa o número
     const k = grupoSeq_(tipo, o) + '|' + o.ano + '|' + numSeq_(tipo, o) + (tipo === 'TF' && seriePapelTF_(o, ini) ? '|papel' : '');
     (grupos[k] = grupos[k] || []).push({ i: i, o: o });
   });

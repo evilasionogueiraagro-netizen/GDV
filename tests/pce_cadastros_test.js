@@ -99,7 +99,7 @@ const post = b => fetch(amb.API + '/', { method: 'POST', body: JSON.stringify(b)
   const tok = (await f2.conta).token;
   let r = await post({ action: 'sync', key: tok, since: 0, levantamentos: [lev], propriedades: [{ id: 'PRP-HIST-1', codigo: 'PRP-HIST-1', nome: 'Sitio Historico', doc: '11144477735', municipio: 'Manaus', criadoEm: Date.now(), atualizadoEm: Date.now() }] });
   ok(r.ok, 'semeia levantamento antigo e propriedade sem frutos no servidor', r);
-  await f2.fill('#campoQ', '11144477735'); await f2.waitForSelector('#campo-servidor'); await f2.click('#campo-servidor'); await f2.waitForSelector('#pce-produtor');
+  await f2.fill('#campoQ', '11144477735'); await f2.waitForSelector('#campoSrv [data-campo=trazer]'); await f2.click('#campoSrv [data-campo=trazer]'); await f2.waitForSelector('#pce-produtor');
   ok(/Há sugestão do histórico: Cacau/.test(await f2.textContent('.pce-prop')) && await f2.locator('.pce-frutos li').count() === 0, 'a tela mostra a sugestão (Cacau), sem tratá-la como cadastro');
   ok((await f2.evaluate(() => Store.obter('propriedades', 'PRP-HIST-1'))).frutos === '' || !(await f2.evaluate(() => Store.obter('propriedades', 'PRP-HIST-1'))).frutos, 'a sugestão não grava nada (só leitura até salvar)');
   await f2.locator('[data-cad=editar][data-prop]').click(); await f2.waitForSelector('#pceProdForm');

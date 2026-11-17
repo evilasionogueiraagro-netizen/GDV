@@ -383,10 +383,10 @@
   /* ---------- Monilíase: Termos de Fiscalização do PCE, Cadastros de imóvel e Relatório de atividades ---------- */
   function secaoMoniliase(c, d, f) {
     const termos = d.termosPceTodos || [], cads = d.cadastrosPce || [];
-    const sm = P.secao(c, 'Termos e cadastros de imóvel', 'Termos de Fiscalização do PCE (um por programa em cada visita) e Cadastros de imóvel (um por propriedade e programa: monilíase, citros, banana, mandioca, soja e cadastro geral). O relatório de atividades usa os filtros de período, município e servidor.');
+    const sm = P.secao(c, 'Termos e cadastros de imóvel', 'Termos de Fiscalização do PCE (um por programa em cada visita) e Cadastros de imóvel (um por propriedade e programa: monilíase, citros, banana, mandioca, soja e cadastro geral). O levantamento usa os filtros de período, município e servidor.');
     sm.parentNode.classList.add('pn-pce-mon');
     const bar = P.el('div', 'pn-mon-acoes');
-    const b = P.el('button', 'pn-btn pn-btn-prim', 'Relatório de atividades'); b.type = 'button'; b.id = 'pn-pce-relatorio';
+    const b = P.el('button', 'pn-btn pn-btn-prim', 'Levantamento'); b.type = 'button'; b.id = 'pn-pce-relatorio';
     b.onclick = () => dialogoRelatorio(d, f); bar.appendChild(b); sm.appendChild(bar);
     const sit = t => [t.cancelado ? 'Cancelado' : '', t.conflito ? 'Conflito de nº' : '', t.numeroOrigem === 'papel' ? 'Do papel' : '', t.numeroOrigem === 'provisorio' ? 'Nº provisório' : ''].filter(Boolean).join(', ') || 'Regular';
     P.tabela(sm, [
@@ -419,7 +419,7 @@
     const objetivo = programa => PCEDocs.objetivoRelatorio({ programa });
     const dlg = P.el('dialog', 'pn-dlg pn-dlg-rel'); dlg.id = 'pn-relatorio';
     const campo = (id, rot, v, tag) => `<label class="pn-dlg-campo">${esc(rot)}${tag === 'ta' ? `<textarea id="${id}" rows="3">${esc(v)}</textarea>` : `<input id="${id}" value="${esc(v)}">`}</label>`;
-    dlg.innerHTML = `<form method="dialog" class="pn-dlg-form" novalidate><h3>Relatório de atividades</h3>
+    dlg.innerHTML = `<form method="dialog" class="pn-dlg-form" novalidate><h3>Levantamento</h3>
       <div class="pn-dlg-info"><b>${esc(f.rotuloPeriodo)}${mun ? ' · ' + esc(mun) : ''}${f.fiscal ? ' · ' + esc(f.fiscal) : ''}</b><span id="pn-rel-resumo"></span></div>
       <label class="pn-dlg-campo">Programa<select id="pn-rel-praga">${progs.map(x => `<option value="${esc(x.id)}" ${x.id === progSel ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label>
       ${campo('pn-rel-conv', 'Convênio nº', m.convenio || '')}${campo('pn-rel-etapa', 'Etapa', m.etapa || '')}
@@ -460,7 +460,7 @@
     const w = fr.contentWindow;
     for (let i = 0; i < 50 && !w.PCEDocs; i++) await new Promise(r => setTimeout(r, 50));
     await w.PCEDocs.montar(fr.contentDocument, 'relatorio', rel, { anexos });
-    const titulo = document.title, nome = `Relatorio_Atividades_${String(rel.local || '').replace(/[^\w]+/g, '_')}_${rel.de}_a_${rel.ate}`;
+    const titulo = document.title, nome = `Levantamento_${String(rel.local || '').replace(/[^\w]+/g, '_')}_${rel.de}_a_${rel.ate}`;
     document.title = nome; fr.contentDocument.title = nome;
     w.addEventListener('afterprint', () => { document.title = titulo; fr.remove(); });
     w.focus(); w.print();

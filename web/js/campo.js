@@ -176,6 +176,37 @@ const Campo = (() => {
       <small>${esc([fmtDoc(x.doc), x.props.map(p => p.nome || p.codigo).filter(Boolean).slice(0, 2).join(', ') || 'sem propriedade cadastrada', x.props[0] && x.props[0].municipio].filter(Boolean).join(' · '))}</small>
       ${x.pend ? `<small>${icone('sincronizar')} aguardando envio</small>` : ''}</button></li>`;
 
+  /** Busca na planilha (pceBuscarTexto) junto com a do aparelho, nas telas Produtores e Novo termo. Com internet, procura sozinha quando a
+   *  pessoa para de digitar e mostra só quem ainda não está no aparelho (abrir traz o cadastro completo pelo consultar). Sem internet, avisa
+   *  que só o aparelho foi consultado. Devolve atualizar(txt, municipio, docsDoAparelho), chamada a cada mudança da busca local. */
+  function buscaNaPlanilha(alvo) {
+    let tq = null, seq = 0;
+    const titulo = `<h4 class="pce-sub">Na planilha</h4>`;
+    const item = x => { const ps = x.propriedades || [];
+      return `<li><button type="button" class="campo-res-item" data-campo="trazer" data-cpf="${esc(digitos(x.doc))}"><b>${esc(x.nome || (ps[0] || {}).nome || 'Produtor sem nome')}</b>
+        <small>${esc([fmtDoc(digitos(x.doc)), ps.map(p => p.nome || p.codigo).filter(Boolean).slice(0, 2).join(', ') || 'sem propriedade cadastrada', (ps[0] || {}).municipio].filter(Boolean).join(' · '))}</small></button></li>`; };
+    return (txt, mun, docs) => {
+      clearTimeout(tq); const eu = ++seq;
+      if (norm(txt).length < 3 && digitos(txt).length < 3) { alvo.innerHTML = ''; return; }
+      if (!online()) { alvo.innerHTML = `<div class="tf-novo" id="campo-sem-internet">${icone('alerta')} Sem internet: a busca olhou só este aparelho. Com internet, ela procura também na planilha.</div>`; return; }
+      alvo.innerHTML = `${titulo}<p class="dica" style="text-align:left">Procurando na planilha…</p>`;
+      tq = setTimeout(async () => {
+        try {
+          const r = await Sync.pceBuscarTexto(txt, mun);
+          if (eu !== seq || !alvo.isConnected) return;
+          const l = (r.resultados || []).filter(x => !docs.has(digitos(x.doc)));
+          alvo.innerHTML = titulo + (l.length ? `<ul class="campo-res">${l.map(item).join('')}</ul>`
+              + (Number(r.total) > (r.resultados || []).length ? `<p class="dica" style="text-align:left">Mostrando ${(r.resultados || []).length} de ${Number(r.total)}. Escreva mais para afinar a busca.</p>` : '')
+            : `<p class="dica" style="text-align:left">${docs.size ? 'Nada além do que já está neste aparelho.' : 'Nenhum produtor encontrado na planilha. Cadastre como novo.'}</p>`);
+        } catch (e) {
+          if (eu !== seq || !alvo.isConnected) return;
+          alvo.innerHTML = `${titulo}<div class="tf-novo">${/a[cç][aã]o inv[aá]lida/i.test(e.message) ? 'A planilha ainda não tem esta busca: a gerência precisa atualizar o Code.gs.'
+            : (e.name === 'AbortError' || e.name === 'TypeError') ? 'Sem resposta da planilha. Confira a internet; a busca acima olhou só este aparelho.' : esc(e.message)}</div>`;
+        }
+      }, 800);                                                           // espera a pessoa parar de digitar: cada busca é uma chamada à planilha
+    };
+  }
+
   async function telaProdutores() {
     const mostrar = tela();
     const s = await PCEUI.exigirServidor('pce', null, true); if (!s || !mostrar.viva()) return;
@@ -187,12 +218,12 @@ const Campo = (() => {
       <div class="card"><h3>${icone('pessoa')} Produtores</h3>
         <label>Município<select id="campoMun"><option value="">Todos os municípios</option>${P.municipios.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('')}</select></label>
         <label>Buscar por CPF/CNPJ, nome do produtor, propriedade ou código<input id="campoQ" type="search" autocomplete="off" inputmode="search" placeholder="ex.: 529.982.247-25 ou Sítio Boa Vista"></label>
-        <div id="campoRes" aria-live="polite"></div>
+        <div id="campoRes" aria-live="polite"></div><div id="campoSrv" aria-live="polite"></div>
         <button class="botao" type="button" data-campo="novo" id="campo-novo">${icone('mais')} Novo produtor</button></div>
       <div class="card" id="campo-offline"><h3>${icone('baixar')} Dados para trabalhar sem internet</h3>
         <p class="dica" style="text-align:left" id="pce-campo-res">${baixados ? 'No aparelho: ' + esc(baixados) : 'Nenhum município baixado neste aparelho.'}</p>
         <button class="botao sec" type="button" data-v="pcecampo" id="pce-campo">${icone('baixar')} Baixar dados para o campo</button></div>`);
-    const q = $('#campoQ'), saida = $('#campoRes'), selMun = $('#campoMun');
+    const q = $('#campoQ'), saida = $('#campoRes'), selMun = $('#campoMun'), planilha = buscaNaPlanilha($('#campoSrv'));
     let tq = null, seq = 0;
     const desenhar = async () => {
       const eu = ++seq, txt = q.value.trim(), d = digitos(txt);
@@ -206,11 +237,11 @@ const Campo = (() => {
       if (eu !== seq || !saida.isConnected) return;
       const cheio = txt.length < 2 && d.length < 3;
       let extra = '';
-      if (!lista.length) {
-        extra = `<div class="tf-novo">Nenhum produtor encontrado neste aparelho. ${online() && (d.length === 11 || d.length === 14) ? 'Toque em “Procurar no servidor” para ver se já tem cadastro.' : 'Baixe os dados do município (abaixo) ou cadastre como novo.'}</div>`
-          + (online() && (d.length === 11 || d.length === 14) ? `<button class="botao sec" type="button" data-campo="servidor" data-cpf="${esc(d)}" id="campo-servidor">${icone('busca')} Procurar no servidor</button>` : '');
-      } else if (cheio && base.length > MOSTRAR) extra = `<p class="dica">Mostrando ${MOSTRAR} de ${base.length} produtores${mun ? ' neste município' : ' neste aparelho'}. Digite para buscar.</p>`;
+      if (!lista.length) extra = online() ? `<p class="dica" style="text-align:left">Nenhum produtor encontrado neste aparelho.</p>`   // com internet, a planilha responde logo abaixo
+        : `<div class="tf-novo">Nenhum produtor encontrado neste aparelho. Baixe os dados do município (abaixo) ou cadastre como novo.</div>`;
+      else if (cheio && base.length > MOSTRAR) extra = `<p class="dica">Mostrando ${MOSTRAR} de ${base.length} produtores${mun ? ' neste município' : ' neste aparelho'}. Digite para buscar.</p>`;
       saida.innerHTML = `${lista.length ? `<ul class="campo-res">${lista.map(linhaProdutor).join('')}</ul>` : ''}${extra}`;
+      planilha(txt, selMun.value, new Set(lista.map(x => x.doc)));
     };
     q.oninput = () => { clearTimeout(tq); tq = setTimeout(() => desenhar().catch(() => {}), 200); };
     selMun.onchange = () => desenhar().catch(() => {});
@@ -219,7 +250,7 @@ const Campo = (() => {
 
   /* ================= tela: baixar dados para o campo ================= */
   /* ================= tela: novo Termo (aba Termos) ================= */
-  // Procura o produtor ou a propriedade para gerar o Termo: primeiro neste aparelho; se não achar, na planilha (pceBuscarTexto). Sem internet,
+  // Procura o produtor ou a propriedade para gerar o Termo: no aparelho e, com internet, na planilha (buscaNaPlanilha). Sem internet,
   // avisa que só o aparelho foi consultado. O que vem da planilha é só a identificação: o cadastro completo chega pelo consultar(doc).
   async function telaNovoTermo() {
     const mostrar = tela();
@@ -232,16 +263,10 @@ const Campo = (() => {
         <label>Município<select id="ntMun"><option value="">Todos os municípios</option>${P.municipios.map(m => `<option value="${esc(m)}">${esc(m)}</option>`).join('')}</select></label>
         <label>Buscar por CPF/CNPJ, nome do produtor, propriedade ou código<input id="ntQ" type="search" autocomplete="off" inputmode="search"></label>
         <h4 class="pce-sub">Neste aparelho</h4><div id="ntLocal" aria-live="polite"></div>
-        <h4 class="pce-sub">Na planilha</h4><div id="ntSrv" aria-live="polite"></div></div>
+        <div id="ntSrv" aria-live="polite"></div></div>
       <button class="botao sec" type="button" data-v="pcetermos">${icone('voltar')} Voltar aos termos</button>`);
-    const q = $('#ntQ'), selMun = $('#ntMun'), local = $('#ntLocal'), srv = $('#ntSrv');
+    const q = $('#ntQ'), selMun = $('#ntMun'), local = $('#ntLocal'), planilha = buscaNaPlanilha($('#ntSrv'));
     let tq = null, seq = 0;
-    const basta = () => norm(q.value).length >= 3 || digitos(q.value).length >= 3;
-    const srvInicial = () => {
-      srv.innerHTML = online()
-        ? `<button class="botao sec" type="button" id="nt-planilha" ${basta() ? '' : 'disabled'}>${icone('busca')} Procurar na planilha</button>${basta() ? '' : '<p class="dica" style="text-align:left">Digite pelo menos 3 letras ou números.</p>'}`
-        : `<div class="tf-novo" id="nt-offline">${icone('alerta')} Sem internet: a busca olhou só este aparelho. Com internet, dá para procurar na planilha.</div>`;
-    };
     const desenhar = async () => {
       const eu = ++seq, txt = q.value.trim(), d = digitos(txt), mun = norm(selMun.value);
       const base = mun ? todos.filter(x => x.props.some(p => norm(p.municipio) === mun)) : todos;
@@ -253,29 +278,10 @@ const Campo = (() => {
       if (eu !== seq || !local.isConnected) return;
       local.innerHTML = lista.length ? `<ul class="campo-res">${lista.map(linhaProdutor).join('')}</ul>`
         : `<p class="dica" style="text-align:left">${txt.length >= 2 || d.length >= 3 ? 'Nenhum produtor encontrado neste aparelho.' : 'Digite para buscar.'}</p>`;
-      srvInicial();
-    };
-    const procurar = async btn => {
-      const eu = seq; btn.disabled = true; btn.textContent = 'Procurando…';
-      try {
-        const r = await Sync.pceBuscarTexto(q.value.trim(), selMun.value);
-        if (eu !== seq || !srv.isConnected) return;
-        const l = r.resultados || [];
-        srv.innerHTML = l.length ? `<ul class="campo-res">${l.map(x => `<li><button type="button" class="campo-res-item" data-campo="trazer" data-cpf="${esc(digitos(x.doc))}"><b>${esc(x.nome || ((x.propriedades || [])[0] || {}).nome || 'Produtor sem nome')}</b>
-            <small>${esc([fmtDoc(digitos(x.doc)), (x.propriedades || []).map(p => p.nome || p.codigo).filter(Boolean).slice(0, 2).join(', ') || 'sem propriedade cadastrada', ((x.propriedades || [])[0] || {}).municipio].filter(Boolean).join(' · '))}</small></button></li>`).join('')}</ul>
-            ${Number(r.total) > l.length ? `<p class="dica" style="text-align:left">Mostrando ${l.length} de ${Number(r.total)}. Escreva mais para afinar a busca.</p>` : ''}`
-          : `<div class="tf-novo">Nenhum produtor encontrado na planilha. Cadastre como novo.</div>
-            <button class="botao sec" type="button" data-campo="novo">${icone('mais')} Novo produtor</button>`;
-      } catch (e) {
-        if (eu !== seq || !srv.isConnected) return;
-        srvInicial();
-        toast(/a[cç][aã]o inv[aá]lida/i.test(e.message) ? 'A planilha ainda não tem esta busca: a gerência precisa atualizar o Code.gs.'
-          : (e.name === 'AbortError' || e.name === 'TypeError') ? 'Sem resposta da planilha. Confira a internet e tente de novo.' : e.message, true);
-      }
+      planilha(txt, selMun.value, new Set(lista.map(x => x.doc)));
     };
     q.oninput = () => { clearTimeout(tq); tq = setTimeout(() => desenhar().catch(() => {}), 200); };
     selMun.onchange = () => desenhar().catch(() => {});
-    srv.onclick = e => { const b = e.target.closest('#nt-planilha'); if (b && !b.disabled) procurar(b); };
     await desenhar();
   }
 
@@ -347,11 +353,6 @@ const Campo = (() => {
         el.disabled = true;
         const r = await consultar(el.dataset.cpf);
         if (r.achou) go('pceprodutor', el.dataset.cpf); else { el.disabled = false; toast('Não foi possível trazer este cadastro agora. Tente de novo.', true); }
-      }
-      else if (a === 'servidor') {
-        el.disabled = true;
-        const r = await consultar(el.dataset.cpf);
-        if (r.achou) go('pceprodutor', el.dataset.cpf); else { el.disabled = false; toast('Sem cadastro no servidor para este CPF/CNPJ. Use “Novo produtor”.', true); }
       }
     } catch (err) { toast(err.message || String(err), true); }
   });

@@ -99,7 +99,7 @@ const ANO = new Date().getFullYear();
   console.log('5) dois aparelhos sem internet: número repetido vira conflito ao sincronizar');
   const pB = await A.aparelho(b, 'Pessoa Ficticia Beta');
   await A.identificar(pB); await pB.evaluate(() => Sync.sincronizar()); await pB.waitForTimeout(800);
-  await pB.fill('#campoQ', '52998224725'); await pB.waitForSelector('#campo-servidor'); await pB.click('#campo-servidor'); await pB.waitForSelector('#pce-produtor');
+  await pB.fill('#campoQ', '52998224725'); await pB.waitForSelector('#campoSrv [data-campo=trazer]'); await pB.click('#campoSrv [data-campo=trazer]'); await pB.waitForSelector('#pce-produtor');
   ok(await pB.locator('.pce-frutos li').count() === 3, 'segundo aparelho consulta o servidor e recebe produtor, propriedade e frutos');
   await pB.ctx.setOffline(true); await pB.evaluate(() => window.dispatchEvent(new Event('offline')));
   await A.visita(pB, { frutos: ['Banana'], resultados: { Banana: { 'Moko da Bananeira': 'nao_detectada' } } });

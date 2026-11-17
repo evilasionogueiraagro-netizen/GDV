@@ -357,7 +357,7 @@ const PCEMon = (() => {
         <div class="duas">${inp(p, 't1nome', 'Testemunha 1 – nome', D.t1nome)}${inp(p, 't1doc', 'CPF/RG', D.t1doc)}</div>
         <div class="duas">${inp(p, 't2nome', 'Testemunha 2 – nome', D.t2nome)}${inp(p, 't2doc', 'CPF/RG', D.t2doc)}</div>
         ${inp(p, 'recebido', 'Recebi a 2ª via deste Termo em (data, hora e local)', D.recebidoEm)}</div>
-      <div class="card mon-extras"><h3>${icone('resumo')} Para o relatório de atividades</h3><p class="dica" style="text-align:left">Não aparece no papel.</p>
+      <div class="card mon-extras"><h3>${icone('resumo')} Para o levantamento</h3><p class="dica" style="text-align:left">Não aparece no papel.</p>
         ${inp(p, 'plantas', 'Plantas inspecionadas', D.plantas, 'inputmode="numeric" autocomplete="off"')}
         ${sn(p, 'amostra', 'Amostra coletada?', D.amostra)}${sn(p, 'sintomas', 'Presença de sintomas?', D.sintomas)}</div>
       ${pdfHTML(p)}
@@ -505,10 +505,15 @@ const PCEMon = (() => {
     fechar();
     const m = (await Store.meta(REL_META)) || {}, termos = (await Store.todos('termosPce')).filter(t => !Number(t.excluido));
     const servs = [...new Set(termos.map(t => String(t.servidor || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
-    const fp = filtroPadrao(), progs = PCEDocs.programasRelatorio(), progSel = progs.some(x => x.id === m.programa) ? m.programa : 'moniliase';
+    const fp = filtroPadrao(), progs = PCEDocs.programasRelatorio(), cads = await Store.todos('cadastrosPce');
+    // abre no último programa usado se ele tem Termo no período; senão, no programa com mais Termos (antes: sempre Monilíase, com "00 termos")
+    const nTermos = id => PCEDocs.calcularRelatorio(termos, cads, { de: m.de || fp.de, ate: m.ate || fp.ate, municipio: m.municipio || '', programa: id, servidores: [], folders: 0 }).nTermos || 0;
+    const contagem = progs.map(x => ({ id: x.id, n: nTermos(x.id) })), maior = contagem.reduce((a, b) => (b.n > a.n ? b : a), { id: '', n: 0 });
+    const salvo = progs.some(x => x.id === m.programa) ? m.programa : '';
+    const progSel = salvo && (contagem.find(x => x.id === salvo).n || !maior.n) ? salvo : (maior.n ? maior.id : (salvo || 'moniliase'));
     if (!mostrar.viva()) return;
-    mostrar(`      <form id="monRelForm" class="card" autocomplete="off"><h3>${icone('resumo')} Relatório de atividades</h3>
-      <p class="dica" style="text-align:left">É o levantamento: o resumo de um período e de um local, por programa, calculado dos Termos de Fiscalização (PCE) deste aparelho. O documento é o mesmo para todo programa; muda só o nome. Os números são calculados; os textos podem ser editados.</p>
+    mostrar(`      <form id="monRelForm" class="card" autocomplete="off"><h3>${icone('resumo')} Levantamento</h3>
+      <p class="dica" style="text-align:left">Resumo de um período e de um local, por programa, calculado dos Termos de Fiscalização deste aparelho (o painel junta os de todos os servidores). Sai no modelo do Relatório de atividades do convênio; muda só o nome do programa. Os números são calculados; os textos podem ser editados.</p>
       <div class="duas"><label>De<input id="mr-de" type="date" value="${esc(m.de || fp.de)}"></label><label>Até<input id="mr-ate" type="date" value="${esc(m.ate || fp.ate)}"></label></div>
       <div class="duas"><label>Município<select id="mr-mun">${opts(P.municipios, m.municipio || '', 'Todos')}</select></label>
         <label>Programa<select id="mr-praga">${progs.map(x => `<option value="${esc(x.id)}" ${x.id === progSel ? 'selected' : ''}>${esc(x.nome)}</option>`).join('')}</select></label></div>
@@ -536,7 +541,13 @@ const PCEMon = (() => {
         'mr-resp': R.servidores[0] ? [R.servidores[0].nome, R.servidores[0].funcao].filter(Boolean).join(' - ') : '' };
       Object.entries(suger).forEach(([k, v]) => { const el = $('#' + k); if (el && (!el.value.trim() || el.value === auto[k])) { el.value = v; auto[k] = v; } });
       const c = R.calc;
-      $('#mr-previa').innerHTML = `<div class="pce-stats-topo">
+      // levantamento final só com tudo na planilha: Termo que não subiu ainda tem número provisório (pode mudar ao sincronizar)
+      const pend = c.termos.filter(t => Number(t.pendente) || t.provisorio).length;
+      const envio = !c.nTermos ? ''
+        : pend ? `<div class="tf-novo" id="mr-pendentes">${icone('sincronizar')} ${pend} de ${c.nTermos} Termo(s) deste levantamento ainda não subiram para a planilha; o número deles é provisório.
+            Envie antes de gerar o levantamento final.${navigator.onLine ? `<button class="botao sec" type="button" id="mr-enviar">${icone('sincronizar')} Enviar agora</button>` : ' Sem internet: envie quando tiver sinal.'}</div>`
+        : `<div class="tf-ok" id="mr-enviados">Todos os ${c.nTermos} Termo(s) deste levantamento já estão na planilha.</div>`;
+      $('#mr-previa').innerHTML = `${envio}<div class="pce-stats-topo">
           <b>${icone('resumo')} Atividades desenvolvidas</b>
           <small>${c.cadastros.length} cadastro(s) ligado(s)</small>
         </div>
@@ -551,6 +562,12 @@ const PCEMon = (() => {
           <li>Educação sanitária: <b id="mr-folders">${esc(c.textos.educacao)}</b></li>
         </ul>`;
     };
+    f.addEventListener('click', async e => {
+      const b = e.target.closest('#mr-enviar'); if (!b) return;
+      b.disabled = true; b.textContent = 'Enviando…';
+      try { await Sync.sincronizar(); } catch (x) { toast(x.message || 'Não foi possível enviar agora.', true); }
+      if (f.isConnected) await atualizar().catch(() => {});
+    });
     f.addEventListener('change', () => atualizar().catch(e => toast(e.message, true)));
     f.addEventListener('input', e => { if (['mr-de', 'mr-ate', 'mr-folders-n'].includes(e.target.id)) atualizar().catch(() => {}); });
     if (m.servidoresTxt) { $('#mr-servs').value = m.servidoresTxt; auto['mr-servs'] = '__'; }
@@ -585,7 +602,7 @@ const PCEMon = (() => {
     if (!rel.calc.nTermos && !confirm('Nenhum Termo de Fiscalização no período/filtros escolhidos. Gerar o relatório assim mesmo?')) return;
     const r = await Docs.pceMon('relatorio', rel, { anexos, arquivosPorReg }, modo);
     if (modo === 'arquivo') {
-      if (PDF.podeCompartilhar([r])) { try { await PDF.compartilhar([r], 'Relatório de atividades — ADAF', 'Relatório de atividades gerado pelo e-GDV.'); } catch (e) { PDF.baixar(r); } }
+      if (PDF.podeCompartilhar([r])) { try { await PDF.compartilhar([r], 'Levantamento — ADAF', 'Levantamento (Relatório de atividades) gerado pelo e-GDV.'); } catch (e) { PDF.baixar(r); } }
       else PDF.baixar(r);
       toast(`PDF gerado: ${r.name}`);
     }

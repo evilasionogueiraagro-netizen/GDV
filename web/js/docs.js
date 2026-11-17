@@ -551,7 +551,7 @@ a obrigatoriedade da apresentação da documentação fitossanitária quando exi
     if (tipo === 'termoCitros') return nomeArquivo('TF_Citros_' + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));
     if (tipo === 'cadastroCitros') return nomeArquivo('Cadastro_Citros_' + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));
     if (tipo === 'cadastro') return nomeArquivo('Cadastro_Moniliase_' + (r.numeroTxt || 'SEM_NUMERO') + '_' + (r.nome || ''));
-    return nomeArquivo(`Relatorio_Atividades_${r.localArq || r.local || ''}_${dataPce(r.de).replace(/\//g, '-')}_a_${dataPce(r.ate).replace(/\//g, '-')}`);
+    return nomeArquivo(`Levantamento_${r.localArq || r.local || ''}_${dataPce(r.de).replace(/\//g, '-')}_a_${dataPce(r.ate).replace(/\//g, '-')}`);
   }
   // PDF do PCE (ficha, Termo, relatório): 300 dpi reais (A4 em 2481 x 3508 px) e JPEG 0,92; os outros módulos seguem com o padrão do pdf.js
   const PDF_PCE = { escala: 3.125, qualidade: 0.92 };

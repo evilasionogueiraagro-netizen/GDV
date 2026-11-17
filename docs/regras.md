@@ -63,9 +63,8 @@ Valem para todo código, teste, doc e commit. Resumo de uma linha de cada no [AG
 ## Publicação
 
 - **Front**: merge na `main` com mudança em `web/**` publica no GitHub Pages, direto em produção. Sempre branch + PR.
-- **Back**: depois dos testes na `main`, `apps-script.yml` publica com o clasp (se `VERSAO_CODIGO` mudou), uns 10 min
-  depois do front. Front que depende de action ou coluna nova precisa aguentar o back antigo nesse intervalo (ou mande
-  o back antes, em PR próprio). Nunca edite no editor do Apps Script. Detalhes e falhas: [PUBLICACAO-BACK.md](PUBLICACAO-BACK.md).
+- **Back**: no merge na `main`, `apps-script.yml` publica com o clasp (se `VERSAO_CODIGO` mudou). Testes só no PR:
+  atualize o PR com a `main` antes do merge. Nunca edite no editor do Apps Script. Detalhes e falhas: [PUBLICACAO-BACK.md](PUBLICACAO-BACK.md).
 
 ## Testes
 

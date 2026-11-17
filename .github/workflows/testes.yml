@@ -1,13 +1,10 @@
 name: Testes automáticos
 # Roda tests/run.js (Code.gs real no fakegas + app/painel no Chromium) em 4 partes ao mesmo tempo, cada uma numa
 # máquina com seu fakegas nas portas padrão ("node run.js --parte N/4", divididas pelo tempo de cada teste no PESO
-# do run.js). A suíte em fila leva ~11 min; em 4 partes, ~4 min. O workflow só fica verde com as 4 partes verdes
-# (a publicação do Apps Script espera isso).
-# Roda uma vez por mudança: no PR para a main (testa o resultado do merge) e no push da main. Branch sem PR:
-# Actions → Testes automáticos → Run workflow.
+# do run.js). A suíte em fila leva ~11 min; em 4 partes, ~4 min. O workflow só fica verde com as 4 partes verdes.
+# Roda uma vez por mudança: só no PR para a main (testa o resultado do merge). O merge não roda de novo: front e back
+# publicam na hora (pages.yml e apps-script.yml). Branch sem PR: Actions → Testes automáticos → Run workflow.
 on:
-  push:
-    branches: [main]
   pull_request:
     branches: [main]
   workflow_dispatch:

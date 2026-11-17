@@ -69,4 +69,4 @@ Principais (a lista completa é `node run.js --lista`):
 Objeto `PESO` em `tests/run.js`: segundos aproximados de cada teste, medidos no CI, só para dividir as partes de forma equilibrada (`--parte`, `--paralelo`). Teste sem entrada conta 60 s.
 
 ## CI
-`testes.yml` roda 4 partes (`--parte N/4 --tentativas 2`) em cada PR e push para a `main`. Branch sem PR: Actions → Testes automáticos → Run workflow. O back só é publicado se as 4 partes passam ([PUBLICACAO-BACK.md](../docs/PUBLICACAO-BACK.md)).
+`testes.yml` roda 4 partes (`--parte N/4 --tentativas 2`) só no PR para a `main`; o merge não testa de novo e publica front e back na hora. Branch sem PR: Actions → Testes automáticos → Run workflow. Atualize o PR com a `main` antes do merge, para o que vai ao ar ser o que foi testado ([PUBLICACAO-BACK.md](../docs/PUBLICACAO-BACK.md)).

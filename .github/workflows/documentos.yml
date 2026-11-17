@@ -1,5 +1,5 @@
 name: Documentos do sistema no Drive
-# Depois da publicação do Apps Script (que roda depois dos testes na main), gera o Word do Termo de Referência
+# Depois da publicação do Apps Script (que roda no merge na main), gera o Word do Termo de Referência
 # (produto/gerar-tr.js) e envia ao Web App (action docSistemaSalvar), que guarda na pasta "GDV - Documentos do sistema"
 # do Drive do dono da planilha. Só envia quando o commit mudou produto/ (ou pelo botão "Run workflow").
 # Configuração (uma vez): menu da planilha e-GDV → Chave dos documentos do sistema; a chave vai no segredo DOC_SISTEMA_CHAVE.

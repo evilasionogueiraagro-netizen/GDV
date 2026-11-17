@@ -1,12 +1,10 @@
 name: Publicar Apps Script
-# Depois que os testes passam na main, publica apps-script/ (os .gs + appsscript.json) na implantação atual do Web App,
+# No merge na main (os testes já rodaram no PR, em testes.yml), publica apps-script/ (os .gs + appsscript.json) na implantação atual do Web App,
 # com o clasp: a URL /exec não muda. Só publica quando a versão no ar (GET /exec) for diferente do VERSAO_CODIGO do
 # repositório, então merge só de front não gera versão nova.
 # Configuração (uma vez, pelo dono do repositório): docs/PUBLICACAO-BACK.md.
 on:
-  workflow_run:
-    workflows: ['Testes automáticos']
-    types: [completed]
+  push:
     branches: [main]
   workflow_dispatch:
 permissions:
@@ -16,9 +14,7 @@ concurrency:
   cancel-in-progress: false
 jobs:
   publicar:
-    if: >-
-      github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' ||
-      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push'))
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -26,7 +22,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+          ref: ${{ github.sha }}
           fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
@@ -35,7 +31,7 @@ jobs:
       - name: Conferir o que publicar
         id: alvo
         run: |
-          # Commit testado que já não é o último da main: a execução do commit mais novo publica.
+          # Commit que já não é o último da main: a execução do commit mais novo publica.
           git fetch -q origin main
           if [ "$(git rev-parse HEAD)" != "$(git rev-parse origin/main)" ]; then
             echo "::notice::$(git rev-parse --short HEAD) não é mais o último commit da main; nada a publicar."

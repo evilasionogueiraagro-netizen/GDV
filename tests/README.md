@@ -12,7 +12,7 @@ Roda `apps-script/Code.gs` **real** numa VM do Node, com `SpreadsheetApp`, `Lock
 - Ver as telas sem tocar na produção: `node local.js [painel|administrativo|dashboard|inicio]` sobe o fakegas com contas e dados fictícios e abre o Chromium apontado para ele (sem isso, o app em localhost usa o endereço oficial).
 
 ## Rodar
-Node 20+ e `python3` com `pypdf` (`pip install pypdf`); sem ele falham `tf_paginas`, `convenio_test`, `convfin_test`, `relgdv_test` e `vigifito_test`. `convenio_test` usa `python-docx` e, se houver, `soffice`. Para não mexer no Python do sistema, use um venv e ponha o `bin/` dele no `PATH`.
+Node 20+ e `python3` com `pypdf` (`pip install pypdf`); sem ele falham `tf_paginas`, `convenio_test`, `convfin_test`, `relgdv_test` e `vigifito_test`. `convenio_test` usa `python-docx` e, se houver, `soffice`. Para não mexer no Python do sistema, use um venv e ponha o `bin/` dele no `PATH`. `pce_fichas_test` usa `pdfinfo`, `pdftoppm` e `pdftotext` (pacote `poppler-utils`).
 
 ```sh
 cd tests
@@ -44,6 +44,7 @@ Principais (a lista completa é `node run.js --lista`):
 - `pce_moniliase_test`: PCE de monilíase (papel, termos, PDFs, relatório).
 - `pce_citros_test`: citros e a visita completa (cadastro, termo, PDF).
 - `pce_laudo_test`: resultado de laboratório, no app e no painel (`painelPceLaudo`).
+- `pce_busca_test`: busca de produtor no aparelho e na planilha (com e sem internet) e Levantamento (programa do Termo, Termo que não subiu).
 - `publico_test`: dashboard público (`web/dashboard/`).
 - `convenio_test`: aba Convênios (`painelConv*`), relatório em PDF e Word.
 - `convfin_test`: importação da planilha de movimentação (`painelConvFinImportar`).

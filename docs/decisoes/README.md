@@ -7,6 +7,7 @@ vai e volta fica no git, não aqui). O que ainda não foi decidido fica em **Em 
 |---|---|---|
 | Controle de acesso (login, código, permissões) | decidido, a implementar | [acesso.md](acesso.md) |
 | Modelo de dados (TF x Termo, pessoa x proprietário, PCE) | definido; PCE a implementar | [modelo.md](modelo.md) |
+| PCE simplificado (só produtor, frutos e Termos) | decidido, no código | [pce-simplificado.md](pce-simplificado.md) |
 | Outros temas (TF e BVA, PCE, convênio, relatórios, VIGIFITO) | decididos | [anteriores.md](anteriores.md) |
 
 Tema novo: crie `<tema>.md` com a tabela abaixo e uma linha aqui.

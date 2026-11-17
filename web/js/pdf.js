@@ -7,7 +7,7 @@ const PDF = (() => {
   const A4 = { w: 210, h: 297, mx: 7, my: 8 };                  // folha e margens (iguais ao @page dos modelos)
   const ESCALA = 2, QUALIDADE = 0.82;                          // ~190 dpi, JPEG: legível e leve (≈ 150–400 KB por folha)
 
-  let carregando = null;
+  let carregando = null, ultima = null;   // ultima: {escala, dpi, ms, paginas:[{pw, ph, kb}]} da última geração (conferência e registro)
   function carregarLib() {
     if (typeof window.html2canvas === 'function') return Promise.resolve();
     if (!carregando) carregando = new Promise((ok, no) => {
@@ -73,28 +73,61 @@ const PDF = (() => {
 
   const bytesDe = dataUrl => { const b = atob(dataUrl.split(',')[1]), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i); return u; };
 
-  /** Folhas → imagens JPEG ({jpeg, pw, ph, wmm, hmm}). seletor = folhas do modelo (padrão: .a4). */
-  async function paginasDe(d, seletor) {
+  /** Canvas sem nenhum pixel que não seja branco (o navegador entregou uma imagem vazia: memória curta no aparelho). */
+  function emBranco(cv) {
+    try {
+      const p = document.createElement('canvas'); p.width = 40; p.height = Math.max(1, Math.round(40 * cv.height / cv.width));
+      const x = p.getContext('2d'); x.drawImage(cv, 0, 0, p.width, p.height);
+      const d = x.getImageData(0, 0, p.width, p.height).data;
+      for (let i = 0; i < d.length; i += 4) if (d[i] < 250 || d[i + 1] < 250 || d[i + 2] < 250) return false;
+      return true;
+    } catch (e) { return false; }
+  }
+  /** Rasteriza a folha na escala pedida; se falhar ou sair em branco, refaz na escala padrão (nunca quebra o envio). */
+  async function rasterizar(pg, d, escala) {
+    const larg = pg.getBoundingClientRect().width;
+    const tentar = async e => window.html2canvas(pg, { scale: e, backgroundColor: '#ffffff', logging: false, useCORS: true,
+      windowWidth: d.documentElement.scrollWidth, windowHeight: Math.max(d.documentElement.scrollHeight, pg.scrollHeight) });
+    if (escala !== ESCALA) { try { const cv = await tentar(escala); if (cv && cv.width > 0 && cv.height > 0 && !emBranco(cv)) return { cv, escala }; } catch (e) { /* refaz abaixo */ } }
+    return { cv: await tentar(ESCALA), escala: ESCALA };
+  }
+  /** JPEG da fatia; se passar do limite (4 MB: o menor do arquivoEnviar), baixa primeiro a qualidade, depois mais, e só então a escala. */
+  const LIMITE_FOLHA = 3.5 * 1024 * 1024;
+  function jpegDe(c, qualidade) {
+    let q = qualidade, url = c.toDataURL('image/jpeg', q), bytes = bytesDe(url);
+    while (bytes.length > LIMITE_FOLHA && q > 0.6) { q = Math.max(0.6, q - 0.08); url = c.toDataURL('image/jpeg', q); bytes = bytesDe(url); }
+    return bytes;
+  }
+
+  /**
+   * Folhas → imagens JPEG ({jpeg, pw, ph, wmm, hmm}). seletor = folhas do modelo (padrão: .a4).
+   * op (opcional, por chamada; sem ele nada muda para os outros módulos): {margem, escala, qualidade}. margem = mm de cada lado da folha (padrão 7 na
+   * lateral e 8 em cima; folha .doc, de 210 x 297 mm, vai com 0). O PCE usa {escala: 3.125, qualidade: 0.92} = 300 dpi (A4 em 2481 x 3508 px).
+   */
+  async function paginasDe(d, seletor, op) {
+    op = op || {};
     await carregarLib();
     await Promise.all([...d.images].map(im => (im.complete ? 0 : new Promise(r => { im.onload = im.onerror = r; }))));
     if (d.fonts && d.fonts.ready) await d.fonts.ready;
     await embutir(d);
     prepararImagens(d);
-    const util = (A4.h - 2 * A4.my) * MM, paginas = [];
+    const q = op.qualidade || QUALIDADE, paginas = [], t0 = Date.now(); let escalaUsada = op.escala || ESCALA;
     for (const pg of d.querySelectorAll(seletor || '.a4')) {
+      // folha .doc (documento-base.css) já tem 210 x 297 mm e a própria margem interna: vai inteira, sem margem de PDF
+      const m0 = op.margem != null ? op.margem : pg.classList.contains('doc') ? 0 : null, mx = m0 != null ? m0 : A4.mx, my = m0 != null ? m0 : A4.my, util = (A4.h - 2 * my) * MM;
       const larg = pg.getBoundingClientRect().width;
-      const cv = await window.html2canvas(pg, { scale: ESCALA, backgroundColor: '#ffffff', logging: false, useCORS: true,
-        windowWidth: d.documentElement.scrollWidth, windowHeight: Math.max(d.documentElement.scrollHeight, pg.scrollHeight) });
+      const r = await rasterizar(pg, d, op.escala || ESCALA), cv = r.cv; escalaUsada = Math.min(escalaUsada, r.escala);
       const k = cv.width / larg;
       for (const [a, b] of cortes(pg, util)) {
         const h = Math.max(1, Math.round((b - a) * k)), c = document.createElement('canvas');
         c.width = cv.width; c.height = h;
         const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0, 0, c.width, h);
         x.drawImage(cv, 0, Math.round(a * k), cv.width, h, 0, 0, cv.width, h);
-        paginas.push({ jpeg: bytesDe(c.toDataURL('image/jpeg', QUALIDADE)), pw: c.width, ph: h, wmm: larg / MM, hmm: (b - a) / MM });
+        paginas.push({ jpeg: jpegDe(c, q), pw: c.width, ph: h, wmm: larg / MM, hmm: (b - a) / MM, mx, my });
       }
     }
     if (!paginas.length) throw new Error('Documento vazio.');
+    ultima = { escala: escalaUsada, dpi: Math.round(paginas[0].pw / (paginas[0].wmm / 25.4)), ms: Date.now() - t0, paginas: paginas.map(p => ({ pw: p.pw, ph: p.ph, kb: Math.round(p.jpeg.length / 1024) })) };
     return paginas;
   }
 
@@ -113,7 +146,7 @@ const PDF = (() => {
     obj(3, () => add(`<< /Title (${txtPdf(titulo)}) /Producer (e-GDV) >>`));
     paginas.forEach((p, i) => {
       const pag = 4 + 3 * i, cont = pag + 1, img = pag + 2;
-      const x = (A4.w - p.wmm) / 2, y = A4.h - A4.my - p.hmm;
+      const x = (A4.w - p.wmm) / 2, y = A4.h - (p.my != null ? p.my : A4.my) - p.hmm;
       const fluxo = `q ${pt(p.wmm)} 0 0 ${pt(p.hmm)} ${pt(x)} ${pt(y)} cm /Im0 Do Q`;
       obj(pag, () => add(`<< /Type /Page /Parent 2 0 R /MediaBox [0 0 ${pt(A4.w)} ${pt(A4.h)}] /Resources << /XObject << /Im0 ${img} 0 R >> >> /Contents ${cont} 0 R >>`));
       obj(cont, () => add(`<< /Length ${fluxo.length} >>\nstream\n${fluxo}\nendstream`));
@@ -126,9 +159,9 @@ const PDF = (() => {
   }
 
   /** Documento já preenchido num iframe (docs.js) → arquivo PDF. O iframe é removido no fim. */
-  async function deFrame(frame, nome, seletor) {
+  async function deFrame(frame, nome, seletor, op) {
     try {
-      const pags = await paginasDe(frame.contentDocument, seletor);
+      const pags = await paginasDe(frame.contentDocument, seletor, op);
       return new File([montar(pags, nome)], nome + '.pdf', { type: 'application/pdf', lastModified: Date.now() });
     } finally { frame.remove(); }
   }
@@ -147,5 +180,5 @@ const PDF = (() => {
     setTimeout(() => URL.revokeObjectURL(url), 60000);
   }
 
-  return { deFrame, montar, paginasDe, podeCompartilhar, compartilhar, baixar, carregarLib };
+  return { deFrame, montar, paginasDe, podeCompartilhar, compartilhar, baixar, carregarLib, get ultima() { return ultima; } };
 })();

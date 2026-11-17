@@ -40,12 +40,14 @@ const hoje = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10), ANO =
 const uuid = () => crypto.randomUUID();
 
 // todas as actions do doPost, por quem pode chamá-las
-const CAMPO = ['ping', 'sync', 'tfConsultar', 'tfProximoNumero', 'tfEmitir', 'pceProximoNumero', 'pceEmitir', 'pceConsultar', 'pceDocNumero',
-  'pceDocRegistrar', 'pceBaixarMunicipio', 'pceMapaGeral', 'arquivoEnviar', 'tfAndamento', 'tfIndiceReincidencia', 'turnoConvidar', 'turnoParear',
+const CAMPO = ['ping', 'sync', 'tfConsultar', 'tfProximoNumero', 'tfEmitir', 'pceProximoNumero', 'pceEmitir', 'pceConsultar', 'pceBuscarTexto', 'pceDocNumero',
+  'pceDocRegistrar', 'pceBaixarMunicipio', 'arquivoEnviar', 'tfAndamento', 'tfIndiceReincidencia', 'turnoConvidar', 'turnoParear',
   'turnoSair', 'turnoPapelRegistrar', 'turnoNumero', 'turnosAbertos', 'turnoEntrar', 'turnoRemoverColega'];
 const MODULO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf', tfIndiceReincidencia: 'tf', pceProximoNumero: 'pce',
-  pceEmitir: 'pce', pceConsultar: 'pce', pceBaixarMunicipio: 'pce', pceMapaGeral: 'pce', arquivoEnviar: 'pce', pceDocNumero: 'pce', pceDocRegistrar: 'pce',
+  pceEmitir: 'pce', pceConsultar: 'pce', pceBuscarTexto: 'pce', pceBaixarMunicipio: 'pce', arquivoEnviar: 'pce', pceDocNumero: 'pce', pceDocRegistrar: 'pce',
   turnoConvidar: 'veiculos', turnoParear: 'veiculos', turnoSair: 'veiculos', turnoPapelRegistrar: 'veiculos', turnoNumero: 'veiculos', turnosAbertos: 'veiculos', turnoEntrar: 'veiculos', turnoRemoverColega: 'veiculos' };
+// catálogo do PCE (pce-catalogo.gs): ler exige o módulo pce; gravar, gerência + pce (nem a gerência sem pce passa)
+const PCE_CATALOGO = ['painelPceCatalogo', 'painelPceCatalogoSalvar'];
 const PAINEL_LER = ['painelDados', 'painelPublicoConfig', 'painelConvenios', 'painelConvApuracao', 'painelRelGdv', 'painelRelGdvApuracao', 'painelVigDados'];
 const PAINEL_GRAVAR = ['painelEncerrarTurno', 'painelPublicoSalvar', 'painelConvSalvar', 'painelConvRelSalvar', 'painelPceLaudo', 'painelRelGdvSalvar',
   'painelVigConfigSalvar', 'painelConvLancar', 'painelConvFinLancar', 'painelConvFinImportar', 'painelConvExcluir', 'painelConvFinExcluir'];
@@ -54,7 +56,7 @@ const PORTAL = ['admDados', 'admConvLancar', 'admConvExcluir', 'admConvFinLancar
 const GERENCIA = ['usuariosListar', 'usuarioCriar', 'usuarioPermissoes', 'usuarioNovaSenha', 'usuarioAtivar', 'sessoesListar', 'sessaoEncerrar'];
 // corpo plausível de cada action (o ataque precisa passar da validação para provar que a recusa é de acesso)
 const corpo = (acao, extra = {}) => ({ action: acao, since: 0, doc: CPF, placa: PLACA, turnoId: 't-x', fim: '12:00', config: { ativo: true }, id: uuid(),
-  nome: 'Intruso Ficticio Teste', permissoes: ['campo', 'gerencia'], usuarioId: 'u-x', ativo: 0, sessaoId: 's-x', codigo: '123456', municipio: 'MANAUS', ...extra });
+  nome: 'Intruso Ficticio Teste', tipo: 'cultura', item: { nome: 'Intrusa Ficticia' }, permissoes: ['campo', 'gerencia'], usuarioId: 'u-x', ativo: 0, sessaoId: 's-x', codigo: '123456', municipio: 'MANAUS', ...extra });
 
 (async () => {
   await get('/__fn?nome=desativarRotinasAutomaticas_&args=[]');
@@ -64,6 +66,7 @@ const corpo = (acao, extra = {}) => ({ action: acao, since: 0, doc: CPF, placa: 
   const F0 = await amb.usuario('Fiscal Sem Modulo Teste', { matricula: 'inv.semmodulo', permissoes: ['campo'] });
   const PL = await amb.usuario('Leitor Painel Teste', { matricula: 'inv.leitor', aplicativo: 'painel', permissoes: ['painel'] });
   const AD = await amb.usuario('Portal Ficticio Teste', { matricula: 'inv.portal', aplicativo: 'administracao' });
+  const GS = await amb.usuario('Gerente Sem Pce Teste', { matricula: 'inv.gsempce', aplicativo: 'painel', permissoes: ['gerencia'] });
   ok([G, FA, FB, F0, PL, AD].every(u => u.ok && u.token), 'contas de teste criadas (gerente, dois fiscais, fiscal sem módulo, painel só leitura, portal)');
 
   // dados do fiscal A: turno aberto, veículo, TF com pessoa, levantamento
@@ -108,6 +111,10 @@ const corpo = (acao, extra = {}) => ({ action: acao, since: 0, doc: CPF, placa: 
   await recusa('painel só de leitura não usa o app de campo nem o portal', PL.token, ['ping', 'sync', 'tfConsultar']);
   await recusa('painel só de leitura não usa o portal', PL.token, PORTAL, 'sessao');
   await recusa('portal não usa o painel, o campo nem a gerência', AD.token, [...PAINEL_LER, ...PAINEL_GRAVAR, ...GERENCIA, 'ping', 'sync', 'tfConsultar']);
+  await recusa('catálogo do PCE: fiscal', FA.token, PCE_CATALOGO);
+  await recusa('catálogo do PCE: painel sem pce', PL.token, PCE_CATALOGO);
+  await recusa('catálogo do PCE: portal', AD.token, PCE_CATALOGO, 'sessao');
+  await recusa('catálogo do PCE: gerência sem o módulo pce', GS.token, PCE_CATALOGO);
   const semModulo = [];
   for (const a of Object.keys(MODULO)) { const x = await post(corpo(a, { key: F0.token })); if (x.ok || x.semPermissao !== MODULO[a]) semModulo.push(a + ': ' + JSON.stringify(x).slice(0, 120)); }
   ok(!semModulo.length, 'fiscal sem módulo: toda action de módulo recusada com semPermissao', semModulo);
@@ -343,11 +350,11 @@ const corpo = (acao, extra = {}) => ({ action: acao, since: 0, doc: CPF, placa: 
 
   await post({ action: 'painelDados', key: G.token, de: hoje, ate: hoje });
   await post({ action: 'painelDados', key: G.token, de: hoje, ate: hoje, aoVivo: true });
-  await post({ action: 'pceMapaGeral', key: FA.token });
+  await post({ action: 'pceBaixarMunicipio', key: FA.token, municipios: ['Manaus'] });
   await post({ action: 'admDados', sessao: AD.token });
   const lidos = await linhasDe('AcessosADados');
   const de = (u, a) => lidos.filter(l => l.usuarioId === u.usuario.id && l.acao === a);
-  ok(de(G, 'painelDados').length === 1 && de(FA, 'pceMapaGeral').length === 1 && de(AD, 'admDados').length === 1,
+  ok(de(G, 'painelDados').length === 1 && de(FA, 'pceBaixarMunicipio').length === 1 && de(AD, 'admDados').length === 1,
     'leitura de dados pessoais registra quem leu (uma linha por usuário e action por hora)', lidos.map(l => l.nome + ':' + l.acao));
   ok(!JSON.stringify(lidos).includes(CPF) && !JSON.stringify(lidos).includes(FISCALIZADO), 'registro de leitura sem dado pessoal');
   r = await post({ action: 'painelDados', key: PL.token, de: hoje });

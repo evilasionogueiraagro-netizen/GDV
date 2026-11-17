@@ -1,4 +1,4 @@
-/* Estilo comum dos documentos do PCE (Ficha de Levantamento e Termo de Colheita).
+/* Estilo comum dos documentos do PCE (Levantamento antigo, Termo de Colheita e Relatório).
    Mesmo padrão visual do tf.html: cabeçalho com brasão, quadros em tabela com borda preta, rodapé ADAF/SEPROR. */
 body{ font-family:Arial, sans-serif; margin:0; padding:0; background:#fff; color:#000; }
 .a4{ width:196mm; margin:0 auto; box-sizing:border-box; position:relative; background:#fff; }

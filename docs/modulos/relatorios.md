@@ -5,7 +5,7 @@ Aba **Relatórios** do painel (só admin): Relatório GDV mensal e anual e centr
 ## Regras
 - Relatório GDV: parcial mensal e consolidado anual, Seções I a VI, conclusão e três assinaturas (padrão: Gerente de Defesa Vegetal, Chefe do DDAF, Diretor-Presidente).
 - Seção I: grupos em `CONFIG.RELGDV.grupos`; praga nova = termo numa coluna (vale o termo mais longo).
-- Seção II (PCE): mensal = mês + acumulado; anual = jan–dez + total. "Novas" = menor data entre cadastro e 1º levantamento. Área: propriedades distintas no total.
+- Seção II (PCE): mensal = mês + acumulado; anual = jan–dez + total. "Novas" = menor data entre cadastro e 1ª visita (levantamento antigo ou Termo). Área: propriedades distintas no total.
 - Seção II (VIGIFITO): total = fixas + volantes; TF sem turno conta como fixa.
 - Manuais (portal): área, capacitação, medida fitossanitária, UP/UC, RT, termos, autos, liberação. Automáticas não se editam; ajuste em "Outros".
 - `admRelLancar`: números ≥ 0 e contagens inteiras (decimais só em área controlada, ha, e quantidade das tabelas); texto sem CPF; chaves `vig.*` recusadas (VIGIFITO é por posto).

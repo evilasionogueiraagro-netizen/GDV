@@ -9,7 +9,7 @@ vigilância de campo. São três apps e um dashboard público, todos publicados 
 ## Os apps
 
 **App de campo (fiscais nas barreiras).** PWA instalado no celular do fiscal, que funciona sem internet. O fiscal abre o
-turno, registra os veículos abordados, lavra o TF de Barreira, faz os levantamentos e termos do PCE e imprime os documentos;
+turno, registra os veículos abordados, lavra o TF de Barreira, cadastra produtores e frutos e emite os Termos do PCE e imprime os documentos;
 tudo fica no aparelho e sobe para a planilha quando há conexão. Endereço: https://evilasionogueiraagro-netizen.github.io/GDV/
 (manual: [docs/apps/campo.md](docs/apps/campo.md)).
 

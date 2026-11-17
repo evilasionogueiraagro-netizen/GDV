@@ -605,6 +605,7 @@ function convApurar_(cfg, de, ate) {
       const cod = String(r.codigoPropriedade || '').trim(), doc = digitos_(r.doc), prop = String(r.propriedade || '').trim();
       return normPub_(cod || (doc && prop ? doc + '|' + prop : '')) || 'lev:' + r.id;
     };
+    // A etapa 1.4 sempre contou levantamentos E Termos: o número já apurado não pode mudar. Termo do fluxo novo entra por `culturas`.
     lerLeitura_('Levantamentos').forEach(function (r) {
       if (!r.id || r.excluido === 1 || !noPer(r.data)) return;
       if (!pragasLev_(r).some(function (g) { return casa(g.praga); })) return;
@@ -612,10 +613,16 @@ function convApurar_(cfg, de, ate) {
     });
     const cadProp = {};
     lerLeitura_('CadastrosPCE').forEach(function (c) { if (c.id) cadProp[c.id] = c; });
+    const avaliouNoTermo = function (r) {
+      const culturas = lerJSONSeguro_(r.culturas, []);
+      return Array.isArray(culturas) && culturas.some(function (c) {
+        return Array.isArray(c && c.pragas) && c.pragas.some(function (p) { return casa(p && p.praga); });
+      });
+    };
     lerLeitura_('TermosPCE').forEach(function (r) {
       if (!r.id || r.excluido === 1 || r.cancelado === 1 || !noPer(r.data)) return;
       const pr = lerJSONSeguro_(r.pragas, []);
-      if (!((Array.isArray(pr) && pr.some(casa)) || (!(Array.isArray(pr) && pr.length) && r.programa === 'moniliase'))) return;
+      if (!((Array.isArray(pr) && pr.some(casa)) || (!(Array.isArray(pr) && pr.length) && r.programa === 'moniliase') || avaliouNoTermo(r))) return;
       const cad = cadProp[r.cadastroId], doc = digitos_(r.doc);
       const k = normPub_(r.propriedadeId || (cad && cad.propriedadeId) || (doc && cad && cad.propriedade ? doc + '|' + cad.propriedade : '')) || 'termo:' + r.id;
       marcar(r.municipio, r.data, k);

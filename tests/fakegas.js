@@ -190,6 +190,15 @@ const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '
 http.createServer((req, res) => {
   let p = decodeURIComponent(req.url.split('?')[0]); if (p.endsWith('/')) p += 'index.html';
   const f = path.join(RAIZ, 'web', p);
-  fs.readFile(f, (e, d) => { if (e) { res.statusCode = 404; return res.end('nf'); } res.setHeader('content-type', types[path.extname(f)] || 'text/plain'); res.end(d); });
+  fs.readFile(f, (e, d) => {
+    if (e) { res.statusCode = 404; return res.end('nf'); }
+    res.setHeader('content-type', types[path.extname(f)] || 'text/plain');
+    // local.js (GDV_LOCAL=1): toda página já aponta para esta API, em qualquer navegador (sem isso, localhost cai na produção)
+    if (process.env.GDV_LOCAL === '1' && path.extname(f) === '.html') {
+      const fixa = `<script>try { localStorage.setItem('gdv.url', 'http://localhost:${PORTA_API}/'); } catch (e) { /* sem armazenamento */ }</script>`;
+      return res.end(String(d).replace(/<head>/i, '<head>' + fixa));
+    }
+    res.end(d);
+  });
 }).listen(PORTA_WEB);
 console.log('ready');

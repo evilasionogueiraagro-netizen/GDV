@@ -78,8 +78,11 @@ function painelEncerrarTurno(token, turnoId, fim) {
 function lerLeitura_(nome) {                       // leitura pura: não cria abas nem colunas
   const sh = planilha_().getSheetByName(nome), cols = TABELAS[nome];
   if (!sh || sh.getLastRow() < 2) return [];
-  let linhas = sh.getRange(2, 1, sh.getLastRow() - 1, cols.length).getValues()
-    .map(function (l) { return paraObjeto_(cols, l); });
+  let vals;
+  // coluna nova de TABELAS só é criada na primeira gravação (garantirColunas_): até lá a aba pode ter menos colunas; o que falta vale vazio
+  try { vals = sh.getRange(2, 1, sh.getLastRow() - 1, cols.length).getValues(); }
+  catch (e) { vals = sh.getRange(2, 1, sh.getLastRow() - 1, Math.min(cols.length, sh.getMaxColumns())).getValues(); }
+  let linhas = vals.map(function (l) { return paraObjeto_(cols, l); });
   // turno cancelado no app (aberto por engano): fica na planilha, mas fora de painel, relatórios, VIGIFITO, convênio e letras do nº
   if (nome === 'Turnos') linhas = linhas.filter(function (t) { return Number(t.cancelado) !== 1; });
   // painel e relatórios: a mesma BVA fixa com um nome só (no volante o local é o endereço e fica como está)

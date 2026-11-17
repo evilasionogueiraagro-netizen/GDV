@@ -2,8 +2,8 @@
 // web/js/icones.js. Símbolos tipográficos de texto (✓ ✕ ☐ ☑ ❚) são permitidos. Não usa o fakegas nem o navegador.
 const fs = require('fs'), path = require('path');
 const WEB = path.join(__dirname, '..', 'web');
-const EMO = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/u;
-const PERMITIDOS = new Set(['✓', '✕', '☐', '☑', '❚']);
+const EMO = /[\u{1F300}-\u{1FAFF}\u{2300}-\u{23FF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{FE0F}]/u;
+const PERMITIDOS = new Set(['✓', '✕', '☐', '☑', '❚', '⌈', '⌉']);
 let falhas = 0, arquivos = 0;
 
 function varrer(dir) {

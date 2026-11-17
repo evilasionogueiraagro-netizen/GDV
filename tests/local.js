@@ -42,7 +42,7 @@ async function semear() {
 }
 
 (async () => {
-  const srv = spawn(process.execPath, [path.join(__dirname, 'fakegas.js')], { cwd: __dirname, stdio: ['ignore', 'pipe', 'inherit'] });
+  const srv = spawn(process.execPath, [path.join(__dirname, 'fakegas.js')], { cwd: __dirname, stdio: ['ignore', 'pipe', 'inherit'], env: { ...process.env, GDV_LOCAL: '1' } });
   const fim = () => { try { srv.kill(); } catch (e) { /* já saiu */ } process.exit(0); };
   process.on('SIGINT', fim); process.on('SIGTERM', fim);
   await new Promise((ok, erro) => { srv.stdout.on('data', d => { if (String(d).includes('ready')) ok(); }); srv.on('exit', c => erro(new Error('fakegas saiu (código ' + c + '); portas 8081/8082 ocupadas?'))); });

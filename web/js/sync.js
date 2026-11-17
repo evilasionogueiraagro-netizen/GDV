@@ -268,9 +268,10 @@ const Sync = (() => {
     pessoa: pessoa ? limpo(pessoa) : undefined, propriedade: propriedade ? limpo(propriedade) : undefined }, 20000);
   /** Cadastro do produtor (pessoa + propriedades) e nº de levantamentos/termos, consultados no servidor. */
   const pceConsultar = doc => chamar({ action: 'pceConsultar', doc }, 15000);
+  /** Busca de produtor por texto na planilha (nome, propriedade, código ou parte do CPF/CNPJ), com município opcional. */
+  const pceBuscarTexto = (q, municipio) => chamar({ action: 'pceBuscarTexto', q, municipio: municipio || '' }, 20000);
   /** PCE em campo: propriedades e produtores do(s) município(s), para consultar sem internet (campo.js grava no aparelho). */
   const pceBaixarMunicipio = municipios => chamar({ action: 'pceBaixarMunicipio', municipios }, 90000);
-  const pceMapaGeral = () => chamar({ action: 'pceMapaGeral' }, 60000);          // todas as propriedades com coordenadas (só com internet; não fica no aparelho)
 
   /** Envia ao Drive até N fotos/assinaturas pendentes (PCE e TF), uma por requisição (envio.js). */
   const enviarPendentesArquivos = ids => Envio.enviarArquivos(ids, chamar);
@@ -439,6 +440,31 @@ const Sync = (() => {
     })().finally(() => { corrida = null; window.dispatchEvent(new Event('gdv-sync-fim')); });   // a tela atualiza o status do encerramento
     return corrida;
   }
+  /** Frutos que a planilha guardou (já mesclados com os de outros aparelhos) viram os frutos da propriedade aqui; edição feita depois do envio fica. */
+  async function adotarPropriedades(linhas) {
+    if (!Array.isArray(linhas) || !linhas.length) return;
+    await Store.mesclar('propriedades', linhas, (local, row) => {
+      if (!local || (Number(local.atualizadoEm) || 0) > (Number(row.atualizadoEm) || 0)) return null;   // sem registro ou editado de novo depois do envio
+      const o = { ...local, frutos: row.frutos || '' };
+      if (o.frutos) delete o.frutosSugeridos;
+      return o;
+    });
+  }
+  /**
+   * Recusados do PCE: Termo da mesma visita e programa que a planilha já tem (outro aparelho ou reenvio com outro id) é cancelado aqui, sem
+   * apagar nada (o número continua usado); propriedade recusada continua pendente, marcada para a tela avisar.
+   */
+  async function tratarRecusadosPce(rec) {
+    rec = rec || {};
+    const dup = (rec.termosPce || []).map(String);
+    if (dup.length) {
+      await Store.mesclar('termosPce', dup.map(id => ({ id })), (a, row) => (a && !Number(a.cancelado) && a.visitaId
+        ? { ...a, cancelado: 1, motivoCancel: 'Duplicado: a planilha já tem o Termo deste programa nesta visita', pendente: 1, atualizadoEm: Math.max(Date.now(), (Number(a.atualizadoEm) || 0) + 1) } : null));
+      window.dispatchEvent(new CustomEvent('gdv-termo-duplicado', { detail: { ids: dup } }));
+    }
+    const props = (rec.propriedades || []).map(String);
+    if (props.length) await Store.mesclar('propriedades', props.map(id => ({ id })), a => (a && a.pendente ? { ...a, recusadoEm: Date.now() } : null));
+  }
   async function rodada() {
     const c = cfg();
     if (rodando || !c.url || !c.key || localStorage.getItem('gdv.revogado') === 'senha') return;   // senha provisória pendente: nada sobe antes da troca
@@ -458,6 +484,9 @@ const Sync = (() => {
         await aplicar('colheitas', r.colheitas || []);
         await aplicar('cadastrosPce', r.cadastrosPce || []);
         await aplicar('termosPce', r.termosPce || []);
+        await adotarPropriedades(r.propriedadesGravadas);
+        await tratarRecusadosPce(l.rec);
+        if (r.catalogoPce && typeof r.catalogoPce === 'object') await Store.setMeta('catalogoPce', r.catalogoPce);
         await lembrarUltimosDocPce(r.ultimosDocPce);
         if (r.barreiras) await Store.setMeta('barreiras', r.barreiras);
         if (r.eu && nome() && r.eu !== nome()) { localStorage.setItem('gdv.nome', r.eu); espelharCred(); }   // nome da conta mudou no painel
@@ -564,5 +593,5 @@ const Sync = (() => {
 
   return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, turnosAbertos, entrarNoTurno, sairDoTurno, removerColega, podeTurnoNaBva, visiveis, turnoPapel, mesmoNome, recuperarTurnos, tfsDoTurno, escalaDados, escalaSalvar, escalaExcluir, escalaGerar, relEquipeLista, relEquipe, relEquipeSalvar, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
-    pceProximoNumero, pceEmitir, pceConsultar, pceBaixarMunicipio, pceMapaGeral, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
+    pceProximoNumero, pceEmitir, pceConsultar, pceBuscarTexto, pceBaixarMunicipio, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

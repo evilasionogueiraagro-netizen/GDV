@@ -3,7 +3,7 @@
 // e faz o envio "só de subida" que o service worker executa quando o Android devolve a conexão (Background Sync).
 // Não usa window/document/localStorage: roda também dentro do service worker. Depende de Store (store.js) e CONFIG (config.js).
 const Envio = (() => {
-  // k = Cadastro de imóvel do PCE (monilíase…), m = Termo de Fiscalização do PCE
+  // k = Ficha oficial do PCE (CadastrosPCE), m = Termo de Fiscalização do PCE, r = produtor/propriedade com os frutos
   const NOMES = ['t', 'v', 'f', 'p', 'l', 'g', 'c', 'r', 'k', 'm'];
   const STORES = { t: 'turnos', v: 'veiculos', f: 'tfs', p: 'pessoas', l: 'placas', g: 'levantamentos', c: 'colheitas', r: 'propriedades', k: 'cadastrosPce', m: 'termosPce' };
   const CAMPOS = { t: 'turnos', v: 'veiculos', f: 'tfs', p: 'pessoas', l: 'placas', g: 'levantamentos', c: 'colheitas', r: 'propriedades', k: 'cadastrosPce', m: 'termosPce' };   // nome no corpo da requisição
@@ -26,7 +26,8 @@ const Envio = (() => {
   const ANTIGO_NOS = ['g', 'c', 'k', 'm', 'f'];                               // stores que podem ter registros antigos (f = TF digitado do papel)
   const TAG = 'gdv-enviar', TAG_PERIODICO = 'gdv-enviar-periodico';
 
-  const limpo = ({ pendente, provisorio, _login, ...r }) => r;   // _login: só no aparelho (quem recebeu o registro)
+  // campos só do aparelho (controle local, sugestões e _login, quem recebeu o registro) não vão para a planilha
+  const limpo = ({ pendente, provisorio, _login, frutosSugeridos, resumoLev, ultimoTermoPce, campoMun, baixadoEm, recusadoEm, ...r }) => r;
   const lerJSON = (v, pad) => { try { return JSON.parse(v) || pad; } catch (e) { return pad; } };
 
   /** Erro de conexão (sem internet, servidor fora do ar, tempo esgotado): vale tentar de novo depois. */
@@ -233,7 +234,7 @@ const Envio = (() => {
       if (!a || a.enviado || !a.dados) continue;
       const ext = a.mime === 'image/png' ? 'png' : a.mime === 'application/pdf' ? 'pdf' : 'jpg';
       const arquivo = { id: a.id, dono: a.dono, donoId: a.donoId, tipo: a.tipo, papel: a.papel || '', mime: a.mime,
-        nome: `${a.donoId}_${a.tipo}_${a.papel || 'n'}_${a.id}.${ext}`, rotulo: a.rotulo || '' };   // rotulo: "praga – cultura" da foto do levantamento
+        nome: `${a.donoId}_${a.tipo}_${a.papel || 'n'}_${a.id}.${ext}`, rotulo: a.rotulo || '' };   // rotulo: cultura da foto do levantamento
       let r;
       // PDF (até 10 MB ≈ 13,4 MB em base64) tem mais tempo para subir
       try { r = await chamar({ action: 'arquivoEnviar', arquivo, base64: String(a.dados).replace(/^data:[^,]*,/, '') }, a.tipo === 'documento' ? 180000 : 60000); }

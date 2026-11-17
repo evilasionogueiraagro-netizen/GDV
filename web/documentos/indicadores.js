@@ -48,9 +48,9 @@ const Indicadores = (() => {
   const CATALOGO = {};
   VIGIFITO.forEach(d => { CATALOGO[d.id] = { rotulo: d.rotulo, unid: d.unid, fonte: d.fonte === 'auto' ? 'e-GDV (turnos, veículos e TFs)' : 'lançado no Portal do Administrativo', regra: d.regra || 'Valor lançado por posto e mês (ou período de 10 dias) no Portal do Administrativo.' }; });
   Object.assign(CATALOGO, {
-    'pce.propriedadesVisitadas': { rotulo: 'Propriedades/localidades visitadas (distintas)', unid: 'nº', fonte: 'e-GDV (levantamentos)', regra: 'Propriedades distintas (código; sem código, CPF/CNPJ + nome) com levantamento no período; no total, distintas no período inteiro.' },
+    'pce.propriedadesVisitadas': { rotulo: 'Propriedades/localidades visitadas (distintas)', unid: 'nº', fonte: 'e-GDV (levantamentos e Termos)', regra: 'Propriedades distintas (código; sem código, CPF/CNPJ + nome) com visita (levantamento antigo ou Termo do fluxo novo) no período; no total, distintas no período inteiro.' },
     'pce.propriedadesNovas': { rotulo: 'Propriedades/localidades novas', unid: 'nº', fonte: 'e-GDV', regra: 'Data de cadastro (a menor entre a criação na aba Propriedades e o 1º levantamento) no mês.' },
-    'pce.levantamentos': { rotulo: 'Levantamentos fitossanitários (inspeções)', unid: 'nº', fonte: 'e-GDV', regra: 'Levantamentos não excluídos no período.' },
+    'pce.levantamentos': { rotulo: 'Levantamentos fitossanitários (inspeções)', unid: 'nº', fonte: 'e-GDV', regra: 'Levantamentos antigos não excluídos e visitas dos Termos de Fiscalização do fluxo novo (visitaId e culturas preenchidos; sem Termo cancelado ou excluído) no período; dois Termos da mesma visita contam uma visita.' },
     'pce.areaMonitorada': { rotulo: 'Área monitorada', unid: 'ha', fonte: 'e-GDV', regra: 'Soma das áreas das culturas avaliadas (a mesma cultura em várias pragas conta uma vez); no total, por propriedade distinta.' },
     'pce.termosColheita': { rotulo: 'Termos de colheita de amostra', unid: 'nº', fonte: 'e-GDV', regra: 'Termos não cancelados, pela data do termo.' },
     'pce.amostrasEnviadas': { rotulo: 'Amostras enviadas a laboratório', unid: 'nº', fonte: 'e-GDV', regra: 'Quantidade dos termos, pela data de envio do resultado laboratorial.' },

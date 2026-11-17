@@ -1,5 +1,6 @@
 const amb = require('./lib/amb');
 const U = require('./lib/usuarios');
+const A = require('./lib/pce-app');
 const { chromium } = require('playwright-core');
 const { API, APP } = amb;
 const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) process.exitCode = 1; };
@@ -17,13 +18,17 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) proce
   await p.goto(APP); await p.waitForSelector('.modulo[data-v=tf]');
   await p.click('.modulo[data-v=tf]'); await p.waitForSelector('button[data-tf=novo]'); await p.click('button[data-tf=novo]'); await p.waitForSelector('#tfForm'); await p.waitForTimeout(1500);
   ok(await p.evaluate(() => window.__pedidos) === 0, 'abrir um TF não pede localização');
-  await p.click('nav [data-v=modulos]'); await p.click('.modulo[data-v=pce]'); await p.waitForSelector('#pceServForm, #pce-novolev');
+  await p.click('nav [data-v=modulos]'); await p.click('.modulo[data-v=pce]'); await p.waitForSelector('#pceServForm, #campo-novo');
   if (await p.locator('#pceServForm').count()) { await p.selectOption('#pce-s-cargo', { index: 1 }); await p.fill('#pce-s-matricula', '1'); await p.selectOption('#pce-s-lotacao', 'Manaus'); await p.click('#pce-s-salvar'); }
-  await p.waitForSelector('#pce-novolev'); await p.click('#pce-novolev'); await p.waitForSelector('#pceLevForm'); await p.waitForTimeout(1500);
-  ok(await p.evaluate(() => window.__pedidos) === 0, 'abrir um levantamento do PCE não pede localização');
-  ok(/Atualizar GPS/.test(await p.textContent('#pceLevForm')), 'levantamento orienta a tocar em "Atualizar GPS"');
-  await p.click('[data-pce=gps]').catch(() => p.click('text=Atualizar GPS')); await p.waitForTimeout(500);
-  ok(await p.evaluate(() => window.__pedidos) === 1, 'tocar em "Atualizar GPS" pede (uma vez)');
+  await p.waitForSelector('#campo-novo'); await p.click('#campo-novo'); await p.waitForSelector('#pceProdForm'); await p.waitForTimeout(1500);
+  ok(await p.evaluate(() => window.__pedidos) === 0, 'abrir o cadastro do produtor no PCE não pede localização');
+  ok(/Usar GPS/.test(await p.textContent('#pceProdForm')), 'o cadastro orienta a tocar em "Usar GPS"');
+  await p.click('[data-cad=gps]'); await p.waitForFunction(() => window.__pedidos === 1);
+  ok(await p.evaluate(() => window.__pedidos) === 1, 'tocar em "Usar GPS" pede (uma vez)');
+  await p.click('[data-cad=cancelarform]'); await p.waitForSelector('#campo-novo');
+  await A.novoProdutor(p, { doc: '52998224725', nome: 'Produtor Ficticio Gps', propriedade: 'Sitio Gps', codigo: 'PRP-GPS-1', municipio: 'Manaus', frutos: [{ cultura: 'Banana', area: 1 }] });
+  await p.locator('#pce-novavisita').click(); await p.waitForSelector('#pceVisitaForm'); await p.waitForTimeout(1500);
+  ok(await p.evaluate(() => window.__pedidos) === 1, 'abrir a Nova visita não pede localização de novo (a captura do local é silenciosa)');
   ok(!err.length, 'sem erros ' + JSON.stringify(err));
   await b.close();
 })();

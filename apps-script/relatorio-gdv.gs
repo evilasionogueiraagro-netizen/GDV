@@ -195,7 +195,7 @@ function relGdvApurar_(de, ate, grupos) {
 
   // propriedades: data de cadastro = a menor entre a criação na aba Propriedades e o primeiro levantamento (todo o histórico)
   const propCriado = {}; lerLeitura_('Propriedades').forEach(function (p) { if (p.id) propCriado[p.id] = diaMs(p.criadoEm); });
-  const levTodos = lerLeitura_('Levantamentos').filter(function (r) { return r.id && r.excluido !== 1; });
+  const levTodos = visitasPce_();    // visitas contáveis: levantamentos antigos + Termos do fluxo novo (pce-visita.gs)
   const chaveProp = function (r) { return propIdGdv_(r.codigoPropriedade, r.doc, r.propriedade) || 'lev:' + r.id; };
   const primeiroLev = {}, levPorId = {};
   levTodos.forEach(function (r) { levPorId[r.id] = r; const k = chaveProp(r); if (r.data && (!primeiroLev[k] || r.data < primeiroLev[k])) primeiroLev[k] = r.data; });
@@ -228,38 +228,45 @@ function relGdvApurar_(de, ate, grupos) {
     porTipoLocal[tl || 'Não informado'] = (porTipoLocal[tl || 'Não informado'] || 0) + 1;
     porOrigem[ov || 'Não informada'] = (porOrigem[ov || 'Não informada'] || 0) + 1;
     if (tl && ehUpUc(tl)) [pm, TOT].forEach(function (x) { x.upuc[k + '|' + r.data] = true; });
-    const colVistas = {}, porGrupo = {};
+    const colVistas = {};
     let outras = false;
     pr.forEach(function (g) {
       g.culturas.forEach(function (c) { if (c.resultado !== 'nao_detectada') { deteccoes++; if (c.resultado === 'suspeita') suspeitas++; } });
       const cl = classif(g.praga);
       if (!cl) { if (g.praga) outras = true; return; }
       colVistas[cl.gi + ':' + cl.ci] = true;
-      (porGrupo[cl.gi] = porGrupo[cl.gi] || []).push({ ci: cl.ci, g: g });
     });
     Object.keys(colVistas).forEach(function (c) { [pm, TOT].forEach(function (x) { x.porCol[c] = (x.porCol[c] || 0) + 1; }); });
     if (outras) [pm, TOT].forEach(function (x) { x.outras++; });
-    Object.keys(porGrupo).forEach(function (gi) {
-      const GG = G[gi], nc = grupos[gi].colunas.length;
-      const M = GG.mun[mk || '?'] = GG.mun[mk || '?'] || { props: {}, levs: 0, det: grupos[gi].colunas.map(function () { return {}; }), susp: grupos[gi].colunas.map(function () { return {}; }), suspeitas: {}, amostras: 0 };
-      M.props[k] = true; M.levs++; GG.levs++; GG.props[k] = true;
-      if (normPub_(tl) === 'viveiro') GG.viveiros[k] = true;
-      const culturas = [], res = [];
-      porGrupo[gi].forEach(function (x) {
-        x.g.culturas.forEach(function (c) {
-          if (culturas.indexOf(c.cultura) < 0) culturas.push(c.cultura);
-          if (c.resultado === 'detectada') M.det[x.ci][k] = true;
-          if (c.resultado === 'suspeita') { M.susp[x.ci][k] = true; M.suspeitas[k] = true; }
-          if (c.coleta === 'Sim') M.amostras++;
-        });
-        const pior = x.g.culturas.some(function (c) { return c.resultado === 'detectada'; }) ? 'detectada' : x.g.culturas.some(function (c) { return c.resultado === 'suspeita'; }) ? 'suspeita' : 'nao_detectada';
-        res.push(x.g.praga + ': ' + RES_TXT[pior]);
+    // por grupo de pragas conta cada parte da visita (o levantamento antigo ou cada Termo/programa da visita nova)
+    r.partes.forEach(function (parte) {
+      const porGrupo = {};
+      pragasLev_(parte).forEach(function (g) {
+        const cl = classif(g.praga);
+        if (cl) (porGrupo[cl.gi] = porGrupo[cl.gi] || []).push({ ci: cl.ci, g: g });
       });
-      void nc;
-      const la = numOuNulo_(r.lat), lo = numOuNulo_(r.lon);
-      GG.anexo.push({ municipio: nomeMun[mk] || String(r.municipio || ''), propriedade: textoCurto_(r.propriedade, 120), produtor: iniciaisRelGdv_(r.nome),
-                      doc: mascararDoc_(r.doc), data: r.data, culturas: culturas.join(', '), resultado: res.join('; '), tipoLocal: tl,
-                      lat: la === null ? null : round(la, 2), lon: lo === null ? null : round(lo, 2) });
+      Object.keys(porGrupo).forEach(function (gi) {
+        const GG = G[gi], nc = grupos[gi].colunas.length;
+        const M = GG.mun[mk || '?'] = GG.mun[mk || '?'] || { props: {}, levs: 0, det: grupos[gi].colunas.map(function () { return {}; }), susp: grupos[gi].colunas.map(function () { return {}; }), suspeitas: {}, amostras: 0 };
+        M.props[k] = true; M.levs++; GG.levs++; GG.props[k] = true;
+        if (normPub_(tl) === 'viveiro') GG.viveiros[k] = true;
+        const culturas = [], res = [];
+        porGrupo[gi].forEach(function (x) {
+          x.g.culturas.forEach(function (c) {
+            if (culturas.indexOf(c.cultura) < 0) culturas.push(c.cultura);
+            if (c.resultado === 'detectada') M.det[x.ci][k] = true;
+            if (c.resultado === 'suspeita') { M.susp[x.ci][k] = true; M.suspeitas[k] = true; }
+            if (c.coleta === 'Sim') M.amostras++;
+          });
+          const pior = x.g.culturas.some(function (c) { return c.resultado === 'detectada'; }) ? 'detectada' : x.g.culturas.some(function (c) { return c.resultado === 'suspeita'; }) ? 'suspeita' : 'nao_detectada';
+          res.push(x.g.praga + ': ' + RES_TXT[pior]);
+        });
+        void nc;
+        const la = numOuNulo_(r.lat), lo = numOuNulo_(r.lon);
+        GG.anexo.push({ municipio: nomeMun[mk] || String(r.municipio || ''), propriedade: textoCurto_(r.propriedade, 120), produtor: iniciaisRelGdv_(r.nome),
+                        doc: mascararDoc_(r.doc), data: r.data, culturas: culturas.join(', '), resultado: res.join('; '), tipoLocal: tl,
+                        lat: la === null ? null : round(la, 2), lon: lo === null ? null : round(lo, 2) });
+      });
     });
   });
 

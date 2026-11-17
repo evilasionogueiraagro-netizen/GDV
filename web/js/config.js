@@ -152,7 +152,8 @@ const CONFIG = {
       'Tefé', 'Tonantins', 'Uarini', 'Urucará', 'Urucurituba'],
     culturas: ['Mandioca', 'Banana', 'Açaí', 'Cacau', 'Cupuaçu', 'Guaraná', 'Pimenta-do-reino', 'Milho', 'Feijão', 'Arroz', 'Café', 'Coco',
       'Abacaxi', 'Laranja', 'Limão', 'Tangerina', 'Mamão', 'Melancia', 'Maracujá', 'Castanha-do-Brasil', 'Pupunha', 'Dendê', 'Urucum',
-      'Seringueira', 'Hortaliças diversas', 'Soja'],
+      'Seringueira', 'Hortaliças diversas', 'Soja', 'Algodão', 'Cana-de-açúcar',
+      'Carambola', 'Goiaba', 'Manga', 'Acerola', 'Caju', 'Jaca', 'Pitanga', 'Jambo', 'Taperebá', 'Sapotilha', 'Abiu', 'Araçá-boi', 'Biribá', 'Fruta-pão', 'Tomate', 'Pimenta de cheiro'],
     pragas: ['Bactrocera carambolae', 'Schizotetranychus hindustanicus', 'Phakopsora pachyrhizi', 'HLB / Greening', 'Cancro Cítrico',
       'Fusarium R4T', 'Monilíase do Cacaueiro', 'Vassoura de Bruxa da Mandioca', 'Amaranthus palmeri', 'Diaphorina citri (vetor do HLB)',
       'Pinta Preta dos Citros', 'Leprose dos Citros'],
@@ -173,20 +174,190 @@ const CONFIG = {
       delimitacao: [['pintapreta', 'Pinta Preta']],
       // levantamento de detecção: as três são obrigatórias (Ausência = "nao", Presença = "sim"); o nome é o do Termo (CONFIG.PCE.termo.pragas)
       deteccao: [['hlb', 'HLB'], ['acaro', 'Ácaro Hindustânico'], ['cancro', 'Cancro Cítrico']],
-      // frases da "Descrição da ação" do Termo de Fiscalização (uma por doença; {praga} = nome acima; {culturas} = culturas de citros avaliadas)
-      frases: { nao: 'Ausência de sintomas de {praga} nos frutos e folhas da cultura{culturas}.', sim: 'Presença de sintomas de {praga} nos frutos e folhas da cultura{culturas}.' },
-      // enquadramento legal padrão do Termo de Fiscalização de citros (editável no formulário do Termo)
-      enquadramento: 'PORTARIA MAPA SDA Nº 1326, DE 4 DE JULHO DE 2025, ART. 23, INCISOS I E II, E ART. 26.',
-      // card de praga com resultado "Detectada" → pré-marca "Presença" no item (só se o fiscal ainda não marcou). Diaphorina (vetor) não marca HLB.
-      marcarPor: { cancro: ['cancro'], hlb: ['hlb', 'greening', 'liberibacter'], acaro: ['hindustan', 'schizotetranychus'], pintapreta: ['pinta preta', 'guignardia', 'phyllosticta'] },
-      naoMarcar: ['diaphorina'],
+      // O enquadramento legal do Termo de citros vem do catálogo (CONFIG.PCE.legislacao, planilha da GDV): sem texto próprio aqui.
       cultivares: ['Laranja Pera', 'Laranja Lima', 'Laranja Valência', 'Laranja Natal', 'Limão Tahiti', 'Limão Galego', 'Tangerina Ponkan', 'Tangerina Murcote',
         'Lima ácida', 'Pomelo'],                     // só sugestão (texto livre)
       maxCulturas: 20                                // linhas da tabela "Cultura do citros" (o servidor também corta em 20)
     },
-    // dados gerais da visita (opcionais): tipo de local e origem da visita. "Outro" abre um campo para digitar.
-    tiposLocal: ['Propriedade comercial', 'Quintal / área urbana', 'Viveiro', 'Plantio abandonado / não comercial', 'Feira / ponto de venda', 'Floricultura',
-      'Unidade de Produção (UP)', 'Unidade de Consolidação (UC)', 'Outro'],
+    // Legislação por praga, para o "Enquadramento legal" do Termo. Fonte única: docs/modulos/pce-legislacao.csv (planilha da GDV); o teste pce_legislacao_test confere.
+    legislacao: {
+      'Monilíase do Cacaueiro': 'IN 112 DE 11/12/2020; SDA Nº 703 DE 21/11/2022; PORTARIA Nº 337/23 DE 11 DE AGOSTO DE 2023; PORTARIA Nº 263/2024; MAPA 818/2025',
+      'HLB / Greening': 'Portaria SDA/MAPA nº 1.326, de 4 de julho de 2025; IN SDA/MAPA nº 38',
+      'Cancro Cítrico': 'IN MAPA nº 21/2018; IN SDA/MAPA nº 38',
+      'Schizotetranychus hindustanicus': 'IN MAPA nº 8/2012; IN SDA/MAPA nº 38, de 1º de outubro de 2018',
+      'Bactrocera carambolae': 'Instrução Normativa SDA/MAPA nº 38; Portaria SDA/MAPA n° 1.545; PORTARIA SDA/MAPA nº 1.569, de 13 de março de 2026; Portaria SDA/MAPA n° 1.675 de 26 de agosto de 2026; Portaria MAPA n° 855, de 7 de novembro de 2025; Portaria MAPA nº 627, de 10 de novembro de 2023; Portaria SDA/MAPA n° 859, de 19 de julho de 2023; Portaria SDA/MAPA nº 780, de 06 de abril de 2023',
+      'Phakopsora pachyrhizi': 'Portaria SDA/MAPA nº 1.124, de 25 de junho de 2024; Portaria SDA/MAPA nº 1.579, de 9 de abril de 2026',
+      'Amaranthus palmeri': 'Instrução Normativa SDA/MAPA nº 38; Portaria SDA/MAPA nº 1.119',
+      'Vassoura de Bruxa da Mandioca': 'Instrução Normativa SDA/MAPA nº 38; Portaria SDA/MAPA nº 1.257; Portaria MAPA nº 769',
+      'Fusarium R4T': 'Portaria SDA/MAPA nº 1.291, de 22 de maio de 2025; Instrução Normativa SDA/MAPA nº 131 de 27 de junho de 2019; Instrução Normativa SDA/MAPA nº 30 de 05 de junho de 2020'
+    },
+    // Restrição praga x cultura (fontes em docs/modulos/pce-hospedeiros.md): praga listada aqui só é oferecida nas culturas e famílias dela e nas
+    // ligadas a ela no catálogo. Praga fora da lista e "Outra" digitada não têm restrição.
+    hospedeiros: {
+      'Bactrocera carambolae': { familias: ['Citros'], culturas: ['Carambola', 'Goiaba', 'Manga', 'Acerola', 'Caju', 'Jaca', 'Pitanga', 'Jambo', 'Taperebá', 'Sapotilha', 'Abiu', 'Araçá-boi', 'Biribá', 'Fruta-pão', 'Tomate', 'Pimenta de cheiro', 'Mamão', 'Maracujá'] },
+      'Schizotetranychus hindustanicus': { familias: ['Citros'], culturas: ['Coco'] },
+      'HLB / Greening': { familias: ['Citros'] }, 'Cancro Cítrico': { familias: ['Citros'] }, 'Diaphorina citri (vetor do HLB)': { familias: ['Citros'] },
+      'Pinta Preta dos Citros': { familias: ['Citros'] }, 'Leprose dos Citros': { familias: ['Citros'] },
+      'Phakopsora pachyrhizi': { familias: ['Soja'] }, 'Amaranthus palmeri': { familias: ['Soja'], culturas: ['Milho', 'Algodão'] },
+      'Fusarium R4T': { familias: ['Bananeira'] }, 'Moko da Bananeira': { familias: ['Bananeira'] }, 'Sigatoka Negra': { familias: ['Bananeira'] },
+      'Monilíase do Cacaueiro': { familias: ['Cacau e cupuaçu'] }, 'Vassoura de Bruxa da Mandioca': { familias: ['Mandioca'] }
+    },
+    // Rótulo curto de cada modelo de ficha/programa (lista, painel). A ficha de cada modelo, com as perguntas, está em "fichas" (mais abaixo).
+    cadastros: { rotulos: { moniliase: 'Monilíase', citros: 'Citros', banana: 'Banana', mandioca: 'Mandioca', soja: 'Soja', propriedade: 'Propriedade' } },
+    // Perguntas de detecção próprias de um programa, feitas na visita (por fruto) quando uma praga dele é detectada ou suspeita. Chave = modelo da cultura;
+    // pragas = nomes do catálogo; perguntas = chaves de CONFIG.PCE.fichas.modelos[modelo].levantamento.perguntas (a ficha oficial lê as respostas da visita).
+    // As respostas vão em culturas[].dados do Termo do programa.
+    // respostaExplicita = pragas opcionais que NÃO vêm marcadas "Não tem": o fiscal tem de escolher (nome do catálogo). Na bananeira é a Fusariose,
+    // a única com legislação na planilha da GDV; Moko e Sigatoka seguem pré-marcadas.
+    visita: { deteccao: { moniliase: { pragas: ['Monilíase do Cacaueiro'], perguntas: ['sintomaLat', 'camaraUmida', 'camaraMr', 'suspeitos'] } }, respostaExplicita: ['Fusarium R4T'] },
+    // Fichas oficiais do PCE: UM modelo de documento (documentos/pce-ficha.html) guiado por esta configuração, para os 6 modelos de papel. Cada ficha imprime só as seções,
+    // campos, colunas e textos do SEU papel (por modelo, em "secoes"); o título pode ser o padrão. O levantamento vem da visita mais recente. Códigos não mudam.
+    // Pergunta: {k, rot, tipo: texto | num | sn | opcao | varios | coord, ops: [[código, texto, grupo?]], compl: {k, rot, tipo?, ops?, calc?} (complemento na mesma
+    // linha), outro: k do texto da opção "outro", layout: 'coluna' | 'colunas2', fonte: 'coleta' | 'ocorrencia' (resposta vem da visita) ou deVisita: [nomes de praga]
+    // (sim se Detectada ou Suspeita), calc: 'soma:campo' | 'lista:campo' (sai dos frutos da ficha; o app não pergunta)}.
+    // Linha do levantamento: {k, rot, tipo: delimitacao | deteccao, pragas: [nomes do catálogo], cols: [tempo, controle, qual]}.
+    // O comercial, a situação fundiária, a via de acesso, o telefone, o código, o endereço e o responsável técnico (do papel que os tem) são comuns às fichas:
+    // vêm do cadastro do produtor e da propriedade, perguntados uma vez. Em "perguntas" ficam só as próprias do modelo.
+    fichas: {
+      situacoes: [['proprietario', 'PROPRIETÁRIO'], ['arrendatario', 'ARRENDATÁRIO'], ['cooperativa', 'COOPERATIVA'], ['outras', 'OUTRAS (ESPECIFICAR)']],
+      naoComercial: [['sitio', 'sítio'], ['residencia', 'residência'], ['vegetacao', 'vegetação espontânea'], ['publica', 'área pública'], ['outros', 'outros']],
+      vias: [['fluvial', 'FLUVIAL'], ['terrestre', 'TERRESTRE'], ['outra', 'OUTRA']],
+      // colunas da tabela de cultura (campos de frutos); cada modelo pode trocar o texto do cabeçalho em "colunas"
+      colunas: [['cultura', 'CULTURA'], ['atividade', 'TIPO DE ATIVIDADE'], ['cultivar', 'CULTIVAR'], ['cultivarCultura', 'CULTIVAR'], ['area', 'ÁREA (ha)'], ['espacamento', 'ESPAÇAMENTO'], ['idade', 'IDADE (Ano)'],
+        ['quantidade', 'QUANTIDADE (plantas)'], ['producao', 'PRODUÇÃO (tonelada/Ano – sacas/ha/ano)'], ['destino', 'DESTINO DA PRODUÇÃO']],
+      // cultura (catálogo) → modelo de ficha, para escolher os frutos de cada ficha; fruto com "modelo" próprio vale por ele; sem lista = "propriedade"
+      culturaModelo: { 'Laranja': 'citros', 'Limão': 'citros', 'Tangerina': 'citros', 'Banana': 'banana', 'Cacau': 'moniliase', 'Cupuaçu': 'moniliase', 'Herrania': 'moniliase',
+        'Cacauí': 'moniliase', 'Cupuí': 'moniliase', 'Macambo': 'moniliase', 'Mandioca': 'mandioca', 'Soja': 'soja' },
+      // modelo → nome da cultura quando o registro antigo não a traz (tabela sem coluna de cultura)
+      culturaPadrao: { citros: 'Citros', banana: 'Banana', mandioca: 'Mandioca', soja: 'Soja' },
+      // Cada modelo diz o que a SUA ficha de papel tem (conteudo_gdv/modulos/pce/cadastros/*.docx), nada além disso:
+      //   comercial: texto do aviso do "PROPRIEDADE COMERCIAL?" ('' = sem aviso; ausente = a ficha não tem o quadro);
+      //   produtor: campos do item 1 além de nome, CPF, propriedade, CNPJ, georreferenciamento, endereço, município e UF (telefone, codigo, via);
+      //   rt: rótulo do responsável técnico (ausente = sem RT); data: 'data' | 'localedata' (LOCAL E DATA) | 'dataelocal' (DATA e, abaixo, Local);
+      //   secoes: [{titulo, blocos}] na ordem do papel, numeradas a partir do 2 (o 1 é o do produtor). Bloco = chave de uma pergunta do modelo (uma linha),
+      //   lista de duas chaves (duas perguntas na mesma linha), {cultura: [colunas], linhas: mínimo de linhas} (tabela dos frutos), {linhas: [chaves de levantamento.linhas]}
+      //   (praga, sim/não, há quanto tempo ou qual, controle), ou um dos nomes fixos: 'situacao' (situação fundiária), 'destino' (destino da produção, dos frutos)
+      //   e 'plantas' (quadro "Cultura (Nº de plantas)" do cacau e cupuaçu). Colunas da tabela: cultura, cultivar, cultivarCultura (cultura + cultivar),
+      //   atividade, area, espacamento, idade, quantidade, producao, destino. Pergunta com calc ('soma:campo' ou 'lista:campo') sai dos frutos e o app não pergunta.
+      modelos: {
+        citros: { nome: 'Citros', titulo: 'CADASTRO DE IMÓVEIS DE PRODUÇÃO COMERCIAL DE CÍTRICOS', numero: 'CADASTRO DA PROPRIEDADE Nº',
+          base: ['(ATENDIMENTO A IN Nº21 DE 25/04/2018 - Cancro cítrico e Portaria Nº 317 de 21/05/2021 - HLB)', 'LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS DE CITROS'],
+          comercial: 'Marcada opção “NÃO” preencher apenas itens 1, 4 e 5.', produtor: ['codigo'], rt: 'NOME DO RESPONSÁVEL TÉCNICO:', data: 'data',
+          secoes: [
+            { titulo: 'TIPO DE ATIVIDADE', blocos: ['atividades', 'situacao'] },
+            { titulo: 'CULTURA DO CITROS', blocos: [{ cultura: ['atividade', 'cultivarCultura', 'area', 'idade', 'quantidade', 'producao'], linhas: 4 }, 'entrega', 'compradores', 'beneficia', 'materiais', 'origemMaterial'] },
+            { titulo: 'LEVANTAMENTO DE DELIMITAÇÃO', blocos: [{ linhas: ['pintapreta'] }] },
+            { titulo: 'LEVANTAMENTO DE DETECÇÃO', blocos: [{ linhas: ['cancro', 'hlb', 'acaro'] }] }],
+          colunas: { atividade: 'TIPO DE ATIVIDADE', cultivarCultura: 'CULTIVAR', producao: 'PRODUÇÃO (tonelada/Ano)' },
+          propriedade: [
+            { k: 'atividades', rot: 'TIPO DE ATIVIDADE', tipo: 'varios', layout: 'colunas2', outro: 'atividadeOutros', ops: [['viveiro_mudas', 'Produção de Mudas', 'VIVEIRO'],
+              ['frutos', 'Produção comercial de Frutos'], ['viveiro_semorigem', 'Fornecedor de Material de Propagação sem origem genética comprovada', 'VIVEIRO'],
+              ['outros', 'Outros (especificar)'], ['viveiro_portaenxerto', 'Campos de Produção de Porta-Enxerto', 'VIVEIRO'], ['viveiro_clonal', 'Jardins Clonais e Borbulheiras', 'VIVEIRO']] }],
+          perguntas: [
+            { k: 'entrega', rot: 'Entrega na propriedade:', tipo: 'sn', compl: { k: 'formasEntrega', rot: 'De que forma', tipo: 'varios', ops: [['saco', 'saco'], ['caixa', 'caixa'], ['granel', 'a granel']] } },
+            { k: 'compradores', rot: 'Com quem comercializa:', tipo: 'varios', outro: 'compradorOutros', ops: [['atravessador', 'atravessador'], ['supermercado', 'supermercado'], ['feira', 'feira'], ['cooperativa', 'cooperativa'], ['outros', 'outros']] },
+            { k: 'beneficia', rot: 'Beneficia o fruto:', tipo: 'sn', compl: { k: 'beneficiaTipo', rot: 'Tipo' } },
+            { k: 'materiais', rot: 'Material de propagação:', tipo: 'varios', ops: [['muda', 'muda'], ['borbulha', 'borbulha'], ['cavalinho', 'cavalinho'], ['semente', 'semente']] },
+            { k: 'origemMaterial', rot: 'Origem do material genético:', tipo: 'texto' }],
+          levantamento: { linhas: [
+            { k: 'pintapreta', rot: 'Pinta Preta', tipo: 'delimitacao', pragas: ['Pinta Preta dos Citros', 'Pinta Preta'], cols: ['tempo', 'controle'] },
+            { k: 'cancro', rot: 'Cancro Cítrico', tipo: 'deteccao', pragas: ['Cancro Cítrico', 'Cancro'], cols: ['tempo'] },
+            { k: 'hlb', rot: 'HLB', tipo: 'deteccao', pragas: ['HLB / Greening', 'HLB', 'Greening'], cols: ['tempo'] },
+            { k: 'acaro', rot: 'Ácaro Hindustânico', tipo: 'deteccao', pragas: ['Schizotetranychus hindustanicus', 'Ácaro Hindustânico'], cols: ['tempo'] }] } },
+        banana: { nome: 'Banana', titulo: 'FICHA DE CADASTRO E LEVANTAMENTO DE BANANA', numero: 'Nº',
+          base: ['(ATENDIMENTO A IN Nº17 DE 27/05/2009 – Moko da Bananeira e Portaria Nº 17 de 31/05/2005 – Sigatoka Negra)', 'LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS DA BANANA'],
+          comercial: 'Marcada opção “NÃO” preencher apenas itens 1, 4 e 5.', produtor: ['codigo'], rt: 'NOME DO RESPONSÁVEL TÉCNICO:', data: 'data',
+          secoes: [
+            { titulo: 'DADOS DA CULTURA', blocos: [{ cultura: ['cultivar', 'area', 'idade', 'quantidade', 'producao'], linhas: 5 }, 'compradores', 'origemMaterial', 'destino'] },
+            { titulo: 'LEVANTAMENTO DE DELIMITAÇÃO', blocos: [{ linhas: ['moko', 'sigatoka'] }] }],
+          colunas: { idade: 'IDADE DO PLANTIO (Ano)', producao: 'PRODUÇÃO (tonelada/Ano)' },
+          perguntas: [
+            { k: 'compradores', rot: 'Com quem comercializa:', tipo: 'varios', ops: [['atravessador', 'atravessador'], ['supermercado', 'supermercado'], ['feira', 'feira'], ['cooperativa', 'cooperativa'], ['outros', 'outros']] },
+            { k: 'origemMaterial', rot: 'Origem do material genético:', tipo: 'texto' }],
+          levantamento: { linhas: [
+            { k: 'moko', rot: 'MOKO DA BANANEIRA', tipo: 'delimitacao', pragas: ['Moko da Bananeira', 'Moko'], cols: ['tempo', 'controle'] },
+            { k: 'sigatoka', rot: 'SIGATOKA NEGRA', tipo: 'delimitacao', pragas: ['Sigatoka Negra', 'Sigatoka'], cols: ['tempo', 'controle'] }] } },
+        moniliase: { nome: 'Cacau e cupuaçu', titulo: 'FICHA DE CADASTRO E LEVANTAMENTO DE CACAU E CUPUAÇU', numero: 'Nº', base: [],
+          comercial: '', produtor: ['via'], data: 'dataelocal', plantas: ['Cupuaçu', 'Cacau', 'Herrania', 'Cacauí', 'Cupuí', 'Macambo'],
+          secoes: [
+            { titulo: 'TIPO DE ATIVIDADE', blocos: ['plantas', ['areaAbandonada', 'areaTotal'], ['areaProducao', 'mumificados'], 'origem', ['producaoTxt', 'destinoTxt'], ['sacaria', 'controlePraga'], 'assistencia', 'frutosSaem'] },
+            { titulo: 'LEVANTAMENTO DE DETECÇÃO', blocos: ['sintomas', 'sintomaLat', ['camaraUmida', 'camaraMr'], 'suspeitos', ['amostra', 'diagnostico']] }],
+          perguntas: [
+            { k: 'areaAbandonada', rot: 'Existe área abandonada com as culturas:', tipo: 'sn' },
+            { k: 'areaTotal', rot: 'Área total plantada (ha):', tipo: 'texto', calc: 'soma:area', compl: { k: 'idadePlantio', rot: 'Idade do Plantio', calc: 'lista:idade' } },
+            { k: 'areaProducao', rot: 'Área em produção (ha):', tipo: 'texto', compl: { k: 'idadeProducao', rot: 'Idade do Plantio' } },
+            { k: 'mumificados', rot: 'Retirada de frutos mumificados:', tipo: 'sn' },
+            { k: 'origem', rot: 'Origem das sementes/mudas:', tipo: 'opcao', ops: [['proprias', 'próprias'], ['terceiros', 'terceiros – informar fonte']], outro: 'origemFonte', outroOp: 'terceiros' },
+            { k: 'producaoTxt', rot: 'Produção (sacas ou kg):', tipo: 'texto', calc: 'lista:producao' },
+            { k: 'destinoTxt', rot: 'Destino da produção:', tipo: 'texto', calc: 'lista:destino' },
+            { k: 'sacaria', rot: 'Sacaria utilizada:', tipo: 'opcao', ops: [['nova', 'nova'], ['reutilizada', 'reutilizada']] },
+            { k: 'controlePraga', rot: 'Utiliza algum controle de Praga:', tipo: 'sn' },
+            { k: 'assistencia', rot: 'Assistência Técnica:', tipo: 'opcao', ops: [['nao', 'Não possui'], ['privada', 'privada'], ['publica', 'pública/órgão']], outro: 'assistenciaOrgao', outroOp: 'publica' },
+            { k: 'frutosSaem', rot: 'Frutos Inteiros saem da propriedade?', tipo: 'opcao', ops: [['nao', 'Não'], ['sim', 'Sim: Qual o destino?']], outro: 'frutosDestino', outroOp: 'sim' }],
+          levantamento: { linhas: [],
+            perguntas: [
+              { k: 'sintomas', rot: 'FRUTO COM SINTOMAS VISUAIS DE Moniliophthora roreri:', tipo: 'sn', deVisita: ['Monilíase do Cacaueiro', 'Moniliophthora roreri'] },
+              { k: 'sintomaLat', k2: 'sintomaLon', rot: 'Em caso de planta com sintoma visual, informar coordenada da planta:', tipo: 'coord' },
+              { k: 'camaraUmida', rot: 'Realizada Câmara Úmida:', tipo: 'sn' },
+              { k: 'camaraMr', rot: 'Câmara Úmida apresenta comportamento de Moniliophthora roreri:', tipo: 'sn' },
+              { k: 'suspeitos', rot: 'HOSPEDEIRO SUSPEITO:', tipo: 'varios', ops: [['cupuacu', 'Cupuaçu'], ['cacau', 'Cacau'], ['herrania', 'Herrania'], ['cupui', 'Cupuí'], ['cacaui', 'Cacauí'], ['macambo', 'Macambo']] },
+              { k: 'amostra', rot: 'COLHEITA DE AMOSTRA:', tipo: 'sn', fonte: 'coleta' },
+              { k: 'diagnostico', rot: 'DIAGNÓSTICO:', tipo: 'opcao', ops: [['positivo', 'Positivo para M. roreri'], ['negativo', 'Negativo para M. roreri']] }] } },
+        mandioca: { nome: 'Mandioca', titulo: 'FICHA DE CADASTRO E LEVANTAMENTO DE MANDIOCA', numero: 'Nº', base: ['LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS'],
+          produtor: ['telefone', 'codigo'], data: 'localedata',
+          secoes: [
+            { titulo: 'DADOS DA PROPRIEDADE', blocos: ['situacao'] },
+            { titulo: 'CULTURA DA MANDIOCA', blocos: [{ cultura: ['cultivar', 'area', 'espacamento', 'producao'], linhas: 3 }, 'estagio', 'destino', 'materialDe', 'assistencia', 'limpeza'] },
+            { titulo: 'LEVANTAMENTO DE DETECÇÃO', blocos: [{ linhas: ['vassoura'] }, 'amostra'] }],
+          colunas: { cultivar: 'CULTIVAR/VARIEDADE', producao: 'ESTIMATIVA DE PRODUÇÃO (tonelada/Ano – sacas/ha/ano)' },
+          perguntas: [
+            { k: 'estagio', rot: 'ESTÁGIO DA PLANTA:', tipo: 'opcao', layout: 'colunas2', ops: [['plantio', 'Plantio e Emergência - 15-30 dias'], ['vegetativo', 'Desenvolvimento Vegetativo - 60-90 dias'],
+              ['raizes', 'Formação e Desenvolvimento de Raízes - 90-180 dias'], ['maturacao', 'Maturação das Raízes - 180-270 dias'], ['colheita', 'Colheita - 270-360 dias']] },
+            { k: 'materialDe', rot: 'ORIGEM DO MATERIAL DE PROPAGAÇÃO', tipo: 'opcao', ops: [['proprio', 'PRÓPRIO'], ['terceiros', 'TERCEIROS']], compl: { k: 'origemMaterial', rot: 'ORIGEM' } },
+            { k: 'assistencia', rot: 'ASSISTÊNCIA TÉCNICA?', tipo: 'sn', compl: { k: 'assistenciaEmpresa', rot: 'NOME DA EMPRESA' } },
+            { k: 'limpeza', rot: 'LIMPEZA REALIZADA DOS UTENSÍLIOS/FERRAMENTAS?', tipo: 'sn', compl: { k: 'limpezaForma', rot: 'DE QUE FORMA' } }],
+          levantamento: { linhas: [
+            { k: 'vassoura', rot: 'VASSOURA-DE-BRUXA DA MANDIOCA', tipo: 'deteccao', pragas: ['Vassoura de Bruxa da Mandioca'], cols: ['tempo'] }],
+            perguntas: [{ k: 'amostra', rot: 'COLHEITA DE AMOSTRAS', tipo: 'sn', fonte: 'coleta', compl: { k: 'amostraTipo', rot: 'Tipo de material coletado' } }] } },
+        soja: { nome: 'Soja', titulo: 'FICHA DE CADASTRO E LEVANTAMENTO DE SOJA', numero: 'Nº',
+          base: ['(ATENDIMENTO A PORTARIA Nº 865, DE 2 DE AGOSTO DE 2023)', 'LEVANTAMENTO FITOSSANITÁRIO DE PRAGAS QUARENTENÁRIAS'],
+          produtor: ['telefone', 'codigo'], rt: 'NOME DO RESPONSÁVEL TÉCNICO:', data: 'data',
+          secoes: [
+            { titulo: 'DADOS DA PROPRIEDADE', blocos: ['situacao'] },
+            { titulo: 'CULTURA DA SOJA', blocos: [{ cultura: ['cultivar', 'area', 'espacamento', 'producao'], linhas: 3 }, 'destino', 'maquinario', 'limpeza', 'fornecedor'] },
+            { titulo: 'LEVANTAMENTO DE DETECÇÃO', blocos: [{ linhas: ['ferrugem', 'amaranthus'] }] }],
+          perguntas: [
+            { k: 'maquinario', rot: 'MAQUINÁRIO ORIUNDO OU SE DESLOCA PARA OUTRA UF?', tipo: 'sn', compl: { k: 'maquinarioLocal', rot: 'LOCAL' } },
+            { k: 'limpeza', rot: 'LIMPEZA REALIZADA NO MAQUINÁRIO ANTES DO USO?', tipo: 'sn', compl: { k: 'limpezaForma', rot: 'DE QUE FORMA' } },
+            { k: 'fornecedor', rot: 'FORNECEDOR DAS SEMENTES:', tipo: 'texto' }],
+          levantamento: { linhas: [
+            { k: 'ferrugem', rot: 'FERRUGEM ASIÁTICA', tipo: 'deteccao', pragas: ['Phakopsora pachyrhizi', 'Ferrugem Asiática'], cols: ['tempo'] },
+            { k: 'amaranthus', rot: 'Amaranthus palmeri', tipo: 'deteccao', pragas: ['Amaranthus palmeri'], cols: ['qual'] }] } },
+        propriedade: { nome: 'Propriedade', titulo: 'FICHA DE CADASTRO E LEVANTAMENTO DE PROPRIEDADE DE INTERESSE DA DEFESA VEGETAL', numero: 'Nº', base: [],
+          produtor: ['telefone', 'codigo', 'via'], rt: 'NOME DO RESPONSÁVEL TÉCNICO (SE HOUVER):', data: 'data', declaracao: 'ASSUMO TOTAL RESPONSABILIDADE PELAS INFORMAÇÕES AQUI PRESTADAS',
+          secoes: [
+            { titulo: 'DADOS DA PROPRIEDADE', blocos: ['situacao', ['areaTotal', 'areaAgricola']] },
+            { titulo: 'EXPLORAÇÃO DA PROPRIEDADE', blocos: ['sementes', 'tipos'] },
+            { titulo: 'ÁREA PLANTADA', blocos: [{ cultura: ['cultura', 'area', 'producao'], linhas: 3 }, 'destino'] },
+            { titulo: 'OCORRÊNCIA DE PRAGAS', blocos: ['ocorrencia', 'manipula', 'natureza', 'instalacoes'] }],
+          colunas: { producao: 'PRODUÇÃO (tonelada/Ano – sacas/ha/ano)' },
+          propriedade: [
+            { k: 'areaTotal', rot: 'ÁREA TOTAL DA PROPRIEDADE (HA):', tipo: 'num' }, { k: 'areaAgricola', rot: 'ÁREA AGRÍCOLA DA PROPRIEDADE (HA):', tipo: 'num' },
+            { k: 'sementes', rot: 'EXPLORAÇÃO DA PROPRIEDADE', tipo: 'varios', ops: [['sim', 'SEMENTE E MUDAS']], compl: { k: 'sementesTipo', rot: 'TIPO' } },
+            { k: 'tipos', rot: 'TIPO DE CULTURA', tipo: 'varios', deFrutos: true, outro: 'tiposOutros', ops: [['abacaxi', 'ABACAXI'], ['arroz', 'ARROZ'], ['coco', 'COCO'], ['maracuja', 'MARACUJÁ'],
+              ['acerola', 'ACEROLA'], ['banana', 'BANANA'], ['goiaba', 'GOIABA'], ['milho', 'MILHO'], ['acai', 'AÇAÍ'], ['cana', 'CANA DE AÇÚCAR'], ['hortalicas', 'HORTALIÇAS'], ['outros', 'OUTROS']] }],
+          perguntas: [
+            { k: 'manipula', rot: 'Produzem e/ou Manipulam produtos e subprodutos de origem vegetal para fins comerciais:', tipo: 'sn' },
+            { k: 'natureza', rot: 'Natureza operativa do estabelecimento:', tipo: 'varios', outro: 'naturezaOutros', ops: [['natura', 'In natura'], ['doces', 'DOCES/GELEIAS'], ['outros', 'Outros']] },
+            { k: 'instalacoes', rot: 'Existem instalações próprias:', tipo: 'sn', compl: { k: 'instalacoesTipos', rot: 'Quais tipos' } }],
+          levantamento: { linhas: [],
+            perguntas: [{ k: 'ocorrencia', rot: 'Há ocorrência de Pragas (Insetos, Fungos, Bactérias e Ervas Daninhas) na(s) cultura(s)?', tipo: 'sn', fonte: 'ocorrencia', compl: { k: 'ocorrenciaQuais', rot: 'Em caso positivo, Quais?' } }] } }
+      }
+    },
+    // dados gerais da visita (opcionais): comercial (sim/não), tipo de local e origem da visita. "Outro" abre um campo para digitar.
+    // Comercial é pergunta à parte: o tipo de local não diz se é comercial (quintal pode ser comercial). Registros antigos guardam o texto da lista anterior.
+    tiposLocal: ['Propriedade rural', 'Quintal', 'Área urbana', 'Sítio', 'Residência', 'Plantio abandonado', 'Vegetação espontânea', 'Área pública',
+      'Viveiro', 'Feira / ponto de venda', 'Floricultura', 'Unidade de Produção (UP)', 'Unidade de Consolidação (UC)', 'Outro'],
     origensVisita: ['Levantamento de rotina', 'Notificação voluntária do produtor', 'Delimitação de foco', 'Verificação / retorno', 'Outro'],
     // resultado laboratorial do Termo de Colheita (registrado depois, no app ou no painel; não muda o número nem o PDF do termo)
     laboratorio: {
@@ -205,7 +376,7 @@ const CONFIG = {
     // Levantamento por praga/doença: um card por praga, com as culturas avaliadas (resultado e fotos de cada cultura). Um PDF por praga.
     resultados: [['detectada', 'Detectada'], ['nao_detectada', 'Não detectada'], ['suspeita', 'Suspeita']],
     maxPragas: 20, maxCulturas: 40, maxFotos: 60,    // por levantamento (cards de praga, culturas somadas e fotos somadas)
-    // Cadastro de imóvel (1x por propriedade e programa) e Termo de Fiscalização do PCE (1 por visita; não é o TF de Barreira), dos modelos de papel
+    // Cadastro de imóvel (1x por propriedade e programa) e Termo de Fiscalização do PCE (1 por programa em cada visita; não é o TF de Barreira), dos modelos de papel
     moniliase: {
       hospedeiros: [['cupuacu', 'Cupuaçu'], ['cacau', 'Cacau'], ['herrania', 'Herrania'], ['cacaui', 'Cacauí'], ['cupui', 'Cupuí'], ['macambo', 'Macambo']],
       tiposNaoComercial: [['sitio', 'Sítio'], ['residencia', 'Residência'], ['vegetacao', 'Vegetação espontânea'], ['publica', 'Área pública'], ['outros', 'Outros']],
@@ -224,9 +395,33 @@ const CONFIG = {
       acoes: ['Controle/Erradicação', 'Levantamento', 'Monitoramento', 'Educação Sanitária', 'Fiscalização'],
       vias: ['1ª via: Interessado', '2ª via: ADAF Central', '3ª via: Unidade Local'],
       constatacaoNegativa: 'Não constatei a presença da monilíase do cacau e do cupuaçu.',
-      // Relatório de atividades (prestação de contas do convênio): objetivo sugerido por praga (editável)
-      objetivos: {
-        'Monilíase': 'Executar Ações de Levantamento Fitossanitário de detecção da praga Monilíase, visando a prevenção e ação imediata de contingência.'
+      // Relatório de atividades (o levantamento: resumo de um período e local por programa). O documento é o mesmo para todos; muda só o nome.
+      // id = código; nome = como aparece na lista; texto = como entra nas frases ("...Levantamentos Fitossanitário {texto}, realizou-se:");
+      // pragas = caixas do quadro do Termo que são do programa; modelo = programa gravado no Termo (para Termo sem caixa marcada).
+      programasRelatorio: [
+        { id: 'citros', nome: 'Pragas dos Citros', texto: 'das pragas dos Citros', pragas: ['HLB', 'Cancro Cítrico', 'Ácaro Hindustânico', 'Diaphorina citri'], modelo: 'citros' },
+        { id: 'soja', nome: 'Pragas da Soja', texto: 'das pragas da Soja', pragas: ['Ferrugem Asiática da soja', 'Amaranthus palmeri'], modelo: 'soja' },
+        { id: 'banana', nome: 'Pragas da Bananeira', texto: 'das pragas da Bananeira', pragas: ['Fusariose FOC R4T'], modelo: 'banana' },
+        { id: 'mandioca', nome: 'Pragas da Mandioca', texto: 'das pragas da Mandioca', pragas: ['Vassoura-de-bruxa da Mandioca'], modelo: 'mandioca' },
+        { id: 'moniliase', nome: 'Monilíase do Cacaueiro e Cupuaçuzeiro', texto: 'da praga Monilíase', pragas: ['Monilíase'], modelo: 'moniliase' },
+        { id: 'mosca', nome: 'Mosca-da-Carambola', texto: 'da praga Mosca-da-Carambola', pragas: ['Mosca-da-Carambola'], modelo: '' }
+      ],
+      // Termos de Fiscalização gerados pela propriedade (tela "Termos de Fiscalização"): um Termo por programa, todos com os mesmos dados do cadastro;
+      // muda só a "Descrição da ação". nome = programa por extenso (vai em programaVisita, sem código); pragas = caixas do quadro 2 do Termo;
+      // descricao = texto da constatação, com {culturas} trocado pelas culturas da propriedade que são daquele programa.
+      programas: {
+        moniliase: { nome: 'Monilíase do Cacaueiro', pragas: ['Monilíase'],
+          descricao: 'Realização de fiscalização do Programa de Controle e Erradicação da Monilíase do Cacaueiro na cultura de {culturas}, com inspeção de frutos e folhas.' },
+        citros: { nome: 'Pragas dos Citros', pragas: ['HLB', 'Cancro Cítrico', 'Ácaro Hindustânico', 'Diaphorina citri'],
+          descricao: 'Realização de fiscalização das pragas dos citros — huanglongbing (HLB), cancro cítrico, ácaro hindustânico e Diaphorina citri — na cultura de {culturas}, com inspeção de frutos e folhas.' },
+        banana: { nome: 'Fusariose da Bananeira (raça 4 tropical)', pragas: ['Fusariose FOC R4T'],
+          descricao: 'Realização de fiscalização da fusariose da bananeira (Fusarium oxysporum f. sp. cubense, raça 4 tropical) na cultura de {culturas}.' },
+        mandioca: { nome: 'Vassoura-de-bruxa da Mandioca', pragas: ['Vassoura-de-bruxa da Mandioca'],
+          descricao: 'Realização de fiscalização da vassoura-de-bruxa da mandioca na cultura de {culturas}.' },
+        soja: { nome: 'Ferrugem Asiática da Soja e Amaranthus palmeri', pragas: ['Ferrugem Asiática da soja', 'Amaranthus palmeri'],
+          descricao: 'Realização de fiscalização da ferrugem asiática da soja e do Amaranthus palmeri na cultura de {culturas}.' },
+        propriedade: { nome: 'Propriedade de Interesse da Defesa Vegetal', pragas: [],
+          descricao: 'Realização de fiscalização da propriedade de interesse da defesa vegetal, nas culturas de {culturas}.' }
       }
     }
   },

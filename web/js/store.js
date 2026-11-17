@@ -2,29 +2,37 @@
 // Também é carregado pelo service worker (envio em segundo plano): não depende de window/document.
 const Store = (() => {
   let dbp;
+  const STORES = ['turnos', 'veiculos', 'tfs', 'pessoas', 'placas', 'levantamentos', 'colheitas', 'propriedades', 'cadastrosPce', 'termosPce'];
   function db() {
     if (!dbp) dbp = new Promise((ok, no) => {
-      // v2: tfs, pessoas, placas · v3: módulo PCE (levantamentos, colheitas, propriedades, arquivos) · v4: PCE monilíase
-      // (cadastrosPce = Cadastro de imóvel, termosPce = Termo de Fiscalização do PCE). Os dados antigos são mantidos.
-      const rq = indexedDB.open('gdv', 4);
-      rq.onupgradeneeded = () => {
-        const d = rq.result;
-        ['turnos', 'veiculos', 'tfs', 'pessoas', 'placas', 'levantamentos', 'colheitas', 'propriedades', 'cadastrosPce', 'termosPce']
-          .forEach(n => { if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: 'id' }); });
-        // fotos/assinaturas: o índice "enviado" permite contar os pendentes sem carregar as imagens
-        if (!d.objectStoreNames.contains('arquivos')) d.createObjectStore('arquivos', { keyPath: 'id' }).createIndex('enviado', 'enviado');
-        if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'k' });
+      // v2: tfs, pessoas, placas · v3: módulo PCE (levantamentos, colheitas, propriedades, arquivos) · v4: PCE (cadastrosPce = fichas oficiais,
+      // termosPce = Termo de Fiscalização). Os dados antigos são mantidos. Store nova = subir a versão: aparelho que já está na versão atual não roda
+      // o onupgradeneeded. Aparelho que chegou a ficar na v5 (stores culturasAvaliadas e resultados, retiradas do app) abre como está, sem
+      // voltar de versão: as duas stores ficam vazias de uso e nada pendente se perde.
+      const abrir = versao => {
+        const rq = versao ? indexedDB.open('gdv', versao) : indexedDB.open('gdv');
+        rq.onupgradeneeded = () => {
+          const d = rq.result;
+          STORES.forEach(n => { if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: 'id' }); });
+          // fotos/assinaturas: o índice "enviado" permite contar os pendentes sem carregar as imagens
+          if (!d.objectStoreNames.contains('arquivos')) d.createObjectStore('arquivos', { keyPath: 'id' }).createIndex('enviado', 'enviado');
+          if (!d.objectStoreNames.contains('meta')) d.createObjectStore('meta', { keyPath: 'k' });
+        };
+        // outra janela/aba do app ainda aberta com a versão antiga do banco: a atualização espera ela fechar
+        rq.onblocked = () => aviso('Feche as outras janelas ou abas do e-GDV para concluir a atualização.');
+        rq.onsuccess = () => {
+          const d = rq.result;
+          aviso('');
+          // uma versão mais nova do app (em outra janela) precisa atualizar o banco: libera a conexão em vez de travá-la
+          d.onversionchange = () => { d.close(); dbp = null; aviso('O e-GDV foi atualizado em outra janela. Recarregue esta página.'); };
+          ok(d);
+        };
+        rq.onerror = () => {
+          if (versao && rq.error && rq.error.name === 'VersionError') { abrir(0); return; }   // banco já na v5: abre na versão que ele tem
+          no(rq.error);
+        };
       };
-      // outra janela/aba do app ainda aberta com a versão antiga do banco: a atualização espera ela fechar
-      rq.onblocked = () => aviso('Feche as outras janelas ou abas do e-GDV para concluir a atualização.');
-      rq.onsuccess = () => {
-        const d = rq.result;
-        aviso('');
-        // uma versão mais nova do app (em outra janela) precisa atualizar o banco: libera a conexão em vez de travá-la
-        d.onversionchange = () => { d.close(); dbp = null; aviso('O e-GDV foi atualizado em outra janela. Recarregue esta página.'); };
-        ok(d);
-      };
-      rq.onerror = () => no(rq.error);
+      abrir(4);
     });
     return dbp;
   }

@@ -85,6 +85,13 @@ seta-baixo, seta-cima, sincronizar, status, sugerir, tela-cheia, telefone, utili
 versão: baixe `lucide-static` (`npm pack lucide-static@X`, versão com pelo menos 2 semanas), atualize `icones.js`,
 `web/vendor/lucide/LICENSE` e esta página; o `design_test` confere que as três dizem a mesma versão.
 
+## Documentos impressos
+
+Valem para todo modelo de `web/documentos/`: folha A4; rodapé sempre na base da folha, na mesma posição e em toda página, como em
+editor de texto, sem depender da quantidade de conteúdo e sem sobrepor o corpo. O rodapé pertence à folha: acabou o espaço, só o
+conteúdo passa para a folha seguinte, nunca o rodapé. Folha de tamanho fixo e rodapé fora do fluxo, como em `termo.css`. Faltam adotar o rodapé: `tf.html`, `auto.html`,
+`termo-repasse.html`, `rel-equipe.html`, `conv-relatorio.html` e `relgdv-relatorio.html`.
+
 ## Não fazer
 
 - Emoji, inclusive em `alert()`, título de página, PDF ou mensagem copiada para WhatsApp.

@@ -12,7 +12,7 @@ const ANO = new Date().getFullYear();
 
   console.log('0) módulo PCE: menu Módulos | Produtores | Termos');
   const tit = await pA.locator('.modulo b').allTextContents();
-  ok(tit.length === 3 && tit[2] === 'PCE', 'três módulos no hub: ' + tit.join(' | '));
+  ok(tit.length === 4 && tit[2] === 'PCE' && tit[3] === 'Educação Sanitária', 'quatro módulos no hub: ' + tit.join(' | '));
   ok(/produtores, visitas e Termos de Fiscalização e de Colheita/.test(await pA.textContent('.modulo[data-v=pce]')), 'cartão do PCE descreve o novo fluxo');
   await pA.click('.modulo[data-v=pce]'); await pA.waitForSelector('#pceServForm');
   ok(await pA.locator('#nav button').allTextContents().then(t => t.map(x => x.trim()).join('|')) === 'Módulos|Produtores|Termos', 'menu do módulo: Módulos | Produtores | Termos');

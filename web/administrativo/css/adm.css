@@ -20,4 +20,6 @@
 /* Diárias das escalas: um cartão por escala publicada, uma linha por fiscal (pendente × PCDP concluída) */
 .adm-esc h3 { margin: 0 0 4px; font-size: 16px; } .adm-esc .pn-tab { margin-top: 8px; }
 .adm-esc td small { display: block; color: var(--mut); font-size: 12px; margin-top: 2px; }
+.adm-esc-topo { margin-bottom: 10px; }
+.adm-filtro .adm-filtro-info { flex: 1 1 100%; margin: 0; min-height: 1.2em; }
 .adm-esc-pcdp { width: 100%; min-width: 110px; max-width: 160px; padding: 6px 8px; border-radius: 8px; }

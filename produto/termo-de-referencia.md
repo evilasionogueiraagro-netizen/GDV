@@ -100,7 +100,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
   - medidas de educação sanitária.
 - RF-26. O responsável pela equipe edita os textos, a correção de quilos e os termos de repasse; os demais integrantes consultam. O PDF traz a página de assinaturas de cada servidor.
 - RF-26A. Termo de Repasse (na BVA - CEASA, Termo de Destruição, no Aterro Sanitário de Manaus) de produtos apreendidos, montado com os produtos das apreensões da equipe no período (nº do TF, produto, unidade e quantidade). O responsável pode editar os itens, o número, o local e data, o órgão que recebe e o enquadramento legal (no Termo de Destruição, já preenchido com a legislação da mosca-da-carambola). O PDF traz o total e as assinaturas da ADAF e do órgão que recebe. O número de termos de repasse do relatório vem preenchido (1 quando o termo tem itens).
-- RF-27. O Portal do Administrativo acompanha as diárias (PCDP) de cada fiscal escalado.
+- RF-27. O Portal do Administrativo acompanha as diárias (PCDP) de cada fiscal escalado e filtra as escalas por período, fiscal e barreira.
 
 ### 4.5. PCE – Programa de Controle e Erradicação
 - RF-28. Cadastro do produtor com uma ou várias propriedades (UF fixa AM), cada uma com os seus frutos (cultura, cultivar, área, espaçamento, idade, plantas, produção e destino), consultável sem internet com os dados baixados.

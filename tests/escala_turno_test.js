@@ -68,6 +68,20 @@ const dia = n => new Date(Date.parse(hoje + 'T12:00:00Z') + n * 864e5).toISOStri
     const tsx = await (await fetch(API + '/__aba?nome=Turnos')).json();
     ok(r.ok && (r.recusados.turnos || []).includes(tFora.id) && (r.recusados.veiculos || []).includes(vFora.id) && !tsx.some(l => l[0] === tFora.id) && tsx.some(l => l[0] === 'turno-jundia-livre'),
       'sync: turno novo na BVA escalada, de quem está fora, não grava (nem o veículo); na BVA sem escala, grava', r.recusados);
+    ok((r.turnosForaEscala || []).includes(tFora.id) && !(r.turnosForaEscala || []).includes('turno-jundia-livre'), 'sync devolve os turnos recusados pela escala (o app avisa)', r.turnosForaEscala);
+
+    console.log('4) celular com escala desatualizada: o turno aberto fica no aparelho e o cartão avisa que a planilha recusou');
+    const tCel = { ...tFora, id: 'turno-cel-fora', criadoEm: Date.now() - 120e3, atualizadoEm: Date.now() - 120e3, pendente: 1 };
+    await pf.evaluate(async t => { await Store.gravar('turnos', t); await Store.setMeta('turnoAtual', t.id); await Sync.sincronizar(); go('home'); }, tCel);
+    await pf.waitForSelector('#turnoRecusado', { timeout: 10000 }).catch(() => {});
+    ok(/não aceitou este turno/.test(await pf.textContent('#turnoRecusado').catch(() => '')) && !(await (await fetch(API + '/__aba?nome=Turnos')).json()).some(l => l[0] === 'turno-cel-fora'),
+      'cartão do turno: "A planilha não aceitou este turno" (fora da escala); o turno não está na planilha');
+    await pf.screenshot({ path: amb.saida('escala_turno_recusado.png') });
+    // turno que só não foi enviado ainda (sem internet): aviso de envio pendente, sem o vermelho
+    await pf.evaluate(async t => { await Store.setMeta('turnosForaEscala', []); await Store.gravar('turnos', { ...t, id: 'turno-cel-pendente', local: 'BVA - JUNDIÁ', unidade: 'BVA - JUNDIÁ' });
+      await Store.setMeta('turnoAtual', 'turno-cel-pendente'); go('home'); }, tCel);
+    await pf.waitForSelector('#turnoPendente', { timeout: 10000 }).catch(() => {});
+    ok(!!(await pf.$('#turnoPendente')) && !(await pf.$('#turnoRecusado')), 'turno ainda não enviado: aviso "ainda não enviado à planilha" (o PC e o painel só veem depois)');
     ok(!pf.erros.length && !pe.erros.length, 'sem erros de página', pf.erros.concat(pe.erros));
   } finally { await b.close(); }
   console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.');

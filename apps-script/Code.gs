@@ -220,7 +220,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-11-17e';
+const VERSAO_CODIGO = '2026-11-20a';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -445,6 +445,7 @@ function sincronizar_(req, usuario) {
     return {
       ok: true,
       agora: agora,
+      turnosForaEscala: Object.keys(foraEscala),                                   // turno novo recusado por estar fora da escala da BVA (o app avisa)
       // cada aparelho recebe os turnos/veículos do próprio fiscal e, do turno compartilhado (pareamento), o turno e os veículos de todos
       turnos: lerMudancasTurnos_('Turnos', since, usuario, comp.turnos, 'id'),
       veiculos: lerMudancasTurnos_('Veiculos', since, usuario, comp.veiculos, 'turnoId'),

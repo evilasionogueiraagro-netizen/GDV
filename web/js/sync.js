@@ -482,8 +482,10 @@ const Sync = (() => {
     rodando = true;
     emitir({ tipo: 'sync', msg: 'Sincronizando…' });
     try {
+      let foraEscala = [];                                                   // turnos recusados pela escala nesta sincronização (o cartão do turno avisa)
       for (let volta = 0; volta < 20; volta++) {
         const l = await Envio.enviarLote(chamar, PERM, 'app'), r = l.r;   // pendentes permitidos + sinal do aparelho → planilha; marca os enviados
+        if (Array.isArray(r.turnosForaEscala)) foraEscala = foraEscala.concat(r.turnosForaEscala.map(String));
         const mudou = await guardarPermissoes(r.permissoes);
         await aplicar('turnos', r.turnos);
         await conferirTurnoAtual(r.turnos);
@@ -511,6 +513,7 @@ const Sync = (() => {
         if (mudou && !l.recusouAlgo) continue;                               // módulo liberado agora: manda o que estava guardado
         if (!l.resta) break;
       }
+      await Store.setMeta('turnosForaEscala', foraEscala);
       let erroArq = '';
       if (pode('pce') || pode('tf')) {
         try { await enviarPendentesArquivos(await arquivosPendentes(null, PERM)); }   // falha numa foto não derruba o sync principal

@@ -160,6 +160,8 @@ function go(view, arg, o) {
 function redesenhar() {
   const ae = document.activeElement;
   if (ae && $('#view').contains(ae) && /^(INPUT|TEXTAREA|SELECT)$/.test(ae.tagName)) return;
+  if ($('#view form[data-mexido]')) return;                               // formulário que o fiscal já começou a preencher: a sincronização não o apaga
+
   const y = window.scrollY;
   Promise.resolve(go(VIEW, EDIT, { manterRolagem: true })).then(() => { if (y && Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y); }).catch(() => {});
 }
@@ -270,6 +272,15 @@ window.addEventListener('gdv-turno-encerrado', e => {
   else toast(textoTurnoEncerrado(a), true);
 });
 
+/* ---------- o turno chegou à planilha? (o outro aparelho com o mesmo login e o painel só o veem depois disso) ---------- */
+async function avisoEnvioTurno(t) {
+  const fora = ((await Store.meta('turnosForaEscala').catch(() => null)) || []).includes(t.id);
+  if (fora) return `<div class="card aviso erro" id="turnoRecusado">${icone('alerta')} <b>A planilha não aceitou este turno:</b> você não está na escala de plantão da ${esc(t.local)} para hoje.
+    Ele fica só neste aparelho (o PC, os colegas e o painel não o veem). Peça à coordenação para incluir você na escala; o turno é enviado sozinho na próxima sincronização.</div>`;
+  if (Number(t.pendente) && Date.now() - (Number(t.atualizadoEm) || 0) > 60000) return `<div class="card aviso" id="turnoPendente">${icone('offline')} <b>Turno ainda não enviado à planilha.</b> O outro aparelho com o seu login e o painel só o veem depois do envio; ele sai sozinho quando houver internet.</div>`;
+  return '';
+}
+
 /* ---------- Início / novo turno ---------- */
 const avisoAtivacao = () => {
   const sit = Sync.situacao();
@@ -282,9 +293,9 @@ async function home() {
   const t = await turnoAtual();
   if (!mostrar.viva()) return;
   if (!t) return novoTurno();
-  const v = await veiculosDe(t.id);
+  const [v, envio] = await Promise.all([veiculosDe(t.id), avisoEnvioTurno(t)]);
   if (soPessoas(t)) return homePessoas(t, mostrar, v);
-  mostrar(`${avisoAtivacao()}
+  mostrar(`${avisoAtivacao()}${envio}
     <div class="card"><h3>Turno atual</h3>
       <p><b>${esc(t.numeroTF)}</b> ${botaoNumero(t)}</p>
       <p><b>Fiscal:</b> ${esc(Docs.fiscaisDoTurno(t))}</p><p><b>Local:</b> ${esc(t.local)}</p>
@@ -1028,6 +1039,9 @@ Sync.onEstado(e => {
   b.innerHTML = icone(ic) + ' ' + esc(txt + (e.tipo === 'sync' ? '' : pend));
   atualizarStatusEnc().catch(() => {});
 });
+// formulário mexido pelo fiscal (escolheu a BVA, digitou o nº…): marcado até a tela ser trocada; redesenhar() não o recria por cima
+document.addEventListener('input', e => { const f = e.target.closest && e.target.closest('#view form'); if (f) f.setAttribute('data-mexido', '1'); }, true);
+document.addEventListener('change', e => { const f = e.target.closest && e.target.closest('#view form'); if (f) f.setAttribute('data-mexido', '1'); }, true);
 window.addEventListener('gdv-dados', () => { if (['modulos', 'home', 'lista', 'resumo', 'historico', 'tf', 'pce', 'pcetermos', 'educacao', 'educacaotermo', 'fechado'].includes(VIEW)) redesenhar(); });
 // permissões mudaram no sync: se a tela aberta é de um módulo que deixou de ser autorizado, volta para os módulos (nada é apagado);
 // na tela de módulos (ou em telas livres) só redesenha

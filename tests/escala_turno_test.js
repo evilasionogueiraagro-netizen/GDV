@@ -82,6 +82,11 @@ const dia = n => new Date(Date.parse(hoje + 'T12:00:00Z') + n * 864e5).toISOStri
       await Store.setMeta('turnoAtual', 'turno-cel-pendente'); go('home'); }, tCel);
     await pf.waitForSelector('#turnoPendente', { timeout: 10000 }).catch(() => {});
     ok(!!(await pf.$('#turnoPendente')) && !(await pf.$('#turnoRecusado')), 'turno ainda não enviado: aviso "ainda não enviado à planilha" (o PC e o painel só veem depois)');
+    // turno só de educação sanitária (volante sem veículos): o mesmo aviso
+    await pf.evaluate(async t => { await Store.gravar('turnos', { ...t, id: 'turno-cel-pessoas', posto: 'Móvel', local: 'PORTO DE MANAUS', unidade: 'MANAUS', soPessoas: 1 });
+      await Store.setMeta('turnoAtual', 'turno-cel-pessoas'); go('home'); }, tCel);
+    await pf.waitForSelector('#pesCont', { timeout: 10000 }).catch(() => {});
+    ok(!!(await pf.$('#pesCont')) && !!(await pf.$('#turnoPendente')), 'turno só de educação sanitária: o aviso de envio pendente também aparece');
     ok(!pf.erros.length && !pe.erros.length, 'sem erros de página', pf.erros.concat(pe.erros));
   } finally { await b.close(); }
   console.log(falhas ? `\n${falhas} falha(s)` : '\nTudo certo.');

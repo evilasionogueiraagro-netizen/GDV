@@ -294,7 +294,7 @@ async function home() {
   if (!mostrar.viva()) return;
   if (!t) return novoTurno();
   const [v, envio] = await Promise.all([veiculosDe(t.id), avisoEnvioTurno(t)]);
-  if (soPessoas(t)) return homePessoas(t, mostrar, v);
+  if (soPessoas(t)) return homePessoas(t, mostrar, v, envio);
   mostrar(`${avisoAtivacao()}${envio}
     <div class="card"><h3>Turno atual</h3>
       <p><b>${esc(t.numeroTF)}</b> ${botaoNumero(t)}</p>
@@ -392,9 +392,9 @@ async function turnosAbertosNaBva() {
 }
 /** Turno só de educação sanitária (volante, ex.: porto de Tabatinga): contador de pessoas orientadas, gravado no turno; as embarcações
  *  (e veículos) fiscalizadas são registradas à parte, sem pessoas, e o TF de barreira é lavrado dentro do turno. */
-function homePessoas(t, mostrar, v) {
+function homePessoas(t, mostrar, v, envio = '') {
   const n = Number(t.pessoasEducacao) || 0, tema = (cfgSoPessoas(t.unidade) || {}).tema;
-  mostrar(`${avisoAtivacao()}
+  mostrar(`${avisoAtivacao()}${envio}
     <div class="card"><h3>Turno atual</h3>
       <p><b>${esc(t.numeroTF)}</b></p>
       <p><b>Fiscal:</b> ${esc(t.fiscal)}</p><p><b>Local:</b> ${esc(t.local)}</p>

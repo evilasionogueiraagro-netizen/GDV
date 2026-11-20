@@ -58,6 +58,9 @@ const Sync = (() => {
     catch (e) { throw falhaDeRede(e) ? semInternet('Entrar') : e; }
     if (!j.token || !j.usuario || !j.usuario.id) throw new Error('Resposta inesperada do servidor. Tente de novo.');
     await reterDoAnterior(j.usuario.id);                                       // antes de trocar a credencial: nada da pessoa anterior sobe com este acesso
+    // outra pessoa neste aparelho (o PC da base): baixa tudo do novo login desde o início e esquece o turno em andamento da anterior.
+    // Sem isso, quem entra depois só recebia o que mudou desde a última sincronização da pessoa anterior (o turno aberto no celular não vinha).
+    if ((usuario() || {}).id !== j.usuario.id) { try { await Store.setMeta('lastSync', 0); await Store.setMeta('turnoAtual', ''); } catch (e) { /* sem banco */ } }
     localStorage.setItem('gdv.url', url); localStorage.setItem('gdv.key', j.token); localStorage.setItem('gdv.nome', j.usuario.nome || '');
     localStorage.setItem('gdv.usuario', JSON.stringify({ id: j.usuario.id, matricula: j.usuario.matricula || mat, nome: j.usuario.nome || '' }));
     if (Number(j.trocarSenha) === 1) localStorage.setItem('gdv.revogado', 'senha'); else localStorage.removeItem('gdv.revogado');

@@ -11,6 +11,8 @@ const ANO = new Date().getFullYear();
   const pA = await A.aparelho(b, 'Pessoa Ficticia Alfa');
 
   console.log('0) módulo PCE: menu Módulos | Produtores | Termos');
+  // o cartão Educação Sanitária entra quando a sincronização traz a permissão (o hub se redesenha): espera antes de ler
+  await pA.waitForFunction(() => document.querySelectorAll('.modulo b').length >= 4, null, { timeout: 15000 }).catch(() => {});
   const tit = await pA.locator('.modulo b').allTextContents();
   ok(tit.length === 4 && tit[2] === 'PCE' && tit[3] === 'Educação Sanitária', 'quatro módulos no hub: ' + tit.join(' | '));
   ok(/produtores, visitas e Termos de Fiscalização e de Colheita/.test(await pA.textContent('.modulo[data-v=pce]')), 'cartão do PCE descreve o novo fluxo');

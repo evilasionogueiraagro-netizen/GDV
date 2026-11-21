@@ -56,7 +56,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 ## 4. Requisitos funcionais
 
 ### 4.1. Acesso e permissões
-- RF-01. Entrada por matrícula e senha, com senha provisória e troca obrigatória no primeiro acesso.
+- RF-01. Entrada por matrícula e senha, com senha provisória e troca obrigatória no primeiro acesso. No app de campo, os campos de senha têm a opção de mostrar o que foi digitado.
 - RF-02. Permissões por aplicativo (campo, painel, administração) e por módulo do campo: fiscalização de trânsito, TF de Barreira, PCE e digitar do papel. Há ainda a coordenação de barreiras e a gerência.
 - RF-03. A gerência cria contas, gera senha provisória, encerra sessões e desativa contas pelo painel. Cada ação fica registrada com quem fez.
 - RF-04. Bloqueio temporário após tentativas de senha erradas.

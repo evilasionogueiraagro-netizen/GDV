@@ -92,7 +92,7 @@ function painelPublicoConfig(token) {
 function painelPublicoSalvar(token, config) {
   const admin = adminDoToken_(token, true);
   if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('Configuração inválida.');
-  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  const lock = lockMedido_(); lock.waitLock(20000);
   try {
     const atual = publicoConfig_(), c = publicoAplicar_(atual, config, true);
     c.versao = (atual.versao || 0) + 1; c.atualizadoPor = admin; c.atualizadoEm = Date.now();

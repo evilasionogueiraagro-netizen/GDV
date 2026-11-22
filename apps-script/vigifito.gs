@@ -195,7 +195,7 @@ function vigGravar_(s, itens, origem, arquivo) {
     } else o.justificativa = convTexto_(l.justificativa, 300, rotI + ': observação');
     return o;
   });
-  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+  const lock = lockMedido_(); lock.waitLock(30000);
   try {
     const t = lerTudo_('VigLancamentos'), cols = t.cols, idx = {}, novas = [], hist = [];
     t.valores.forEach(function (l, i) { idx[String(l[0])] = i; });
@@ -253,7 +253,7 @@ function painelVigConfigSalvar(token, req) {
     return { id: id, nome: nome, municipio: convTexto_(p.municipio, 60, 'Município'), tipo: p.tipo, locais: locais };
   });
   const atual = vigConfig_(), o = { ancora: ancora, ciclo: ciclo, postos: postos, ceasa: 1, versao: (Number(atual.versao) || 0) + 1, atualizadoEm: Date.now(), atualizadoPor: admin };
-  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  const lock = lockMedido_(); lock.waitLock(20000);
   try { convGravar_('VigConfig', { id: 'vigifito', config: JSON.stringify(o), atualizadoEm: o.atualizadoEm, atualizadoPor: admin }); }
   finally { lock.releaseLock(); }
   return { ok: true, config: o };

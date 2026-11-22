@@ -14,6 +14,11 @@ Gatilhos de tempo do Apps Script (12 h, backup, relatório, arquivamento). Veja 
 - Arquivar: backup antes; lotes de 5.000 linhas (copia, confere, apaga); repetir não duplica (`id`); acima de 4 min, retoma depois.
 - Fica na principal: `TFs`, `Levantamentos`, `Colheitas`, `Numeracao`, `Pessoas`, `Placas`, `Propriedades`, `Fiscais`, `Permissoes`, `Barreiras`, `Arquivos`, `Aparelhos`.
 
+## Medição de desempenho (aba `Desempenho`, `desempenho.gs`)
+- Cada chamada ao `doPost` mede tempo total, espera e uso do lock (`lockMedido_`) e leituras de aba (`lerTudo_`, `lerLeitura_`).
+- Amostras no cache; a cada 150 ou 15 min, uma linha por hora (Manaus) e action: média, p50, p90, máximo, erros. Simultâneas podem se perder.
+- Desligar sem publicar: propriedade `DESEMPENHO_DESLIGADO` = 1.
+
 ## Dados
 - Propriedades: `ROTINAS_DESATIVADAS`, `RELATORIO_EMAILS`, `ULTIMO_BACKUP` e `_ERRO`, `ARQUIVO_ANUAL_AAAA`, `ULTIMO_ARQUIVAMENTO` e `_ERRO`.
 

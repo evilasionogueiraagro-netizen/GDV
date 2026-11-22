@@ -18,6 +18,7 @@ Já existem: `lerLeitura_`, `lerLinhas_`, `inserir_`, `atualizar_`, `atualizarCo
 | `apagar_(nome, linhas)` | `deleteRows`, de baixo para cima | `apagar` |
 | `gravar_(nome, recebidos, ts, usuario)` | sync, "última edição vence" | `gravar_` (`base.ts`) |
 | `comLock_(fn)` | `LockService`, `waitLock(30000)` | `comLock` |
+| `lockMedido_()` | `LockService.getScriptLock()` com espera medida | — |
 | `prop_`, `setProp_`, `delProp_` | `PropertiesService` do script | `prop`, `setProp`, `delProp` |
 | `cacheLer_`, `cacheGravar_(chave, valor, seg)`, `cacheApagar_` | `CacheService` | `cache.get`, `cache.put`, `cache.remove` |
 | `gravarArquivo_(partes, nome, bytes, mime)` → id | `DriveApp`, pasta `partes` | `gravarArquivo` (`servicos.ts`) |

@@ -180,7 +180,7 @@ function painelConvenios(token) {
 function painelConvSalvar(token, convenio, config) {
   const admin = adminDoToken_(token, true);
   if (!config || typeof config !== 'object' || Array.isArray(config)) throw new Error('Configuração inválida.');
-  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  const lock = lockMedido_(); lock.waitLock(20000);
   try {
     const atual = convDe_(convenio), c = JSON.parse(JSON.stringify(atual));
     const txt = function (k, max, obrig) {
@@ -311,7 +311,7 @@ function convLancar_(autor, l) {
       o[k] = v === null ? '' : v;
     });
   }
-  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  const lock = lockMedido_(); lock.waitLock(20000);
   try {
     const agora = Date.now();
     let id = String(l.id || ''), ant = null;
@@ -410,7 +410,7 @@ function convFinLancar_(autor, l) {
     if (srv) o.servidorNome = srv.nome;
   }
   if (o.servidorNome) o.servidorId = 'srv-' + hexSha_('srv:' + nomeChave_(o.servidorNome)).slice(0, 12);
-  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  const lock = lockMedido_(); lock.waitLock(20000);
   try {
     const agora = Date.now();
     let id = String(l.id || ''), ant = null;
@@ -481,7 +481,7 @@ function convFinImportar_(autor, req) {
              chave: chave, origem: 'planilha', arquivo: arquivo,
              servidorNome: servidorNome, servidorId: servidorNome ? 'srv-' + hexSha_('srv:' + nomeChave_(servidorNome)).slice(0, 12) : '' };
   });
-  const lock = LockService.getScriptLock(); lock.waitLock(30000);
+  const lock = lockMedido_(); lock.waitLock(30000);
   try {
     const t = lerTudo_('ConvFinanceiro'), cols = t.cols, ix = {}, iId = {};
     const ci = function (c) { return cols.indexOf(c); };
@@ -523,7 +523,7 @@ function convFinImportar_(autor, req) {
 
 /** Exclusão lógica (excluido = 1, com quem/quando) de um lançamento físico ou financeiro. */
 function convExcluir_(autor, aba, id) {
-  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  const lock = lockMedido_(); lock.waitLock(20000);
   try {
     const r = convLinha_(aba, String(id || ''));
     if (!r || r.excluido === 1) throw new Error('Lançamento não encontrado.');
@@ -554,7 +554,7 @@ function painelConvRelSalvar(token, req) {
   });
   const json = JSON.stringify(out);
   if (json.length > 45000) throw new Error('Textos grandes demais.');
-  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  const lock = lockMedido_(); lock.waitLock(20000);
   try {
     const o = { id: cfg.id + '|' + mes, convenio: cfg.id, mes: mes, numero: numero, textos: json, usuario: admin, atualizadoEm: Date.now() };
     convGravar_('ConvRelatorios', o);

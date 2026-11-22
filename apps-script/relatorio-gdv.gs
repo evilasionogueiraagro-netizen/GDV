@@ -63,7 +63,7 @@ function painelRelGdvSalvar(token, req) {
     if (json.length > 45000) throw new Error('Textos grandes demais.');
     txt = { id: tipo + '|' + ano + '|' + mes, tipo: tipo, ano: ano, mes: mes, textos: json, usuario: admin, atualizadoEm: agora };
   }
-  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  const lock = lockMedido_(); lock.waitLock(20000);
   try {
     if (txt) convGravar_('RelGdvTextos', txt);
     return { ok: true, ano: ano, gravados: 0, usuario: admin, atualizadoEm: agora,
@@ -115,7 +115,7 @@ function relGdvLancar_(s, req) {
     }
     return o;
   });
-  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  const lock = lockMedido_(); lock.waitLock(20000);
   try {
     let gravados = 0;
     const hist = [];

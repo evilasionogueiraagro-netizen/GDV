@@ -92,7 +92,7 @@ function educacaoRegistrar_(req, usuario) {
   const r = normalizarTermoEdu_(req.registro || {}, true);
   const unidade = r.unidade, ano = Number(r.ano) || 0, numero = Number(r.numero) || 0;
   if (!r.id || !ano || numero < 1) throw new Error('Dados do Termo de Educação Sanitária incompletos.');
-  const lock = LockService.getScriptLock();
+  const lock = lockMedido_();
   lock.waitLock(30000);
   try {
     const todos = lerLeitura_('TermosEducacao');

@@ -157,6 +157,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 | RNF-08 | Usabilidade: interface em português, ícones padronizados, letras e botões legíveis no celular, sem emoji |
 | RNF-09 | Portabilidade: acesso ao Google isolado numa camada própria, permitindo o porte para servidor próprio (PostgreSQL) sem mudar o app |
 | RNF-10 | Qualidade: suíte de testes automáticos executada antes de cada publicação; publicação só com os testes aprovados |
+| RNF-11 | Desempenho: o servidor mede o tempo de cada chamada (total, espera na fila de gravação e leitura da planilha) e guarda um resumo por hora, para orientar as melhorias de velocidade |
 
 ## 6. Arquitetura e tecnologia
 

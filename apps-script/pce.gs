@@ -39,7 +39,7 @@ function pceEmitir_(req, usuario) {
   const unidade = c.unidade, ano = Number(c.ano) || 0, numero = Number(c.numero) || 0;
   if (!c.id || !unidade || !ano || numero < 1) throw new Error('Dados do Termo de Colheita incompletos.');
   if (!c.numeroTxt) c.numeroTxt = numeroTxtPce_(numero, ano, unidade);
-  const lock = LockService.getScriptLock();
+  const lock = lockMedido_();
   lock.waitLock(30000);
   try {
     const todos = lerLeitura_('Colheitas');
@@ -120,7 +120,7 @@ function pceDocRegistrar_(req, usuario) {
   if (tipo === 'termo' && !normalizarTermoPceVisita_(r)) throw new Error('As culturas do Termo ficaram grandes demais.');   // visitaId/programaVisita/culturas (pce-visita.gs)
   const unidade = r.unidade, ano = Number(r.ano) || 0, numero = Number(r.numero) || 0, grupo = grupoDocPce_(tipo, unidade, r.programa);
   if (!r.id || !unidade || !ano || numero < 1) throw new Error('Dados do ' + D.nome + ' incompletos.');
-  const lock = LockService.getScriptLock();
+  const lock = lockMedido_();
   lock.waitLock(30000);
   try {
     const todos = lerLeitura_(D.aba);
@@ -345,7 +345,7 @@ function arquivoEnviar_(req, usuario) {
   if ((mime === 'image/jpeg' && !jpeg) || (mime === 'image/png' && !png) || (pdf && !ehPdf)) throw new Error('O conteúdo do arquivo não corresponde ao formato informado.');
 
   const ano = String(new Date().getFullYear());
-  const lock = LockService.getScriptLock();
+  const lock = lockMedido_();
   let pasta, n;
   lock.waitLock(30000);
   try {                                                                     // pastas e numeração do nome sob lock (sem duplicar pastas)
@@ -773,7 +773,7 @@ function painelPceLaudo(token, req) {
   if (lab.envio && lab.dataResultado && lab.dataResultado < lab.envio) throw new Error('A data do resultado é anterior à data de envio.');
   if (lab.resultado === 'positivo' && !lab.praga) throw new Error('Resultado positivo: informe a praga confirmada.');
   if (CONV_RE_CPF.test(lab.obs + ' ' + lab.laudo)) throw new Error('Não informe CPF no resultado (LGPD).');
-  const lock = LockService.getScriptLock(); lock.waitLock(20000);
+  const lock = lockMedido_(); lock.waitLock(20000);
   try {
     const t = lerTudo_('Colheitas'), il = t.cols.indexOf('laboratorio'), is = t.cols.indexOf('srv_ts');
     for (let i = 0; i < t.valores.length; i++) {

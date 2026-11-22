@@ -24,8 +24,14 @@ function lockMedido_() {
   const lock = LockService.getScriptLock();
   return {
     waitLock: function (ms) {
-      const t = Date.now(); lock.waitLock(ms);
-      if (MED_) { MED_.lockEspera += Date.now() - t; MED_.lockDesde = Date.now(); }
+      const t = Date.now();
+      try { lock.waitLock(ms); } finally { if (MED_) MED_.lockEspera += Date.now() - t; }   // o tempo do timeout também conta
+      if (MED_) MED_.lockDesde = Date.now();
+    },
+    tryLock: function (ms) {
+      const t = Date.now(), ok = lock.tryLock(ms);
+      if (MED_) { MED_.lockEspera += Date.now() - t; if (ok) MED_.lockDesde = Date.now(); }
+      return ok;
     },
     releaseLock: function () {
       lock.releaseLock();
@@ -67,9 +73,9 @@ function gravarDesempenho_(lista, agora) {
       leituraMedioMs: media(col(5)), leiturasMedia: Math.round(media(col(6).map(function (x) { return x * 10; }))) / 10, linhasLidasMedia: media(col(7)),
       erros: col(8).reduce(function (s, x) { return s + x; }, 0), gravadoEm: agora, versao: VERSAO_CODIGO };
   });
-  // gravação dentro do lock, mas sem segurar a resposta: fila ocupada por mais de 3 s → as amostras voltam ao cache e vão no próximo lote
+  // gravação dentro do lock, mas sem segurar a resposta: lock ocupado → as amostras voltam ao cache e vão no próximo lote
   const lock = lockMedido_();
-  try { lock.waitLock(3000); } catch (e) { cacheGravar_(DES_CHAVE, JSON.stringify(lista.slice(-DES_MAX)), 6 * 3600); return []; }
+  if (!lock.tryLock(0)) { cacheGravar_(DES_CHAVE, JSON.stringify(lista.slice(-DES_MAX)), 6 * 3600); return []; }
   try { inserir_('Desempenho', linhas); } finally { lock.releaseLock(); }
   return linhas;
 }

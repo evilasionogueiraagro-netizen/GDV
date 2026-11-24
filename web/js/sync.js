@@ -1,7 +1,7 @@
 // Sincronização com a planilha (Apps Script). Envia o que está pendente e recebe o que mudou.
 // O núcleo do envio (lote, marcar enviados, arquivos) fica em envio.js, compartilhado com o service worker (envio em segundo plano).
 const Sync = (() => {
-  let rodando = false;
+  let rodando = false, rodandoArq = false, repetirAposArq = false;
   const listeners = [];
   let estado = { tipo: 'idle', msg: '' };
 
@@ -293,9 +293,12 @@ const Sync = (() => {
   const enviarPendentesArquivos = ids => Envio.enviarArquivos(ids, chamar);
   async function enviarArquivos() {
     if (rodando || !ativado() || !navigator.onLine || (!pode('pce') && !pode('tf'))) return 0;
-    rodando = true;
+    rodando = true; rodandoArq = true;
     try { return await enviarPendentesArquivos(await arquivosPendentes(null, PERM)); }
-    finally { rodando = false; await atualizarContagem(); }
+    finally {
+      rodando = false; rodandoArq = false; await atualizarContagem();
+      if (repetirAposArq) { repetirAposArq = false; sincronizar(); }
+    }
   }
 
   /** Consulta rápida: último nº usado e próximo, direto na planilha. */
@@ -483,7 +486,10 @@ const Sync = (() => {
   }
   async function rodada() {
     const c = cfg();
-    if (rodando || !c.url || !c.key || localStorage.getItem('gdv.revogado') === 'senha') return;   // senha provisória pendente: nada sobe antes da troca
+    if (rodando || !c.url || !c.key || localStorage.getItem('gdv.revogado') === 'senha') {   // senha provisória pendente: nada sobe antes da troca
+      if (rodandoArq) repetirAposArq = true;                                                // pedido chegou durante enviarArquivos(): roda assim que terminar
+      return;
+    }
     try { await Store.setMeta('standalone', instaladoAgora()); } catch (e) { /* sem banco */ }
     if (!navigator.onLine) { await atualizarContagem(); return; }
     rodando = true;

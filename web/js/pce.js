@@ -1,6 +1,6 @@
 // Módulo PCE — parte comum: identificação do servidor, coordenadas e registros do papel, fotos, PDFs e assinaturas, Termo de Colheita de Amostras
 // (nasce na visita, quando há coleta; o do papel se digita aqui), lista de Termos (Fiscalização e Colheita) e levantamentos antigos (só leitura).
-// A visita, o Termo de Fiscalização e o relatório estão em moniliase.js; produtor, frutos e fichas em pce-cadastros.js; produtores e dados offline em campo.js.
+// A visita, o Termo de Fiscalização e o relatório estão em pce-visita.js; produtor, frutos e fichas em pce-cadastros.js; produtores e dados offline em campo.js.
 // Usa funções do app.js (view, go, tela, toast, $, esc, dBR, hojeISO, agoraHM, avisoAtivacao) em tempo de execução.
 const PCEUI = (() => {
   const P = CONFIG.PCE;
@@ -807,7 +807,7 @@ const PCEUI = (() => {
   async function gAcao(a, tipo, id) {
     if (a === 'gpdf') {
       await trazerDeOutro(tipo, id);
-      return tipo === 'cadastro' ? PCECads.imprimirFicha(id) : PCEMon.imprimir('termo', id);
+      return tipo === 'cadastro' ? PCECads.imprimirFicha(id) : PCEVisita.imprimir('termo', id);
     }
     if (!podeAntigo()) return toast(SEM_ANTIGO, true);
     const rec = await trazerDeOutro(tipo, id);
@@ -968,7 +968,7 @@ const PCEUI = (() => {
   });
 
   return { termos, termo, pronto, servidor, status, limparDeOutros, verLev, textoOficial, lerCoordenadas, lerNumeroPapel, partesDoMaterial, numerarColheita, imprimirColheita,
-    // usados pelo moniliase.js, pce-cadastros.js e campo.js
+    // usados pelo pce-visita.js, pce-cadastros.js e campo.js
     bloqueado, docOk, cnpjOk, conferirDoc, fmtDoc, validarCoord, gms, servidorAtual, servidorOk, soDigitador, podeAntigo, exigirServidor, dadosServidor, servAntigoHTML, servidorDigitado,
     cargoValor, lembrarServidor, completarServidor, servidoresLembrados, dataHoraPassadaOk, montarPessoa, opts, SEM_ANTIGO,
     assHTML, ligarAss, limparAssinatura, naoAssinaHTML, naoAssina, renderDocProdutor, soltarDocProdutor, fotoDocProdutor };

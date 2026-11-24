@@ -65,7 +65,7 @@ Produtor, frutos, Termos por programa, citros, monilíase, laudo e campo sem int
 - `CadastrosPCE` (`programa`, `dados`); `TermosPCE` (`visitaId`, `programaVisita`, `culturas`, `cadastroId`, `propriedadeId`, `acoes`, `sintomas`, `amostra`, `plantasInspecionadas`; os três últimos derivados de `culturas`).
 
 ## Código
-- Front: `web/js/` (pce, pce-cadastros, citros, moniliase, campo, pdf, `config.js`, `CONFIG.PCE`); `web/painel/js/painel-pce.js`; `web/documentos/pce-*`.
+- Front: `web/js/` (pce, pce-cadastros, citros, pce-visita, campo, pdf, `config.js`, `CONFIG.PCE`); `web/painel/js/painel-pce.js`; `web/documentos/pce-*`.
 - Back: `Code.gs` (`MODULO_DA_ACAO`, `sync`), `pce.gs`, `pce-visita.gs` (Termo da visita, `visitasPce_`), `pce-frutos.gs`.
 - Uma vez por planilha: menu **e-GDV → Autorizar acesso ao Drive (fotos do PCE)**. Publicar: automático pelo merge na `main` ([PUBLICACAO-BACK](../PUBLICACAO-BACK.md)).
 

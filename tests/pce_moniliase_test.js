@@ -34,7 +34,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   const sim = (p, nome, v) => p.click(`label:has(> input[name="${nome}"][value="${v}"])`);
   const marcar = (p, nome, v) => p.check(`input[name="${nome}"][value="${v}"]`);
   const imprimir = async (p, fn) => { await p.evaluate(() => { window.__prints = []; }); await fn(); await p.waitForFunction(() => window.__prints && window.__prints.length, null, { timeout: 15000 }); return p.evaluate(() => window.__prints[0]); };
-  const pdfArquivo = async (p, id) => Buffer.from(await p.evaluate(async i => { const f = await PCEMon.imprimir('termo', i, 'arquivo'); const u = new Uint8Array(await f.arrayBuffer()); let s = ''; u.forEach(x => { s += String.fromCharCode(x); }); return btoa(s); }, id), 'base64');
+  const pdfArquivo = async (p, id) => Buffer.from(await p.evaluate(async i => { const f = await PCEVisita.imprimir('termo', i, 'arquivo'); const u = new Uint8Array(await f.arrayBuffer()); let s = ''; u.forEach(x => { s += String.fromCharCode(x); }); return btoa(s); }, id), 'base64');
   const paginasPdf = buf => { try { const f = amb.saida('_tmp.pdf'); fs.writeFileSync(f, buf); return Number(execFileSync('python3', ['-c', 'import sys,pypdf;print(len(pypdf.PdfReader(sys.argv[1]).pages))', f]).toString().trim()); } catch (e) { return null; } };
   const sync = async p => { for (let i = 0; i < 25; i++) { await p.evaluate(() => Sync.sincronizar()); await p.waitForTimeout(400); const n = await p.evaluate(async () => (await Store.todos('termosPce')).filter(x => x.pendente).length + (await Store.todos('propriedades')).filter(x => x.pendente).length); if (!n && await p.evaluate(() => Sync.estado().tipo === 'ok')) return; } throw new Error('sync não terminou'); };
 
@@ -45,11 +45,11 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   let r = await U.permissoes(UIDS[E.nome], U.lista({ veiculos: 0, tf: 0, pce: 1, antigo: 1 }));
   ok(r.ok && r.permissoes.includes('digitarDoPapel'), 'painel: estagiária com PCE + Gerenciar termos realizados');
   const A = await aparelho(E);
-  const C = await A.evaluate(() => { const L = PCEMon.lerEixo, N = PCEMon.lerNumeroDoc;
+  const C = await A.evaluate(() => { const L = PCEVisita.lerEixo, N = PCEVisita.lerNumeroDoc;
     return { a: L('-3,60033', 'lat'), b: L('-3.60033', 'lat'), c: L('3,60033S', 'lat'), d: L('-59,15044W', 'lon'), e: L('59,15044', 'lon'), f: L(`3°36'01,2"S`, 'lat'),
-      g: L('S 3 36 1.2', 'lat'), h: L('3,5N', 'lon'), par: PCEMon.lerPar('-3,60033', '-59,15044W'), fora: PCEMon.lerPar('-15,7', '-47,8'),
+      g: L('S 3 36 1.2', 'lat'), h: L('3,5N', 'lon'), par: PCEVisita.lerPar('-3,60033', '-59,15044W'), fora: PCEVisita.lerPar('-15,7', '-47,8'),
       n1: N('001.2026.AUTAZES', 'Autazes', '2026-07-08'), n2: N('001-2026-AUTAZES', 'Autazes', '2026-07-08'), n3: N('1', 'Autazes', '2026-07-08'), n4: N('001/2025/AUTAZES', 'Autazes', '2026-07-08'),
-      n5: N('7.2026.MANAUS', 'Autazes', '2026-07-08'), n6: N('Nº 12', 'Autazes', '2026-07-08'), i1: PCEMon.numero('08 anos'), i2: PCEMon.numero('2,5'), i3: PCEMon.numero('1.234') }; });
+      n5: N('7.2026.MANAUS', 'Autazes', '2026-07-08'), n6: N('Nº 12', 'Autazes', '2026-07-08'), i1: PCEVisita.numero('08 anos'), i2: PCEVisita.numero('2,5'), i3: PCEVisita.numero('1.234') }; });
   ok([C.a, C.b].every(x => x.v === -3.60033) && C.c.v === -3.60033 && C.d.v === -59.15044 && C.e.v === -59.15044 && C.e.oeste, 'lat/lon: "-3,60033", "-3.60033", "3,60033S", "-59,15044W" e "59,15044" (Oeste)', C);
   ok(Math.abs(C.f.v + (3 + 36 / 60 + 1.2 / 3600)) < 1e-6 && Math.abs(C.g.v - C.f.v) < 1e-6 && C.h.erro, 'GMS (3°36\'01,2"S e S 3 36 1.2); hemisfério errado recusado', [C.f, C.g, C.h]);
   ok(C.par.lat === -3.60033 && C.par.lon === -59.15044 && /fora do Amazonas/.test(C.fora.erro || ''), 'par dentro do Amazonas; fora do AM recusado', [C.par, C.fora]);
@@ -113,7 +113,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   console.log('3) PDFs: Termo (impressão e arquivo gerado no aparelho)');
   const idT1 = t1.id;
   await A.click('nav [data-v=pcetermos]'); await A.waitForSelector('#pceTItens .item');
-  let pr = await imprimir(A, () => A.evaluate(id => PCEMon.imprimir('termo', id), idT1));
+  let pr = await imprimir(A, () => A.evaluate(id => PCEVisita.imprimir('termo', id), idT1));
   ok(/TERMO DE FISCALIZAÇÃO Nº 001/.test(pr.texto) && new RegExp(`${ANO} Ano - AUTAZES Unidade`).test(pr.texto) && /JOAO FICTICIO TESTE/.test(pr.texto) && /702\.815\.364-90/.test(pr.texto) && /-3,60033/.test(pr.texto)
     && /Não constatei a presença da monilíase/.test(pr.texto) && /1ª via: Interessado/.test(pr.texto) && pr.paginas === 1, 'PDF do termo: número, interessado, CPF, coordenadas, constatação, vias (1 folha)', pr.texto.slice(0, 500));
   ok(/data-c="programaTxt">[^<]*Monilíase/.test(pr.html) && /class="cx on" data-x="acoes=Fiscalização"/.test(pr.html) && !/class="cx on" data-x="acoes=Levantamento"/.test(pr.html), 'programa/praga Monilíase no quadro e caixa Fiscalização marcada');

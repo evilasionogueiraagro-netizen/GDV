@@ -580,6 +580,12 @@ const PCEDocs = (() => {
     const caixas = arr(lerJSON(t.pragas, [])).map(norm), nomes = [pg.nome, ...arr(pg.nomes)].map(norm);
     return arr(pg.pragas).some(p => caixas.includes(norm(p))) || nomes.includes(norm(t.programaVisita)) || (!caixas.length && !!pg.modelo && t.programa === pg.modelo);
   }
+  /** O cadastro pertence ao programa do relatório: evita anexar ficha antiga de monilíase num relatório de citros (ou outro programa). */
+  function cadastroDoPrograma(c, pg) {
+    if (!pg) return true;
+    const prog = (c && c.programa) || 'moniliase';
+    return pg.modelo ? prog === pg.modelo : prog === 'propriedade';
+  }
   /** Como o programa (ou a praga, nos relatórios antigos) entra nas frases: "da praga Monilíase", "das pragas dos Citros". */
   const textoDoPrograma = R => { const pg = programaRelatorio(R && R.programa); return pg ? pg.texto : (R && R.praga ? 'da praga ' + R.praga : 'das pragas do PCE'); };
   const objetivoRelatorio = R => `Executar Ações de Levantamento Fitossanitário de detecção ${textoDoPrograma(R)}, visando a prevenção e ação imediata de contingência.`;
@@ -593,10 +599,10 @@ const PCEDocs = (() => {
       && (pgRel || !f.praga || lerJSON(t.pragas, []).some(p => norm(p) === norm(f.praga)))
       && (!servs.length || servs.includes(norm(t.servidor))))
       .sort((a, b) => (Number(a.ano) - Number(b.ano)) || (Number(a.numero) - Number(b.numero)) || String(a.data + a.hora).localeCompare(String(b.data + b.hora)));
-    const ligados = [...new Set(T.map(t => t.cadastroId).filter(Boolean))].map(id => cadPorId.get(id)).filter(Boolean)
+    const ligados = [...new Set(T.map(t => t.cadastroId).filter(Boolean))].map(id => cadPorId.get(id)).filter(c => c && cadastroDoPrograma(c, pgRel))
       .sort((a, b) => String(a.data).localeCompare(String(b.data)) || Number(a.numero) - Number(b.numero));
     const hosp = new Set();
-    T.forEach(t => { arr(lerJSON(t.hospedeiros, [])).forEach(h => { if (h) hosp.add(nomeHosp(String(h))); }); const c = cadPorId.get(t.cadastroId); if (c) HOSP.forEach(([k, n]) => { if (num((lerJSON(c.dados, {}).plantas || {})[k]) > 0) hosp.add(n); }); });
+    T.forEach(t => { arr(lerJSON(t.hospedeiros, [])).forEach(h => { if (h) hosp.add(nomeHosp(String(h))); }); const c = cadPorId.get(t.cadastroId); if (c && cadastroDoPrograma(c, pgRel)) HOSP.forEach(([k, n]) => { if (num((lerJSON(c.dados, {}).plantas || {})[k]) > 0) hosp.add(n); }); });
     // culturas avaliadas: as do cacau/cupuaçu na ordem do papel e, depois, as demais (qualquer programa), na ordem em que aparecem
     const hospedeiros = [...HOSP.map(h => h[1]).filter(n => hosp.has(n)), ...[...hosp].filter(n => n && !HOSP.some(h => h[1] === n))];
     const numeros = T.filter(t => Number(t.numero) > 0).map(t => String(Number(t.numero)).padStart(3, '0') + (t.ano ? '/' + t.ano : ''));

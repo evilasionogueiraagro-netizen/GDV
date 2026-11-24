@@ -1,17 +1,17 @@
 # API do e-GDV (apps-script/Code.gs)
 
-Contrato das actions (atualize ao criar, mudar ou remover). Regra de negócio: `docs/modulos/`.
+Contrato das actions (atualize ao mudar). Regra de negócio: `docs/modulos/`.
 
 ## Protocolo
 
-- `POST <url>/exec` (URL em `web/js/config.js`), `Content-Type: text/plain;charset=utf-8` (evita preflight CORS), corpo `{"action": "<nome>", ...}`.
-- HTTP sempre 200: `{ok: true, ...}` ou `{ok: false, erro}` (em português). Sem módulo liberado: também `semPermissao`, `permissoes`.
-- `GET /exec` → `{ok, servico, versao}`. `doPost` despacha por `req.action`; `adm` + maiúscula vai a `admAcao_`.
-- Regras portáveis: [PORTABILIDADE.md](PORTABILIDADE.md).
+- `POST <url>/exec` (URL em `web/js/config.js`), `Content-Type: text/plain;charset=utf-8`, corpo `{"action": "<nome>", ...}`.
+- HTTP 200: `{ok: true, ...}` ou `{ok: false, erro}`. Sem módulo liberado: também `semPermissao`, `permissoes`.
+- `GET /exec` → `{ok, servico, versao}`. Despacha por `req.action`; `adm` + maiúscula vai a `admAcao_`.
+- Portabilidade: [PORTABILIDADE.md](PORTABILIDADE.md).
 
 ## Autenticação
 
-- Login por matrícula e senha (`usuarios.gs`, [modulos/acessos.md](modulos/acessos.md)): `entrar` → token em `key` (app e painel) ou em `sessao` (portal). Sem códigos nem chave mestra.
+- Login por matrícula e senha (`usuarios.gs`, [modulos/acessos.md](modulos/acessos.md)): `entrar` → token em `key` (app e painel) ou em `sessao` (portal).
 - App: `autenticar_` (permissão `campo`); TF/PCE também `exigirModulo_` (`MODULO_DA_ACAO`: action → módulo; `arquivoEnviar` vale `tf` se `arquivo.dono = 'tfs'`). Painel: `adminDoToken_` (`painel`; gravar exige `gerencia`). Portal: `admSessao_` (`administracao`).
 - O `sync` não grava (devolve em `recusados`) registro sem módulo, `registroAntigo = 1` sem `antigo` ou id de outro login.
 
@@ -38,6 +38,7 @@ Contrato das actions (atualize ao criar, mudar ou remover). Regra de negócio: `
 | `pceProximoNumero` | pce | `unidade`, `ano` | `ultimo`, `proximo` |
 | `pceEmitir` | pce | `colheita`, `pessoa`, `propriedade` | como `tfEmitir`, + `numeroTxt` |
 | `pceConsultar` | pce | `doc` | `pessoa`, `propriedades` (`cnpj`, `empresa`, `endereco`, `uf`, `viaAcesso`, `comercial`, `tipoPropriedade`, `frutos`, `frutosSugeridos`), contagens, `cadastrosPce` |
+| `pceTermosBuscar`, `pceRegistroObter` | pce | `tipo`, filtros, `pular`; `id` | `itens`, `total`; `registro`, `propriedade`, `pessoa` |
 | `pceBuscarTexto` | pce | `q` (3+ caracteres), `municipio` | `resultados` (até 20: `doc`, `nome`, `propriedades`), `total` |
 | `pceDocNumero` | pce | `tipo` (`termo`/`cadastro`), `unidade`, `ano`, `programa` | `ultimo`, `proximo` |
 | `pceDocRegistrar` | pce | `tipo`, `registro`, `pessoa`, `propriedade` | como `pceEmitir`; Termo da visita que já existe: `emitido: false`, `termoDaVisita` {`id`, `numeroTxt`, `programaVisita`} |
@@ -48,11 +49,11 @@ Contrato das actions (atualize ao criar, mudar ou remover). Regra de negócio: `
 ### Campos nos registros
 
 - `levantamentos[]` (antigo): `citros` (texto JSON, `citrosTexto_`), `cnpj` (14 dígitos), `empresa` (≤ 120), `endereco` (≤ 200), `uf`.
-- `propriedades[].frutos`: lista (campos em `pce-frutos.gs`), até 60, mesclada por `id` ([modulos/pce.md](modulos/pce.md)). `propriedadesGravadas`: as do envio já mescladas. `frutosSugeridos` (ids `sug-<cultura>`): só leitura, em propriedade sem frutos.
+- `propriedades[].frutos`: lista (campos em `pce-frutos.gs`), até 60, mesclada por `id` ([modulos/pce.md](modulos/pce.md)). `propriedadesGravadas`: as do envio, mescladas. `frutosSugeridos` (ids `sug-<cultura>`): só leitura, em propriedade sem frutos.
 - `termosPce[]`: `tipoLocal`, `constatacao`, `visitaId`, `programaVisita`, `culturas` (JSON até 45.000: `[{cultura, area, pragas:[{praga, resultado}], coleta, tipoMaterial, codigoAmostra, destinoAmostra, fotos}]`; `resultado`: `detectada`, `nao_detectada`, `suspeita` ou vazio). Chave única (`visitaId`, `programaVisita`); duplicado volta em `recusados.termosPce`.
 - `colheitas[].levantamentoId` recebe o `visitaId`.
-- `tfs[]`, `tf`, `veiculos[]`: `ufOrigem`, `ufDestino` (opcionais, sigla de `CONFIG.ufs`). TF antigo sem a coluna: UF por `ufDoTexto_` (texto de `origem`/`destino`).
-- Colunas novas no fim de `Levantamentos`, `Propriedades`, `TFs` e `Veiculos`; campo não enviado mantém o da planilha. `veiculos[]`: `semEducacao`, `medidaFito`, `carga`, `produtos`, `partida`, `inspecaoFito`, `docConferido` são só histórico.
+- `tfs[]`, `tf`, `veiculos[]`: `ufOrigem`, `ufDestino` (opcionais, sigla de `CONFIG.ufs`). TF antigo sem a coluna: `ufDoTexto_`.
+- Colunas novas no fim de `Levantamentos`, `Propriedades`, `TFs` e `Veiculos`; campo não enviado mantém o da planilha. `veiculos[]`: `semEducacao`, `medidaFito`, `carga`, `produtos`, `partida`, `inspecaoFito`, `docConferido` são histórico.
 
 ## Painel do administrador
 

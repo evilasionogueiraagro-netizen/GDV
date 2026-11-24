@@ -52,7 +52,8 @@ Produtor, frutos, Termos por programa, citros, monilíase, laudo e campo sem int
 - Numeração da ficha (`CadastrosPCE`): por programa, unidade e ano.
 
 ## Termo do papel
-- Permissão Papel (`antigo`; exige PCE; desligada por padrão); sem ela, fica pendente. Estagiário: chave só PCE+Papel; gerente: chave de fiscal com Papel.
+- Permissão "Gerenciar termos realizados" (`digitarDoPapel`, coluna `antigo`; exige PCE; desligada por padrão); sem ela, o papel fica pendente. Estagiário: chave só PCE + ela; gerente: chave de fiscal com ela.
+- **Ver e editar de outros servidores:** quem tem PCE busca (`pceTermosBuscar`) e abre (`pceRegistroObter`) Termos e Cadastros de todos, online e sob demanda (o sync traz só os próprios; a cópia vem com `deOutro`, sai do aparelho depois). Com a permissão edita o de outro (`gravar_`); o autor (`usuario`) não muda e a edição vai a `HistoricoDeAlteracoes` (quem, quando, autor, antes/depois dos campos). Termo de visita só se cancela. TF de Barreira e Colheita seguem só do autor.
 - Vistoriador digitado; data e hora obrigatórias, sem futuro; coordenada só no Amazonas.
 - PDF escaneado: até 10 por registro, 10 MB cada, começando por `%PDF-`.
 - Só Termo e Colheita se digitam; o levantamento do papel saiu. Número do papel (`007/2026/MANAUS`); aceita número livre, recusa usado; sugestão = maior + 1.

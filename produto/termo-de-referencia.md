@@ -57,7 +57,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 
 ### 4.1. Acesso e permissões
 - RF-01. Entrada por matrícula e senha, com senha provisória e troca obrigatória no primeiro acesso. No app de campo, os campos de senha têm a opção de mostrar o que foi digitado.
-- RF-02. Permissões por aplicativo (campo, painel, administração) e por módulo do campo: fiscalização de trânsito, TF de Barreira, PCE e digitar do papel. Há ainda a coordenação de barreiras e a gerência.
+- RF-02. Permissões por aplicativo (campo, painel, administração) e por módulo do campo: fiscalização de trânsito, TF de Barreira, PCE e gerenciar termos realizados (digitar do papel e ver/editar os Termos do PCE de todos os servidores, com registro de quem alterou). Há ainda a coordenação de barreiras e a gerência.
 - RF-03. A gerência cria contas, gera senha provisória, encerra sessões e desativa contas pelo painel. Cada ação fica registrada com quem fez.
 - RF-04. Bloqueio temporário após tentativas de senha erradas.
 - RF-04A. Aparelho da base usado por vários fiscais: cada login vê só os próprios registros e os dos turnos de que participa; os de outros ficam guardados e escondidos.
@@ -173,7 +173,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 
 | Perfil | Acesso |
 |---|---|
-| Fiscal | App de campo, nos módulos liberados (fiscalização de trânsito, TF, PCE, digitar do papel) |
+| Fiscal | App de campo, nos módulos liberados (fiscalização de trânsito, TF, PCE, gerenciar termos realizados) |
 | Responsável pela equipe | Fiscal escalado que edita o relatório da equipe do período |
 | Coordenação de barreiras | Monta e publica as escalas e edita os relatórios das equipes |
 | Gerência | Painel completo, contas e permissões, escalas, relatórios, BVAs, encerramento de turnos e dashboard público |

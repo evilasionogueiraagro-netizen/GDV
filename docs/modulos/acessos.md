@@ -22,7 +22,7 @@ Passo a passo para o gerente: [web/painel/manual.html](../../web/painel/manual.h
 
 ## Permissões
 - Por app: `campo`, `painel` (só leitura), `administracao` (Portal do Administrativo). Módulos do campo: `fiscalizacaoDeTransito`,
-  `termoDeBarreira`, `pce`, `digitarDoPapel` (exige `pce`), `educacaoSanitaria` (módulo `educacao`). `gerencia` abre os três aplicativos e libera contas e permissões; os módulos do campo valem só os marcados (também para o gerente).
+  `termoDeBarreira`, `pce`, `digitarDoPapel` (rótulo "Gerenciar termos realizados"; exige `pce`), `educacaoSanitaria` (módulo `educacao`). `gerencia` abre os três aplicativos e libera contas e permissões; os módulos do campo valem só os marcados (também para o gerente).
 - O servidor aplica (`exigirModulo_`, `MODULO_DA_ACAO`): o `sync` recusa o módulo não liberado (volta em `recusados`); actions de TF/PCE
   respondem `semPermissao`. No app, o módulo sem permissão some do menu; o que já foi feito fica no aparelho e sobe quando liberar.
 - TV da sala: usuário próprio só com `painel`.

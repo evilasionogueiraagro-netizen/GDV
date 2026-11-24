@@ -147,7 +147,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
     && /Termo de Fiscalização emitidos: 02 termos/.test(pr.texto) && /Não houve coleta de amostra/.test(pr.texto) && /Deslocamento: Manaus\/AM x Autazes\/AM x Manaus\/AM/.test(pr.texto),
     'relatório: convênio, etapa, servidores, período, local, plantas, educação sanitária (ações + folders), termos emitidos', pr.texto.slice(0, 900));
   ok(pr.paginas === 3 && (pr.html.match(/class="a4 [^"]*termo[^"]*"/g) || []).length === 2, 'relatório com os 2 Termos anexados (3 folhas, sem fichas ligadas)', [pr.paginas, (pr.html.match(/class="a4 [^"]*"/g) || [])]);
-  ok(/Nº dos termos: 001\/2026; 002\/2026\)/.test(pr.texto) && /Hospedeiros Inspecionados:/.test(pr.texto) && /Levantamentos Fitossanitário da praga Monilíase, realizou-se/.test(pr.texto) && /SEPROR\/AM/.test(pr.texto),
+  ok(/Nº dos termos: 001\/2026; 002\/2026\)/.test(pr.texto) && /Hospedeiros Inspecionados:/.test(pr.texto) && /Levantamentos Fitossanitário da praga Monilíase, realizou-se/.test(pr.texto) && /gabinete@adaf\.am\.gov\.br/.test(pr.texto) && /sepror\.png/.test(pr.html),
     'relatório no modelo do levantamento: números dos Termos, frase do programa e rodapé na folha', pr.texto.slice(0, 1200));
   // o cálculo por programa (Termo pela caixa de praga, nome do programa ou modelo) fica em tests/unit/pce_relatorio_unit_test.js
   const nOps = await A.evaluate(() => [...document.querySelectorAll('#mr-praga option')].length);

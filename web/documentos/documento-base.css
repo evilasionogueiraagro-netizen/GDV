@@ -80,7 +80,7 @@ html, body { margin: 0; padding: 0; background: #fff; }
 .doc .doc-fim { display: flex; align-items: center; justify-content: space-between; gap: 5mm; }
 .doc .doc-end { flex: 1 1 0; font-size: 7pt; line-height: 1.3; color: #000; }
 .doc .doc-logo { flex: 0 0 auto; display: flex; align-items: center; justify-content: center; }
-.doc .doc-dir { flex: 1 1 0; text-align: center; font-size: 9pt; font-weight: bold; line-height: 1.3; padding-left: 3mm; }
+.doc .doc-dir { flex: 1 1 0; display: flex; align-items: center; justify-content: flex-end; }
 .doc .doc-fim img { height: 11.5mm; width: auto; display: block; }
 
 /* Criar um documento novo sobre a base:

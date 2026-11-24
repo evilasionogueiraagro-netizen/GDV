@@ -105,7 +105,8 @@ const ctx = {
     deleteTrigger: tr => { const i = gatilhos.findIndex(g => g.id === tr.getUniqueId()); if (i >= 0) gatilhos.splice(i, 1); }
   },
   MailApp: { sendEmail: m => { if (typeof m !== 'object') throw new Error('use o formato de objeto'); emails.push(JSON.parse(JSON.stringify(m))); } },
-  LockService: { getScriptLock: () => ({ waitLock() { if (lockFalha && --lockFalha === 0) throw new Error('Lock timeout: another process was holding the lock for too long.'); }, releaseLock() {} }) },
+  LockService: { getScriptLock: () => ({ waitLock() { if (lockFalha && --lockFalha === 0) throw new Error('Lock timeout: another process was holding the lock for too long.'); },
+    tryLock() { return !(lockFalha && --lockFalha === 0); }, releaseLock() {} }) },
   Utilities: { formatDate: (d, tz, fmt) => {                           // como no Apps Script: no fuso pedido (ex.: America/Manaus), não em UTC
       const p = Object.fromEntries(new Intl.DateTimeFormat('en-GB', { timeZone: tz || 'UTC', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
         .formatToParts(new Date(d)).map(x => [x.type, x.value]));

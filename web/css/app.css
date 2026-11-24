@@ -7,6 +7,10 @@ header img { height:38px; }
 main { max-width:560px; margin:0 auto; padding:14px; }
 .card { margin-bottom:12px; } .card p { margin:4px 0; }
 .card.aviso { padding:14px 16px; }
+.senha-campo { position:relative; display:block; } .senha-campo input { padding-right:52px; }
+.ver-senha { position:absolute; right:2px; top:50%; transform:translateY(-50%); width:44px; height:44px; padding:0; border:0; background:transparent; color:var(--ink2); display:inline-flex; align-items:center; justify-content:center; cursor:pointer; border-radius:var(--r-md); }
+.ver-senha:hover { color:var(--ink); } .ver-senha:focus-visible { outline:var(--foco-larg) solid var(--foco); outline-offset:-2px; }
+.card.aviso.erro { border-color:var(--critico); background:color-mix(in srgb, var(--critico) 10%, var(--sf)); }
 input,select,textarea { width:100%; }
 .duas { display:grid; grid-template-columns:1fr 1fr; gap:10px; } .duas[hidden]{display:none;}
 .botao { display:block; width:100%; margin:10px 0; }

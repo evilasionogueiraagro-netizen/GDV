@@ -74,8 +74,12 @@ const aba = async n => { const rows = await get('/__aba?nome=' + n); const cab =
     const T = (id, ini) => ({ id, numeroTF: 'TF-' + id, data: diaM(ini), letra: 'A', inicio: hmM(ini), fim: '', fiscal: 'Beltrano Ficticio Teste', local: 'BVA - JUNDIÁ', unidade: 'BVA - JUNDIÁ',
       posto: 'Fixa', encerrado: 0, criadoEm: ini, atualizadoEm: ini, latIni: '-1.0', lngIni: '-60.5', precIni: '9' });
     const V = (id, turnoId) => ({ id, turnoId, hora: hmM(AG - 10 * 60e3), placa: 'ABC1D' + id.slice(-2), tipo: 'PA', pessoas: 1, obs: '', excluido: 0, criadoEm: AG, atualizadoEm: AG });
-    const r = await post({ action: 'sync', key: K, since: 0, turnos: [T('dj1', ini1), T('dj2', ini2)], veiculos: [V('vj11', 'dj1'), V('vj12', 'dj1'), V('vj21', 'dj2')] });
-    ok(r.ok, 'dois turnos abertos na BVA - JUNDIÁ (mesmo login)', r.erro);
+    // troca de turno no Aeroporto: o turno de ontem (20 h atrás) foi encerrado há 6 h, 2 h depois de o turno novo (8 h atrás) ser aberto
+    const iniV = AG - 20 * 3600e3, iniN = AG - 8 * 3600e3, fimV = AG - 6 * 3600e3;
+    const TA = (id, ini, extra) => ({ ...T(id, ini), local: 'BVA - AEROPORTO', unidade: 'BVA - AEROPORTO', ...extra });
+    const r = await post({ action: 'sync', key: K, since: 0, turnos: [T('dj1', ini1), T('dj2', ini2), TA('da1', iniV, { fim: hmM(fimV), encerrado: 1, atualizadoEm: fimV }), TA('da2', iniN)],
+      veiculos: [V('vj11', 'dj1'), V('vj12', 'dj1'), V('vj21', 'dj2'), V('va11', 'da1'), V('va21', 'da2')] });
+    ok(r.ok, 'dois turnos abertos na BVA - JUNDIÁ (mesmo login) e uma troca de turno na BVA - AEROPORTO', r.erro);
     const c = await b.newContext({ viewport: { width: 1366, height: 900 }, timezoneId: 'America/Manaus' });
     await c.route(u => !/^https?:\/\/(localhost|127\.0\.0\.1)[:/]/.test(String(u)), rt => rt.abort());
     await c.addInitScript(t => { if (!sessionStorage.getItem('__init')) { sessionStorage.setItem('__init', 1); localStorage.setItem('gdv.url', window.__GDV_API);
@@ -85,8 +89,11 @@ const aba = async n => { const rows = await get('/__aba?nome=' + n); const cab =
     const cards = await p.$$eval('.pn-vivo .pn-vivo-item', x => x.map(e => ({ id: e.dataset.turno, txt: e.textContent.replace(/\s+/g, ' ') })));
     const jun = cards.filter(x => /JUNDIÁ/.test(x.txt));
     ok(jun.length === 1 && jun[0].id === 'dj1' && /\b3\s*veículos/.test(jun[0].txt), 'Visão geral: um cartão da BVA - JUNDIÁ, com os 3 veículos dos dois turnos', cards);
+    const aer = cards.filter(x => /AEROPORTO/.test(x.txt));
+    ok(aer.length === 1 && aer[0].id === 'da2' && /\b1\s*veículo/.test(aer[0].txt) && !/mais de 12 h/.test(aer[0].txt),
+      'troca de turno: só o turno novo do Aeroporto em andamento (o de ontem, encerrado, não entra nem vira "aberta há mais de 12 h")', aer);
     const kpi = await p.evaluate(() => { const k = [...document.querySelectorAll('#pn-conteudo .pn-kpi')].find(k => /Barreiras em andamento agora/.test(k.textContent)); return k && k.querySelector('.pn-kpi-val').textContent.trim(); });
-    ok(kpi === '1', '"Barreiras em andamento agora" = 1 (só o Jundiá: o turno da CEASA foi encerrado)', kpi);
+    ok(kpi === '2', '"Barreiras em andamento agora" = 2 (Jundiá e Aeroporto: o turno da CEASA foi encerrado)', kpi);
     await p.click('[data-encerrar=dj1]'); await p.waitForSelector('#pn-encerrar[open]'); await p.fill('#pn-enc-fim', hmM(AG - 60 * 60e3));
     await p.click('#pn-enc-ok'); await p.waitForSelector('#pn-toast.on', { timeout: 10000 });
     const tj = (await aba('Turnos')).filter(t => /^dj/.test(t.id));

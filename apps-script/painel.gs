@@ -48,7 +48,7 @@ function painelEncerrarTurno(token, turnoId, fim) {
   fim = String(fim === null || fim === undefined ? '' : fim).trim();
   if (!RE_HM_.test(fim)) throw new Error('Horário de encerramento inválido. Use o formato HH:MM (ex.: 17:30).');
   const quem = textoAutor_(admin);   // texto, nunca fórmula
-  const lock = LockService.getScriptLock();
+  const lock = lockMedido_();
   lock.waitLock(30000);
   try {
     const t = lerTudo_('Turnos'), cols = t.cols;
@@ -76,12 +76,13 @@ function painelEncerrarTurno(token, turnoId, fim) {
 }
 
 function lerLeitura_(nome) {                       // leitura pura: não cria abas nem colunas
-  const sh = planilha_().getSheetByName(nome), cols = TABELAS[nome];
+  const t0 = Date.now(), sh = planilha_().getSheetByName(nome), cols = TABELAS[nome];
   if (!sh || sh.getLastRow() < 2) return [];
   let vals;
   // coluna nova de TABELAS só é criada na primeira gravação (garantirColunas_): até lá a aba pode ter menos colunas; o que falta vale vazio
   try { vals = sh.getRange(2, 1, sh.getLastRow() - 1, cols.length).getValues(); }
   catch (e) { vals = sh.getRange(2, 1, sh.getLastRow() - 1, Math.min(cols.length, sh.getMaxColumns())).getValues(); }
+  medirLeitura_(Date.now() - t0, vals.length);      // desempenho.gs
   let linhas = vals.map(function (l) { return paraObjeto_(cols, l); });
   // turno cancelado no app (aberto por engano): fica na planilha, mas fora de painel, relatórios, VIGIFITO, convênio e letras do nº
   if (nome === 'Turnos') linhas = linhas.filter(function (t) { return Number(t.cancelado) !== 1; });

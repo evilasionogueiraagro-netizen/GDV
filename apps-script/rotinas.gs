@@ -37,7 +37,7 @@ function encerrarTurnosAutomatico() {
   const agora = Date.now();
   const vencido = function (o) { const ini = tsManaus_(o.data, o.inicio); return !!o.id && o.encerrado !== 1 && ini !== null && agora - ini > TURNO_MAX_MS; };
   if (!lerLeitura_('Turnos').some(vencido)) return { ok: true, encerrados: [] };
-  const lock = LockService.getScriptLock();
+  const lock = lockMedido_();
   lock.waitLock(30000);
   try {
     const t = lerTudo_('Turnos'), cols = t.cols, alvo = {};
@@ -270,7 +270,7 @@ function chavesArquivo_(sh, nome) {
  * Devolve {movidas, porAno: {ano: n}, restam}.
  */
 function arquivarLote_(nome, limite, agora, max) {
-  const lock = LockService.getScriptLock();
+  const lock = lockMedido_();
   lock.waitLock(30000);
   try {
     const sh = planilha_().getSheetByName(nome);

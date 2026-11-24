@@ -4,6 +4,7 @@ Lançamentos fora do campo (`web/administrativo/`); o painel só lê. Manual: `w
 
 ## Regras
 - Abas: Desembolso do convênio, Físico do convênio, Linhas dos relatórios, VIGIFITO, Diárias das escalas, Histórico.
+- Diárias das escalas: filtro por período (a escala entra se cruza o intervalo), fiscal e barreira, combináveis, no navegador sobre o que já foi carregado.
 - Lançamentos guardam quem e quando (`admId`); histórico em `AdmHistorico`. Excluir é lógico.
 - Diária = valor ÷ valor unitário (editável); avisa memorando repetido, diária acima do previsto e data fora da vigência.
 - Importações: mesma chave atualiza; linha que sumiu da planilha só sai se o gerente marcar; plantão repetido é recusado (salvo substituição).

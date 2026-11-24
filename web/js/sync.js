@@ -58,6 +58,9 @@ const Sync = (() => {
     catch (e) { throw falhaDeRede(e) ? semInternet('Entrar') : e; }
     if (!j.token || !j.usuario || !j.usuario.id) throw new Error('Resposta inesperada do servidor. Tente de novo.');
     await reterDoAnterior(j.usuario.id);                                       // antes de trocar a credencial: nada da pessoa anterior sobe com este acesso
+    // outra pessoa neste aparelho (o PC da base): baixa tudo do novo login desde o início e esquece o turno em andamento da anterior.
+    // Sem isso, quem entra depois só recebia o que mudou desde a última sincronização da pessoa anterior (o turno aberto no celular não vinha).
+    if ((usuario() || {}).id !== j.usuario.id) { try { await Store.setMeta('lastSync', 0); await Store.setMeta('turnoAtual', ''); } catch (e) { /* sem banco */ } }
     localStorage.setItem('gdv.url', url); localStorage.setItem('gdv.key', j.token); localStorage.setItem('gdv.nome', j.usuario.nome || '');
     localStorage.setItem('gdv.usuario', JSON.stringify({ id: j.usuario.id, matricula: j.usuario.matricula || mat, nome: j.usuario.nome || '' }));
     if (Number(j.trocarSenha) === 1) localStorage.setItem('gdv.revogado', 'senha'); else localStorage.removeItem('gdv.revogado');
@@ -482,8 +485,10 @@ const Sync = (() => {
     rodando = true;
     emitir({ tipo: 'sync', msg: 'Sincronizando…' });
     try {
+      let foraEscala = [];                                                   // turnos recusados pela escala nesta sincronização (o cartão do turno avisa)
       for (let volta = 0; volta < 20; volta++) {
         const l = await Envio.enviarLote(chamar, PERM, 'app'), r = l.r;   // pendentes permitidos + sinal do aparelho → planilha; marca os enviados
+        if (Array.isArray(r.turnosForaEscala)) foraEscala = foraEscala.concat(r.turnosForaEscala.map(String));
         const mudou = await guardarPermissoes(r.permissoes);
         await aplicar('turnos', r.turnos);
         await conferirTurnoAtual(r.turnos);
@@ -511,6 +516,7 @@ const Sync = (() => {
         if (mudou && !l.recusouAlgo) continue;                               // módulo liberado agora: manda o que estava guardado
         if (!l.resta) break;
       }
+      await Store.setMeta('turnosForaEscala', foraEscala);
       let erroArq = '';
       if (pode('pce') || pode('tf')) {
         try { await enviarPendentesArquivos(await arquivosPendentes(null, PERM)); }   // falha numa foto não derruba o sync principal

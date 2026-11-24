@@ -118,10 +118,10 @@ const U = require('./lib/usuarios');
   const p6 = await c6.newPage(); p6.on('dialog', d => d.accept()); await rota(p6);
   await p6.goto(amb.APP); await p6.waitForSelector('#fEntrar');
   console.log('sem acesso -> formulário de turno?', await p6.locator('#fTurno').count(), '| campo do código de ativação?', await p6.locator('#fAtivar, #aCod').count());
-  await p6.fill('#eMat', cm.usuario.matricula); await p6.fill('#eSenha', 'senha-errada-1'); await p6.click('#fEntrar button');
+  await p6.fill('#eMat', cm.usuario.matricula); await p6.fill('#eSenha', 'senha-errada-1'); await p6.click('#fEntrar button:not([type=button])');
   await p6.waitForFunction(() => document.querySelector('#toast').textContent.includes('incorreta'), null, { timeout: 8000 });
   console.log('senha errada ->', await p6.textContent('#toast'));
-  await p6.fill('#eSenha', cm.senhaProvisoria); await p6.click('#fEntrar button');
+  await p6.fill('#eSenha', cm.senhaProvisoria); await p6.click('#fEntrar button:not([type=button])');
   await p6.waitForSelector('#fTrocarSenha', { timeout: 8000 });
   console.log('senha provisória -> troca obrigatória; módulos antes da troca:', await p6.locator('.modulo').count());
   await p6.fill('#tAtual', cm.senhaProvisoria); await p6.fill('#tNova', U.SENHA); await p6.fill('#tRepete', U.SENHA); await p6.click('#fTrocarSenha button:not([type=button])');
@@ -150,8 +150,8 @@ const U = require('./lib/usuarios');
   const c8 = await b.newContext(); const p8 = await c8.newPage(); await rota(p8);
   await p8.goto(amb.APP); await p8.waitForSelector('#fEntrar');
   const cb = await U.criar('Carlos Eduardo Lima');
-  for (let i = 0; i < 10; i++) { await p8.fill('#eMat', cb.usuario.matricula); await p8.fill('#eSenha', 'errada-numero-' + i); await p8.click('#fEntrar button'); await p8.waitForTimeout(250); }
-  await p8.fill('#eMat', cb.usuario.matricula); await p8.fill('#eSenha', cb.senhaProvisoria); await p8.click('#fEntrar button'); await p8.waitForTimeout(600);
+  for (let i = 0; i < 10; i++) { await p8.fill('#eMat', cb.usuario.matricula); await p8.fill('#eSenha', 'errada-numero-' + i); await p8.click('#fEntrar button:not([type=button])'); await p8.waitForTimeout(250); }
+  await p8.fill('#eMat', cb.usuario.matricula); await p8.fill('#eSenha', cb.senhaProvisoria); await p8.click('#fEntrar button:not([type=button])'); await p8.waitForTimeout(600);
   console.log('após 10 erros, senha CERTA ->', await p8.textContent('#toast'));
   assert.ok(/Muitas tentativas/.test(await p8.textContent('#toast')), 'depois de 10 erros nem a senha certa entra');
   // chave errada

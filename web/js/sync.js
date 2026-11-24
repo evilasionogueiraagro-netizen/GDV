@@ -185,8 +185,8 @@ const Sync = (() => {
   /* ---------- Módulos autorizados (definidos pela gerência no painel → Servidores) ----------
      O servidor devolve {veiculos, tf, pce, antigo} a cada sync; guardamos a última (meta "permissoes") para usar sem internet.
      Padrão: módulos liberados (aparelho que nunca sincronizou, ou versão antiga do servidor que não manda permissões);
-     "antigo" (Digitar do papel: registro/termo antigo e PDF escaneado) é o contrário: desligado até o servidor mandar antigo=1. */
-  const MODULOS = { veiculos: 'Fiscalização de Trânsito', tf: 'TF de Barreira', pce: 'PCE', antigo: 'Digitar do papel', escala: 'Escalas de plantão', educacao: 'Educação Sanitária' };
+     "antigo" (Gerenciar termos realizados: registro/termo antigo e PDF escaneado) é o contrário: desligado até o servidor mandar antigo=1. */
+  const MODULOS = { veiculos: 'Fiscalização de Trânsito', tf: 'TF de Barreira', pce: 'PCE', antigo: 'Gerenciar termos realizados', escala: 'Escalas de plantão', educacao: 'Educação Sanitária' };
   const { MODULO_DO_STORE, normPerm } = Envio;
   let PERM = normPerm(null);
   const permissoes = () => ({ ...PERM });
@@ -282,6 +282,10 @@ const Sync = (() => {
   const pceConsultar = doc => chamar({ action: 'pceConsultar', doc }, 15000);
   /** Busca de produtor por texto na planilha (nome, propriedade, código ou parte do CPF/CNPJ), com município opcional. */
   const pceBuscarTexto = (q, municipio) => chamar({ action: 'pceBuscarTexto', q, municipio: municipio || '' }, 20000);
+  /** Termos de Fiscalização ('termo') ou Cadastros ('cadastro') de TODOS os servidores, uma página por vez (filtros: q, municipio, de, ate, pular). Só online. */
+  const pceTermosBuscar = (tipo, filtros) => chamar({ action: 'pceTermosBuscar', tipo, ...(filtros || {}) }, 20000);
+  /** Um Termo/Cadastro completo (de qualquer servidor) com o produtor e a propriedade, para abrir, imprimir ou editar. */
+  const pceRegistroObter = (tipo, id) => chamar({ action: 'pceRegistroObter', tipo, id }, 20000);
   /** PCE em campo: propriedades e produtores do(s) município(s), para consultar sem internet (campo.js grava no aparelho). */
   const pceBaixarMunicipio = municipios => chamar({ action: 'pceBaixarMunicipio', municipios }, 90000);
 
@@ -610,5 +614,5 @@ const Sync = (() => {
 
   return { prepararFundo, envioAutomatico, encerramentosPendentes, emAndamento: () => rodando || !!corrida, prepararSaida, agendarEnvio, iniciar, sincronizar, testar, atualizarContagem, ativado, nome, usuario, situacao, entrar, trocarSenha, sair, retidos, pendentesMeus: Envio.pendentesMeus, marcarRevogado, consultar, convidarColega, parearTurno, turnosAbertos, entrarNoTurno, sairDoTurno, removerColega, podeTurnoNaBva, visiveis, turnoPapel, mesmoNome, recuperarTurnos, tfsDoTurno, escalaDados, escalaSalvar, escalaExcluir, escalaGerar, relEquipeLista, relEquipe, relEquipeSalvar, minhasEscalas, corrigirNumeroTurno, atualizarIndice, proximoNumero, emitirTF, lembrarUltimos, tfAndamento,
     permissoes, pode, carregarPermissoes, bloqueadosComPendentes, avisoSemPermissao, MODULOS,
-    pceProximoNumero, pceEmitir, pceConsultar, pceBuscarTexto, pceBaixarMunicipio, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, lembrarUltimosEducacao, educacaoProximoNumero, educacaoRegistrar, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
+    pceProximoNumero, pceEmitir, pceConsultar, pceBuscarTexto, pceTermosBuscar, pceRegistroObter, pceBaixarMunicipio, lembrarUltimosPce, pceDocNumero, pceDocRegistrar, lembrarUltimosDocPce, lembrarUltimosEducacao, educacaoProximoNumero, educacaoRegistrar, enviarArquivos, arquivosPendentes, unidadePce, onEstado: f => listeners.push(f), estado: () => estado, cfg };
 })();

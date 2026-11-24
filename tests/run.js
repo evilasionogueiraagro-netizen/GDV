@@ -41,7 +41,7 @@ const PESO = {
   invasao_test: 2, invasao_xss_test: 5, letra_turno_test: 1, login_campo_test: 7, login_painel_test: 7,
   manual_prints_test: 17, migra_db: 6, nomes_painel_test: 3, ordem_arquivos_test: 1, painel_test: 12,
   pareamento_test: 9, pce_antigo_test: 14, pce_banco_test: 3, pce_busca_test: 8, pce_cadastros_test: 7,
-  pce_campo_test: 8, pce_catalogo_test: 5, pce_citros_test: 5, pce_e2e: 8, pce_fichas_test: 55,
+  pce_campo_test: 8, pce_catalogo_test: 5, pce_citros_test: 5, pce_e2e: 8, pce_fichas_test: 55, pce_gerenciar_server_test: 1, pce_gerenciar_test: 6,
   pce_hospedeiros_test: 2, pce_laudo_test: 3, pce_legislacao_test: 3, pce_moniliase_test: 10,
   pce_naoassina_test: 4, pce_opcionais_test: 6, pce_server_test: 1, pce_visita_test: 5, pce_visitas_test: 1,
   permissoes_campo_test: 8, permissoes_test: 5, placa_tf_test: 9, plantao_test: 2, proprio_test: 3,

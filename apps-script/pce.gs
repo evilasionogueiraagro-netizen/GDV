@@ -134,7 +134,7 @@ function pceDocRegistrar_(req, usuario) {
     const doVisita = chaveVisita && todos.filter(function (x) { return x.id !== r.id && chaveTermoVisita_(x) === chaveVisita && Number(x.excluido) !== 1 && Number(x.cancelado) !== 1; })[0];
     if (doVisita) return { ok: true, emitido: false, termoDaVisita: { id: doVisita.id, numeroTxt: doVisita.numeroTxt, programaVisita: doVisita.programaVisita } };   // um Termo por programa da visita
     const agora = Date.now(), antes = todos.filter(function (x) { return x.id === r.id; })[0];
-    if (antes && ABAS_COM_DONO_.indexOf(D.aba) >= 0 && !mesmoDono_(antes.usuario, usuario)) throw new Error(MSG_REGISTRO_ALHEIO_);   // IDOR
+    if (antes && ABAS_COM_DONO_.indexOf(D.aba) >= 0 && !mesmoDono_(antes.usuario, usuario) && !podeGerenciarTermosPce_(usuario)) throw new Error(MSG_REGISTRO_ALHEIO_);   // IDOR (exceção: "Gerenciar termos realizados")
     r.emitidoEm = (antes && antes.emitidoEm) || agora;
     gravar_(D.aba, [r], agora, usuario);
     if (req.pessoa) gravar_('Pessoas', [req.pessoa], agora, usuario);
@@ -143,6 +143,98 @@ function pceDocRegistrar_(req, usuario) {
   } finally {
     lock.releaseLock();
   }
+}
+
+/* ---------- PCE: gerenciar termos realizados (ver e editar Termos e Cadastros de qualquer servidor) ----------
+ * Ver: quem tem o módulo PCE busca (pceTermosBuscar) e abre (pceRegistroObter) os Termos de Fiscalização e os Cadastros de TODOS os servidores;
+ * o sync continua mandando ao aparelho só os próprios (volume). Editar: quem tem a permissão "antigo" (rótulo "Gerenciar termos realizados")
+ * altera Termo e Cadastro de outro servidor; o autor continua o mesmo (coluna usuario) e a edição vai para HistoricoDeAlteracoes com o antes e o
+ * depois dos campos mudados (planilha.gs gravar_). Só o PCE: o TF de Barreira, o Termo de Colheita e os demais registros com dono não mudam. */
+const TERMOS_PCE_PAGINA_ = 30;
+
+/** Pode editar Termo/Cadastro do PCE de outro servidor: módulo PCE + permissão "antigo" ("Gerenciar termos realizados"). */
+function podeGerenciarTermosPce_(usuario) {
+  const perm = permissoesDe_(usuario);
+  return !!(perm.pce && perm.antigo);
+}
+
+/** Resumo de um Termo/Cadastro para a lista (sem CPF, endereço, fotos nem assinaturas). minha = é do login que pergunta. */
+function resumoRegistroPce_(tipo, r, usuario) {
+  const o = { id: r.id, numeroTxt: r.numeroTxt, nome: r.nome, data: r.data, hora: r.hora, municipio: r.municipio, servidor: r.servidor, autor: r.usuario,
+              minha: mesmoDono_(r.usuario, usuario) ? 1 : 0, registroAntigo: Number(r.registroAntigo) || 0 };
+  if (tipo === 'termo') {
+    const cs = lerJSONSeguro_(r.culturas, []);
+    o.programaVisita = r.programaVisita; o.visitaId = r.visitaId ? 1 : 0; o.cancelado = Number(r.cancelado) || 0;
+    o.culturas = (Array.isArray(cs) ? cs : []).map(function (c) { return c && c.cultura ? String(c.cultura) : ''; }).filter(Boolean).join(', ');
+  } else {
+    o.programa = r.programa; o.propriedade = r.propriedade; o.propriedadeId = r.propriedadeId;
+  }
+  return o;
+}
+
+/**
+ * Lista Termos de Fiscalização (tipo "termo") ou Cadastros (tipo "cadastro") de todos os servidores, do mais novo ao mais antigo. Filtros: texto
+ * (todas as palavras em nº, produtor, município, programa, cultura, propriedade ou servidor; ou parte do CPF/CNPJ), município e período (de/ate, AAAA-MM-DD).
+ * Páginas de 30 (pular = quantos já vieram). Só leitura; fica em AcessosADados (lido_).
+ */
+function pceTermosBuscar_(req, usuario) {
+  const tipo = tipoDocPce_(req.tipo || 'termo'), D = DOCS_PCE[tipo];
+  const q = String(req.q || '').trim().slice(0, 80), pal = normPub_(q).split(' ').filter(Boolean), d = digitos_(q);
+  const mun = normPub_(String(req.municipio || '').slice(0, 80));
+  const de = /^\d{4}-\d{2}-\d{2}$/.test(String(req.de || '')) ? String(req.de) : '', ate = /^\d{4}-\d{2}-\d{2}$/.test(String(req.ate || '')) ? String(req.ate) : '';
+  const pular = Math.max(0, Math.floor(Number(req.pular) || 0));
+  const itens = lerLeitura_(D.aba).filter(function (r) {
+    if (!r.id || Number(r.excluido) === 1) return false;
+    if (mun && normPub_(r.municipio) !== mun) return false;
+    if (de && String(r.data) < de) return false;
+    if (ate && String(r.data) > ate) return false;
+    if (!pal.length) return true;
+    const cs = tipo === 'termo' ? lerJSONSeguro_(r.culturas, []) : [];
+    const texto = normPub_([r.numeroTxt, r.nome, r.municipio, r.programaVisita, r.programa, r.propriedade, r.servidor,
+      (Array.isArray(cs) ? cs : []).map(function (c) { return c && c.cultura; }).join(' ')].join(' '));
+    return pal.every(function (w) { return texto.indexOf(w) >= 0; }) || (d.length >= 3 && digitos_(r.doc).indexOf(d) >= 0);
+  }).sort(function (a, b) { return String(b.data + ' ' + b.hora).localeCompare(String(a.data + ' ' + a.hora)) || (Number(b.criadoEm) || 0) - (Number(a.criadoEm) || 0); });
+  return { ok: true, tipo: tipo, total: itens.length, pular: pular, itens: itens.slice(pular, pular + TERMOS_PCE_PAGINA_).map(function (r) { return resumoRegistroPce_(tipo, r, usuario); }),
+           podeEditar: podeGerenciarTermosPce_(usuario) ? 1 : 0 };
+}
+
+/**
+ * O Termo/Cadastro completo (como o aparelho guarda), com o produtor e a propriedade, para abrir, imprimir ou editar o de outro servidor.
+ * `registro.usuario` é o autor. Fotos e assinaturas ficam no Drive: o aparelho recebe só as referências.
+ */
+function pceRegistroObter_(req, usuario) {
+  const tipo = tipoDocPce_(req.tipo), D = DOCS_PCE[tipo], id = String(req.id || '').slice(0, 64);
+  if (!id) throw new Error('Informe o registro.');
+  const r = lerLeitura_(D.aba).filter(function (x) { return x.id === id && Number(x.excluido) !== 1; })[0];
+  if (!r) throw new Error('Registro não encontrado.');
+  const sem = function (o) { const c = {}; Object.keys(o).forEach(function (k) { if (k !== 'srv_ts' && k !== '_linha') c[k] = o[k]; }); return c; };
+  const prop = r.propriedadeId ? lerLeitura_('Propriedades').filter(function (p) { return p.id === r.propriedadeId; })[0] : null;
+  const pes = digitos_(r.doc) && docValido_(digitos_(r.doc)) ? lerLeitura_('Pessoas').filter(function (p) { return p.id === digitos_(r.doc); })[0] : null;
+  const propriedade = prop ? sem(prop) : null;
+  if (propriedade) { delete propriedade.usuario; propriedade.frutos = frutosParaApp_(prop.frutos); }
+  const pessoa = pes ? sem(pes) : null;
+  if (pessoa) delete pessoa.usuario;
+  return { ok: true, tipo: tipo, registro: sem(r), propriedade: propriedade, pessoa: pessoa, podeEditar: podeGerenciarTermosPce_(usuario) ? 1 : 0 };
+}
+
+const AUDITORIA_PCE_CAMPOS_FORA_ = ['srv_ts', 'usuario', 'atualizadoEm'];   // mudam a cada gravação: não são "campo alterado"
+/**
+ * Edição de Termo/Cadastro do PCE feita por quem não é o autor: uma linha em HistoricoDeAlteracoes com quem alterou (usuarioId), quando (em),
+ * o autor (na ação) e o antes/depois só dos campos que mudaram (cada valor até 600 caracteres). Devolve o item ou null se nada mudou.
+ * `antes`/`depois`: linhas cruas da aba (mesma ordem de `cols`). O chamador grava (inserir_) dentro do lock.
+ */
+function auditoriaEdicaoPce_(nome, cols, antes, depois, autor, usuario, id, agora) {
+  const a = {}, b = {};
+  cols.forEach(function (c, i) {
+    if (AUDITORIA_PCE_CAMPOS_FORA_.indexOf(c) >= 0) return;
+    const x = String(antes[i] === null || antes[i] === undefined ? '' : antes[i]), y = String(depois[i] === null || depois[i] === undefined ? '' : depois[i]);
+    if (x === y) return;
+    a[c] = x.slice(0, 600); b[c] = y.slice(0, 600);
+  });
+  if (!Object.keys(a).length) return null;
+  return { id: uuid_(), em: agora, usuarioId: (USUARIO_ATUAL_ && USUARIO_ATUAL_.id) || textoAutor_(usuario),
+           acao: (nome === 'TermosPCE' ? 'editar Termo do PCE de outro servidor' : 'editar Cadastro do PCE de outro servidor') + ' (autor: ' + textoAutor_(autor) + ')',
+           tabela: nome, registroId: id, antes: JSON.stringify(a), depois: JSON.stringify(b) };
 }
 
 /** Cadastro do produtor (pessoa + propriedades) e quantos levantamentos/termos já existem para o CPF/CNPJ. */

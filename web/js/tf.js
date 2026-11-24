@@ -1,5 +1,5 @@
 // Termo de Fiscalização de Barreira (TF): lista, formulário, numeração, cadastro/reincidência e impressão em 2 vias.
-// TF antigo (digitado do papel, permissão "Digitar do papel"): mesmo formulário com o nº, a data e a hora do papel, o servidor que
+// TF antigo (digitado do papel, permissão "Gerenciar termos realizados"): mesmo formulário com o nº, a data e a hora do papel, o servidor que
 // fiscalizou digitado, fiscalizado opcional ("NÃO IDENTIFICADO") e o PDF escaneado no lugar de fotos/assinaturas; precisa de internet.
 // Auto de infração (caixa "Auto de infração", em qualquer procedimento): cartão próprio no formulário, nº numa sequência própria por
 // barreira/ano (conferida pela planilha ao gerar; sem internet, provisório) e PDF em 3 vias (documentos/auto.html, Docs.auto).
@@ -375,7 +375,7 @@ const TFUI = (() => {
     if (!Sync.ativado() || localStorage.getItem('gdv.revogado')) return view(avisoAtivacao());
     prefill = prefill || {}; clearTimeout(tRasc);
     const antigo = !!prefill.antigo;
-    if (antigo && !(Sync.pode('antigo') && Sync.pode('tf'))) { toast('Sem autorização para digitar TFs do papel. Fale com a gerência (painel → Servidores: TF e Digitar do papel).', true); return go('tf'); }
+    if (antigo && !(Sync.pode('antigo') && Sync.pode('tf'))) { toast('Sem autorização para digitar TFs do papel. Fale com a gerência (painel → Servidores: TF e Gerenciar termos realizados).', true); return go('tf'); }
     const bars = await barreiras();
     if (!bars.length) { view('<div class="card aviso">A lista de barreiras ainda não foi carregada. Conecte-se à internet e aguarde a sincronização.</div>'); Sync.sincronizar(); return; }
     let D = vazio(); S = { hist: { doc: null, placa: null }, tpl: { constatacao: '', enquadramento: '' }, turnoId: '', veiculoId: '', rid: Store.novoId(),

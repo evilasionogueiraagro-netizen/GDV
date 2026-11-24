@@ -15,7 +15,7 @@ const h16 = t => crypto.createHash('sha256').update(t, 'utf8').digest('hex').sli
 
 (async () => {
   const b = await amb.lancar();
-  const credencial = async nome => { const r = await U.fiscal(nome, { permissoes: U.lista({ veiculos: 1, tf: 1, pce: 1 }) }); return { token: r.token, nome, uid: r.usuario.id }; };   // sem "Digitar do papel"
+  const credencial = async nome => { const r = await U.fiscal(nome, { permissoes: U.lista({ veiculos: 1, tf: 1, pce: 1 }) }); return { token: r.token, nome, uid: r.usuario.id }; };   // sem "Gerenciar termos realizados"
   const aparelho = async ({ token, nome }) => {
     const c = await b.newContext({ viewport: { width: 400, height: 900 } });
     await c.addInitScript(([t, n]) => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } } catch (e) {} }, [token, nome]);
@@ -211,7 +211,7 @@ print(json.dumps([[('Testemunha' in pg.extract_text()), ('Anexo fotogr' in pg.ex
   r1 = await post({ action: 'tfIndiceReincidencia', key: fB.token }); ok(!r1.ok && r1.semPermissao === 'tf', 'tfIndiceReincidencia: sem TF e sem veículos, recusado');
   await U.permissoes(fB.uid, U.lista({ veiculos: 1, tf: 0, pce: 1 }));
   r1 = await post({ action: 'arquivoEnviar', key: fA.token, arquivo: { id: crypto.randomUUID(), dono: 'tfs', donoId: 'x1', tipo: 'documento', papel: '', mime: 'application/pdf' }, base64: Buffer.from('%PDF-1.4 x').toString('base64') });
-  ok(!r1.ok && r1.semPermissao === 'antigo', 'PDF de TF só com "Digitar do papel" (TF do papel): ' + r1.erro);
+  ok(!r1.ok && r1.semPermissao === 'antigo', 'PDF de TF só com "Gerenciar termos realizados" (TF do papel): ' + r1.erro);
   let bloqueou = 0;
   for (let i = 0; i < 70 && !bloqueou; i++) { const r = await post({ action: 'tfVerificar', id: 'nao-existe-' + i }); if (!r.ok && /Muitas consultas/.test(r.erro)) bloqueou = i + 1; }
   ok(bloqueou >= 29 && bloqueou <= 61, `tfVerificar: depois de 30 consultas inválidas no minuto (somando a do item E), recusa ("Muitas consultas") — bloqueou na ${bloqueou}ª`);

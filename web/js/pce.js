@@ -410,7 +410,7 @@ const PCEUI = (() => {
   function fechar(F) { if (F) F.vivo = false; clearTimeout(tRasc); }
 
   /* ================= Termo de Colheita de Amostras ================= */
-  // Nasce na visita (quando há coleta de amostra): numerarColheita. Aqui se digita o do papel (permissão "Digitar do papel").
+  // Nasce na visita (quando há coleta de amostra): numerarColheita. Aqui se digita o do papel (permissão "Gerenciar termos realizados").
   const termoVazioAntigo = (s, m = {}) => ({ unidade: m.unidade || '', municipio: m.municipio || '', doc: '', nome: '', endereco: '', lat: '', lon: '', precisao: '',
     data: m.data || '', hora: '', cultura: '', quantidade: '', analise: '', partes: [], descricao: '', testemunha1Nome: '', testemunha1Doc: '', testemunha2Nome: '', testemunha2Doc: '',
     local: m.local || '', numPapel: '', coordTxt: '', sNome: m.sNome || '', sCargo: m.sCargo || '', sMatricula: m.sMatricula || '', sLotacao: m.sLotacao || '' });
@@ -688,7 +688,7 @@ const PCEUI = (() => {
     if (bloqueado()) return view(avisoAtivacao());
     const mostrar = tela();
     const s = await exigirServidor('pcetermos', null, true); if (!s || !mostrar.viva()) return;
-    fechar(T);
+    fechar(T); await limparDeOutros(); G = null;
     const podeAnt = podeAntigo(), dig = soDigitador(s) && podeAnt, digSemAut = soDigitador(s) && !podeAnt;
     const fis = (await Sync.visiveis('termosPce', await Store.todos('termosPce'))).filter(x => !Number(x.excluido)), col = (await Sync.visiveis('colheitas', await Store.todos('colheitas'))).filter(x => !x.excluido);   // só os do login atual
     // O Termo de Colheita nasce da visita: aparece dentro do Termo de Fiscalização da mesma visita (o do programa da cultura, senão o primeiro).
@@ -703,14 +703,22 @@ const PCEUI = (() => {
     const texto = t => semAcento([t.numeroTxt, t.nome, t.municipio, t.cultura, t.programaVisita, t.propriedade].join(' ')).toUpperCase();
     if (!mostrar.viva()) return;
     mostrar(`${digSemAut ? avisoSemAntigoHTML() : ''}
-      ${podeAnt ? `<div class="card pce-papel"><h3>${icone('documento')} Digitar do papel</h3><div class="duas">
+      ${podeAnt ? `<div class="card pce-papel"><h3>${icone('documento')} Gerenciar termos realizados</h3><div class="duas">
         <button class="botao ${dig ? '' : 'sec'}" data-mon="novo" data-tipo="termo" data-antigo="1" id="mon-novo-papel">Termo de Fiscalização</button>
         <button class="botao ${dig ? '' : 'sec'}" data-pce="novotermoantigo" id="pce-novotermoantigo">Termo de Colheita</button></div></div>` : ''}
       ${Sync.pode('pce') && !soDigitador(s) ? `<button class="botao" data-v="pcenovotermo" id="pce-novotermo-ir">${icone('mais')} Novo termo</button>` : ''}
       <button class="botao sec" data-v="pcerel" id="mon-ir-rel">${icone('resumo')} Relatório de atividades</button>
       <div class="card"><label>Pesquisar (nº, produtor, CPF/CNPJ, município, cultura ou programa)<input id="pceTQ" autocomplete="off"></label>
         <label>Mostrar<select id="pceTTipo"><option value="">Todos os Termos de Fiscalização</option><option value="amostra">Termos de Fiscalização com amostra coletada</option></select></label></div>
-      <div id="pceTItens"></div>`);
+      <div id="pceTItens"></div>
+      ${Sync.pode('pce') ? `<div class="card" id="pce-todos"><h3>${icone('formulario')} Termos de todos os servidores</h3>
+        <p class="dica" style="text-align:left">Consulta na planilha (precisa de internet): os Termos e Cadastros de qualquer servidor.${podeAnt ? ' Com “Gerenciar termos realizados” você também edita; a alteração fica registrada com o seu nome.' : ''}</p>
+        <label>Mostrar<select id="pceGTipo"><option value="termo">Termos de Fiscalização</option><option value="cadastro">Cadastros de imóvel (fichas)</option></select></label>
+        <label>Pesquisar (nº, produtor, CPF/CNPJ, cultura, programa ou servidor)<input id="pceGQ" autocomplete="off"></label>
+        <label>Município<select id="pceGMun">${opts(P.municipios, '', 'Todos')}</select></label>
+        <div class="duas"><label>De<input id="pceGDe" type="date"></label><label>Até<input id="pceGAte" type="date"></label></div>
+        <button class="botao sec" type="button" id="pce-g-buscar" data-pce="gbuscar">${icone('formulario')} Buscar na planilha</button>
+        <div id="pceGItens" aria-live="polite"></div></div>` : ''}`);
     const desenhar = () => {
       const q = semAcento($('#pceTQ').value.trim()).toUpperCase(), qd = digitos(q), soAmostra = $('#pceTTipo').value === 'amostra';
       const casa = t => texto(t).includes(q) || (qd && digitos(t.doc).includes(qd));
@@ -739,6 +747,80 @@ const PCEUI = (() => {
       ${situacaoTermo(t, podeAnt)}
       <div class="botoes"><button class="editar" data-pce="imprimirtermo" data-id="${esc(t.id)}">PDF</button><button class="tfbtn" data-pce="enviartermo" data-id="${esc(t.id)}">Enviar</button>
         ${t.cancelado ? '' : `<button class="excluir" data-pce="cancelartermo" data-id="${esc(t.id)}">Cancelar</button>`}</div></div>`;
+  }
+
+  /* ================= Termos de todos os servidores (sob demanda, com internet) =================
+     O sync traz ao aparelho só os Termos do próprio servidor (volume). Os dos outros vêm daqui: a planilha lista (pceTermosBuscar) e, ao abrir,
+     o registro entra no aparelho com deOutro = 1 (fora das listas do login; sai quando já foi enviado, na próxima vez que a lista abre).
+     Editar o de outro servidor exige "Gerenciar termos realizados": o servidor confere de novo e grava a alteração com o antes e o depois. */
+  let G = null;
+  const gStore = tipo => (tipo === 'cadastro' ? 'cadastrosPce' : 'termosPce');
+  /** Cópias de registros de outros servidores já enviadas (ou só consultadas) saem do aparelho; o que está pendente fica até subir. */
+  async function limparDeOutros() {
+    try {
+      for (const st of ['termosPce', 'cadastrosPce']) {
+        const ids = (await Store.todos(st)).filter(r => r.deOutro && !r.pendente).map(r => r.id);
+        if (ids.length) await Store.apagar(st, ids);
+      }
+    } catch (e) { /* sem banco: nada a limpar */ }
+  }
+  /** Busca o registro completo na planilha e o guarda no aparelho (com o produtor e a propriedade, se faltarem). Devolve o registro local. */
+  async function trazerDeOutro(tipo, id) {
+    const st = gStore(tipo), local = await Store.obter(st, id);
+    if (local && (!local.deOutro || local.pendente)) return local;               // já é do aparelho (próprio) ou tem edição por enviar
+    const r = await Sync.pceRegistroObter(tipo, id);
+    if (r.propriedade && !(await Store.obter('propriedades', r.propriedade.id))) await Store.gravar('propriedades', { ...r.propriedade, pendente: 0 });
+    if (r.pessoa && !(await Store.obter('pessoas', r.pessoa.id))) await Store.gravar('pessoas', { ...r.pessoa, pendente: 0 });
+    const rec = { ...r.registro, pendente: 0, deOutro: 1 };
+    await Store.gravar(st, rec);
+    return rec;
+  }
+  function gItemHTML(i, tipo, podeEd) {
+    const termo = tipo === 'termo', papel = Number(i.registroAntigo) === 1 && !Number(i.visitaId);
+    const info = termo ? `<span class="mon-prog">Fiscalização</span> ${esc(i.programaVisita || (papel ? 'do papel' : ''))}${i.culturas ? ' · ' + esc(i.culturas) : ''} · ${esc(i.municipio)}`
+      : `<span class="mon-prog">Cadastro</span> ${esc(i.programa)} · ${esc(i.propriedade)} · ${esc(i.municipio)}`;
+    return `<div class="item pce-termo pce-g-item" data-gid="${esc(i.id)}"><div class="topo"><div><div class="placa">${esc(i.numeroTxt)}</div><div class="tipo">${esc(i.nome)}</div></div><div class="hora">${esc(dBR(i.data))}</div></div>
+      <div class="info">${info}</div><div class="info">Autor: ${esc(i.autor || i.servidor || '—')}${Number(i.minha) ? ' (você)' : ''}</div>
+      ${Number(i.cancelado) ? `<div class="info pend">${icone('proibido')} CANCELADO</div>` : ''}
+      <div class="botoes"><button class="editar" data-pce="gpdf" data-tipo="${tipo}" data-id="${esc(i.id)}">PDF</button>
+        ${podeEd && (!termo || papel) ? `<button class="editar" data-pce="gabrir" data-tipo="${tipo}" data-id="${esc(i.id)}">Abrir e editar</button>` : ''}
+        ${podeEd && termo && !Number(i.cancelado) ? `<button class="excluir" data-pce="gcancelar" data-id="${esc(i.id)}">Cancelar</button>` : ''}</div></div>`;
+  }
+  function gDesenhar() {
+    const el = $('#pceGItens'); if (!el || !G) return;
+    el.innerHTML = !G.itens.length ? '<div class="vazio">Nada encontrado na planilha.</div>'
+      : `<p class="dica" style="text-align:left">${G.itens.length} de ${G.total}</p>${G.itens.map(i => gItemHTML(i, G.tipo, G.podeEditar)).join('')}
+        ${G.itens.length < G.total ? `<button class="botao sec" type="button" id="pce-g-mais" data-pce="gmais">Mostrar mais</button>` : ''}`;
+  }
+  async function gBuscar(mais) {
+    const el = $('#pceGItens'); if (!el) return;
+    if (!navigator.onLine) { el.innerHTML = `<div class="tf-novo">${icone('alerta')} Sem internet: a consulta aos Termos dos outros servidores precisa de conexão. Os seus continuam na lista acima.</div>`; return; }
+    const tipo = $('#pceGTipo').value, f = { q: $('#pceGQ').value.trim(), municipio: $('#pceGMun').value, de: $('#pceGDe').value, ate: $('#pceGAte').value };
+    const antes = mais && G && G.tipo === tipo ? G.itens : [], btn = $('#pce-g-buscar'); btn.disabled = true;
+    try {
+      const r = await Sync.pceTermosBuscar(tipo, { ...f, pular: antes.length });
+      G = { tipo, total: Number(r.total) || 0, itens: antes.concat(r.itens || []), podeEditar: Number(r.podeEditar) === 1 && podeAntigo() };
+      gDesenhar();
+    } catch (e) { el.innerHTML = `<div class="tf-alerta">${icone('alerta')} ${esc(e.message || e)}</div>`; }
+    finally { if (btn.isConnected) btn.disabled = false; }
+  }
+  async function gAcao(a, tipo, id) {
+    if (a === 'gpdf') {
+      await trazerDeOutro(tipo, id);
+      return tipo === 'cadastro' ? PCECads.imprimirFicha(id) : PCEVisita.imprimir('termo', id);
+    }
+    if (!podeAntigo()) return toast(SEM_ANTIGO, true);
+    const rec = await trazerDeOutro(tipo, id);
+    if (a === 'gcancelar') {
+      const motivo = prompt('Motivo do cancelamento (o número do termo continua usado):'); if (motivo == null) return;
+      await Store.salvar('termosPce', { ...rec, cancelado: 1, motivoCancel: motivo.trim().slice(0, 300) });
+      Sync.sincronizar(); toast('Termo cancelado. A alteração fica registrada com o seu nome.');
+      if (G) G.itens = G.itens.map(i => (i.id === id ? { ...i, cancelado: 1 } : i)); gDesenhar(); return;
+    }
+    if (tipo === 'termo') return go('pcetf', id);
+    const dados = lerJSON(rec.dados, {});
+    if (!dados.fichaNova) return toast('Cadastro antigo ou do papel: só consulta e PDF.', true);
+    go('pceficha', { propId: rec.propriedadeId, modelo: rec.programa || 'moniliase', id });
   }
 
   /* ================= Levantamento antigo (só leitura) ================= */
@@ -867,6 +949,9 @@ const PCEUI = (() => {
         const t = await Store.obter('colheitas', id); await Store.salvar('colheitas', { ...t, cancelado: 1, motivoCancel: motivo.trim().slice(0, 300) });
         Sync.sincronizar(); toast('Termo cancelado.'); termos();
       }
+      else if (a === 'gbuscar') await gBuscar(false);
+      else if (a === 'gmais') await gBuscar(true);
+      else if (a === 'gpdf' || a === 'gabrir' || a === 'gcancelar') await gAcao(a, el.dataset.tipo || 'termo', id);
       else if (!F) return;
       else if (a === 'delfoto') await removerFoto(F, id, '#pce-t-fotos-prev');
       else if (a === 'deldoc') await removerDoc(F, id, '#pce-t-pdfs-lista');
@@ -882,7 +967,7 @@ const PCEUI = (() => {
     } catch (err) { toast(err.message || String(err), true); }
   });
 
-  return { termos, termo, pronto, servidor, status, verLev, textoOficial, lerCoordenadas, lerNumeroPapel, partesDoMaterial, numerarColheita, imprimirColheita,
+  return { termos, termo, pronto, servidor, status, limparDeOutros, verLev, textoOficial, lerCoordenadas, lerNumeroPapel, partesDoMaterial, numerarColheita, imprimirColheita,
     // usados pelo pce-visita.js, pce-cadastros.js e campo.js
     bloqueado, docOk, cnpjOk, conferirDoc, fmtDoc, validarCoord, gms, servidorAtual, servidorOk, soDigitador, podeAntigo, exigirServidor, dadosServidor, servAntigoHTML, servidorDigitado,
     cargoValor, lembrarServidor, completarServidor, servidoresLembrados, dataHoraPassadaOk, montarPessoa, opts, SEM_ANTIGO,

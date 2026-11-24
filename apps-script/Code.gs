@@ -293,6 +293,8 @@ function atender_(e) {
     if (req.action === 'pceEmitir') return json_(pceEmitir_(req, usuario));
     if (req.action === 'pceConsultar') return json_(lido_(req, pceConsultar_(req, usuario)));
     if (req.action === 'pceBuscarTexto') return json_(lido_(req, pceBuscarTexto_(req, usuario)));
+    if (req.action === 'pceTermosBuscar') return json_(lido_(req, pceTermosBuscar_(req, usuario)));      // Termos/Cadastros de todos os servidores (pce.gs)
+    if (req.action === 'pceRegistroObter') return json_(lido_(req, pceRegistroObter_(req, usuario)));
     if (req.action === 'educacaoProximoNumero') return json_(educacaoProximoNumero_(req));
     if (req.action === 'educacaoRegistrar') return json_(educacaoRegistrar_(req, usuario));
     if (req.action === 'pceDocNumero') return json_(pceDocNumero_(req));

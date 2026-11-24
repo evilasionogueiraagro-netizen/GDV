@@ -1,9 +1,9 @@
 const amb = require('./lib/amb');
 const U = require('./lib/usuarios');
-// Turno antigo (Termo do papel): com "Digitar do papel", o fiscal digita no app o nº, a data, o local, os fiscais, o horário e os totais do
+// Turno antigo (Termo do papel): com "Gerenciar termos realizados", o fiscal digita no app o nº, a data, o local, os fiscais, o horário e os totais do
 // Termo (veículos fiscalizados e pessoas orientadas) e anexa o PDF. O servidor grava o turno encerrado (registroAntigo, pdfs), um veículo sem
 // placa por veículo do Termo e as pessoas em pessoasEducacao; a letra segue a ordem do nº; conta no painel. PDF sobe ao Drive (aba Arquivos).
-// Sem "Digitar do papel" ou com data futura: recusado. Dados fictícios.
+// Sem "Gerenciar termos realizados" ou com data futura: recusado. Dados fictícios.
 const { API, APP } = amb;
 const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 const get = p => fetch(API + p).then(r => r.json());
@@ -68,7 +68,7 @@ const ontem = diaM(Date.now() - 864e5), ANO = ontem.slice(0, 4);
     ok(!r.ok && /nome completo/.test(r.erro), 'fiscal sem sobrenome: recusado', r.erro);
     const G = await U.fiscal('Ciclano Ficticio Teste', { permissoes: ['campo', 'fiscalizacaoDeTransito'] });
     r = await post({ action: 'turnoPapelRegistrar', key: G.token, turno: base, veiculos: 1, pessoas: 1 });
-    ok(!r.ok && r.semPermissao === 'antigo', 'sem "Digitar do papel": recusado', r.erro);
+    ok(!r.ok && r.semPermissao === 'antigo', 'sem "Gerenciar termos realizados": recusado', r.erro);
     r = await post({ action: 'turnoPapelRegistrar', key: F.token, turno: base, veiculos: 2, pessoas: 3 });
     const r2 = await post({ action: 'turnoPapelRegistrar', key: F.token, turno: base, veiculos: 2, pessoas: 3 });
     ok(r.ok && r2.ok && r2.existente && (await aba('Veiculos')).filter(v => v.turnoId === base.id).length === 2, 'reenvio com o mesmo id não duplica turno nem veículos');

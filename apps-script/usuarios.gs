@@ -167,7 +167,7 @@ function permissoesValidas_(lista) {
   });
   if (!v.length) throw new Error('Marque pelo menos uma permissão. Para tirar todo o acesso, desative a conta.');
   if (v.indexOf('digitarDoPapel') >= 0 && v.indexOf('pce') < 0) {
-    throw new Error('“Digitar do papel” só vale com o módulo PCE: marque também o PCE (ou desmarque “Digitar do papel”).');
+    throw new Error('“Gerenciar termos realizados” só vale com o módulo PCE: marque também o PCE (ou desmarque “Gerenciar termos realizados”).');
   }
   return PERMISSOES_USUARIO_.filter(function (p) { return v.indexOf(p) >= 0; });
 }

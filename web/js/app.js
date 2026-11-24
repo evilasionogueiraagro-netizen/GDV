@@ -597,7 +597,7 @@ function novoTurno() {
 
 /* ---------- Turno antigo (digitar o Termo do papel) ----------
    Termo de Fiscalização do turno feito no papel: nº, data, local, fiscais, horário e os totais (veículos fiscalizados e pessoas
-   orientadas), com o PDF escaneado. Só com internet e com "Digitar do papel"; o servidor grava o turno encerrado (turnoPapelRegistrar). */
+   orientadas), com o PDF escaneado. Só com internet e com "Gerenciar termos realizados"; o servidor grava o turno encerrado (turnoPapelRegistrar). */
 let PAPEL_PDFS = [];
 function turnopapel() {
   if (!Sync.pode('antigo')) { toast('Sem autorização para digitar registros antigos (do papel). Fale com a gerência.', true); return go('home'); }

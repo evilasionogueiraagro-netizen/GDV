@@ -1826,7 +1826,7 @@ const Painel = (() => {
 
   return {
     registrarAba, irPara, kpis, grafico, matriz, tabela, mapa, alertas, secao, grade, cartao, vazio, el, esc, fmt, auditarNumeracao,
-    contar, porDia, topN, porMunicipio, municipioDe, municipioNome, parseProdutos, pragasTexto, csv: csvBaixar, csvTexto, norm, lerJSON, alertasGerais, seloSituacao,
+    contar, porDia, topN, porMunicipio, municipioDe, municipioNome, parseProdutos, nomesCanonicos, pragasTexto, csv: csvBaixar, csvTexto, norm, lerJSON, alertasGerais, seloSituacao,
     get paleta() { return paleta(); }, get dados() { return S.dados; }, get filtros() { return S.filtros; }, get municipios() { return MUN.map(m => m.nome); },
     agora, recarregar: () => carregar(), DIAS_SEMANA, PROC, somaDias, diasEntre, isoDia,
     TIPOS: (typeof CONFIG !== 'undefined' && CONFIG.tipos) || {},

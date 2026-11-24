@@ -26,8 +26,8 @@ const linhas = async aba => (await get('/__aba?nome=' + aba)) || [];
   const sync = async () => { await a.evaluate(() => Sync.sincronizar()); await a.waitForFunction(() => ['ok', 'idle', 'erro'].includes(Sync.estado().tipo), null, { timeout: 15000 }); await a.waitForTimeout(400); };
   const perm = (v, t, pc) => U.permissoes(C.usuario.id, U.lista({ veiculos: v, tf: t, pce: pc }));
   await a.goto(APP); await a.waitForSelector('.modulo'); await sync();
-  ok(await a.locator('.modulo[data-v]').count() === 3, 'tudo liberado: três módulos no menu');
-  ok(JSON.stringify(await a.evaluate(() => Store.meta('permissoes'))) === '{"veiculos":1,"tf":1,"pce":1,"antigo":0,"escala":0,"educacao":0}', 'permissões guardadas no aparelho (meta "permissoes")');
+  ok(await a.locator('.modulo[data-v]').count() === 4, 'tudo liberado: três módulos e a Educação Sanitária no menu');
+  ok(JSON.stringify(await a.evaluate(() => Store.meta('permissoes'))) === '{"veiculos":1,"tf":1,"pce":1,"antigo":0,"escala":0,"educacao":1}', 'permissões guardadas no aparelho (meta "permissoes")');
   ok(await a.evaluate(() => Sync.pode('antigo') === false), 'app: Digitar do papel desligado por padrão');
   // turno + veículo
   await a.click('.modulo[data-v=home]'); await a.waitForSelector('#fTurno');
@@ -45,7 +45,7 @@ const linhas = async aba => (await get('/__aba?nome=' + aba)) || [];
   ok(await a.locator('[data-go=tfnovo]').count() === 0, 'tf=0: "Lavrar TF neste turno" some');
   await a.screenshot({ path: amb.saida('permissoes_app_turno_semtf.png'), fullPage: true });
   await a.evaluate(() => go('tfnovo')); await a.waitForSelector('.modulo'); await a.waitForTimeout(300);
-  ok(await a.locator('.modulo').count() === 2 && /Sem autorização/.test(await a.textContent('#toast')), 'abrir o TF por outro caminho: volta para os módulos com aviso');
+  ok(await a.locator('.modulo').count() === 3 && /Sem autorização/.test(await a.textContent('#toast')), 'abrir o TF por outro caminho: volta para os módulos com aviso');
   ok(await a.locator('.modulo[data-v=tf]').count() === 0 && await a.locator('.modulo.bloqueado, [data-bloq]').count() === 0, 'o módulo TF some do menu (sem cartão cinza)');
   ok(!(/Lavrar TF/.test(await a.textContent('#view'))), 'dica de "Lavrar TF" some da tela de módulos');
   // dentro do Controle de veículos, sem internet: registra; gerência tira o módulo; ao sincronizar volta para os módulos sem perder nada
@@ -77,12 +77,12 @@ const linhas = async aba => (await get('/__aba?nome=' + aba)) || [];
   // sem internet, usa a última permissão conhecida
   await a.route(amb.API + '/**', rt => rt.abort());
   await a.reload(); await a.waitForSelector('.modulo');
-  ok(await a.locator('.modulo[data-v]').count() === 1 && await a.locator('.modulo[data-v=pce]').count() === 1, 'recarregado sem internet: usa a última permissão conhecida (só o PCE no menu)');
+  ok(await a.locator('.modulo[data-v]').count() === 2 && await a.locator('.modulo[data-v=pce]').count() === 1 && await a.locator('.modulo[data-v=educacao]').count() === 1, 'recarregado sem internet: usa a última permissão conhecida (só o PCE e a Educação Sanitária no menu)');
   await a.unroute(amb.API + '/**');
   // gerência libera de novo: o que estava guardado sobe
   await perm(1, 1, 1); await sync();
-  await a.waitForFunction(() => document.querySelectorAll('.modulo[data-v]').length === 3 && !document.querySelector('#avisoPerm'), null, { timeout: 10000 });
-  ok(true, 'liberado de novo: três módulos no menu, aviso some');
+  await a.waitForFunction(() => document.querySelectorAll('.modulo[data-v]').length === 4 && !document.querySelector('#avisoPerm'), null, { timeout: 10000 });
+  ok(true, 'liberado de novo: três módulos e a Educação Sanitária no menu, aviso some');
   loc = await a.evaluate(async () => (await Store.todos('veiculos')).filter(v => ['AAA1B22', 'OFF1L23'].includes(v.placa)).map(v => v.placa + ':' + v.pendente).sort().join());
   ok(loc === 'AAA1B22:0,OFF1L23:0', 'registro guardado foi enviado (não pendente)', loc);
   ok((await linhas('Veiculos')).some(r => r[3] === 'OFF1L23'), 'e está na planilha');

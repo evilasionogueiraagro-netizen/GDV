@@ -11,12 +11,14 @@ const ANO = new Date().getFullYear();
   const pA = await A.aparelho(b, 'Pessoa Ficticia Alfa');
 
   console.log('0) módulo PCE: menu Módulos | Produtores | Termos');
+  await pA.waitForSelector('.modulo[data-v=educacao]');
   const tit = await pA.locator('.modulo b').allTextContents();
-  ok(tit.length === 3 && tit[2] === 'PCE', 'três módulos no hub: ' + tit.join(' | '));
+  ok(tit.length === 4 && tit[2] === 'PCE' && tit[3] === 'Educação Sanitária', 'quatro módulos no hub: ' + tit.join(' | '));
   ok(/produtores, visitas e Termos de Fiscalização e de Colheita/.test(await pA.textContent('.modulo[data-v=pce]')), 'cartão do PCE descreve o novo fluxo');
   await pA.click('.modulo[data-v=pce]'); await pA.waitForSelector('#pceServForm');
   ok(await pA.locator('#nav button').allTextContents().then(t => t.map(x => x.trim()).join('|')) === 'Módulos|Produtores|Termos', 'menu do módulo: Módulos | Produtores | Termos');
-  await pA.click('#pce-s-salvar'); await pA.waitForTimeout(200); ok(/cargo/i.test(await pA.textContent('#toast')) && await pA.locator('#pceServForm').count() === 1, 'sem cargo não salva a identificação');
+  await pA.click('#pce-s-salvar'); await pA.waitForFunction(() => /cargo/i.test((document.querySelector('#toast') || {}).textContent || ''), null, { timeout: 5000 });
+  ok(/cargo/i.test(await pA.textContent('#toast')) && await pA.locator('#pceServForm').count() === 1, 'sem cargo não salva a identificação');
   await A.identificar(pA);
   ok(/Pessoa Ficticia Alfa/.test(await pA.textContent('.pce-serv')) && await pA.locator('#campo-novo').count() === 1 && await pA.locator('#pce-campo').count() === 1, 'lista de produtores com busca, "Novo produtor" e "Baixar dados para o campo"');
 
@@ -98,7 +100,7 @@ const ANO = new Date().getFullYear();
 
   console.log('5) dois aparelhos sem internet: número repetido vira conflito ao sincronizar');
   const pB = await A.aparelho(b, 'Pessoa Ficticia Beta');
-  await A.identificar(pB); await pB.evaluate(() => Sync.sincronizar()); await pB.waitForTimeout(800);
+  await A.identificar(pB); await A.sync(pB);
   await pB.fill('#campoQ', '52998224725'); await pB.waitForSelector('#campoSrv [data-campo=trazer]'); await pB.click('#campoSrv [data-campo=trazer]'); await pB.waitForSelector('#pce-produtor');
   ok(await pB.locator('.pce-frutos li').count() === 3, 'segundo aparelho consulta o servidor e recebe produtor, propriedade e frutos');
   await pB.ctx.setOffline(true); await pB.evaluate(() => window.dispatchEvent(new Event('offline')));
@@ -117,7 +119,8 @@ const ANO = new Date().getFullYear();
 
   console.log('6) cancelar Termo (mantém o número) e rascunho automático da visita');
   await pA.evaluate(() => go('pcetermos')); await pA.waitForSelector('#pceTItens .item');
-  await pA.locator('#pceTItens .item', { hasText: `002.${ANO}.MANAUS` }).locator('[data-mon=cancelar]').click(); await pA.waitForTimeout(500);
+  await pA.locator('#pceTItens .item', { hasText: `002.${ANO}.MANAUS` }).locator('[data-mon=cancelar]').click();
+  await amb.esperar(pA, num => Store.todos('termosPce').then(l => l.some(t => t.numeroTxt === num && Number(t.cancelado) === 1)), `002.${ANO}.MANAUS`, 5000);
   await A.sync(pA);
   ok(/CANCELADO: digitação errada/.test(await pA.textContent('#pceTItens')), 'Termo cancelado aparece com o motivo');
   const canc = (await A.aba('TermosPCE')).find(t => t.numeroTxt === `002.${ANO}.MANAUS`);
@@ -125,7 +128,8 @@ const ANO = new Date().getFullYear();
   await A.abrirProdutor(pA, '52998224725');
   await pA.locator('#pce-novavisita').first().click(); await pA.waitForSelector('#pceVisitaForm');
   await pA.locator('label.vi-fruto', { hasText: 'Cacau' }).locator('input').check(); await pA.click('#vi-continuar'); await pA.waitForSelector('.pce-pr');
-  await pA.locator('.pce-pr[data-nome="Monilíase do Cacaueiro"] .pce-res-suspeita').click(); await pA.waitForTimeout(900);
+  await pA.locator('.pce-pr[data-nome="Monilíase do Cacaueiro"] .pce-res-suspeita').click();
+  await amb.esperar(pA, () => Store.meta('pceVisitaRascunho').then(r => !!r && r.passo === 2 && Object.values(r.F || {}).some(f => Object.values(f.pragas || {}).some(x => x && x.resultado === 'suspeita'))), null, 5000);
   await pA.reload(); await pA.waitForSelector('.modulo[data-v=pce]');
   await pA.evaluate(async () => { const r = await Store.meta('pceVisitaRascunho'); go('pcevisita', { doc: r.doc, propId: r.propId }); }); await pA.waitForSelector('#pceVisitaForm');
   ok(/Passo 2 de 5/.test(await pA.textContent('.pce-passos')) && await pA.locator('.pce-pr[data-nome="Monilíase do Cacaueiro"] .r-res[value=suspeita]:checked').count() === 1, 'rascunho automático: volta no passo 2 com a resposta marcada');

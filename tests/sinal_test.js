@@ -12,7 +12,7 @@ const M = ms => new Date(ms - 4 * 3600e3);
 const diaM = ms => M(ms).toISOString().slice(0, 10), hmM = ms => M(ms).toISOString().slice(11, 16);
 const aba = async n => { const rows = await get('/__aba?nome=' + n); if (!rows) return []; const cab = rows[0]; return rows.slice(1).map(r => Object.fromEntries(cab.map((c, i) => [c, r[i]]))); };
 const aparelho = async id => (await aba('Aparelhos')).find(a => a.id === id);
-const esperar = async (f, ms = 15000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await f()) return true; await new Promise(r => setTimeout(r, 250)); } return false; };
+const esperar = async (f, ms = 15000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await f()) return true; await new Promise(r => setTimeout(r, 25)); } return false; };
 const editar = (aba, col, valor, onde) => fetch(`${API}/__editar?aba=${aba}&col=${col}&valor=${encodeURIComponent(JSON.stringify(valor))}&onde=${encodeURIComponent(onde)}`).then(r => r.text());
 
 (async () => {
@@ -130,7 +130,8 @@ const editar = (aba, col, valor, onde) => fetch(`${API}/__editar?aba=${aba}&col=
   // outro turno aberto há 3 h sem nenhum sinal (comparação)
   await post({ action: 'sync', key: FA, since: 0, turnos: [T('sg3', { local: 'Barreira Sem Celular' })], veiculos: [] }); await envelhecer('sg3');
   const pn = await abrir(WEB, { 'gdv.painel.token': ADM, 'gdv.painel.nome': 'Gerente Sinal Lima' });
-  await pn.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 20000 }); await pn.waitForTimeout(600);
+  await pn.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 20000 });
+  await pn.waitForFunction(() => !document.querySelector('#pn-conteudo').classList.contains('carregando'));
   const sit = id => pn.evaluate(i => { const t = Painel.todos.turnosTodos.find(x => x.id === i); return t && { sit: t.situacao, us: t.ultimoSinal, emA: t.emAndamento }; }, id);
   const card = id => pn.evaluate(i => { const e = document.querySelector(`.pn-vivo-item[data-turno="${i}"]`); return e ? e.textContent.replace(/\s+/g, ' ') : ''; }, id);
   let s1 = await sit(idT);
@@ -176,7 +177,7 @@ const editar = (aba, col, valor, onde) => fetch(`${API}/__editar?aba=${aba}&col=
   await app.screenshot({ path: amb.saida('sinal_app_modulos.png') });
 
   // painel: "Encerrado no celular, aguardando envio" + erro
-  await pn.evaluate(() => Painel.aoVivo()); await pn.waitForTimeout(500);
+  await pn.evaluate(() => Painel.aoVivo());
   s1 = await sit(idT);
   const c1 = await card(idT);
   ok(s1.sit === 'aguardando' && s1.emA, 'painel: situação "aguardando" (encerrado no celular)', s1);
@@ -189,11 +190,11 @@ const editar = (aba, col, valor, onde) => fetch(`${API}/__editar?aba=${aba}&col=
   await pn.click(`[data-encerrar="${idT}"]`); await pn.waitForSelector('#pn-encerrar[open]');
   const fimCel = await app.evaluate(id => Store.obter('turnos', id).then(t => t.fim), idT);
   ok(await pn.inputValue('#pn-enc-fim') === fimCel && /Encerrado no celular \(/.test(await pn.textContent('#pn-encerrar .pn-dlg-rapidos')), 'Encerrar turno: sugere o horário do celular', await pn.inputValue('#pn-enc-fim'));
-  await pn.click('#pn-enc-cancelar'); await pn.waitForTimeout(200);
+  await pn.click('#pn-enc-cancelar'); await pn.waitForSelector('#pn-encerrar', { state: 'detached' });
   // aba Barreiras
-  await pn.click('.pn-aba[data-aba=barreiras]'); await pn.waitForTimeout(1000);
+  await pn.click('.pn-aba[data-aba=barreiras]'); await pn.waitForSelector('.pn-bar-vivo');
   ok(/Encerrado no celular, aguardando envio/.test(await pn.textContent('.pn-bar-vivo')), 'aba Barreiras: estado na lista em andamento');
-  await pn.click('.pn-aba[data-aba=geral]'); await pn.waitForTimeout(600);
+  await pn.click('.pn-aba[data-aba=geral]'); await pn.waitForFunction(() => document.querySelector('.pn-aba[data-aba=geral]').getAttribute('aria-selected') === 'true');
 
   // o servidor volta: Tentar enviar agora → 
   console.log('4. Envio confirmado');
@@ -201,7 +202,7 @@ const editar = (aba, col, valor, onde) => fetch(`${API}/__editar?aba=${aba}&col=
   await app.click('#encCartao [data-reenviar]');
   await app.waitForFunction(() => /bom descanso/.test(document.querySelector('#toast').textContent), null, { timeout: 10000 }).catch(() => {});
   ok(/Turno encerrado, bom descanso!/.test(await app.textContent('#toast')), 'Tentar enviar agora: toast "Turno encerrado, bom descanso!"', await app.textContent('#toast'));
-  await app.waitForTimeout(500);
+  await app.waitForFunction(() => !document.querySelector('#encCartao'), null, { timeout: 5000 }).catch(() => {});
   ok(await app.locator('#encCartao').count() === 0, 'Módulos: cartão some depois do envio');
   await app.evaluate(id => go('fechado', id), idT); await app.waitForSelector('#encPend');
   const okTxt = (await app.textContent('#encPend')).replace(/\s+/g, ' ');
@@ -215,7 +216,7 @@ const editar = (aba, col, valor, onde) => fetch(`${API}/__editar?aba=${aba}&col=
   // painel: sai de "em andamento" na consulta ao vivo (sem recarga completa)
   const antes = await pn.evaluate(() => Painel.estado().ultimaCompleta);
   const pedidos = []; pn.on('request', rq => { if (rq.url().startsWith(API) && rq.method() === 'POST') { try { pedidos.push(JSON.parse(rq.postData())); } catch (e) { /* */ } } });
-  await pn.evaluate(() => Painel.aoVivo()); await pn.waitForTimeout(600);
+  await pn.evaluate(() => Painel.aoVivo());
   s1 = await sit(idT);
   ok(s1 && !s1.emA && s1.sit === 'encerrada' && await pn.locator(`.pn-vivo-item[data-turno="${idT}"]`).count() === 0, 'painel: a barreira saiu de "em andamento" na consulta ao vivo', s1);
   ok(pedidos.length === 1 && pedidos[0].aoVivo === true && (pedidos[0].ids || []).includes(idT) && await pn.evaluate(() => Painel.estado().ultimaCompleta) === antes, 'foi a consulta leve (aoVivo com os ids abertos), sem recarga completa', pedidos.map(x => ({ a: x.action, v: x.aoVivo })));

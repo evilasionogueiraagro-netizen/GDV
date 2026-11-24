@@ -228,7 +228,7 @@ const GRUPOS = [{ id: 'citros', colunas: [{ rotulo: 'HLB', pragas: ['HLB', 'Gree
   ok(!PROIBIDOS.some(x => tx.includes(x)), 'PDF mensal: sem CPF completo, nome completo ou coordenada exata', PROIBIDOS.filter(x => tx.includes(x)));
   salvar('relatorio_mensal.html', pr.html);
   const [dlPdf] = await Promise.all([p.waitForEvent('download', { timeout: 180000 }), p.click('#pn-rg-pdf')]);
-  const pdfM = fs.readFileSync(await dlPdf.path()), pdfMArq = salvar(dlPdf.suggestedFilename(), pdfM);
+  const pdfM = fs.readFileSync(await amb.arquivoBaixado(dlPdf)), pdfMArq = salvar(dlPdf.suggestedFilename(), pdfM);
   const npM = Number(py('import sys,pypdf;print(len(pypdf.PdfReader(sys.argv[1]).pages))', pdfMArq));
   ok(pdfM.slice(0, 5).toString() === '%PDF-' && /Relatorio_GDV_Parcial_\d{4}-03\.pdf/.test(dlPdf.suggestedFilename()) && (npM >= 4 || isNaN(npM)), 'Baixar PDF (mensal): arquivo PDF com várias páginas', [dlPdf.suggestedFilename(), pdfM.length, npM]);
   const lerDocx = arq => { const o = py(`import sys,zipfile,json
@@ -244,7 +244,7 @@ try:
 except Exception as e: out['erro']=str(e)
 print(json.dumps(out))`, arq); return o ? JSON.parse(o) : null; };
   const [dlDoc] = await Promise.all([p.waitForEvent('download', { timeout: 60000 }), p.click('#pn-rg-docx')]);
-  const docM = fs.readFileSync(await dlDoc.path()), docMArq = salvar(dlDoc.suggestedFilename(), docM);
+  const docM = fs.readFileSync(await amb.arquivoBaixado(dlDoc)), docMArq = salvar(dlDoc.suggestedFilename(), docM);
   let W = lerDocx(docMArq);
   ok(docM.slice(0, 2).toString() === 'PK' && W && W.nomes.includes('word/document.xml') && W.imgs.length >= 6, 'Word mensal: pacote OOXML válido, logos e mapas (imagens no corpo)', W && [W.imgs.length, W.tabelas]);
   const celM = W && W.cel ? W.cel.join(' | ') : W ? W.xml : '';
@@ -275,25 +275,26 @@ print(json.dumps(out))`, arq); return o ? JSON.parse(o) : null; };
   ok(!PROIBIDOS.some(x => tx.includes(x)), 'PDF anual: sem CPF completo, nome completo ou coordenada exata', PROIBIDOS.filter(x => tx.includes(x)));
   salvar('relatorio_anual.html', pr.html);
   const [dlPdfA] = await Promise.all([p.waitForEvent('download', { timeout: 240000 }), p.click('#pn-rg-pdf')]);
-  const pdfA = fs.readFileSync(await dlPdfA.path()), pdfAArq = salvar(dlPdfA.suggestedFilename(), pdfA);
+  const pdfA = fs.readFileSync(await amb.arquivoBaixado(dlPdfA)), pdfAArq = salvar(dlPdfA.suggestedFilename(), pdfA);
   const npA = Number(py('import sys,pypdf;print(len(pypdf.PdfReader(sys.argv[1]).pages))', pdfAArq));
   ok(pdfA.slice(0, 5).toString() === '%PDF-' && /Relatorio_GDV_\d{4}_Consolidado\.pdf/.test(dlPdfA.suggestedFilename()) && (npA >= 6 || isNaN(npA)), 'Baixar PDF (anual)', [dlPdfA.suggestedFilename(), npA]);
   const [dlDocA] = await Promise.all([p.waitForEvent('download', { timeout: 60000 }), p.click('#pn-rg-docx')]);
-  const docA = fs.readFileSync(await dlDocA.path()), docAArq = salvar(dlDocA.suggestedFilename(), docA);
+  const docA = fs.readFileSync(await amb.arquivoBaixado(dlDocA)), docAArq = salvar(dlDocA.suggestedFilename(), docA);
   W = lerDocx(docAArq);
   const celA = W && W.cel ? W.cel.join(' | ') : W ? W.xml : '';
   ok(W && W.paisagem >= 2 && /TOTAL/.test(celA) && /R\. N\. S\./.test(celA) && /Jan/.test(celA), 'Word anual: seções em paisagem (quadros jan–dez e anexos), totais e anexo', W && [W.paisagem, W.tabelas]);
   ok(W && !PROIBIDOS.some(x => W.xml.includes(x)), 'Word anual: sem dados pessoais');
-  for (const [arq, nome] of [[docMArq, 'mensal'], [docAArq, 'anual']]) {
-    try {
-      const out = amb.saida('relgdv_lo'); fs.mkdirSync(out, { recursive: true });
-      execFileSync('soffice', ['--headless', '--convert-to', 'pdf', '--outdir', out, arq], { timeout: 180000, stdio: 'pipe' });
-      const pdfLo = path.join(out, path.basename(arq).replace(/\.docx$/, '.pdf'));
-      const nLo = Number(py('import sys,pypdf;print(len(pypdf.PdfReader(sys.argv[1]).pages))', pdfLo));
-      const tLo = py('import sys,pypdf;print(" ".join(p.extract_text() for p in pypdf.PdfReader(sys.argv[1]).pages))', pdfLo) || '';
-      ok(nLo >= 4 && /SEÇÃO II/.test(tLo), `LibreOffice converte o .docx ${nome} para PDF (${nLo} páginas)`, [nLo, tLo.slice(0, 100)]);
-      if (SAIDA) fs.copyFileSync(pdfLo, path.join(SAIDA, `docx_${nome}_convertido_libreoffice.pdf`));
-    } catch (e) { console.log(`  (LibreOffice indisponível: conversão do ${nome} não testada) ` + String(e.message).slice(0, 100)); }
+  // os dois .docx numa chamada só do LibreOffice (a partida do soffice é o que mais custa)
+  const out = amb.saida('relgdv_lo'); fs.mkdirSync(out, { recursive: true });
+  let loOk = true;
+  try { execFileSync('soffice', ['--headless', '--convert-to', 'pdf', '--outdir', out, docMArq, docAArq], { timeout: 180000, stdio: 'pipe' }); }
+  catch (e) { loOk = false; console.log('  (LibreOffice indisponível: conversão dos .docx não testada) ' + String(e.message).slice(0, 100)); }
+  if (loOk) for (const [arq, nome] of [[docMArq, 'mensal'], [docAArq, 'anual']]) {
+    const pdfLo = path.join(out, path.basename(arq).replace(/\.docx$/, '.pdf'));
+    const nLo = Number(py('import sys,pypdf;print(len(pypdf.PdfReader(sys.argv[1]).pages))', pdfLo));
+    const tLo = py('import sys,pypdf;print(" ".join(p.extract_text() for p in pypdf.PdfReader(sys.argv[1]).pages))', pdfLo) || '';
+    ok(nLo >= 4 && /SEÇÃO II/.test(tLo), `LibreOffice converte o .docx ${nome} para PDF (${nLo} páginas)`, [nLo, tLo.slice(0, 100)]);
+    if (SAIDA && fs.existsSync(pdfLo)) fs.copyFileSync(pdfLo, path.join(SAIDA, `docx_${nome}_convertido_libreoffice.pdf`));
   }
 
   /* ---- celular, escuro ---- */

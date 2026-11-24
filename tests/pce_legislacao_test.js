@@ -1,53 +1,19 @@
-const fs = require('fs'), path = require('path'), vm = require('vm');
+const fs = require('fs'), path = require('path');
 const amb = require('./lib/amb');
-// PCE — enquadramento legal: a planilha da GDV (docs/modulos/pce-legislacao.csv) é a fonte e tem de ser igual ao CONFIG.PCE.legislacao (app),
-// ao LEGISLACAO_PCE_ (back) e ao catálogo que o back entrega; no Termo de citros o texto é o do catálogo (só das pragas detectadas ou
-// suspeitas; sem detecção, de todas as avaliadas do programa), nunca um texto próprio do citros. Dados fictícios.
-const { API, RAIZ } = amb;
+const { csv } = require('./unit/vm_loader');
+// PCE — enquadramento legal no Termo de citros (Nova visita): o texto é o do catálogo (só das pragas detectadas ou suspeitas; sem detecção,
+// de todas as avaliadas do programa), nunca um texto próprio do citros. A igualdade planilha da GDV (docs/modulos/pce-legislacao.csv) =
+// CONFIG.PCE.legislacao = LEGISLACAO_PCE_ = catálogo do back fica em tests/unit/pce_legislacao_unit_test.js. Dados fictícios.
+const { RAIZ } = amb;
 let falhas = 0;
 const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x === undefined ? '' : ' → ' + JSON.stringify(x).slice(0, 500))); if (!c) falhas++; };
 
-/** CSV simples (aspas duplas, vírgula, quebra de linha) -> linhas de células. */
-function csv(txt) {
-  const L = []; let l = [], c = '', q = false;
-  for (let i = 0; i < txt.length; i++) {
-    const ch = txt[i];
-    if (q) { if (ch === '"' && txt[i + 1] === '"') { c += '"'; i++; } else if (ch === '"') q = false; else c += ch; }
-    else if (ch === '"') q = true;
-    else if (ch === ',') { l.push(c); c = ''; }
-    else if (ch === '\n' || ch === '\r') { if (ch === '\r' && txt[i + 1] === '\n') i++; l.push(c); c = ''; if (l.some(x => x !== '')) L.push(l); l = []; }
-    else c += ch;
-  }
-  if (c !== '' || l.length) { l.push(c); L.push(l); }
-  return L;
-}
-
 (async () => {
-  console.log('1) planilha da GDV x app x back');
   const L = csv(fs.readFileSync(path.join(RAIZ, 'docs/modulos/pce-legislacao.csv'), 'utf8')), cab = L[0];
   const iPraga = cab.indexOf('PRAGA_NO_CATALOGO'), iLeg = cab.indexOf('LEGISLACAO');
-  ok(iPraga === 0 && iLeg === 4 && L.length > 1, 'planilha lida (colunas PRAGA_NO_CATALOGO e LEGISLACAO)', cab);
   const planilha = Object.fromEntries(L.slice(1).map(l => [l[iPraga].trim(), l[iLeg].trim()]));
-  const igual = (a, b) => JSON.stringify(Object.keys(a).sort()) === JSON.stringify(Object.keys(b).sort()) && Object.keys(a).every(k => a[k] === b[k]);
-  const dif = (a, b) => Object.keys({ ...a, ...b }).filter(k => a[k] !== b[k]);
 
-  const ctx = vm.createContext({ window: {}, document: {}, navigator: {}, localStorage: {}, console });
-  vm.runInContext(fs.readFileSync(path.join(RAIZ, 'web/js/config.js'), 'utf8') + '\n;this.__CONFIG = CONFIG;', ctx);
-  const app = ctx.__CONFIG.PCE.legislacao;
-  ok(igual(planilha, app), 'CONFIG.PCE.legislacao = planilha (mesmas pragas, mesmos textos)', dif(planilha, app));
-
-  const gs = vm.createContext({});
-  vm.runInContext(fs.readFileSync(path.join(RAIZ, 'apps-script/pce-catalogo.gs'), 'utf8') + '\n;this.__LEG = LEGISLACAO_PCE_;', gs);
-  ok(igual(planilha, gs.__LEG), 'LEGISLACAO_PCE_ (back) = planilha', dif(planilha, gs.__LEG));
-
-  const g = await amb.usuario('Gerente Legislacao Teste', { aplicativo: 'painel', permissoes: ['gerencia', 'pce'] });
-  const r = await fetch(API, { method: 'POST', body: JSON.stringify({ action: 'painelPceCatalogo', key: g.token }) }).then(x => x.json());
-  const cat = r.ok ? Object.fromEntries(r.catalogo.pragas.filter(p => p.enquadramentoLegal).map(p => [p.id, p.enquadramentoLegal])) : {};
-  const idDe = n => n.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().replace(/ /g, '-');
-  ok(Object.keys(planilha).every(k => cat[idDe(k)] === planilha[k]) && Object.keys(cat).length === Object.keys(planilha).length, 'catálogo entregue pelo back = planilha', r.ok ? Object.keys(cat) : r);
-  ok(ctx.__CONFIG.PCE.citros.enquadramento === undefined, 'citros não tem enquadramento próprio em CONFIG.PCE');
-
-  console.log('2) Termo de citros na Nova visita: enquadramento do catálogo, só das detectadas ou suspeitas');
+  console.log('1) Termo de citros na Nova visita: enquadramento do catálogo, só das detectadas ou suspeitas');
   const A = require('./lib/pce-app');
   const b = await amb.lancar();
   const p = await A.aparelho(b, 'Fiscal Legislacao Teste');

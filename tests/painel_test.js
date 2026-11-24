@@ -132,7 +132,8 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
   const erros = [];
   async function abrir(opts = {}, init = {}) {
-    const c = await b.newContext({ viewport: { width: 1366, height: 900 }, timezoneId: 'America/Manaus', locale: 'pt-BR', acceptDownloads: true, ...opts });
+    const { relogio, ...ctxOpts } = opts;
+    const c = await b.newContext({ viewport: { width: 1366, height: 900 }, timezoneId: 'America/Manaus', locale: 'pt-BR', acceptDownloads: true, ...ctxOpts });
     await c.route('https://tile.openstreetmap.org/**', rt => rt.fulfill({ status: 200, contentType: 'image/png', body: PNG }));
     await c.addInitScript(i => { if (!sessionStorage.getItem('__init')) { sessionStorage.setItem('__init', 1); localStorage.setItem('gdv.url', window.__GDV_API);
       Object.entries(i).forEach(([k, v]) => localStorage.setItem(k, v)); } }, init);
@@ -141,9 +142,10 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
     p.on('console', m => { if (m.type() === 'error') { p.erros.push(m.text()); erros.push(m.text()); } });
     p.on('response', rs => { if (rs.status() >= 400) { p.erros.push(rs.status() + ' ' + rs.url()); erros.push(rs.status() + ' ' + rs.url()); } });
     p.on('dialog', d => d.accept());
+    if (relogio) await p.clock.install({ time: Date.now() });
     await p.goto(WEB); return p;
   }
-  const assentar = p => p.waitForFunction(() => { const el = document.querySelector('#pn-conteudo'); return !el || !el.classList.contains('carregando'); });   // carga do painel terminou
+  const assentar = p => p.waitForFunction(() => { const el = document.querySelector('#pn-conteudo'); return !el || !el.classList.contains('carregando'); }).then(() => p.evaluate(() => new Promise(r => setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(r)), 20))));   // carga do painel terminou e timers do Leaflet assentaram
   const esperarDados = p => p.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 20000 }).then(() => assentar(p));
   const kpis = async (p, sel = '#pn-conteudo .pn-kpis') => p.$$eval(sel + ' >> nth=0', () => 0).catch(() => 0) && p.locator(sel).first().evaluate(g =>
     Object.fromEntries([...g.querySelectorAll('.pn-kpi')].map(k => [k.querySelector('.pn-kpi-rot').textContent.trim(), k.querySelector('.pn-kpi-val').textContent.trim()])));
@@ -152,7 +154,7 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   void kpis;
   const aba = async (p, id) => { await p.click(`.pn-aba[data-aba=${id}]`); await p.waitForFunction(i => document.querySelector(`.pn-aba[data-aba=${i}]`).getAttribute('aria-selected') === 'true', id); await assentar(p); };
   const semRolagem = p => p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1);
-  const baixar = async (p, loc) => { const [dl] = await Promise.all([p.waitForEvent('download'), loc.click()]); return { nome: dl.suggestedFilename(), txt: fs.readFileSync(await dl.path(), 'utf8') }; };
+  const baixar = async (p, loc) => { const [dl] = await Promise.all([p.waitForEvent('download'), loc.click()]); return { nome: dl.suggestedFilename(), txt: fs.readFileSync(await amb.arquivoBaixado(dl), 'utf8') }; };
 
   /* ================= 1. login ================= */
   console.log('1. Login');
@@ -160,7 +162,7 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   await p.waitForSelector('#pn-login:not([hidden])');
   ok(await p.isHidden('#pn-app'), 'sem credencial: só a tela de login');
   // a tela de entrar com matrícula e senha é do front novo; aqui a sessão entra pronta
-  p = await abrir({}, { 'gdv.painel.token': adm.token, 'gdv.painel.nome': 'Evilasio Admin' }); await esperarDados(p);
+  p = await abrir({ relogio: true }, { 'gdv.painel.token': adm.token, 'gdv.painel.nome': 'Evilasio Admin' }); await esperarDados(p);
   ok((await p.textContent('#pn-nome')).trim() === 'Evilasio Admin', 'sessão de gerente abre o painel; nome no topo');
   ok((await p.evaluate(() => localStorage.getItem('gdv.painel.token') || '')).length >= 32, 'credencial guardada em gdv.painel.token');
   const abas = await p.$$eval('.pn-aba', a => a.map(x => x.dataset.aba)); ok(abas.join() === 'geral,barreiras,escalas,tf,pce,convenios,relatorios,usuarios,publico', 'abas na ordem Visão geral | Barreiras | Escalas | TF | PCE | Convênios | Relatórios | Usuários | Dashboard público', abas);
@@ -222,18 +224,26 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   const oculto = await p.evaluate(async () => {
     const c = document.createElement('div'); c.style.display = 'none'; c.style.width = '800px'; document.body.appendChild(c);
     const m = Painel.mapa(c, { id: 'oculto', camadas: ['andamento'] }).map, z0 = m.getZoom();
-    c.style.display = 'block'; await new Promise(r => setTimeout(r, 400));
+    c.style.display = 'block';
+    for (let i = 0; i < 80; i++) {
+      if (m.getZoom() !== z0 && c.querySelectorAll('.leaflet-pn-mun-pane path').length === 62 && [...c.querySelectorAll('.leaflet-pn-mun-pane path')].some(x => (x.getAttribute('d') || '').length > 20)) break;
+      await new Promise(r => setTimeout(r, 25));
+    }
+    await new Promise(r => setTimeout(r, 25));
     const n = c.querySelectorAll('.leaflet-pn-mun-pane path').length, ok = [...c.querySelectorAll('.leaflet-pn-mun-pane path')].some(x => (x.getAttribute('d') || '').length > 20);
-    const z = m.getZoom(); c.remove(); return { z0, z, n, ok };
+    const z = m.getZoom(); try { m.remove(); } catch (e) {} c.remove(); return { z0, z, n, ok };
   });
   ok(oculto.z !== oculto.z0 && oculto.z >= 5 && oculto.z <= 7 && oculto.n === 62 && oculto.ok, 'mapa criado escondido: ao aparecer, enquadra o AM e desenha os 62 municípios', oculto);
   // tela cheia (no Chromium sem tela, o pedido de fullscreen pode falhar: cai no cartão que ocupa a janela)
-  await p.click(mp + ' .pn-mapa-cheia-bt'); await p.waitForTimeout(400);
+  await p.click(mp + ' .pn-mapa-cheia-bt');
+  await p.waitForFunction(m => { const c = document.querySelector(m); return (document.fullscreenElement === c || c.classList.contains('pn-mapa-cheia')) && c.querySelector('.pn-mapa-div').getBoundingClientRect().height > 560; }, mp, { timeout: 5000 });
   const ch = await p.evaluate(m => { const c = document.querySelector(m), d = c.querySelector('.pn-mapa-div').getBoundingClientRect();
     return { cheia: document.fullscreenElement === c || c.classList.contains('pn-mapa-cheia'), alt: Math.round(d.height), bt: c.querySelector('.pn-mapa-cheia-bt').textContent.trim() }; }, mp);
   ok(ch.cheia && ch.alt > 560 && /Sair da tela cheia/.test(ch.bt), 'mapa: Tela cheia (o mapa cresce; botão vira "Sair da tela cheia")', ch);
   await p.screenshot({ path: amb.saida('painel_mapa_cheio.png') });
-  await p.click(mp + ' .pn-mapa-cheia-bt'); await p.waitForTimeout(400);
+  await p.click(mp + ' .pn-mapa-cheia-bt');
+  await p.waitForFunction(m => { const c = document.querySelector(m); return !document.fullscreenElement && !c.classList.contains('pn-mapa-cheia') && /^Tela cheia/.test(c.querySelector('.pn-mapa-cheia-bt').textContent.trim()); }, mp, { timeout: 5000 });
+  await p.evaluate(() => new Promise(r => setTimeout(r, 250)));
   ok(await p.evaluate(m => { const c = document.querySelector(m); return !document.fullscreenElement && !c.classList.contains('pn-mapa-cheia') && /^Tela cheia/.test(c.querySelector('.pn-mapa-cheia-bt').textContent.trim()); }, mp), 'mapa: sair da tela cheia');
   // legenda desenha o mesmo marcador do mapa (pinos com glifo para barreiras; levantamentos com outra cor)
   ok(await p.locator(mp + ' .pn-legenda .pn-lg-pino .pn-pin.longa').count() === 1 && await p.locator(mp + ' .pn-legenda .pn-lg-pino .pn-pin.semsinal').count() === 1 && await p.locator(mp + ' .pn-legenda .pn-lg-pino .pn-pin.ok').count() === 1,
@@ -245,13 +255,14 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   ok(coresLev.realiz >= 3, 'mapa: barreiras realizadas em violeta (fora da rampa azul do coroplético)', coresLev.realiz);
   ok(await p.evaluate(() => !document.querySelector('.pn-duo-mapa .pn-mapa-dica') ? false : /roda do mouse/.test(document.querySelector('.pn-duo-mapa .pn-mapa-dica').textContent)), 'mapa: roda do mouse não dá zoom sem clicar (dica visível)');
   ok(await p.locator(mp + ' .leaflet-heatmap-layer').count() === 0, 'calor desligado por padrão na Visão geral');
-  await p.check(mp + ' input[data-camada=calor]'); await p.waitForTimeout(300);
+  await p.check(mp + ' input[data-camada=calor]'); await p.waitForSelector(mp + ' canvas.leaflet-heatmap-layer');
   ok(await p.locator(mp + ' canvas.leaflet-heatmap-layer').count() === 1, 'camada de calor de detecções liga');
   const legCalor = await p.textContent(mp + ' .pn-legenda'); ok(/Detecções/.test(legCalor), 'legenda dinâmica inclui o calor');
-  await p.selectOption(mp + ' select[data-f=praga]', 'Moko da bananeira'); await p.waitForTimeout(200);
+  await p.selectOption(mp + ' select[data-f=praga]', 'Moko da bananeira');
   ok(await p.evaluate(() => { const m = Object.values(document.querySelectorAll('.pn-duo-mapa canvas.leaflet-heatmap-layer')); return m.length === 1; }), 'filtro de praga no calor');
   // coroplético: seletor de indicador muda legenda
-  await p.selectOption(mp + ' select[data-f=indicador]', 'veiculos'); await p.waitForTimeout(200);
+  await p.selectOption(mp + ' select[data-f=indicador]', 'veiculos');
+  await p.waitForFunction(m => /Veículos abordados/.test(document.querySelector(m + ' .pn-legenda')?.textContent || ''), mp, { timeout: 5000 });
   ok(/Veículos abordados/.test(await p.textContent(mp + ' .pn-legenda')), 'coroplético: troca de indicador atualiza a legenda');
   ok(await p.locator(mp + ' .leaflet-pn-mun-pane path[fill-opacity="0.78"]').count() >= 4, 'coroplético pinta municípios com veículos');
   // CSV
@@ -259,6 +270,8 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   ok(csv1.nome === 'atividade-por-municipio.csv' && csv1.txt.charCodeAt(0) === 0xFEFF && /^﻿Município;Turnos;Veículos/.test(csv1.txt), 'CSV "Atividade por município" (BOM + ;)', csv1.txt.split('\n')[0]);
   ok(/Tabatinga;1;3;/.test(csv1.txt) && /Humaitá;1;2;/.test(csv1.txt), 'CSV com Tabatinga (1 turno, 3 veículos) e Humaitá', csv1.txt.split('\r\n').length - 1 + ' linhas');
   await p.screenshot({ path: amb.saida('painel_geral.png'), fullPage: true });
+  await p.evaluate(() => new Promise(r => setTimeout(r, 250)));   // espera o timer de 200 ms (debounceMoveend) do Leaflet após fullPage screenshot
+  await assentar(p);
 
   /* ================= 3. Barreiras ================= */
   console.log('3. Aba Barreiras');
@@ -335,7 +348,7 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   const pontosLev = await p.locator(pm + ' .leaflet-overlay-pane path.leaflet-interactive').count();
   ok(pontosLev >= 3, 'levantamentos com coordenada no mapa (3) ', pontosLev);
   if (!(await p.isChecked(pm + ' input[data-camada=calor]'))) await p.check(pm + ' input[data-camada=calor]');
-  await p.waitForTimeout(300);
+  await p.waitForSelector(pm + ' canvas.leaflet-heatmap-layer');
   ok(await p.locator(pm + ' canvas.leaflet-heatmap-layer').count() === 1, 'mapa de calor de pragas na aba PCE');
   const focos = await p.locator('.pn-secao:has(> h2:text-is("Focos de pragas e doenças")) .pn-tab').first().textContent().catch(() => '');
   ok(/Novo foco/.test(focos) && /Recorrente/.test(focos), 'tabela de focos: novo × recorrente', focos.slice(0, 80));
@@ -355,20 +368,21 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   k = await lerKpis(p); ok(k['Veículos abordados'] === String(EC.veiculos) && k['Barreiras em andamento agora'] === '0', `fiscal Pessoa Ficticia Epsilon: ${EC.veiculos} veículos, 0 em andamento`, [k['Veículos abordados'], k['Barreiras em andamento agora']]);
   await p.selectOption('#pn-fiscal', 'Maria'); await assentar(p);       // turno antigo-1 é de "Maria"; "Maria Souza" (tA, tD) não pode entrar
   k = await lerKpis(p); ok(k['Barreiras em andamento agora'] === '0' && k['Veículos abordados'] === '0', 'filtro de fiscal por nome exato ("Maria" não traz "Maria Souza")', [k['Barreiras em andamento agora'], k['Veículos abordados']]);
-  await p.selectOption('#pn-fiscal', ''); await p.selectOption('#pn-local', 'm:Tabatinga'); await assentar(p);
+  await p.selectOption('#pn-fiscal', ''); await assentar(p); await p.selectOption('#pn-local', 'm:Tabatinga'); await assentar(p);
   k = await lerKpis(p); ok(k['Veículos abordados'] === '3' && k['Levantamentos PCE'] === '1', 'município Tabatinga: 3 veículos, 1 levantamento', [k['Veículos abordados'], k['Levantamentos PCE']]);
   const opsBar = await p.$$eval('#pn-local optgroup[label="Barreiras / locais"] option', os => os.map(o => o.value));
   ok(opsBar.includes('b:BVA - CEASA') && !opsBar.some(v => /Porto (da )?CEASA|^b:CEASA$/i.test(v)), 'filtro: BVA - CEASA uma vez só (sem "Barreira Porto CEASA", "Barreira Porto da CEASA" nem "CEASA")', opsBar);
-  await p.selectOption('#pn-local', 'b:BVA - CEASA'); await aba(p, 'pce');
+  await p.selectOption('#pn-local', 'b:BVA - CEASA'); await assentar(p); await aba(p, 'pce');
   k = await lerKpis(p, '.pn-pce-kpis .pn-kpis'); ok(k['Levantamentos'] === String(E30.levs), 'filtro de barreira não se aplica ao PCE');
   ok(/não se aplica ao PCE/.test(await p.textContent('#pn-conteudo')), 'aviso de que o filtro de barreira não vale para o PCE');
   await aba(p, 'barreiras');
   // todos os TFs dos dados de teste são da barreira BVA-CEASA: tA (5 veículos, "Barreira Porto CEASA"), antigo-1 ("CEASA", 0) e tB (3, pelos TFs)
   k = await lerKpis(p); ok(k['Veículos abordados'] === '8' && k['Turnos de barreira'] === '3', 'BVA - CEASA: turnos do local e os da barreira do cadastro (pelos TFs do turno)', [k['Veículos abordados'], k['Turnos de barreira']]);
-  await p.selectOption('#pn-local', 'b:BVA - CEASA'); await p.waitForTimeout(300);
+  await p.selectOption('#pn-local', 'b:BVA - CEASA');
+  await p.waitForFunction(() => /BVA - CEASA/.test(localStorage.getItem('gdv.painel.filtro') || ''));
   await p.reload(); await esperarDados(p);
   ok(await p.inputValue('#pn-local') === 'b:BVA - CEASA' && await p.getAttribute('.pn-aba[data-aba=barreiras]', 'aria-selected') === 'true', 'filtro e aba lembrados após recarregar');
-  await p.selectOption('#pn-local', ''); await aba(p, 'geral');
+  await p.selectOption('#pn-local', ''); await assentar(p); await aba(p, 'geral');
   await p.click('[data-preset="custom"]'); await p.fill('#pn-de', dia(-25)); await p.fill('#pn-ate', dia(-15)); await p.click('#pn-aplicar'); await assentar(p);
   const EP = esperado(dia(-25), dia(-15)); k = await lerKpis(p);
   ok(k['Veículos abordados'] === String(EP.veiculos) && k['Levantamentos PCE'] === String(EP.levs) && k['Barreiras em andamento agora'] === '3',
@@ -383,7 +397,8 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   ok(novo.ok, 'novo veículo sincronizado por outro aparelho');
   const reqs = []; p.on('request', rq => { if (rq.method() === 'POST' && rq.url().startsWith(amb.API)) reqs.push(rq.postData() || ''); });
   const t0 = Date.now();
-  await p.waitForFunction(v => { const k = [...document.querySelectorAll('#pn-conteudo .pn-kpi')].find(e => /Veículos abordados/.test(e.textContent)); return k && k.querySelector('.pn-kpi-val').textContent.trim() !== v; }, v0, { timeout: 80000 }).catch(() => {});
+  await p.clock.fastForward(16000);
+  await amb.esperar(p, v => { const k = [...document.querySelectorAll('#pn-conteudo .pn-kpi')].find(e => /Veículos abordados/.test(e.textContent)); return k && k.querySelector('.pn-kpi-val').textContent.trim() !== v; }, v0, 15000).catch(() => {});
   const v1 = (await lerKpis(p))['Veículos abordados'];
   ok(Number(v1) === Number(v0) + 1, `painel atualizou sozinho em ${Math.round((Date.now() - t0) / 1000)} s (${v0} → ${v1})`);
   ok(Math.abs((await p.evaluate(() => scrollY)) - y0) < 5, 'rolagem mantida após a atualização automática');
@@ -421,7 +436,11 @@ const nv = s => Number(String(s).replace(/\./g, '').replace(',', '.').replace(/[
   ok(!(await pcl.evaluate(() => localStorage.getItem('gdv.painel.token'))), 'credencial apagada do aparelho');
   const p2 = await abrir({}, { 'gdv.painel.token': adm2.token, 'gdv.painel.nome': 'Segundo Admin Teste' }); await esperarDados(p2);
   const tok2 = adm2.token;
-  await p2.click('#pn-sair'); await p2.waitForSelector('#pn-login:not([hidden])'); await p2.waitForTimeout(800);
+  await Promise.all([
+    p2.waitForResponse(r => r.url().startsWith(amb.API) && (r.request().postData() || '').includes('"sair"')),
+    p2.click('#pn-sair')
+  ]);
+  await p2.waitForSelector('#pn-login:not([hidden])');
   const dSair = await post({ action: 'painelDados', key: tok2 });
   ok(!dSair.ok && /revogada/.test(dSair.erro), 'Sair revoga a credencial no servidor (cópia do token não lê mais)', dSair.erro);
   ok(!(await p2.evaluate(() => localStorage.getItem('gdv.painel.token'))), 'Sair apaga a credencial e volta ao login');

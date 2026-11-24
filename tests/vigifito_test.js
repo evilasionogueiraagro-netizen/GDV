@@ -1,5 +1,6 @@
 const amb = require('./lib/amb');
 const U = require('./lib/usuarios');
+const sincronizar = require('./lib/sincronizar');
 // VIGIFITO (motor de indicadores + relatório por posto + Portal do Administrativo): turnos fixos (BVA Jundiá) e volantes (Tabatinga) com
 // veículos (pessoas a bordo e UF de origem/destino opcional) e TFs (UF de origem/destino — inclusive TF antigo só com o texto "BOA VISTA/RR" —,
 // produtos em kg/t/caixas, documentos, inspeção, amostra) e os indicadores CALCULADOS deles (educação sanitária = pessoas; medida
@@ -249,7 +250,7 @@ function planilhaVig() {
   ok(/BVA - CEASA/.test(await p.textContent('#pn-rg')) || true, 'avisos visíveis');
   await shot(p, 'central_vigifito_mensal');
   // gerar mensal (docx, pdf, xlsx)
-  const baixar = async (sel, nome) => { const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 180000 }), p.click(sel)]); const buf = fs.readFileSync(await dl.path()); return { buf, nome: dl.suggestedFilename(), arq: salvar(nome || dl.suggestedFilename(), buf) }; };
+  const baixar = async (sel, nome) => { const [dl] = await Promise.all([p.waitForEvent('download', { timeout: 180000 }), p.click(sel)]); const buf = fs.readFileSync(await amb.arquivoBaixado(dl)); return { buf, nome: dl.suggestedFilename(), arq: salvar(nome || dl.suggestedFilename(), buf) }; };
   let dx = await baixar('#pn-rg-xlsx');
   let wbx = X.read(dx.buf), sh = wbx.Sheets[wbx.SheetNames[0]], aoa = X.utils.sheet_to_json(sh, { header: 1, raw: true, defval: null });
   ok(/Relatorio_VIGIFITO_\d{4}-01\.xlsx/.test(dx.nome) && aoa[0][2] === 'PRESIDENTE FIGUEIREDO - BVA JUNDIÁ' && aoa[1][0] === 'Veículos parados pela fiscalização' && aoa[1][2] === 5 && aoa[7][0] === null && aoa[7][1] === 't',
@@ -264,6 +265,15 @@ function planilhaVig() {
   ok(/período de 10 dias \d{2}\/01 A \d{2}\/01\/\d{4}/.test(await p.textContent('#pn-rg-titulo')), 'título com o rótulo do período ("05/01 A 14/01/2025")', await p.textContent('#pn-rg-titulo'));
   dx = await baixar('#pn-rg-docx');
   ok(dx.buf.slice(0, 2).toString() === 'PK', 'Word do período (.docx)');
+  // arquivo PDF e LibreOffice com o relatório do período (curto); a estrutura do Word e do .xlsx anuais fica em tests/unit/vigifito_motor_unit_test.js
+  const pdf = await baixar('#pn-rg-pdf');
+  const npag = Number(py('import sys,pypdf;print(len(pypdf.PdfReader(sys.argv[1]).pages))', pdf.arq));
+  ok(pdf.buf.slice(0, 5).toString() === '%PDF-' && (npag >= 1 || isNaN(npag)), 'PDF do período (arquivo)', [pdf.nome, npag]);
+  try {
+    const out = amb.saida('vig_lo'); fs.mkdirSync(out, { recursive: true });
+    execFileSync('soffice', ['--headless', '--convert-to', 'pdf', '--outdir', out, dx.arq], { timeout: 180000, stdio: 'pipe' });
+    ok(fs.existsSync(path.join(out, path.basename(dx.arq).replace(/\.docx$/, '.pdf'))), 'LibreOffice converte o .docx do VIGIFITO');
+  } catch (e) { console.log('  (LibreOffice indisponível) ' + String(e.message).slice(0, 80)); }
   // semestral
   await p.selectOption('#pn-rg-vmodo', 'semestral'); await esperar('s.VR && s.VR.tipo === "semestral"');
   c = await cel('pf-jundia', 'veiculos'); ok(c.v === 6, '1º semestre: Jundiá 6 veículos', c);
@@ -283,36 +293,6 @@ function planilhaVig() {
   ok(/RELATÓRIO VIGIFITO — \d{4}/.test(pr.texto) && /VIGIFITO – TOTAL CONSOLIDADO/.test(pr.texto) && /TOTAL FIXAS/.test(pr.texto) && /TOTAL VOLANTES/.test(pr.texto) && /PRESIDENTE FIGUEIREDO - TOTAL/.test(pr.texto) && /e-GDV sem registro no mês/.test(pr.texto) && pr.folhas >= 5,
     'PDF/impressão anual: quadros mensais, por posto, totais (município, fixas, volantes) e a lista de substituições', pr.folhas);
   ok(!/PRODUTOR SECRETO|52998224725|Joana Fiscal/.test(pr.texto), 'relatório sem dados pessoais');
-  const pdf = await baixar('#pn-rg-pdf');
-  const npag = Number(py('import sys,pypdf;print(len(pypdf.PdfReader(sys.argv[1]).pages))', pdf.arq));
-  ok(pdf.buf.slice(0, 5).toString() === '%PDF-' && (npag >= 5 || isNaN(npag)), 'PDF anual (arquivo)', [pdf.nome, npag]);
-  const docx = await baixar('#pn-rg-docx');
-  const W = py(`import sys,zipfile,json
-from xml.dom import minidom
-z=zipfile.ZipFile(sys.argv[1]); assert z.testzip() is None
-x=z.read('word/document.xml').decode('utf-8'); minidom.parseString(x)
-for n in z.namelist():
-    if n.endswith('.xml') or n.endswith('.rels'): minidom.parseString(z.read(n))
-print(json.dumps({'tabelas':x.count('<w:tbl>'),'paisagem':x.count('w:orient="landscape"'),'ok':'PRESIDENTE FIGUEIREDO - BVA JUNDI' in x}))`, docx.arq);
-  const WJ = W ? JSON.parse(W) : null;
-  ok(docx.buf.slice(0, 2).toString() === 'PK' && (!WJ || (WJ.tabelas >= 10 && WJ.paisagem >= 1 && WJ.ok)), 'Word anual: zip e XML válidos, tabelas (por posto), seções em paisagem', WJ);
-  try {
-    const out = amb.saida('vig_lo'); fs.mkdirSync(out, { recursive: true });
-    execFileSync('soffice', ['--headless', '--convert-to', 'pdf', '--outdir', out, docx.arq], { timeout: 180000, stdio: 'pipe' });
-    ok(fs.existsSync(path.join(out, path.basename(docx.arq).replace(/\.docx$/, '.pdf'))), 'LibreOffice converte o .docx do VIGIFITO');
-  } catch (e) { console.log('  (LibreOffice indisponível) ' + String(e.message).slice(0, 80)); }
-  dx = await baixar('#pn-rg-xlsx');
-  wbx = X.read(dx.buf);
-  ok(['VIGIFITO', 'JUNDIÁ', '1 semestre', '2 semestre', 'Anual', 'ANUAL-MES'].every(n => wbx.SheetNames.includes(n)), '.xlsx anual: abas VIGIFITO, JUNDIÁ (períodos), 1 e 2 semestre, Anual e ANUAL-MES', wbx.SheetNames);
-  aoa = X.utils.sheet_to_json(wbx.Sheets.VIGIFITO, { header: 1, raw: true, defval: null });
-  ok(aoa[0][2] === 'PRESIDENTE FIGUEIREDO - BVA JUNDIÁ' && aoa[1][2] === 'J' && aoa[1][8] === '1º SEMESTRE' && aoa[1][16] === 'TOTAL' && aoa[2][0] === 'Veículos parados pela fiscalização' && aoa[2][2] === 5 && aoa[2][8] === 6 && aoa[2][16] === 506 && aoa[8][0] === null && aoa[8][1] === 't',
-    'aba VIGIFITO: posto × J..D, 1º semestre e total por posto (Jundiá: jan 5, 1º sem 6, total 506)', [aoa[0].slice(0, 3), aoa[2].slice(0, 17)]);
-  const an = X.utils.sheet_to_json(wbx.Sheets.Anual, { header: 1, raw: true, defval: null });
-  const ci = n => an[0].indexOf(n);
-  ok(ci('TOTAL FIXAS') > 0 && an[1][ci('TOTAL FIXAS')] === 609 && an[1][ci('TOTAL VOLANTES')] === 3 && an[1][ci('TOTAL')] === 612 && ci('PRESIDENTE FIGUEIREDO - TOTAL') > 0 && an.length === 29,
-    'aba Anual: postos, totais por município, TOTAL FIXAS, TOTAL VOLANTES e TOTAL (28 linhas de indicadores)', an[0]);
-  const ju = X.utils.sheet_to_json(wbx.Sheets['JUNDIÁ'], { header: 1, raw: true, defval: null });
-  ok(/^\d{2}\/\d{2} A \d{2}\/\d{2}\/\d{4}$/.test(ju[1][2]) && ju[0][2] === 'PERÍODO 1' && ju.length === 30, 'aba JUNDIÁ: períodos de 10 dias com rótulos "05/01 A 14/01/2025"', ju[1].slice(0, 4));
   // consolidado: a Seção II/VIGIFITO = relatório VIGIFITO
   await p.selectOption('#pn-rg-rel', 'consolidado'); await esperar('s.rel === "consolidado" && s.R');
   await p.selectOption('#pn-rg-tipo', 'anual'); await esperar('s.R && s.R.tipo === "anual"');
@@ -377,7 +357,7 @@ print(json.dumps({'tabelas':x.count('<w:tbl>'),'paisagem':x.count('w:orient="lan
   await pg.goto(amb.APP); await pg.waitForSelector('.modulo'); await pg.click('.modulo[data-v=home]'); await pg.waitForSelector('#fTurno');
   await pg.fill('#nTF', '31'); await pg.selectOption('#nPosto', 'Fixa'); await pg.selectOption('#nLocal', 'BVA - JUNDIÁ');
   await pg.fill('#nFiscal1', 'Carla Campo Teste'); await pg.click('#fTurno button[type=submit]'); await pg.waitForSelector('.contador', { timeout: 20000 });
-  await pg.waitForTimeout(400); await pg.click('nav [data-v=registrar]'); await pg.waitForSelector('#fVeic');
+  await pg.click('nav [data-v=registrar]'); await pg.waitForSelector('#fVeic');
   const form = await pg.textContent('#fVeic');
   ok(!(await pg.$('.veic-extra, #vEduc, #vMedFito, #vCarga, #vPartida, #vInsp, #vDoc, #vProds')) && !/Fiscalização \(opcional\)|Transporta vegetais/i.test(form),
     'formulário do veículo sem o bloco "Fiscalização (opcional)" (educação, medida, carga, partida, inspeção, documento)', form);
@@ -394,7 +374,7 @@ print(json.dumps({'tabelas':x.count('<w:tbl>'),'paisagem':x.count('w:orient="lan
     if (ori) await pg.selectOption('#vUfOri', ori); if (des) await pg.selectOption('#vUfDes', des);
     await pg.evaluate(() => { document.querySelector('#toast').textContent = ''; });
     await pg.click('#fVeic > button'); await pg.waitForFunction(() => /registrado/.test(document.querySelector('#toast').textContent), null, { timeout: 8000 });
-    await pg.waitForTimeout(300); await pg.waitForSelector('#fVeic');
+    await pg.waitForFunction(() => VIEW === 'registrar' && document.querySelector('#placa') && document.querySelector('#placa').value === '');
   };
   await salvarVeic('ABC1D23', 3, 'PA', 'AM', 'Belém', 'Manaus');
   ok((await pg.inputValue('#vUfOri')) === '' && (await pg.inputValue('#vUfDes')) === '' && (await pg.inputValue('#vMunOri')) === '' && (await pg.inputValue('#vMunDes')) === '',
@@ -410,11 +390,13 @@ print(json.dumps({'tabelas':x.count('<w:tbl>'),'paisagem':x.count('w:orient="lan
   await pg.selectOption('#vUfDes', 'PA'); await pg.click('#fVeic > button'); await pg.waitForSelector('.item');
   const itens = await pg.textContent('#itens');
   ok(/Origem → destino:\s*Belém\/PA → Manaus\/AM/.test(itens) && /Origem → destino:\s*\? → PA/.test(itens) && /Carga:.*MANGA/.test(itens), 'lista do turno mostra origem → destino com cidade e UF (e a carga do registro antigo)', itens);
+  await sincronizar(pg, { stores: ['turnos', 'veiculos'], arquivos: false });
   let vrows = null;
   for (let i = 0; i < 40 && !vrows; i++) {
-    await pg.waitForTimeout(500); const vv = await get('/__aba?nome=Veiculos'), cb = vv[0];
+    const vv = await get('/__aba?nome=Veiculos'), cb = vv[0];
     const obj = l => Object.fromEntries(cb.map((k, j) => [k, l[j]])), achar = pl => vv.find(x => x[cb.indexOf('placa')] === pl);
     if (achar('ABC1D23') && achar('XYZ9A88') && achar('QWE1R23') && achar('QWE1R23')[cb.indexOf('ufDestino')] === 'PA') vrows = { a: obj(achar('ABC1D23')), b: obj(achar('XYZ9A88')), c: obj(achar('QWE1R23')) };
+    else await pg.waitForTimeout(50);
   }
   ok(vrows && vrows.a.ufOrigem === 'PA' && vrows.a.ufDestino === 'AM' && vrows.a.origemMun === 'Belém' && vrows.a.destinoMun === 'Manaus' && vrows.b.origemMun === '' && vrows.a.pessoas === 3 && vrows.b.ufOrigem === '' && vrows.b.ufDestino === '' && !vrows.a.carga && !vrows.a.medidaFito && !vrows.a.partida && vrows.a.semEducacao !== 1,
     'sincronizado: cidade e UF de origem/destino gravadas (vazias quando não escolhidas); campos antigos não são mais enviados', vrows && [vrows.a, vrows.b]);
@@ -430,8 +412,9 @@ print(json.dumps({'tabelas':x.count('<w:tbl>'),'paisagem':x.count('w:orient="lan
   await pg.check('input[name=tf-proc][value=liberacao]'); await pg.check('#tf-inspecao'); await pg.fill('#tf-d-nf', '4567');
   await pg.selectOption('#tf-produtos .prod select >> nth=0', { index: 1 }); await pg.fill('#tf-produtos .prod input', '500'); await pg.selectOption('#tf-produtos .prod select >> nth=1', 'Kg');
   await pg.click('#tfForm button[type=submit]'); await pg.waitForSelector('#tf-num-m', { timeout: 15000 }); await pg.click('#tf-m-ok'); await pg.waitForSelector('text=TF gerado', { timeout: 15000 });
+  await sincronizar(pg, { stores: ['tfs'], arquivos: false });
   let tfrow = null;
-  for (let i = 0; i < 30 && !tfrow; i++) { const tt = await get('/__aba?nome=TFs'), ct = tt[0], l = tt.find(x => x[ct.indexOf('veiculoId')] === idA); if (l) tfrow = Object.fromEntries(ct.map((k, j) => [k, l[j]])); else await pg.waitForTimeout(500); }
+  for (let i = 0; i < 30 && !tfrow; i++) { const tt = await get('/__aba?nome=TFs'), ct = tt[0], l = tt.find(x => x[ct.indexOf('veiculoId')] === idA); if (l) tfrow = Object.fromEntries(ct.map((k, j) => [k, l[j]])); else await pg.waitForTimeout(50); }
   ok(tfrow && tfrow.ufOrigem === 'PA' && tfrow.ufDestino === 'AM' && tfrow.origem === 'BELÉM', 'planilha: TF com UF de origem/destino nas colunas novas', tfrow && [tfrow.origem, tfrow.ufOrigem, tfrow.ufDestino]);
   const anoHoje = new Date(Date.now() - 4 * 3600e3).getUTCFullYear();
   const VH = await post({ action: 'painelVigDados', key: TOK, ano: anoHoje });

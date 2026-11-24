@@ -1,6 +1,7 @@
 const amb = require('./lib/amb');
 const U = require('./lib/usuarios');
 const PA = require('./lib/pce-app');
+const sincronizar = require('./lib/sincronizar');
 // PCE — monilíase: Termo de Fiscalização do PCE (digitado do papel e feito em campo na Nova visita, com as perguntas de detecção e a coordenada da
 // planta), ficha oficial da monilíase e Relatório de atividades (app real + Code.gs real no fakegas).
 // Dados fictícios no formato do relatório de Autazes (julho/2026): 2 Termos digitados do papel pela estagiária, Termo de campo sem internet,
@@ -36,7 +37,11 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   const imprimir = async (p, fn) => { await p.evaluate(() => { window.__prints = []; }); await fn(); await p.waitForFunction(() => window.__prints && window.__prints.length, null, { timeout: 15000 }); return p.evaluate(() => window.__prints[0]); };
   const pdfArquivo = async (p, id) => Buffer.from(await p.evaluate(async i => { const f = await PCEMon.imprimir('termo', i, 'arquivo'); const u = new Uint8Array(await f.arrayBuffer()); let s = ''; u.forEach(x => { s += String.fromCharCode(x); }); return btoa(s); }, id), 'base64');
   const paginasPdf = buf => { try { const f = amb.saida('_tmp.pdf'); fs.writeFileSync(f, buf); return Number(execFileSync('python3', ['-c', 'import sys,pypdf;print(len(pypdf.PdfReader(sys.argv[1]).pages))', f]).toString().trim()); } catch (e) { return null; } };
-  const sync = async p => { for (let i = 0; i < 25; i++) { await p.evaluate(() => Sync.sincronizar()); await p.waitForTimeout(400); const n = await p.evaluate(async () => (await Store.todos('termosPce')).filter(x => x.pendente).length + (await Store.todos('propriedades')).filter(x => x.pendente).length); if (!n && await p.evaluate(() => Sync.estado().tipo === 'ok')) return; } throw new Error('sync não terminou'); };
+  const sync = async p => {
+    const st = await sincronizar(p, { stores: ['termosPce', 'propriedades'], arquivos: false });
+    const n = await p.evaluate(async () => (await Store.todos('termosPce')).filter(x => x.pendente).length + (await Store.todos('propriedades')).filter(x => x.pendente).length);
+    if (n || !st || st.tipo !== 'ok') throw new Error('sync não terminou');
+  };
 
   /* ================= 1. leitura de coordenadas e do número do papel ================= */
   console.log('1) coordenadas por campo e número do papel');
@@ -129,7 +134,6 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   await A.waitForFunction(() => document.querySelector('#mr-ntermos') && /^02 termos/.test(document.querySelector('#mr-ntermos').textContent));
   ok((await A.textContent('#mr-ntermos')) === '02 termos.' && (await A.textContent('#mr-plantas')) === '95 plantas' && (await A.textContent('#mr-folders')) === '1 ação(ões)',
     'prévia: TFs emitidos = 2, plantas = 75 + 20, Educação Sanitária = 1 termo com a ação (sem folders digitados)', [await A.textContent('#mr-ntermos'), await A.textContent('#mr-plantas'), await A.textContent('#mr-folders')]);
-  ok(await A.evaluate(() => PCEDocs.calcularRelatorio([{ id: 'x', data: '2026-07-08', acoes: '["Fiscalização"]' }], [], {}).textos.educacao) === 'não realizada', 'sem ação de Educação Sanitária e sem folders: "não realizada"');
   await A.fill('#mr-folders-n', '72'); await A.waitForFunction(() => /72 folders/.test(document.querySelector('#mr-folders').textContent));
   ok((await A.textContent('#mr-folders')) === '1 ação(ões); distribuição orientada de 72 folders e flyers', 'folders digitados na geração do relatório', await A.textContent('#mr-folders'));
   await A.fill('#mr-conv', '00991272/2025'); await A.fill('#mr-etapa', '1.4');
@@ -145,15 +149,9 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   ok(pr.paginas === 3 && (pr.html.match(/class="a4 [^"]*termo[^"]*"/g) || []).length === 2, 'relatório com os 2 Termos anexados (3 folhas, sem fichas ligadas)', [pr.paginas, (pr.html.match(/class="a4 [^"]*"/g) || [])]);
   ok(/Nº dos termos: 001\/2026; 002\/2026\)/.test(pr.texto) && /Hospedeiros Inspecionados:/.test(pr.texto) && /Levantamentos Fitossanitário da praga Monilíase, realizou-se/.test(pr.texto) && /SEPROR\/AM/.test(pr.texto),
     'relatório no modelo do levantamento: números dos Termos, frase do programa e rodapé na folha', pr.texto.slice(0, 1200));
-  const gen = await A.evaluate(() => {
-    const t = (id, o) => ({ id, data: '2026-07-08', numero: 1, ano: 2026, acoes: '[]', hospedeiros: '["Laranja"]', ...o });
-    const termos = [t('a', { pragas: '["HLB"]' }), t('b', { pragas: '[]', programaVisita: 'Pragas dos Citros', numero: 2 }), t('c', { pragas: '["Monilíase"]', numero: 3 }), t('d', { pragas: '[]', programa: 'citros', numero: 4 })];
-    const c = PCEDocs.calcularRelatorio(termos, [], { programa: 'citros' });
-    return { ids: c.termos.map(x => x.id).join(''), hosp: c.textos.hospedeiros, nums: c.textos.numeros, obj: PCEDocs.objetivoRelatorio({ programa: 'citros' }), progs: PCEDocs.programasRelatorio().length,
-      ops: [...document.querySelectorAll('#mr-praga option')].length };
-  });
-  ok(gen.ids === 'abd' && gen.hosp === 'Laranja' && gen.nums === '(Nº dos termos: 001/2026; 002/2026; 004/2026)' && /detecção das pragas dos Citros, visando/.test(gen.obj) && gen.progs === 6 && gen.ops === 6,
-    'relatório genérico por programa: o mesmo cálculo e os mesmos textos, só o nome muda (Termo entra pela caixa de praga, pelo nome do programa ou pelo modelo)', gen);
+  // o cálculo por programa (Termo pela caixa de praga, nome do programa ou modelo) fica em tests/unit/pce_relatorio_unit_test.js
+  const nOps = await A.evaluate(() => [...document.querySelectorAll('#mr-praga option')].length);
+  ok(nOps === 6, 'tela: um programa por opção (6) no relatório de atividades', nOps);
   await A.evaluate(() => { window.__pdfRel = null; PDF.baixar = f => { window.__pdfRel = f; }; });
   await A.click('#mr-arquivo'); await A.waitForFunction(() => window.__pdfRel, null, { timeout: 60000 });
   const pdfR = Buffer.from(await A.evaluate(async () => { const u = new Uint8Array(await window.__pdfRel.arrayBuffer()); let s = ''; u.forEach(x => { s += String.fromCharCode(x); }); return btoa(s); }), 'base64');

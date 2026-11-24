@@ -164,7 +164,7 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   await p.waitForFunction(() => /Lançado/.test(document.querySelector('[data-msg=fin]').textContent), null, { timeout: 15000 });
   ok((await p.textContent('#adm-tab-conv-fin-lanc')).includes(SRV), 'lista do portal mostra o nome do servidor');
   const [dl] = await Promise.all([p.waitForEvent('download'), p.click('#adm-tab-conv-fin-lanc [data-csv]')]);
-  const csv = fs.readFileSync(await dl.path(), 'utf8');
+  const csv = fs.readFileSync(await amb.arquivoBaixado(dl), 'utf8');
   ok(csv.includes(SRV) && /Memo nº 130\/2026/.test(csv), 'CSV do portal inclui o servidor', csv.slice(0, 200));
   const fin = await get('/__aba?nome=ConvFinanceiro'), iMun = fin[0].indexOf('municipio'), iDoc = fin[0].indexOf('documento');
   ok(iMun === fin[0].length - 1 && fin.some(l => l[iDoc] === 'Memo nº 130/2026' && l[iMun] === 'Presidente Figueiredo'), 'município do desembolso gravado (coluna municipio no fim de ConvFinanceiro)', fin[0].slice(-3));

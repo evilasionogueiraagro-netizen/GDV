@@ -146,7 +146,7 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   const erros = [];
   async function abrir(o = {}) {
     const c = await b.newContext({ viewport: o.viewport || { width: 1920, height: 1080 }, deviceScaleFactor: o.dsf || 1, timezoneId: o.tz || TZM, locale: 'pt-BR',
-      userAgent: o.ua, screen: o.screen, isMobile: !!o.mobile, hasTouch: !!o.mobile, colorScheme: o.esquema || 'light', serviceWorkers: 'block' });
+      userAgent: o.ua, screen: o.screen, isMobile: !!o.mobile, hasTouch: !!o.mobile, colorScheme: o.esquema || 'light', reducedMotion: o.animar ? 'no-preference' : 'reduce', serviceWorkers: 'block' });
     // tiles do OSM: bloqueados (rede sem acesso a mapas) — o mapa tem de ficar com fundo neutro
     await c.route('https://tile.openstreetmap.org/**', rt => rt.abort('blockedbyclient'));
     await c.addInitScript(i => {
@@ -172,9 +172,10 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   const tela = p => p.evaluate(() => { const r = document.getElementById('tv-raiz'); return r ? { tela: r.dataset.tela, i: +r.dataset.indice, pausado: r.dataset.pausado } : null; });
   const kpiTV = (p, chave) => p.locator(`#tv-palco .tv-kpi[data-chave="${chave}"] .tv-kpi-val`).first().textContent().then(s => s.trim()).catch(() => null);
   const irTela = async (p, id) => { await p.evaluate(i => PainelTV.ir(i), id); await semAnimacao(p); };
-  const avanca = async (p, ms) => { await p.clock.fastForward(ms); await esperaReal(250); };
+  const avanca = async (p, ms) => { await p.clock.fastForward(ms); };
   /** Espera (tempo real) até a condição na página; a página tem relógio falso, então o polling é feito daqui. */
-  async function ate(p, fn, arg, ms = 15000) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (await p.evaluate(fn, arg)) return true; } catch (e) { /* navegando */ } await esperaReal(150); } return false; }
+  async function ate(p, fn, arg, ms = 15000) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (await p.evaluate(fn, arg)) return true; } catch (e) { /* navegando */ } await esperaReal(25); } return false; }
+  const ocioso = async p => { await p.clock.fastForward(3200); await p.waitForFunction(() => document.body.classList.contains('tv-ocioso'), null, { timeout: 5000 }); };
 
   /** Layout da TV: sem rolagem, todo texto dentro da viewport, sem texto cortado por contêiner, sem sobreposição, fontes mínimas. */
   const layout = p => p.evaluate(() => {
@@ -274,8 +275,8 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
 
   /* ================= 1. ?tv=1 — telas, números, layout 1080p ================= */
   console.log('1. Modo TV por ?tv=1 (1920×1080)');
-  let p = await abrir({ nome: 'tv1080', url: WEB + '?tv=1&rotacao=300&rotacaoAoVivo=300', ls: sessao(TV) });
-  await esperarTV(p); await p.waitForFunction(() => document.body.classList.contains('tv-ocioso'), null, { timeout: 8000 });
+  let p = await abrir({ nome: 'tv1080', relogio: true, url: WEB + '?tv=1&rotacao=300&rotacaoAoVivo=300', ls: sessao(TV) });
+  await esperarTV(p); await ocioso(p);
   ok(await p.evaluate(() => document.body.classList.contains('tv') && localStorage.getItem('gdv.painel.tv') === '1'), '?tv=1 liga o modo TV e lembra no aparelho (gdv.painel.tv=1)');
   ok(await p.isHidden('#pn-sair') && await p.isHidden('#pn-app') && await p.isHidden('#pn-login'), 'no modo TV: botão Sair (logout) escondido, sem filtros nem login');
   ok(/Sala de Situação — e-GDV/.test(await p.textContent('.tv-topo h1')) && await p.isVisible('.tv-logo'), 'topo: logo ADAF e "Sala de Situação — e-GDV"');
@@ -371,8 +372,8 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
 
   /* ================= 2. 4K ================= */
   console.log('2. 3840×2160');
-  p = await abrir({ nome: 'tv4k', viewport: { width: 3840, height: 2160 }, url: WEB + '?tv=1&rotacao=300&rotacaoAoVivo=300', ls: sessao(TV) });
-  await esperarTV(p); await p.waitForFunction(() => document.body.classList.contains('tv-ocioso'), null, { timeout: 8000 });
+  p = await abrir({ nome: 'tv4k', relogio: true, viewport: { width: 3840, height: 2160 }, url: WEB + '?tv=1&rotacao=300&rotacaoAoVivo=300', ls: sessao(TV) });
+  await esperarTV(p); await ocioso(p);
   for (const id of ['aovivo', 'alertas', 'barreiras', 'tf', 'pce']) {
     await irTela(p, id); await checarLayout(p, '4K ' + id);
     if (id === 'aovivo') { await checarVivo(p, '4K aovivo'); await p.screenshot({ path: amb.saida('tv_aovivo_4k.png') }); }
@@ -382,8 +383,8 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   /* ================= 2b. Ao vivo em várias resoluções (Chrome em janela com barras: 1366×620) ================= */
   console.log('2b. Ao vivo: mapa na altura toda, em várias resoluções');
   for (const [w, h] of [[1366, 620], [1366, 768], [1920, 1080], [3840, 2160]]) {
-    p = await abrir({ nome: `vivo${w}x${h}`, viewport: { width: w, height: h }, url: WEB + '?tv=1&rotacao=300&rotacaoAoVivo=300', ls: sessao(TV) });
-    await esperarTV(p); await p.waitForFunction(() => document.body.classList.contains('tv-ocioso'), null, { timeout: 8000 });
+    p = await abrir({ nome: `vivo${w}x${h}`, relogio: true, viewport: { width: w, height: h }, url: WEB + '?tv=1&rotacao=300&rotacaoAoVivo=300', ls: sessao(TV) });
+    await esperarTV(p); await ocioso(p);
     await checarLayout(p, `${w}×${h} aovivo`); await checarVivo(p, `${w}×${h} aovivo`);
     ok(await kpiTV(p, 'andamento') === '3' && await kpiTV(p, 'veiculos') === String(vHojeEsp.length), `${w}×${h}: barreiras ativas e veículos hoje`, [await kpiTV(p, 'andamento'), await kpiTV(p, 'veiculos')]);
     if (w < 3840) await p.screenshot({ path: amb.saida(`tv_aovivo_novo_${w}x${h}.png`) });
@@ -394,7 +395,7 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   /* ================= 3. relógio, rotação, teclas, wake lock, Esc ================= */
   console.log('3. Relógio de Manaus, rotação, teclas, wake lock');
   p = await abrir({ nome: 'tvrot', tz: 'America/Sao_Paulo', relogio: true, url: WEB + '?tv=1', ls: sessao(TV) });
-  await esperarTV(p); await p.evaluate(() => PainelTV.ir(0));
+  await esperarTV(p); await p.clock.pauseAt(await p.evaluate(() => Date.now()) + 10); await p.evaluate(() => PainelTV.ir(0));
   const hora = (await p.textContent('#tv-hora')).trim(), agoraN = Date.now();
   ok(/^\d{2}:\d{2}:\d{2}$/.test(hora) && [hmsM(agoraN), hmsM(agoraN - 60e3)].includes(hora.slice(0, 5)), 'relógio HH:MM:SS no horário de Manaus (aparelho em Brasília)', hora + ' esperado ' + hmsM(agoraN));
   ok((await p.textContent('#tv-data')).trim() === dataExtM(agoraN), 'data por extenso (Manaus)', (await p.textContent('#tv-data')).trim());
@@ -431,11 +432,13 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   await p.evaluate(async () => { await window.__sentinelas[window.__sentinelas.length - 1].release(); document.dispatchEvent(new Event('visibilitychange')); });
   ok(await ate(p, () => window.__wake.length >= 2), 'Wake Lock: pedido de novo ao voltar a aba (visibilitychange)', await p.evaluate(() => window.__wake.length));
   // cursor e botão "Sair do modo TV"
-  await p.mouse.move(300, 300); await p.mouse.move(320, 310); await esperaReal(400);
+  await p.mouse.move(300, 300); await p.mouse.move(320, 310);
+  await p.clock.resume();
+  await p.waitForFunction(() => document.body.classList.contains('tv-mexeu') && getComputedStyle(document.getElementById('tv-ctl')).opacity === '1', null, { timeout: 3000 });
   ok(await p.evaluate(() => document.body.classList.contains('tv-mexeu') && getComputedStyle(document.getElementById('tv-ctl')).opacity === '1'), 'mexer o mouse mostra "Tela cheia" e "Sair do modo TV"');
   await avanca(p, 3500); ok(await p.evaluate(() => document.body.classList.contains('tv-ocioso') && getComputedStyle(document.body).cursor === 'none'), 'cursor some após 3 s parado');
   // Esc sai sem logout
-  await p.keyboard.press('Escape'); await p.waitForTimeout(300);
+  await p.keyboard.press('Escape'); await p.waitForFunction(() => !document.body.classList.contains('tv'), null, { timeout: 5000 });
   ok(await p.evaluate(() => !document.body.classList.contains('tv') && !localStorage.getItem('gdv.painel.tv') && !!localStorage.getItem('gdv.painel.token') && !/tv=/.test(location.search)), 'Esc sai do modo TV sem logout (credencial mantida, URL sem ?tv)');
   await esperarDados(p); ok(await p.isVisible('#pn-app') && await p.isVisible('#pn-sair'), 'volta ao painel normal com filtros e botão Sair');
   ok(!p.erros.length, 'tvrot: sem erros de console', p.erros);
@@ -444,14 +447,14 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   /* ================= 4. parâmetros telas / rotacao / tema ================= */
   console.log('4. Parâmetros telas, rotacao, tema');
   p = await abrir({ nome: 'tvpar', relogio: true, url: WEB + '?tv=1&telas=pce,alertas,xyz&rotacao=5&rotacaoAoVivo=3&tema=claro', ls: sessao(TV) });
-  await esperarTV(p);
+  await esperarTV(p); await p.clock.pauseAt(await p.evaluate(() => Date.now()) + 10);
   const op = await p.evaluate(() => PainelTV.opcoes);
   ok(JSON.stringify(op.telas) === '["pce","alertas"]' && op.rotacaoMs === 10000 && op.aoVivoMs === 10000 && op.tema === 'light', 'telas=pce,alertas (inválida ignorada); rotacao e rotacaoAoVivo mínimas 10 s; tema claro', op);
   ok((await tela(p)).tela === 'pce' && await p.locator('#tv-pontos i').count() === 2, 'começa na primeira tela da lista');
   await p.evaluate(() => PainelTV.ir(0));                                               // reinicia a contagem da rotação
   await avanca(p, 9000); ok((await tela(p)).tela === 'pce', 'rotacao=5 vira 10 s: ainda na 1ª tela aos 9 s');
   await avanca(p, 1500); ok((await tela(p)).tela === 'alertas', 'aos 10 s troca para a 2ª');
-  await avanca(p, 10000); ok((await tela(p)).tela === 'pce', 'e volta para a 1ª');
+  await avanca(p, 10500); ok((await tela(p)).tela === 'pce', 'e volta para a 1ª');
   const fundoClaro = await p.evaluate(() => getComputedStyle(document.getElementById('tv-raiz')).backgroundColor);
   ok(lum(rgb(fundoClaro)) > 200, 'tema=claro: fundo claro', fundoClaro);
   ok(sat(rgb(await p.$eval('.tv-mapa', e => getComputedStyle(e).backgroundColor))) < 20, 'mapa da TV (claro): fundo neutro');
@@ -467,7 +470,7 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   ok(await p.evaluate(() => document.body.classList.contains('tv') && localStorage.getItem('gdv.painel.tv') === '1'), 'botão liga o modo TV e lembra no aparelho');
   await p.reload(); await esperarTV(p);
   ok(await p.evaluate(() => document.body.classList.contains('tv') && PainelTV.ativo && !/tv=/.test(location.search)), 'recarregar (sem ?tv) volta sozinho ao modo TV');
-  await p.mouse.move(500, 500); await p.click('#tv-sair'); await p.waitForTimeout(300);
+  await p.mouse.move(500, 500); await p.click('#tv-sair'); await p.waitForFunction(() => !document.body.classList.contains('tv'), null, { timeout: 5000 });
   ok(await p.evaluate(() => !document.body.classList.contains('tv') && !localStorage.getItem('gdv.painel.tv') && !!localStorage.getItem('gdv.painel.token')), 'botão "Sair do modo TV" volta ao painel sem logout');
   await p.goto(WEB + '?tv=1'); await esperarTV(p); await p.goto(WEB + '?tv=0'); await esperarDados(p);
   ok(await p.evaluate(() => !document.body.classList.contains('tv') && !localStorage.getItem('gdv.painel.tv')), '?tv=0 desliga e esquece o modo TV');
@@ -493,17 +496,17 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   ok((await p.textContent('#tv-faixa')).includes(hmsM(ult)), 'faixa mostra a hora da última atualização bem-sucedida');
   ok(await kpiTV(p, 'veiculos') === v0 && await p.locator('.tv-mapa .tv-pin').count() === 3, 'dados mantidos na tela');
   ok(await p.isHidden('#pn-login'), 'falha de rede não mostra a tela de login');
-  await esperaReal(500); await checarLayout(p, 'com a faixa de sem conexão'); await p.screenshot({ path: amb.saida('tv_sem_conexao.png') });
+  await checarLayout(p, 'com a faixa de sem conexão'); await p.screenshot({ path: amb.saida('tv_sem_conexao.png') });
   // muito tempo sem rede: espera máxima 5 min
   for (let k = 0; k < 3; k++) { const pr = await p.evaluate(() => Painel.estado().proxima - Date.now()); await avanca(p, pr + 100); await ate(p, n => Painel.estado().falhas >= n, e2.f + k + 1); }
   const e3 = await p.evaluate(() => Painel.estado().proxima - Date.now());
   ok(e3 <= 300500 && e3 > 240000, 'espera crescente limitada a 5 min', Math.round(e3 / 1000) + ' s');
   // 6 h sem rede: não recarrega a página (não troca os dados por uma página vazia)
   await p.evaluate(() => { window.__marca = 1; });
-  await avanca(p, 6 * 3600e3); await avanca(p, 61000); await esperaReal(800);
+  await avanca(p, 6 * 3600e3); await avanca(p, 61000); await esperaReal(50);
   ok(await p.evaluate(() => window.__marca === 1), 'sem conexão: não recarrega aos 6 h');
   // achado: sem conexão a situação não congela — a BR-230 (último sinal há 10 min na carga) passa a "sem sinal" e a duração continua contando
-  await p.evaluate(() => PainelTV.ir('aovivo')); await esperaReal(300);
+  await p.evaluate(() => PainelTV.ir('aovivo')); await semAnimacao(p);
   const sitOff = await p.evaluate(() => { const t = Painel.todos.turnosTodos.find(x => x.id === 'tD');
     return { sit: t.situacao, durH: +(t.duracaoMin / 60).toFixed(1), pinos: [...document.querySelectorAll('.tv-mapa .tv-pin')].map(e => e.className.replace('tv-pin ', '')).sort(), lista: document.querySelector('.tv-lista').textContent.replace(/\s+/g, ' ') }; });
   ok(sitOff.sit === 'semsinal' && sitOff.durH > 6 && JSON.stringify(sitOff.pinos) === '["longa","semsinal","semsinal"]' && /BR-230 Humaitá/.test(sitOff.lista) && /SEM SINAL/.test(sitOff.lista.split('BR-230 Humaitá')[1] || ''),
@@ -543,10 +546,11 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   await avanca(p, 16000); ok(await p.isHidden('#tv-dica'), 'na abertura a dica some em 15 s');
   await p.evaluate(() => { window.__marca = 1; });
   await avanca(p, 3 * 3600e3); await avanca(p, 61000);
+  await ate(p, () => !Painel.estado().carregando);
   ok(await p.evaluate(() => window.__marca === 1), 'antes de 6 h: não recarrega');
   await p.evaluate(() => { window.__c0 = Painel.estado().ultimaCarga; });
   await avanca(p, 3 * 3600e3);                                                        // passou de 6 h; uma carga com sucesso agora
-  await ate(p, () => Painel.estado().ultimaCarga > window.__c0);
+  await ate(p, () => Painel.estado().ultimaCarga > window.__c0 && !Painel.estado().carregando);
   const nav = p.waitForEvent('framenavigated', { timeout: 15000 }).catch(() => null);
   await avanca(p, 61000);
   await nav; await p.waitForLoadState('load').catch(() => {});
@@ -614,7 +618,7 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   await esperarDados(p);
   await p.evaluate(() => { const e = new Event('beforeinstallprompt', { cancelable: true }); e.prompt = () => { window.__prompt = 1; }; e.userChoice = Promise.resolve({ outcome: 'accepted' }); window.dispatchEvent(e); });
   ok(await p.isVisible('[data-instalar=agora]') && /Instalar app/.test(await p.textContent('#pn-instalar')), 'Android/Chrome: botão "Instalar app" (beforeinstallprompt)');
-  await p.click('[data-instalar=agora]'); await p.waitForTimeout(200);
+  await p.click('[data-instalar=agora]'); await p.waitForFunction(() => window.__prompt === 1, null, { timeout: 3000 });
   ok(await p.evaluate(() => window.__prompt === 1) && await p.isHidden('#pn-instalar'), 'Instalar app abre o diálogo nativo; aceito, a dica some');
   ok(await p.isHidden('#pn-tv') && await p.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), 'Android: sem Modo TV e sem rolagem horizontal');
   ok(!p.erros.length, 'cel-and: sem erros de console', p.erros);
@@ -643,8 +647,8 @@ const ESPERADO_CORTE = /Failed to load resource: net::ERR_(FAILED|INTERNET_DISCO
   const vExtra = extras.map((t, k) => ({ id: t.id + '-v', turnoId: t.id, hora: hmM(Date.now() - 5 * 60e3), placa: 'EXT' + k + 'A00', tipo: 'PA', pessoas: 2, obs: '', excluido: 0, criadoEm: Date.now(), atualizadoEm: Date.now() }));
   ok((await post({ action: 'sync', key: SEMEADOR, since: 0, turnos: extras, veiculos: vExtra })).ok, '+9 barreiras abertas perto de Manaus');
   for (const [vp, nm] of [[{ width: 1920, height: 1080 }, '1080p'], [{ width: 3840, height: 2160 }, '4K']]) {
-    p = await abrir({ nome: 'tvmuitas' + nm, viewport: vp, url: WEB + '?tv=1&rotacao=300&rotacaoAoVivo=300', ls: sessao(TV) });
-    await esperarTV(p); await p.waitForFunction(() => document.body.classList.contains('tv-ocioso'), null, { timeout: 8000 });
+    p = await abrir({ nome: 'tvmuitas' + nm, relogio: true, viewport: vp, url: WEB + '?tv=1&rotacao=300&rotacaoAoVivo=300', ls: sessao(TV) });
+    await esperarTV(p); await ocioso(p);
     ok(await kpiTV(p, 'andamento') === '12', `${nm}: 12 barreiras ativas`, await kpiTV(p, 'andamento'));
     const nL = await p.evaluate(() => { const l = document.querySelector('.tv-lista'); const vis = [...l.children].filter(e => !e.hidden && !e.classList.contains('tv-mais')).length; const m = l.querySelector('.tv-mais'); return { vis, mais: m ? +(m.textContent.match(/\+(\d+)/) || [0, 0])[1] : 0, compacta: l.classList.contains('compacta') }; });
     ok(nL.vis + nL.mais === 12 && nL.compacta, `${nm}: lista compacta, ${nL.vis} visíveis + "+${nL.mais}" = 12`, nL);

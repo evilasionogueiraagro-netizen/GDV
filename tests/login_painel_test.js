@@ -44,12 +44,12 @@ const esperaReal = ms => new Promise(r => setTimeout(r, ms));
     if (o.relogio) await p.clock.install({ time: Date.now() });
     await p.goto(o.url || PAINEL); return p;
   }
-  const esperarDados = p => p.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 20000 }).then(() => p.waitForTimeout(300));
+  const esperarDados = p => p.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 20000 }).then(() => p.waitForFunction(() => !document.querySelector('#pn-conteudo').classList.contains('carregando')));
   const token = p => p.evaluate(() => localStorage.getItem('gdv.painel.token') || '');
-  const aba = async (p, id) => { await p.click(`.pn-aba[data-aba=${id}]`); await p.waitForFunction(i => document.querySelector(`.pn-aba[data-aba=${i}]`).getAttribute('aria-selected') === 'true', id); await p.waitForTimeout(300); };
+  const aba = async (p, id) => { await p.click(`.pn-aba[data-aba=${id}]`); await p.waitForFunction(i => document.querySelector(`.pn-aba[data-aba=${i}]`).getAttribute('aria-selected') === 'true' && !document.querySelector('#pn-conteudo').classList.contains('carregando'), id); };
   const entrarNaTela = async (p, matricula, senha) => { await p.fill('#pn-matricula', matricula); await p.fill('#pn-senha', senha); await p.click('#pn-entrar-senha'); };
   const erroLogin = p => p.waitForSelector('#pn-login-erro:not([hidden])', { timeout: 15000 }).then(() => p.textContent('#pn-login-erro'));
-  async function ate(p, fn, arg, ms = 15000) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (await p.evaluate(fn, arg)) return true; } catch (e) { /* navegando */ } await esperaReal(150); } return false; }
+  async function ate(p, fn, arg, ms = 15000) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { if (await p.evaluate(fn, arg)) return true; } catch (e) { /* navegando */ } await esperaReal(25); } return false; }
 
   /* ================= 3. tela de entrar ================= */
   console.log('3. Painel: tela de entrar com matrícula e senha');
@@ -173,7 +173,6 @@ const esperaReal = ms => new Promise(r => setTimeout(r, ms));
   console.log('7. Usuário só com "Painel gerencial: só consulta": painel só de leitura');
   const pv = await abrir({ nome: 'visitante' });
   await entrarNaTela(pv, 'ver.teste', VSENHA); await esperarDados(pv);
-  await pv.waitForTimeout(500);
   const abasV = await pv.$$eval('.pn-aba', a => a.map(x => x.dataset.aba));
   ok(!abasV.includes('usuarios') && !abasV.includes('publico') && abasV.includes('geral') && abasV.includes('barreiras'), 'só leitura: vê as abas de dados, não vê Usuários nem Dashboard público', abasV);
   ok(!(await pv.$('#pn-us')), 'o bloco Usuários nem existe na página');
@@ -184,9 +183,9 @@ const esperaReal = ms => new Promise(r => setTimeout(r, ms));
   ok(!dv.ok && !!dv.erro, 'o servidor também recusa a lista de usuários para quem só tem "Painel gerencial: só consulta"', dv.erro);
   const tokV = await token(pv);
   p.dialogos.length = 0;
-  await pv.click('#pn-sair'); await pv.waitForSelector('#pn-login:not([hidden])');
+  await Promise.all([pv.waitForResponse(r => r.url().startsWith(API) && /"sair"/.test(r.request().postData() || '')), pv.click('#pn-sair')]);
+  await pv.waitForSelector('#pn-login:not([hidden])');
   ok(pv.dialogos.some(d => /entrar de novo com a matr[ií]cula e a senha/.test(d.msg)) && !(await token(pv)), 'Sair: confirma, apaga a sessão do aparelho e volta à tela de entrar');
-  await pv.waitForTimeout(500);
   ok(!(await post({ action: 'minhaSessao', key: tokV })).ok, 'Sair encerra a sessão no servidor (cópia do token não vale mais)');
   ok(!pv.erros.length, 'visitante: sem erros de console', pv.erros);
 
@@ -219,9 +218,11 @@ const esperaReal = ms => new Promise(r => setTimeout(r, ms));
   await ptv.waitForSelector('#pn-troca:not([hidden])', { timeout: 15000 });
   ok(await ptv.evaluate(() => document.activeElement.id === 'pn-senha-nova'), 'TV, só teclado: senha provisória leva à troca, com a senha nova já focada');
   await ptv.keyboard.type('tv-sala-nova1'); await ptv.keyboard.press('Tab'); await ptv.keyboard.type('tv-sala-nova1'); await ptv.keyboard.press('Enter');
-  await ptv.waitForSelector('#tv-palco .tv-kpi', { timeout: 20000 }); await ptv.waitForTimeout(600);
+  await ptv.waitForSelector('#tv-palco .tv-kpi', { timeout: 20000 });
+  await ate(ptv, () => window.PainelTV && PainelTV.estado().ativo && PainelTV.estado().tela === 'aovivo', null, 5000);
   ok(await ptv.isHidden('#pn-login') && await ptv.evaluate(() => PainelTV.estado().ativo && PainelTV.estado().tela === 'aovivo'), 'TV entra nas telas sem tocar no mouse');
-  await ptv.keyboard.press('ArrowRight'); await ptv.waitForTimeout(400);
+  await ptv.keyboard.press('ArrowRight');
+  await ate(ptv, () => PainelTV.estado().tela === 'alertas', null, 5000);
   ok(await ptv.evaluate(() => PainelTV.estado().tela) === 'alertas', 'depois de entrar, as setas voltam a trocar de tela');
   ok(await ptv.isHidden('#pn-sair'), 'na TV não há botão Sair');
   const tokTV = await token(ptv), idTV = await idDe('tv.sala');

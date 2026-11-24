@@ -1,3 +1,4 @@
+// gdv:node (sem fakegas e sem navegador)
 // Documentação dentro dos limites de tamanho (tests/lib/contexto.js), sem link quebrado e com autoria humana identificável no HEAD.
 // Não usa o fakegas nem o navegador. Tabela completa: node tests/lib/contexto.js
 const { execFileSync } = require('child_process');

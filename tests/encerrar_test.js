@@ -138,7 +138,7 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
   ok(nDepois === nAntes - 2, `indicador "Barreiras em andamento agora": ${nAntes} → ${nDepois} (p1 e p2 encerrados)`);
   const L2 = await linhaTurno('p1'); ok(L2.encerrado === 1 && L2.fim === ultP && L2.encerradoPor === 'Gerente Encerra Silva', 'planilha: p1 encerrado às ' + ultP + ' pelo gerente');
   const dur = () => p.evaluate(() => { const t = Painel.todos.turnosTodos.find(x => x.id === 'p1'); Painel.reavaliarAbertos(); return t && { enc: t.encerrado, and: t.emAndamento, min: Math.round(t.duracaoMin), sit: t.situacao }; });
-  const d0 = await dur(); await p.waitForTimeout(1500); await p.evaluate(() => Painel.recarregar()); await p.waitForTimeout(2500); const dd = await dur();
+  const d0 = await dur(); const u0 = await p.evaluate(() => Painel.estado().ultimaCarga); await p.evaluate(() => Painel.recarregar()); await p.waitForFunction(u => !Painel.estado().carregando && Painel.estado().ultimaCarga > u, u0); const dd = await dur();
   const esperado = Math.round((tsM(diaM(iniP), ultP) - tsM(diaM(iniP), hmM(iniP))) / 60000);
   ok(d0 && d0.enc && !d0.and && d0.min === esperado && dd.min === esperado && dd.sit === 'encerrada', `horas param de contar: duração fixa em ${esperado} min (início → fim informado)`, [d0, dd]);
   await p.screenshot({ path: DIR + 'encerrar_geral.png', fullPage: false });
@@ -186,11 +186,16 @@ const linhaTurno = async id => (await aba('Turnos')).find(t => t.id === id);
     await p.fill('#nTF', String(n)); await p.selectOption('#nPosto', 'Fixa'); await p.click('#fTurno button[type=submit]'); await p.waitForSelector('.contador');
     return p.evaluate(() => Store.meta('turnoAtual'));
   };
-  const registrar = async placa => { await p.click('nav [data-v=registrar]'); await p.waitForSelector('#fVeic'); await p.waitForTimeout(400);
+  const registrar = async placa => {
+    await p.evaluate(() => { const f = document.querySelector('#fVeic'); if (f) f.dataset.velho = '1'; });
+    await p.click('nav [data-v=registrar]');
+    await p.waitForFunction(() => { const f = document.querySelector('#fVeic'); return f && !f.dataset.velho && document.querySelector('#placa') && document.querySelector('#placa').value === ''; });
     // a tela pode ser redesenhada logo depois do clique (o formulário antigo ainda estava na tela): confere a placa antes de salvar
-    for (let i = 0; i < 5 && await p.inputValue('#placa').catch(() => '') !== placa; i++) { await p.fill('#placa', placa); await p.waitForTimeout(300); }
+    for (let i = 0; i < 5 && await p.inputValue('#placa').catch(() => '') !== placa; i++) { await p.fill('#placa', placa); if (await p.inputValue('#placa').catch(() => '') === placa) break; await p.waitForTimeout(50); }
+    await p.evaluate(() => { const f = document.querySelector('#fVeic'); if (f) f.dataset.velho = '1'; });
     await p.click('#fVeic > button');
-    await p.waitForFunction(pl => document.querySelector('#toast').textContent.includes(pl), placa); };
+    await p.waitForFunction(pl => document.querySelector('#toast').textContent.includes(pl), placa);
+    await p.waitForFunction(() => { const f = document.querySelector('#fVeic'); return f && !f.dataset.velho; }).catch(() => {}); };
   await p.waitForSelector('.modulo');
   const id1 = await iniciarTurno(41); await registrar('AAA1A11'); await sync();
   ok(!!(await linhaTurno(id1)), 'turno do aparelho chegou à planilha');

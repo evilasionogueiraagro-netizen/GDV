@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const sincronizar = require('./lib/sincronizar');
 const { chromium } = require('playwright-core');
 const assert = require('assert');
 const U = require('./lib/usuarios');
@@ -30,10 +31,14 @@ const U = require('./lib/usuarios');
   await page.click('#fTurno button[type=submit]'); await page.waitForSelector('.contador');
   // registra 3 veículos
   for (const [pl, tipo] of [['ABC1D23', 'PA'], ['XYZ9K88', 'ON'], ['QQQ1A11', 'CC']]) {
-    await page.waitForTimeout(400); await page.click('nav [data-v=registrar]'); await page.waitForTimeout(300); await page.waitForSelector('#fVeic');
+    await page.evaluate(() => { const f = document.querySelector('#fVeic'); if (f) f.dataset.velho = '1'; });
+    await page.click('nav [data-v=registrar]');
+    await page.waitForFunction(() => { const f = document.querySelector('#fVeic'); return f && !f.dataset.velho && document.querySelector('#placa') && document.querySelector('#placa').value === ''; });
     await page.fill('#placa', pl.toLowerCase()); await page.check(`input[value=${tipo}]`);
+    await page.evaluate(() => { const f = document.querySelector('#fVeic'); if (f) f.dataset.velho = '1'; });
     await page.click('#fVeic > button');
     await page.waitForFunction(p => document.querySelector('#toast').textContent.includes(p), pl, {timeout:4000}).catch(async e => { console.log('TOAST=', await page.textContent('#toast'), 'URL erros=', erros); throw e; });
+    await page.waitForFunction(() => { const f = document.querySelector('#fVeic'); return f && !f.dataset.velho; }).catch(() => {});
   }
   // edita um e exclui outro
   await page.click('nav [data-v=lista]'); await page.waitForSelector('.item');
@@ -61,7 +66,15 @@ const U = require('./lib/usuarios');
   // coordenadas NÃO podem aparecer em nenhuma tela do app
   const vazou = async pg => { const t = await pg.evaluate(() => document.body.innerText); return /-3\.1190|-60\.0217|📍 (Início|Encerramento|Local)|Local de início/.test(t); };
   const telas = {}; telas.encerrado = await vazou(page);
-  for (const v of ['home', 'registrar', 'lista', 'resumo', 'historico', 'config']) { if (v === 'config') await page.click('nav [data-v=modulos]'); await page.click(`nav [data-v=${v}]`); await page.waitForTimeout(350); telas[v] = await vazou(page); }
+  for (const v of ['home', 'registrar', 'lista', 'resumo', 'historico', 'config']) {
+    if (v === 'config') { await page.click('nav [data-v=modulos]'); await page.waitForSelector('.modulo'); }
+    await page.evaluate(() => { const f = document.querySelector('#fTurno'); if (f) f.dataset.velho = '1'; });
+    await page.click(`nav [data-v=${v}]`);
+    if (v === 'historico') await page.waitForSelector('#hOut .kpis');
+    else if (v === 'config') await page.waitForSelector('#cEst');
+    else await page.waitForFunction(() => document.querySelector('#fTurno') && !document.querySelector('#fTurno[data-velho]'));
+    telas[v] = await vazou(page);
+  }
   console.log('coordenadas visíveis em alguma tela? ->', JSON.stringify(telas));
   assert.ok(!Object.values(telas).some(Boolean), 'coordenadas não devem aparecer no app');
   assert.equal(await page.locator('#reabrir').count(), 0, 'não deve haver botão de reabrir');
@@ -93,7 +106,7 @@ const U = require('./lib/usuarios');
   await p2.waitForFunction(() => document.querySelector('.kpi b')?.textContent !== '0', null, { timeout: 8000 });
   await p2.click('#limpar'); await p2.waitForFunction(() => document.querySelector('.kpi b')?.textContent === '0', null, { timeout: 8000 });
   console.log('após limpar: KPIs =', (await p2.locator('.kpi').allTextContents()).join(' | '));
-  await p2.evaluate(() => Sync.sincronizar()); await p2.waitForTimeout(1500);
+  await sincronizar(p2);
   await p2.click('nav [data-v=lista]'); await p2.click('nav [data-v=historico]'); await p2.waitForSelector('#limpar');
   console.log('após novo sync, histórico volta? KPIs =', (await p2.locator('.kpi').allTextContents()).join(' | '));
   console.log('planilha intacta: veículos =', ((await dump()).V.length - 1));
@@ -131,9 +144,9 @@ const U = require('./lib/usuarios');
   assert.ok(await p6.evaluate(() => /^u\.[0-9a-f]{64}$/.test(localStorage.getItem('gdv.key'))), 'a credencial guardada é o token de sessão');
   await p6.fill('#nTF', '21'); await p6.selectOption('#nPosto', 'Móvel'); await p6.fill('#nLocal', 'BR-174'); await p6.fill('#nUnidade', 'MANAUS');
   await p6.click('#fTurno button[type=submit]'); await p6.waitForSelector('.contador');
-  await p6.waitForTimeout(400); await p6.click('nav [data-v=registrar]'); await p6.waitForTimeout(300); await p6.fill('#placa', 'MMM1A11'); await p6.click('#fVeic > button');
+  await p6.click('nav [data-v=registrar]'); await p6.waitForFunction(() => VIEW === 'registrar' && document.querySelector('#placa') && document.querySelector('#placa').value === ''); await p6.fill('#placa', 'MMM1A11'); await p6.click('#fVeic > button');
   await p6.waitForFunction(() => document.querySelector('#toast').textContent.includes('registrado'));
-  await p6.evaluate(() => Sync.sincronizar()); await p6.waitForTimeout(1500);
+  await sincronizar(p6);
   const d2 = await dump();
   const linhaT = d2.T.find(r => r[1] === 'TF-021-' + 'B-2026' || String(r[1]).startsWith('TF-021'));
   console.log('planilha: turno do fiscal -> fiscal:', linhaT && linhaT[6], '| usuario:', linhaT && linhaT[linhaT.length - 1]);
@@ -141,7 +154,7 @@ const U = require('./lib/usuarios');
   // revogação: a gerência encerra a sessão; o app pede para entrar de novo e o que estava pendente continua no aparelho
   await p6.evaluate(() => Store.salvar('veiculos', { id: 'v-pendente-rev', turnoId: 'x', placa: 'PEN1D11', tipo: 'PA', pessoas: 1, criadoEm: Date.now(), atualizadoEm: Date.now(), pendente: 1 }));
   await U.revogar(cm.usuario.id);
-  await p6.evaluate(() => Sync.sincronizar()); await p6.waitForTimeout(1500);
+  await sincronizar(p6);
   await p6.click('nav [data-v=modulos]').catch(() => {}); await p6.waitForSelector('#fEntrar');
   console.log('após revogar -> selo:', await p6.textContent('#sync'), '| cartão:', (await p6.locator('.card.aviso h3').first().textContent()), '| pendente guardado:', await p6.evaluate(async () => !!(await Store.obter('veiculos', 'v-pendente-rev'))));
   assert.ok(await p6.evaluate(async () => !!(await Store.obter('veiculos', 'v-pendente-rev'))), 'revogado: o registro pendente continua no aparelho');
@@ -150,15 +163,22 @@ const U = require('./lib/usuarios');
   const c8 = await b.newContext(); const p8 = await c8.newPage(); await rota(p8);
   await p8.goto(amb.APP); await p8.waitForSelector('#fEntrar');
   const cb = await U.criar('Carlos Eduardo Lima');
-  for (let i = 0; i < 10; i++) { await p8.fill('#eMat', cb.usuario.matricula); await p8.fill('#eSenha', 'errada-numero-' + i); await p8.click('#fEntrar button'); await p8.waitForTimeout(250); }
-  await p8.fill('#eMat', cb.usuario.matricula); await p8.fill('#eSenha', cb.senhaProvisoria); await p8.click('#fEntrar button'); await p8.waitForTimeout(600);
+  for (let i = 0; i < 10; i++) {
+    await p8.fill('#eMat', cb.usuario.matricula); await p8.fill('#eSenha', 'errada-numero-' + i);
+    await Promise.all([p8.waitForResponse(r => r.url() === URLGS && r.request().method() === 'POST'), p8.click('#fEntrar button')]);
+  }
+  await p8.fill('#eMat', cb.usuario.matricula); await p8.fill('#eSenha', cb.senhaProvisoria);
+  await Promise.all([p8.waitForResponse(r => r.url() === URLGS && r.request().method() === 'POST'), p8.click('#fEntrar button')]);
+  await p8.waitForFunction(() => /Muitas tentativas/.test(document.querySelector('#toast')?.textContent || ''), null, { timeout: 5000 });
   console.log('após 10 erros, senha CERTA ->', await p8.textContent('#toast'));
   assert.ok(/Muitas tentativas/.test(await p8.textContent('#toast')), 'depois de 10 erros nem a senha certa entra');
   // chave errada
   const r = await fetch(amb.API + '/', { method: 'POST', body: JSON.stringify({ action: 'sync', key: 'x' }) }).then(r => r.json());
   console.log('chave errada ->', JSON.stringify(r));
   // offline reload (service worker)
-  await page.goto(amb.APP); await page.waitForTimeout(800);
+  await page.goto(amb.APP);
+  await page.evaluate(() => navigator.serviceWorker.ready);
+  await page.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 10000 }).catch(() => page.reload().then(() => page.evaluate(() => navigator.serviceWorker.ready)));
   await ctx.setOffline(true); await page.reload(); await page.waitForSelector('nav');
   console.log('abre offline (SW): ok; sync badge =', await page.textContent('#sync'));
   console.log('erros de console/página:', erros.filter(e => !/Failed to load resource|net::ERR|Failed to fetch/.test(e)));

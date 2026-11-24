@@ -1,7 +1,8 @@
 const amb = require('./lib/amb');
 // Painel: o mesmo servidor digitado de jeitos diferentes (maiúsculas, acento, espaço a mais) conta como uma pessoa só nos gráficos
 // "Por fiscal" (aba TF) e "Produtividade por fiscal" (aba Barreiras) e no filtro de fiscal. Vale a grafia mais usada. TF do papel (sem
-// turno) com o local digitado de vários jeitos entra na linha da barreira escolhida em "Desempenho por barreira". Dados fictícios.
+// turno) com o local digitado de vários jeitos entra na linha da barreira escolhida em "Desempenho por barreira". As regras puras (nome
+// canônico, quantidades "12.723 Ton"/"1.500 Kg", limite do alerta) ficam em tests/unit/nomes_painel_unit_test.js. Dados fictícios.
 const { API, PAINEL: WEB } = amb;
 const post = b => fetch(API, { method: 'POST', body: JSON.stringify(b) }).then(r => r.json());
 let falhas = 0;
@@ -35,11 +36,13 @@ const TURNO = (id, fiscal, local = 'BVA - CEASA') => ({ id, numeroTF: 'TF-' + id
     const p = await c.newPage(), err = [];
     p.on('pageerror', e => err.push(e.message));
     await p.goto(WEB); await p.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 20000 });
-    const grafico = titulo => p.evaluate(t => { const g = Object.values(Chart.instances).find(x => { const h = x.canvas.closest('.pn-cartao'); return h && h.querySelector('h3, .pn-cartao-tit') && h.textContent.includes(t); });
+    const grafico = titulo => p.evaluate(t => { const g = Object.values(Chart.instances).find(x => { const h = x.canvas.closest('.pn-cartao'); return h && h.isConnected && h.querySelector('h3, .pn-cartao-tit') && h.textContent.includes(t); });
       return g ? { labels: g.data.labels, totais: g.data.labels.map((_, i) => g.data.datasets.reduce((s, d) => s + (d.data[i] || 0), 0)) } : null; }, titulo);
-    const aba = async id => { await p.click(`.pn-aba[data-aba=${id}]`); await p.waitForFunction(i => document.querySelector(`.pn-aba[data-aba=${i}]`).getAttribute('aria-selected') === 'true', id); await p.waitForTimeout(600); };
+    // troca de aba e espera o gráfico do título já desenhado (Chart.js), em vez de uma espera fixa
+    const aba = async (id, titulo) => { await p.click(`.pn-aba[data-aba=${id}]`); await p.waitForFunction(([i, t]) => document.querySelector(`.pn-aba[data-aba=${i}]`).getAttribute('aria-selected') === 'true'
+      && Object.values(Chart.instances).some(x => { const h = x.canvas.closest('.pn-cartao'); return h && h.isConnected && h.textContent.includes(t); }), [id, titulo]); };
 
-    await aba('tf');
+    await aba('tf', 'Por fiscal');
     const gf = await grafico('Por fiscal');
     const fulanos = gf && gf.labels.filter(l => /fulano/i.test(l)), iF = gf && gf.labels.indexOf('FULANO FICTICIO TESTE');
     ok(gf && fulanos.length === 1 && iF >= 0 && gf.totais[iF] === 4, 'TF "Por fiscal": as 3 grafias de Fulano viram uma barra só (a mais usada), com 4 TFs', gf);
@@ -58,7 +61,7 @@ const TURNO = (id, fiscal, local = 'BVA - CEASA') => ({ id, numeroTF: 'TF-' + id
     const alertas = await p.textContent('#pn-conteudo');
     ok(/1 TF\(s\) com quantidade fora do comum/.test(alertas) && /LIMÃO 80 Ton/.test(alertas), 'alerta: TF com 80 t num produto (o de 12,723 t não entra)');
 
-    await aba('barreiras');
+    await aba('barreiras', 'Produtividade por fiscal');
     const gb = await grafico('Produtividade por fiscal');
     ok(gb && gb.labels.filter(l => /fulano/i.test(l)).length === 1 && gb.totais[gb.labels.findIndex(l => /fulano/i.test(l))] === 2, 'Barreiras "Produtividade por fiscal": Fulano uma vez, com os veículos dos 2 turnos', gb);
 

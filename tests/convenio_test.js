@@ -180,7 +180,7 @@ const NOVO = visitaId => ({ visitaId, programaVisita: 'Monilíase do Cacaueiro e
   ok(/Manaus \(2 propriedades\)/.test(det) && /Manacapuru \(2 propriedades\)/.test(det) && /Autazes/.test(det) && !/Itacoatiara|Careiro/.test(det), 'detalhe 1.4: memória com municípios e propriedades; quebra por município; gráfico mensal', det.slice(0, 300));
   await p.click('.pn-conv-etapa[data-etapa="1.10"] summary'); await p.waitForSelector('.pn-conv-etapa[data-etapa="1.10"] canvas', { timeout: 10000 });
   ok(/BVA - JUNDIÁ/.test(await p.textContent('.pn-conv-etapa[data-etapa="1.10"] .pn-conv-det-corpo')), 'detalhe 1.10 por BVA');
-  await p.waitForTimeout(1200); await shot(p, 'metas_setembro');                    // espera a animação dos gráficos
+  await p.waitForTimeout(400); await shot(p, 'metas_setembro');                     // espera a animação dos gráficos (300 ms no painel)
   // mês de outubro: 1.9 sem turno volante → alerta "sem registro"
   await p.selectOption('#pn-conv-mes', '2026-10');
   await p.waitForFunction(() => Painel.aba('convenios').estado().R && Painel.aba('convenios').estado().R.mes === '2026-10', null, { timeout: 20000 });
@@ -314,7 +314,7 @@ const NOVO = visitaId => ({ visitaId, programaVisita: 'Monilíase do Cacaueiro e
   ok(/R\$\s?139\.820,00/.test(txFin) && /0,85%/.test(txFin) && /NE 2026NE000123/.test(txFin), 'tela do financeiro: saldo, % e documento', txFin.slice(0, 200));
   d = await FL({ etapa: '1.4', item: '1.4.2', data: '2026-09-01', valor: 10, descricao: 'favorecido 529.982.247-25' }); ok(!d.ok && /CPF/.test(d.erro), 'financeiro: CPF do favorecido recusado', d.erro);
   const [dlCsv] = await Promise.all([p.waitForEvent('download'), p.click('#pn-conv-visao .pn-secao:last-child .pn-tab-acoes button')]);   // CSV do painel (sem nomes)
-  const csv = fs.readFileSync(await dlCsv.path(), 'utf8');
+  const csv = fs.readFileSync(await amb.arquivoBaixado(dlCsv), 'utf8');
   ok(/Valor/.test(csv) && /1200/.test(csv) && /NE 2026NE000123/.test(csv) && /68042/.test(csv), 'exportar CSV dos lançamentos financeiros', csv.slice(0, 200));
   salvar('financeiro.csv', csv);
   await shot(p, 'financeiro');
@@ -353,13 +353,13 @@ const NOVO = visitaId => ({ visitaId, programaVisita: 'Monilíase do Cacaueiro e
   salvar('relatorio_setembro_2026.html', '<!DOCTYPE html><meta charset="utf-8">' + pr.html);
   // PDF gerado no navegador (arquivo)
   const [dlPdf] = await Promise.all([p.waitForEvent('download', { timeout: 120000 }), p.click('#pn-cr-pdf')]);
-  const pdfNome = dlPdf.suggestedFilename(), pdf = fs.readFileSync(await dlPdf.path());
+  const pdfNome = dlPdf.suggestedFilename(), pdf = fs.readFileSync(await amb.arquivoBaixado(dlPdf));
   const pdfArq = salvar(pdfNome, pdf);
   const npag = Number(py('import sys,pypdf;print(len(pypdf.PdfReader(sys.argv[1]).pages))', pdfArq));
   ok(pdf.slice(0, 5).toString() === '%PDF-' && /Relatorio_Convenio_991272-2025_Parcial_7_2026-09\.pdf/.test(pdfNome) && npag >= 4, 'Baixar PDF: arquivo PDF com várias páginas', [pdfNome, pdf.length, npag]);
   // Word
   const [dlDoc] = await Promise.all([p.waitForEvent('download', { timeout: 60000 }), p.click('#pn-cr-docx')]);
-  const docNome = dlDoc.suggestedFilename(), docx = fs.readFileSync(await dlDoc.path());
+  const docNome = dlDoc.suggestedFilename(), docx = fs.readFileSync(await amb.arquivoBaixado(dlDoc));
   const docArq = salvar(docNome, docx);
   ok(docx.slice(0, 2).toString() === 'PK' && /\.docx$/.test(docNome), 'Baixar Word: arquivo .docx (zip)', [docNome, docx.length]);
   const info = py(`import sys,zipfile,json
@@ -428,7 +428,7 @@ print(json.dumps({'nomes':nomes,'tabelas':x.count('<w:tbl>'),'bordas':x.count('w
     await pc.click('.pn-conv-etapa[data-etapa="1.10"] summary'); await pc.waitForSelector('.pn-conv-etapa[data-etapa="1.10"] canvas');
     const visoes = [];
     for (const v of ['metas', 'lanc', 'fin', 'rel']) {
-      await pc.click(`[data-conv=visao][data-v=${v}]`); await pc.waitForTimeout(300);
+      await pc.click(`[data-conv=visao][data-v=${v}]`); await pc.waitForSelector(`[data-conv=visao][data-v=${v}][aria-pressed=true]`);
       if (v === 'rel') { await pc.click('#pn-conv-rel-abrir'); await pc.waitForSelector('#pn-conv-rel-form'); }
       visoes.push([v, await semRolagem(pc)]);
       await shot(pc, `celular_${tema}_${v}`);

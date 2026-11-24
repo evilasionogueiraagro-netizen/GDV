@@ -2,6 +2,7 @@
 // Confere: permissão (sem ela o cartão some e o servidor recusa), número "NNN.AAAA.UNIDADE" confirmado sob lock (online) e provisório (offline) com conflito,
 // obrigatórios, rascunho, cancelamento com motivo, impressão e PDF, linha na aba TermosEducacao com servidor e usuario. Dados fictícios.
 const amb = require('./lib/amb');
+const sincronizar = require('./lib/sincronizar');
 const U = require('./lib/usuarios');
 const { API, APP } = amb;
 let falhas = 0;
@@ -161,7 +162,7 @@ const reg = (id, o = {}) => ({ id, unidade: 'Manaus', ano: ANO, numero: 1, data:
   ok(/número provisório/.test(await p.textContent('#edu-termo')) && !(await aba('TermosEducacao')).some(x => x.local === 'Porto Fictício'), 'a planilha ainda não tem o termo');
   await fetch(API + '/__on');
   await p.ctx.setOffline(false); await p.evaluate(() => window.dispatchEvent(new Event('online')));
-  await p.evaluate(() => Sync.sincronizar()); await p.waitForFunction(() => Store.todos('termosEducacao').then(l => l.every(t => !t.pendente)), null, { timeout: 20000 });
+  await sincronizar(p); await amb.esperar(p, () => Store.todos('termosEducacao').then(l => l.every(t => !t.pendente)), null, 20000);
   const sinc = await p.evaluate(async () => (await Store.todos('termosEducacao')).find(t => t.local === 'Porto Fictício'));
   const l4 = (await aba('TermosEducacao')).find(x => x.local === 'Porto Fictício') || {};
   ok(l4.numeroTxt === `004.${ANO}.MANAUS` && l4.usuario === 'Pessoa Ficticia Edu Com' && Number(l4.conflito) === 1, 'ao sincronizar: o termo sobe com o número provisório e a planilha marca o conflito (o mais antigo vale)', l4);
@@ -177,7 +178,7 @@ const reg = (id, o = {}) => ({ id, unidade: 'Manaus', ano: ANO, numero: 1, data:
   ok(/Informe o motivo/.test(await aviso()) && Number((await aba('TermosEducacao')).find(x => x.numeroTxt === `003.${ANO}.MANAUS`).cancelado) === 0, 'cancelar sem motivo: não cancela');
   p.motivo = 'Termo lançado em duplicidade (teste)';
   await p.click('#edu-cancelar'); await p.waitForFunction(() => /CANCELADO/.test(document.querySelector('#view').textContent), null, { timeout: 15000 });
-  await p.waitForFunction(() => Store.todos('termosEducacao').then(l => l.every(t => !t.pendente)), null, { timeout: 20000 });
+  await amb.esperar(p, () => Store.todos('termosEducacao').then(l => l.every(t => !t.pendente)), null, 20000);
   const lc = (await aba('TermosEducacao')).find(x => x.numeroTxt === `003.${ANO}.MANAUS`);
   ok(Number(lc.cancelado) === 1 && lc.motivoCancel === 'Termo lançado em duplicidade (teste)' && Number(lc.excluido) === 0 && lc.usuario === 'Pessoa Ficticia Edu Com', 'cancelado com motivo na planilha (sem apagar; quem cancelou: usuario)', lc);
   ok(await p.locator('#edu-cancelar').count() === 0 && /CANCELADO: Termo lançado/.test(await p.textContent('#edu-termo')), 'tela do termo mostra CANCELADO e o motivo');

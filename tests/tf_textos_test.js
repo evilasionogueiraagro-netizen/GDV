@@ -8,8 +8,8 @@ const ok = (c, m, extra) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (extra
   const b = await amb.lancar(), f = await U.fiscal('Pessoa Ficticia Alfa');
   const c = await b.newContext({ viewport: { width: 400, height: 900 } });
   await c.addInitScript(([t, n]) => { try { if (!localStorage.getItem('gdv.key')) { localStorage.setItem('gdv.url', window.__GDV_API); localStorage.setItem('gdv.key', t); localStorage.setItem('gdv.nome', n); localStorage.setItem('gdv.semInstalar', '1'); } } catch (e) {} }, [f.token, f.nome]);
-  // internet lenta: a consulta do próximo nº demora 6 s
-  await c.route(API + '/**', async rt => { const body = rt.request().postData() || ''; if (/tfProximoNumero/.test(body)) await new Promise(r => setTimeout(r, 6000)); rt.continue(); });
+  // internet lenta: a consulta do próximo nº demora 2 s (o bastante para marcar o procedimento antes da resposta)
+  await c.route(API + '/**', async rt => { const body = rt.request().postData() || ''; if (/tfProximoNumero/.test(body)) await new Promise(r => setTimeout(r, 2000)); rt.continue(); });
   const p = await c.newPage(), err = []; p.on('pageerror', e => err.push(e.message)); p.on('dialog', d => d.accept());
   await p.goto(APP); await p.waitForSelector('.modulo', { timeout: 15000 }); await p.click('.modulo[data-v=tf]'); await p.waitForSelector('button[data-tf=novo]');
   await p.click('button[data-tf=novo]'); await p.waitForSelector('#tfForm');

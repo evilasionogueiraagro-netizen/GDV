@@ -1,6 +1,7 @@
 const amb = require('./lib/amb'); const U = require('./lib/usuarios');
-// Textos sugeridos do TF: constatação por BVA, produto e destino (CONFIG.TF.modelos: citros na BVA - HUMAITÁ com destino Manaus) e
-// enquadramento por BVA, sentido da rota e produto (CONFIG.TF.enquadramento, planilha da GDV); liberação com enquadramento em branco.
+// Textos sugeridos do TF na tela: a BVA cadastrada no painel aparece no formulário e, ao marcar o procedimento ou trocar produto, barreira,
+// origem e destino, a constatação e o enquadramento são os da regra (TFUI.textosSugeridos); texto editado pelo fiscal não é trocado.
+// A matriz BVA x produto x rota x procedimento (CONFIG.TF.modelos e CONFIG.TF.enquadramento) fica em tests/unit/tf_modelos_unit_test.js.
 const { APP, API } = amb;
 let falhas = 0;
 const ok = (c, m, extra) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (extra !== undefined ? ' -> ' + JSON.stringify(extra) : '')); if (!c) falhas++; };
@@ -25,42 +26,24 @@ const post = b => fetch(API + '/', { method: 'POST', body: JSON.stringify(b) }).
   await p.selectOption('#tf-produtos .prod select >> nth=0', 'LARANJA'); await p.fill('#tf-produtos .prod input', '100');
   await p.fill('#tf-destino', 'MANAUS'); await p.dispatchEvent('#tf-destino', 'change');
   const textos = async () => ({ c: await p.inputValue('#tf-constatacao'), e: await p.inputValue('#tf-enquadramento') });
-  await p.check('input[name=tf-proc][value=rechaco]'); let t = await textos();
-  ok(/plantas cítricas/.test(t.c) && /retornou à origem/.test(t.c) && /Portaria SDA\/MAPA nº 1\.326 de 04\/07\/2025 \(HLB\)\.$/.test(t.e) && /IN nº 28\/2016;/.test(t.e) && !/IN nº 21|5\.741|1\.503/.test(t.e) && !/Mosca/.test(t.c), 'citros + Humaitá + Manaus (entrada) + rechaço: constatação do modelo e enquadramento de cancro/HLB', t.c.slice(0, 80));
-  await p.check('input[name=tf-proc][value=apreensao]'); t = await textos();
-  ok(/plantas cítricas/.test(t.c) && /foi apreendido/.test(t.c) && /1\.326/.test(t.e), 'apreensão: texto do modelo, com a apreensão e o mesmo enquadramento');
-  await p.check('input[name=tf-proc][value=liberacao]'); t = await textos();
-  ok(/não foram constatadas irregularidades/.test(t.c) && t.e === '', 'liberação: "sem irregularidades" e enquadramento em branco', t);
+  // o que a tela mostra = a regra pura, com os mesmos campos
+  const regra = proc => p.evaluate(pr => { const v = id => document.querySelector('#tf-' + id).value, sel = document.querySelector('#tf-barreira');
+    return TFUI.textosSugeridos(pr, { barreira: sel.selectedOptions[0].textContent, produtos: [...document.querySelectorAll('#tf-produtos .prod select:first-of-type')].map(x => x.value),
+      origem: v('origem'), destino: v('destino'), ufOrigem: v('ufOrigem'), ufDestino: v('ufDestino') }); }, proc);
+  const igual = async proc => { const t = await textos(), r = await regra(proc); return t.c === r.constatacao && t.e === r.enquadramento ? t : { tela: t, regra: r }; };
+  await p.check('input[name=tf-proc][value=rechaco]'); let t = await igual('rechaco');
+  ok(t.c && /plantas cítricas/.test(t.c) && /1\.326/.test(t.e), 'Humaitá, laranja para Manaus, rechaço: a tela mostra o modelo de citros e o enquadramento da regra', t);
+  await p.check('input[name=tf-proc][value=liberacao]'); t = await igual('liberacao');
+  ok(t.c && /não foram constatadas irregularidades/.test(t.c) && t.e === '', 'trocar para liberação: textos da liberação e enquadramento em branco', t);
   await p.check('input[name=tf-proc][value=rechaco]');
-  await p.selectOption('#tf-produtos .prod select >> nth=0', 'MANGA'); t = await textos();
-  ok(!/Mosca/.test(t.c) && /SEM a devida documentação/.test(t.c) && /IN nº 38/.test(t.e) && !/1\.326|1\.675/.test(t.e), 'Humaitá, manga entrando: texto sem a mosca e só as normas comuns (a planilha não tem a linha)', t);
-  await p.selectOption('#tf-produtos .prod select >> nth=0', 'TANGERINA'); await p.fill('#tf-destino', 'PORTO VELHO'); await p.dispatchEvent('#tf-destino', 'change'); t = await textos();
-  ok(!/Mosca/.test(t.c) && !/plantas cítricas/.test(t.c) && /1\.675 de 26\/08\/2026/.test(t.e) && !/1\.326/.test(t.e), 'Humaitá, citros para Porto Velho (saída): texto sem a mosca, enquadramento da mosca', t);
-  // CEASA: entrada de citros em Manaus (cancro/HLB) x saída de manga (mosca); carga mista junta as normas sem repetir
-  await p.selectOption('#tf-barreira', 'BVA-CEASA');
-  await p.fill('#tf-origem', 'Porto Velho'); await p.fill('#tf-destino', 'Manaus'); await p.dispatchEvent('#tf-destino', 'change'); t = await textos();
-  ok(/1\.326/.test(t.e) && !/1\.675/.test(t.e), 'CEASA, tangerina entrando em Manaus: cancro/HLB', t.e);
-  ok(/Cancro Cítrico e do HLB/.test(t.c) && !/Mosca/.test(t.c) && /retornou à origem/.test(t.c), 'CEASA, tangerina entrando: constatação de cancro/HLB, sem a mosca', t.c);
-  await p.fill('#tf-origem', 'Manaus'); await p.fill('#tf-destino', 'Parintins'); await p.dispatchEvent('#tf-destino', 'change');
-  await p.selectOption('#tf-produtos .prod select >> nth=0', 'MANGA'); t = await textos();
-  ok(/1\.188/.test(t.e) && /776/.test(t.e) && /1\.675/.test(t.e) && !/1\.326/.test(t.e), 'CEASA, manga saindo de Manaus: hospedeiros da mosca', t.e);
-  ok(/Mosca-da-Carambola/.test(t.c), 'CEASA: constatação geral, com a mosca', t.c.slice(0, 80));
-  // Jundiá (sem sentido): limão = ácaro hindustânico; laranja = citros; carga mista junta as normas sem repetir
-  await p.selectOption('#tf-barreira', 'BVA-JUNDIA');
-  await p.selectOption('#tf-produtos .prod select >> nth=0', 'LIMÃO'); t = await textos();
-  ok(/IN nº 8 de 17\/04\/2012/.test(t.e) && !/IN nº 28|776|IN nº 21/.test(t.e), 'Jundiá, limão: ácaro hindustânico', t.e);
-  await p.selectOption('#tf-produtos .prod select >> nth=0', 'LARANJA'); t = await textos();
-  ok(/IN nº 21 de 25\/04\/2018/.test(t.e) && /Portaria nº 780/.test(t.e) && /IN nº 8/.test(t.e), 'Jundiá, laranja: citros (IN 8, IN 21, Portaria 780)', t.e);
-  const n = t.e.split('; ').length;
+  await p.selectOption('#tf-produtos .prod select >> nth=0', 'MANGA'); t = await igual('rechaco');
+  ok(t.c && !/1\.326/.test(t.e), 'trocar o produto atualiza os textos (manga: sem cancro/HLB)', t);
+  await p.selectOption('#tf-barreira', 'BVA-CEASA'); await p.fill('#tf-origem', 'Manaus'); await p.fill('#tf-destino', 'Parintins'); await p.dispatchEvent('#tf-destino', 'change'); t = await igual('rechaco');
+  ok(t.c && /1\.675/.test(t.e), 'trocar barreira, origem e destino atualiza os textos (CEASA, manga saindo de Manaus: mosca)', t);
   await p.click('button[data-tf=addprod]'); await p.waitForSelector('#tf-produtos .prod >> nth=1');
-  await p.selectOption('#tf-produtos .prod >> nth=1 >> select >> nth=0', 'LIMÃO'); t = await textos();
-  ok(t.e.split('; ').length === n && new Set(t.e.split('; ')).size === n && /IN nº 21/.test(t.e), 'Jundiá, laranja + limão: normas juntas, sem repetir', t.e);
-  await p.click('button[data-tf=delprod] >> nth=1');
-  await p.selectOption('#tf-produtos .prod select >> nth=0', 'COCO'); t = await textos();
-  ok(/ácaro hindustânico/.test(t.c) && /retornou à origem/.test(t.c) && /IN nº 8/.test(t.e) && /1\.188/.test(t.e), 'Jundiá, coco: constatação do ácaro hindustânico (modelo) e enquadramento do ácaro', t);
-  await p.selectOption('#tf-barreira', 'BVA-CEASA'); t = await textos();
-  ok(!/ácaro/.test(t.c), 'coco em outra BVA: o modelo do Jundiá não vale', t.c.slice(0, 80));
-  await p.selectOption('#tf-barreira', 'BVA-JUNDIA'); await p.selectOption('#tf-produtos .prod select >> nth=0', 'LARANJA');
+  await p.selectOption('#tf-produtos .prod >> nth=1 >> select >> nth=0', 'LARANJA'); t = await igual('rechaco');
+  ok(t.c && t.e, 'segundo produto entra na regra (carga mista)', t);
+  await p.click('button[data-tf=delprod] >> nth=1'); await p.selectOption('#tf-produtos .prod select >> nth=0', 'LARANJA');
 
   await p.selectOption('#tf-barreira', 'BVA-HUMAITA'); await p.fill('#tf-origem', 'Porto Velho/RO');
   await p.fill('#tf-destino', 'Manaus/AM'); await p.dispatchEvent('#tf-destino', 'change');

@@ -7,7 +7,7 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== und
 (async () => {
   const b = await amb.lancar();
   const p = await A.aparelho(b, 'Pessoa Ficticia Alfa', { assinaturaNaTela: true });   // assinatura na tela está desligada no app (CONFIG.assinaturaNaTela); o teste liga para seguir conferindo esse código
-  const espera = async (cond, n = 40) => { for (let i = 0; i < n && !(await cond()); i++) await p.waitForTimeout(100); return cond(); };
+  const espera = async (cond, n = 160) => { for (let i = 0; i < n && !(await cond()); i++) await p.waitForTimeout(25); return cond(); };
   const toast = () => p.textContent('#toast');
   const arqsProd = () => p.evaluate(async () => (await Store.todos('arquivos')).filter(a => a.papel === 'produtor').map(a => ({ id: a.id, tipo: a.tipo, mime: a.mime, rotulo: a.rotulo })));
   await A.identificar(p);
@@ -23,8 +23,9 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (x !== und
   ok(/foto/.test(await toast()) && await p.locator('#pceVisitaForm').count() === 1 && await p.locator('#pce-visita-pronta').count() === 0, 'sem a foto não conclui a visita', await toast());
   await p.setInputFiles('#pce-docprod-in', [{ name: 'doc1.jpg', mimeType: 'image/jpeg', buffer: await A.imagem(p, 2000, 1500, '#258') }]);
   await p.waitForSelector('#pce-docprod-prev img');
+  const id1 = ((await arqsProd())[0] || {}).id;
   await p.setInputFiles('#pce-docprod-in', [{ name: 'doc2.jpg', mimeType: 'image/jpeg', buffer: await A.imagem(p, 1200, 1600, '#a52') }]);
-  await p.waitForFunction(() => /Trocar a foto/.test(document.querySelector('#pce-docprod-btn').textContent));
+  await espera(async () => { const a = await arqsProd(); return a.length === 1 && a[0].id !== id1; });
   let ap = await arqsProd();
   ok(ap.length === 1 && ap[0].tipo === 'foto' && ap[0].mime === 'image/jpeg' && /documento de identificação/.test(ap[0].rotulo), 'trocar a foto: fica só a última (foto, JPEG, com rótulo)', ap);
   ok(/Trocar a foto/.test(await p.textContent('#pce-docprod-btn')), 'botão vira "Trocar a foto"');

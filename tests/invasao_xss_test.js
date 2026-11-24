@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const sincronizar = require('./lib/sincronizar');
 // Teste de invasão no navegador (OWASP A05, XSS armazenado): um fiscal grava textos com HTML/JS (TF, turno, veículo, levantamento,
 // nome do fiscal digitado) e quem abre o painel, a verificação pública do TF, o dashboard público, o portal e o app de campo não pode
 // executar nada. XSS no painel levaria o token do gerente (localStorage) e, com ele, todos os dados. Complementa invasao_test.js. Dados fictícios.
@@ -44,7 +45,8 @@ const X = i => 'Teste ' + CARGAS[i % CARGAS.length];
     }, [TOK, AD.token]);
     // o que denuncia execução: a marca global, um diálogo, ou um elemento ativo vindo dos dados
     const examinar = async (p, onde) => {
-      await p.waitForTimeout(800);
+      await p.waitForFunction(() => !document.querySelector('#pn-conteudo.carregando, #pn-conv-visao.carregando, #pn-rg-corpo.carregando'), null, { timeout: 10000 }).catch(() => {});
+      await p.evaluate(() => new Promise(r => requestAnimationFrame(() => setTimeout(r, 60))));
       const v = await p.evaluate(() => ({ xss: window.__xss || 0,
         elementos: [...document.querySelectorAll('img, svg, iframe, script, a')]
           .filter(e => [...e.attributes].some(x => /__xss/.test(x.value)) || (e.tagName === 'SCRIPT' && /__xss/.test(e.textContent))).length }));
@@ -64,6 +66,7 @@ const X = i => 'Teste ' + CARGAS[i % CARGAS.length];
     for (const a of abas) {
       await p.click(`.pn-aba[data-aba=${a}]`);
       await p.waitForFunction(i => document.querySelector(`.pn-aba[data-aba=${i}]`).getAttribute('aria-selected') === 'true', a);
+      await p.waitForFunction(id => { const mod = typeof Painel !== 'undefined' && Painel.aba(id); const st = mod && mod.estado ? mod.estado() : null; return !st || !st.carregando; }, a, { timeout: 10000 }).catch(() => {});
       await examinar(p, 'painel, aba ' + a);
     }
     ok(!p.dialogos(), 'painel: nenhum diálogo aberto por carga');
@@ -82,7 +85,7 @@ const X = i => 'Teste ' + CARGAS[i % CARGAS.length];
     const adm = await abrir(ORIGEM + '/administrativo/', '#adm-app:not([hidden])');
     await examinar(adm, 'portal do administrativo');
     const app = await abrir(APP, '.modulo');
-    await app.evaluate(() => Sync.sincronizar());   // os dados do login (com as cargas) chegam na sincronização
+    await sincronizar(app);   // os dados do login (com as cargas) chegam na sincronização
     await examinar(app, 'app de campo (dados do próprio login)');
     ok(![v, v2, d, adm, app].some(x => x.dialogos()), 'nenhum diálogo aberto por carga');
   } finally { await b.close(); }

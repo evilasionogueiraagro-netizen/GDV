@@ -89,7 +89,7 @@ const pragasDe = (cat, culturaId) => {
       localStorage.setItem('gdv.painel.token', i.t); localStorage.setItem('gdv.painel.nome', i.n); } }, { t: u.token, n: 'Usuário Teste' });
     const pg = await cx.newPage(); pg.on('pageerror', e => err.push(e.message));
     await pg.goto(amb.PAINEL); await pg.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 30000 });
-    await pg.click('#pn-aba-pce'); await pg.waitForTimeout(300);
+    await pg.click('#pn-aba-pce'); await pg.waitForFunction(() => document.querySelector('#pn-aba-pce').getAttribute('aria-selected') === 'true' && document.querySelector('#pn-conteudo .pn-pce-sub, #pn-conteudo .pn-kpi'), null, { timeout: 10000 }).catch(() => {});
     return { pg, cx };
   };
   let { pg: G, cx: cg } = await abrir(g);
@@ -99,12 +99,15 @@ const pragasDe = (cat, culturaId) => {
   ok((await G.$$eval('.pn-cat-grupo', l => l.map(x => x.textContent))).slice(0, 2).join() === 'Citros,Bananeira', 'lista agrupada por família');
   await G.click('[data-cat-sel=limao]'); await G.waitForSelector('#pn-cat-ps');
   ok(/HLB \/ Greening/.test(await G.textContent('#pn-cat-ps')) && /família Citros/.test(await G.textContent('#pn-cat-ps')), 'Limão: pragas ligadas pela família Citros');
-  await G.fill('#pn-cat-cultivares', 'Limão Tahiti, Limão Galego'); await G.click('#pn-cat-salvar'); await G.waitForTimeout(500);
+  await G.fill('#pn-cat-cultivares', 'Limão Tahiti, Limão Galego'); await G.click('#pn-cat-salvar');
+  // espera a gravação terminar e a tela redesenhar (sem espera fixa)
+  await G.waitForFunction(() => { const b = document.querySelector('#pn-cat-salvar'), r = document.querySelector('.pn-cat-rodape'); return b && !b.disabled && r && /Alterado por/.test(r.textContent); }, null, { timeout: 10000 });
   ok((await linhas('Culturas')).find(x => x.id === 'limao').cultivares === 'Limão Tahiti, Limão Galego', 'editar cultivares e salvar grava na planilha');
-  await G.selectOption('#pn-cat-ligar-sel', 'bactrocera-carambolae'); await G.click('#pn-cat-ligar'); await G.waitForTimeout(500);
+  await G.selectOption('#pn-cat-ligar-sel', 'bactrocera-carambolae'); await G.click('#pn-cat-ligar');
+  await G.waitForFunction(() => /só Limão/.test((document.querySelector('#pn-cat-ps') || {}).textContent || ''), null, { timeout: 10000 }).catch(() => {});
   ok(/só Limão/.test(await G.textContent('#pn-cat-ps')), 'ligar uma praga só ao limão');
   await G.click('[data-pce-visao=pragas]'); await G.waitForSelector('#pn-cat-chips');
-  await G.click('[data-cat-sel=cancro-citrico]'); await G.waitForTimeout(200);
+  await G.click('[data-cat-sel=cancro-citrico]'); await G.waitForFunction(() => /IN MAPA/.test((document.querySelector('#pn-cat-enq') || {}).value || ''), null, { timeout: 10000 }).catch(() => {});
   ok(/IN MAPA nº 21\/2018/.test(await G.inputValue('#pn-cat-enq')) && /família Citros/.test(await G.textContent('#pn-cat-chips')), 'Cancro Cítrico: enquadramento legal e culturas afetadas');
   await G.screenshot({ path: amb.saida('pce_catalogo_pragas.png'), fullPage: true });
   await cg.close();

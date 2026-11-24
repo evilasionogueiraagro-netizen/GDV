@@ -29,7 +29,7 @@ const Envio = (() => {
   const TAG = 'gdv-enviar', TAG_PERIODICO = 'gdv-enviar-periodico';
 
   // campos só do aparelho (controle local, sugestões e _login, quem recebeu o registro) não vão para a planilha
-  const limpo = ({ pendente, provisorio, _login, frutosSugeridos, resumoLev, ultimoTermoPce, campoMun, baixadoEm, recusadoEm, ...r }) => r;
+  const limpo = ({ pendente, provisorio, _login, deOutro, frutosSugeridos, resumoLev, ultimoTermoPce, campoMun, baixadoEm, recusadoEm, ...r }) => r;
   const lerJSON = (v, pad) => { try { return JSON.parse(v) || pad; } catch (e) { return pad; } };
 
   /** Erro de conexão (sem internet, servidor fora do ar, tempo esgotado): vale tentar de novo depois. */

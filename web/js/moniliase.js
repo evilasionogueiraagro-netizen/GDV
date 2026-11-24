@@ -502,7 +502,7 @@ const PCEMon = (() => {
     if (bloqueado()) return view(avisoAtivacao());
     const mostrar = tela();
     const s = await U().exigirServidor('pcerel', null, true); if (!s || !mostrar.viva()) return;
-    fechar();
+    fechar(); await U().limparDeOutros();                        // cópia de Termo de outro servidor (consulta) não entra no relatório
     const m = (await Store.meta(REL_META)) || {}, termos = (await Store.todos('termosPce')).filter(t => !Number(t.excluido));
     const servs = [...new Set(termos.map(t => String(t.servidor || '').trim()).filter(Boolean))].sort((a, b) => a.localeCompare(b, 'pt-BR'));
     const fp = filtroPadrao(), progs = PCEDocs.programasRelatorio(), cads = await Store.todos('cadastrosPce');

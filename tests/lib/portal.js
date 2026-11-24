@@ -25,5 +25,7 @@ async function abrir(b, s, opts = {}) {
   return p;
 }
 async function aba(p, id) { await p.click(`#adm-abas [data-aba="${id}"]`); }
+/** Parte da aba Convênio: 'gastos' ou 'metas'. */
+async function sub(p, vis) { await p.click(`#adm-conv [data-conv=vis][data-vis="${vis}"]`); }
 
-module.exports = { sessao, abrir, aba, post };
+module.exports = { sessao, abrir, aba, sub, post };

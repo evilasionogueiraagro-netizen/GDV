@@ -1,8 +1,8 @@
 /* Portal do Administrativo do e-GDV (web/administrativo/) — núcleo: login, sessão, chamadas à API (actions adm* do Code.gs com o token de
    SESSÃO do portal no campo "sessao"; nunca a credencial do painel/app), abas, histórico e os componentes de tela (seções, KPIs, alertas,
    tabelas com busca e CSV) no mesmo visual do painel (../painel/css/painel.css).
-   Os módulos de lançamento se registram com Adm.registrarAba: js/adm-convenio.js (desembolso, físico do convênio, importação da planilha
-   de movimentação), js/adm-relatorios.js (linhas manuais do Relatório GDV) e js/adm-vigifito.js (VIGIFITO por posto e importação).
+   Os módulos de lançamento se registram com Adm.registrarAba: js/adm-convenio.js (aba Convênio: gastos e metas, importação da planilha
+   de movimentação), js/adm-relatorios.js (números do mês do Relatório GDV) e js/adm-vigifito.js (VIGIFITO por posto e importação).
    Login único: matrícula e senha (action entrar, aplicativo "administracao": o token "u.…" vai em "sessao"); senha provisória = troca
    obrigatória (trocarSenha) antes de guardar a sessão. Sessão encerrada, conta desativada ou sem a permissão: volta a esta tela. */
 const Adm = (() => {
@@ -246,7 +246,7 @@ const Adm = (() => {
   }
 
   /* ---------------- aba Histórico ---------------- */
-  const ABAS_HIST = { ConvFinanceiro: 'Desembolso', ConvLancamentos: 'Físico do convênio', RelGdvLancamentos: 'Linhas dos relatórios', VigLancamentos: 'VIGIFITO', EscalaPcdp: 'Diárias das escalas' };
+  const ABAS_HIST = { ConvFinanceiro: 'Convênio: gastos', ConvLancamentos: 'Convênio: metas', RelGdvLancamentos: 'Números do mês', VigLancamentos: 'VIGIFITO', EscalaPcdp: 'Diárias das escalas' };
   const H = { aba: '', lista: null, erro: '' };
   async function carregarHist(c) {
     H.erro = ''; H.lista = null; desenharHist(c);

@@ -106,11 +106,11 @@ function planilha(var2) {
   await p.click('[data-conv=visao][data-v=fin]'); await p.waitForSelector('#pn-conv-portal');
   ok(!(await p.$('#pn-conv-imp-arq')) && /Portal do Administrativo/.test(await p.textContent('#pn-conv-visao')), 'painel → Financeiro: a importação saiu do painel (aviso e link para o portal)');
   const recarregarPainel = async () => { await p.evaluate(() => Painel.aba('convenios').recarregar()); await p.waitForFunction(() => { const s = Painel.aba('convenios').estado(); return s.R && s.R.mes === '2026-10'; }, null, { timeout: 20000 }); };
-  const pa = await PORTAL.abrir(b, SA, { aba: 'desembolso' });
+  const pa = await PORTAL.abrir(b, SA, { aba: 'convenio' });
   pa.on('request', r => { if (r.postData()) corpos.push(r.postData()); if (/xlsx\.mini/.test(r.url())) xlsxBaixado.push(r.url()); });
   await pa.waitForSelector('#pn-conv-imp-arq', { state: 'attached', timeout: 20000 });
   ok(!xlsxBaixado.length && await pa.evaluate(() => typeof window.XLSX === 'undefined'), 'SheetJS não é carregada com o portal (só no clique)');
-  ok(/Importar planilha de movimentação \(\.xlsx\)/.test(await pa.textContent('.pn-conv-imp-btn')), 'botão "📥 Importar planilha de movimentação (.xlsx)" no Desembolso do portal');
+  ok(/Importar planilha de movimentação \(\.xlsx\)/.test(await pa.textContent('.pn-conv-imp-btn')), 'botão "📥 Importar planilha de movimentação (.xlsx)" em Convênio > Gastos do portal');
   await pa.setInputFiles('#pn-conv-imp-arq', ARQ);
   await pa.waitForSelector('#pn-conv-imp-pv', { timeout: 20000 });
   ok(xlsxBaixado.length === 1 && /vendor\/xlsx\/xlsx\.mini\.min\.js/.test(xlsxBaixado[0]), 'SheetJS carregada da pasta vendor ao importar', xlsxBaixado);
@@ -271,7 +271,7 @@ print(json.dumps({'n':len(d.tables),'txt':'\\n'.join(p.text for p in d.paragraph
   } else console.log('  (python-docx indisponível: .docx não conferido por dentro)');
 
   console.log('6. Celular (390 px): prévia sem rolagem horizontal');
-  const pc = await PORTAL.abrir(b, SA, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, aba: 'desembolso' });
+  const pc = await PORTAL.abrir(b, SA, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, aba: 'convenio' });
   await pc.waitForSelector('#pn-conv-imp-arq', { state: 'attached', timeout: 20000 });
   await pc.setInputFiles('#pn-conv-imp-arq', ARQ); await pc.waitForSelector('#pn-conv-imp-pv', { timeout: 20000 });
   ok(await pc.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), 'celular: prévia sem rolagem horizontal',

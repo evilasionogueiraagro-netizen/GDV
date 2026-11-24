@@ -4,7 +4,7 @@
 // de Colheita, quando houve coleta), com número por unidade e ano (sem internet o número é provisório e a planilha confere ao sincronizar).
 // Usa funções do app.js (view, go, tela, toast, $, esc, dBR, hojeISO, agoraHM, pegarLocalSilencioso, avisoAtivacao), do pce.js (PCEUI), do
 // pce-cadastros.js (PCECads: catálogo, frutos), do docs.js (impressão/PDF) e do documentos/pce-docs.js (agregados do relatório).
-const PCEMon = (() => {
+const PCEVisita = (() => {
   const P = CONFIG.PCE, TC = P.termo || {};
   const digitos = v => String(v || '').replace(/\D/g, '');
   const semAcento = s => String(s || '').normalize('NFD').replace(/[̀-ͯ]/g, '');
@@ -852,7 +852,7 @@ const PCEMon = (() => {
         if (st.coleta === 'Sim' && !(Number(st.qtd) > 0)) return `${f.cultura}: informe a quantidade de amostras.`;
         const co = [st.dados.sintomaLat, st.dados.sintomaLon].filter(Boolean);
         if (co.length === 1) return `${f.cultura}: informe latitude e longitude da planta com sintoma.`;
-        if (co.length === 2) { const r = PCEMon.lerPar(st.dados.sintomaLat, st.dados.sintomaLon); if (r.erro) return `${f.cultura}: coordenada da planta: ${r.erro}`; }
+        if (co.length === 2) { const r = PCEVisita.lerPar(st.dados.sintomaLat, st.dados.sintomaLon); if (r.erro) return `${f.cultura}: coordenada da planta: ${r.erro}`; }
       }
       return '';
     }

@@ -143,10 +143,10 @@ function go(view, arg, o) {
   const r = ({ modulos, home, registrar, editar: registrar, lista, resumo, fechado, historico, config, turnopapel, tf: () => TFUI.lista(), tfnovo: () => TFUI.novo(EDIT), tfpronto: () => TFUI.pronto(EDIT),
     // PCE: produtores (busca e dados offline), cadastro com frutos, tela do produtor, fichas, nova visita e Termos
     pce: () => Campo.telaProdutores(), pcecampo: () => Campo.telaBaixar(), pceprodutor: () => PCECads.produtor(EDIT), pceprodform: () => PCECads.produtorForm(EDIT),
-    pceficha: () => PCECads.ficha(EDIT), pcevisita: () => PCEMon.visita(EDIT), pcevisitapronto: () => PCEMon.visitaPronta(EDIT), pcelevver: () => PCEUI.verLev(EDIT),
+    pceficha: () => PCECads.ficha(EDIT), pcevisita: () => PCEVisita.visita(EDIT), pcevisitapronto: () => PCEVisita.visitaPronta(EDIT), pcelevver: () => PCEUI.verLev(EDIT),
     pcetfs: () => PCECads.termos(EDIT), pcenovotermo: () => Campo.telaNovoTermo(),
     pcetermos: () => PCEUI.termos(), pcetermo: () => PCEUI.termo(EDIT), pcepronto: () => PCEUI.pronto(EDIT), pceservidor: () => PCEUI.servidor(EDIT),
-    pcetf: () => PCEMon.termo(EDIT), pcetfpronto: () => PCEMon.pronto(EDIT), pcerel: () => PCEMon.relatorio(),
+    pcetf: () => PCEVisita.termo(EDIT), pcetfpronto: () => PCEVisita.pronto(EDIT), pcerel: () => PCEVisita.relatorio(),
     educacao: () => EducacaoUI.lista(), educacaonovo: () => EducacaoUI.novo(), educacaotermo: () => EducacaoUI.termo(EDIT), educacaoservidor: () => EducacaoUI.servidor(EDIT),
     escalas: () => EscalaUI.lista(), escala: () => EscalaUI.form(EDIT), escalagerar: () => EscalaUI.gerar(EDIT),
     relequipes: () => EscalaUI.relLista(), relequipe: () => EscalaUI.rel(EDIT) }[view])();

@@ -151,7 +151,7 @@ function emitir_(req, usuario) {
     if (Number(String(tf.data).slice(0, 4)) !== ano) throw new Error('TF do papel: o ano do número (' + ano + ') é diferente do ano da data.');
   }
   ufsNorm_(tf);
-  const lock = LockService.getScriptLock();
+  const lock = lockMedido_();
   lock.waitLock(30000);
   try {
     const todos = lerLeitura_('TFs'), ini = inicioAppTF_(todos.filter(function (r) { return r.id !== tf.id; }));
@@ -236,7 +236,7 @@ function marcarConflitosTFs_(recebidos, agora) { marcarConflitos_('TF', recebido
 function definirSequencia_(barreira, ano, ultimo, tipo) {
   tipo = tipo || 'TF';
   if (!seqDeBarreira_(tipo) && (!(Number(ano) > 2000) || !(Number(ultimo) >= 0))) throw new Error('Ano ou número inválido.');
-  const lock = LockService.getScriptLock();
+  const lock = lockMedido_();
   lock.waitLock(30000);
   try {
     if (!seqDeBarreira_(tipo)) {
@@ -448,7 +448,7 @@ function tfAndamento_(req, usuario) {
   if (!/^[\w-]{1,64}$/.test(rid)) throw new Error('Rascunho inválido.');
   const id = (usuario + '|' + rid).slice(0, 160), txt = function (v, n) { return textoPlanilha_(String(v === null || v === undefined ? '' : v).trim().slice(0, n || 120)); };
   const coord = function (v, lim) { const n = numOuNulo_(v); return n !== null && Math.abs(n) <= lim ? String(n) : ''; };
-  const lock = LockService.getScriptLock();
+  const lock = lockMedido_();
   lock.waitLock(30000);
   try {
     const t = lerTudo_('Andamento'), agora = Date.now();

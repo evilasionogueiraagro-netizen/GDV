@@ -32,8 +32,8 @@ const seguro = (chave, c, m, x) => {
 // resposta de erro não pode vazar detalhe interno (pilha, arquivo .gs, TypeError do JavaScript)
 const VAZAMENTO = /\bat \w|\.gs:\d|TypeError|ReferenceError|SyntaxError|Cannot read|is not a function|is not defined|undefined/;
 const semVazamento = r => !(r && r.erro && VAZAMENTO.test(r.erro));
-// planilha sem as colunas que mudam a cada chamada legítima (último uso da sessão)
-const foto = async () => { const t = await tudo(); delete t.SessoesDosUsuarios; return JSON.stringify(t); };
+// planilha sem o que muda a cada chamada legítima (último uso da sessão; resumo da medição de desempenho)
+const foto = async () => { const t = await tudo(); delete t.SessoesDosUsuarios; delete t.Desempenho; return JSON.stringify(t); };
 
 const CPF = '52998224725', PLACA = 'ABC1D23', FISCALIZADO = 'Fiscalizado Ficticio Alfa';
 const hoje = new Date(Date.now() - 4 * 3600e3).toISOString().slice(0, 10), ANO = Number(hoje.slice(0, 4)), ag = Date.now();

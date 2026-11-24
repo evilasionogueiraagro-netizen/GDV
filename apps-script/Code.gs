@@ -199,7 +199,10 @@ const TABELAS = {
   // entregues. Exclusão lógica; cancelar = cancelado 1 com motivoCancel (o número continua usado).
   TermosEducacao: ['id', 'unidade', 'ano', 'numero', 'numeroTxt', 'numeroSugerido', 'numeroOrigem', 'conflito', 'emitidoEm', 'data', 'hora', 'municipio', 'local',
                    'tipoMedida', 'tipoMedidaOutro', 'publicoAlvo', 'publicoOutro', 'programas', 'programaOutro', 'descricao', 'pessoas', 'folders', 'obs',
-                   'servidor', 'cargo', 'matricula', 'lotacao', 'cancelado', 'motivoCancel', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario']
+                   'servidor', 'cargo', 'matricula', 'lotacao', 'cancelado', 'motivoCancel', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts', 'usuario'],
+  // Medição do servidor (desempenho.gs): resumo por hora (Manaus) e ação; tempos em ms
+  Desempenho: ['id', 'hora', 'acao', 'n', 'mediaMs', 'p50Ms', 'p90Ms', 'maxMs', 'lockEsperaMedioMs', 'lockEsperaMaxMs', 'lockUsoMedioMs',
+               'leituraMedioMs', 'leiturasMedia', 'linhasLidasMedia', 'erros', 'gravadoEm', 'versao']
 };
 const CAMPOS_NUMERICOS = ['pessoas', 'encerrado', 'cuidado', 'semPlaca', 'excluido', 'criadoEm', 'atualizadoEm', 'srv_ts',
                           'expiraEm', 'ativo', 'ativadoEm', 'oculto', 'ocultoEm',
@@ -220,18 +223,25 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-11-17e';
+const VERSAO_CODIGO = '2026-11-22a';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
 }
 
+/** Entrada da API: atende (atender_) e mede o tempo da chamada (desempenho.gs, aba Desempenho). */
 function doPost(e) {
+  medirInicio_();
+  try { return atender_(e); } finally { medirFim_(); }
+}
+
+function atender_(e) {
   USUARIO_ATUAL_ = null;   // quem está chamando: preenchido por autenticar_/adminDoToken_/admSessao_/gerenciaDe_; vale só para esta requisição
   try {
     let req = null;
     try { req = JSON.parse(e.postData.contents); } catch (x) { req = null; }
     if (!req || typeof req !== 'object' || Array.isArray(req)) throw new Error('Requisição inválida.');   // sem detalhe do JavaScript na resposta
+    medirAcao_(req.action);
     if (req.action === 'painelSair') return json_(sair_(req));                                 // = sair (nome usado pela tela atual do painel)
     if (req.action === 'painelDados') return json_(lido_(req, painelDados(req.key, { de: req.de, ate: req.ate, aoVivo: req.aoVivo, ids: req.ids })));
     if (req.action === 'painelEncerrarTurno') return json_(painelEncerrarTurno(req.key, req.turnoId, req.fim));
@@ -305,6 +315,7 @@ function doPost(e) {
     if (/^relEquipe(Lista|Salvar)?$/.test(String(req.action))) return json_(relEquipeAcao_(req, usuario));
     throw new Error('Ação inválida.');
   } catch (err) {
+    medirErro_();
     const r = { ok: false, erro: String(err.message || err) };
     if (err && err.semPermissao) { r.semPermissao = err.semPermissao; r.permissoes = err.permissoes; }   // o app atualiza as permissões guardadas
     if (err && err.trocarSenha) r.trocarSenha = 1;                                                       // senha provisória pendente: a tela leva à troca
@@ -364,7 +375,7 @@ function sincronizar_(req, usuario) {
   // UF de origem/destino (TF e veículo): sigla conhecida (UFS_) ou vazio; campo não enviado (app antigo) continua não enviado
   T.tfs.concat(T.veiculos).forEach(ufsNorm_);
 
-  const lock = LockService.getScriptLock();
+  const lock = lockMedido_();
   lock.waitLock(30000);
   try {
     const agora = Date.now();
@@ -445,6 +456,7 @@ function sincronizar_(req, usuario) {
     return {
       ok: true,
       agora: agora,
+      turnosForaEscala: Object.keys(foraEscala),                                   // turno novo recusado por estar fora da escala da BVA (o app avisa)
       // cada aparelho recebe os turnos/veículos do próprio fiscal e, do turno compartilhado (pareamento), o turno e os veículos de todos
       turnos: lerMudancasTurnos_('Turnos', since, usuario, comp.turnos, 'id'),
       veiculos: lerMudancasTurnos_('Veiculos', since, usuario, comp.veiculos, 'turnoId'),

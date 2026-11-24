@@ -5,22 +5,25 @@ const Login = (() => {
   const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
   const campoUrl = () => CONFIG.sync.url ? '' : '<label>Endereço do servidor<input id="eUrl" type="url" placeholder="https://script.google.com/macros/s/…/exec" required></label>';
 
+  // campo de senha com o botão de mostrar/ocultar (o fiscal confere o que digitou; o teclado do celular troca letras e põe maiúscula)
+  const campoSenha = (id, rotulo, auto) => `<label>${rotulo}<span class="senha-campo"><input id="${id}" type="password" autocomplete="${auto}" autocapitalize="off" autocorrect="off" spellcheck="false" required>
+      <button type="button" class="ver-senha" data-ver-senha="${id}" aria-label="Mostrar senha" aria-pressed="false" title="Mostrar senha">${icone('olho')}</button></span></label>`;
   const formEntrar = revogado => `${revogado ? `<div class="card aviso" role="alert"><h3>${icone('proibido')} Acesso revogado</h3>
       <p>O seu acesso a este aparelho foi encerrado. Entre de novo com a sua matrícula e a sua senha; se não conseguir, fale com a gerência. Os registros que não foram enviados continuam guardados aqui.</p></div>` : ''}
     <form class="card" id="fEntrar"><h3>${icone('chave')} Entrar</h3>
       <p>Entre com a sua matrícula e a sua senha. Só esta etapa exige internet; depois o aparelho fica lembrado até você sair.</p>
       ${campoUrl()}
       <label>Matrícula<input id="eMat" autocomplete="username" autocapitalize="off" spellcheck="false" required></label>
-      <label>Senha<input id="eSenha" type="password" autocomplete="current-password" required></label>
+      ${campoSenha('eSenha', 'Senha', 'current-password')}
       <button class="botao">Entrar</button></form>`;
 
   const formTrocarSenha = () => {
     const u = Sync.usuario();
     return `<form class="card aviso" id="fTrocarSenha"><h3>${icone('chave')} Trocar senha</h3>
       <p>${u ? `Matrícula <b>${esc(u.matricula)}</b>. ` : ''}Troque a senha provisória por uma senha só sua para liberar o app. Mínimo de 8 caracteres. Esta etapa exige internet.</p>
-      <label>Senha atual<input id="tAtual" type="password" autocomplete="current-password" required></label>
-      <label>Nova senha<input id="tNova" type="password" autocomplete="new-password" required></label>
-      <label>Repita a nova senha<input id="tRepete" type="password" autocomplete="new-password" required></label>
+      ${campoSenha('tAtual', 'Senha atual', 'current-password')}
+      ${campoSenha('tNova', 'Nova senha', 'new-password')}
+      ${campoSenha('tRepete', 'Repita a nova senha', 'new-password')}
       <button class="botao">Trocar senha</button>
       <button type="button" class="botao sec" data-sair="1">Sair e entrar com outra matrícula</button></form>`;
   };
@@ -86,6 +89,14 @@ const Login = (() => {
     }
   });
   document.addEventListener('click', e => {
+    const v = e.target.closest('[data-ver-senha]');
+    if (v) {                                                               // mostrar/ocultar a senha digitada
+      const i = document.getElementById(v.dataset.verSenha); if (!i) return;
+      const ver = i.type === 'password'; i.type = ver ? 'text' : 'password';
+      v.setAttribute('aria-pressed', String(ver)); v.setAttribute('aria-label', ver ? 'Ocultar senha' : 'Mostrar senha'); v.title = v.getAttribute('aria-label');
+      v.innerHTML = icone(ver ? 'olho-fechado' : 'olho'); i.focus();
+      return;
+    }
     const b = e.target.closest('[data-sair]');
     if (b) sair(b);
   });

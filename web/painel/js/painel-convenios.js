@@ -95,6 +95,7 @@
     const ms = mesesDisponiveis(c), h = hoje();
     const prazo = Math.max(0, Math.min(1, P.diasEntre(c.vigencia.inicio, h) / P.diasEntre(c.vigencia.inicio, c.vigencia.fim)));
     r.innerHTML = `
+      <p class="pn-sub" id="pn-conv-intro">Os gastos e as metas do convênio são lançados no Portal do Administrativo. Aqui você acompanha o andamento e gera o relatório.</p>
       <div class="pn-cartao pn-conv-topo">
         <div class="pn-conv-sel">
           <label>Convênio<select id="pn-conv-sel">${E.dados.convenios.map(x => `<option value="${esc(x.id)}" ${x.id === c.id ? 'selected' : ''}>${esc(x.numero || x.id)}</option>`).join('')}</select></label>

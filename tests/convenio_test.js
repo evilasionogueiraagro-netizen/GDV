@@ -209,7 +209,8 @@ const NOVO = visitaId => ({ visitaId, programaVisita: 'Monilíase do Cacaueiro e
   console.log('3. Lançamentos manuais (Portal do Administrativo)');
   await p.click('[data-conv=visao][data-v=lanc]'); await p.waitForSelector('#pn-conv-portal');
   ok(!(await p.$('#pn-conv-lanc-form')) && /Portal do Administrativo/.test(await p.textContent('#pn-conv-visao')), 'painel → Lançamentos: só leitura, com o aviso e o link para o portal');
-  const pa = await PORTAL.abrir(b, SA, { aba: 'fisico' });
+  const pa = await PORTAL.abrir(b, SA, { aba: 'convenio' });
+  await PORTAL.sub(pa, 'metas');
   await pa.waitForSelector('#pn-conv-lanc-form', { timeout: 20000 });
   const recarregarPainel = async () => { await p.evaluate(() => Painel.aba('convenios').recarregar()); await p.waitForFunction(() => { const s = Painel.aba('convenios').estado(); return s.R && s.R.mes === '2026-09' && !document.querySelector('#pn-conv-visao.carregando'); }, null, { timeout: 20000 }); };
   const lancar = async (o) => {
@@ -243,6 +244,8 @@ const NOVO = visitaId => ({ visitaId, programaVisita: 'Monilíase do Cacaueiro e
   await pa.selectOption('#pn-cl-etapa', '1.1');
   ok(await pa.isVisible('#pn-cl-bem') && await pa.isVisible('#pn-cl-sit') && await pa.isHidden('#pn-cl-qtd'), 'formulário 1.1: bem e situação (sem quantidade)');
   ok(/Lançado/.test(await lancar({ etapa: '1.1', bem: 'pickup-urucurituba', sit: 'em_aquisicao', data: '2026-08-01', desc: 'Processo licitatório' })), 'bem 1.1: pick-up em aquisição (agosto)');
+  ok(await pa.inputValue('#pn-cl-sit') === 'adquirido', 'situação padrão do bem: a próxima depois da atual (em aquisição → adquirido)');
+  await pa.selectOption('#pn-cl-sit', 'em_aquisicao');
   ok(await pa.isHidden('#pn-cl-valor'), 'bem em aquisição: sem campo de valor');
   await pa.selectOption('#pn-cl-sit', 'entregue');
   ok(await pa.isVisible('#pn-cl-valor') && await pa.isVisible('#pn-cl-qtdbem') && await pa.isVisible('#pn-cl-fonte') && await pa.inputValue('#pn-cl-qtdbem') === '1', 'bem entregue/adquirido: pede o valor de aquisição, a quantidade (padrão 1) e a fonte');
@@ -287,7 +290,7 @@ const NOVO = visitaId => ({ visitaId, programaVisita: 'Monilíase do Cacaueiro e
 
   /* ---- financeiro ---- */
   console.log('4. Execução financeira');
-  await PORTAL.aba(pa, 'desembolso'); await pa.waitForSelector('#pn-conv-fin-form');
+  await PORTAL.sub(pa, 'gastos'); await pa.waitForSelector('#pn-conv-fin-form');
   const fin = async o => {
     await pa.selectOption('#pn-cf-etapa', o.etapa); await pa.selectOption('#pn-cf-item', o.item); await pa.fill('#pn-cf-data', o.data);
     await pa.fill('#pn-cf-valor', o.valor); await pa.fill('#pn-cf-qtd', o.qtd || ''); if (o.fonte) await pa.selectOption('#pn-cf-fonte', o.fonte);

@@ -3,6 +3,9 @@
 .adm-login .pn-sub { margin: 0 0 12px; }
 .adm-filtro { display: flex; flex-wrap: wrap; gap: 10px; align-items: end; margin-bottom: 10px; }
 .adm-filtro .pn-conv-campo { min-width: 200px; }
+.adm-intro { margin: 0; font-size: 14px; }
+.adm-obrig { color: var(--critico); font-weight: 700; }
+.pn-conv-nav { margin-top: 2px; }
 .adm-vivo { display: flex; flex-direction: column; gap: 8px; }
 .adm-saldo { margin: 0; }
 .adm-vivo .pn-alertas { margin-top: 2px; }

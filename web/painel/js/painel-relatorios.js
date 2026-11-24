@@ -195,6 +195,7 @@
       : E.rel === 'convenio' ? 'Relatório circunstancial técnico do convênio (metas e execução financeira): mensal (parcial) ou o total consolidado desde o início da execução até hoje. Os textos são editados na aba Convênios.'
       : 'Relatório Técnico da GDV: todas as seções (PCE, VIGIFITO — o mesmo relatório VIGIFITO —, CFO/CFOC, PTV, educação sanitária, HLB).';
     r.innerHTML = `
+      <p class="pn-sub" id="pn-rg-intro">Os números que o sistema não conta sozinho são lançados no Portal do Administrativo (aba Números do mês). Aqui você acompanha e gera os relatórios.</p>
       <div class="pn-cartao pn-rg-topo">
         <div class="pn-conv-sel">
           <label>Relatório<select id="pn-rg-rel">${RELS.map(([k, t]) => `<option value="${k}" ${E.rel === k ? 'selected' : ''}>${esc(t)}</option>`).join('')}</select></label>

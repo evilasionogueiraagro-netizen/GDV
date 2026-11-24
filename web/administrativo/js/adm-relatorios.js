@@ -1,4 +1,4 @@
-/* Portal do Administrativo — "Linhas dos relatórios": os números lançados à mão do Relatório GDV (antes no painel), por mês:
+/* Portal do Administrativo — "Números do mês" (antes "Linhas dos relatórios"): os números lançados à mão do Relatório GDV (antes no painel), por mês:
    linhas manuais do quadro PCE (área controlada, capacitação, medida fitossanitária, UP/UC cadastradas, RT, exame de documentos, termos
    e autos…), colunas por município dos grupos de pragas (poda drástica, monitoramento de armadilhas, vazio sanitário), armadilhas
    para Diaphorina citri (HLB) e as tabelas de CFO/CFOC, PTV e educação sanitária. Grava pela action admRelLancar (uma linha por
@@ -42,10 +42,10 @@
     const anos = [anoHoje() - 2, anoHoje() - 1, anoHoje()], meses = RD.MESES.map((n, i) => [i + 1, n]).filter(([i]) => E.ano < anoHoje() || i <= mesHoje());
     if (!meses.some(([i]) => i === E.mes)) E.mes = meses[meses.length - 1][0];
     const mm = pad2(E.mes);
-    r.innerHTML = `<div class="pn-cartao pn-rg-topo"><div class="pn-conv-sel">
+    r.innerHTML = `<p class="pn-sub adm-intro">Números que o sistema não conta sozinho e que entram no relatório mensal da GDV, gerado pelo gerente no painel.</p><div class="pn-cartao pn-rg-topo"><div class="pn-conv-sel">
         <label>Ano<select id="pn-rg-ano">${anos.map(a => `<option ${a === E.ano ? 'selected' : ''}>${a}</option>`).join('')}</select></label>
         <label>Mês<select id="pn-rg-mes">${meses.map(([i, n]) => `<option value="${i}" ${i === E.mes ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label></div>
-        <h3 class="pn-conv-nome">Linhas manuais do Relatório GDV — ${esc(RD.MESES[E.mes - 1])}/${E.ano}</h3>
+        <h3 class="pn-conv-nome">Números do mês — ${esc(RD.MESES[E.mes - 1])}/${E.ano}</h3>
         <p class="pn-sub">Valores do mês (o relatório anual soma os meses). Contagens em números inteiros, sem negativos; deixe em branco o que não houve lançamento. O que vem do app de campo é apurado sozinho e não aparece aqui.</p></div>
       ${E.erro ? `<p class="pn-erro" role="alert">${esc(E.erro)}</p>` : ''}<div id="adm-rel-corpo"></div>`;
     const corpo = r.querySelector('#adm-rel-corpo');
@@ -136,7 +136,7 @@
     });
     return r;
   }
-  A.registrarAba({ id: 'relatorios', titulo: 'Linhas dos relatórios', render: c => {
+  A.registrarAba({ id: 'relatorios', titulo: 'Números do mês', render: c => {
     if (!E.raiz) E.raiz = montar();
     c.appendChild(E.raiz);
     if (!E.dados[E.ano]) { E.L = null; desenhar(); carregar(); } else desenhar();

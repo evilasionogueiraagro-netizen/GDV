@@ -135,7 +135,7 @@ const encerrarSessoes = usuario => U.revogar(usuario.id);
   await preencher(ana.senha, 'NovaSenha2026', 'NovaSenha2026');
   await p.waitForSelector('.modulo', { timeout: 12000 });
   ana.senha = 'NovaSenha2026';
-  ok(await p.locator('.modulo').count() === 3 && !(await ls(p, 'gdv.revogado')), 'senha trocada: os três módulos liberados');
+  ok(await p.locator('.modulo').count() === 4 && !(await ls(p, 'gdv.revogado')), 'senha trocada: os três módulos liberados e a Educação Sanitária');
   ok(/Olá, Ana/.test(await p.textContent('#view')), 'saudação com o primeiro nome do usuário');
 
   /* ================= 3. Turno com o usuário logado ================= */
@@ -149,11 +149,11 @@ const encerrarSessoes = usuario => U.revogar(usuario.id);
   ok((await p.evaluate(() => Store.meta('cred'))).usuarioId === ana.id, 'a cópia da credencial (service worker) leva o id do usuário');
   // conta sem alguns módulos: eles somem do menu
   const B = await aparelho(); await entrar(B.p, beto.matricula, beto.senha); await B.p.waitForSelector('.modulo');
-  ok(await B.p.locator('.modulo').count() === 1 && await B.p.locator('.modulo[data-v=tf]').count() === 1, 'permissão só de TF: Educação Sanitária e PCE somem do menu, só o TF aparece', await B.p.locator('.modulo').count());
+  ok(await B.p.locator('.modulo').count() === 2 && await B.p.locator('.modulo[data-v=tf]').count() === 1 && await B.p.locator('.modulo[data-v=educacao]').count() === 1, 'permissão só de TF: PCE e Trânsito somem do menu; aparecem o TF e a Educação Sanitária (liberada para todos)', await B.p.locator('.modulo').count());
   await B.c.close();
   const SM = await usuarioPronto('Sem Modulo Silva', 'FIS004', ['campo']);
-  const Sm = await aparelho(); await entrar(Sm.p, SM.matricula, SM.senha); await Sm.p.waitForSelector('#semModulos');
-  ok(await Sm.p.locator('.modulo').count() === 0, 'conta sem nenhum módulo: menu vazio com o aviso para falar com a gerência');
+  const Sm = await aparelho(); await entrar(Sm.p, SM.matricula, SM.senha); await Sm.p.waitForSelector('.modulo[data-v=educacao]');
+  ok(await Sm.p.locator('.modulo').count() === 1 && await Sm.p.locator('#semModulos').count() === 0, 'conta sem nenhum módulo marcado: só a Educação Sanitária (liberada para todos), sem o aviso de nenhum módulo');
   await Sm.c.close();
 
   /* ================= 4. Sair ================= */
@@ -227,7 +227,7 @@ const encerrarSessoes = usuario => U.revogar(usuario.id);
   await entrar(p, cida.matricula, cida.senha);
   await p.waitForFunction(() => !document.querySelector('#fEntrar'), null, { timeout: 12000 }).catch(async e => { console.log('TOAST:', await toast(p), '| revogado:', await ls(p, 'gdv.revogado'), '| estado:', JSON.stringify(await p.evaluate(() => Sync.estado())), '| log:', estado.log.slice(-8).join(' ; ')); throw e; });
   await p.click('nav [data-v=modulos]'); await p.waitForSelector('.modulo');
-  ok(!(await ls(p, 'gdv.revogado')) && await p.locator('.modulo').count() === 3, 'entrando de novo: tudo liberado');
+  ok(!(await ls(p, 'gdv.revogado')) && await p.locator('.modulo').count() === 4, 'entrando de novo: tudo liberado (três módulos e a Educação Sanitária)');
   await esperar(async () => (await aba('Veiculos')).some(v => v.placa === 'REV1A11'));
   veic = (await aba('Veiculos')).find(v => v.placa === 'REV1A11');
   ok(veic && veic.usuario === 'Cida Campo Lima', 'depois do novo login o pendente sobe, em nome de quem o fez', veic && veic.usuario);
@@ -248,7 +248,7 @@ const encerrarSessoes = usuario => U.revogar(usuario.id);
   await sincronizar(p);
   await semRede(A, true);
   await p.reload(); await p.waitForSelector('.modulo', { timeout: 12000 });
-  ok(await p.locator('#fEntrar').count() === 0 && await p.locator('.modulo').count() === 3, 'sem internet: o app abre direto nos módulos, sem pedir login');
+  ok(await p.locator('#fEntrar').count() === 0 && await p.locator('.modulo').count() === 4, 'sem internet: o app abre direto nos módulos (com a Educação Sanitária), sem pedir login');
   await p.click('.modulo[data-v=home]'); await p.waitForSelector('#fTurno');
   ok(await p.inputValue('#nFiscal1') === 'Cida Campo Lima' && await p.getAttribute('#nFiscal1', 'readonly') !== null, 'sem internet: Fiscal 1 continua vindo do usuário logado');
   await semRede(A, false);

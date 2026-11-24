@@ -143,9 +143,9 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   console.log('6. Telas do portal e do painel');
   const b = await amb.lancar();
   const SA = { sessao: S, nome: NA, email: '' };     // entra com a conta da Ana (matrícula e senha), como depois do login
-  const p = await PORTAL.abrir(b, SA, { aba: 'desembolso' });
+  const p = await PORTAL.abrir(b, SA, { aba: 'convenio' });
   await p.waitForSelector('#pn-conv-fin-form', { timeout: 20000 });
-  ok(await p.locator('#adm-abas .pn-aba').count() >= 5, 'abas: desembolso, físico, linhas dos relatórios, VIGIFITO e histórico');
+  ok(await p.locator('#adm-abas .pn-aba').count() >= 5, 'abas: convênio, números do mês, VIGIFITO, diárias das escalas e histórico');
   await p.selectOption('#pn-cf-etapa', '1.4'); await p.selectOption('#pn-cf-item', '1.4.3');
   await p.fill('#pn-cf-valor', '600');
   ok(await p.inputValue('#pn-cf-qtd') === '5' && await p.inputValue('#pn-cf-tipo') === 'NM', 'diárias calculadas pelo valor ÷ valor unitário (600 ÷ 120 = 5) e tipo NM pelo item');
@@ -170,7 +170,7 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   ok(iMun === fin[0].length - 1 && fin.some(l => l[iDoc] === 'Memo nº 130/2026' && l[iMun] === 'Presidente Figueiredo'), 'município do desembolso gravado (coluna municipio no fim de ConvFinanceiro)', fin[0].slice(-3));
   ok((await p.textContent('#adm-tab-conv-fin-lanc')).includes('Presidente Figueiredo') && /Presidente Figueiredo/.test(csv), 'lista e CSV do portal mostram o município');
   // físico
-  await PORTAL.aba(p, 'fisico'); await p.waitForSelector('#pn-conv-lanc-form');
+  await PORTAL.sub(p, 'metas'); await p.waitForSelector('#pn-conv-lanc-form');
   await p.selectOption('#pn-cl-etapa', '1.14'); await p.selectOption('#pn-cl-sub', 'jundia'); await p.fill('#pn-cl-data', '2026-09-15'); await p.fill('#pn-cl-qtd', '1'); await p.fill('#pn-cl-desc', 'Supervisão no Jundiá');
   await p.click('#pn-cl-salvar'); await p.waitForFunction(() => /Lançado/.test(document.querySelector('[data-msg=lanc]').textContent), null, { timeout: 15000 });
   ok((await get('/__aba?nome=ConvLancamentos')).some(l => l[2] === '1.14' && l[7] === 'Supervisão no Jundiá'), 'físico lançado pela tela do portal');
@@ -188,10 +188,10 @@ const SRV = 'Servidora Diarista Secreta';      // nome de servidor das diárias:
   ok(rl.some(l => l[0] === '2026|09|pce.medidaFito' && l[4] === 7) && rl.some(l => l[0] === '2026|09|tab.ptv' && /ABACAXI/.test(l[5])), 'linhas do relatório gravadas pela tela');
   await shot(p, 'portal_relatorios');
   await PORTAL.aba(p, 'historico'); await p.waitForSelector('#adm-tab-hist');
-  ok(/Desembolso/.test(await p.textContent('#adm-tab-hist')), 'aba Histórico');
+  ok(/Convênio: gastos/.test(await p.textContent('#adm-tab-hist')), 'aba Histórico');
   ok(!p.errosPag.length, 'portal sem erros de JavaScript', p.errosPag);
   for (const [tema, esq] of [['claro', 'light'], ['escuro', 'dark']]) {
-    const pc = await PORTAL.abrir(b, SA, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, colorScheme: esq, aba: 'desembolso' });
+    const pc = await PORTAL.abrir(b, SA, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, colorScheme: esq, aba: 'convenio' });
     await pc.waitForSelector('#pn-conv-fin-form');
     ok(await pc.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1), `celular ${tema}: sem rolagem horizontal`);
     await shot(pc, 'portal_celular_' + tema, false);

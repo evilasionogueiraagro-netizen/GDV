@@ -1,5 +1,5 @@
 // Termo de Educação Sanitária (módulo próprio: educacao.gs, web/js/educacao.js, documentos/educacao-termo.html): app real (Chromium) + Code.gs real (fakegas).
-// Confere: permissão (sem ela o cartão some e o servidor recusa), número "NNN.AAAA.UNIDADE" confirmado sob lock (online) e provisório (offline) com conflito,
+// Confere: módulo liberado para todos (com ou sem a permissão antiga educacaoSanitaria), número "NNN.AAAA.UNIDADE" confirmado sob lock (online) e provisório (offline) com conflito,
 // obrigatórios, rascunho, cancelamento com motivo, impressão e PDF, linha na aba TermosEducacao com servidor e usuario. Dados fictícios.
 const amb = require('./lib/amb');
 const sincronizar = require('./lib/sincronizar');
@@ -18,13 +18,11 @@ const reg = (id, o = {}) => ({ id, unidade: 'Manaus', ano: ANO, numero: 1, data:
   console.log('1. Servidor: permissão, número, obrigatórios, dono');
   const sem = await U.fiscal('Pessoa Ficticia Edu Sem', { permissoes: ['campo', 'pce', 'fiscalizacaoDeTransito'] });
   const com = await U.fiscal('Pessoa Ficticia Edu Com', { permissoes: ['campo', 'educacaoSanitaria'] });
-  ok(sem.modulos.educacao === 0 && com.modulos.educacao === 1, 'módulo "educacao" só para quem tem educacaoSanitaria', [sem.modulos, com.modulos]);
+  ok(sem.modulos.educacao === 1 && com.modulos.educacao === 1, 'módulo "educacao" liberado para todos (com ou sem a permissão antiga educacaoSanitaria)', [sem.modulos, com.modulos]);
   let r = await post({ action: 'educacaoProximoNumero', key: sem.token, unidade: 'Manaus', ano: ANO });
-  ok(!r.ok && r.semPermissao === 'educacao' && /Educação Sanitária/.test(r.erro), 'sem permissão: educacaoProximoNumero recusado', r);
-  r = await post({ action: 'educacaoRegistrar', key: sem.token, registro: reg('edu-sem-1') });
-  ok(!r.ok && r.semPermissao === 'educacao', 'sem permissão: educacaoRegistrar recusado', r);
-  r = await post({ action: 'sync', key: sem.token, since: 0, termosEducacao: [reg('edu-sem-2')] });
-  ok(r.ok && (r.recusados.termosEducacao || []).join() === 'edu-sem-2' && (await aba('TermosEducacao')).length === 0, 'sem permissão: sync devolve o termo em recusados e nada é gravado', r.recusados);
+  ok(r.ok && r.proximo === 1, 'conta sem educacaoSanitaria: educacaoProximoNumero aceito', r);
+  r = await post({ action: 'educacaoProximoNumero', unidade: 'Manaus', ano: ANO });
+  ok(!r.ok, 'sem login: educacaoProximoNumero recusado', r);
 
   r = await post({ action: 'educacaoProximoNumero', key: com.token, unidade: 'manaus', ano: ANO });
   ok(r.ok && r.unidade === 'MANAUS' && r.proximo === 1 && r.ultimo === 0, 'próximo número da unidade/ano: 1', r);
@@ -78,14 +76,14 @@ const reg = (id, o = {}) => ({ id, unidade: 'Manaus', ano: ANO, numero: 1, data:
     return p;
   };
   const pSem = await aparelho(sem);
-  ok(await pSem.locator('.modulo[data-v=educacao]').count() === 0 && await pSem.locator('.modulo[data-v=pce]').count() === 1, 'sem permissão: o cartão "Educação Sanitária" não aparece (os outros módulos continuam)');
+  ok(await pSem.locator('.modulo[data-v=educacao]').count() === 1 && await pSem.locator('.modulo[data-v=pce]').count() === 1, 'conta sem educacaoSanitaria: o cartão "Educação Sanitária" aparece junto com os outros módulos');
   const nomes = await pSem.locator('.modulo b').allTextContents();
-  ok(nomes.includes('Fiscalização de Trânsito') && !nomes.some(n => /Educação Sanitária/.test(n)), 'cartão renomeado: "Fiscalização de Trânsito"', nomes);
+  ok(nomes.includes('Fiscalização de Trânsito') && nomes.includes('Educação Sanitária'), 'cartões "Fiscalização de Trânsito" e "Educação Sanitária"', nomes);
   await pSem.close();
 
   const p = await aparelho(com);
-  ok(await p.locator('.modulo[data-v=educacao]').count() === 1 && /Educação Sanitária/.test(await p.textContent('.modulo[data-v=educacao] b')), 'com permissão: cartão "Educação Sanitária" na tela de módulos');
-  ok(await p.locator('.modulo[data-v=veiculos], .modulo[data-v=home]').count() === 0, 'só com educacaoSanitaria: os outros cartões não aparecem');
+  ok(await p.locator('.modulo[data-v=educacao]').count() === 1 && /Educação Sanitária/.test(await p.textContent('.modulo[data-v=educacao] b')), 'cartão "Educação Sanitária" na tela de módulos');
+  ok(await p.locator('.modulo[data-v=veiculos], .modulo[data-v=home]').count() === 0, 'conta só com o app de campo: os outros cartões não aparecem');
   await p.click('.modulo[data-v=educacao]'); await p.waitForSelector('#eduServForm');
   await p.click('#edu-s-salvar');
   ok(await p.isVisible('#eduServForm'), 'Meus dados: sem cargo e lotação não salva');
@@ -184,15 +182,15 @@ const reg = (id, o = {}) => ({ id, unidade: 'Manaus', ano: ANO, numero: 1, data:
   ok(await p.locator('#edu-cancelar').count() === 0 && /CANCELADO: Termo lançado/.test(await p.textContent('#edu-termo')), 'tela do termo mostra CANCELADO e o motivo');
   const pc = await imp();
   ok(/CANCELADO: Termo lançado em duplicidade/.test(pr.texto) === false && /CANCELADO: Termo lançado em duplicidade/.test(pc.texto), 'o PDF do termo cancelado sai com a faixa CANCELADO e o motivo');
-  // gerência tira a permissão: o cartão some e os registros ficam guardados
+  // gerência grava as permissões sem educacaoSanitaria: o módulo continua (liberado para todos) e os registros ficam guardados
   const pe = await p.evaluate(() => Store.todos('termosEducacao').then(l => l.length));
   const uid = com.usuario.id;
-  r = await U.permissoes(uid, ['campo']); ok(r.ok, 'gerência tira a permissão educacaoSanitaria', r);
+  r = await U.permissoes(uid, ['campo']); ok(r.ok, 'gerência grava as permissões sem educacaoSanitaria', r);
   await p.evaluate(() => Sync.sincronizar()).catch(() => {}); await p.waitForSelector('.modulo, #semModulos', { timeout: 15000 }).catch(() => {});
   await p.evaluate(() => go('modulos')); await p.waitForTimeout(500);
-  ok(await p.locator('.modulo[data-v=educacao]').count() === 0 && await p.evaluate(() => Store.todos('termosEducacao').then(l => l.length)) === pe, 'sem a permissão: o cartão some e os termos continuam guardados no aparelho');
+  ok(await p.locator('.modulo[data-v=educacao]').count() === 1 && await p.evaluate(() => Store.todos('termosEducacao').then(l => l.length)) === pe, 'sem a permissão antiga: o cartão continua e os termos continuam guardados no aparelho');
   r = await post({ action: 'educacaoProximoNumero', key: com.token, unidade: 'Manaus', ano: ANO });
-  ok(!r.ok && r.semPermissao === 'educacao', 'sem a permissão o servidor recusa na hora', r);
+  ok(r.ok, 'sem a permissão antiga o servidor continua aceitando', r);
   ok(p.err.length === 0, 'sem erros de JavaScript', p.err);
   await b.close();
   process.exit(falhas ? 1 : 0);

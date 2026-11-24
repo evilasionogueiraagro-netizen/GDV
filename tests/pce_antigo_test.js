@@ -111,7 +111,7 @@ const uuid = () => require('crypto').randomUUID();
   r = await U.permissoes(UIDS['Pessoa Ficticia Delta Estagiaria'], U.lista({ veiculos: 0, tf: 0, pce: 1, antigo: 0 })); ok(r.ok && !r.permissoes.includes('digitarDoPapel'), 'painel: chave da estagiária só com PCE (sem "Digitar do papel")');
   const A = await aparelho(E);
   await A.evaluate(() => Sync.sincronizar()); await A.reload(); await A.waitForFunction(() => typeof Sync !== 'undefined' && Sync.ativado());
-  ok(await A.evaluate(() => JSON.stringify(Sync.permissoes())) === '{"veiculos":0,"tf":0,"pce":1,"antigo":0,"escala":0,"educacao":0}', 'app recebeu permissões: só PCE, antigo=0');
+  ok(await A.evaluate(() => JSON.stringify(Sync.permissoes())) === '{"veiculos":0,"tf":0,"pce":1,"antigo":0,"escala":0,"educacao":1}', 'app recebeu permissões: só PCE, antigo=0');
   if (!(await A.locator('.modulo').count())) await A.click('nav [data-v=modulos]');
   await A.click('.modulo[data-v=pce]'); await A.waitForSelector('#pceServForm');
   ok(await A.locator('#pce-s-digitacao').count() === 0, 'sem permissão: identificação sem "Só vou digitar registros antigos do papel"');

@@ -449,17 +449,28 @@ const TFUI = (() => {
 
   /** Textos sugeridos do procedimento: o modelo da BVA/produto/destino (CONFIG.TF.modelos, ex.: citros na BVA - HUMAITÁ) ou os gerais. */
   const semAcento = s => String(s || '').normalize('NFD').replace(/[\u0300-\u036f]/g, '').toUpperCase();
-  function textosDe(proc) {
-    const sel = $('#tf-barreira'), bar = semAcento(sel && sel.selectedOptions && sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '');
-    const prods = [...document.querySelectorAll('#tf-produtos .prod select:first-of-type')].map(x => semAcento(x.value)), dest = semAcento($('#tf-destino') ? $('#tf-destino').value : '');
+  /** Campos do formulário que decidem os textos: barreira (texto da opção), produtos, origem/destino e UFs. */
+  function camposDaTela() {
+    const sel = $('#tf-barreira'), v = id => ($('#tf-' + id) ? $('#tf-' + id).value : '');
+    return { barreira: sel && sel.selectedOptions && sel.selectedOptions[0] ? sel.selectedOptions[0].textContent : '',
+      produtos: [...document.querySelectorAll('#tf-produtos .prod select:first-of-type')].map(x => x.value),
+      origem: v('origem'), destino: v('destino'), ufOrigem: v('ufOrigem'), ufDestino: v('ufDestino') };
+  }
+  const textosDe = proc => textosSugeridos(proc, camposDaTela());
+  /**
+   * Regra pura (sem tela): textos sugeridos de um procedimento para c = {barreira, produtos: [], origem, destino, ufOrigem, ufDestino}.
+   * Devolve {constatacao, enquadramento}; liberação tem enquadramento em branco.
+   */
+  function textosSugeridos(proc, c) {
+    const bar = semAcento(c.barreira), prods = (c.produtos || []).map(semAcento), dest = semAcento(c.destino), sentido = sentidoDe(bar, c);
     const m = (T.modelos || []).find(x => [].concat(x.bva).some(b => bar.includes(semAcento(b))) && (!x.produtos || x.produtos.some(p => prods.includes(semAcento(p))))
-      && (!x.destino || dest.includes(semAcento(x.destino))) && (!x.sentido || x.sentido === sentidoDe(bar)));
-    return { constatacao: (m ? m.constatacao[proc] : T.constatacao[proc]) || '', enquadramento: proc === 'liberacao' ? '' : enquadramentoDe(bar, prods) };
+      && (!x.destino || dest.includes(semAcento(x.destino))) && (!x.sentido || x.sentido === sentido));
+    return { constatacao: (m ? m.constatacao[proc] : T.constatacao[proc]) || '', enquadramento: proc === 'liberacao' ? '' : enquadramentoDe(bar, prods, sentido) };
   }
   /** Sentido da rota pela origem/destino do TF: nas BVAs de Manaus, entra ou sai de Manaus; nas demais, do Amazonas. '' = não dá para saber. */
   const municipiosAM = () => (CONFIG.PCE && CONFIG.PCE.municipios || []).map(semAcento);
-  function sentidoDe(bar) {
-    const v = id => semAcento($('#tf-' + id) ? $('#tf-' + id).value : '').trim();
+  function sentidoDe(bar, c) {
+    const v = k => semAcento(c[k]).trim();
     const ori = v('origem'), des = v('destino'), E = T.enquadramento;
     let dentro;
     if (E.manaus.some(b => bar.includes(semAcento(b)))) dentro = (mun, uf) => mun ? /\bMANAUS\b/.test(mun) : uf && uf !== 'AM' ? false : null;
@@ -476,8 +487,8 @@ const TFUI = (() => {
     return '';
   }
   /** Enquadramento da apreensão/rechaço (CONFIG.TF.enquadramento): normas da 1ª regra de cada produto; carga mista junta, sem repetir. */
-  function enquadramentoDe(bar, prods) {
-    const E = T.enquadramento, sentido = sentidoDe(bar), lista = [];
+  function enquadramentoDe(bar, prods, sentido) {
+    const E = T.enquadramento, lista = [];
     const regras = E.regras.filter(r => [].concat(r.bva).some(b => bar.includes(semAcento(b))) && (!r.sentido || r.sentido === sentido));
     prods.filter(Boolean).forEach(p => {
       const r = regras.find(x => (E.grupos[x.grupo] || []).some(g => semAcento(g) === p));
@@ -895,5 +906,5 @@ const TFUI = (() => {
   /** O fiscal saiu do formulário sem gerar (app.js → go): o rascunho continua salvo, mas o painel deixa de mostrar o TF em preenchimento. */
   const saiu = () => encerrarAndamento();
 
-  return { lista, novo, pronto, saiu, placaNaBva, cuidadoPlaca };
+  return { lista, novo, pronto, saiu, placaNaBva, cuidadoPlaca, textosSugeridos };
 })();

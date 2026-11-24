@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const sincronizar = require('./lib/sincronizar');
 const U = require('./lib/usuarios');
 // TF de Barreira: fotos, assinatura na tela, recusa, QR code de autenticidade (verificar.html) e índice de reincidência sem internet.
 const fs = require('fs'), path = require('path'), crypto = require('crypto');
@@ -26,9 +27,9 @@ const h16 = t => crypto.createHash('sha256').update(t, 'utf8').digest('hex').sli
         qr: [...d.querySelectorAll('.verif')].map(v => ({ url: v.getAttribute('data-url'), svg: (v.querySelector('svg') || {}).outerHTML || '', vis: !v.hidden })) }); }; });
     const p = await c.newPage(); p.err = []; p.on('pageerror', e => p.err.push(e.message)); p.on('console', m => m.type() === 'error' && !/Failed to load resource|net::ERR/.test(m.text()) && p.err.push(m.text()));
     p.on('dialog', d => d.type() === 'prompt' ? d.accept('digitação errada') : d.accept()); p.ctx = c;
-    await p.goto(APP); await p.waitForSelector('#view *', { state: 'attached' }); await p.waitForTimeout(700); return p;
+    await p.goto(APP); await p.waitForSelector('.modulo'); return p;
   };
-  const sync = async p => { await p.evaluate(() => Sync.sincronizar()); await p.waitForFunction(() => ['ok', 'idle'].includes(Sync.estado().tipo) && !Sync.estado().pend, null, { timeout: 20000 }); };
+  const sync = p => sincronizar(p, { arquivos: true });
   const irTF = async p => {
     if (await p.locator('nav [data-v=tf]').count()) await p.click('nav [data-v=tf]');
     else { if (!(await p.locator('.modulo').count())) await p.click('nav [data-v=modulos]'); await p.click('.modulo[data-v=tf]'); }
@@ -169,7 +170,7 @@ print(json.dumps([[('Testemunha' in pg.extract_text()), ('Anexo fotogr' in pg.ex
 
   console.log('G) consulta de reincidência sem internet (Bruno, outro aparelho)');
   const Bd = await aparelho(fB); await sync(Bd);
-  await Bd.waitForFunction(async () => !!(await Store.meta('tfIndice')), null, { timeout: 10000 });
+  await amb.esperar(Bd, async () => !!(await Store.meta('tfIndice')), null, 10000);
   ok(await Bd.evaluate(async () => Object.keys((await Store.meta('tfIndice')).itens).length) >= 2, 'índice baixado na sincronização (meta "tfIndice")');
   await irTF(Bd); await Bd.ctx.setOffline(true); await Bd.evaluate(() => window.dispatchEvent(new Event('offline')));
   await novoTF(Bd);

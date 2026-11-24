@@ -1,6 +1,7 @@
 const amb = require('./lib/amb');
 const U = require('./lib/usuarios');
 const PA = require('./lib/pce-app');
+const sincronizar = require('./lib/sincronizar');
 // PCE — registros do papel (digitação): o Termo de Fiscalização e o Termo de Colheita continuam; o levantamento do papel saiu e o levantamento antigo só
 // abre para leitura (e continua subindo se o aparelho tinha pendência). App real (Chromium) + Code.gs real (fakegas, Drive falso).
 const { chromium } = require('playwright-core');
@@ -34,7 +35,10 @@ const uuid = () => require('crypto').randomUUID();
   };
   const pendentes = p => p.evaluate(async () => { const n = ['turnos', 'veiculos', 'tfs', 'pessoas', 'placas', 'levantamentos', 'colheitas', 'propriedades'];
     let t = 0; for (const s of n) t += (await Store.todos(s)).filter(x => x.pendente).length; return t + (await Sync.arquivosPendentes()).length; });
-  const sync = async p => { for (let i = 0; i < 30; i++) { await p.evaluate(() => Sync.sincronizar()); await p.waitForTimeout(400); if ((await pendentes(p)) === 0 && await p.evaluate(() => Sync.estado().tipo === 'ok')) return; } throw new Error('sync não terminou'); };
+  const sync = async p => {
+    const st = await sincronizar(p, { stores: ['turnos', 'veiculos', 'tfs', 'pessoas', 'placas', 'levantamentos', 'colheitas', 'propriedades'], arquivos: true });
+    if ((await pendentes(p)) !== 0 || !st || st.tipo !== 'ok') throw new Error('sync não terminou');
+  };
   const imprimir = async (p, sel) => { await p.evaluate(() => { window.__prints = []; }); await p.locator(sel).first().click(); await p.waitForFunction(() => window.__prints && window.__prints.length, null, { timeout: 10000 }); return p.evaluate(() => window.__prints[0]); };
   const toast = p => p.textContent('#toast');
   const aviso = (p, re) => p.waitForFunction(r => new RegExp(r).test((document.querySelector('#toast') || {}).textContent || ''), re.source, { timeout: 5000 }).then(() => toast(p), () => toast(p));   // espera o aviso aparecer

@@ -243,7 +243,10 @@ const AUTO = 'Automático (12 h)';
   }
   const sessao = { 'gdv.painel.token': ADM, 'gdv.painel.nome': 'Gerente Rotina Silva' };
   let p = await abrir(WEB, sessao);
-  await p.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 20000 }); await p.waitForTimeout(800);
+  await p.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 20000 });
+  // espera o conteúdo pela condição (sem espera fixa); se não aparecer, a verificação abaixo mostra a falha
+  const aparecer = (sel, re) => p.waitForFunction(([s, r]) => new RegExp(r).test((document.querySelector(s) || {}).textContent || ''), [sel, re.source], { timeout: 10000 }).catch(() => {});
+  await aparecer('#pn-conteudo', /Aberta há mais de 12 h/);
   const geral = await p.textContent('#pn-conteudo');
   ok(/Aberta há mais de 12 h/.test(geral) && !/14 h/.test(geral), 'cartão: "Aberta há mais de 12 h" (limiar novo; nada de 14 h)');
   ok(/Barreira aberta há 12 h[^:]*: Barreira Esquecida/.test(geral) || /Barreira aberta há .*Barreira Esquecida/.test(geral), 'alerta crítico da barreira aberta > 12 h');
@@ -252,7 +255,8 @@ const AUTO = 'Automático (12 h)';
   const ub = (await post({ action: 'painelDados', key: ADM })).rotinas.ultimoBackup;
   const esperadoRod = `Último backup: ${diaM(ub).slice(8, 10)}/${diaM(ub).slice(5, 7)} ${hmM(ub)}`;
   ok(rod.includes(esperadoRod), 'rodapé: "Último backup: dd/mm hh:mm"', rod.slice(-80));
-  await p.click('.pn-aba[data-aba=barreiras]'); await p.waitForTimeout(1200);
+  await p.click('.pn-aba[data-aba=barreiras]');
+  await p.waitForFunction(() => [...document.querySelectorAll('#pn-conteudo table tr')].some(tr => /Barreira Auto Encerrada/.test(tr.textContent)), null, { timeout: 10000 }).catch(() => {});
   const linhaC1 = await p.evaluate(() => [...document.querySelectorAll('#pn-conteudo table tr')].map(tr => tr.textContent).find(t => /Barreira Auto Encerrada/.test(t) && /\d\d:\d\d/.test(t)) || '');
   ok(/\(automático\)/.test(linhaC1) && !/gerência/.test(linhaC1), 'tabela de turnos: fim com "(automático)"', linhaC1.slice(0, 160));
   const legBar = await p.textContent('#pn-conteudo');
@@ -261,7 +265,8 @@ const AUTO = 'Automático (12 h)';
   await p.context().close();
   // Modo TV: legenda com 12 h
   p = await abrir(WEB + '?tv=1&rotacao=300&rotacaoAoVivo=300', sessao, { viewport: { width: 1920, height: 1080 } });
-  await p.waitForSelector('#tv-palco .tv-kpi', { timeout: 20000 }); await p.waitForTimeout(1500);
+  await p.waitForSelector('#tv-palco .tv-kpi', { timeout: 20000 });
+  await p.waitForFunction(() => /Aberta > 12 h/.test(document.querySelector('#tv-palco').textContent), null, { timeout: 10000 }).catch(() => {});
   const tv = await p.textContent('#tv-palco');
   ok(/Aberta > 12 h/.test(tv) && !/14 h/.test(tv), 'Modo TV: "Aberta > 12 h"', (tv.match(/Aberta[^()]*\(\d+\)/) || [])[0]);
   await p.screenshot({ path: DIR + 'rotinas_tv.png' });

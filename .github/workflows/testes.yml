@@ -1,7 +1,8 @@
 name: Testes automáticos
-# Roda tests/run.js (Code.gs real no fakegas + app/painel no Chromium) em 4 partes ao mesmo tempo, cada uma numa
-# máquina com seu fakegas nas portas padrão ("node run.js --parte N/4", divididas pelo tempo de cada teste no PESO
-# do run.js). A suíte em fila leva ~11 min; em 4 partes, ~4 min. O workflow só fica verde com as 4 partes verdes.
+# Roda tests/run.js em dois jobs: "rapidos" (tests/unit/ e estáticos, sem fakegas nem Chromium, segundos) e a matriz
+# (Code.gs real no fakegas + app/painel no Chromium) em 4 partes ao mesmo tempo, cada uma numa máquina com seu fakegas
+# nas portas padrão ("node run.js --parte N/4 --sem-rapidos", divididas pelo tempo de cada teste no PESO do run.js).
+# O workflow só fica verde com os rápidos e as 4 partes verdes.
 # Roda uma vez por mudança: só no PR para a main (testa o resultado do merge). O merge não roda de novo: front e back
 # publicam na hora (pages.yml e apps-script.yml). Branch sem PR: Actions → Testes automáticos → Run workflow.
 on:
@@ -14,6 +15,21 @@ concurrency:
   group: testes-${{ github.ref }}
   cancel-in-progress: true
 jobs:
+  rapidos:
+    # Testes sem fakegas e sem navegador (tests/unit/ e estáticos): segundos, sem npm ci nem Chromium. Falha aqui aparece antes da matriz.
+    name: testes rápidos (unitários e estáticos)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    defaults:
+      run:
+        working-directory: tests
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Rodar testes rápidos
+        run: node run.js --rapidos
   testes:
     name: testes (parte ${{ matrix.parte }}/4)
     runs-on: ubuntu-24.04   # Playwright 1.54 não instala o Chromium no ubuntu-latest (26.04)
@@ -36,15 +52,41 @@ jobs:
           cache: npm
           cache-dependency-path: tests/package-lock.json
       - name: Instalar dependências
-        run: npm ci
+        run: npm ci --no-audit --no-fund
+      - name: Cache do Chromium do Playwright
+        id: pw-cache
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('tests/package-lock.json') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
       - name: Instalar Chromium do Playwright (mesma versão do playwright-core)
+        if: steps.pw-cache.outputs.cache-hit != 'true'
         run: npx playwright-core install --with-deps chromium
+      - name: Instalar dependências de sistema do Chromium (cache hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: npx playwright-core install-deps chromium
+      - name: Cache do pip e pacotes Python (pypdf e python-docx)
+        id: pip-cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cache/pip
+            ~/.local/lib
+          key: pip-${{ runner.os }}-pypdf-docx-v2
+          restore-keys: |
+            pip-${{ runner.os }}-pypdf-docx
       - name: Instalar pypdf e python-docx (conferem os PDFs e os .docx gerados, ex. tf_paginas e convenio_test)
+        if: steps.pip-cache.outputs.cache-hit != 'true'
         run: python3 -m pip install --user --break-system-packages pypdf python-docx
+      - name: Conferir pypdf e python-docx (cache hit)
+        if: steps.pip-cache.outputs.cache-hit == 'true'
+        run: python3 -c "import pypdf, docx" || python3 -m pip install --user --break-system-packages pypdf python-docx
       - name: Instalar poppler-utils (pdfinfo, pdftoppm e pdftotext conferem folhas, texto e imagem dos PDFs do PCE em pce_fichas_test)
         run: sudo apt-get install -y --no-install-recommends poppler-utils
       - name: Rodar testes
-        run: node run.js --parte ${{ matrix.parte }}/4 --tentativas 2
+        run: node run.js --parte ${{ matrix.parte }}/4 --sem-rapidos --tentativas 2
       - name: Publicar saída (screenshots, PDFs, logs)
         if: failure()
         uses: actions/upload-artifact@v4

@@ -34,6 +34,8 @@
     if (/^(muda|mudas)$/.test(n)) return ['mudas', 1];
     return [n || 'sem unidade', 1];
   }
+  /** TF com algum produto acima de QTD_MAX_KG (em kg ou t): erro de digitação provável. */
+  const qtdForaDoComum = t => t.produtosLista.some(x => { const [u, f] = unidade(x.unidade); return u === 'kg' && x.qtd != null && x.qtd * f > QTD_MAX_KG; });
   /** Local (texto livre) com nome canônico do município do AM quando casa; senão o texto aparado. */
   function lugar(txt) {
     const s = String(txt || '').replace(/\s+/g, ' ').trim();
@@ -70,7 +72,7 @@
     if (sem.length) A.push({ nivel: 'atencao', titulo: `${sem.length} TF(s) sem procedimento marcado`,
       detalhe: sem.slice(0, 10).map(t => `${t.numeroTxt || t.numero || '?'} (${fmt.dataCurta(t.data)})`).join(', ') + '. Conferir se foi liberação, apreensão ou rechaço.' });
     // quantidade impossível para uma carga (mais de 60 t num item): erro de digitação que distorce "Quantidades por produto"
-    const exag = d.tfs.filter(t => t.produtosLista.some(x => { const [u, f] = unidade(x.unidade); return u === 'kg' && x.qtd != null && x.qtd * f > QTD_MAX_KG; }));
+    const exag = d.tfs.filter(qtdForaDoComum);
     if (exag.length) A.push({ nivel: 'atencao', titulo: `${exag.length} TF(s) com quantidade fora do comum (mais de ${fmt.int(QTD_MAX_KG / 1000)} t num produto)`,
       detalhe: exag.slice(0, 8).map(t => `${t.numeroTxt || t.numero || '?'}: ${t.produtosLista.map(x => `${x.produto} ${fmt.num(x.qtd, 3)} ${x.unidade}`).join('; ')}`).join(' · ') +
         '. Conferir a quantidade no TF: ela entra no total de "Quantidades por produto".' });
@@ -321,6 +323,6 @@
     ], tfs, { id: 'tf-lista', csv: 'tfs.csv', ordenar: 'data', limite: 25, vazio: 'Nenhum TF válido no período.' });
   }
 
-  P.registrarAba({ id: 'tf', titulo: 'TF de Barreira', render, indicadores, calculos, corProc, curtoProc, PROCS,
+  P.registrarAba({ id: 'tf', titulo: 'TF de Barreira', render, indicadores, calculos, corProc, curtoProc, PROCS, unidade, qtdForaDoComum, QTD_MAX_KG,
     contador: d => alertasTF(d).filter(a => a.nivel === 'critico').length });
 })();

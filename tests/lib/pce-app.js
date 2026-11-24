@@ -2,6 +2,7 @@
 // fazer a visita em passos. Usado pelos testes do PCE. Dados sempre fictícios.
 const amb = require('./amb');
 const U = require('./usuarios');
+const sincronizar = require('./sincronizar');
 
 /** Aparelho (contexto a 400 px, com GPS) já com a conta do fiscal; devolve a página no módulo de módulos. */
 async function aparelho(b, nome, o = {}) {
@@ -105,12 +106,9 @@ const imagem = (p, w, h, cor) => p.evaluate(([w, h, cor]) => { const c = documen
   x.fillStyle = cor; x.fillRect(0, 0, w, h); x.fillStyle = '#fff'; x.fillRect(w / 4, h / 4, w / 2, h / 2); return c.toDataURL('image/jpeg', 0.9).split(',')[1]; }, [w, h, cor]).then(s => Buffer.from(s, 'base64'));
 /** Sincroniza até não haver pendência (registros e arquivos). */
 async function sync(p) {
-  for (let i = 0; i < 25; i++) {
-    await p.evaluate(() => Sync.sincronizar()); await p.waitForTimeout(250);
-    const pend = await p.evaluate(async () => { let t = 0; for (const s of ['pessoas', 'levantamentos', 'colheitas', 'propriedades', 'cadastrosPce', 'termosPce']) t += (await Store.todos(s)).filter(x => x.pendente).length; return t + (await Sync.arquivosPendentes()).length; });
-    if (!pend && await p.evaluate(() => Sync.estado().tipo === 'ok')) return;
-  }
-  throw new Error('sync não terminou');
+  const st = await sincronizar(p, { stores: ['pessoas', 'levantamentos', 'colheitas', 'propriedades', 'cadastrosPce', 'termosPce'], arquivos: true });
+  const pend = await p.evaluate(async () => { let t = 0; for (const s of ['pessoas', 'levantamentos', 'colheitas', 'propriedades', 'cadastrosPce', 'termosPce']) t += (await Store.todos(s)).filter(x => x.pendente).length; return t + (await Sync.arquivosPendentes()).length; });
+  if (pend || !st || st.tipo !== 'ok') throw new Error('sync não terminou');
 }
 /** Clica no botão que manda imprimir e devolve o que foi impresso. */
 async function imprimir(p, sel) {

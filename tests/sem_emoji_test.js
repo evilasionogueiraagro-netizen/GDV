@@ -1,3 +1,4 @@
+// gdv:node (sem fakegas e sem navegador)
 // Interface sem emojis (docs/DESIGN.md): nenhum arquivo de web/ (fora de vendor/) pode ter emoji. Ícone vem de
 // web/js/icones.js. Símbolos tipográficos de texto (✓ ✕ ☐ ☑ ❚) são permitidos. Não usa o fakegas nem o navegador.
 const fs = require('fs'), path = require('path');

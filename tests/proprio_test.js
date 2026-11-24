@@ -1,5 +1,6 @@
 const amb = require('./lib/amb');
 const U = require('./lib/usuarios');
+const sincronizar = require('./lib/sincronizar');
 const { chromium } = require('playwright-core');
 const { API, APP } = amb;
 const ANO = new Date(Date.now() - 4 * 3600e3).getUTCFullYear();   // ano corrente em Manaus (o app numera TF/turno pelo ano)
@@ -15,10 +16,10 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) proce
   };
   const turno = async (p, tf, bva, n) => {
     await p.click('.modulo[data-v=home]'); await p.waitForSelector('#fTurno'); await p.selectOption('#nLocal', bva); await p.fill('#nTF', tf); await p.click('#fTurno button[type=submit]'); await p.waitForSelector('.contador');
-    await p.click('[data-go=registrar]'); for (let i = 0; i < n; i++) { await p.waitForSelector('#fVeic'); await p.fill('#placa', 'ABC1D' + String(10 + i)); await p.click('#fVeic > button.botao'); await p.waitForTimeout(400); }
+    await p.click('[data-go=registrar]'); for (let i = 0; i < n; i++) { const pl = 'ABC1D' + String(10 + i); await p.waitForFunction(() => { const f = document.querySelector('#fVeic'); return f && !f.dataset.velho; }); await p.fill('#placa', pl); await p.evaluate(() => { const f = document.querySelector('#fVeic'); if (f) f.dataset.velho = '1'; }); await p.click('#fVeic > button.botao'); await p.waitForFunction(x => { const f = document.querySelector('#fVeic'); return f && !f.dataset.velho && (document.querySelector('#toast')?.textContent || '').includes(x) && (document.querySelector('#placa')?.value || '') === ''; }, pl, { timeout: 5000 }); }
     await p.click('nav [data-v=modulos]'); await p.waitForSelector('.modulo[data-v=home]');
   };
-  const sync = p => p.evaluate(() => Sync.sincronizar());   // sincronizar() só termina com a rodada toda feita
+  const sync = p => sincronizar(p);
   const A = await aparelho(await cred('Magda Adegas')), B = await aparelho(await cred('Luciana Ferreira'));
   // simula um aparelho com dados de outro fiscal já baixados por versão antiga
   await turno(A, '96', 'BVA - CEASA', 3); await sync(A);

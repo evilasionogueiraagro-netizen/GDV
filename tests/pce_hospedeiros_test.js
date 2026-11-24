@@ -1,8 +1,8 @@
 const amb = require('./lib/amb');
 const A = require('./lib/pce-app');
-// PCE — que praga vale em que cultura (CONFIG.PCE.hospedeiros, docs/modulos/pce-hospedeiros.md): na Nova visita (passo 2) a lista de
-// "Outra praga do catálogo" de cada fruto só traz as pragas dele; levantamento antigo com praga fora da regra continua abrindo, sem perder a praga.
-// Dados fictícios.
+// PCE — que praga vale em que cultura, na tela: na Nova visita (passo 2) a lista de "Outra praga do catálogo" do fruto vem da regra,
+// a praga acrescentada vira praga do fruto, e levantamento antigo com praga fora da regra continua abrindo, sem perder a praga.
+// A matriz cultura x praga (CONFIG.PCE.hospedeiros + catálogo) fica em tests/unit/pce_hospedeiros_unit_test.js. Dados fictícios.
 let falhas = 0;
 const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x === undefined ? '' : ' → ' + JSON.stringify(x).slice(0, 400))); if (!c) falhas++; };
 
@@ -11,9 +11,9 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   const p = await A.aparelho(b, 'Fiscal Hospedeiros Teste');
   await A.identificar(p);
   await A.novoProdutor(p, { doc: '52998224725', nome: 'Produtor Ficticio Hospedeiros', propriedade: 'Sitio Ficticio Hospedeiros', codigo: 'PRP-HOSP-1', municipio: 'Manaus',
-    frutos: ['Banana', 'Coco', 'Soja', 'Limão', 'Manga', 'Milho'].map(cultura => ({ cultura, area: 1 })) });
+    frutos: ['Limão', 'Milho'].map(cultura => ({ cultura, area: 1 })) });
   await p.locator('#pce-novavisita').click(); await p.waitForSelector('#pceVisitaForm');
-  for (const c of ['Banana', 'Coco', 'Soja', 'Limão', 'Manga', 'Milho']) await p.locator('label.vi-fruto', { hasText: c }).locator('input').check();
+  for (const c of ['Limão', 'Milho']) await p.locator('label.vi-fruto', { hasText: c }).locator('input').check();
   await p.click('#vi-continuar'); await p.waitForSelector('.pce-pr');
 
   // nomes (como no papel) das pragas oferecidas em "Outra praga do catálogo" do fruto
@@ -21,18 +21,10 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
     .map(t => { const x = PCECads.pragaPorNome(t); return x ? PCECads.nomeDaPraga(x) : t; }));
   const fixas = cultura => A.bloco(p, cultura).locator('.pce-pr').evaluateAll(l => l.map(e => e.dataset.nome));
 
-  console.log('1) lista de "Outra praga do catálogo" por fruto');
-  const banana = await oferta('Banana');
-  ok(!banana.includes('Bactrocera carambolae') && !banana.includes('Monilíase do Cacaueiro'), 'banana não oferece Mosca-da-carambola nem Monilíase', banana);
-  const coco = await oferta('Coco');
-  ok(coco.includes('Schizotetranychus hindustanicus') && !coco.includes('Moko da Bananeira') && !coco.includes('Cancro Cítrico'), 'coco oferece Ácaro Hindustânico, e só ele entre os de citros', coco);
-  const soja = await oferta('Soja');
-  ok(!soja.includes('Moko da Bananeira') && !soja.includes('Bactrocera carambolae') && !soja.includes('Monilíase do Cacaueiro'), 'soja não oferece Moko, Mosca-da-carambola nem Monilíase', soja);
+  console.log('1) lista de "Outra praga do catálogo" na tela (citros e milho)');
   const limao = await oferta('Limão');
   ok(limao.includes('Bactrocera carambolae') && !limao.includes('Moko da Bananeira'), 'citros (família) oferece Mosca-da-carambola e não oferece Moko', limao);
   ok(!limao.includes('HLB / Greening') && (await fixas('Limão')).includes('HLB / Greening'), 'as pragas ligadas ao fruto já vêm no fruto, não na lista de acrescentar', [limao, await fixas('Limão')]);
-  const manga = await oferta('Manga');
-  ok((await fixas('Manga')).includes('Bactrocera carambolae') && !manga.includes('Moko da Bananeira') && !manga.includes('Schizotetranychus hindustanicus'), 'manga (cultura da lista da mosca, sem família) traz a mosca e não oferece pragas de outras culturas', [await fixas('Manga'), manga]);
   const milho = await oferta('Milho');
   ok(milho.includes('Amaranthus palmeri') && !milho.includes('Phakopsora pachyrhizi'), 'milho oferece Amaranthus palmeri (cultura listada) e não a ferrugem da soja', milho);
   await A.bloco(p, 'Milho').locator('.vi-extra').selectOption({ label: (await A.bloco(p, 'Milho').locator('.vi-extra option').allTextContents()).find(t => /amaranthus|caruru|palmeri/i.test(t)) });

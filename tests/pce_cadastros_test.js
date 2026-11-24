@@ -108,7 +108,8 @@ const post = b => fetch(amb.API + '/', { method: 'POST', body: JSON.stringify(b)
   await A.sync(f2);
   let pr = (await A.aba('Propriedades')).find(x => x.id === 'PRP-HIST-1'), fr = JSON.parse(pr.frutos);
   ok(fr.length === 1 && fr[0].id === 'sug-cacau' && Number(fr[0].area) === 2.5, 'salvou: vira cadastro (id sug-cacau, área editada 2,5)', fr);
-  await f2.evaluate(() => go('pce')); await f2.waitForSelector('#campoQ'); await f2.fill('#campoQ', '11144477735'); await f2.waitForTimeout(600);
+  await f2.evaluate(() => go('pce')); await f2.waitForSelector('#campoQ'); await f2.fill('#campoQ', '11144477735');
+  await f2.waitForSelector('#campoRes .campo-res-item', { timeout: 5000 });
   await f2.evaluate(async () => { await Campo.consultar('11144477735'); });                 // nova consulta ao servidor: nada sobrescreve o fruto editado
   const loc = await f2.evaluate(async () => { const x = await Store.obter('propriedades', 'PRP-HIST-1'); return { f: JSON.parse(x.frutos), s: x.frutosSugeridos || [] }; });
   ok(loc.f.length === 1 && Number(loc.f[0].area) === 2.5 && !loc.s.length, 'nova consulta: o fruto editado continua e a sugestão não volta', loc);

@@ -9,7 +9,7 @@ const get = p => fetch(API + p).then(r => r.json());
 let falhas = 0;
 const ok = (cond, msg, extra) => { console.log((cond ? '  ✓ ' : '  ✗ ') + msg + (extra !== undefined ? ' -> ' + (typeof extra === 'string' ? extra : JSON.stringify(extra)) : '')); if (!cond) falhas++; };
 const aba = async n => { const rows = await get('/__aba?nome=' + n); if (!rows) return []; const cab = rows[0]; return rows.slice(1).map(r => Object.fromEntries(cab.map((c, i) => [c, r[i]]))); };
-const esperar = async (f, ms = 15000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await f()) return true; await new Promise(r => setTimeout(r, 250)); } return false; };
+const esperar = async (f, ms = 15000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await f()) return true; await new Promise(r => setTimeout(r, 25)); } return false; };
 // lê o IndexedDB numa página da mesma origem que NÃO é o app (o app está "fechado")
 const lerIDB = (pg, store) => pg.evaluate(s => new Promise((ok, no) => { const rq = indexedDB.open('gdv'); rq.onsuccess = () => { const d = rq.result;
   const g = d.transaction(s).objectStore(s).getAll(); g.onsuccess = () => { d.close(); ok(g.result); }; g.onerror = () => no(g.error); }; rq.onerror = () => no(rq.error); }), store);
@@ -42,10 +42,15 @@ const gravarIDB = (pg, store, rec) => pg.evaluate(([s, r]) => new Promise((ok, n
     await p.fill('#nTF', String(n)); await p.selectOption('#nPosto', 'Fixa'); await p.click('#fTurno button[type=submit]'); await p.waitForSelector('.contador');
     return p.evaluate(() => Store.meta('turnoAtual'));
   };
-  const registrar = async (p, placa) => { await p.click('nav [data-v=registrar]'); await p.waitForSelector('#fVeic');
-    for (let i = 0; i < 5 && await p.inputValue('#placa').catch(() => '') !== placa; i++) { await p.fill('#placa', placa); await p.waitForTimeout(300); }
+  const registrar = async (p, placa) => {
+    await p.evaluate(() => { const f = document.querySelector('#fVeic'); if (f) f.dataset.velho = '1'; });
+    await p.click('nav [data-v=registrar]');
+    await p.waitForFunction(() => { const f = document.querySelector('#fVeic'); return f && !f.dataset.velho && document.querySelector('#placa') && document.querySelector('#placa').value === ''; });
+    for (let i = 0; i < 5 && await p.inputValue('#placa').catch(() => '') !== placa; i++) { await p.fill('#placa', placa); if (await p.inputValue('#placa').catch(() => '') === placa) break; await p.waitForTimeout(50); }
+    await p.evaluate(() => { const f = document.querySelector('#fVeic'); if (f) f.dataset.velho = '1'; });
     await p.click('#fVeic > button');
-    await p.waitForFunction(pl => document.querySelector('#toast').textContent.includes(pl), placa, { timeout: 8000 }).catch(async e => { console.log('TOAST', await p.textContent('#toast'), await p.inputValue('#placa').catch(()=>'?'), await p.evaluate(() => VIEW), erros); throw e; }); };
+    await p.waitForFunction(pl => document.querySelector('#toast').textContent.includes(pl), placa, { timeout: 8000 }).catch(async e => { console.log('TOAST', await p.textContent('#toast'), await p.inputValue('#placa').catch(()=>'?'), await p.evaluate(() => VIEW), erros); throw e; });
+    await p.waitForFunction(() => { const f = document.querySelector('#fVeic'); return f && !f.dataset.velho; }).catch(() => {}); };
   const encerrar = async p => { await p.click('nav [data-v=resumo]'); await p.waitForSelector('#encerrar'); await p.click('#encerrar'); await p.waitForSelector('[data-doc=termo]'); };
   const syncApp = p => sincronizar(p);
 
@@ -149,14 +154,14 @@ const gravarIDB = (pg, store, rec) => pg.evaluate(([s, r]) => new Promise((ok, n
   const t0 = Date.now(), r2 = await sw.evaluate(() => enviarEmSegundoPlano());
   ok(r2.motivo === 'credencial revogada' && Date.now() - t0 < 1000, '2º evento: para na hora, sem chamar o servidor', r2);
   await cdp.send('ServiceWorker.dispatchSyncEvent', { origin: ORIGEM, registrationId: reg.registrationId, tag: 'gdv-enviar', lastChance: true });
-  await new Promise(r => setTimeout(r, 800));
+  await new Promise(r => setTimeout(r, 150));
   ok((await aba('Veiculos')).length === n0 && (await lerIDB(p, 'veiculos')).some(v => v.placa === 'BGR1A11' && v.pendente === 1), 'nada enviado; o registro continua guardado no aparelho');
   await p.goto(APP); await p.waitForSelector('#view');
   await p.waitForFunction(() => /Acesso revogado/.test(document.querySelector('#view').textContent), null, { timeout: 15000 }).catch(() => {});
   ok(/Acesso revogado/.test(await p.textContent('#view')), 'app reaberto: acesso revogado, pede para entrar de novo (revogação vista pelo service worker)', (await p.textContent('#view')).slice(0, 80));
   ok(await p.evaluate(() => localStorage.getItem('gdv.revogado')) === '1', 'localStorage gdv.revogado = 1');
   // sair do aparelho (o servidor já recusa o acesso: limpa só aqui) apaga a cópia da credencial
-  await p.evaluate(() => Sync.sair()); await p.waitForFunction(() => Store.meta('cred').then(c => !c));
+  await p.evaluate(() => Sync.sair()); await amb.esperar(p, () => Store.meta('cred').then(c => !c));
   ok(!(await p.evaluate(() => Store.meta('cred'))), 'sair: meta "cred" apagada');
   const r3 = await sw.evaluate(() => enviarEmSegundoPlano());
   ok(r3.motivo === 'sem acesso neste aparelho', 'SW sem credencial: não envia', r3);

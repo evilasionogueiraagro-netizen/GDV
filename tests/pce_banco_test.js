@@ -1,6 +1,7 @@
 const amb = require('./lib/amb');
 const U = require('./lib/usuarios');
 const A = require('./lib/pce-app');
+const sincronizar = require('./lib/sincronizar');
 // PCE — banco local do aparelho e levantamentos antigos, com o app real e o Code.gs real no fakegas:
 //  1. aparelho na versão 4 do banco (a de produção): abre sem subir de versão e salva produtor, frutos e visita;
 //  2. aparelho que chegou a ficar na versão 5 (stores culturasAvaliadas e resultados, já retiradas): abre como está, sem perder nada pendente;
@@ -38,7 +39,7 @@ const planilha = async aba => { const d = await (await fetch(API + '/__tudo')).j
   await criarBanco(p, 4, []);
   ok((await estrutura(p)).v === 4, 'ponto de partida: banco v4');
   await p.goto(APP); await p.waitForSelector('.modulo[data-v=pce]');
-  await p.evaluate(() => Sync.sincronizar()); await p.waitForTimeout(1200);
+  await sincronizar(p);
   const e4 = await estrutura(p);
   ok(e4.v === 6 && STORES4.concat('termosEducacao').every(s => e4.stores.includes(s)) && !e4.stores.includes('culturasAvaliadas') && !e4.stores.includes('resultados'), 'o app sobe para a versão 6 (store do Termo de Educação Sanitária), sem as stores de linhas da visita', e4);
   ok(await p.evaluate(async () => !!(await Store.meta('catalogoPce'))), 'catálogo do PCE recebido no sync');
@@ -65,7 +66,7 @@ const planilha = async aba => { const d = await (await fetch(API + '/__tudo')).j
   ok(p.err.length === 0, 'o app abre sobre o banco v5 sem erro (sem VersionError)', p.err);
   const e5 = await estrutura(p);
   ok(e5.v === 6 && e5.stores.includes('culturasAvaliadas') && e5.stores.includes('termosEducacao'), 'o banco sobe para a v6 mantendo as stores antigas, sem apagar nada', e5);
-  await p.evaluate(() => Sync.sincronizar()); await p.waitForFunction(async () => !(await Store.todos('levantamentos')).some(l => l.pendente), null, { timeout: 15000 });
+  await sincronizar(p, { stores: ['levantamentos'] });
   const lv = (await planilha('Levantamentos')).find(l => l.id === 'lev-v5-1');
   ok(lv && lv.codigoPropriedade === 'PRP-V5-1', 'levantamento pendente do aparelho foi enviado depois de atualizar o app', lv && lv.id);
   const abas5 = Object.keys((await (await fetch(API + '/__tudo')).json()).abas || (await (await fetch(API + '/__tudo')).json()));
@@ -91,10 +92,10 @@ const planilha = async aba => { const d = await (await fetch(API + '/__tudo')).j
   ok(rota === 'sem rota' && await p.locator('#pceLevForm').count() === 0, 'a rota antiga de edição do levantamento não existe mais');
 
   console.log('4) LGPD: módulo PCE retirado apaga o catálogo do aparelho, mas os levantamentos ficam');
-  await p.evaluate(() => Sync.sincronizar()); await p.waitForTimeout(800);
+  await sincronizar(p);
   ok(await p.evaluate(async () => !!(await Store.meta('catalogoPce'))), 'antes: o aparelho tem o catálogo');
   const rp = await U.permissoes(f2.usuario.id, ['campo']); ok(rp.ok, 'gerência tira o módulo PCE', rp);
-  await p.evaluate(() => Sync.sincronizar()); await p.waitForTimeout(1200);
+  await sincronizar(p);
   ok(await p.evaluate(async () => (await Store.meta('catalogoPce')) === undefined), 'sem o módulo: o catálogo some do aparelho');
   ok(await p.evaluate(async () => (await Store.todos('levantamentos')).length) === 1, 'o levantamento do próprio fiscal fica');
   ok(p.err.length === 0, 'sem erros de JavaScript', p.err);

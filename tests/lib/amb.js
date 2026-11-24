@@ -34,14 +34,33 @@ function chromiumPath() {
 // não depender da porta fixa; com GDV_DESLOC_MS, o relógio do navegador também é deslocado.
 async function lancar(opts = {}) {
   const { chromium } = require('playwright-core');
-  const b = await chromium.launch({ executablePath: chromiumPath(), args: ['--no-sandbox'], ...opts });
+  const ws = process.env.GDV_BROWSER_WS;
+  const padrao = !opts || !Object.keys(opts).some(k => k !== 'headless' || opts.headless === false);
+  let b = null, conectado = false;
+  if (ws && padrao) {
+    try { b = await chromium.connect(ws); conectado = true; } catch (e) { b = null; }
+  }
+  if (!b) b = await chromium.launch({ executablePath: chromiumPath(), args: ['--no-sandbox'], ...opts });
+  const ctxs = [];
   const novoContexto = b.newContext.bind(b);
   b.newContext = async (o) => {
+    if (process.env.GDV_SEM_SW === '1' && (!o || !o.serviceWorkers)) o = { ...o, serviceWorkers: 'block' };
     const c = await novoContexto(o);
-    await c.addInitScript(u => { window.__GDV_API = u; }, API_URL);
+    ctxs.push(c);
+    await c.addInitScript(u => {
+      window.__GDV_API = u;
+      // Nos testes, avisos flutuantes não devem interceptar cliques nos botões de ação abaixo deles em telas estreitas.
+      const st = () => { if (!document.head || document.getElementById('__gdv_test_css')) return;
+        const e = document.createElement('style'); e.id = '__gdv_test_css'; e.textContent = '#toast, .pn-toast { pointer-events: none !important; }'; document.head.appendChild(e); };
+      if (document.head) st(); else document.addEventListener('DOMContentLoaded', st, { once: true });
+    }, API_URL);
     if (relogio.DESLOC) await c.addInitScript(`(${relogio.instalar})(window, ${relogio.DESLOC})`);
     return c;
   };
+  if (conectado) {
+    const origClose = b.close.bind(b);
+    b.close = async () => { for (const c of ctxs) await c.close().catch(() => {}); await origClose().catch(() => {}); };
+  }
   return b;
 }
 
@@ -75,5 +94,25 @@ async function modulos(tokGerente, nome, m) {
 let tokCarga = null;
 /** Token de um gerente só para carregar dados de teste (sync com tudo liberado); o mesmo em todo o teste. */
 async function carga() { return tokCarga || (tokCarga = (await gerente('Carga Dados Teste')).token); }
+/** Espera até `fn(arg)` na página devolver verdadeiro (suporta função async/Promise, ao contrário de page.waitForFunction). */
+async function esperar(p, fn, arg, ms = 10000) {
+  const t0 = Date.now();
+  while (Date.now() - t0 < ms) {
+    try { if (await p.evaluate(fn, arg)) return true; } catch (e) { /* página navegando */ }
+    await new Promise(r => setTimeout(r, 25));
+  }
+  throw new Error('tempo esgotado esperando condição (' + ms + ' ms)');
+}
+/**
+ * Caminho local de um download do Playwright. Com o navegador compartilhado (GDV_BROWSER_WS), download.path() não existe
+ * ("not available when connecting remotely"); saveAs() funciona nos dois modos.
+ */
+let nDl = 0;
+async function arquivoBaixado(dl) {
+  const dir = path.join(SAIDA, 'downloads'); fs.mkdirSync(dir, { recursive: true });
+  const arq = path.join(dir, `${process.pid}-${++nDl}-${dl.suggestedFilename()}`);
+  await dl.saveAs(arq);
+  return arq;
+}
 
-module.exports = { RAIZ, TESTES, SAIDA, PORTA_WEB, PORTA_API, ORIGEM, APP, PAINEL, API, API_URL, saida, chromiumPath, lancar, usuario, gerente, carga, modulos };
+module.exports = { RAIZ, TESTES, SAIDA, PORTA_WEB, PORTA_API, ORIGEM, APP, PAINEL, API, API_URL, saida, chromiumPath, lancar, usuario, gerente, carga, modulos, esperar, arquivoBaixado };

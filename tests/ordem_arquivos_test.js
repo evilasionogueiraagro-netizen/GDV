@@ -1,3 +1,4 @@
+// gdv:node (sem fakegas e sem navegador)
 // O back é dividido em vários .gs com um escopo global só (como no Apps Script). Nenhum arquivo pode depender, ao
 // carregar, de algo definido em outro: a carga precisa funcionar em qualquer ordem (o Apps Script carrega na ordem do
 // projeto, e o clasp pode mudá-la). Carrega em três ordens num contexto vazio e confere que nada estoura e que nenhum

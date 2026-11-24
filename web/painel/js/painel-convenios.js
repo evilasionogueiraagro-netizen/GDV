@@ -233,7 +233,7 @@
   const lancadoEm = (v, l) => l.atualizadoEm ? `${l.usuario || '—'} em ${P.fmt.data(P.diaManaus(l.atualizadoEm))} ${P.horaManaus(l.atualizadoEm)}` : (l.usuario || '—');
   function visaoLanc(v) {
     const c = cfg(), R = E.R;
-    avisoPortal(v, 'Execução física das etapas manuais (1.3, 1.5, 1.14), situação dos bens (1.1) e ajustes das etapas automáticas.');
+    avisoPortal(v, 'Em Convênio → Metas: lançamentos das etapas manuais, situação dos bens e ajustes das etapas automáticas.');
     const rb = R.etapas.find(r => r.apuracao === 'bens');
     if (rb) {
       const sb = P.secao(v, `Bens da etapa ${rb.id}`, `Situação em ${consol() ? F.data(hoje()) : F.mes(R.mes)} (último lançamento de cada bem).`);
@@ -270,7 +270,7 @@
       { rotulo: 'Repasse × contrapartida', valor: `${F.pct(Fn.fonte.concedente.pct)} · ${F.pct(Fn.fonte.contrapartida.pct)}`,
         detalhe: `repasse ${F.moeda(Fn.fonte.concedente.acum)} de ${F.moeda(Fn.fonte.concedente.previsto)}; contrapartida ${F.moeda(Fn.fonte.contrapartida.acum)} de ${F.moeda(Fn.fonte.contrapartida.previsto)}` }
     ]));
-    avisoPortal(v, 'Desembolso (memorandos, empenhos, NF, PCDP, OB e diárias) e a importação da planilha de movimentação.');
+    avisoPortal(v, 'Em Convênio → Gastos: memorandos, empenhos, NF, PCDP, OB, diárias e a importação da planilha de movimentação.');
     const colsFin = primeira => [{ chave: 'rotulo', rotulo: primeira }, { chave: 'previsto', rotulo: 'Previsto', num: true, fmt: F.moeda }].concat(consol() ? [] : [{ chave: 'mes', rotulo: 'No mês', num: true, fmt: F.moeda }]).concat([
       { chave: 'acum', rotulo: 'Acumulado', num: true, fmt: F.moeda }, { chave: 'saldo', rotulo: 'Saldo', num: true, fmt: F.moeda },
       { chave: 'pct', rotulo: '% exec.', num: true, html: (x) => `<span class="pn-conv-pctcel">${F.pct(x)}<span class="pn-conv-barra mini" aria-hidden="true"><i style="width:${Math.min(100, x * 100).toFixed(1)}%"></i></span></span>`, csv: x => Math.round(x * 10000) / 100 }]);

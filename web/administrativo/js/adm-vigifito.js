@@ -54,7 +54,7 @@
     const d = D(), cfg = d && d.cfg;
     const pers = cfg && typeof VigDocs !== 'undefined' ? VigDocs.periodosDoAno(cfg.ancora, cfg.ciclo, E.ano).filter(p => p.inicio <= A.hoje()) : [];
     if (E.modo === 'periodo' && pers.length && !pers.some(p => p.inicio === E.periodo)) E.periodo = pers[pers.length - 1].inicio;
-    r.innerHTML = `<div class="pn-cartao pn-rg-topo"><div class="pn-conv-sel">
+    r.innerHTML = `<p class="pn-sub adm-intro">Números do VIGIFITO por posto que o app das barreiras não conta sozinho. O relatório é gerado pelo gerente no painel.</p><div class="pn-cartao pn-rg-topo"><div class="pn-conv-sel">
         <label>Ano<select id="adm-vig-ano">${anos.map(a => `<option ${a === E.ano ? 'selected' : ''}>${a}</option>`).join('')}</select></label>
         <label>Lançar por<select id="adm-vig-modo"><option value="mes" ${E.modo === 'mes' ? 'selected' : ''}>Mês</option><option value="periodo" ${E.modo === 'periodo' ? 'selected' : ''}>Período de 10 dias</option></select></label>
         ${E.modo === 'mes' ? `<label>Mês<select id="adm-vig-mes">${MESES.map((n, i) => `<option value="${i + 1}" ${i + 1 === E.mes ? 'selected' : ''}>${n}</option>`).join('')}</select></label>`

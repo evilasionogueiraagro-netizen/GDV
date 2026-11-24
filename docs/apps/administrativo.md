@@ -3,7 +3,7 @@
 Lançamentos fora do campo (`web/administrativo/`); o painel só lê. Manual: `web/administrativo/manual.html` (não cita os outros módulos). Veja: [convênio](../modulos/convenio.md), [relatórios](../modulos/relatorios.md), [painel](painel.md).
 
 ## Regras
-- Abas: Desembolso do convênio, Físico do convênio, Linhas dos relatórios, VIGIFITO, Diárias das escalas, Histórico.
+- Abas: Convênio (partes Gastos e Metas), Números do mês, VIGIFITO, Diárias das escalas, Histórico.
 - Diárias das escalas: filtro por período (a escala entra se cruza o intervalo), fiscal e barreira, combináveis, no navegador sobre o que já foi carregado.
 - Lançamentos guardam quem e quando (`admId`); histórico em `AdmHistorico`. Excluir é lógico.
 - Diária = valor ÷ valor unitário (editável); avisa memorando repetido, diária acima do previsto e data fora da vigência.

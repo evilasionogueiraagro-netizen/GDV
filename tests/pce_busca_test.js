@@ -92,6 +92,27 @@ const texto = (p, sel) => p.evaluate(s => (document.querySelector(s) || {}).text
   ok(filtroAnexo.monTermos === 1 && filtroAnexo.monCads.join() === 'moniliase',
     'relatório de monilíase mantém apenas o cadastro de monilíase', filtroAnexo);
 
+  const filtroBorda = await pA.evaluate(() => {
+    const cads = [
+      { id: 'c-sem', data: '2026-11-10', numero: 1, dados: JSON.stringify({ plantas: { cacau: 10 } }) },
+      { id: 'c-prop', programa: 'propriedade', data: '2026-11-10', numero: 2, dados: '{}' },
+      { id: 'c-cit', programa: 'citros', data: '2026-11-10', numero: 3, dados: '{}' }
+    ];
+    const base = { data: '2026-11-10', hora: '10:00', municipio: 'Manaus', acoes: '["Fiscalização"]', servidor: 'Pessoa Ficticia Alfa', plantasInspecionadas: 1 };
+    const termos = [
+      { ...base, id: 't1', cadastroId: 'c-sem', pragas: '["Monilíase"]' },
+      { ...base, id: 't2', cadastroId: 'c-prop', pragas: '["Mosca-da-Carambola"]' },
+      { ...base, id: 't3', cadastroId: 'c-cit', pragas: '["HLB"]' }
+    ];
+    const ids = r => r.cadastros.map(c => c.id).join();
+    return { todos: ids(PCEDocs.calcularRelatorio(termos, cads, {})), mon: ids(PCEDocs.calcularRelatorio(termos, cads, { programa: 'moniliase' })),
+      mosca: ids(PCEDocs.calcularRelatorio(termos, cads, { programa: 'mosca' })), cit: ids(PCEDocs.calcularRelatorio(termos, cads, { programa: 'citros' })) };
+  });
+  ok(filtroBorda.todos.split(',').sort().join() === 'c-cit,c-prop,c-sem',
+    'relatório sem programa mantém todos os cadastros ligados', filtroBorda);
+  ok(filtroBorda.mon === 'c-sem' && filtroBorda.mosca === 'c-prop' && filtroBorda.cit === 'c-cit',
+    'cadastro sem programa vale como monilíase; Mosca-da-Carambola usa o cadastro de propriedade', filtroBorda);
+
   console.log('6) servidor local (local.js) e suíte');
   const html = await (await fetch(amb.APP)).text();
   ok(!/setItem\('gdv\.url'/.test(html), 'fakegas da suíte entrega as páginas sem mudar nada (sem GDV_LOCAL)');

@@ -8,6 +8,9 @@
 //   node tests/run.js -v tv_test         mostra a saída do teste ao vivo
 //   node tests/run.js --tentativas 2     repete uma vez quem falhar (a falha original fica registrada)
 //   node tests/run.js --paralelo 4       suíte inteira em 4 partes ao mesmo tempo (uso local, ~3 min; antes de subir)
+//   node tests/run.js --mudou            roda só os testes ligados ao que mudou no git (mais os estáticos/unitários)
+//   node tests/run.js --rapidos          só os testes sem fakegas e sem navegador (tests/unit/ e estáticos; segundos)
+//   node tests/run.js --sem-rapidos      todos menos os rápidos (no CI, os rápidos rodam num job à parte, sem Chromium)
 //
 // Cada teste roda com um fakegas NOVO (planilha vazia), um de cada vez, nas portas
 // GDV_PORTA_WEB (8081) / GDV_PORTA_API (8082). Com --paralelo N, a parte k usa as portas 8081+2(k-1) / 8082+2(k-1).
@@ -19,7 +22,7 @@
 // Comentário opcional no topo do teste:  // gdv:relogio dia=15 hora=10:00
 //   → fakegas, teste e navegador rodam com o relógio deslocado para esse dia do mês corrente (Manaus).
 'use strict';
-const fs = require('fs'), path = require('path'), net = require('net'), { spawn } = require('child_process');
+const fs = require('fs'), path = require('path'), net = require('net'), { spawn, execFileSync } = require('child_process');
 const { deslocPara } = require('./lib/relogio');
 
 const DIR = __dirname, SAIDA = path.join(DIR, 'saida'), LOGS = path.join(SAIDA, 'logs');
@@ -30,17 +33,28 @@ const CI = !!process.env.CI;
 // Tempo aproximado de cada teste (s, medido no CI), só para dividir em partes equilibradas (--parte, --paralelo).
 // Teste novo sem entrada aqui conta como 60 s.
 const PESO = {
-  acessos_test: 8, adm_test: 5, arquivo_test: 3, bgsync_test: 47, cargo_outro_test: 2, colunas_dup_test: 1, educacao_test: 14, colunas_test: 1, convenio_test: 16,
-  convfin_test: 6, e2e: 88, encerrar_test: 21, gps_pedidos_test: 5, install_check: 5, migra_db: 4, painel_test: 39, pce_antigo_test: 33, pce_banco_test: 17, pce_hospedeiros_test: 8, pce_legislacao_test: 8,
-  pce_campo_test: 12, pce_citros_test: 38, pce_e2e: 49, pce_laudo_test: 13, pce_moniliase_test: 16, pce_naoassina_test: 5, pce_server_test: 1, pce_cadastros_test: 40,
-  pce_visita_test: 6, pce_busca_test: 9, permissoes_test: 10, proprio_test: 38, publico_test: 12, relgdv_test: 18, responsivo_test: 2, rotinas_test: 7,
-  semplaca_test: 8, server_painel_test: 1, sinal_test: 12, tf_alerta_test: 23, tf_anexos_test: 11, tf_e2e: 17, tf_paginas: 4, tf_server_test: 1,
-  design_test: 1, inicio_test: 2, sem_emoji_test: 1, tv_test: 80, vigifito_test: 17, plantao_test: 4, tf_papel_test: 12, tabatinga_test: 8, docs_tamanho_test: 1, ordem_arquivos_test: 1, reincidencia_test: 2, nomes_painel_test: 4, dois_aparelhos_test: 8, pareamento_test: 10, letra_turno_test: 2, turno_papel_test: 8, invasao_test: 3, invasao_xss_test: 50
+  acessos_test: 8, adm_test: 5, aparelho_compartilhado_test: 2, arquivo_test: 2, auto_infracao_test: 8,
+  bgsync_test: 5, bva_ponto_test: 3, bvas_test: 4, cargo_outro_test: 2, colunas_dup_test: 1, colunas_test: 1,
+  convenio_test: 23, convfin_test: 8, design_test: 1, docs_sistema_test: 1, docs_tamanho_test: 1,
+  dois_aparelhos_test: 6, e2e: 7, educacao_test: 9, encerrar_test: 9, escala_turno_test: 4, escalas_test: 9,
+  gps_pedidos_test: 7, historico_recuperar_test: 4, impressao_celular_test: 8, inicio_test: 2, install_check: 6,
+  invasao_test: 2, invasao_xss_test: 5, letra_turno_test: 1, login_campo_test: 7, login_painel_test: 7,
+  manual_prints_test: 17, migra_db: 6, nomes_painel_test: 3, ordem_arquivos_test: 1, painel_test: 12,
+  pareamento_test: 9, pce_antigo_test: 14, pce_banco_test: 3, pce_busca_test: 8, pce_cadastros_test: 7,
+  pce_campo_test: 8, pce_catalogo_test: 5, pce_citros_test: 5, pce_e2e: 8, pce_fichas_test: 55,
+  pce_hospedeiros_test: 2, pce_laudo_test: 3, pce_legislacao_test: 3, pce_moniliase_test: 10,
+  pce_naoassina_test: 4, pce_opcionais_test: 6, pce_server_test: 1, pce_visita_test: 5, pce_visitas_test: 1,
+  permissoes_campo_test: 8, permissoes_test: 5, placa_tf_test: 9, plantao_test: 2, proprio_test: 3,
+  publico_test: 10, reincidencia_test: 1, relatorio_equipe_test: 3, relgdv_test: 27, responsivo_test: 2,
+  rolagem_test: 1, rotinas_test: 8, sem_emoji_test: 1, semplaca_test: 8, server_painel_test: 1, sinal_test: 9,
+  tabatinga_test: 9, tf_alerta_test: 16, tf_anexos_test: 11, tf_barreira_turno_test: 5, tf_e2e: 10,
+  tf_modelos_test: 2, tf_paginas: 4, tf_papel_test: 3, tf_server_test: 1, tf_textos_test: 14,
+  turno_cancelar_test: 4, turno_papel_test: 5, tv_test: 15, usuarios_server_test: 1, vigifito_test: 30
 };
 
 // ---------- argumentos ----------
 const args = process.argv.slice(2);
-let parte = null, paralelo = 0, listar = false, verboso = false, tentativas = Number(process.env.GDV_TENTATIVAS) || 1;
+let parte = null, paralelo = 0, listar = false, verboso = false, mudou = false, rapidos = null, tentativas = Number(process.env.GDV_TENTATIVAS) || 1;
 const pedidos = [];
 for (let i = 0; i < args.length; i++) {
   const a = args[i];
@@ -49,19 +63,68 @@ for (let i = 0; i < args.length; i++) {
   else if (a === '--paralelo' || a === '-j') paralelo = Number(args[++i]) || 0;
   else if (a.startsWith('--paralelo=')) paralelo = Number(a.slice(11)) || 0;
   else if (a === '--lista') listar = true;
+  else if (a === '--mudou') mudou = true;
+  else if (a === '--rapidos') rapidos = true;
+  else if (a === '--sem-rapidos') rapidos = false;
   else if (a === '-v' || a === '--verboso') verboso = true;
   else if (a === '--tentativas') tentativas = Number(args[++i]) || 1;
-  else if (a === '-h' || a === '--help') { console.log(fs.readFileSync(__filename, 'utf8').split('\n').slice(1, 21).map(l => l.replace(/^\/\/ ?/, '')).join('\n')); process.exit(0); }
+  else if (a === '-h' || a === '--help') { console.log(fs.readFileSync(__filename, 'utf8').split('\n').slice(1, 23).map(l => l.replace(/^\/\/ ?/, '')).join('\n')); process.exit(0); }
   else pedidos.push(path.basename(a).replace(/\.js$/, ''));
 }
 
-const todos = fs.readdirSync(DIR).filter(f => f.endsWith('.js') && !['fakegas.js', 'run.js', 'local.js'].includes(f)).map(f => f.slice(0, -3)).sort();
+const UNIT_DIR = path.join(DIR, 'unit');
+const unitarios = fs.existsSync(UNIT_DIR) ? fs.readdirSync(UNIT_DIR).filter(f => f.endsWith('_test.js')).map(f => 'unit/' + f.slice(0, -3)).sort() : [];
+const todos = unitarios.concat(fs.readdirSync(DIR).filter(f => f.endsWith('.js') && !['fakegas.js', 'run.js', 'local.js'].includes(f)).map(f => f.slice(0, -3)).sort());
+const arqDe = nome => path.join(DIR, nome + '.js');
+const lerTeste = nome => fs.readFileSync(arqDe(nome), 'utf8');
+const precisaFakegas = nome => {
+  if (nome.startsWith('unit/')) return false;
+  const src = lerTeste(nome);
+  if (/\/\/\s*gdv:node\b/.test(src)) return false;
+  return /\b(amb|API|APP|PAINEL|ORIGEM|fetch\(|fakegas|8081|8082)\b/.test(src);
+};
+const precisaNavegador = nome => !nome.startsWith('unit/') && /\b(amb\.lancar|playwright|chromium)\b/.test(lerTeste(nome));
+const precisaSW = nome => /\b(serviceWorker|setOffline)\b/.test(lerTeste(nome));
+const rapido = nome => !precisaFakegas(nome) && !precisaNavegador(nome);
+
+function testesMudados() {
+  const raiz = path.resolve(DIR, '..');
+  const git = a => execFileSync('git', a, { cwd: raiz, encoding: 'utf8' }).trim().split('\n').filter(Boolean);
+  let arqs = [...new Set([...git(['diff', '--name-only', 'HEAD']), ...git(['ls-files', '--others', '--exclude-standard'])])];
+  if (!arqs.length) try { arqs = git(['diff', '--name-only', 'origin/main...HEAD']); } catch (e) {}
+  if (!arqs.length) return [];
+  const sel = new Set(todos.filter(t => !precisaFakegas(t)));
+  const add = l => l.forEach(t => { if (todos.includes(t)) sel.add(t); });
+  for (const f of arqs) {
+    if (f.startsWith('tests/') && f.endsWith('.js')) {
+      const n = f.replace(/^tests\//, '').replace(/\.js$/, '');
+      if (todos.includes(n)) sel.add(n);
+      if (/^tests\/(fakegas|lib\/)/.test(f)) return todos;
+    }
+    if (/web\/js\/(campo|pce|pce-cadastros|moniliase|pce-visita|citros)|apps-script\/pce/.test(f)) add(['pce_e2e', 'pce_busca_test', 'pce_campo_test', 'pce_cadastros_test', 'pce_visita_test', 'pce_server_test', 'pce_visitas_test']);
+    if (/web\/js\/tf|apps-script\/tf/.test(f)) add(['tf_e2e', 'tf_server_test', 'tf_anexos_test', 'tf_alerta_test', 'tf_papel_test', 'tf_modelos_test', 'tf_textos_test']);
+    if (/web\/js\/educacao|apps-script\/educacao/.test(f)) add(['educacao_test']);
+    if (/web\/js\/escala|apps-script\/escalas|relatorio-equipe/.test(f)) add(['escalas_test', 'escala_turno_test', 'relatorio_equipe_test']);
+    if (/web\/js\/(app|sync|envio|store|login)/.test(f)) add(['e2e', 'bgsync_test', 'login_campo_test', 'permissoes_campo_test', 'rolagem_test']);
+    if (/web\/painel\//.test(f)) add(['painel_test', 'login_painel_test', 'tv_test', 'nomes_painel_test']);
+    if (/web\/administrativo\//.test(f)) add(['adm_test', 'convenio_test', 'convfin_test', 'vigifito_test']);
+    if (/web\/dashboard\//.test(f)) add(['publico_test']);
+    if (/web\/documentos\//.test(f)) add(['pce_fichas_test', 'tf_paginas', 'auto_infracao_test', 'impressao_celular_test']);
+    if (/apps-script\/(Code|acessos|usuarios)/.test(f)) add(['usuarios_server_test', 'invasao_test', 'permissoes_test', 'server_painel_test']);
+  }
+  return todos.filter(t => sel.has(t));
+}
+
 let testes = todos;
 if (pedidos.length) {
   const faltando = pedidos.filter(p => !todos.includes(p));
   if (faltando.length) { console.error('Teste(s) não encontrado(s): ' + faltando.join(', ') + '\nDisponíveis: ' + todos.join(', ')); process.exit(2); }
   testes = pedidos;
+} else if (mudou) {
+  testes = testesMudados();
+  if (!testes.length) { console.log('Nenhum arquivo alterado no git: nada a rodar.'); process.exit(0); }
 }
+if (rapidos !== null) testes = testes.filter(t => rapido(t) === rapidos);
 if (parte) {
   const m = /^(\d+)\/(\d+)$/.exec(parte);
   if (!m || +m[1] < 1 || +m[1] > +m[2]) { console.error('--parte espera i/n (ex.: 1/3)'); process.exit(2); }
@@ -125,18 +188,21 @@ async function iniciarFakegas(env, logArq) {
   return p;
 }
 
-async function rodarUm(nome, tentativa) {
-  const arq = path.join(DIR, nome + '.js');
+async function rodarUm(nome, tentativa, browserWs) {
+  const arq = arqDe(nome);
   const sufixo = tentativa > 1 ? `.tentativa${tentativa}` : '';
   const logArq = path.join(LOGS, nome + sufixo + '.log'), logSrv = path.join(LOGS, nome + sufixo + '.fakegas.log');
-  const env = { ...process.env, GDV_PORTA_WEB: String(PORTA_WEB), GDV_PORTA_API: String(PORTA_API) };
+  fs.mkdirSync(path.dirname(logArq), { recursive: true });
+  const env = { ...process.env, GDV_PORTA_WEB: String(PORTA_WEB), GDV_PORTA_API: String(PORTA_API), GDV_SEM_SW: precisaSW(nome) ? '0' : '1' };
+  if (browserWs && precisaNavegador(nome)) env.GDV_BROWSER_WS = browserWs;
+  else delete env.GDV_BROWSER_WS;
   const rel = relogioDoTeste(arq);
   if (rel) env.GDV_DESLOC_MS = String(deslocPara(rel.dia, rel.hora));
   else delete env.GDV_DESLOC_MS;
   const t0 = Date.now();
   let srv = null, teste = null, rc = null, motivo = '';
   try {
-    srv = await iniciarFakegas(env, logSrv);
+    if (precisaFakegas(nome)) srv = await iniciarFakegas(env, logSrv);
     const out = fs.openSync(logArq, 'w');
     teste = spawn(process.execPath, [arq], { cwd: DIR, env, detached: true, stdio: ['ignore', 'pipe', 'pipe'] });
     const escrever = d => { fs.writeSync(out, d); if (verboso) process.stdout.write(d); };
@@ -207,24 +273,36 @@ async function rodarEmParalelo() {
   if (paralelo > 1 && !parte) return rodarEmParalelo();
   fs.mkdirSync(LOGS, { recursive: true });
   console.log(`GDV – ${testes.length} teste(s)${parte ? ` (parte ${parte})` : ''} | web :${PORTA_WEB} api :${PORTA_API} | timeout ${TIMEOUT_S} s` + (tentativas > 1 ? ` | até ${tentativas} tentativas` : ''));
+  let srvPw = null, browserWs = '';
+  if (testes.filter(precisaNavegador).length >= 2) {
+    try {
+      const { chromium } = require('playwright-core'), amb = require('./lib/amb');
+      srvPw = await chromium.launchServer({ executablePath: amb.chromiumPath(), args: ['--no-sandbox'] });
+      browserWs = srvPw.wsEndpoint();
+    } catch (e) { srvPw = null; browserWs = ''; }
+  }
   const resultados = [], t0 = Date.now();
-  for (const [i, nome] of testes.entries()) {
-    let r;
-    for (let tent = 1; tent <= tentativas; tent++) {
-      process.stdout.write(`[${i + 1}/${testes.length}] ${nome}${tent > 1 ? ` (tentativa ${tent})` : ''} ... `);
-      r = await rodarUm(nome, tent);
-      r.tentativa = tent;
-      console.log(r.passou ? cor(32, 'OK') + `  ${fmtS(r.ms)}, ${r.okN} ✓` + (r.rel ? `  [relógio: dia ${r.rel.dia} ${r.rel.hora}]` : '')
-        : cor(31, 'FALHOU') + `  ${fmtS(r.ms)} – ${r.motivo}`);
-      if (!r.passou) {
-        grupo(`saída de ${nome} (últimas linhas; completa em ${path.relative(process.cwd(), r.logArq)})`);
-        r.xs.slice(0, 20).forEach(l => console.log('    ' + l.trim().slice(0, 400)));
-        console.log(r.txt.split('\n').slice(-40).map(l => '    | ' + l.slice(0, 400)).join('\n'));
-        fimGrupo();
+  try {
+    for (const [i, nome] of testes.entries()) {
+      let r;
+      for (let tent = 1; tent <= tentativas; tent++) {
+        process.stdout.write(`[${i + 1}/${testes.length}] ${nome}${tent > 1 ? ` (tentativa ${tent})` : ''} ... `);
+        r = await rodarUm(nome, tent, browserWs);
+        r.tentativa = tent;
+        console.log(r.passou ? cor(32, 'OK') + `  ${fmtS(r.ms)}, ${r.okN} ✓` + (r.rel ? `  [relógio: dia ${r.rel.dia} ${r.rel.hora}]` : '')
+          : cor(31, 'FALHOU') + `  ${fmtS(r.ms)} – ${r.motivo}`);
+        if (!r.passou) {
+          grupo(`saída de ${nome} (últimas linhas; completa em ${path.relative(process.cwd(), r.logArq)})`);
+          r.xs.slice(0, 20).forEach(l => console.log('    ' + l.trim().slice(0, 400)));
+          console.log(r.txt.split('\n').slice(-40).map(l => '    | ' + l.slice(0, 400)).join('\n'));
+          fimGrupo();
+        }
+        if (r.passou) break;
       }
-      if (r.passou) break;
+      resultados.push(r);
     }
-    resultados.push(r);
+  } finally {
+    if (srvPw) await srvPw.close().catch(() => {});
   }
   const falhas = resultados.filter(r => !r.passou), instaveis = resultados.filter(r => r.passou && r.tentativa > 1);
   const linhas = resultados.map(r => `${r.passou ? 'OK    ' : 'FALHOU'} ${r.nome.padEnd(22)} ${fmtS(r.ms).padStart(8)}  ${String(r.okN).padStart(4)} ✓` + (r.tentativa > 1 ? `  (${r.tentativa}ª tentativa)` : '') + (r.passou ? '' : `  ${r.motivo}`));

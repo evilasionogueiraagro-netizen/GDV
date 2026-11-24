@@ -15,7 +15,7 @@ function textoCurto_(v, n) {
 function ping_(req, usuario) {
   const agora = Date.now();
   if (req.aparelho && typeof req.aparelho === 'object') {
-    const lock = LockService.getScriptLock();
+    const lock = lockMedido_();
     lock.waitLock(30000);
     try { registrarAparelho_(req.aparelho, usuario, agora, req.key, req.aparelho.ultimoErro ? 'erro' : 'ok', null); }
     finally { lock.releaseLock(); }

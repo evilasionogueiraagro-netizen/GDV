@@ -33,7 +33,7 @@ const CI = !!process.env.CI;
 // Tempo aproximado de cada teste (s, medido no CI), só para dividir em partes equilibradas (--parte, --paralelo).
 // Teste novo sem entrada aqui conta como 60 s.
 const PESO = {
-  acessos_test: 8, adm_test: 5, aparelho_compartilhado_test: 2, arquivo_test: 2, auto_infracao_test: 8,
+  acessos_test: 8, adm_test: 5, adm_filtro_escalas_test: 3, aparelho_compartilhado_test: 2, arquivo_test: 2, auto_infracao_test: 8,
   bgsync_test: 5, bva_ponto_test: 3, bvas_test: 4, cargo_outro_test: 2, colunas_dup_test: 1, colunas_test: 1,
   convenio_test: 23, convfin_test: 8, design_test: 1, docs_sistema_test: 1, docs_tamanho_test: 1,
   dois_aparelhos_test: 6, e2e: 7, educacao_test: 9, encerrar_test: 9, escala_turno_test: 4, escalas_test: 9,

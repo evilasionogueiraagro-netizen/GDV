@@ -69,8 +69,9 @@ function aproveitarCopia_(sh, colOficial, colCopia) {
 }
 
 function lerTudo_(nome) {
-  const sh = aba_(nome), cols = TABELAS[nome], n = sh.getLastRow() - 1;
+  const t0 = Date.now(), sh = aba_(nome), cols = TABELAS[nome], n = sh.getLastRow() - 1;
   const valores = n > 0 ? sh.getRange(2, 1, n, cols.length).getValues() : [];
+  medirLeitura_(Date.now() - t0, valores.length);   // desempenho.gs
   return { sh: sh, cols: cols, valores: valores };
 }
 

@@ -1,10 +1,10 @@
 /* ---------- Acesso ao Google (camada portátil) ----------
  * Única seção (com "Planilha" abaixo) que fala com os serviços do Google; nomes iguais aos do porte (docs/PORTABILIDADE.md).
- * Código novo usa só estas funções. O código antigo ainda chama LockService/getRange direto e vai sendo migrado seção por seção. */
+ * Código novo usa só estas funções. O lock vem de lockMedido_ (desempenho.gs); o código antigo ainda chama getRange direto e vai sendo migrado seção por seção. */
 
 /** Roda fn() com o lock do script (gravações concorrentes) e devolve o resultado. Valide tudo antes da primeira gravação. */
 function comLock_(fn) {
-  const lock = LockService.getScriptLock();
+  const lock = lockMedido_();
   lock.waitLock(30000);
   try { return fn(); } finally { lock.releaseLock(); }
 }

@@ -284,7 +284,9 @@ const Painel = (() => {
   /**
    * O mesmo login com o turno aberto em dois aparelhos (o PC e o celular da BVA, cada um com o seu turno) na mesma barreira e com os
    * horários se sobrepondo é uma barreira só: vira um turno, com os veículos dos dois, do primeiro início ao último fim (as horas não
-   * dobram). t.ids guarda os turnos da planilha que entraram (o "Encerrar turno" do painel encerra todos).
+   * dobram). t.ids guarda os turnos da planilha que entraram (o "Encerrar turno" do painel encerra todos). Só junta quando a sobreposição
+   * cobre ao menos metade do turno mais curto: turno novo aberto pouco antes de o anterior ser encerrado (troca de equipe, turno de ontem
+   * encerrado de madrugada) é outro turno, e não vira "aberta há mais de 12 h" desde o início do anterior.
    */
   function unirAparelhos(turnos, tAgora) {
     const chave = t => t.usuario && t.local ? String(t.usuario) + '|' + norm(t.local).replace(/ /g, '') : '';
@@ -293,7 +295,9 @@ const Painel = (() => {
     const grupos = {}, out = [];
     turnos.slice().sort((a, b) => (a.inicioMs || 0) - (b.inicioMs || 0)).forEach(t => {
       t.ids = [t.id]; t.unidos = [foto(t)];
-      const k = chave(t), g = k && t.inicioMs != null && (grupos[k] || []).find(x => x.inicioMs != null && t.inicioMs <= fimDe(x) && fimDe(t) >= x.inicioMs);
+      const juntos = x => { const sob = Math.min(fimDe(t), fimDe(x)) - Math.max(t.inicioMs, x.inicioMs), curto = Math.min(fimDe(t) - t.inicioMs, fimDe(x) - x.inicioMs);
+        return sob >= 0 && sob >= curto / 2; };
+      const k = chave(t), g = k && t.inicioMs != null && (grupos[k] || []).find(x => x.inicioMs != null && juntos(x));
       if (!g) { if (k) (grupos[k] = grupos[k] || []).push(t); out.push(t); return; }
       g.ids.push(t.id); g.unidos.push(foto(t));
       t.veiculosLista.forEach(v => { v.turnoId = g.id; });                       // cópias do painel: a planilha fica como está

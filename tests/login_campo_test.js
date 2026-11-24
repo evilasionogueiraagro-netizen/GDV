@@ -58,7 +58,7 @@ const encerrarSessoes = usuario => U.revogar(usuario.id);
   const ls = (p, k) => p.evaluate(k => localStorage.getItem(k), k);
   const toast = p => p.textContent('#toast');
   const esperaToast = (p, re) => p.waitForFunction(s => new RegExp(s, 'i').test(document.querySelector('#toast').textContent), re.source, { timeout: 12000 }).then(() => true, () => false);
-  const entrar = async (p, mat, senha) => { await p.waitForSelector('#fEntrar'); await p.fill('#eMat', mat); await p.fill('#eSenha', senha); await p.click('#fEntrar button'); };
+  const entrar = async (p, mat, senha) => { await p.waitForSelector('#fEntrar'); await p.fill('#eMat', mat); await p.fill('#eSenha', senha); await p.click('#fEntrar button:not([type=button])'); };
   const iniciarTurno = async (p, n) => {
     await p.click('nav [data-v=modulos]').catch(() => {}); await p.waitForSelector('.modulo[data-v=home]'); await p.click('.modulo[data-v=home]'); await p.waitForSelector('#fTurno');
     await p.fill('#nTF', String(n)); await p.selectOption('#nPosto', 'Fixa'); await p.click('#fTurno button[type=submit]'); await p.waitForSelector('.contador');
@@ -85,6 +85,13 @@ const encerrarSessoes = usuario => U.revogar(usuario.id);
   let A = await aparelho(), p = A.p;
   await p.waitForSelector('#fEntrar');
   ok(await p.locator('#eMat').count() === 1 && await p.getAttribute('#eSenha', 'type') === 'password', 'sem credencial: formulário com matrícula e senha (campo de senha oculto)');
+  // mostrar senha: o olho troca para texto e volta (o fiscal confere o que digitou)
+  await p.fill('#eSenha', 'abc'); await p.click('[data-ver-senha=eSenha]');
+  const vis = { tipo: await p.getAttribute('#eSenha', 'type'), rot: await p.getAttribute('[data-ver-senha=eSenha]', 'aria-label'), pres: await p.getAttribute('[data-ver-senha=eSenha]', 'aria-pressed') };
+  await p.click('[data-ver-senha=eSenha]');
+  ok(vis.tipo === 'text' && vis.rot === 'Ocultar senha' && vis.pres === 'true' && await p.getAttribute('#eSenha', 'type') === 'password' && await p.inputValue('#eSenha') === 'abc',
+    'botão mostrar senha: mostra o que foi digitado e oculta de novo, sem apagar', vis);
+  await p.screenshot({ path: amb.saida('login_mostrar_senha.png') }); await p.fill('#eSenha', '');
   ok(await p.locator('.modulo').count() === 0 && await p.locator('#fTurno').count() === 0, 'sem credencial: nenhum módulo nem turno');
   ok(await p.locator('#fAtivar, #aCod').count() === 0, 'não existe campo de código de ativação');
   ok(!/🔑|⛔|✅/u.test(await p.textContent('#view')), 'telas de acesso sem emoji');
@@ -93,14 +100,14 @@ const encerrarSessoes = usuario => U.revogar(usuario.id);
   ok(!(await ls(p, 'gdv.key')) && await p.locator('#fEntrar').count() === 1, 'senha errada: nada é guardado e a tela continua');
   // sem internet
   await semRede(A, true);
-  await p.fill('#eSenha', ana.senha); await p.click('#fEntrar button');
+  await p.fill('#eSenha', ana.senha); await p.click('#fEntrar button:not([type=button])');
   ok(await esperaToast(p, /Sem internet.*Entrar precisa de conex/), 'sem internet: mensagem clara de que Entrar precisa de conexão', await toast(p));
   ok(!(await ls(p, 'gdv.key')), 'sem internet: nada é guardado');
   await semRede(A, false);
 
   /* ================= 2. Senha provisória ================= */
   console.log('2. Senha provisória e troca de senha');
-  await p.fill('#eSenha', ana.senha); await p.click('#fEntrar button');
+  await p.fill('#eSenha', ana.senha); await p.click('#fEntrar button:not([type=button])');
   await p.waitForSelector('#fTrocarSenha');
   ok(estado.ultimoEntrar && estado.ultimoEntrar.aplicativo === 'campo' && estado.ultimoEntrar.matricula === ana.matricula, 'entrar manda a matrícula e aplicativo "campo"', { ...estado.ultimoEntrar, senha: '…' });
   ok(typeof estado.ultimoEntrar.aparelhoId === 'string' && estado.ultimoEntrar.aparelhoId.length > 8, 'entrar manda o aparelhoId do app');

@@ -137,7 +137,10 @@ function gravar_(nome, recebidos, ts, usuario) {
     if (!porId[o.id] || o.atualizadoEm >= porId[o.id].atualizadoEm) { porId[o.id] = o; brutos[o.id] = r; }
   });
 
-  const novas = [];
+  const novas = [], auditoria = [];
+  // Termo e Cadastro do PCE editados por quem não é o autor: com "Gerenciar termos realizados" (antigo + PCE) o autor continua o mesmo e o antes/depois vai
+  // para HistoricoDeAlteracoes (pce.gs); sem a permissão o Termo é recusado (ABAS_COM_DONO_) e o Cadastro, que é comum, é gravado e registrado igual
+  const doPce = nome === 'TermosPCE' || nome === 'CadastrosPCE', gerencia = doPce && podeGerenciarTermosPce_(usuario);
   Object.keys(porId).forEach(function (id) {
     const o = porId[id], r = brutos[id];
     o.srv_ts = ts;
@@ -150,7 +153,9 @@ function gravar_(nome, recebidos, ts, usuario) {
       const ok = atual && mesmoDono_(atual.usuario, usuario) && (!('turnoId' in r) || o.turnoId === atual.turnoId)
         || (!atual || podeTurno(atual.turnoId)) && podeTurno('turnoId' in r || !atual ? o.turnoId : atual.turnoId);
       if (!ok) { recusados.push(id); return; }
-    } else if (comDono && atual && !mesmoDono_(atual.usuario, usuario)) { recusados.push(id); return; }
+    } else if (comDono && atual && !mesmoDono_(atual.usuario, usuario) && !gerencia) { recusados.push(id); return; }
+    const alheio = doPce && atual && !mesmoDono_(atual.usuario, usuario);                    // edição de outro servidor
+    if (alheio && gerencia) { o.usuario = atual.usuario; linha[cols.indexOf('usuario')] = atual.usuario; }   // o autor não muda
     if (!atual) {
       if (nome === 'Propriedades' && ('frutos' in r)) linha[cols.indexOf('frutos')] = frutosMesclar_('', o.frutos, true, usuario, ts);   // normaliza e carimba (pce-frutos.gs)
       novas.push(linha);
@@ -175,6 +180,7 @@ function gravar_(nome, recebidos, ts, usuario) {
         if (nome === 'Colheitas') { const il = cols.indexOf('laboratorio'); linha[il] = labMaisNovo_(t.valores[idx[id]][il], linha[il]); }
         // Propriedade: o fruto que a planilha tem e o envio não traz fica (remover = excluido 1 no fruto); fruto novo ou alterado leva quem/quando
         if (nome === 'Propriedades' && ('frutos' in r)) { const iF = cols.indexOf('frutos'); linha[iF] = frutosMesclar_(t.valores[idx[id]][iF], o.frutos, true, usuario, ts); }
+        if (alheio) { const a = auditoriaEdicaoPce_(nome, cols, t.valores[idx[id]], linha, atual.usuario, usuario, id, ts); if (a) auditoria.push(a); }
         t.sh.getRange(idx[id] + 2, 1, 1, cols.length).setValues([linha]);
       } else if (nome === 'Turnos' && o.encerrado === 1 && atual.encerrado !== 1) {
         // encerramento com atualizadoEm mais velho que a planilha (relógio do aparelho corrigido para trás depois de abrir o turno):
@@ -203,6 +209,7 @@ function gravar_(nome, recebidos, ts, usuario) {
   if (novas.length) {
     t.sh.getRange(t.sh.getLastRow() + 1, 1, novas.length, cols.length).setValues(novas);
   }
+  if (auditoria.length) inserir_('HistoricoDeAlteracoes', auditoria);
   return recusados;
 }
 

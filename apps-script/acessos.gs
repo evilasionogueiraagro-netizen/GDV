@@ -20,7 +20,7 @@ const NOME_MODULO = { veiculos: 'Fiscalização de Trânsito', tf: 'TF de Barrei
 // actions do app que pertencem a um módulo (o servidor recusa se o módulo não estiver liberado para quem chama)
 const MODULO_DA_ACAO = { tfConsultar: 'tf', tfProximoNumero: 'tf', tfEmitir: 'tf', tfAndamento: 'tf', tfIndiceReincidencia: 'tf',
                          pceProximoNumero: 'pce', pceEmitir: 'pce', pceConsultar: 'pce', pceBuscarTexto: 'pce', pceBaixarMunicipio: 'pce', arquivoEnviar: 'pce',
-                         pceDocNumero: 'pce', pceDocRegistrar: 'pce', educacaoProximoNumero: 'educacao', educacaoRegistrar: 'educacao',
+                         pceDocNumero: 'pce', pceDocRegistrar: 'pce', pceTermosBuscar: 'pce', pceRegistroObter: 'pce', educacaoProximoNumero: 'educacao', educacaoRegistrar: 'educacao',
                          turnoConvidar: 'veiculos', turnoParear: 'veiculos', turnoSair: 'veiculos', turnosAbertos: 'veiculos', turnoEntrar: 'veiculos', turnoRemoverColega: 'veiculos',
                          turnoPapelRegistrar: 'veiculos', turnoNumero: 'veiculos', turnoRecuperar: 'veiculos', turnoTFs: 'veiculos' };
 const MSG_SEM_ANTIGO = 'Sem autorização para digitar registros antigos (do papel). Fale com a gerência.';
@@ -33,7 +33,7 @@ function permissoesDe_(usuario) {
   return USUARIO_ATUAL_ ? Object.assign({}, USUARIO_ATUAL_.modulos) : { veiculos: 0, tf: 0, pce: 0, antigo: 0, educacao: 0 };
 }
 
-/** Recusa registro antigo (digitado do papel) / PDF escaneado sem a permissão "antigo". Mensagem sem "revogado"/"inválido". */
+/** Recusa registro antigo (digitado do papel) / PDF escaneado sem a permissão "antigo" (rótulo "Gerenciar termos realizados"). Mensagem sem "revogado"/"inválido". */
 function exigirAntigo_(usuario) {
   const perm = permissoesDe_(usuario);
   if (perm.antigo) return perm;
@@ -61,7 +61,7 @@ function autenticar_(key) {
 /* ---------- Registro de leitura de dados pessoais (LGPD) ---------- */
 
 // actions que devolvem dados pessoais (CPF, nome, endereço, coordenada do produtor/fiscalizado ou a lista de servidores)
-const ACOES_COM_DADOS_PESSOAIS_ = ['painelDados', 'pceConsultar', 'pceBuscarTexto', 'pceBaixarMunicipio', 'admDados', 'usuariosListar', 'sessoesListar', 'turnoRecuperar',
+const ACOES_COM_DADOS_PESSOAIS_ = ['painelDados', 'pceConsultar', 'pceBuscarTexto', 'pceBaixarMunicipio', 'pceTermosBuscar', 'pceRegistroObter', 'admDados', 'usuariosListar', 'sessoesListar', 'turnoRecuperar',
                                    'tfsTurnoCompartilhado'];   // TF completo do colega no turno compartilhado (sync e entrar no turno)
 const LEITURA_INTERVALO_S_ = 3600;   // no máximo uma linha por usuário + action por hora (o painel ao vivo chama painelDados a cada minuto)
 const RESUMO_LEITURA_ = ['de', 'ate', 'aoVivo', 'municipio', 'municipios', 'ano', 'aba'];   // filtros que podem ir para o registro (nunca CPF/nome)

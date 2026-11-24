@@ -223,7 +223,7 @@ const LIMITES_TEXTO = { constatacao: 3000, enquadramento: 3000, documentos: 2000
 const MAX_LINHAS_POR_ENVIO = 2000;
 
 /** Muda a cada atualização do Code.gs: o link /exec aberto no navegador mostra esta data (confere se a nova versão foi implantada). */
-const VERSAO_CODIGO = '2026-11-22a';
+const VERSAO_CODIGO = '2026-11-24a';
 
 function doGet() {
   return json_({ ok: true, servico: 'e-GDV', versao: VERSAO_CODIGO });   // abrir o link /exec no navegador mostra qual Code.gs está publicado
@@ -293,6 +293,8 @@ function atender_(e) {
     if (req.action === 'pceEmitir') return json_(pceEmitir_(req, usuario));
     if (req.action === 'pceConsultar') return json_(lido_(req, pceConsultar_(req, usuario)));
     if (req.action === 'pceBuscarTexto') return json_(lido_(req, pceBuscarTexto_(req, usuario)));
+    if (req.action === 'pceTermosBuscar') return json_(lido_(req, pceTermosBuscar_(req, usuario)));      // Termos/Cadastros de todos os servidores (pce.gs)
+    if (req.action === 'pceRegistroObter') return json_(lido_(req, pceRegistroObter_(req, usuario)));
     if (req.action === 'educacaoProximoNumero') return json_(educacaoProximoNumero_(req));
     if (req.action === 'educacaoRegistrar') return json_(educacaoRegistrar_(req, usuario));
     if (req.action === 'pceDocNumero') return json_(pceDocNumero_(req));

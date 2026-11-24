@@ -12,7 +12,7 @@ const Envio = (() => {
   // stores de cada módulo (pessoas servem ao TF e ao PCE: sobem se qualquer um dos dois estiver liberado)
   const MODULO_DO_STORE = { t: ['veiculos'], v: ['veiculos'], f: ['tf'], l: ['tf'], p: ['tf', 'pce'], g: ['pce'], c: ['pce'], r: ['pce'], k: ['pce'], m: ['pce'], e: ['educacao'], a: ['tf', 'pce'] };   // a = arquivos (fotos/assinaturas do TF e do PCE)
   /** Permissões por módulo (padrão: tudo liberado — aparelho que nunca sincronizou ou servidor antigo que não manda permissões).
-   *  "antigo" (Digitar do papel: registros antigos e PDFs escaneados) é o contrário: só vale se o servidor mandar antigo=1. */
+   *  "antigo" (Gerenciar termos realizados: registros antigos e PDFs escaneados) é o contrário: só vale se o servidor mandar antigo=1. */
   const normPerm = o => {
     const r = { veiculos: 1, tf: 1, pce: 1, antigo: 0, escala: 0, educacao: 0 };
     if (o && typeof o === 'object') ['veiculos', 'tf', 'pce'].forEach(k => { if (k in o) r[k] = Number(o[k]) === 0 || o[k] === false ? 0 : 1; });
@@ -88,7 +88,7 @@ const Envio = (() => {
     if (perm && perm.pce === 0) regs = [];
     if (perm && perm.tf === 0) tfs = [];
     if (perm && !podeAntigo(perm)) { regs = regs.filter(r => !ehAntigo(r)).map(r => ({ ...r, documentos: '[]' })); tfs = tfs.filter(r => !ehAntigo(r)).map(r => ({ ...r, pdfs: '[]' })); }
-    // turno digitado do papel: o PDF do Termo (só com Fiscalização de Trânsito e "Digitar do papel")
+    // turno digitado do papel: o PDF do Termo (só com Fiscalização de Trânsito e "Gerenciar termos realizados")
     const turnos = perm && (perm.veiculos === 0 || !podeAntigo(perm)) ? [] : (await Store.todos('turnos')).filter(ehAntigo);
     const ref = idsReferenciados([...regs, ...tfs, ...turnos]);
     return (await Store.chaves('arquivos', 'enviado', 0)).filter(id => ref.has(id));

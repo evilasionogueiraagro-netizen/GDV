@@ -1,6 +1,6 @@
 const amb = require('./lib/amb');
 const U = require('./lib/usuarios');
-// TF antigo (digitado do papel, permissão "Digitar do papel"): app real (Chromium) + Code.gs real (fakegas). Dados fictícios.
+// TF antigo (digitado do papel, permissão "Gerenciar termos realizados"): app real (Chromium) + Code.gs real (fakegas). Dados fictícios.
 // Confere: botão só com a permissão; formulário do papel (sem data/hora de agora, servidor digitado, fiscalizado opcional, PDF no lugar de
 // fotos/assinaturas); gravação com o nº do papel (numeroOrigem "papel", registroAntigo, pdfs) e o PDF no Drive; a sequência da barreira
 // continua do maior número; número já usado, data no futuro, ano ≠ data e falta da permissão recusados pelo servidor; e que a carga do
@@ -36,7 +36,7 @@ const pdfBuf = () => Buffer.from('%PDF-1.4\n% tf do papel ficticio\n1 0 obj << /
     const adm = await gerar('Gestora Ficticia Teste', 'admin'), TOK = adm.token;
     const F = await credencial('Digitadora Ficticia Teste'), G = await credencial('Fiscal Sem Papel Teste');
 
-    console.log('1) sem a permissão "Digitar do papel": sem botão e o servidor recusa');
+    console.log('1) sem a permissão "Gerenciar termos realizados": sem botão e o servidor recusa');
     let P = await aparelho(F); await irTF(P);
     ok(!(await P.locator('#tf-novoantigo').count()), 'sem a permissão, a lista de TFs não mostra "TF antigo (digitar do papel)"');
     await P.ctx.close();
@@ -44,11 +44,11 @@ const pdfBuf = () => Buffer.from('%PDF-1.4\n% tf do papel ficticio\n1 0 obj << /
       fiscal: 'Fulano Ficticio Teste', local: 'BVA - CEASA', placa: 'ABC1D23', nome: 'NÃO IDENTIFICADO', doc: '', procedimento: 'apreensao', produtos: '["LARANJA - 2 Kg"]',
       registroAntigo: 1, numeroOrigem: 'papel', pdfs: '[]', fotos: '[]', assinaturas: '{}', cancelado: 0, criadoEm: Date.now(), atualizadoEm: Date.now(), ...extra });
     let r = await post({ action: 'tfEmitir', key: G.token, tf: tfBase() });
-    ok(!r.ok && r.semPermissao === 'antigo', 'tfEmitir de TF do papel sem "Digitar do papel": recusado', r);
+    ok(!r.ok && r.semPermissao === 'antigo', 'tfEmitir de TF do papel sem "Gerenciar termos realizados": recusado', r);
     r = await post({ action: 'arquivoEnviar', key: G.token, arquivo: { id: crypto.randomUUID(), dono: 'tfs', donoId: 'x', tipo: 'documento', papel: '', mime: 'application/pdf' }, base64: pdfBuf().toString('base64') });
-    ok(!r.ok && r.semPermissao === 'antigo', 'PDF de TF sem "Digitar do papel": recusado', r);
+    ok(!r.ok && r.semPermissao === 'antigo', 'PDF de TF sem "Gerenciar termos realizados": recusado', r);
     r = await U.permissoes(UIDS[F.nome], U.lista({ veiculos: 1, tf: 1, pce: 1, antigo: 1 }));
-    ok(r.ok && r.permissoes.includes('digitarDoPapel') && r.permissoes.includes('termoDeBarreira'), 'painel: TF + PCE + Digitar do papel para a digitadora', r);
+    ok(r.ok && r.permissoes.includes('digitarDoPapel') && r.permissoes.includes('termoDeBarreira'), 'painel: TF + PCE + Gerenciar termos realizados para a digitadora', r);
     r = await post({ action: 'tfEmitir', key: F.token, tf: tfBase({ data: AMANHA }) });
     ok(!r.ok && /futuro/.test(r.erro), 'TF do papel com data no futuro: recusado', r.erro);
     r = await post({ action: 'tfEmitir', key: F.token, tf: tfBase({ ano: ANO - 1 }) });

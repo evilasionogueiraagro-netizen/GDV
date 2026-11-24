@@ -15,7 +15,7 @@
   const NOME_MAX = 80, RE_MATRICULA = /^[A-Za-z0-9.-]{3,20}$/;
   // permissão (valor gravado no servidor) → rótulo; dois grupos de caixas
   const ROTULOS = { campo: 'App de campo', fiscalizacaoDeTransito: 'Fiscalização de trânsito', termoDeBarreira: 'TF de Barreira', pce: 'PCE',
-    digitarDoPapel: 'Digitar do papel', painel: 'Painel gerencial: só consulta', administracao: 'Portal do Administrativo', gerencia: 'Gerência: tudo + cadastrar usuários',
+    digitarDoPapel: 'Gerenciar termos realizados', painel: 'Painel gerencial: só consulta', administracao: 'Portal do Administrativo', gerencia: 'Gerência: tudo + cadastrar usuários',
     coordenacaoBarreiras: 'Coordenação de barreira e trânsito (escalas)', educacaoSanitaria: 'Educação Sanitária' };
   const GRUPOS = [['App de campo e módulos', ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce', 'digitarDoPapel', 'coordenacaoBarreiras', 'educacaoSanitaria']],
     ['Painel gerencial e portal', ['painel', 'administracao', 'gerencia']]];
@@ -80,7 +80,7 @@
   const caixas = () => [...E.raiz.querySelectorAll('input[data-perm]')];
   const marcadas = () => caixas().filter(c => c.checked).map(c => c.dataset.perm);
   function marcar(lista) { caixas().forEach(c => { c.checked = lista.indexOf(c.dataset.perm) >= 0; }); }
-  /** "Digitar do papel" depende do PCE (como no app): marcar o papel marca o PCE; desmarcar o PCE desmarca o papel. */
+  /** "Gerenciar termos realizados" depende do PCE (como no app): marcar o papel marca o PCE; desmarcar o PCE desmarca o papel. */
   function amarrarPapel(c) {
     const pce = q('#pn-us-perm-pce'), papel = q('#pn-us-perm-digitarDoPapel');
     if (c.dataset.perm === 'digitarDoPapel' && c.checked && pce) pce.checked = true;
@@ -106,7 +106,7 @@
       if (nome.length > NOME_MAX) return `Nome longo demais (máximo de ${NOME_MAX} caracteres).`;
     }
     if (!permissoes.length) return 'Marque pelo menos uma permissão.';
-    if (permissoes.indexOf('digitarDoPapel') >= 0 && permissoes.indexOf('pce') < 0) return '"Digitar do papel" exige o PCE.';
+    if (permissoes.indexOf('digitarDoPapel') >= 0 && permissoes.indexOf('pce') < 0) return '"Gerenciar termos realizados" exige o PCE.';
     return '';
   }
 

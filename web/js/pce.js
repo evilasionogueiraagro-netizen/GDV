@@ -410,7 +410,7 @@ const PCEUI = (() => {
   function fechar(F) { if (F) F.vivo = false; clearTimeout(tRasc); }
 
   /* ================= Termo de Colheita de Amostras ================= */
-  // Nasce na visita (quando há coleta de amostra): numerarColheita. Aqui se digita o do papel (permissão "Digitar do papel").
+  // Nasce na visita (quando há coleta de amostra): numerarColheita. Aqui se digita o do papel (permissão "Gerenciar termos realizados").
   const termoVazioAntigo = (s, m = {}) => ({ unidade: m.unidade || '', municipio: m.municipio || '', doc: '', nome: '', endereco: '', lat: '', lon: '', precisao: '',
     data: m.data || '', hora: '', cultura: '', quantidade: '', analise: '', partes: [], descricao: '', testemunha1Nome: '', testemunha1Doc: '', testemunha2Nome: '', testemunha2Doc: '',
     local: m.local || '', numPapel: '', coordTxt: '', sNome: m.sNome || '', sCargo: m.sCargo || '', sMatricula: m.sMatricula || '', sLotacao: m.sLotacao || '' });
@@ -703,7 +703,7 @@ const PCEUI = (() => {
     const texto = t => semAcento([t.numeroTxt, t.nome, t.municipio, t.cultura, t.programaVisita, t.propriedade].join(' ')).toUpperCase();
     if (!mostrar.viva()) return;
     mostrar(`${digSemAut ? avisoSemAntigoHTML() : ''}
-      ${podeAnt ? `<div class="card pce-papel"><h3>${icone('documento')} Digitar do papel</h3><div class="duas">
+      ${podeAnt ? `<div class="card pce-papel"><h3>${icone('documento')} Gerenciar termos realizados</h3><div class="duas">
         <button class="botao ${dig ? '' : 'sec'}" data-mon="novo" data-tipo="termo" data-antigo="1" id="mon-novo-papel">Termo de Fiscalização</button>
         <button class="botao ${dig ? '' : 'sec'}" data-pce="novotermoantigo" id="pce-novotermoantigo">Termo de Colheita</button></div></div>` : ''}
       ${Sync.pode('pce') && !soDigitador(s) ? `<button class="botao" data-v="pcenovotermo" id="pce-novotermo-ir">${icone('mais')} Novo termo</button>` : ''}

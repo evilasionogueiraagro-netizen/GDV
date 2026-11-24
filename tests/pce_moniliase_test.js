@@ -4,7 +4,7 @@ const PA = require('./lib/pce-app');
 // PCE — monilíase: Termo de Fiscalização do PCE (digitado do papel e feito em campo na Nova visita, com as perguntas de detecção e a coordenada da
 // planta), ficha oficial da monilíase e Relatório de atividades (app real + Code.gs real no fakegas).
 // Dados fictícios no formato do relatório de Autazes (julho/2026): 2 Termos digitados do papel pela estagiária, Termo de campo sem internet,
-// permissão "Digitar do papel", PDFs (impressão e arquivo gerado no aparelho), relatório do período e painel.
+// permissão "Gerenciar termos realizados", PDFs (impressão e arquivo gerado no aparelho), relatório do período e painel.
 const fs = require('fs'), path = require('path'), { execFileSync } = require('child_process');
 const { API, APP, PAINEL } = amb;
 const get = p => fetch(API + p).then(r => r.json());
@@ -43,7 +43,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   const adm = await gerar('Gestor Moniliase Painel', 'admin'), TOK = adm.token;
   const E = await credencial('Pessoa Ficticia Delta Estagiaria', { pce: 1 });
   let r = await U.permissoes(UIDS[E.nome], U.lista({ veiculos: 0, tf: 0, pce: 1, antigo: 1 }));
-  ok(r.ok && r.permissoes.includes('digitarDoPapel'), 'painel: estagiária com PCE + Digitar do papel');
+  ok(r.ok && r.permissoes.includes('digitarDoPapel'), 'painel: estagiária com PCE + Gerenciar termos realizados');
   const A = await aparelho(E);
   const C = await A.evaluate(() => { const L = PCEMon.lerEixo, N = PCEMon.lerNumeroDoc;
     return { a: L('-3,60033', 'lat'), b: L('-3.60033', 'lat'), c: L('3,60033S', 'lat'), d: L('-59,15044W', 'lon'), e: L('59,15044', 'lon'), f: L(`3°36'01,2"S`, 'lat'),
@@ -64,7 +64,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   await A.click('.modulo[data-v=pce]'); await A.waitForSelector('#pceServForm');
   await A.check('#pce-s-digitacao'); await A.click('#pce-s-salvar'); await A.waitForSelector('#campo-novo');
   await A.click('nav [data-v=pcetermos]'); await A.waitForSelector('#mon-novo-papel');
-  ok(await A.locator('#pce-rel').count() === 0 && await A.locator('#mon-ir-rel').count() === 1 && await A.locator('#mon-novo').count() === 0, 'lista de Termos: "Digitar do papel" e "Relatório de atividades" (sem Termo de campo para quem só digita)');
+  ok(await A.locator('#pce-rel').count() === 0 && await A.locator('#mon-ir-rel').count() === 1 && await A.locator('#mon-novo').count() === 0, 'lista de Termos: "Gerenciar termos realizados" e "Relatório de atividades" (sem Termo de campo para quem só digita)');
   await A.click('#mon-novo-papel'); await A.waitForSelector('#monTfForm.pce-antigo');
   ok(await A.locator('.pce-canvas').count() === 0 && await A.locator('[data-mon=gps]').count() === 0, 'papel: sem assinaturas e sem GPS');
   const servidorPapel = async (p, pref) => { await p.fill(`#${pref}snome`, 'Servidor Ficticio Teste'); await p.selectOption(`#${pref}scargo`, 'Fiscal Agropecuário Engenheiro Agrônomo');
@@ -165,7 +165,7 @@ const SEM_ANT = 'Sem autorização para digitar registros antigos (do papel). Fa
   ok((await A.inputValue('#mr-conv')) === '00991272/2025' && (await A.inputValue('#mr-etapa')) === '1.4' && /Motorista Ficticio/.test(await A.inputValue('#mr-servs')), 'convênio, etapa e servidores lembrados');
   ok(!A.err.length, 'sem erros no app da estagiária', A.err);
 
-  /* ================= 5. permissão "Digitar do papel" ================= */
+  /* ================= 5. permissão "Gerenciar termos realizados" ================= */
   console.log('5) permissão Papel');
   const W = await credencial('Servidor Ficticio Teste');
   const idx = require('crypto').randomUUID();

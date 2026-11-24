@@ -1,7 +1,7 @@
 const amb = require('./lib/amb');
 const U = require('./lib/usuarios');
 // Módulos liberados por conta (matrícula e senha; permissões em PermissoesDosUsuarios): servidor (Code.gs real via fakegas), tela de
-// Usuários do painel (permissões por conta e "Digitar do papel" amarrado ao PCE) e o que o app de campo recebe no sync.
+// Usuários do painel (permissões por conta e "Gerenciar termos realizados" amarrado ao PCE) e o que o app de campo recebe no sync.
 // Os códigos de ativação, a ACCESS_KEY e a aba Permissoes (agora só histórico) não valem mais. Dados fictícios.
 const { chromium } = require('playwright-core');
 const { API, PAINEL, APP } = amb;
@@ -32,7 +32,7 @@ const MODS = m => JSON.stringify(m);
   d = await post({ action: 'sync', key: 'segredo', since: 0 });
   ok(!d.ok, 'a antiga chave mestra (ACCESS_KEY) não vale mais', d.erro);
   d = await post({ action: 'sync', key: GT, since: 0 });
-  ok(MODS(d.permissoes) === '{"veiculos":1,"tf":1,"pce":1,"antigo":1,"escala":0,"educacao":0}', 'gerência: tudo liberado (inclusive Digitar do papel)', d.permissoes);
+  ok(MODS(d.permissoes) === '{"veiculos":1,"tf":1,"pce":1,"antigo":1,"escala":0,"educacao":0}', 'gerência: tudo liberado (inclusive Gerenciar termos realizados)', d.permissoes);
   d = await post({ action: 'usuariosListar', key: GT });
   const acA = d.usuarios.find(u => u.id === ANA);
   ok(acA && acA.permissoes.join() === 'campo,fiscalizacaoDeTransito,termoDeBarreira,pce', 'usuariosListar devolve as permissões de cada conta', acA && acA.permissoes);
@@ -119,25 +119,25 @@ const MODS = m => JSON.stringify(m);
   ok(!d.ok && /pelo menos uma permissão/.test(d.erro) && (await tabela('Usuarios')).every(u => u.nome !== 'Sem Permissao Ficticio'), 'criar conta sem nenhuma permissão: recusado e nada criado', d.erro);
 
   // 4ª permissão "digitarDoPapel": padrão desligado, exige pce, não é módulo sozinha
-  console.log('1b. Permissão "Digitar do papel" (digitarDoPapel)');
+  console.log('1b. Permissão "Gerenciar termos realizados" (digitarDoPapel)');
   d = await U.permissoes(ANA, U.lista({ veiculos: 1, tf: 1, pce: 1, antigo: 0 }));
   d = await post({ action: 'sync', key: A.token, since: 0 }); ok(d.permissoes.antigo === 0, 'digitarDoPapel desligado por padrão', d.permissoes);
   d = await post({ action: 'usuarioPermissoes', key: GT, usuarioId: ANA, permissoes: ['campo', 'fiscalizacaoDeTransito', 'digitarDoPapel'] });
-  ok(!d.ok && /PCE/.test(d.erro) && await permAtivas(ANA) === 'campo,fiscalizacaoDeTransito,pce,termoDeBarreira', '"Digitar do papel" sem PCE: recusado com mensagem clara (nada gravado)', d.erro);
+  ok(!d.ok && /PCE/.test(d.erro) && await permAtivas(ANA) === 'campo,fiscalizacaoDeTransito,pce,termoDeBarreira', '"Gerenciar termos realizados" sem PCE: recusado com mensagem clara (nada gravado)', d.erro);
   d = await post({ action: 'usuarioPermissoes', key: GT, usuarioId: ANA, permissoes: ['digitarDoPapel'] });
-  ok(!d.ok && /só vale com o módulo PCE/.test(d.erro), '"Digitar do papel" sozinha não vale', d.erro);
+  ok(!d.ok && /só vale com o módulo PCE/.test(d.erro), '"Gerenciar termos realizados" sozinha não vale', d.erro);
   d = await U.permissoes(ANA, ['campo', 'pce', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'digitarDoPapel']);
-  ok(d.ok && d.permissoes.includes('pce') && d.permissoes.includes('digitarDoPapel'), 'PCE + Digitar do papel: gravado', d.permissoes);
+  ok(d.ok && d.permissoes.includes('pce') && d.permissoes.includes('digitarDoPapel'), 'PCE + Gerenciar termos realizados: gravado', d.permissoes);
   d = await post({ action: 'sync', key: A.token, since: 0 }); ok(d.permissoes.antigo === 1, 'sync devolve antigo=1', d.permissoes);
   d = await post({ action: 'usuariosListar', key: GT }); ok(d.usuarios.find(u => u.id === ANA).permissoes.includes('digitarDoPapel'), 'usuariosListar traz digitarDoPapel');
   d = await U.permissoes(ANA, ['campo', 'pce', 'fiscalizacaoDeTransito', 'termoDeBarreira']);
   d = await post({ action: 'usuarioPermissoes', key: GT, usuarioId: ANA, permissoes: ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'digitarDoPapel'] });
-  ok(!d.ok && /PCE/.test(d.erro) && await permAtivas(ANA).then(s => s.includes('pce')), 'tirar o PCE com "Digitar do papel" marcada: recusado (a tela desmarca as duas juntas)', d.erro);
+  ok(!d.ok && /PCE/.test(d.erro) && await permAtivas(ANA).then(s => s.includes('pce')), 'tirar o PCE com "Gerenciar termos realizados" marcada: recusado (a tela desmarca as duas juntas)', d.erro);
   d = await U.permissoes(ANA, ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira']);
   d = await post({ action: 'sync', key: A.token, since: 0 });
-  ok(MODS(d.permissoes) === '{"veiculos":1,"tf":1,"pce":0,"antigo":0,"escala":0,"educacao":0}' && await permAtivas(ANA) === 'campo,fiscalizacaoDeTransito,termoDeBarreira', 'PCE tirado: "Digitar do papel" sai junto (sem linha ativa)', d.permissoes);
+  ok(MODS(d.permissoes) === '{"veiculos":1,"tf":1,"pce":0,"antigo":0,"escala":0,"educacao":0}' && await permAtivas(ANA) === 'campo,fiscalizacaoDeTransito,termoDeBarreira', 'PCE tirado: "Gerenciar termos realizados" sai junto (sem linha ativa)', d.permissoes);
   await U.permissoes(ANA, ['campo', 'pce', 'fiscalizacaoDeTransito', 'termoDeBarreira']);
-  d = await post({ action: 'sync', key: A.token, since: 0 }); ok(d.permissoes.antigo === 0 && d.permissoes.pce === 1, 'sem Digitar do papel: antigo = 0', d.permissoes);
+  d = await post({ action: 'sync', key: A.token, since: 0 }); ok(d.permissoes.antigo === 0 && d.permissoes.pce === 1, 'sem Gerenciar termos realizados: antigo = 0', d.permissoes);
   const lv = { id: 'pt-ant1', data: hoje, hora: '08:00', doc: '52998224725', nome: 'PAPEL', municipio: 'Manaus', culturas: '[]', fotos: '[]', assinaturas: '{}', excluido: 0, criadoEm: ag, atualizadoEm: ag, registroAntigo: 1 };
   const lvn = { ...lv, id: 'pt-ant2', registroAntigo: 0 };
   d = await post({ action: 'sync', key: A.token, since: 0, levantamentos: [lv, lvn] });
@@ -150,9 +150,9 @@ const MODS = m => JSON.stringify(m);
   d = await post({ action: 'sync', key: A.token, since: 0, levantamentos: [lv] });
   ok(MODS(d.recusados) === '{}' && await tem('Levantamentos', 'pt-ant1'), 'com a permissão: registro antigo gravado', d.recusados);
   d = await post({ action: 'usuarioCriar', key: GT, nome: 'Estagiario Papel Silva', permissoes: ['digitarDoPapel'] });
-  ok(!d.ok && /só vale com o módulo PCE/.test(d.erro) && (await tabela('Usuarios')).every(u => u.nome !== 'Estagiario Papel Silva'), 'criar conta só com "Digitar do papel": recusado e nada criado', d.erro);
+  ok(!d.ok && /só vale com o módulo PCE/.test(d.erro) && (await tabela('Usuarios')).every(u => u.nome !== 'Estagiario Papel Silva'), 'criar conta só com "Gerenciar termos realizados": recusado e nada criado', d.erro);
   const E = await U.fiscal('Estagiario Papel Silva', { permissoes: ['campo', 'pce', 'digitarDoPapel'] });
-  ok(MODS(E.modulos) === '{"veiculos":0,"tf":0,"pce":1,"antigo":1,"escala":0,"educacao":0}', 'conta com PCE + Digitar do papel: módulos no login', E.modulos);
+  ok(MODS(E.modulos) === '{"veiculos":0,"tf":0,"pce":1,"antigo":1,"escala":0,"educacao":0}', 'conta com PCE + Gerenciar termos realizados: módulos no login', E.modulos);
   // a aba Permissoes (planilha antiga) não é mais gravada
   ok(!(await get('/__aba?nome=Permissoes')), 'nada gravado na aba Permissoes (histórico): a permissão está em PermissoesDosUsuarios');
 
@@ -198,14 +198,14 @@ const MODS = m => JSON.stringify(m);
   await p.check('#pn-us-perm-termoDeBarreira'); await p.click('#pn-us-salvar'); await salvo('salvas');
   ok(await permAtivas(B.usuario.id) === 'campo,fiscalizacaoDeTransito,termoDeBarreira', 'planilha: TF liberado para Bruno', await permAtivas(B.usuario.id));
 
-  // "Digitar do papel" amarrado ao PCE
+  // "Gerenciar termos realizados" amarrado ao PCE
   await abrirPermissoes('Bruno Modulo Costa');
   await p.check('#pn-us-perm-digitarDoPapel');
-  ok(await p.isChecked('#pn-us-perm-pce'), 'marcar "Digitar do papel" marca o PCE');
+  ok(await p.isChecked('#pn-us-perm-pce'), 'marcar "Gerenciar termos realizados" marca o PCE');
   await p.uncheck('#pn-us-perm-pce');
-  ok(!(await p.isChecked('#pn-us-perm-digitarDoPapel')), 'desmarcar o PCE desmarca "Digitar do papel"');
+  ok(!(await p.isChecked('#pn-us-perm-digitarDoPapel')), 'desmarcar o PCE desmarca "Gerenciar termos realizados"');
   await p.check('#pn-us-perm-digitarDoPapel'); await p.click('#pn-us-salvar'); await salvo('salvas');
-  ok(await permAtivas(B.usuario.id) === 'campo,digitarDoPapel,fiscalizacaoDeTransito,pce,termoDeBarreira', 'planilha: PCE e Digitar do papel gravados juntos', await permAtivas(B.usuario.id));
+  ok(await permAtivas(B.usuario.id) === 'campo,digitarDoPapel,fiscalizacaoDeTransito,pce,termoDeBarreira', 'planilha: PCE e Gerenciar termos realizados gravados juntos', await permAtivas(B.usuario.id));
 
   // nenhuma permissão: aviso no formulário, sem gravar
   await abrirPermissoes('Bruno Modulo Costa');
@@ -224,7 +224,7 @@ const MODS = m => JSON.stringify(m);
   await p.click('#pn-us-cancelar');
   ok(await p.isHidden('#pn-us-cancelar') && await marcadas() === '', 'cancelar: formulário volta ao modo "Novo usuário" sem marcações');
 
-  // criar: nada marcado por padrão; "Digitar do papel" marca o PCE; matrícula gerada
+  // criar: nada marcado por padrão; "Gerenciar termos realizados" marca o PCE; matrícula gerada
   ok(await p.isEnabled('#pn-us-matricula') && await marcadas() === '', 'novo usuário: nenhuma permissão marcada por padrão');
   await p.fill('#pn-us-nome', 'Daniela Campo Nunes');
   await p.click('#pn-us-salvar');
@@ -240,11 +240,11 @@ const MODS = m => JSON.stringify(m);
 
   await p.fill('#pn-us-nome', 'Elisa Papel Ramos');
   await p.check('#pn-us-perm-campo'); await p.check('#pn-us-perm-digitarDoPapel');
-  ok(await p.isChecked('#pn-us-perm-pce'), 'criar com "Digitar do papel": PCE marcado junto');
+  ok(await p.isChecked('#pn-us-perm-pce'), 'criar com "Gerenciar termos realizados": PCE marcado junto');
   await p.click('#pn-us-salvar');
   await p.waitForFunction(() => /Elisa Papel Ramos/.test((document.querySelector('#pn-us-res:not([hidden])') || {}).textContent || ''), null, { timeout: 8000 });
   const idE = await idDe('Elisa Papel Ramos');
-  ok(await permAtivas(idE) === 'campo,digitarDoPapel,pce', 'planilha: conta com PCE + Digitar do papel', await permAtivas(idE));
+  ok(await permAtivas(idE) === 'campo,digitarDoPapel,pce', 'planilha: conta com PCE + Gerenciar termos realizados', await permAtivas(idE));
   await p.click('#pn-us-fechar');
 
   // celular

@@ -185,8 +185,8 @@ const Sync = (() => {
   /* ---------- Módulos autorizados (definidos pela gerência no painel → Servidores) ----------
      O servidor devolve {veiculos, tf, pce, antigo} a cada sync; guardamos a última (meta "permissoes") para usar sem internet.
      Padrão: módulos liberados (aparelho que nunca sincronizou, ou versão antiga do servidor que não manda permissões);
-     "antigo" (Digitar do papel: registro/termo antigo e PDF escaneado) é o contrário: desligado até o servidor mandar antigo=1. */
-  const MODULOS = { veiculos: 'Fiscalização de Trânsito', tf: 'TF de Barreira', pce: 'PCE', antigo: 'Digitar do papel', escala: 'Escalas de plantão', educacao: 'Educação Sanitária' };
+     "antigo" (Gerenciar termos realizados: registro/termo antigo e PDF escaneado) é o contrário: desligado até o servidor mandar antigo=1. */
+  const MODULOS = { veiculos: 'Fiscalização de Trânsito', tf: 'TF de Barreira', pce: 'PCE', antigo: 'Gerenciar termos realizados', escala: 'Escalas de plantão', educacao: 'Educação Sanitária' };
   const { MODULO_DO_STORE, normPerm } = Envio;
   let PERM = normPerm(null);
   const permissoes = () => ({ ...PERM });

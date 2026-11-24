@@ -105,7 +105,7 @@ const esperaReal = ms => new Promise(r => setTimeout(r, ms));
   ok(/Gerência: tudo/.test(linhas.find(l => l.includes('ger.teste')) || '') && /Painel gerencial: só consulta/.test(linhas.find(l => l.includes('tv.sala')) || ''), 'permissões com rótulo legível ("Gerência: tudo + cadastrar usuários", "Painel gerencial: só consulta")');
   ok(/Senha provisória/.test(linhas.find(l => l.includes('tv.sala')) || '') && !/Senha provisória/.test(linhas.find(l => l.includes('ger.teste')) || ''), 'senha provisória pendente marcada só em quem ainda não trocou');
   const rotulos = await p.$$eval('#pn-us-form input[data-perm]', is => is.map(i => i.parentElement.textContent.trim()));
-  ok(rotulos.join('|') === 'App de campo|Fiscalização de trânsito|TF de Barreira|PCE|Gerenciar termos realizados|Coordenação de barreira e trânsito (escalas)|Educação Sanitária|Painel gerencial: só consulta|Portal do Administrativo|Gerência: tudo + cadastrar usuários', 'caixas das 10 permissões com os rótulos combinados', rotulos);
+  ok(rotulos.join('|') === 'App de campo|Fiscalização de trânsito|TF de Barreira|PCE|Gerenciar termos realizados|Coordenação de barreira e trânsito (escalas)|Painel gerencial: só consulta|Portal do Administrativo|Gerência: tudo + cadastrar usuários', 'caixas das 9 permissões (Educação Sanitária é liberada para todos, sem caixa) com os rótulos combinados', rotulos);
   await p.check('#pn-us-perm-digitarDoPapel'); ok(await p.isChecked('#pn-us-perm-pce'), '"Gerenciar termos realizados" marca o PCE junto');
   await p.uncheck('#pn-us-perm-pce'); ok(!(await p.isChecked('#pn-us-perm-digitarDoPapel')), 'desmarcar o PCE desmarca "Gerenciar termos realizados"');
   await p.click('#pn-us-salvar');

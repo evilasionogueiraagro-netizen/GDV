@@ -17,7 +17,7 @@
   const ROTULOS = { campo: 'App de campo', fiscalizacaoDeTransito: 'Fiscalização de trânsito', termoDeBarreira: 'TF de Barreira', pce: 'PCE',
     digitarDoPapel: 'Gerenciar termos realizados', painel: 'Painel gerencial: só consulta', administracao: 'Portal do Administrativo', gerencia: 'Gerência: tudo + cadastrar usuários',
     coordenacaoBarreiras: 'Coordenação de barreira e trânsito (escalas)', educacaoSanitaria: 'Educação Sanitária' };
-  const GRUPOS = [['App de campo e módulos', ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce', 'digitarDoPapel', 'coordenacaoBarreiras', 'educacaoSanitaria']],
+  const GRUPOS = [['App de campo e módulos', ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce', 'digitarDoPapel', 'coordenacaoBarreiras']],
     ['Painel gerencial e portal', ['painel', 'administracao', 'gerencia']]];
   const APLICATIVOS = { campo: 'App de campo', painel: 'Painel gerencial', administracao: 'Portal do Administrativo' };
   const rotulo = p => ROTULOS[p] || p;

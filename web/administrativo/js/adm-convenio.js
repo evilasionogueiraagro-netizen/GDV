@@ -1,7 +1,7 @@
-/* Portal do Administrativo — convênio: "Desembolso" (lançamentos financeiros por subetapa/item do plano de aplicação, com saldo da
+/* Portal do Administrativo — aba "Convênio", com duas partes: "Gastos" (lançamentos financeiros por subetapa/item do plano de aplicação, com saldo da
    subetapa ao vivo, avisos de memorando repetido, diária acima do previsto e data fora da vigência; servidor da diária digitado (com
-   sugestão dos nomes já lançados) — o NOME fica só aqui e na planilha; importação da planilha de movimentação .xlsx) e "Físico do
-   convênio" (lançamentos manuais das etapas 1.1 bens, 1.3, 1.5, 1.14 e ajustes +/− das etapas automáticas). Mesmas validações
+   sugestão dos nomes já lançados) — o NOME fica só aqui e na planilha; importação da planilha de movimentação .xlsx) e "Metas"
+   (antes "Físico do convênio": lançamentos manuais das etapas 1.1 bens, 1.3, 1.5, 1.14 e ajustes +/− das etapas automáticas). Mesmas validações
    e regras de antes (que estavam no painel): actions admConvLancar / admConvFinLancar / admConvExcluir / admConvFinExcluir /
    admConvFinImportar. Os formulários usam os mesmos ids da antiga aba do painel (pn-cl-*, pn-cf-*, pn-conv-imp-*). */
 (() => {
@@ -10,7 +10,7 @@
   const A = Adm, esc = A.esc, CD = ConvDocs, F = CD.fmt;
   const AUTO = ['pce', 'volante', 'bva'], NAT_DIARIAS = ['33.90.14', '33.90.36'];
   const XLSX_SRC = '../painel/vendor/xlsx/xlsx.mini.min.js', IMP_LOTE = 200;
-  const E = { convId: '', editando: null, editandoFin: null, msg: {}, imp: null, impResumo: null, filtroEtapa: '', avisosFin: [] };
+  const E = { vis: 'gastos', sitBem: {}, convId: '', editando: null, editandoFin: null, msg: {}, imp: null, impResumo: null, filtroEtapa: '', avisosFin: [] };
   const num = v => { const n = parseFloat(String(v == null ? '' : v).replace(/\./g, '').replace(',', '.')); return isFinite(n) ? n : null; };
   const numSimples = v => { const s = String(v == null ? '' : v).trim(); if (!s) return null; const n = Number(/,/.test(s) ? s.replace(/\./g, '').replace(',', '.') : s); return isFinite(n) ? n : null; };
   const cfg = () => { const d = A.dados && E.d; return d ? (d.convenios.find(c => c.id === E.convId) || d.convenios[0]) : null; };
@@ -21,35 +21,41 @@
   function msg(raiz, k, t, cls) { E.msg[k] = { t, cls }; const el = raiz && raiz.querySelector(`[data-msg="${k}"]`); if (el) { el.textContent = t; el.className = 'pn-pub-msg' + (cls ? ' ' + cls : ''); } }
   const msgHtml = k => { const m = E.msg[k] || { t: '', cls: '' }; return `<span class="pn-pub-msg${m.cls ? ' ' + m.cls : ''}" data-msg="${k}" role="status">${esc(m.t)}</span>`; };
 
-  async function abrir(c, visao) {
+  async function abrir(c) {
     c.innerHTML = '<div class="pn-vazio">Carregando os dados do convênio…</div>';
     try { E.d = await A.dados(); if (!E.convId) E.convId = E.d.convenios[0].id; }
     catch (e) { c.innerHTML = `<p class="pn-erro">${esc(e.message)}${/a[çc][ãa]o inv[áa]lida/i.test(e.message) ? ' — o servidor ainda está com o Code.gs antigo: o gerente precisa colar o Code.gs novo e criar uma nova versão da implantação.' : ''}</p>`; return; }
-    const raiz = A.el('div', 'pn-conv adm-conv'); raiz.id = visao === 'fin' ? 'adm-fin' : 'adm-fis';
+    const raiz = A.el('div', 'pn-conv adm-conv'); raiz.id = 'adm-conv';
     c.innerHTML = ''; c.appendChild(raiz);
-    ligar(raiz, visao); desenhar(raiz, visao);
+    ligar(raiz); desenhar(raiz);
   }
+  const VISOES = [['gastos', 'Gastos'], ['metas', 'Metas']];
+  const INTRO = {
+    gastos: 'Registre cada pagamento do convênio (diárias, compras, combustível) com o documento. O saldo de cada item é atualizado na hora e o gerente acompanha o total no painel.',
+    metas: 'Registre o andamento das metas do plano de trabalho: compra de bens, quantidades feitas e correções das contagens automáticas. O gerente acompanha o % de cada meta no painel.' };
+  const OBR = '<span class="adm-obrig" aria-hidden="true"> *</span>';
   function cab(raiz) {
     const c = cfg();
     return `<div class="pn-cartao pn-conv-topo"><div class="pn-conv-sel">
       <label>Convênio<select id="pn-conv-sel">${E.d.convenios.map(x => `<option value="${esc(x.id)}" ${x.id === c.id ? 'selected' : ''}>${esc(x.numero || x.id)}</option>`).join('')}</select></label></div>
       <h3 class="pn-conv-nome">${esc(c.nome)}</h3><p class="pn-sub">Vigência ${F.data(c.vigencia.inicio)} a ${F.data(c.vigencia.fim)} · execução desde ${F.data(c.inicioExecucao)} · valor global ${F.moeda(c.valores.global)}</p></div>`;
   }
-  function desenhar(raiz, visao) {
-    raiz.innerHTML = cab(raiz) + '<div id="pn-conv-visao" class="pn-conv-visao"></div>';
+  function desenhar(raiz) {
+    raiz.innerHTML = cab(raiz) + `<div class="pn-conv-nav" role="tablist" aria-label="Partes do convênio">${VISOES.map(([k, t]) => `<button type="button" class="pn-chip" role="tab" data-conv="vis" data-vis="${k}" aria-pressed="${E.vis === k}" aria-selected="${E.vis === k}">${t}</button>`).join('')}</div>
+      <p class="pn-sub adm-intro" id="adm-conv-intro">${esc(INTRO[E.vis])}</p><div id="pn-conv-visao" class="pn-conv-visao"></div>`;
     const v = raiz.querySelector('#pn-conv-visao');
-    if (visao === 'fin') visaoFin(raiz, v); else visaoLanc(raiz, v);
+    if (E.vis === 'gastos') visaoFin(raiz, v); else visaoLanc(raiz, v);
   }
-  function ligar(raiz, visao) {
+  function ligar(raiz) {
     raiz.addEventListener('change', e => {
       const t = e.target;
-      if (t.id === 'pn-conv-sel') { E.convId = t.value; E.editando = E.editandoFin = null; desenhar(raiz, visao); }
+      if (t.id === 'pn-conv-sel') { E.convId = t.value; E.editando = E.editandoFin = null; desenhar(raiz); }
       if (t.id === 'pn-cl-etapa' || t.id === 'pn-cl-sub') ajustarFormLanc(raiz, t.id === 'pn-cl-etapa');
-      if (t.id === 'pn-cl-bem' || t.id === 'pn-cl-sit') { if (t.id === 'pn-cl-bem') valorDoBem(raiz); ajustarFormLanc(raiz, false); }
+      if (t.id === 'pn-cl-bem' || t.id === 'pn-cl-sit') { if (t.id === 'pn-cl-bem') { valorDoBem(raiz); if (!E.editando) sitPadrao(raiz); } ajustarFormLanc(raiz, false); }
       if (t.id === 'pn-cf-etapa') { ajustarFormFin(raiz, true); vivoFin(raiz); }
       if (t.id === 'pn-cf-item') { ajustarFormFin(raiz, false); vivoFin(raiz); }
       if (t.id === 'pn-cf-data' || t.id === 'pn-cf-fonte' || t.id === 'pn-cf-tipo' || t.id === 'pn-cf-srv') vivoFin(raiz);
-      if (t.id === 'adm-fin-filtro') { E.filtroEtapa = t.value; desenhar(raiz, visao); }
+      if (t.id === 'adm-fin-filtro') { E.filtroEtapa = t.value; desenhar(raiz); }
       if (t.id === 'pn-conv-imp-arq' && t.files && t.files[0]) { lerPlanilha(raiz, t.files[0]); t.value = ''; }
       if (E.imp && t.closest && t.closest('#pn-conv-imp-previa')) {
         const op = E.imp.op, lid = t.dataset.lid;
@@ -71,45 +77,47 @@
     raiz.addEventListener('click', e => {
       const b = e.target.closest('[data-conv]'); if (!b) return;
       const a = b.dataset.conv, id = b.dataset.id;
-      if (a === 'lanc-editar') { E.editando = id; desenhar(raiz, visao); const f = raiz.querySelector('#pn-conv-lanc-form'); if (f) f.scrollIntoView({ block: 'start' }); }
-      else if (a === 'lanc-excluir') excluir(raiz, visao, 'lanc', id);
-      else if (a === 'fin-editar') { E.editandoFin = id; desenhar(raiz, visao); const f = raiz.querySelector('#pn-conv-fin-form'); if (f) f.scrollIntoView({ block: 'start' }); }
-      else if (a === 'fin-excluir') excluir(raiz, visao, 'fin', id);
-      else if (a === 'lanc-cancelar') { E.editando = null; desenhar(raiz, visao); }
-      else if (a === 'fin-cancelar') { E.editandoFin = null; desenhar(raiz, visao); }
-      else if (a === 'imp-gravar') gravarImp(raiz, visao);
+      if (a === 'vis') { if (E.vis !== b.dataset.vis) { E.vis = b.dataset.vis; E.editando = E.editandoFin = null; desenhar(raiz); } }
+      else if (a === 'lanc-editar') { E.editando = id; desenhar(raiz); const f = raiz.querySelector('#pn-conv-lanc-form'); if (f) f.scrollIntoView({ block: 'start' }); }
+      else if (a === 'lanc-excluir') excluir(raiz, 'lanc', id);
+      else if (a === 'fin-editar') { E.editandoFin = id; desenhar(raiz); const f = raiz.querySelector('#pn-conv-fin-form'); if (f) f.scrollIntoView({ block: 'start' }); }
+      else if (a === 'fin-excluir') excluir(raiz, 'fin', id);
+      else if (a === 'lanc-cancelar') { E.editando = null; desenhar(raiz); }
+      else if (a === 'fin-cancelar') { E.editandoFin = null; desenhar(raiz); }
+      else if (a === 'imp-gravar') gravarImp(raiz);
       else if (a === 'imp-cancelar') { E.imp = null; desenharImp(raiz); }
       else if (a === 'bem') preencherBem(raiz, id);
     });
     raiz.addEventListener('submit', e => {
       e.preventDefault();
-      if (e.target.id === 'pn-conv-lanc-form') salvarLanc(raiz, visao);
-      if (e.target.id === 'pn-conv-fin-form') salvarFin(raiz, visao);
+      if (e.target.id === 'pn-conv-lanc-form') salvarLanc(raiz);
+      if (e.target.id === 'pn-conv-fin-form') salvarFin(raiz);
     });
   }
 
-  /* ================= Físico do convênio ================= */
+  /* ================= Metas (antes "Físico do convênio") ================= */
   function visaoLanc(raiz, v) {
     const c = cfg();
     const R = CD.calcular(c, { etapas: {} }, E.d.lancamentos, E.d.financeiro, mesRef(c), { hoje: A.hoje(), municipio: n => A.municipioNome(n) || n });
-    const sf = A.secao(v, E.editando ? 'Editar lançamento físico' : 'Novo lançamento físico', 'Etapas manuais (1.3, 1.5, 1.14), situação dos bens (1.1) e ajustes +/− das etapas apuradas pelo e-GDV (1.4, 1.9, 1.10), com justificativa.');
+    E.sitBem = {}; (R.etapas.find(r => r.apuracao === 'bens') || { bens: [] }).bens.forEach(x => { E.sitBem[x.b.id] = x.sit; });
+    const sf = A.secao(v, E.editando ? 'Editar lançamento de meta' : 'Novo lançamento de meta');
     const form = A.el('form', 'pn-cartao pn-conv-form'); form.id = 'pn-conv-lanc-form'; form.noValidate = true;
     const hoje = A.hoje(), dataPadrao = hoje >= c.vigencia.inicio && hoje <= c.vigencia.fim ? hoje : c.inicioExecucao;
     form.innerHTML = `
-      <label class="pn-conv-campo">Etapa<select id="pn-cl-etapa">${c.etapas.map(e => `<option value="${esc(e.id)}">${esc(e.id)} – ${esc(e.nomeCurto || e.nome)}${AUTO.includes(e.apuracao) ? ' (ajuste)' : ''}</option>`).join('')}</select></label>
-      <label class="pn-conv-campo" data-se="sub">Sub-meta<select id="pn-cl-sub"></select></label>
-      <label class="pn-conv-campo" data-se="bem">Bem<select id="pn-cl-bem"></select></label>
-      <label class="pn-conv-campo" data-se="sit">Situação<select id="pn-cl-sit">${Object.entries(CD.SIT_BEM).map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}</select></label>
+      <label class="pn-conv-campo pn-conv-largo"><span>Etapa${OBR}</span><select id="pn-cl-etapa">${c.etapas.map(e => `<option value="${esc(e.id)}">${esc(e.id)} – ${esc(e.nomeCurto || e.nome)}${AUTO.includes(e.apuracao) ? ' (ajuste)' : ''}</option>`).join('')}</select></label>
+      <label class="pn-conv-campo" data-se="sub"><span>Sub-meta${OBR}</span><select id="pn-cl-sub"></select></label>
+      <label class="pn-conv-campo" data-se="bem"><span>Bem${OBR}</span><select id="pn-cl-bem"></select></label>
+      <label class="pn-conv-campo" data-se="sit"><span>Nova situação do bem${OBR}</span><select id="pn-cl-sit">${Object.entries(CD.SIT_BEM).map(([k, t]) => `<option value="${k}">${t}</option>`).join('')}</select></label>
       <label class="pn-conv-campo" data-se="valor">Valor de aquisição (R$)<input id="pn-cl-valor" inputmode="decimal" maxlength="16" placeholder="0,00"></label>
-      <label class="pn-conv-campo" data-se="qtdbem">Quantidade adquirida<input id="pn-cl-qtdbem" inputmode="decimal" maxlength="8" value="1"></label>
+      <label class="pn-conv-campo" data-se="qtdbem"><span>Quantidade adquirida${OBR}</span><input id="pn-cl-qtdbem" inputmode="decimal" maxlength="8" value="1"></label>
       <label class="pn-conv-campo" data-se="fonte">Fonte<select id="pn-cl-fonte"><option value="concedente">Repasse</option><option value="contrapartida">Contrapartida</option></select></label>
       <label class="pn-conv-campo" data-se="mun">Município<input id="pn-cl-mun" list="pn-conv-muns" maxlength="80" autocomplete="off"></label>
-      <label class="pn-conv-campo">Data<input id="pn-cl-data" type="date" min="${c.vigencia.inicio}" max="${c.vigencia.fim}" value="${dataPadrao}"></label>
+      <label class="pn-conv-campo"><span>Data${OBR}</span><input id="pn-cl-data" type="date" min="${c.vigencia.inicio}" max="${c.vigencia.fim}" value="${dataPadrao}"></label>
       <label class="pn-conv-campo" data-se="qtd"><span id="pn-cl-qtd-rot">Quantidade</span><input id="pn-cl-qtd" inputmode="decimal" maxlength="12"></label>
       <label class="pn-conv-campo" data-se="arm">Nº de armadilhas<input id="pn-cl-arm" inputmode="numeric" maxlength="6"></label>
       <label class="pn-conv-campo" data-se="prop">Propriedades<input id="pn-cl-prop" inputmode="numeric" maxlength="6"></label>
-      <label class="pn-conv-campo pn-conv-largo"><span id="pn-cl-desc-rot">Descrição / evidência</span><textarea id="pn-cl-desc" rows="2" maxlength="2000"></textarea></label>
-      <label class="pn-conv-campo">Documento<input id="pn-cl-doc" maxlength="120" placeholder="Relatório, ofício, NF…"></label>
+      <label class="pn-conv-campo pn-conv-largo"><span id="pn-cl-desc-rot">O que foi feito (descrição ou evidência)</span><textarea id="pn-cl-desc" rows="2" maxlength="2000"></textarea></label>
+      <label class="pn-conv-campo pn-conv-largo2">Nº do documento (NF, ofício, relatório)<input id="pn-cl-doc" maxlength="120" placeholder="Ex.: NF 123, Ofício 45/2026"></label>
       <p class="pn-sub pn-conv-largo" id="pn-cl-dica"></p>
       <div class="pn-conv-acoes pn-conv-largo"><button type="submit" class="pn-btn pn-btn-prim" id="pn-cl-salvar">${E.editando ? 'Salvar alteração' : 'Lançar'}</button>
         ${E.editando ? '<button type="button" class="pn-btn" data-conv="lanc-cancelar">Cancelar edição</button>' : ''}${msgHtml('lanc')}</div>
@@ -124,7 +132,7 @@
         { chave: 'id', rotulo: '', html: x => `<button type="button" class="pn-btn pn-btn-mini" data-conv="bem" data-id="${esc(x)}">Atualizar</button>` }],
         rb.bens.map(x => ({ id: x.b.id, nome: x.b.nome, local: x.b.local, sit: x.sit, exec: x.exec, data: x.data, doc: x.doc })), { id: 'conv-bens', limite: 20, busca: false });
     }
-    const sl = A.secao(v, 'Lançamentos físicos', 'Mais recentes primeiro. Excluir é lógico: a linha fica na planilha com quem excluiu (ver Histórico).');
+    const sl = A.secao(v, 'Lançamentos de metas', 'Mais recentes primeiro. Excluir é lógico: a linha fica na planilha com quem excluiu (ver Histórico).');
     const subNome = l => { const e = etapa(l.etapa); if (!e) return l.submeta; if (l.tipo === 'bem') { const b = (e.bens || []).find(x => x.id === l.submeta); return b ? `${b.nome} – ${b.local}` : l.submeta; }
       const s = (e.submetas || []).find(x => x.id === l.submeta); return s ? s.nome : (l.submeta || ''); };
     const lst = E.d.lancamentos.filter(l => l.convenio === c.id).slice().sort((a, b) => b.data.localeCompare(a.data) || (b.atualizadoEm || 0) - (a.atualizadoEm || 0));
@@ -149,7 +157,7 @@
     if (etapaMudou) {
       q('#pn-cl-sub').innerHTML = (e.submetas || []).map(s => `<option value="${esc(s.id)}">${esc(s.nome)}</option>`).join('');
       q('#pn-cl-bem').innerHTML = (e.bens || []).map(b => `<option value="${esc(b.id)}">${esc(b.nome)} – ${esc(b.local)}</option>`).join('');
-      if (bens) valorDoBem(raiz);
+      if (bens) { valorDoBem(raiz); if (!E.editando) sitPadrao(raiz); }
     }
     const s = (e.submetas || []).find(x => x.id === q('#pn-cl-sub').value);
     const mostra = (k, sim) => { f.querySelector(`[data-se="${k}"]`).hidden = !sim; };
@@ -157,10 +165,11 @@
     mostra('sub', !bens && !auto && (e.submetas || []).length > 0); mostra('bem', bens); mostra('sit', bens); mostra('qtd', !bens); mostra('valor', aquis); mostra('qtdbem', aquis); mostra('fonte', aquis);
     mostra('mun', !bens); mostra('arm', e.id === '1.3' && !auto && (!s || s.contagem !== 'municipios')); mostra('prop', !bens && !auto);
     if (s && !E.editando && (etapaMudou || !q('#pn-cl-mun').dataset.digitado)) q('#pn-cl-mun').value = s.municipio || '';
-    q('#pn-cl-qtd-rot').textContent = auto ? 'Ajuste (+/−)' : `Quantidade${s ? ' (' + (s.contagem === 'municipios' ? 'levantamentos' : s.unidade) + ')' : ' (' + e.unidade + ')'}`;
-    q('#pn-cl-desc-rot').textContent = auto ? 'Justificativa (obrigatória)' : 'Descrição / evidência';
-    q('#pn-cl-dica').textContent = auto ? 'Etapa apurada automaticamente pelo e-GDV. Use o ajuste só para registros que não estão no sistema (ex.: antes do e-GDV); negativo para corrigir.'
-      : bens ? 'Lance cada mudança de situação do bem (em aquisição, adquirido, entregue). Adquirido ou entregue conta como executado; o valor de aquisição entra no Financeiro (item do bem, natureza 44.90.52) e no saldo da etapa.'
+    q('#pn-cl-qtd-rot').innerHTML = esc(auto ? 'Ajuste (+/−)' : `Quantidade${s ? ' (' + (s.contagem === 'municipios' ? 'levantamentos' : s.unidade) + ')' : ' (' + e.unidade + ')'}`) + OBR;
+    q('#pn-cl-desc-rot').innerHTML = auto ? 'Justificativa do ajuste (obrigatória)' + OBR : 'O que foi feito (descrição ou evidência)';
+    q('#pn-cl-dica').textContent = auto ? 'A contagem desta etapa vem sozinha dos registros do e-GDV. Use o ajuste só para o que não está no sistema (ex.: antes do e-GDV); número negativo corrige para menos.'
+      : bens ? (aquis ? 'Informe o valor de aquisição (ou o mesmo nº de NF/NE de um gasto já lançado): ele entra nos Gastos (item do bem, natureza 44.90.52) e no saldo da etapa. Adquirido e entregue contam como meta cumprida.'
+        : 'Lance cada mudança de situação do bem (previsto, em aquisição, adquirido, entregue). O valor de aquisição é pedido ao marcar Adquirido ou Entregue.')
       : s && s.contagem === 'municipios' ? `Sub-meta contada por municípios distintos (${(s.municipios || []).join(', ')}); informe o município e as propriedades.` : '';
   }
   /* valor de aquisição já lançado para o bem (desembolso com chave bem|<convênio>|<bem>) */
@@ -171,10 +180,16 @@
     f.querySelector('#pn-cl-valor').value = x ? Number(x.valor).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : ''; f.querySelector('#pn-cl-fonte').value = x ? x.fonte || 'concedente' : 'concedente';
     f.querySelector('#pn-cl-qtdbem').value = x && x.quantidade != null ? String(x.quantidade).replace('.', ',') : '1';
   }
+  /* situação padrão do formulário: a PRÓXIMA depois da atual do bem (previsto → em aquisição → adquirido → entregue; entregue fica) */
+  function sitPadrao(raiz) {
+    const f = raiz.querySelector('#pn-conv-lanc-form'); if (!f) return;
+    const ordem = Object.keys(CD.SIT_BEM), i = ordem.indexOf(E.sitBem[f.querySelector('#pn-cl-bem').value] || ordem[0]);
+    f.querySelector('#pn-cl-sit').value = ordem[Math.min(Math.max(i, 0) + 1, ordem.length - 1)];
+  }
   function preencherBem(raiz, id) {
     const f = raiz.querySelector('#pn-conv-lanc-form'); if (!f) return;
     const e = cfg().etapas.find(x => x.apuracao === 'bens'); f.querySelector('#pn-cl-etapa').value = e.id; ajustarFormLanc(raiz, true);
-    f.querySelector('#pn-cl-bem').value = id; valorDoBem(raiz); ajustarFormLanc(raiz, false); f.scrollIntoView({ block: 'start' }); f.querySelector('#pn-cl-sit').focus();
+    f.querySelector('#pn-cl-bem').value = id; valorDoBem(raiz); sitPadrao(raiz); ajustarFormLanc(raiz, false); f.scrollIntoView({ block: 'start' }); f.querySelector('#pn-cl-sit').focus();
   }
   function preencherLanc(raiz, id) {
     const l = E.d.lancamentos.find(x => x.id === id), f = raiz.querySelector('#pn-conv-lanc-form'); if (!l || !f) return;
@@ -186,7 +201,7 @@
     q('#pn-cl-arm').value = l.armadilhas == null ? '' : l.armadilhas; q('#pn-cl-prop').value = l.propriedades == null ? '' : l.propriedades;
     q('#pn-cl-desc').value = l.descricao || ''; q('#pn-cl-doc').value = l.documento || '';
   }
-  async function salvarLanc(raiz, visao) {
+  async function salvarLanc(raiz) {
     const f = raiz.querySelector('#pn-conv-lanc-form'), q = s => f.querySelector(s), e = etapa(q('#pn-cl-etapa').value);
     const bens = e.apuracao === 'bens', auto = AUTO.includes(e.apuracao);
     const l = { id: E.editando || '', convenio: cfg().id, etapa: e.id, tipo: bens ? 'bem' : auto ? 'ajuste' : 'execucao', data: q('#pn-cl-data').value,
@@ -212,17 +227,17 @@
       if (i >= 0) E.d.lancamentos[i] = j.lancamento; else E.d.lancamentos.push(j.lancamento);
       if (j.financeiro) { const k = E.d.financeiro.findIndex(x => x.id === j.financeiro.id); if (k >= 0) E.d.financeiro[k] = j.financeiro; else E.d.financeiro.push(j.financeiro); }
       E.editando = null; E.msg.lanc = { t: `Lançado ✓ (etapa ${e.id})${(j.avisos || []).length ? ' — ' + j.avisos.join(' ') : ''}`, cls: 'ok' };
-      desenhar(raiz, visao);
+      desenhar(raiz);
     } catch (err) { if (!A.logado) return; msg(raiz, 'lanc', 'Não salvou: ' + err.message, 'erro'); b.disabled = false; }
   }
-  async function excluir(raiz, visao, tipo, id) {
+  async function excluir(raiz, tipo, id) {
     if (!confirm('Excluir este lançamento? (fica registrado na planilha como excluído)')) return;
     try {
       const j = await A.chamar({ action: tipo === 'fin' ? 'admConvFinExcluir' : 'admConvExcluir', id });
       const lista = tipo === 'fin' ? E.d.financeiro : E.d.lancamentos, i = lista.findIndex(x => x.id === id); if (i >= 0) lista.splice(i, 1);
       if (j && j.finExcluido) { const k = E.d.financeiro.findIndex(x => x.id === j.finExcluido); if (k >= 0) E.d.financeiro.splice(k, 1); }   // bem: a aquisição sai junto
       E.msg[tipo === 'fin' ? 'fin' : 'lanc'] = { t: 'Excluído ✓', cls: 'ok' };
-      desenhar(raiz, visao);
+      desenhar(raiz);
     } catch (err) { if (A.logado) alert('Não excluiu: ' + err.message); }
   }
 
@@ -237,11 +252,11 @@
       { rotulo: 'Repasse × contrapartida', valor: `${F.pct(Fn.fonte.concedente.pct)} · ${F.pct(Fn.fonte.contrapartida.pct)}`, detalhe: `repasse ${F.moeda(Fn.fonte.concedente.acum)}; contrapartida ${F.moeda(Fn.fonte.contrapartida.acum)}` },
       { rotulo: 'Lançamentos', valor: F.int(E.d.financeiro.filter(l => l.convenio === c.id).length), detalhe: 'manuais e importados' }
     ]);
-    const sf = A.secao(v, E.editandoFin ? 'Editar desembolso' : 'Novo desembolso', 'Por subetapa (item do plano de aplicação). Diárias: a quantidade é calculada pelo valor ÷ valor unitário do item (pode ser corrigida). O nome do servidor fica só no portal e na planilha — o painel e os relatórios mostram só os totais.');
+    const sf = A.secao(v, E.editandoFin ? 'Editar gasto' : 'Novo gasto', 'Por subetapa (item do plano de aplicação). Diárias: a quantidade é calculada pelo valor ÷ valor unitário do item (pode ser corrigida). O nome do servidor fica só no portal e na planilha — o painel e os relatórios mostram só os totais.');
     const form = A.el('form', 'pn-cartao pn-conv-form'); form.id = 'pn-conv-fin-form'; form.noValidate = true;
     const hoje = A.hoje(), dataPadrao = hoje >= c.vigencia.inicio && hoje <= c.vigencia.fim ? hoje : c.inicioExecucao;
     form.innerHTML = `
-      <label class="pn-conv-campo">Etapa<select id="pn-cf-etapa">${c.etapas.map(e => `<option value="${esc(e.id)}">${esc(e.id)} – ${esc(e.nomeCurto || e.nome)}</option>`).join('')}</select></label>
+      <label class="pn-conv-campo pn-conv-largo">Etapa<select id="pn-cf-etapa">${c.etapas.map(e => `<option value="${esc(e.id)}">${esc(e.id)} – ${esc(e.nomeCurto || e.nome)}</option>`).join('')}</select></label>
       <label class="pn-conv-campo pn-conv-largo2">Subetapa / item do plano<select id="pn-cf-item"></select></label>
       <label class="pn-conv-campo">Data<input id="pn-cf-data" type="date" value="${dataPadrao}"></label>
       <label class="pn-conv-campo">Valor (R$)<input id="pn-cf-valor" inputmode="decimal" maxlength="16" placeholder="0,00"></label>
@@ -265,7 +280,7 @@
     }
     vivoFin(raiz);
     secaoImp(raiz, v);
-    const sl = A.secao(v, 'Lançamentos de desembolso', 'Mais recentes primeiro. O CSV do portal inclui o nome do servidor (o do painel, não).');
+    const sl = A.secao(v, 'Gastos lançados', 'Mais recentes primeiro. O CSV do portal inclui o nome do servidor (o do painel, não).');
     const fl = A.el('div', 'pn-cartao adm-filtro');
     fl.innerHTML = `<label class="pn-conv-campo">Etapa<select id="adm-fin-filtro"><option value="">Todas</option>${c.etapas.map(e => `<option value="${esc(e.id)}" ${E.filtroEtapa === e.id ? 'selected' : ''}>${esc(e.id)} – ${esc(e.nomeCurto || e.nome)}</option>`).join('')}</select></label>`;
     sl.appendChild(fl);
@@ -320,7 +335,7 @@
     const av = A.el('div', 'adm-fin-avisos'); av.id = 'adm-fin-avisos'; box.appendChild(av);
     if (avisos.length || E.avisosFin.length) A.alertas(av, avisos.concat(E.avisosFin.map(t => ({ nivel: 'atencao', titulo: t, detalhe: 'Aviso do servidor no último lançamento.' }))));
   }
-  async function salvarFin(raiz, visao) {
+  async function salvarFin(raiz) {
     const f = raiz.querySelector('#pn-conv-fin-form'), q = s => f.querySelector(s);
     const valor = num(q('#pn-cf-valor').value);
     if (valor == null || valor === 0) return msg(raiz, 'fin', 'Informe o valor (ex.: 1.234,56).', 'erro');
@@ -334,7 +349,7 @@
       if (i >= 0) E.d.financeiro[i] = j.lancamento; else E.d.financeiro.push(j.lancamento);
       E.editandoFin = null; E.avisosFin = j.avisos || [];
       E.msg.fin = { t: `Lançado ✓ (${F.moeda(j.lancamento.valor)})${E.avisosFin.length ? ' — com aviso' : ''}`, cls: 'ok' };
-      desenhar(raiz, visao);
+      desenhar(raiz);
     } catch (err) { if (!A.logado) return; msg(raiz, 'fin', 'Não salvou: ' + err.message, 'erro'); b.disabled = false; }
   }
 
@@ -424,7 +439,7 @@
       <button type="button" class="pn-btn" data-conv="imp-cancelar">Cancelar</button>`;
     pv.appendChild(ac);
   }
-  async function gravarImp(raiz, visao) {
+  async function gravarImp(raiz) {
     if (!E.imp || E.imp.enviando) return;
     const X = E.imp.P, c = cfg(), lotes = [];
     for (let i = 0; i < X.envio.length; i += IMP_LOTE) lotes.push(X.envio.slice(i, i + IMP_LOTE));
@@ -442,14 +457,13 @@
       E.impResumo = tot; E.imp = null;
       E.msg.imp = { t: `Importado ✓ ${tot.novos} novo(s), ${tot.atualizados} atualizado(s), ${tot.excluidos} excluído(s).`, cls: 'ok' };
       E.d = await A.dados(true);
-      desenhar(raiz, visao);
+      desenhar(raiz);
     } catch (err) {
       if (!A.logado) return;
       E.imp.enviando = false; msg(raiz, 'imp', 'Não gravou: ' + err.message + ' (o que já foi gravado não duplica ao repetir).', 'erro'); if (b) b.disabled = false;
     }
   }
 
-  A.registrarAba({ id: 'desembolso', titulo: 'Desembolso do convênio', render: c => abrir(c, 'fin') });
-  A.registrarAba({ id: 'fisico', titulo: 'Físico do convênio', render: c => abrir(c, 'lanc') });
+  A.registrarAba({ id: 'convenio', titulo: 'Convênio', render: c => abrir(c) });
   window.AdmConvenio = { estado: () => ({ dados: E.d, imp: E.imp && E.imp.P, impResumo: E.impResumo }) };
 })();

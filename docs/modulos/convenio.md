@@ -12,7 +12,7 @@ Aba **Convênios** do painel (só admin): metas, financeiro e relatório do Conv
 - Relatório: textos do último salvo; Parcial nº automático; Word = PDF.
 
 ## Importação da planilha
-Portal → Desembolso: `MOVIMENTAÇÃO CONVÊNIO VEGETAL - 2026.xlsx`; prévia; gravação (`admConvFinImportar`, máx. 500).
+Portal → Convênio → Gastos: `MOVIMENTAÇÃO CONVÊNIO VEGETAL - 2026.xlsx`; prévia; gravação (`admConvFinImportar`, máx. 500).
 - Abas `SUBETAPA x.y.z` (`CONSOLIDADA` ignorada, `SOMA` só confere); valor > 0.
 - Sem data nem memo: total da aba (soma das demais; descartado) ou "lançamento sem data".
 - Memo repetido: fora por padrão; fora da vigência/plano: bloqueada.

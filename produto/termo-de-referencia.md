@@ -42,7 +42,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 |---|---|---|
 | App de campo | Fiscais e coordenação | Turno na barreira, veículos, educação sanitária, TF de Barreira, Auto de Infração, PCE, escalas e relatório da equipe |
 | Painel gerencial | Gerência e consulta | Barreiras ao vivo, alertas, mapa, TFs, PCE, escalas, convênio, relatórios, usuários e Modo TV |
-| Portal do Administrativo | Equipe administrativa | Desembolso e execução física do convênio, linhas dos relatórios, VIGIFITO, diárias das escalas |
+| Portal do Administrativo | Equipe administrativa | Gastos e metas do convênio, números do mês dos relatórios, VIGIFITO, diárias das escalas |
 | Dashboard público | Sociedade | Números agregados e mapa, sem dados pessoais, ligado pela gerência |
 | Verificação de TF | Qualquer pessoa | Confere número, data, barreira e situação de um TF pelo QR code |
 | Serviço de dados | Sistema | Um único ponto de entrada, banco em planilha (uma aba por tabela), arquivos no Drive, rotinas automáticas |

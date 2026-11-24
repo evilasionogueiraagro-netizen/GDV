@@ -190,7 +190,7 @@ const Sync = (() => {
   const { MODULO_DO_STORE, normPerm } = Envio;
   let PERM = normPerm(null);
   const permissoes = () => ({ ...PERM });
-  const pode = m => (m === 'antigo' ? Envio.podeAntigo(PERM) : m === 'escala' ? PERM.escala === 1 : m === 'educacao' ? PERM.educacao === 1 : PERM[m] !== 0);
+  const pode = m => (m === 'antigo' ? Envio.podeAntigo(PERM) : m === 'escala' ? PERM.escala === 1 : PERM[m] !== 0);
   const storePermitido = n => Envio.storePermitido(n, PERM);
   async function carregarPermissoes() {
     try { PERM = normPerm(await Store.meta('permissoes')); } catch (e) { /* sem banco: tudo liberado */ }

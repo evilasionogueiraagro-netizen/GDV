@@ -31,9 +31,11 @@ const EducacaoUI = (() => {
     go('educacaoservidor', { voltar, arg });
     return null;
   }
+  const CARGOS_EDU = ['Coordenador de Trânsito e Barreira', 'Coordenador de Fiscalização Sanitária'];
+  const cargos = () => P.cargos.concat(CARGOS_EDU);
   const cargoHTML = (id, atual) => {
-    const naLista = !atual || P.cargos.includes(atual);
-    return `<select id="${id}" data-edu-cargo>${opts(P.cargos, naLista ? atual : '', 'Selecione')}<option value="${OUTRO_CARGO}" ${naLista ? '' : 'selected'}>Outro (digitar)</option></select>
+    const lista = cargos(), naLista = !atual || lista.includes(atual);
+    return `<select id="${id}" data-edu-cargo>${opts(lista, naLista ? atual : '', 'Selecione')}<option value="${OUTRO_CARGO}" ${naLista ? '' : 'selected'}>Outro (digitar)</option></select>
       <input id="${id}-outro" placeholder="Digite o cargo" autocomplete="off" value="${naLista ? '' : esc(atual)}" ${naLista ? 'hidden' : ''}>`;
   };
   const cargoValor = id => { const s = $('#' + id); return !s ? '' : s.value === OUTRO_CARGO ? ($('#' + id + '-outro').value || '').trim().replace(/\s+/g, ' ') : s.value; };

@@ -28,11 +28,15 @@ const Docs = (() => {
   const noCelular = () => /Android|iPhone|iPad|iPod/i.test(navigator.userAgent) || localStorage.getItem('gdv.imprimirNaPagina') === '1';
   function imprimir(frame, nome) {
     if (noCelular()) return imprimirNaPagina(frame, nome);
-    const w = frame.contentWindow, tituloAntes = document.title;
-    document.title = nome; frame.contentDocument.title = nome;
+    const w = frame.contentWindow, d = frame.contentDocument, tituloAntes = document.title;
+    document.title = nome; d.title = nome;
     w.addEventListener('afterprint', () => { document.title = tituloAntes; frame.remove(); });
-    w.focus();
-    w.print();
+    const abrir = () => { w.focus(); w.print(); };
+    const pendentes = [...d.images].filter(im => im.src && !im.complete);
+    if (!pendentes.length) return abrir();
+    return Promise.all(pendentes.map(im => new Promise(ok => {
+      im.addEventListener('load', ok, { once: true }); im.addEventListener('error', ok, { once: true }); setTimeout(ok, 4000);
+    }))).then(abrir);
   }
   /**
    * Impressão na própria página (celular): o documento preenchido vai para um shadow root (#gdv-impressao: os estilos do modelo não

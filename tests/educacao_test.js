@@ -134,7 +134,8 @@ const reg = (id, o = {}) => ({ id, unidade: 'Manaus', ano: ANO, numero: 1, data:
   ok(['Feira da Banana Fictícia', 'Visita em barco fictícia', 'Ribeirinhos', 'Praga fictícia', 'Orientação sobre o trânsito de mudas e frutos.', 'Observação fictícia', 'Pessoa Ficticia Edu', 'Mat. 12345']
     .every(t => pr.texto.includes(t)) && /Pessoas orientadas:\s*18/.test(pr.texto) && /Folders \/ flyers entregues:\s*25/.test(pr.texto), 'impressão: local, medida, público, programas, descrição, pessoas, folders, observações e servidor', pr.texto);
   const marcadas = [...pr.html.matchAll(/<span class="op"><span class="cx on"><\/span>([^<]+)/g)].map(m => m[1].replace(/: $/, ''));
-  ok(['Outro', 'Feirantes', 'Pragas dos Citros'].every(t => marcadas.includes(t)) && !marcadas.includes('Palestra') && /ADAF/.test(pr.texto) && /Assinatura e identificação do servidor/.test(pr.texto), 'impressão: caixas marcadas certas, cabeçalho da ADAF e assinatura do servidor', marcadas);
+  ok(['Outro', 'Feirantes', 'Pragas dos Citros'].every(t => marcadas.includes(t)) && !marcadas.includes('Palestra') && /ADAF/.test(pr.texto) && /Assinatura e identificação do servidor/.test(pr.texto)
+    && ['brasao.png', 'logo-adaf.png', 'sepror.png'].every(n => pr.html.includes(n)), 'impressão: caixas marcadas certas, cabeçalho e rodapé com logos (brasão, ADAF, SEPROR) e assinatura do servidor', marcadas);
   await require('./lib/pce-app').salvarPdf(p, pr, 'educacao-termo.html', 'educacao_termo');
   const baixou = p.waitForEvent('download', { timeout: 60000 });
   await p.click('#edu-arquivo');

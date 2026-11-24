@@ -21,14 +21,14 @@ const DocumentoBase = (() => {
     alvo.textContent = ''; alvo.classList.add('doc-num');
     alvo.append(caixa(p[0], 'Nº sequencial'), e(d, 'span', 'sep', '-'), caixa(p[1], 'Ano'), e(d, 'span', 'sep', '-'), caixa(p.slice(2).join('-'), 'Unidade', 'un'));
   }
-  /** Rodapé único: filete e vias numa linha; embaixo, endereço, logo da ADAF e texto da SEPROR/AM (como no papel). Preso à base da folha por CSS. */
+  /** Rodapé único: filete e vias numa linha; embaixo, endereço, logo da ADAF e logo da SEPROR (como no Termo padrão). Preso à base da folha por CSS. */
   function montarRodape(pg) {
     const a = pg.querySelector('[data-rodape]'); if (!a) return;
     const d = pg.ownerDocument;
     a.textContent = ''; a.classList.add('doc-rodape');
     a.append(e(d, 'div', 'doc-vias', (a.getAttribute('data-vias') || '').split('|').filter(Boolean).map(v => e(d, 'span', '', v))),
       e(d, 'div', 'doc-fim', e(d, 'div', 'doc-end', ENDERECO.flatMap((l, i) => (i ? [d.createElement('br'), l] : [l]))), e(d, 'div', 'doc-logo', img(d, '../img/logo-adaf.png', 'ADAF')),
-        e(d, 'div', 'doc-dir', 'Secretaria de Produção Rural do Estado do Amazonas – SEPROR/AM')));
+        e(d, 'div', 'doc-dir', img(d, '../img/sepror.png', 'SEPROR – Secretaria de Produção Rural do Estado do Amazonas'))));
   }
   /** Linhas de escrever como bordas pontilhadas (imprimem sem "gráficos de fundo"); o texto fica sobre elas e há no mínimo `min` linhas (guardado em data-min:
    *  chamar de novo sem `min` refaz as linhas com o passo do nível da folha, --pl). Chamar com `min` maior acrescenta linhas vazias. */

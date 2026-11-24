@@ -26,6 +26,10 @@ const PDF = (() => {
     d.querySelectorAll('link[rel=stylesheet]').forEach(l => {
       try { const st = d.createElement('style'); st.textContent = [...l.sheet.cssRules].map(r => r.cssText).join('\n'); l.replaceWith(st); } catch (e) { /* folha inacessível: fica o link */ }
     });
+    // imagens inseridas dinamicamente (ex.: DocumentoBase.montar) ainda podem estar carregando quando o PDF é pedido
+    await Promise.all([...d.images].filter(im => im.src && !im.complete).map(im => new Promise(ok => {
+      im.addEventListener('load', ok, { once: true }); im.addEventListener('error', ok, { once: true }); setTimeout(ok, 4000);
+    })));
     const imgs = [...d.images].filter(im => im.src && !/^data:/.test(im.src) && im.naturalWidth);
     await Promise.all(imgs.map(im => new Promise(ok => {
       try {

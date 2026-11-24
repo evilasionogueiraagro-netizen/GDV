@@ -32,7 +32,7 @@ const CASOS = {
     const py = require('child_process').execFileSync('python3', ['-c', `
 import sys, json, pypdf
 r = pypdf.PdfReader(sys.argv[1])
-print(json.dumps([['Testemunha' in pg.extract_text(), 'Av. Carlos Drummond' in pg.extract_text()] for pg in r.pages]))`, amb.saida(`tfp_${nome}.pdf`)]).toString().trim();
+print(json.dumps([['Testemunha' in pg.extract_text(), 'Avenida Carlos Drummond' in pg.extract_text()] for pg in r.pages]))`, amb.saida(`tfp_${nome}.pdf`)]).toString().trim();
     const pags = JSON.parse(py);
     ok(pags.length === 2 && pags.every(([t, r]) => t && r), `${nome}: 2 páginas, cada uma com testemunha e rodapé`, py);
   }

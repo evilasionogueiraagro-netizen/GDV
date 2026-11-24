@@ -1,5 +1,6 @@
 const amb = require('./lib/amb');
 const U = require('./lib/usuarios');
+const sincronizar = require('./lib/sincronizar');
 // TF antigo (digitado do papel, permissão "Digitar do papel"): app real (Chromium) + Code.gs real (fakegas). Dados fictícios.
 // Confere: botão só com a permissão; formulário do papel (sem data/hora de agora, servidor digitado, fiscalizado opcional, PDF no lugar de
 // fotos/assinaturas); gravação com o nº do papel (numeroOrigem "papel", registroAntigo, pdfs) e o PDF no Drive; a sequência da barreira
@@ -28,9 +29,12 @@ const pdfBuf = () => Buffer.from('%PDF-1.4\n% tf do papel ficticio\n1 0 obj << /
       const p = await c.newPage(); p.err = []; p.dialogs = [];
       p.on('pageerror', e => p.err.push(e.message)); p.on('console', m => m.type() === 'error' && !/Failed to load resource|net::ERR/.test(m.text()) && p.err.push(m.text()));
       p.on('dialog', d => { p.dialogs.push(d.message()); d.accept(); }); p.ctx = c;
-      await p.goto(APP); await p.waitForSelector('#view *', { state: 'attached' }); await p.waitForTimeout(700); return p;
+      await p.goto(APP); await p.waitForSelector('.modulo'); await p.waitForFunction(() => typeof Sync !== 'undefined' && Sync.ativado()); return p;
     };
-    const sync = async p => { for (let i = 0; i < 30; i++) { await p.evaluate(() => Sync.sincronizar()); await p.waitForTimeout(400); if (await p.evaluate(async () => Sync.estado().tipo === 'ok' && !(await Sync.arquivosPendentes()).length)) return; } throw new Error('sync não terminou'); };
+    const sync = async p => {
+      const st = await sincronizar(p, { arquivos: true });
+      if (!st || st.tipo !== 'ok' || await p.evaluate(async () => (await Sync.arquivosPendentes()).length)) throw new Error('sync não terminou');
+    };
     const irTF = async p => { if (!(await p.locator('.modulo').count())) await p.click('nav [data-v=modulos]'); await p.click('.modulo[data-v=tf]'); await p.waitForSelector('button[data-tf=novo]'); };
 
     const adm = await gerar('Gestora Ficticia Teste', 'admin'), TOK = adm.token;
@@ -55,14 +59,14 @@ const pdfBuf = () => Buffer.from('%PDF-1.4\n% tf do papel ficticio\n1 0 obj << /
     ok(!r.ok && /ano/.test(r.erro), 'TF do papel com ano do número ≠ ano da data: recusado', r.erro);
 
     console.log('2) app: formulário do papel e gravação');
-    P = await aparelho(F); await P.evaluate(() => Sync.sincronizar()); await P.waitForTimeout(1500); await P.reload(); await P.waitForTimeout(700);
+    P = await aparelho(F); await sincronizar(P); await P.reload(); await P.waitForSelector('.modulo');
     await irTF(P);
     ok(await P.locator('#tf-novoantigo').count() === 1, 'com a permissão: botão "TF antigo (digitar do papel)" na lista');
     await P.click('#tf-novoantigo'); await P.waitForSelector('#tfForm.tf-papel');
     await P.waitForFunction(() => document.querySelector('#tf-num') && !/Consultando/.test(document.querySelector('#tf-num-dica').textContent), null, { timeout: 10000 });
     ok((await P.inputValue('#tf-data')) === '' && (await P.inputValue('#tf-hora')) === '' && (await P.inputValue('#tf-num')) === '', 'papel: data, hora e nº vêm vazios (nada de "agora" nem nº sugerido)');
     ok(await P.locator('#tf-pdfs').count() === 1 && !(await P.locator('#tf-ass-card').count()) && !(await P.locator('#tf-fotos').count()), 'papel: campo de PDF no lugar de fotos e assinaturas');
-    await P.fill('#tf-data', ONTEM); await P.dispatchEvent('#tf-data', 'change'); await P.waitForTimeout(400);
+    await P.fill('#tf-data', ONTEM); await P.dispatchEvent('#tf-data', 'change');
     await P.fill('#tf-hora', '07:33'); await P.fill('#tf-num', '543');
     await P.fill('#tf-servidor', 'Fulano Ficticio Teste'); await P.fill('#tf-local', 'BVA - JUNDIÁ');
     await P.fill('#tf-placa', 'ABC1D25'); await P.fill('#tf-origem', 'BOA VISTA'); await P.fill('#tf-destino', 'MANAUS');

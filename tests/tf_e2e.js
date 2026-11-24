@@ -14,7 +14,7 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
     await c.addInitScript(() => { if (window !== window.top) window.print = () => { const d = document; window.top.__prints = window.top.__prints || []; window.top.__prints.push({ texto: d.body.innerText.replace(/\s+/g, ' '), paginas: d.querySelectorAll('.a4').length, vias: [...d.querySelectorAll('.via')].map(v => v.textContent), titulo: window.top.document.title, cancelado: !!d.querySelector('.cancelado-faixa') }); }; });
     const p = await c.newPage(); p.err = []; p.on('pageerror', e => p.err.push(e.message)); p.on('console', m => m.type() === 'error' && !/Failed to load resource|net::ERR/.test(m.text()) && p.err.push(m.text()));
     p.on('dialog', d => d.type() === 'prompt' ? d.accept('digitação errada') : d.accept()); p.ctx = c;
-    await p.goto(APP); await p.waitForSelector('#view *', { state: 'attached' }); await p.waitForTimeout(700); return p;
+    await p.goto(APP); await p.waitForSelector('.modulo[data-v=educacao]'); return p;
   };
   const sync = async p => { await p.evaluate(() => Sync.sincronizar()); await p.waitForFunction(() => ['ok', 'idle'].includes(Sync.estado().tipo) && !Sync.estado().pend, null, { timeout: 15000 }); };
   const irTF = async p => {
@@ -61,8 +61,8 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   await A.selectOption('#tf-ufOrigem', 'AM'); await A.selectOption('#tf-ufDestino', 'AM');
   ok(/Novo cadastro/.test(await A.textContent('#tf-st-doc')) && /Sem TF anterior/.test(await A.textContent('#tf-st-doc')), 'CPF novo, sem histórico');
   ok((await A.inputValue('#tf-constatacao')).includes('SEM a devida documentação') && (await A.inputValue('#tf-enquadramento')).includes('Lei Federal nº 9.712'), 'textos sugeridos para apreensão');
-  await A.fill('#tf-doc', '123.456.789-00'); await A.waitForTimeout(700); ok(/dígitos inválidos/.test(await A.textContent('#tf-st-doc')), 'CPF com dígitos inválidos é sinalizado');
-  await A.fill('#tf-doc', '529.982.247-25'); await A.waitForTimeout(700);
+  await A.fill('#tf-doc', '123.456.789-00'); await A.waitForFunction(() => /dígitos inválidos/.test(document.querySelector('#tf-st-doc')?.textContent || ''), null, { timeout: 5000 }); ok(/dígitos inválidos/.test(await A.textContent('#tf-st-doc')), 'CPF com dígitos inválidos é sinalizado');
+  await A.fill('#tf-doc', '529.982.247-25'); await A.waitForFunction(() => /Novo cadastro|Cadastro encontrado/.test(document.querySelector('#tf-st-doc')?.textContent || ''), null, { timeout: 5000 });
   await abrirPopup(A);
   ok(+(await A.inputValue('#tf-num-m')) === 1 && /Número obtido na planilha agora/.test(await A.textContent('.tf-modal-box')) && /Nenhum TF anterior/.test(await A.textContent('.tf-modal-box')), 'popup: nº 1 obtido na planilha, sem TF anterior');
   await A.screenshot({ path: amb.saida('tf_popup.png') });
@@ -111,8 +111,8 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   console.log('D) TF ligado ao turno e listado no Termo do turno');
   await A.click('nav [data-v=modulos]'); await A.click('.modulo[data-v=home]'); await A.waitForSelector('#fTurno');
   await A.fill('#nTF', '30'); await A.selectOption('#nPosto', 'Móvel'); await A.fill('#nLocal', 'BR-319 PORTO DA CEASA'); await A.fill('#nUnidade', 'MANAUS'); await A.click('#fTurno button[type=submit]'); await A.waitForSelector('.contador');
-  await A.evaluate(() => go('tfnovo')); await A.waitForSelector('#tfForm'); ok((await A.inputValue('#tf-local')) === 'BR-319 PORTO DA CEASA' && await A.locator('nav [data-v=home]').count() === 1, '"Lavrar TF neste turno" abre o TF dentro do módulo de veículos (o menu de veículos continua) com o local do turno'); await A.click('nav [data-v=home]'); await A.waitForSelector('.contador'); await A.waitForTimeout(300);
-  await A.click('nav [data-v=registrar]'); await A.waitForSelector('#fVeic'); await A.fill('#placa', 'ZZZ9Z99'); await A.click('#fVeic > button'); await A.waitForTimeout(500);
+  await A.evaluate(() => go('tfnovo')); await A.waitForSelector('#tfForm'); ok((await A.inputValue('#tf-local')) === 'BR-319 PORTO DA CEASA' && await A.locator('nav [data-v=home]').count() === 1, '"Lavrar TF neste turno" abre o TF dentro do módulo de veículos (o menu de veículos continua) com o local do turno'); await A.click('nav [data-v=home]'); await A.waitForSelector('.contador');
+  await A.click('nav [data-v=registrar]'); await A.waitForSelector('#fVeic'); await A.fill('#placa', 'ZZZ9Z99'); await A.click('#fVeic > button'); await A.waitForFunction(() => /ZZZ9Z99/.test(document.querySelector('#toast')?.textContent || ''), null, { timeout: 5000 });
   await A.click('nav [data-v=lista]'); await A.waitForSelector('[data-tfveic]'); await A.click('[data-tfveic]'); await A.waitForSelector('#tfForm');
   ok((await A.inputValue('#tf-placa')) === 'ZZZ9Z99' && (await A.inputValue('#tf-local')) === 'BR-319 PORTO DA CEASA', '"Lavrar TF" traz a placa do veículo e o local do turno');
   await preencher(A, { doc: '111.444.777-35', proc: 'liberacao', produto: 'LARANJA' }); await A.fill('#tf-placa', 'ZZZ9Z99');
@@ -154,14 +154,15 @@ const ok = (c, m) => { console.log((c ? '  ✓ ' : '  ✗ ') + m); if (!c) throw
   await A.click('[data-tf=restaurar]'); await A.waitForSelector('#tfVerRem', { state: 'detached', timeout: 8000 });
   ok(await A.locator('#tfItens .item').count() === nAntes, '"Voltar para a lista" devolve o TF');
   await A.locator('[data-tf=imprimir]').first().click().catch(() => {}); 
-  await novoTF(A); await A.fill('#tf-nome', 'RASCUNHO TESTE'); await A.waitForTimeout(800);
-  await A.click('nav [data-v=tf]'); await A.waitForTimeout(300); await irTF(A); await novoTF(A);
+  await novoTF(A); await A.fill('#tf-nome', 'RASCUNHO TESTE');
+  await amb.esperar(A, () => Store.meta('tfRascunho').then(r => r && r.dados && r.dados.nome === 'RASCUNHO TESTE'), null, 5000);
+  await A.click('nav [data-v=tf]'); await A.waitForSelector('button[data-tf=novo]'); await irTF(A); await novoTF(A);
   ok((await A.inputValue('#tf-nome')) === 'RASCUNHO TESTE', 'rascunho restaurado ao reabrir (confirmado)');
   await A.click('[data-tf=descartar]'); await A.waitForSelector('button[data-tf=novo]');
 
   console.log('F) sem entrar não abre o TF');
-  const c0 = await b.newContext({ viewport: { width: 400, height: 900 } }); const p0 = await c0.newPage(); await p0.addInitScript(() => localStorage.setItem('gdv.semInstalar', '1')); await p0.goto(APP); await p0.waitForSelector('#view *', { state: 'attached' });
-  await p0.waitForTimeout(600); ok(await p0.locator('#fEntrar').count() === 1 && await p0.locator('.modulo').count() === 0 && await p0.locator('#tfForm').count() === 0, 'sem entrar não há módulos: aparece só o formulário de entrada');
+  const c0 = await b.newContext({ viewport: { width: 400, height: 900 } }); const p0 = await c0.newPage(); await p0.addInitScript(() => localStorage.setItem('gdv.semInstalar', '1')); await p0.goto(APP);
+  await p0.waitForSelector('#fEntrar'); ok(await p0.locator('#fEntrar').count() === 1 && await p0.locator('.modulo').count() === 0 && await p0.locator('#tfForm').count() === 0, 'sem entrar não há módulos: aparece só o formulário de entrada');
 
   ok(![A, Bd].some(p => p.err.length), 'sem erros de console/página: ' + JSON.stringify([...A.err, ...Bd.err]));
   console.log('OK'); await b.close();

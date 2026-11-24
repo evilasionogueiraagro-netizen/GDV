@@ -117,7 +117,7 @@ const PROIBIDOS = [CPF, CNPJ, CPF2, '529.982.247-25', '***.982', 'Fulano Secreto
     'formulário com o padrão (desligado, aoVivo/calor desmarcados, supressão marcada)');
   ok(/Pode ajudar quem quer evitar a fiscalização/.test(await pp.textContent('#pn-pub-vivo-aviso')) && await pp.isVisible('#pn-pub-vivo-aviso'), 'aviso visível do "Barreiras agora"');
   ok(/\/dashboard\/$/.test(await pp.inputValue('#pn-pub-link')), 'link público na tela', await pp.inputValue('#pn-pub-link'));
-  await pp.click('[data-pub=copiar]'); await pp.waitForTimeout(200);
+  await pp.click('[data-pub=copiar]'); await pp.waitForFunction(() => /\/dashboard\/$/.test(window.__copiado || ''));
   ok(/\/dashboard\/$/.test(await pp.evaluate(() => window.__copiado || '')), 'Copiar link');
   await pp.click('[data-pub=previa]');
   ok((await pp.evaluate(() => window.__abertos))[0].endsWith('/dashboard/?previa=1'), 'Pré-visualizar abre ../dashboard/?previa=1');
@@ -133,7 +133,7 @@ const PROIBIDOS = [CPF, CNPJ, CPF2, '529.982.247-25', '***.982', 'Fulano Secreto
   await pp.context().close();
   const ppc = await abrir(amb.PAINEL, { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 }, sess);
   await ppc.waitForSelector('#pn-conteudo .pn-kpi', { timeout: 20000 });
-  await ppc.click('.pn-aba[data-aba=publico]'); await ppc.waitForSelector('#pn-pub-ativo', { timeout: 15000 }); await ppc.waitForTimeout(300);
+  await ppc.click('.pn-aba[data-aba=publico]'); await ppc.waitForFunction(() => document.querySelector('#pn-pub-ativo') && /Publicado/.test((document.querySelector('#pn-pub-sit') || {}).textContent || ''), null, { timeout: 15000 });
   ok(await ppc.isChecked('#pn-pub-ativo') && !(await ppc.isChecked('[data-bloco=pessoas]')), 'celular: configuração salva aparece');
   ok(await semRolagem(ppc), 'painel 390 px sem rolagem horizontal na aba');
   await shot(ppc, 'painel_celular');
@@ -190,7 +190,8 @@ const PROIBIDOS = [CPF, CNPJ, CPF2, '529.982.247-25', '***.982', 'Fulano Secreto
   /* ================= 5. página pública: mapa e números ================= */
   console.log('5. Página pública');
   pd = await abrir(DASH, { colorScheme: 'light' });
-  await pd.waitForSelector('#db-mapa .leaflet-db-mun-pane path', { timeout: 20000 }); await pd.waitForTimeout(500);
+  const esperarMapa = p => p.waitForFunction(() => document.querySelectorAll('#db-mapa .leaflet-db-mun-pane path').length >= 62, null, { timeout: 20000 }).then(() => p.evaluate(() => new Promise(r => setTimeout(() => requestAnimationFrame(r), 30))));
+  await esperarMapa(pd);
   ok(/ADAF em números — teste/.test(await pd.textContent('#db-titulo')) && (await pd.title()).includes('ADAF em números'), 'título configurado no topo e na aba');
   ok(await pd.getAttribute('meta[name=robots]', 'content') === 'index, follow', 'página indexável (pública)');
   const nPaths = await pd.$$eval('#db-mapa .leaflet-db-mun-pane path', a => a.length);
@@ -201,33 +202,34 @@ const PROIBIDOS = [CPF, CNPJ, CPF2, '529.982.247-25', '***.982', 'Fulano Secreto
   const cams = await pd.$$eval('[data-camada]', a => a.map(x => x.dataset.camada));
   ok(cams.join() === 'coropletico,bvas', 'camadas: municípios e BVAs (sem calor e sem "agora")', cams);
   ok(await pd.$$eval('.db-bva', a => a.length) === 3, '3 marcadores de BVA fixa');
-  await pd.selectOption('#db-mun-sel', 'Parintins'); await pd.waitForTimeout(200);
+  await pd.selectOption('#db-mun-sel', 'Parintins'); await pd.waitForFunction(() => /Parintins/.test(document.querySelector('#db-municipio').textContent));
   let cartao = await pd.textContent('#db-municipio');
   ok(/Parintins/.test(cartao) && /Levantamentos PCE\s*<3/.test(cartao), 'cartão do município (Parintins: "<3")', cartao.replace(/\s+/g, ' ').slice(0, 200));
-  await pd.click('[data-ind=levantamentos]'); await pd.waitForTimeout(200);
+  await pd.click('[data-ind=levantamentos]'); await pd.waitForFunction(() => /Levantamentos PCE/.test(document.querySelector('#db-legenda').textContent));
   ok(/Levantamentos PCE/.test(await pd.textContent('#db-legenda')) && /&lt;3|<3/.test(await pd.innerHTML('#db-legenda')), 'legenda do indicador com a faixa "<3"', await pd.textContent('#db-legenda'));
-  await pd.selectOption('#db-mun-sel', 'Tabatinga'); await pd.waitForTimeout(200);
+  await pd.selectOption('#db-mun-sel', 'Tabatinga'); await pd.waitForFunction(() => /Tabatinga/.test(document.querySelector('#db-municipio').textContent));
   cartao = await pd.textContent('#db-municipio');
   ok(/Tabatinga/.test(cartao) && /Levantamentos PCE\s*3/.test(cartao) && /Detecções de pragas\s*3/.test(cartao), 'cartão de Tabatinga: 3 levantamentos, 3 detecções', cartao.replace(/\s+/g, ' ').slice(0, 200));
   const manausCard = await pd.evaluate(() => { const s = document.querySelector('#db-mun-sel'); s.value = 'Manaus'; s.dispatchEvent(new Event('change')); return document.querySelector('#db-municipio').textContent; });
   ok(/Veículos abordados\s*6/.test(manausCard) && /Ações de barreira\s*4/.test(manausCard), 'barreiras somadas no município pela célula ou pela unidade (Manaus: 4 ações, 6 veículos)', manausCard.replace(/\s+/g, ' ').slice(0, 300));
   ok(await semRolagem(pd), 'desktop: sem rolagem horizontal (mapa)');
   await shot(pd, 'mapa_claro');
+  await pd.evaluate(() => new Promise(r => setTimeout(r, 250)));   // espera o timer de 200 ms (debounceMoveend) do Leaflet após fullPage screenshot
   // modo Números
-  await pd.click('#db-modo-numeros'); await pd.waitForSelector('.pn-kpi[data-kpi=acoes]', { timeout: 10000 }); await pd.waitForTimeout(500);
+  await pd.click('#db-modo-numeros'); await pd.waitForFunction(() => document.querySelector('.pn-kpi[data-kpi=acoes]') && document.querySelectorAll('[data-grafico] canvas').length >= 6, null, { timeout: 10000 });
   ok(new URL(pd.url()).searchParams.get('modo') === 'numeros', 'modo na URL (?modo=numeros)');
   const kpi = k => pd.$eval(`.pn-kpi[data-kpi=${k}] .pn-kpi-val`, e => e.textContent).catch(() => null);
   ok(await kpi('acoes') === '6' && await kpi('veiculos') === '8' && await kpi('tfs') === '3' && await kpi('apreensao') === '1' && await kpi('levantamentos') === '5' && await kpi('municipios') === '3 de 62',
     'KPIs: ações 6, veículos 8, TFs 3, apreensões 1, levantamentos 5, municípios "3 de 62"');
   ok(await kpi('r-veiculos') === '8' && await kpi('r-tfs') === '3' && await kpi('r-kgap') === '150 kg' && await kpi('r-kgre') === '150 kg' && await kpi('r-rechacos') === '1',
     'resumo do período (todas as barreiras): veículos, TFs, kg apreendidos e rechaçados, rechaços');
-  await pd.selectOption('#db-bva', 'BVA - CEASA'); await pd.waitForTimeout(300);
+  await pd.selectOption('#db-bva', 'BVA - CEASA'); await pd.waitForFunction(() => /Somente a BVA - CEASA/.test(document.querySelector('#db-corpo').textContent));
   ok(await kpi('r-veiculos') === '3' && await kpi('r-tfs') === '1' && await kpi('r-kgap') === '150 kg' && await kpi('r-kgre') === '0 kg' && await kpi('r-rechacos') === '0' &&
     /Somente a BVA - CEASA/.test(await pd.textContent('#db-corpo')), 'filtro por BVA: só os números da BVA - CEASA');
   await shot(pd, 'numeros_bva');
-  await pd.selectOption('#db-bva', 'Postos volantes'); await pd.waitForTimeout(300);
+  await pd.selectOption('#db-bva', 'Postos volantes'); await pd.waitForFunction(() => /Somente a Postos volantes/.test(document.querySelector('#db-corpo').textContent));
   ok(await kpi('r-rechacos') === '1' && await kpi('r-kgre') === '150 kg', 'filtro: postos volantes (1 rechaço, 150 kg)');
-  await pd.selectOption('#db-bva', ''); await pd.waitForTimeout(300);
+  await pd.selectOption('#db-bva', ''); await pd.waitForFunction(() => /Todas as barreiras/.test(document.querySelector('#db-corpo').textContent));
   ok(await kpi('pessoas') === null && !(await pd.$('[data-grafico=produtos]')) && !(await pd.$('[data-grafico=tiposVeiculo]')), 'blocos desligados não aparecem (pessoas, produtos, tipos)');
   const grafs = await pd.$$eval('[data-grafico]', a => a.map(x => x.dataset.grafico));
   ok(['porBarreira', 'procedimentos', 'pragas', 'serie-veiculos', 'serie-tfs', 'serie-levantamentos'].every(g => grafs.includes(g)) && await pd.$$eval('[data-grafico] canvas', a => a.length) >= 6, 'gráficos dos blocos ligados', grafs);
@@ -259,22 +261,24 @@ const PROIBIDOS = [CPF, CNPJ, CPF2, '529.982.247-25', '***.982', 'Fulano Secreto
   await pd.context().close();
   // escuro, desktop
   pd = await abrir(DASH + '?modo=mapa', { colorScheme: 'dark' });
-  await pd.waitForSelector('#db-mapa .leaflet-db-mun-pane path', { timeout: 20000 }); await pd.waitForTimeout(600);
+  await esperarMapa(pd);
   const fundo = await pd.evaluate(() => getComputedStyle(document.body).backgroundColor);
   ok(fundo === 'rgb(13, 13, 13)', 'escuro: fundo escuro do tema', fundo);
   await shot(pd, 'mapa_escuro');
-  await pd.click('#db-modo-numeros'); await pd.waitForSelector('.pn-kpi', { timeout: 10000 }); await pd.waitForTimeout(500);
+  await pd.evaluate(() => new Promise(r => setTimeout(r, 250)));
+  await pd.click('#db-modo-numeros'); await pd.waitForFunction(() => document.querySelector('.pn-kpi') && document.querySelectorAll('[data-grafico] canvas').length >= 6, null, { timeout: 10000 });
   await shot(pd, 'numeros_escuro');
   await pd.context().close();
   // celular 360 px, claro e escuro, nos dois modos
   for (const esquema of ['light', 'dark']) {
     const pc = await abrir(DASH + '?modo=mapa', { viewport: { width: 360, height: 780 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2, colorScheme: esquema });
-    await pc.waitForSelector('#db-mapa .leaflet-db-mun-pane path', { timeout: 20000 }); await pc.waitForTimeout(500);
+    await esperarMapa(pc);
     ok(await semRolagem(pc), `360 px ${esquema}: mapa sem rolagem horizontal`);
     const largMapa = await pc.$eval('#db-mapa', e => e.getBoundingClientRect().width);
     ok(largMapa > 280 && largMapa <= 360, `360 px ${esquema}: mapa ocupa a largura`, largMapa);
     await shot(pc, `celular_mapa_${esquema === 'light' ? 'claro' : 'escuro'}`);
-    await pc.click('#db-modo-numeros'); await pc.waitForSelector('.pn-kpi', { timeout: 10000 }); await pc.waitForTimeout(500);
+    await pc.evaluate(() => new Promise(r => setTimeout(r, 250)));
+    await pc.click('#db-modo-numeros'); await pc.waitForFunction(() => document.querySelector('.pn-kpi') && document.querySelectorAll('[data-grafico] canvas').length >= 6, null, { timeout: 10000 });
     ok(await semRolagem(pc), `360 px ${esquema}: números sem rolagem horizontal`);
     const kp = await pc.$$eval('.pn-kpi', a => a.every(e => e.getBoundingClientRect().right <= innerWidth + 0.5));
     ok(kp, `360 px ${esquema}: KPIs dentro da tela`);
@@ -293,7 +297,8 @@ const PROIBIDOS = [CPF, CNPJ, CPF2, '529.982.247-25', '***.982', 'Fulano Secreto
   ok(Array.isArray(d.mapa.calor) && d.mapa.calor.length === 1 && d.mapa.calor[0].join() === '-4.2,-69.9,3', 'calor: células de 0,1° com contagem; abaixo de 3 suprimidas (Parintins some)', d.mapa.calor);
   ok(d.atualizadoEm > d2.atualizadoEm || d.atualizadoEm >= d2.atualizadoEm, 'salvar troca a versão: cache novo');
   pd = await abrir(DASH + '?modo=mapa');
-  await pd.waitForSelector('#db-aovivo', { timeout: 20000 }); await pd.waitForTimeout(400);
+  await esperarMapa(pd);
+  await pd.waitForFunction(() => document.querySelector('#db-aovivo') && document.querySelectorAll('.db-vivo').length === 1, null, { timeout: 20000 });
   ok(/BVA - AEROPORTO/.test(await pd.textContent('#db-aovivo')) && !/Volante/.test(await pd.textContent('#db-aovivo')) && await pd.$$eval('.db-vivo', a => a.length) === 1, 'página: lista e marcador da BVA em funcionamento');
   await shot(pd, 'mapa_aovivo');
   await pd.context().close();

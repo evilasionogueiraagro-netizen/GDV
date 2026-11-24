@@ -12,7 +12,7 @@ const ok = (cond, msg, extra) => { console.log((cond ? '  ✓ ' : '  ✗ ') + ms
 const espera = ms => new Promise(r => setTimeout(r, ms));
 const assentar = p => p.waitForFunction(() => { const el = document.querySelector('#pn-conteudo'); return !el || !el.classList.contains('carregando'); });   // carga do painel terminou
 const semAnimacao = p => p.waitForFunction(() => !document.querySelector('#tv-palco').getAnimations().length, null, { timeout: 5000 });   // entrada da tela da TV terminou
-async function ate(fn, ms = 15000) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { const v = await fn(); if (v) return v; } catch (e) { /* tenta de novo */ } await espera(200); } return null; }
+async function ate(fn, ms = 15000) { const t0 = Date.now(); while (Date.now() - t0 < ms) { try { const v = await fn(); if (v) return v; } catch (e) { /* tenta de novo */ } await espera(25); } return null; }
 const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==', 'base64');
 // verificador de layout da TV: o mesmo do tv_test.js (sem rolagem, sem texto fora da tela, cortado ou sobreposto)
 const fonteTV = fs.readFileSync(__dirname + '/tv_test.js', 'utf8');
@@ -38,7 +38,7 @@ const geoVivo = eval(fonteTV.slice(fonteTV.indexOf('const geoVivo = p =>') + 'co
     const p = await c.newPage(); p.ctx = c; vigiar(p, nome, true);
     p.dialogos = []; p.on('dialog', d => { p.dialogos.push(d.message()); d.accept(); });
     if (relogio) await p.clock.install({ time: Date.now() });
-    await p.goto(APP); await p.waitForSelector('#view *', { state: 'attached' }); await p.waitForTimeout(600); return p;
+    await p.goto(APP); await p.waitForSelector('.modulo'); return p;
   }
   const sync = async p => { await sincronizar(p); await p.waitForFunction(() => ['ok', 'idle'].includes(Sync.estado().tipo) && !Sync.estado().pend, null, { timeout: 15000 }); };
 
@@ -126,7 +126,7 @@ const geoVivo = eval(fonteTV.slice(fonteTV.indexOf('const geoVivo = p =>') + 'co
 
   console.log('3b. Batimento a cada 2 min enquanto o formulário está aberto');
   const antesBat = (await doUsuario('Pessoa Ficticia Alfa'))[0].atualizadoTs;
-  await A.clock.fastForward(121000); await A.waitForTimeout(300);
+  await A.clock.fastForward(121000);
   ok(await ate(async () => (await doUsuario('Pessoa Ficticia Alfa'))[0].atualizadoTs > antesBat), 'batimento: atualizadoTs renovado depois de 2 min');
 
   console.log('4. Gerar o TF → volta a verde e o aviso some');
@@ -152,7 +152,8 @@ const geoVivo = eval(fonteTV.slice(fonteTV.indexOf('const geoVivo = p =>') + 'co
   ok(await atualizar(G, () => document.querySelectorAll('.pn-duo-mapa .leaflet-marker-pane .pn-pin.ok').length === 1 && !document.querySelector('.pn-duo-mapa .leaflet-marker-pane .pn-pin.tf')), 'painel: verde depois do descarte');
   // sair do formulário sem gerar (rascunho fica salvo)
   await A.click('nav [data-v=home]'); await A.waitForSelector('.contador'); await A.evaluate(() => go('tfnovo')); await A.waitForSelector('#tfForm');
-  await A.fill('#tf-nome', 'RASCUNHO GUARDADO'); await A.waitForTimeout(900);
+  await A.fill('#tf-nome', 'RASCUNHO GUARDADO');
+  await amb.esperar(A, () => Store.meta('tfRascunho').then(r => r && r.dados && r.dados.nome === 'RASCUNHO GUARDADO'), null, 5000);
   const rid3 = (await ate(async () => (await doUsuario('Pessoa Ficticia Alfa')).find(x => x.estado === 'preenchendo'))).id;
   await A.click('nav [data-v=home]'); await A.waitForSelector('.contador');
   ok(await ate(async () => (await doUsuario('Pessoa Ficticia Alfa')).every(x => x.estado === 'fim')), 'saiu do formulário (menu) sem gerar: estado "fim"');
@@ -234,7 +235,9 @@ const geoVivo = eval(fonteTV.slice(fonteTV.indexOf('const geoVivo = p =>') + 'co
   // mapa ≈ 60% da largura e na altura toda da tela Ao vivo (indicadores na coluna da direita); Chrome em janela com barras
   // (1366×620), TV que reporta 1366×768, 1080p e 4K, com a faixa vermelha
   for (const [w, h] of [[1366, 620], [1366, 768], [3840, 2160], [1920, 1080]]) {
-    await T.setViewportSize({ width: w, height: h }); await T.waitForTimeout(900);
+    await T.evaluate(() => { const m = document.querySelector('#tv-palco .tv-mapa'); if (m) m.dataset.velho = '1'; });
+    await T.setViewportSize({ width: w, height: h });
+    await T.waitForFunction(() => { const m = document.querySelector('#tv-palco .tv-mapa'); return m && !m.dataset.velho && m.querySelectorAll('.leaflet-overlay-pane path').length === 62; }, null, { timeout: 5000 });
     const G = await geoVivo(T);
     L = await layout(T);
     ok(!L.probs.length && G.largura > 0.57 && G.largura < 0.63, `TV ${w}×${h} com faixa: mapa ${(G.largura * 100).toFixed(0)}% da largura, sem rolagem/corte/sobreposição`, L.probs.slice(0, 4));

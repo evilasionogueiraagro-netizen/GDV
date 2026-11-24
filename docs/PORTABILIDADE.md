@@ -57,8 +57,7 @@ Sem regra de negócio: a entrada chama função comum (`menuGerarCodigo` → `ge
 Uma seção por PR, sem mudar comportamento:
 1. Criar `prop_`, `setProp_`, `delProp_` e trocar as chamadas diretas a `PropertiesService` e `LockService`.
 2. Seção por seção: Convênios, Relatório GDV, VIGIFITO, Portal do Administrativo; depois sync, TF, PCE.
-3. Pronto = `node run.js` passa **sem mudar nenhum teste** (se um mudou, separe o PR).
-4. Mude o `VERSAO_CODIGO`.
+3. Pronto = `node run.js` passa **sem mudar nenhum teste** (se mudou, separe o PR); `VERSAO_CODIGO` segue `'dev'`.
 
 Ver o que falta:
 ```sh

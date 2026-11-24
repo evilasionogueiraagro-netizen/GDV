@@ -25,8 +25,8 @@ A mesma lista serve para o nome da branch e para o título do commit e do PR.
 
 ## Branches
 
-- **`main` = produção.** Merge com mudança em `web/**` publica o front no GitHub Pages na hora; se o `VERSAO_CODIGO` do
-  `Code.gs` mudou, o back vai no mesmo merge ([PUBLICACAO-BACK.md](PUBLICACAO-BACK.md)).
+- **`main` = produção.** `web/**` publica no GitHub Pages na hora; `apps-script/**` publica o back no mesmo merge com
+  versão automática ([PUBLICACAO-BACK.md](PUBLICACAO-BACK.md)).
 - Nunca commit nem push direto na `main`. Nunca `git push --force`, em branch nenhuma.
 - Uma branch por tarefa, curta (entra em 1 a 3 dias), criada da `origin/main` atualizada:
 
@@ -48,8 +48,7 @@ A mesma lista serve para o nome da branch e para o título do commit e do PR.
 - Título: `<Área>: <o que muda>`, até ~72 caracteres, no presente, sem ponto final, com a área por extenso (tabela
   acima). Ex.: `PCE: coluna citros no levantamento (servidor)`,
   `Portal do Administrativo: sessão de 30 dias sem uso (era 12 h)`.
-- Corpo, depois de uma linha em branco: o porquê e o que muda para quem usa. Mexeu no `Code.gs`: cite o
-  `VERSAO_CODIGO` novo.
+- Corpo, após linha em branco: o porquê e o efeito para quem usa. Não altere `VERSAO_CODIGO` (`'dev'` no repo; o CI gera na publicação).
 - Uma mudança lógica por commit. Adicione os arquivos pelo nome (`git add web/js/pce.js`), não `git add -A` nem
   `git add .`. Confira `git status` (e `git diff --staged`) antes de cada commit.
 - **Autor = a pessoa responsável pela mudança**, com `user.name` e `user.email` reais no `git config` (confira antes de
@@ -66,7 +65,6 @@ Portal do Administrativo: sessão de 30 dias sem uso (era 12 h)
 
 Com 12 h, o administrativo precisava entrar de novo todo dia. Agora a sessão renova a cada uso e só
 cai depois de 30 dias parada, no Sair ou se o gerente revogar.
-VERSAO_CODIGO 2026-10-20c.
 ```
 
 ## Pull requests
@@ -81,8 +79,6 @@ VERSAO_CODIGO 2026-10-20c.
   git merge origin/main
   ```
 
-  Se os dois lados mudaram o `Code.gs`, escolha um `VERSAO_CODIGO` novo, maior que o da `main`. O git não avisa quando
-  as duas branches escolheram o mesmo valor (não dá conflito), e com a versão igual à do ar o back não é publicado.
 - Rode localmente os testes da área (seção "Testes" do [AGENTS.md](../AGENTS.md)); de preferência a suíte inteira
   (`node run.js`), para o CI não falhar depois do push.
 - Merge só com o CI verde, pelo botão **Create a merge commit** (não "Squash" nem "Rebase"): o commit

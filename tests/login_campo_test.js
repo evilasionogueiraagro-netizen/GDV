@@ -9,7 +9,7 @@ const get = p => fetch(API + p).then(r => r.json());
 let falhas = 0;
 const ok = (cond, msg, extra) => { console.log((cond ? '  ✓ ' : '  ✗ ') + msg + (extra !== undefined ? ' -> ' + (typeof extra === 'string' ? extra : JSON.stringify(extra)) : '')); if (!cond) { falhas++; process.exitCode = 1; } };
 const aba = async n => { const rows = await get('/__aba?nome=' + n); if (!rows) return []; const cab = rows[0]; return rows.slice(1).map(r => Object.fromEntries(cab.map((c, i) => [c, r[i]]))); };
-const esperar = async (f, ms = 12000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await f()) return true; await new Promise(r => setTimeout(r, 200)); } return false; };
+const esperar = async (f, ms = 12000) => { const t = Date.now(); while (Date.now() - t < ms) { if (await f()) return true; await new Promise(r => setTimeout(r, 25)); } return false; };
 
 /* ---------- contas e sessões (servidor real; lib/usuarios.js) ---------- */
 const criarUsuario = async (nome, matricula, permissoes) => { const c = await U.criar(nome, permissoes, matricula); return { id: c.usuario.id, matricula: c.usuario.matricula, nome, senha: c.senhaProvisoria }; };
@@ -65,11 +65,14 @@ const encerrarSessoes = usuario => U.revogar(usuario.id);
     return p.evaluate(() => Store.meta('turnoAtual'));
   };
   const registrar = async (p, placa) => {
-    await p.waitForTimeout(400); await p.click('nav [data-v=registrar]'); await p.waitForSelector('#fVeic'); await p.waitForTimeout(400);
-    for (let i = 0; i < 5 && await p.inputValue('#placa').catch(() => '') !== placa; i++) { await p.fill('#placa', placa); await p.waitForTimeout(250); }
+    await p.evaluate(() => { const f = document.querySelector('#fVeic'); if (f) f.dataset.velho = '1'; });
+    await p.click('nav [data-v=registrar]'); await p.waitForFunction(() => { const f = document.querySelector('#fVeic'); return f && !f.dataset.velho && document.querySelector('#placa') && document.querySelector('#placa').value === ''; });
+    for (let i = 0; i < 5 && await p.inputValue('#placa').catch(() => '') !== placa; i++) { await p.fill('#placa', placa); if (await p.inputValue('#placa').catch(() => '') !== placa) await p.waitForTimeout(30); }
+    await p.evaluate(() => { const f = document.querySelector('#fVeic'); if (f) f.dataset.velho = '1'; });
     await p.click('#fVeic > button'); await esperaToast(p, new RegExp(placa));
+    await p.waitForFunction(() => { const f = document.querySelector('#fVeic'); return f && !f.dataset.velho; }).catch(() => {});
   };
-  const sincronizar = p => p.evaluate(async () => { for (let i = 0; i < 40 && Sync.estado().tipo === 'sync'; i++) await new Promise(r => setTimeout(r, 150)); await Sync.sincronizar(); return Sync.estado(); });
+  const sincronizar = p => p.evaluate(async () => { for (let i = 0; i < 200 && Sync.estado().tipo === 'sync'; i++) await new Promise(r => setTimeout(r, 25)); await Sync.sincronizar(); return Sync.estado(); });
   const abrirStatus = async p => { await p.click('nav [data-v=modulos]'); await p.click('nav [data-v=config]'); await p.waitForSelector('#cEst'); };
 
   const MODULOS_TODOS = ['campo', 'fiscalizacaoDeTransito', 'termoDeBarreira', 'pce'];
@@ -97,7 +100,6 @@ const encerrarSessoes = usuario => U.revogar(usuario.id);
   ok(!(await ls(p, 'gdv.key')) && await p.locator('#fEntrar').count() === 1, 'senha errada: nada é guardado e a tela continua');
   // sem internet
   await semRede(A, true);
-  await p.waitForTimeout(300);
   await p.fill('#eSenha', ana.senha); await p.click('#fEntrar button:not([type=button])');
   ok(await esperaToast(p, /Sem internet.*Entrar precisa de conex/), 'sem internet: mensagem clara de que Entrar precisa de conexão', await toast(p));
   ok(!(await ls(p, 'gdv.key')), 'sem internet: nada é guardado');
@@ -105,7 +107,6 @@ const encerrarSessoes = usuario => U.revogar(usuario.id);
 
   /* ================= 2. Senha provisória ================= */
   console.log('2. Senha provisória e troca de senha');
-  await p.waitForTimeout(300);
   await p.fill('#eSenha', ana.senha); await p.click('#fEntrar button:not([type=button])');
   await p.waitForSelector('#fTrocarSenha');
   ok(estado.ultimoEntrar && estado.ultimoEntrar.aplicativo === 'campo' && estado.ultimoEntrar.matricula === ana.matricula, 'entrar manda a matrícula e aplicativo "campo"', { ...estado.ultimoEntrar, senha: '…' });
@@ -125,12 +126,12 @@ const encerrarSessoes = usuario => U.revogar(usuario.id);
   await preencher(ana.senha, ana.senha, ana.senha);
   ok(await esperaToast(p, /igual à atual/), 'nova igual à atual: recusada', await toast(p));
   await preencher('senha-atual-errada', 'NovaSenha2026', 'NovaSenha2026');
-  await p.waitForTimeout(800);
+  await esperaToast(p, /incorret|atual/i);
   ok(await p.locator('#fTrocarSenha').count() === 1 && await p.locator('.modulo').count() === 0 && /incorret|atual/i.test(await toast(p)), 'senha atual errada: o servidor recusa e a tela continua', await toast(p));
-  await semRede(A, true); await p.waitForTimeout(300);
+  await semRede(A, true);
   await preencher(ana.senha, 'NovaSenha2026', 'NovaSenha2026');
   ok(await esperaToast(p, /Sem internet.*Trocar a senha precisa de conex/), 'sem internet: mensagem clara ao trocar a senha', await toast(p));
-  await semRede(A, false); await p.waitForTimeout(300);
+  await semRede(A, false);
   await preencher(ana.senha, 'NovaSenha2026', 'NovaSenha2026');
   await p.waitForSelector('.modulo', { timeout: 12000 });
   ana.senha = 'NovaSenha2026';
@@ -170,15 +171,14 @@ const encerrarSessoes = usuario => U.revogar(usuario.id);
   await p.click('nav [data-v=resumo]'); await p.waitForSelector('#encerrar'); await p.click('#encerrar'); await p.waitForSelector('[data-doc=termo]');
   ok(await p.evaluate(async () => (await Envio.pendentes()).total) >= 2, 'sem conseguir enviar: registro e encerramento ficam pendentes no aparelho');
   await abrirStatus(p); p.dialogos.length = 0;
-  await semRede(A, true); await p.waitForTimeout(300);
+  await semRede(A, true);
   await p.click('[data-sair]');
   ok(await esperaToast(p, /Sem internet.*sair/i), 'sem internet: não deixa sair e explica', await toast(p));
   ok(!!(await ls(p, 'gdv.key')) && p.dialogos.length === 0, 'sem internet: continua com o acesso');
-  await semRede(A, false); await p.waitForTimeout(300);
+  await semRede(A, false);
   p.aceitar = false;
   await p.click('[data-sair]'); await esperar(async () => p.dialogos.length > 0);
   ok(p.dialogos.length === 1 && /registro\(s\) seu\(s\) que ainda não foram enviados/.test(p.dialogos[0]) && /em seu nome/.test(p.dialogos[0]) && /outra pessoa/.test(p.dialogos[0]), 'com pendentes: avisa que ficam no aparelho, em nome de quem os fez', p.dialogos[0] && p.dialogos[0].slice(0, 80));
-  await p.waitForTimeout(400);
   ok(!!(await ls(p, 'gdv.key')), 'cancelando a confirmação: continua com o acesso');
   p.aceitar = true; p.dialogos.length = 0;
   await p.click('[data-sair]'); await p.waitForSelector('#fEntrar', { timeout: 15000 });
@@ -191,7 +191,7 @@ const encerrarSessoes = usuario => U.revogar(usuario.id);
   estado.falharSync = false;
   const antes = (await aba('Veiculos')).length;
   await entrar(p, cida.matricula, cida.senha); await p.waitForSelector('.modulo');
-  await sincronizar(p); await p.waitForTimeout(500);
+  await sincronizar(p);
   ok((await aba('Veiculos')).length === antes && !(await aba('Veiculos')).some(v => v.placa === 'LOG2B22'), 'outra pessoa entra e sincroniza: o registro da Ana NÃO sobe com o acesso dela');
   const turnoAna = (await aba('Turnos')).find(t => t.id === turno1);
   ok(turnoAna && Number(turnoAna.encerrado) === 0, 'o encerramento do turno da Ana também fica no aparelho');
@@ -218,7 +218,7 @@ const encerrarSessoes = usuario => U.revogar(usuario.id);
   await entrar(p, cida.matricula, cida.senha); await p.waitForSelector('.modulo');
   await p.evaluate(() => Store.salvar('veiculos', { id: 'v-rev-pend', turnoId: 'sem-turno-rev', hora: '10:00', placa: 'REV1A11', tipo: 'PA', pessoas: 1, excluido: 0, criadoEm: Date.now(), atualizadoEm: Date.now(), pendente: 1 }));   // registro ainda não enviado
   await encerrarSessoes(cida);
-  await sincronizar(p); await p.waitForTimeout(400);
+  await sincronizar(p);
   await p.click('nav [data-v=modulos]');      // dentro de um formulário nada some do nada: ao navegar, o app pede a entrada
   await p.waitForSelector('#fEntrar', { timeout: 8000 });
   ok(/Acesso revogado/.test(await p.textContent('#view')) && await ls(p, 'gdv.revogado') === '1', 'sessão encerrada pelo servidor: o app mostra a tela de entrar com o aviso');

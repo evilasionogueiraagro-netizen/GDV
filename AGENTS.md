@@ -28,7 +28,7 @@ por área; `Code.gs` tem o `doPost`, `TABELAS` e `VERSAO_CODIGO`. Testes em `tes
 ## Regras que não podem ser quebradas (detalhes em docs/regras.md)
 
 - Coluna nova só no fim de `TABELAS`; nunca renomear, reordenar ou remover.
-- Mudou o `Code.gs`: mude o `VERSAO_CODIGO`.
+- Não mexa em `VERSAO_CODIGO` (`'dev'` no repo; no merge, o CI gera `AAAA-MM-DD-<hash>` pelo último commit em `apps-script/` em Manaus). Branch antiga com data nessa linha: no conflito, fique com `'dev'`.
 - Gravação dentro do lock (`comLock_`); numeração sempre dentro dele.
 - Google só pela camada de acesso ([docs/PORTABILIDADE.md](docs/PORTABILIDADE.md)); menu e gatilhos sem regra de negócio.
 - Excluir é lógico (`excluido = 1`); nada é apagado da planilha.

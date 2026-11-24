@@ -23,14 +23,18 @@ node run.js                           # tudo em fila (~11 min)
 node run.js tv_test painel_test       # só alguns (com ou sem .js)
 node run.js -v tf_e2e                 # mostra a saída ao vivo
 node run.js --lista                   # lista os testes (respeita --parte)
+node run.js --rapidos                 # só tests/unit/ e estáticos (sem fakegas nem navegador; ~1 s)
 node run.js --parte 2/3               # 2ª de 3 partes equilibradas (o CI usa --parte N/4 --tentativas 2)
 ```
 
 Opções:
 - `--paralelo N` (`-j N`): N partes ao mesmo tempo, cada uma com seu fakegas. Sai com código 1 se algo falhar. Rode antes de cada push.
 - `--parte i/n`: a parte `i` de `n`, dividida pelo `PESO` (abaixo).
+- `--rapidos` / `--sem-rapidos`: só os testes sem fakegas e sem navegador, ou todos menos eles (o CI roda os rápidos num job à parte).
 - `--tentativas N` (ou `GDV_TENTATIVAS`, padrão 1): repete quem falhou; o resumo marca os instáveis.
 - `-v`: saída ao vivo. Variáveis: `GDV_TIMEOUT` (360 s por teste), `GDV_PORTA_WEB` / `GDV_PORTA_API`, `CHROMIUM_PATH`.
+
+Regra pura (cálculo, catálogo, texto, motor de relatório, prévia de planilha) vai para `tests/unit/*_test.js`: carrega o módulo de `web/` ou do `apps-script/` no Node com `tests/unit/vm_loader.js` (sem fakegas nem Chromium). No Playwright fica o que precisa de navegador: tela em passos, IndexedDB, offline, PDF, Chart.js/Leaflet e layout. Teste estático fora de `unit/` leva `// gdv:node` no topo.
 
 Um teste falha se sair com código ≠ 0, se imprimir `✗` ou se imprimir `FALHOU=N` com N > 0.
 
@@ -56,6 +60,7 @@ Principais (a lista completa é `node run.js --lista`):
 - `invasao_test` e `invasao_xss_test`: testes de invasão pelo OWASP Top 10:2025 (acesso, injeção, autenticação, XSS); falha aberta conhecida fica em `CONHECIDAS` e imprime `! ABERTA`.
 - `lib/portal.js`: libera uma pessoa no portal e abre a sessão (usado pelos testes do portal).
 - `lib/usuarios.js`: cria contas (`fiscal`, `criar`), troca permissões, revoga sessões e semeia o navegador com o login (substitui os códigos de ativação).
+- `lib/velocidade.js`: medidor de leitura da velocidade do back em produção (`node lib/velocidade.js`, fora do `run.js`).
 
 ## Escrever um teste novo
 1. Crie `tests/<nome>_test.js` (o `run.js` pega todo `.js` da pasta, exceto `fakegas.js` e `run.js`). Comece com `const amb = require('./lib/amb');`:

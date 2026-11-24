@@ -107,7 +107,7 @@ const ok = (c, m, x) => { console.log((c ? '  ✓ ' : '  ✗ ') + m + (c || x ==
   console.log('4) rascunho antigo com a opcional em branco abre como "Não tem"');
   await A.abrirProdutor(p, '52998224725'); const antesR = await ids();
   await A.visita(p, { frutos: ['Banana'], parar: 2 });
-  for (let i = 0; i < 50 && !(await p.evaluate(async () => { const r = await Store.meta('pceVisitaRascunho'); return !!(r && r.passo === 2); })); i++) await p.waitForTimeout(100);
+  await amb.esperar(p, async () => { const r = await Store.meta('pceVisitaRascunho'); return !!(r && r.passo === 2); }, null, 5000);
   await p.locator('.pce-pr[data-opcional]').first().waitFor();
   const idsPragas = await p.locator('.pce-pr[data-opcional]').evaluateAll(l => l.map(e => e.dataset.praga));
   await p.evaluate(async idsPragas => {                // como um rascunho de versão antiga: uma opcional com resultado vazio, outra sem registro nenhum, outra só com o resto

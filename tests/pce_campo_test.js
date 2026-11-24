@@ -1,4 +1,5 @@
 const amb = require('./lib/amb');
+const sincronizar = require('./lib/sincronizar');
 const U = require('./lib/usuarios');
 const A = require('./lib/pce-app');
 // PCE em campo: "Baixar dados para o campo" (action pceBaixarMunicipio), busca de produtores sem internet (CPF, nome, código), visita sem internet
@@ -99,8 +100,8 @@ const EU = [-2.63, -56.74];
   const C = await aparelho(fC);
   try {
     // service worker pronto, com o gerador de PDF no cache (o resto do teste roda sem internet)
-    await C.waitForFunction(async () => { if (!navigator.serviceWorker.controller) return false; const ks = await caches.keys(); if (!ks.length) return false;
-      const c = await caches.open(ks[0]); return !!(await c.match('vendor/html2canvas.min.js')); }, null, { timeout: 30000 });
+    if (!(await amb.esperar(C, async () => { if (!navigator.serviceWorker.controller) return false; const ks = await caches.keys(); if (!ks.length) return false;
+      const c = await caches.open(ks[0]); return !!(await c.match('vendor/html2canvas.min.js')); }, null, 30000))) throw new Error('gerador de PDF fora do cache');
     ok(true, 'service worker guardou o gerador de PDF (html2canvas) para usar sem internet');
 
     console.log('2) Dados para o campo: baixar Parintins (dentro da área Produtores)');
@@ -200,8 +201,8 @@ const EU = [-2.63, -56.74];
     ok(f1.length === 1 && f1[0].cultura === 'Banana', 'o novo download não apaga nem duplica o fruto cadastrado (o do aparelho e o da planilha são o mesmo id)', f1);
     // a gerência tira o PCE: os dados baixados saem do aparelho na próxima sincronização (LGPD)
     r = await U.permissoes(fC.uid, U.lista({ veiculos: 1, tf: 1, pce: 0 })); if (!r.ok) throw new Error(r.erro);
-    await C.evaluate(() => Sync.sincronizar());
-    await C.waitForFunction(async () => !Object.keys((await Store.meta('pceCampo')) || {}).length && !(await Store.todos('propriedades')).length, null, { timeout: 10000 });
+    await sincronizar(C);
+    if (!(await amb.esperar(C, async () => !Object.keys((await Store.meta('pceCampo')) || {}).length && !(await Store.todos('propriedades')).length, null, 10000))) throw new Error('dados baixados não foram apagados');
     ok(true, 'sem o módulo PCE: dados baixados apagados do aparelho sozinhos');
     r = await U.permissoes(fC.uid, U.lista({ veiculos: 1, tf: 1, pce: 1 }));
 
@@ -211,7 +212,8 @@ const EU = [-2.63, -56.74];
     // o menu nasce antes da primeira sincronização; os módulos da conta chegam com ela
     await D.waitForFunction(() => !document.querySelector('.modulo[data-v=pce]'), null, { timeout: 10000 }).catch(() => {});
     ok(await D.locator('.modulo[data-v=pce]').count() === 0, 'cartão do PCE some do menu (não abre "Dados para o campo")');
-    await D.evaluate(() => go('pcecampo')); await D.waitForTimeout(300);
+    await D.evaluate(() => go('pcecampo'));
+    await D.waitForFunction(() => /Sem autorização/.test((document.querySelector('#toast') || {}).textContent || ''), null, { timeout: 5000 }).catch(() => {});
     ok(await D.locator('#campo-muns').count() === 0 && /Sem autorização/.test(await D.textContent('#toast')), 'tela de download bloqueada no app');
     ok(!C.err.length && !D.err.length, 'sem erros de JavaScript' + (C.err.length || D.err.length ? ': ' + [...C.err, ...D.err].join(' | ') : ''));
     console.log('FALHOU=0');

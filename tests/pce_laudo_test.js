@@ -1,5 +1,6 @@
 const amb = require('./lib/amb');
 const U = require('./lib/usuarios');
+const sincronizar = require('./lib/sincronizar');
 // PCE — dados do levantamento antigo (tipo de local, origem da visita e comercial) e resultado de laboratório do Termo de Colheita.
 // Levantamento antigo: enviado pelo aparelho, sincronizado ida e volta, linha "Local: … · Origem: …" no PDF aberto no app (só leitura). Laudo:
 // só no painel (painelPceLaudo, só a coluna laboratorio, com quem/quando): colunas "Tipo de local"/"Origem" (tabela e CSV), coluna "Resultado"
@@ -23,7 +24,7 @@ const linhaDe = async (aba, id) => { const t = await get('/__aba?nome=' + aba); 
     if (window !== window.top) window.print = () => { const d = document; window.top.__prints = window.top.__prints || []; window.top.__prints.push({ texto: d.body.innerText.replace(/\s+/g, ' ') }); };
   }, [TOKF]);
   const p = await c.newPage(); p.on('pageerror', e => err.push(e.message)); p.on('dialog', d => d.accept());
-  const sync = () => p.evaluate(() => Sync.sincronizar());
+  const sync = () => sincronizar(p);
 
   // O app só abre o levantamento antigo (leitura e PDF) e não tem mais formulário nem laudo: o levantamento entra pelo envio do aparelho
   // (aqui, direto pela API) e o resultado do laboratório é lançado no painel.
@@ -42,11 +43,11 @@ const linhaDe = async (aba, id) => { const t = await get('/__aba?nome=' + aba); 
   r = await post({ action: 'sync', key: TOKF, since: 0, levantamentos: [{ ...LEV, tipoLocal: 'Viveiro', comercial: 'talvez', atualizadoEm: Date.now() + 1000 }] });
   L = await linhaDe('Levantamentos', LEV.id);
   ok(L && L.tipoLocal === 'Viveiro' && L.comercial === '', 'servidor: "comercial" só aceita sim, nao ou vazio', L && [L.tipoLocal, L.comercial]);
-  await sync(); await p.waitForTimeout(800);
+  await sync();
   const noAparelho = await p.evaluate(async id => { const l = await Store.obter('levantamentos', id); return l && { tipoLocal: l.tipoLocal, origemVisita: l.origemVisita, comercial: l.comercial }; }, LEV.id);
   ok(noAparelho && noAparelho.tipoLocal === 'Viveiro' && noAparelho.origemVisita === 'Delimitação de foco' && noAparelho.comercial === '', 'sincronização de volta: o valor da planilha chega ao aparelho', noAparelho);
   await post({ action: 'sync', key: TOKF, since: 0, levantamentos: [{ ...LEV, tipoLocal: 'Escola agrícola', comercial: 'sim', atualizadoEm: Date.now() + 2000 }] });
-  await sync(); await p.waitForTimeout(600);
+  await sync();
   await p.evaluate(id => go('pcelevver', id), LEV.id); await p.waitForSelector('#pce-lev-ver');
   await p.evaluate(() => { window.__prints = []; }); await p.click('.pce-pdf >> nth=0');
   await p.waitForFunction(() => window.__prints && window.__prints.length, null, { timeout: 15000 });
@@ -59,7 +60,7 @@ const linhaDe = async (aba, id) => { const t = await get('/__aba?nome=' + aba); 
     laboratorio: JSON.stringify({ laboratorio: 'LFDA-GO', envio: dia(38), resultado: 'aguardando', atualizadoEm: Date.now() }) };
   r = await post({ action: 'sync', key: TOKF, since: 0, colheitas: [TERMO] });
   ok(r.ok, 'termo de colheita do servidor na planilha, aguardando o laboratório', r.erro);
-  await sync(); await p.waitForTimeout(800);
+  await sync();
   let Tm = await linhaDe('Colheitas', TERMO.id), lab = JSON.parse(Tm.laboratorio || '{}');
   ok(lab.laboratorio === 'LFDA-GO' && lab.envio === dia(38) && lab.resultado === 'aguardando' && lab.atualizadoEm > 0 && Tm.numeroTxt === TERMO.numeroTxt && Tm.numero === 7,
     'planilha: coluna laboratorio (JSON com data de envio e momento); número do termo não mudou', [Tm.laboratorio, Tm.numeroTxt]);
@@ -77,7 +78,7 @@ const linhaDe = async (aba, id) => { const t = await get('/__aba?nome=' + aba); 
   const txtPce = await P.textContent('#pn-conteudo');
   ok(/Tipo de local/.test(txtPce) && /Origem da visita/.test(txtPce) && /Escola agrícola/.test(txtPce) && /Delimitação de foco/.test(txtPce), 'tabela de levantamentos (antigos) com "Tipo de local" e "Origem da visita"');
   const [dl] = await Promise.all([P.waitForEvent('download'), P.click('.pn-tab:has(th:text("Tipo de local")) .pn-tab-acoes button')]);
-  const csv = fs.readFileSync(await dl.path(), 'utf8');
+  const csv = fs.readFileSync(await amb.arquivoBaixado(dl), 'utf8');
   ok(/Tipo de local;Comercial;Origem da visita/.test(csv) && /Escola agrícola;(Sim|Não|não informado);Delimitação de foco/.test(csv), 'CSV dos levantamentos com tipo de local, comercial e origem', csv.split('\n')[0]);
   ok(/Aguardando · LFDA-GO/.test(txtPce), 'termos de colheita: coluna "Resultado" (aguardando, laboratório)');
   ok(/1 amostra\(s\) sem resultado há mais de 30 dias do envio/.test(txtPce), 'alerta "atenção": amostra sem resultado há mais de 30 dias do envio');
@@ -98,7 +99,7 @@ const linhaDe = async (aba, id) => { const t = await get('/__aba?nome=' + aba); 
   ok(/Positivo: Monilíase do Cacaueiro/.test(await P.textContent('#pn-conteudo')), 'coluna "Resultado" atualizada');
   await P.screenshot({ path: amb.saida('pce_laudo_painel.png'), fullPage: false });
   // o aparelho volta a ter internet e reenvia o termo editado (resultado antigo): a planilha mantém o resultado do painel
-  await c.setOffline(false); await sync(); await p.waitForTimeout(1200); await sync(); await p.waitForTimeout(800);
+  await c.setOffline(false); await sync(); await sync();
   Tm = await linhaDe('Colheitas', TERMO.id); lab = JSON.parse(Tm.laboratorio);
   ok(Tm.local === 'Manaus/AM (editado no aparelho)' && lab.resultado === 'positivo' && lab.por === 'Gerente Lab', 'reenvio do termo pelo celular: edição aceita e o resultado do painel NÃO é apagado', [Tm.local, lab.resultado]);
   const local = await p.evaluate(async id => { const t = await Store.obter('colheitas', id); return { lab: JSON.parse(t.laboratorio || '{}'), pend: t.pendente }; }, TERMO.id);

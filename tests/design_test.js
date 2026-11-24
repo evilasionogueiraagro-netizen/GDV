@@ -1,3 +1,4 @@
+// gdv:node (sem fakegas e sem navegador)
 // Design system único (docs/DESIGN.md): toda tela carrega web/css/design.css ANTES do próprio CSS, o arquivo é guardado para uso
 // offline, nenhum CSS de tela redefine os tokens de cor, não há ícone desenhado à mão (só a Lucide, em web/js/icones.js) e a
 // versão da Lucide é a mesma no código, na licença e na documentação. Não usa o fakegas nem o navegador.

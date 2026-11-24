@@ -2,7 +2,7 @@
 
 Módulo do app de campo independente do turno, do TF de Barreira e do PCE: não entra em relatório, Levantamento, painel de indicadores nem dashboard.
 
-- Permissão `educacaoSanitaria` (módulo `educacao`), ligada pela gerência no painel. Sem ela o cartão some, o `sync` devolve o termo em `recusados` e as actions respondem `semPermissao`. Padrão do aparelho: desligado até o servidor mandar `educacao = 1`.
+- Liberado para todos os usuários do app de campo, sem caixa de permissão (decisão da GDV, 24/11/2026): o servidor manda sempre `educacao = 1`. A permissão `educacaoSanitaria` ficou só como legado (aceita em listas antigas, sem efeito).
 - Aba `TermosEducacao` (código: `educacao.gs`, `web/js/educacao.js`, modelo `web/documentos/educacao-termo.html`). `publicoAlvo` e `programas` são JSON; "Outro" guarda o texto em `publicoOutro`/`programaOutro`/`tipoMedidaOutro`. Tipos de medida e públicos: lista fixa em `educacao.gs` e `educacao-docs.js`; programas: `CONFIG.PCE.termo.programasRelatorio`.
 - Obrigatórios: data (não futura), hora, município, local, tipo de medida, público-alvo, programas, descrição e pessoas orientadas (inteiro >= 0). Folders opcional (inteiro >= 0). O servidor confere os mesmos campos em `educacaoRegistrar`.
 - Número `NNN.AAAA.UNIDADE` (unidade = lotação do servidor), sequência própria (`SEQUENCIAS.EDU`), independente da do Termo de Fiscalização do PCE. Online: `educacaoRegistrar` grava só se o número estiver livre, sob lock. Sem internet: provisório (último conhecido + 1), conferido no `sync`; repetido = `conflito = 1` e o mais antigo vale.

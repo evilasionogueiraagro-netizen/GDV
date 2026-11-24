@@ -1,4 +1,4 @@
-// Roteiro do app de campo do PCE (web/js/campo.js, pce-cadastros.js, moniliase.js): identificar o servidor, cadastrar produtor, propriedade e frutos,
+// Roteiro do app de campo do PCE (web/js/campo.js, pce-cadastros.js, pce-visita.js): identificar o servidor, cadastrar produtor, propriedade e frutos,
 // fazer a visita em passos. Usado pelos testes do PCE. Dados sempre fictícios.
 const amb = require('./amb');
 const U = require('./usuarios');

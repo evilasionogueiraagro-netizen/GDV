@@ -3,10 +3,10 @@
 // O cadastro é UM formulário (produtor + propriedade + frutos): cada dado é perguntado uma vez. Os frutos (cultura, cultivar, área, espaçamento,
 // idade, quantidade, produção e destino) ficam na propriedade e alimentam a tabela de cultura de todas as fichas oficiais. A ficha oficial é gerada
 // a partir do cadastro (CONFIG.PCE.fichas), nunca bloqueia o Termo e só pergunta o que é próprio do modelo e ainda não foi respondido.
-// Usa funções do app.js (view, go, tela, toast, $, esc, dBR, hojeISO, agoraHM, pegarLocal), do pce.js (PCEUI), do moniliase.js (PCEMon.nucleo) e do docs.js.
+// Usa funções do app.js (view, go, tela, toast, $, esc, dBR, hojeISO, agoraHM, pegarLocal), do pce.js (PCEUI), do pce-visita.js (PCEVisita.nucleo) e do docs.js.
 const PCECads = (() => {
   const P = CONFIG.PCE, FI = P.fichas, CI = P.citros || {};
-  const N = () => PCEMon.nucleo, U = () => PCEUI;
+  const N = () => PCEVisita.nucleo, U = () => PCEUI;
   const semAcento = s => String(s == null ? '' : s).normalize('NFD').replace(/[̀-ͯ]/g, '');
   const nk = s => semAcento(s).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
   const idCat = s => nk(s).replace(/ /g, '-').slice(0, 60);
@@ -159,7 +159,7 @@ const PCECads = (() => {
   }
   function mostrarCoord(k) {
     const b = blocoDe(k), st = b && b.querySelector('.pp-coord-st'); if (!st) return null;
-    const r = PCEMon.lerPar(pv(k, 'lat'), pv(k, 'lon'));
+    const r = PCEVisita.lerPar(pv(k, 'lat'), pv(k, 'lon'));
     st.innerHTML = r.vazio ? '' : r.erro ? `<div class="tf-alerta">${icone('alerta')} ${esc(r.erro)}</div>` : `<div class="tf-ok">${icone('check')} ${esc(String(r.lat).replace('.', ','))} / ${esc(String(r.lon).replace('.', ','))}</div>`;
     return r;
   }
@@ -496,7 +496,7 @@ const PCECads = (() => {
             amostra: 'nao', sintomas: 'nao', hospedeiros: JSON.stringify(cts), fotos: '[]', assinaturas: '{}', documentos: '[]',
             registroAntigo: 0, cancelado: 0, motivoCancel: '', excluido: 0,
             visitaId: visitaId, programaVisita: cf.nome || rotulo(m), culturas: JSON.stringify(culturas) };
-          const r = await PCEMon.numerar('termo', rec, null, null);
+          const r = await PCEVisita.numerar('termo', rec, null, null);
           if (r && r.rec) criados++;
           if (r && r.duplicado) avisos.push(`${cf.nome || rotulo(m)}: a planilha já tem o Termo ${r.duplicado.numeroTxt}; não foi criado outro.`);
         }
@@ -626,7 +626,7 @@ const PCECads = (() => {
       } else {
         const d = new Date();
         rec = { ...rec, ...U().dadosServidor(s), data: hojeISO(), hora: agoraHM(), local: (s.lotacao || p.municipio || '') + '/AM', unidade: Sync.unidadePce(s.lotacao || p.municipio), criadoEm: t0 };
-        const r = await PCEMon.numerar('cadastro', rec, null, null);
+        const r = await PCEVisita.numerar('cadastro', rec, null, null);
         if (!r) { F.salvando = false; btn.disabled = false; return; }
       }
       FIC = null;
@@ -648,7 +648,7 @@ const PCECads = (() => {
       else if (a === 'voltartermos') go('pceprodutor', doc);
       else if (a === 'ficha') go('pceficha', { propId: prop, modelo: el.dataset.modelo, id: ((await Store.todos('cadastrosPce')).find(c => !Number(c.excluido) && c.propriedadeId === prop && (c.programa || 'moniliase') === el.dataset.modelo && lerJSON(c.dados, {}).fichaNova) || {}).id });
       else if (a === 'pdfficha') await imprimirFicha(el.dataset.id);
-      else if (a === 'pdftermo') await PCEMon.imprimir('termo', el.dataset.id);
+      else if (a === 'pdftermo') await PCEVisita.imprimir('termo', el.dataset.id);
       else if (a === 'pdfcolheita') await PCEUI.imprimirColheita(el.dataset.id);
       else if (a === 'abrirprodutor') go('pceprodutor', doc);
       else if (a === 'voltarficha') go('pceprodutor', doc);

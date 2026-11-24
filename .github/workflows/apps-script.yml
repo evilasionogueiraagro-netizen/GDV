@@ -1,7 +1,7 @@
 name: Publicar Apps Script
 # No merge na main (os testes já rodaram no PR, em testes.yml), publica apps-script/ (os .gs + appsscript.json) na implantação atual do Web App,
-# com o clasp: a URL /exec não muda. Só publica quando a versão no ar (GET /exec) for diferente do VERSAO_CODIGO do
-# repositório, então merge só de front não gera versão nova.
+# com o clasp: a URL /exec não muda. Calcula a versão pela data em Manaus + hash curto do último commit que mexeu em apps-script/
+# e só publica quando for diferente do GET /exec (merge só de front não republica). Antes do push, troca 'dev' em Code.gs apenas no CI.
 # Configuração (uma vez, pelo dono do repositório): docs/PUBLICACAO-BACK.md.
 on:
   push:
@@ -15,6 +15,8 @@ concurrency:
 jobs:
   publicar:
     if: github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 10
     env:
@@ -37,18 +39,25 @@ jobs:
             echo "::notice::$(git rev-parse --short HEAD) não é mais o último commit da main; nada a publicar."
             echo "publicar=0" >> "$GITHUB_OUTPUT"; exit 0
           fi
-          versao=$(sed -nE "s/^const VERSAO_CODIGO = '([^']+)'.*/\1/p" apps-script/Code.gs)
+          grep -q "^const VERSAO_CODIGO = " apps-script/Code.gs || { echo "::error::VERSAO_CODIGO não encontrado em apps-script/Code.gs"; exit 1; }
+          versao=$(TZ=America/Manaus git log -1 --format='%cd-%h' --date='format-local:%Y-%m-%d' -- apps-script/)
+          [ -n "$versao" ] || { echo "::error::Não foi possível gerar a versão pelo histórico de apps-script/."; exit 1; }
           url=$(sed -nE "s/.*sync: \{ url: '([^']+)'.*/\1/p" web/js/config.js)
           implantacao=$(printf '%s' "$url" | sed -nE 's#^https://script\.google\.com/macros/s/([^/]+)/exec$#\1#p')
-          [ -n "$versao" ] || { echo "::error::VERSAO_CODIGO não encontrado em apps-script/Code.gs"; exit 1; }
           [ -n "$implantacao" ] || { echo "::error::URL /exec não encontrada em web/js/config.js"; exit 1; }
           no_ar=$(curl -sL --max-time 30 "$url" | jq -r '.versao // empty' || true)
-          echo "Repositório: $versao | no ar: ${no_ar:-sem resposta}"
+          echo "Calculada (apps-script/): $versao | no ar: ${no_ar:-sem resposta}"
           if [ "$versao" = "$no_ar" ]; then
             echo "::notice::A versão $versao já está no ar; nada a publicar."
             echo "publicar=0" >> "$GITHUB_OUTPUT"; exit 0
           fi
           { echo "publicar=1"; echo "versao=$versao"; echo "url=$url"; echo "implantacao=$implantacao"; } >> "$GITHUB_OUTPUT"
+
+      - name: Gravar versão no Code.gs para publicar
+        if: steps.alvo.outputs.publicar == '1'
+        run: |
+          sed -i "s/^const VERSAO_CODIGO = .*/const VERSAO_CODIGO = '${{ steps.alvo.outputs.versao }}';/" apps-script/Code.gs
+          grep -q "^const VERSAO_CODIGO = '${{ steps.alvo.outputs.versao }}';" apps-script/Code.gs
 
       - name: Credenciais do clasp
         if: steps.alvo.outputs.publicar == '1'
@@ -80,6 +89,17 @@ jobs:
           done
           echo "::error::Depois de publicar, o /exec responde '${no_ar:-nada}' em vez de ${{ steps.alvo.outputs.versao }}."
           exit 1
+
+      - name: Criar tag da versão publicada
+        if: steps.alvo.outputs.publicar == '1'
+        run: |
+          tag="back-${{ steps.alvo.outputs.versao }}"
+          if git ls-remote --exit-code --tags origin "refs/tags/${tag}" >/dev/null 2>&1; then
+            echo "::notice::A tag $tag já existe."
+          else
+            git rev-parse -q --verify "refs/tags/${tag}" >/dev/null || git tag "$tag"
+            git push origin "refs/tags/${tag}"
+          fi
 
       - name: Apagar credenciais
         if: always()

@@ -14,8 +14,8 @@ Valem para todo código, teste, doc e commit. Resumo de uma linha de cada no [AG
 
 ## Back (`Code.gs`)
 
-- **`VERSAO_CODIGO`** (perto do `doGet`): mude a cada alteração do `Code.gs` (formato `AAAA-MM-DDx`). O back só é
-  publicado se ela mudar; `GET /exec` mostra a versão no ar.
+- **`VERSAO_CODIGO`** (`doGet`): fica `'dev'` no repo; não edite. No merge na `main`, o CI troca por `AAAA-MM-DD-<hash>`
+  (Manaus, último commit em `apps-script/`) antes de publicar; `GET /exec` mostra a versão no ar.
 - **Google só na camada de acesso**: regra de negócio não chama `SpreadsheetApp`, `LockService`, `PropertiesService`,
   `CacheService`, `DriveApp`, `MailApp`, `UrlFetchApp`, `Utilities` nem `getRange`/`setValues`. Use (ou crie) a função
   da seção "Acesso ao Google (camada portátil)" com o nome de [PORTABILIDADE.md](PORTABILIDADE.md). Leia e grave por
@@ -63,7 +63,7 @@ Valem para todo código, teste, doc e commit. Resumo de uma linha de cada no [AG
 ## Publicação
 
 - **Front**: merge na `main` com mudança em `web/**` publica no GitHub Pages, direto em produção. Sempre branch + PR.
-- **Back**: no merge na `main`, `apps-script.yml` publica com o clasp (se `VERSAO_CODIGO` mudou). Testes só no PR:
+- **Back**: na `main`, `apps-script.yml` publica com o clasp se a versão de `apps-script/` difere do `GET /exec`. Testes só no PR:
   atualize o PR com a `main` antes do merge. Nunca edite no editor do Apps Script. Detalhes e falhas: [PUBLICACAO-BACK.md](PUBLICACAO-BACK.md).
 
 ## Testes

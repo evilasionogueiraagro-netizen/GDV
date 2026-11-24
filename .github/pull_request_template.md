@@ -22,7 +22,7 @@
 
 <!-- Só se mexeu no Code.gs; senão, escreva "não mexe". -->
 
-- `VERSAO_CODIGO` novo (maior que o da `main`):
+- `VERSAO_CODIGO` mantido como `'dev'` (o CI gera a versão no merge em `main`).
 - Coluna nova em `TABELAS`? não / sim: qual. Coluna nova só no **fim** do array; nunca renomear, reordenar ou remover.
 - Serviço novo do Google? não / sim: qual e com quem foi combinado (precisa existir também no `tests/fakegas.js`).
 

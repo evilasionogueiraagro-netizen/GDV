@@ -7,7 +7,7 @@ Passo a passo para o gerente: [web/painel/manual.html](../../web/painel/manual.h
 1. Planilha nova. Extensões → Apps Script: cole os `apps-script/*.gs` e o manifesto `apps-script/appsscript.json`.
 2. Recarregue a planilha (menu e-GDV) e crie o primeiro gerente: e-GDV → Criar o primeiro gerente.
 3. Implantar → Nova implantação → App da Web: executar como Eu, acesso Qualquer pessoa. A URL `/exec` vai em `CONFIG.sync.url` (`web/js/config.js`); não é segredo.
-4. Depois disso, o back publica sozinho a cada merge na `main` que mude o `VERSAO_CODIGO` ([PUBLICACAO-BACK](../PUBLICACAO-BACK.md)).
+4. Depois disso, o back publica sozinho a cada merge na `main` que mude algo em `apps-script/` (versão automática; [PUBLICACAO-BACK](../PUBLICACAO-BACK.md)).
 5. GitHub: Settings → Pages → Source: GitHub Actions (o merge na `main` publica `web/`).
 6. Com a conta dona da planilha: e-GDV → Ativar rotinas automáticas.
 

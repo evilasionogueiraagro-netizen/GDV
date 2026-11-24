@@ -3,12 +3,12 @@
 No merge na `main` (os testes já rodaram no PR), o workflow [apps-script.yml](../.github/workflows/apps-script.yml) publica `apps-script/` com o [clasp](https://github.com/google/clasp) e cria versão nova na implantação atual. A URL `/exec` não muda.
 
 ## Como funciona
-Merge na `main` → "Publicar Apps Script" não faz nada se o commit não é o último da `main` ou se o `GET /exec` já responde o `VERSAO_CODIGO`. Senão: `clasp push --force` (substitui os arquivos por `apps-script/`), `clasp redeploy` na implantação de `web/js/config.js` e confere o `GET /exec` (12 tentativas, de 10 s).
+Merge na `main` → se o commit for o último, calcula `AAAA-MM-DD-<hash>` (Manaus, último commit em `apps-script/`). Se igual ao `GET /exec`, encerra (merge só de front não republica). Senão: troca `'dev'` em `Code.gs` só no CI, roda `clasp push --force`, `clasp redeploy` (`web/js/config.js`), confere `GET /exec` (12x, 10 s) e cria a tag `back-<versao>`.
 
 ## Regras
-- **Só publica se o `VERSAO_CODIGO` mudou.** Esqueceu? Mude-o num commit novo.
+- **`VERSAO_CODIGO` fica `'dev'` no repo.** Não edite; o CI gera `AAAA-MM-DD-<hash>` pelo último commit em `apps-script/`.
 - Front e back saem no mesmo merge (o back, ~2 min depois). Front que depende de action ou coluna nova aguenta o back antigo nesse intervalo.
-- Não edite no editor do Apps Script (a próxima publicação sobrescreve). Publicar à mão: mude o `VERSAO_CODIGO` junto.
+- Não edite no Apps Script (o CI sobrescreve). Manual: use **Run workflow** na `main` ou troque a versão só na cópia local antes do push.
 - Serviço novo do Google: a conta dona autoriza no editor (rode uma função, ex.: `onOpen`, e aceite); até lá, as chamadas com o serviço falham. Já deve estar combinado ([PORTABILIDADE.md](PORTABILIDADE.md)).
 
 ## Configurar (uma vez)

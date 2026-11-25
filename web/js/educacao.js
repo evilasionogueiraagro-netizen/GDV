@@ -31,7 +31,7 @@ const EducacaoUI = (() => {
     go('educacaoservidor', { voltar, arg });
     return null;
   }
-  const CARGOS_EDU = ['Coordenador de Trânsito e Barreira', 'Coordenador de Fiscalização Sanitária'];
+  const CARGOS_EDU = ['Coordenador de Trânsito e Barreira', 'Coordenador de Fiscalização Sanitária', 'Coordenador de Unidade'];
   const cargos = () => P.cargos.concat(CARGOS_EDU);
   const cargoHTML = (id, atual) => {
     const lista = cargos(), naLista = !atual || lista.includes(atual);

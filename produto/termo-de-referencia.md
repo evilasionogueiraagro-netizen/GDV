@@ -141,7 +141,7 @@ Sistema de gestão da defesa vegetal da ADAF/AM: barreiras fitossanitárias, Ter
 - RF-45. Encerramento automático de turnos esquecidos, cópia de segurança diária (30 últimas), relatório mensal por e-mail e arquivamento anual.
 
 ### 4.11. Termo de Educação Sanitária
-- RF-46. Módulo próprio e independente (permissão ligada pela gerência): o servidor registra a medida educativa (abordagem, palestra, oficina, dia de campo, material, feira, reunião, visita ou outra) com data, hora, município, local, público-alvo, programas ou pragas abordados, descrição, pessoas orientadas, folders entregues e observações; numeração por unidade e ano, confirmada pela planilha (provisória sem internet), rascunho automático, cancelamento com motivo e PDF no modelo da ADAF.
+- RF-46. Módulo próprio e independente (permissão ligada pela gerência): o servidor registra a medida educativa (abordagem, palestra, oficina, dia de campo, material, feira, reunião, visita ou outra) com data, hora, município, local, público-alvo, programas ou pragas abordados, descrição, pessoas orientadas, folders entregues e observações; numeração por unidade e ano, confirmada pela planilha (provisória sem internet), rascunho automático, cancelamento com motivo e PDF no modelo da ADAF. O cargo do servidor vem da lista de cargos da ADAF, das coordenações (Trânsito e Barreira, Fiscalização Sanitária e Unidade) ou é digitado.
 
 ## 5. Requisitos não funcionais
 

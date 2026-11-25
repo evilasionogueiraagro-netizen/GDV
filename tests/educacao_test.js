@@ -87,6 +87,7 @@ const reg = (id, o = {}) => ({ id, unidade: 'Manaus', ano: ANO, numero: 1, data:
   await p.click('.modulo[data-v=educacao]'); await p.waitForSelector('#eduServForm');
   await p.click('#edu-s-salvar');
   ok(await p.isVisible('#eduServForm'), 'Meus dados: sem cargo e lotação não salva');
+  ok(await p.locator('#edu-s-cargo option', { hasText: 'Coordenador de Unidade' }).count() === 1, 'cargo: opção "Coordenador de Unidade"');
   await p.fill('#edu-s-nome', 'Pessoa Ficticia Edu'); await p.selectOption('#edu-s-cargo', { index: 1 }); await p.fill('#edu-s-matricula', '12345'); await p.selectOption('#edu-s-lotacao', 'Manaus');
   await p.click('#edu-s-salvar'); await p.waitForSelector('#edu-novo');
   ok(/Meus termos de educação sanitária/.test(await p.textContent('#view')) && await p.locator('.edu-item').count() === 3, 'lista "Meus termos de educação sanitária": os 3 termos que a planilha já tinha deste servidor');
